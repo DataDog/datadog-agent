@@ -12,8 +12,10 @@ import shutil
 import time
 from dataclasses import dataclass
 
+import requests
 from invoke import Exit, task
 
+from tasks.agent_ci_api import get_datacenter
 from tasks.libs.anomalydetection.eval import (
     CORRELATORS,
     DETECTORS,
@@ -35,6 +37,7 @@ from tasks.libs.anomalydetection.eval import (
     print_eval_tp_summary,
     random_component_combinations,
 )
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 
 DEFAULT_DDEVAL_CONFIG_TEMPLATE = os.path.join(
@@ -64,6 +67,10 @@ class _DDEvalOptions:
     max_attempts: int
     limit: int
     where_in: str
+    agent_ci_api_env: str
+    agent_ci_api_poll_wait: int
+    agent_ci_api_poll_interval: int
+    agent_ci_api_timeout: int
 
 
 # --- Build ---
@@ -810,6 +817,10 @@ def eval_bayesian(
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
     ddeval_where_in: str = "",
+    ddeval_agent_ci_api_env: str = "prod",
+    ddeval_agent_ci_api_poll_wait: int = 10,
+    ddeval_agent_ci_api_poll_interval: int = 1,
+    ddeval_agent_ci_api_timeout: int = 7200,
     _logger: StepLogger | None = None,
 ):
     """
@@ -850,7 +861,8 @@ def eval_bayesian(
         ddeval_command: Installed ddeval command or wrapper. When set, this is used
             instead of running the ddeval Bazel target from dd-source.
         ddeval_submitter: Remote submitter. "ddeval" uses ddeval workflow run;
-            "atlas" uses atlas workflow start/output directly.
+            "atlas" uses atlas workflow start/output directly; "agent-ci-api"
+            uses the Agent CI API bridge.
         ddeval_service: ddeval executor service name.
         ddeval_project: LLMObs/ddEval project name.
         ddeval_dataset: ddEval dataset name.
@@ -864,6 +876,10 @@ def eval_bayesian(
         ddeval_max_attempts: Max attempts per scenario.
         ddeval_limit: Optional dataset limit for smoke tests.
         ddeval_where_in: Optional ddeval --where-in filter, e.g. metadata.record_id=a,b.
+        ddeval_agent_ci_api_env: Agent CI API environment for --ddeval-submitter=agent-ci-api.
+        ddeval_agent_ci_api_poll_wait: Seconds each Agent CI API result poll waits server-side.
+        ddeval_agent_ci_api_poll_interval: Seconds to sleep between incomplete poll responses.
+        ddeval_agent_ci_api_timeout: Max seconds to wait for one remote workflow.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-bayesian
@@ -871,6 +887,8 @@ def eval_bayesian(
         dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
         dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
         dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval --ddeval-command ddeval --n-trials 3
+        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \
+            --ddeval-submitter agent-ci-api --ddeval-limit 1 --n-trials 1
     """
     import pickle
 
@@ -946,6 +964,10 @@ def eval_bayesian(
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
             ddeval_where_in=ddeval_where_in,
+            ddeval_agent_ci_api_env=ddeval_agent_ci_api_env,
+            ddeval_agent_ci_api_poll_wait=ddeval_agent_ci_api_poll_wait,
+            ddeval_agent_ci_api_poll_interval=ddeval_agent_ci_api_poll_interval,
+            ddeval_agent_ci_api_timeout=ddeval_agent_ci_api_timeout,
         )
     except ValueError as e:
         print(color_message(f"Error: {e}", Color.RED))
@@ -979,6 +1001,9 @@ def eval_bayesian(
         if ddeval_options:
             print(color_message(f"  ddeval data: {ddeval_options.project}/{ddeval_options.dataset}", Color.BLUE))
             print(color_message(f"  ddeval jobs: {ddeval_options.jobs}", Color.BLUE))
+            print(color_message(f"  ddeval submitter: {ddeval_options.submitter}", Color.BLUE))
+            if ddeval_options.submitter == "agent-ci-api":
+                print(color_message(f"  agent-ci-api: {ddeval_options.agent_ci_api_env}", Color.BLUE))
 
     completed_trials: list[dict] = []
     failed_trials: list[dict] = []
@@ -1144,6 +1169,10 @@ def _resolve_ddeval_options(
     ddeval_max_attempts: int,
     ddeval_limit: int,
     ddeval_where_in: str,
+    ddeval_agent_ci_api_env: str,
+    ddeval_agent_ci_api_poll_wait: int,
+    ddeval_agent_ci_api_poll_interval: int,
+    ddeval_agent_ci_api_timeout: int,
 ) -> tuple[str, _DDEvalOptions | None]:
     eval_backend = eval_backend.strip().lower()
     if eval_backend not in {"local", "ddeval"}:
@@ -1151,7 +1180,7 @@ def _resolve_ddeval_options(
     if eval_backend == "local":
         return eval_backend, None
     submitter = (ddeval_submitter or os.environ.get("DDEVAL_SUBMITTER", "") or "ddeval").strip().lower()
-    if submitter not in {"ddeval", "atlas"}:
+    if submitter not in {"ddeval", "atlas", "agent-ci-api"}:
         raise ValueError(f"unknown ddeval submitter: {submitter}")
 
     config_template = (
@@ -1160,7 +1189,19 @@ def _resolve_ddeval_options(
         or DEFAULT_DDEVAL_CONFIG_TEMPLATE
     )
     command = (ddeval_command or os.environ.get("DDEVAL_COMMAND", "")).strip()
-    if command:
+    agent_ci_api_env = (ddeval_agent_ci_api_env or os.environ.get("OBSERVER_ABLATION_AGENT_CI_API_ENV", "prod")).strip()
+    agent_ci_api_poll_wait = int(
+        os.environ.get("OBSERVER_ABLATION_AGENT_CI_API_POLL_WAIT_SECONDS", ddeval_agent_ci_api_poll_wait)
+    )
+    agent_ci_api_poll_interval = int(
+        os.environ.get("OBSERVER_ABLATION_AGENT_CI_API_POLL_INTERVAL_SECONDS", ddeval_agent_ci_api_poll_interval)
+    )
+    agent_ci_api_timeout = int(
+        os.environ.get("OBSERVER_ABLATION_AGENT_CI_API_TIMEOUT_SECONDS", ddeval_agent_ci_api_timeout)
+    )
+    if submitter != "ddeval":
+        ddsource_dir = os.path.abspath(ddeval_ddsource_dir) if ddeval_ddsource_dir else ""
+    elif command:
         ddsource_dir = os.path.abspath(ddeval_ddsource_dir) if ddeval_ddsource_dir else ""
     else:
         ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
@@ -1178,6 +1219,14 @@ def _resolve_ddeval_options(
         raise ValueError(f"dd-source directory not found: {ddsource_dir}")
     if not os.path.isfile(config_template):
         raise ValueError(f"ddeval config template not found: {config_template}")
+    if submitter == "agent-ci-api" and agent_ci_api_env not in {"prod", "staging", "local"}:
+        raise ValueError("--ddeval-agent-ci-api-env must be one of: prod, staging, local")
+    if agent_ci_api_poll_wait < 0:
+        raise ValueError("--ddeval-agent-ci-api-poll-wait must be greater than or equal to 0")
+    if agent_ci_api_poll_interval < 0:
+        raise ValueError("--ddeval-agent-ci-api-poll-interval must be greater than or equal to 0")
+    if agent_ci_api_timeout <= 0:
+        raise ValueError("--ddeval-agent-ci-api-timeout must be greater than 0")
 
     return eval_backend, _DDEvalOptions(
         config_template=config_template,
@@ -1197,6 +1246,10 @@ def _resolve_ddeval_options(
         max_attempts=ddeval_max_attempts,
         limit=ddeval_limit,
         where_in=ddeval_where_in,
+        agent_ci_api_env=agent_ci_api_env,
+        agent_ci_api_poll_wait=agent_ci_api_poll_wait,
+        agent_ci_api_poll_interval=agent_ci_api_poll_interval,
+        agent_ci_api_timeout=agent_ci_api_timeout,
     )
 
 
@@ -1204,6 +1257,10 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
     if options is None:
         return {}
     return {
+        "ddeval_agent_ci_api_env": options.agent_ci_api_env,
+        "ddeval_agent_ci_api_poll_wait": options.agent_ci_api_poll_wait,
+        "ddeval_agent_ci_api_poll_interval": options.agent_ci_api_poll_interval,
+        "ddeval_agent_ci_api_timeout": options.agent_ci_api_timeout,
         "ddeval_config_template": options.config_template,
         "ddeval_ddsource_dir": options.ddsource_dir,
         "ddeval_command": options.command,
@@ -1280,7 +1337,10 @@ def _run_ddeval_trial(
         json.dump(experiment_config, f, indent=4)
 
     result_log_path = os.path.abspath(os.path.join(trial_dir, "ddeval-workflow.log"))
-    if options.submitter == "atlas":
+    if options.submitter == "agent-ci-api":
+        cmd = _agent_ci_api_endpoint(options, "observer-ablation/eval")
+        workflow_id = None
+    elif options.submitter == "atlas":
         cmd, workflow_id = _atlas_workflow_command(
             experiment_config=experiment_config,
             trial_dir=trial_dir,
@@ -1296,22 +1356,35 @@ def _run_ddeval_trial(
     logger.detail(f"ddeval log: {result_log_path}")
 
     started_at = time.monotonic()
-    result = ctx.run(cmd, hide=True, warn=True)
+    if options.submitter == "agent-ci-api":
+        workflow_result, workflow_id, workflow_run_id = _run_agent_ci_api_ddeval_workflow(
+            ctx,
+            experiment_config=experiment_config,
+            options=options,
+            logger=logger,
+            log_path=result_log_path,
+        )
+        stdout = ""
+    else:
+        result = ctx.run(cmd, hide=True, warn=True)
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        with open(result_log_path, "w") as f:
+            f.write(stdout)
+            if stderr:
+                f.write("\n--- stderr ---\n")
+                f.write(stderr)
+
+        if result.failed:
+            raise RuntimeError(f"ddeval workflow command failed; see {result_log_path}")
+
+        workflow_result = (
+            _parse_atlas_workflow_result(stdout)
+            if options.submitter == "atlas"
+            else _parse_ddeval_workflow_result(stdout)
+        )
+        workflow_run_id = _parse_ddeval_workflow_run_id(stdout)
     duration_s = time.monotonic() - started_at
-    stdout = result.stdout or ""
-    stderr = result.stderr or ""
-    with open(result_log_path, "w") as f:
-        f.write(stdout)
-        if stderr:
-            f.write("\n--- stderr ---\n")
-            f.write(stderr)
-
-    if result.failed:
-        raise RuntimeError(f"ddeval workflow command failed; see {result_log_path}")
-
-    workflow_result = (
-        _parse_atlas_workflow_result(stdout) if options.submitter == "atlas" else _parse_ddeval_workflow_result(stdout)
-    )
     metrics_json = workflow_result.get("metricsJson") or workflow_result.get("metrics_json") or "{}"
     try:
         metrics = json.loads(metrics_json) if isinstance(metrics_json, str) else dict(metrics_json)
@@ -1325,7 +1398,7 @@ def _run_ddeval_trial(
         "metrics": metrics,
         "experiment_url": workflow_result.get("experimentUrl") or workflow_result.get("experiment_url"),
         "workflow_id": workflow_id or _parse_ddeval_workflow_id(stdout),
-        "workflow_run_id": _parse_ddeval_workflow_run_id(stdout),
+        "workflow_run_id": workflow_run_id,
         "duration_s": duration_s,
         "ddeval_result": workflow_result,
         "component_configs": trial_config,
@@ -1350,6 +1423,143 @@ def _run_ddeval_trial(
         )
     )
     return report
+
+
+def _run_agent_ci_api_ddeval_workflow(
+    ctx,
+    *,
+    experiment_config: dict,
+    options: _DDEvalOptions,
+    logger: StepLogger,
+    log_path: str,
+) -> tuple[dict[str, object], str, str]:
+    start_attrs = {
+        "experiment_config": json.dumps(experiment_config),
+        "dataset_filter_json": _ddeval_dataset_filter_json(options),
+        "max_attempts": int(options.max_attempts),
+        "scenario_concurrency": int(options.jobs),
+    }
+    start_response = _agent_ci_api_post(ctx, options, "observer-ablation/eval", start_attrs, timeout=120.0)
+    workflow_id = str(start_response.get("id") or start_response.get("workflow_id") or "")
+    run_id = str(start_response.get("run_id") or "")
+    if not workflow_id:
+        raise RuntimeError(f"agent-ci-api eval response did not include a workflow id: {start_response}")
+
+    logger.detail(f"workflow: {workflow_id}{f' run_id={run_id}' if run_id else ''}")
+
+    deadline = time.monotonic() + options.agent_ci_api_timeout
+    polls: list[dict[str, object]] = []
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            with open(log_path, "w") as f:
+                json.dump({"start": start_response, "polls": polls}, f, indent=4)
+            raise TimeoutError(
+                f"agent-ci-api eval workflow {workflow_id} did not complete within {options.agent_ci_api_timeout}s"
+            )
+
+        wait_seconds = min(int(options.agent_ci_api_poll_wait), max(0, int(remaining)))
+        result_response = _agent_ci_api_post(
+            ctx,
+            options,
+            "observer-ablation/eval/result",
+            {
+                "workflow_id": workflow_id,
+                "run_id": run_id,
+                "wait_seconds": wait_seconds,
+            },
+            timeout=float(max(wait_seconds + 5, 15)),
+        )
+        polls.append(result_response)
+
+        status = str(result_response.get("status") or "")
+        if result_response.get("completed"):
+            with open(log_path, "w") as f:
+                json.dump({"start": start_response, "polls": polls}, f, indent=4)
+            if status == "failed":
+                raise RuntimeError(
+                    f"agent-ci-api eval workflow {workflow_id} failed: {result_response.get('error') or result_response}"
+                )
+            return result_response, workflow_id, run_id
+
+        if status and status != "running":
+            logger.detail(f"agent-ci-api workflow status: {status}")
+
+        if options.agent_ci_api_poll_interval > 0:
+            time.sleep(min(options.agent_ci_api_poll_interval, max(0, deadline - time.monotonic())))
+
+
+def _agent_ci_api_post(
+    ctx,
+    options: _DDEvalOptions,
+    endpoint: str,
+    attributes: dict[str, object],
+    *,
+    timeout: float,
+) -> dict[str, object]:
+    url = _agent_ci_api_endpoint(options, endpoint)
+    response = requests.post(
+        url,
+        json={
+            "data": {
+                "type": _agent_ci_api_type(endpoint),
+                "attributes": attributes,
+            }
+        },
+        headers={
+            "Authorization": _agent_ci_api_token(ctx, options),
+            "X-DdOrigin": os.environ.get("CI_JOB_ID", "curl-authanywhere"),
+            "Content-Type": "application/json",
+        },
+        timeout=timeout,
+    )
+    if not response.ok:
+        raise RuntimeError(f"agent-ci-api request failed with code {response.status_code}:\n{response.text}")
+    try:
+        body = response.json()
+    except ValueError as e:
+        raise RuntimeError(f"agent-ci-api response was not JSON: {response.text}") from e
+
+    data = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(data, dict):
+        raise RuntimeError(f"agent-ci-api response did not include JSON:API data: {body}")
+    attrs = data.get("attributes") or {}
+    if not isinstance(attrs, dict):
+        raise RuntimeError(f"agent-ci-api response attributes were not an object: {body}")
+    return {"id": data.get("id"), **attrs}
+
+
+def _agent_ci_api_endpoint(options: _DDEvalOptions, endpoint: str) -> str:
+    if options.agent_ci_api_env == "local":
+        return f"http://localhost:8080/internal/agent-ci-api/{endpoint}"
+    return f"https://agent-ci-api.{get_datacenter(options.agent_ci_api_env)}/internal/agent-ci-api/{endpoint}"
+
+
+def _agent_ci_api_type(endpoint: str) -> str:
+    if endpoint.endswith("/result"):
+        return "observer_ablation_eval_result_request"
+    return "observer_ablation_eval_workflow_request"
+
+
+def _agent_ci_api_token(ctx, options: _DDEvalOptions) -> str:
+    if options.agent_ci_api_env == "local":
+        return ""
+    return datadog_infra_token(ctx, audience="rapid-agent-devx", datacenter=get_datacenter(options.agent_ci_api_env))
+
+
+def _ddeval_dataset_filter_json(options: _DDEvalOptions) -> str:
+    dataset_filter: dict[str, object] = {}
+    if options.where_in:
+        where_in = {}
+        for clause in [c.strip() for c in options.where_in.split(";") if c.strip()]:
+            if "=" not in clause:
+                raise ValueError(f'Invalid --ddeval-where-in format: "{clause}". Expected "field.path=val1,val2".')
+            key, values_str = clause.split("=", 1)
+            where_in[key] = [value.strip() for value in values_str.split(",")]
+        dataset_filter["where_in"] = where_in
+    if options.limit:
+        dataset_filter["limit"] = int(options.limit)
+    return json.dumps(dataset_filter, sort_keys=True) if dataset_filter else ""
 
 
 def _ddeval_workflow_command(
@@ -1542,6 +1752,10 @@ def eval_pipeline(
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
     ddeval_where_in: str = "",
+    ddeval_agent_ci_api_env: str = "prod",
+    ddeval_agent_ci_api_poll_wait: int = 10,
+    ddeval_agent_ci_api_poll_interval: int = 1,
+    ddeval_agent_ci_api_timeout: int = 7200,
 ):
     """
     Full pipeline fine-tuning: Bayesian search over component combinations, then deep tuning on the winner.
@@ -1579,6 +1793,9 @@ def eval_pipeline(
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
         ddeval_command: Installed ddeval command or wrapper. When set, this is used
             instead of running the ddeval Bazel target from dd-source.
+        ddeval_submitter: Remote submitter. "ddeval" uses ddeval workflow run;
+            "atlas" uses atlas workflow start/output directly; "agent-ci-api"
+            uses the Agent CI API bridge.
         ddeval_service: ddeval executor service name.
         ddeval_project: LLMObs/ddEval project name.
         ddeval_dataset: ddEval dataset name.
@@ -1588,6 +1805,10 @@ def eval_pipeline(
         ddeval_max_attempts: Max attempts per scenario.
         ddeval_limit: Optional dataset limit for smoke tests.
         ddeval_where_in: Optional ddeval --where-in filter.
+        ddeval_agent_ci_api_env: Agent CI API environment for --ddeval-submitter=agent-ci-api.
+        ddeval_agent_ci_api_poll_wait: Seconds each Agent CI API result poll waits server-side.
+        ddeval_agent_ci_api_poll_interval: Seconds to sleep between incomplete poll responses.
+        ddeval_agent_ci_api_timeout: Max seconds to wait for one remote workflow.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-pipeline
@@ -1595,6 +1816,8 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --ddeval-command ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
+        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
+            --ddeval-submitter agent-ci-api --n-combos 1 --n-trials-search 1 --n-trials-tune 1 --ddeval-limit 1
     """
     _require_optuna()
 
@@ -1618,6 +1841,10 @@ def eval_pipeline(
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
             ddeval_where_in=ddeval_where_in,
+            ddeval_agent_ci_api_env=ddeval_agent_ci_api_env,
+            ddeval_agent_ci_api_poll_wait=ddeval_agent_ci_api_poll_wait,
+            ddeval_agent_ci_api_poll_interval=ddeval_agent_ci_api_poll_interval,
+            ddeval_agent_ci_api_timeout=ddeval_agent_ci_api_timeout,
         )
     except ValueError as e:
         print(color_message(f"Error: {e}", Color.RED))
@@ -1686,6 +1913,10 @@ def eval_pipeline(
     print(color_message(f"  seed:                {seed}", Color.BLUE))
     print(color_message(f"  output_dir:          {output_dir}", Color.BLUE))
     print(color_message(f"  backend:             {eval_backend}", Color.BLUE))
+    if ddeval_options:
+        print(color_message(f"  ddeval submitter:    {ddeval_options.submitter}", Color.BLUE))
+        if ddeval_options.submitter == "agent-ci-api":
+            print(color_message(f"  agent-ci-api:        {ddeval_options.agent_ci_api_env}", Color.BLUE))
     if force_enable_list:
         print(color_message(f"  force-enabled:       {', '.join(force_enable_list)}", Color.BLUE))
     if force_disable_list:
