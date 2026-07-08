@@ -70,11 +70,13 @@ func TestRetentionForwardRangeIsHalfOpen(t *testing.T) {
 func TestRetentionAppendSketchSeriesAndForwardRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
-		Name:    "dist.metric",
-		Tags:    tagset.CompositeTagsFromSlice([]string{"env:test"}),
-		Host:    "host",
-		NoIndex: true,
-		Source:  metrics.MetricSourceDogstatsd,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:    "dist.metric",
+			Tags:    tagset.CompositeTagsFromSlice([]string{"env:test"}),
+			Host:    "host",
+			NoIndex: true,
+			Source:  metrics.MetricSourceDogstatsd,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10, Sketch: testSketchData(1, 3)},
 			{Ts: 20, Sketch: testSketchData(2, 4)},
@@ -88,7 +90,8 @@ func TestRetentionAppendSketchSeriesAndForwardRange(t *testing.T) {
 		require.Equal(t, uint64(1), source.Count())
 		require.True(t, source.WaitForValue())
 		require.True(t, source.MoveNext())
-		series := source.Current()
+		series, ok := source.Current().(*metrics.SketchSeries)
+		require.True(t, ok)
 		require.Equal(t, "dist.metric", series.Name)
 		require.Equal(t, "host", series.Host)
 		require.Equal(t, []string{"env:test"}, series.Tags.UnsafeToReadOnlySliceString())
@@ -199,7 +202,7 @@ func TestRetentionForwardRangeSketchOnlyDoesNotRequireScalarRing(t *testing.T) {
 	require.Nil(t, retention.buffer)
 
 	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
-		Name: "dist.metric",
+		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.metric"},
 		Points: []metrics.SketchPoint{
 			{Ts: 20, Sketch: testSketchData(2, 4)},
 		},
@@ -219,7 +222,7 @@ func TestRetentionForwardRangeSketchOnlyDoesNotRequireScalarRing(t *testing.T) {
 func TestRetentionProjectsSketchPointsWithPlaceholderAverage(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
-		Name: "dist.metric",
+		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.metric"},
 		Points: []metrics.SketchPoint{
 			{Ts: 10, Sketch: testSketchData(1, 5)},
 			{Ts: 20, Sketch: testSketchData(2, 6)},
@@ -344,7 +347,7 @@ func noAggSerie(name string, value float64, ts float64, tags []string) *metrics.
 	}
 }
 
-func testSketchData(values ...float64) metrics.SketchData {
+func testSketchData(values ...float64) *quantile.Sketch {
 	var agent quantile.Agent
 	for _, value := range values {
 		agent.Insert(value, 1)

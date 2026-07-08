@@ -110,7 +110,8 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromDistributio
 		require.Greater(t, source.Count(), uint64(0))
 		foundSketch := false
 		for source.MoveNext() {
-			series := source.Current()
+			series, ok := source.Current().(*metrics.SketchSeries)
+			require.True(t, ok)
 			if series.Name == "target.metric" {
 				foundSketch = true
 			}

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 func TestSketchBufferRetainsContextPerPoint(t *testing.T) {
@@ -20,15 +21,15 @@ func TestSketchBufferRetainsContextPerPoint(t *testing.T) {
 	source := Source{Kind: SourceDogStatsDBucketed}
 
 	require.NoError(t, buffer.AppendSketchSeries(context.Background(), source, &metrics.SketchSeries{
-		Name: "dist.a",
+		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.a"},
 		Points: []metrics.SketchPoint{
 			{Ts: 10, Sketch: testRetainedSketchData(1)},
 			{Ts: 11, Sketch: testRetainedSketchData(2)},
 		},
 	}))
 	require.NoError(t, buffer.AppendSketchSeries(context.Background(), source, &metrics.SketchSeries{
-		Name:   "dist.b",
-		Points: []metrics.SketchPoint{{Ts: 12, Sketch: testRetainedSketchData(3)}},
+		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.b"},
+		Points:               []metrics.SketchPoint{{Ts: 12, Sketch: testRetainedSketchData(3)}},
 	}))
 
 	series := buffer.SketchSeriesBetween(time.Time{}, time.Time{})
@@ -39,6 +40,8 @@ func TestSketchBufferRetainsContextPerPoint(t *testing.T) {
 	require.Equal(t, int64(12), series[1].Points[0].Ts)
 }
 
-func testRetainedSketchData(value float64) metrics.SketchData {
-	return &retainedSketchData{cnt: 1, min: value, max: value, sum: value, avg: value}
+func testRetainedSketchData(value float64) *quantile.Sketch {
+	agent := quantile.Agent{}
+	agent.Insert(value, 1)
+	return agent.Finish()
 }

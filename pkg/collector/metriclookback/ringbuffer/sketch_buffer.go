@@ -16,6 +16,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 var (
@@ -168,16 +169,18 @@ func (b *SketchBuffer) SketchSeriesBetween(from, to time.Time) metrics.SketchSer
 			continue
 		}
 		series = append(series, &metrics.SketchSeries{
-			Name:     ctx.name,
-			Tags:     tagset.CompositeTagsFromSlice(append([]string(nil), ctx.tags...)),
-			Host:     ctx.host,
-			Interval: ctx.interval,
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:     ctx.name,
+				Tags:     tagset.CompositeTagsFromSlice(append([]string(nil), ctx.tags...)),
+				Host:     ctx.host,
+				Interval: ctx.interval,
+				NoIndex:  ctx.noIndex,
+				Source:   ctx.metricSource,
+			},
 			Points: []metrics.SketchPoint{{
 				Ts:     rec.timestampUnixMicro / 1e6,
 				Sketch: cloneSketchData(rec.sketch),
 			}},
-			NoIndex: ctx.noIndex,
-			Source:  ctx.metricSource,
 		})
 	}
 	return series
@@ -294,7 +297,7 @@ func (s *sketchSliceSource) MoveNext() bool {
 	return s.index < len(s.series)
 }
 
-func (s *sketchSliceSource) Current() *metrics.SketchSeries {
+func (s *sketchSliceSource) Current() metrics.Distribution {
 	return s.series[s.index]
 }
 
@@ -310,7 +313,7 @@ type sketchRecord struct {
 	contextID          uint64
 	timestampUnixMicro int64
 	sequence           uint64
-	sketch             metrics.SketchData
+	sketch             *quantile.Sketch
 }
 
 type sketchShard struct {
@@ -415,38 +418,13 @@ func sketchRecordInRange(rec *sketchRecord, from, to time.Time) bool {
 	return true
 }
 
-type retainedSketchData struct {
-	k                  []int32
-	n                  []uint32
-	cnt                int64
-	min, max, sum, avg float64
-}
-
-func retainSketchData(data metrics.SketchData) metrics.SketchData {
+func retainSketchData(data *quantile.Sketch) *quantile.Sketch {
 	if data == nil {
 		return nil
 	}
-	k, n := data.Cols()
-	cnt, min, max, sum, avg := data.BasicStats()
-	return &retainedSketchData{
-		k:   append([]int32(nil), k...),
-		n:   append([]uint32(nil), n...),
-		cnt: cnt,
-		min: min,
-		max: max,
-		sum: sum,
-		avg: avg,
-	}
+	return data.Copy()
 }
 
-func cloneSketchData(data metrics.SketchData) metrics.SketchData {
+func cloneSketchData(data *quantile.Sketch) *quantile.Sketch {
 	return retainSketchData(data)
-}
-
-func (s *retainedSketchData) Cols() ([]int32, []uint32) {
-	return s.k, s.n
-}
-
-func (s *retainedSketchData) BasicStats() (int64, float64, float64, float64, float64) {
-	return s.cnt, s.min, s.max, s.sum, s.avg
 }
