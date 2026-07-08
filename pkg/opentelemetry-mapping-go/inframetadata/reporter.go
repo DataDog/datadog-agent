@@ -121,7 +121,7 @@ func (r *Reporter) hostname(res pcommon.Resource) (string, bool) {
 		// The resource does not identify a host (e.g. serverless resource)
 		return "", false
 	}
-	return src.Identifier, true
+	return src.Identifier.Primary, true
 }
 
 // ConsumeResource for host metadata reporting purposes.

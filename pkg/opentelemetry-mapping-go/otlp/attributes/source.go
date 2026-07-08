@@ -223,7 +223,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
 		p := cloudPlatform.Str()
 		if p == semconv143.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
-			if replicaName, ok := attrs.Get(string(conventions.ServiceInstanceIDKey)); ok {
+			if replicaName, ok := attrs.Get(string(conventions.FaaSInstanceKey)); ok {
 				return source.Source{Kind: source.AzureContainerAppsKind, Identifier: replicaName.Str()}, true
 			}
 		}
@@ -239,7 +239,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if hostFromAttributesHandler != nil {
 			hostFromAttributesHandler.OnHost(host)
 		}
-		return source.Source{Kind: source.HostnameKind, Identifier: host}, true
+		return source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: host}}, true
 	}
 
 	return source.Source{}, false

@@ -97,7 +97,7 @@ type testProvider string
 func (t testProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{
 		Kind:       source.HostnameKind,
-		Identifier: string(t),
+		Identifier: source.Identifier{Primary: string(t)},
 	}, nil
 }
 

@@ -65,7 +65,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testLiteralHost},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testLiteralHost}},
 		},
 		{
 			name: "custom hostname",
@@ -78,7 +78,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testCustomName},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testCustomName}},
 		},
 		{
 			name: "container ID",
@@ -94,7 +94,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
 		},
 		{
 			name: "ECS Fargate",
@@ -107,7 +107,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.AWSECSLaunchtypeKey):   conventions.AWSECSLaunchtypeFargate.Value.AsString(),
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN"},
+			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: "example-task-ARN"}},
 		},
 		{
 			name: "Azure App Service",
@@ -188,20 +188,20 @@ func TestSourceFromAttrs(t *testing.T) {
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
 				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(conventions.FaaSInstanceKey):  "replica-1",
+				"azure.container_app.instance.id":    "replica-1",
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
+			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
 		},
 		{
 			name: "Azure Container Apps (legacy)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
 				string(conventions.CloudPlatformKey): "azure_container_apps",
-				string(conventions.FaaSInstanceKey):  "replica-1",
+				"azure.container_app.instance.id":    "replica-1",
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
+			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
 		},
 		{
 			name: "GCP",
@@ -212,7 +212,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.CloudAccountIDKey): testCloudAccount,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testGCPIntegrationHostname},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testGCPIntegrationHostname}},
 		},
 		{
 			name: "GCP, no account id",
@@ -230,7 +230,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
 		},
 		{
 			name: "host id v. hostname",
@@ -239,7 +239,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey): testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
+			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
 		},
 		{
 			name:  "no hostname",
@@ -293,7 +293,7 @@ func TestLiteralHostNonString(t *testing.T) {
 	attrs.PutInt(AttributeHost, 1000)
 	src, ok := SourceFromAttrs(attrs, nil)
 	assert.True(t, ok)
-	assert.Equal(t, source.Source{Kind: source.HostnameKind, Identifier: "1000"}, src)
+	assert.Equal(t, source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: "1000"}}, src)
 }
 
 func TestGetClusterName(t *testing.T) {

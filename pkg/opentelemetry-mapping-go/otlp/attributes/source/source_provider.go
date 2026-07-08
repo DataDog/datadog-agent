@@ -55,8 +55,8 @@ type SourceIdentifier struct {
 }
 
 // Tag associated to a source.
-func (s *Source) Tag() string {
-	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier)
+func (s Source) Tag() string {
+	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier.Primary)
 }
 
 // Provider identifies a source.
