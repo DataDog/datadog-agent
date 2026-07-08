@@ -3,15 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-#include <stdint.h>
-
-struct otel_thread_ctx_record {
-    uint8_t trace_id[16];
-    uint8_t span_id[8];
-    uint8_t valid;
-    uint8_t _reserved;
-    uint16_t attrs_data_size;
-};
+#include "otel_tls_common.h"
 
 __attribute__((visibility("default"), tls_model("initial-exec"))) __thread struct otel_thread_ctx_record *otel_thread_ctx_v1 = 0;
 

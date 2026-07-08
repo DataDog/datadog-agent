@@ -30,11 +30,17 @@
 #include <sys/resource.h>
 #include <stdatomic.h>
 
+#include "otel_tls_common.h"
+
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
 
 #ifndef SYS_gettid
 #error "SYS_gettid unavailable on this system"
+#endif
+
+#ifndef CLONE_INTO_CGROUP
+#define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
 pid_t gettid(void) {
@@ -86,21 +92,10 @@ void register_span(struct span_tls_t *tls, __int128 trace_id, unsigned long span
     *(__int128*)(tls->base + offset + 8) = trace_id;
 }
 
-__int128 atouint128(char *s) {
-    if (s == NULL)
-        return (0);
-
-    __int128_t val = 0;
-    for (; *s != 0 && *s >= '0' && *s <= '9'; s++) {
-        val = (10 * val) + (*s - '0');
-    }
-    return val;
-}
-
 static void *thread_span_exec(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
-    __int128_t trace_id = atouint128(opts->argv[1]);
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
     unsigned span_id = atoi(opts->argv[2]);
 
     register_span(opts->tls, trace_id, span_id);
@@ -138,7 +133,7 @@ int span_exec(int argc, char **argv) {
 static void *thread_open(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
-    __int128_t trace_id = atouint128(opts->argv[1]);
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
     unsigned span_id = atoi(opts->argv[2]);
 
     register_span(opts->tls, trace_id, span_id);
@@ -200,7 +195,7 @@ int span_fork_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    __int128_t trace_id = atouint128(argv[1]);
+    __int128_t trace_id = otel_atouint128(argv[1]);
     unsigned span_id = atoi(argv[2]);
     register_span(tls, trace_id, span_id);
 
@@ -227,85 +222,14 @@ int span_fork_exec(int argc, char **argv) {
 // The agent discovers this TLS symbol via ELF dynsym parsing, triggered when the
 // process seals its datadog-tracer-info memfd.
 
-// OTel Thread Local Context Record layout (28-byte fixed header).
-struct otel_thread_ctx_record {
-    uint8_t trace_id[16];     // W3C big-endian byte order
-    uint8_t span_id[8];       // W3C big-endian byte order
-    uint8_t valid;            // must be 1
-    uint8_t _reserved;
-    uint16_t attrs_data_size; // 0 for no custom attributes
-};
-
 // Thread-local pointer to the active OTel context record.
 // This is the standard symbol name from the OTel spec. It must NOT be static
 // so that it appears in the symbol table for the agent's dynsym resolver.
 __thread struct otel_thread_ctx_record *otel_thread_ctx_v1 = NULL;
 
-// Convert a native uint64 to big-endian (W3C) bytes.
-static void u64_to_be_bytes(uint64_t val, uint8_t *out) {
-    out[0] = (uint8_t)(val >> 56);
-    out[1] = (uint8_t)(val >> 48);
-    out[2] = (uint8_t)(val >> 40);
-    out[3] = (uint8_t)(val >> 32);
-    out[4] = (uint8_t)(val >> 24);
-    out[5] = (uint8_t)(val >> 16);
-    out[6] = (uint8_t)(val >> 8);
-    out[7] = (uint8_t)(val);
-}
-
-// Create and seal a tracer-info memfd with native (cpp) tracer metadata.
-// This triggers the agent's memfd seal event, which in turn triggers ELF dynsym
-// resolution for the otel_thread_ctx_v1 TLS symbol.
-// Includes threadlocal_attribute_keys so the agent can parse attrs_data.
-// Returns the fd (kept open so the agent can read via /proc/pid/fd/).
-static int create_tracer_memfd() {
-    // Msgpack-encoded TracerMetadata with tracer_language="cpp" and
-    // threadlocal_attribute_keys=["http.method", "http.target", "http.user"].
-    const char tracer_data[] =
-        "\x86"                                    // fixmap with 6 entries
-        "\xae" "schema_version" "\x02"            // "schema_version": 2
-        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
-        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
-        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
-        "\xac" "service_name" "\xa8" "oteltest"   // "service_name": "oteltest"
-        "\xba" "threadlocal_attribute_keys"       // key (26 chars = 0xa0 | 26 = 0xba)
-        "\x93"                                    // fixarray with 3 elements
-        "\xab" "http.method"                      // str (11 chars)
-        "\xab" "http.target"                      // str (11 chars)
-        "\xa9" "http.user";                       // str (9 chars)
-
-    int fd = memfd_create("datadog-tracer-info-oteltest", MFD_ALLOW_SEALING);
-    if (fd < 0) {
-        fprintf(stderr, "memfd_create failed\n");
-        return -1;
-    }
-
-    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
-    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
-        fprintf(stderr, "memfd write failed\n");
-        close(fd);
-        return -1;
-    }
-
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
-        fprintf(stderr, "memfd seal failed\n");
-        close(fd);
-        return -1;
-    }
-
-    return fd;
-}
-
-// OTel Thread Local Context Record with inline attrs_data buffer.
-// Used for testing: 28-byte header + up to 64 bytes of attrs.
-struct otel_record_with_attrs {
-    struct otel_thread_ctx_record header;
-    uint8_t attrs_data[64];
-};
-
 struct otel_thread_opts {
     char **argv;
-    int memfd; // fd returned by create_tracer_memfd(), kept open for agent to read
+    int memfd; // fd returned by otel_create_tracer_memfd(), kept open for agent to read
 };
 
 static void *thread_otel_open(void *data) {
@@ -313,7 +237,7 @@ static void *thread_otel_open(void *data) {
 
 #if defined(__x86_64__) || defined(__aarch64__)
     // Create and seal a tracer-info memfd to trigger the agent's dynsym resolver.
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -322,47 +246,14 @@ static void *thread_otel_open(void *data) {
     // Wait for the agent to process the memfd seal event and populate the BPF map.
     usleep(500000);
 
-    // RFC 4-step writer protocol:
-    // Step 1: Ensure pointer is NULL so readers see no record during construction.
+    // Ensure pointer is NULL so readers see no record during construction.
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    // Step 2: Build the record with custom attributes in a separate buffer.
-    __int128_t trace_id = atouint128(opts->argv[1]);
-    uint64_t span_id = (uint64_t)atol(opts->argv[2]);
-
     struct otel_record_with_attrs full_record;
-    memset(&full_record, 0, sizeof(full_record));
+    otel_fill_record(&full_record, opts->argv[1], opts->argv[2]);
 
-    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
-    uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
-    u64_to_be_bytes(span_id, full_record.header.span_id);
-
-    // Build attrs_data: repeated [key(u8) + length(u8) + val(u8[length])]
-    // Attr 0: key=0 ("http.method"),  len=3,  val="GET"
-    // Attr 1: key=1 ("http.target"),  len=5,  val="/test"
-    // Attr 2: key=2 ("http.user"),    len=18, val="will@datadoghq.com"
-    uint8_t *p = full_record.attrs_data;
-    int off = 0;
-
-    p[off++] = 0; p[off++] = 3;
-    memcpy(&p[off], "GET", 3); off += 3;
-
-    p[off++] = 1; p[off++] = 5;
-    memcpy(&p[off], "/test", 5); off += 5;
-
-    p[off++] = 2; p[off++] = 18;
-    memcpy(&p[off], "will@datadoghq.com", 18); off += 18;
-
-    full_record.header.attrs_data_size = off;
-
-    // Step 3: Mark the record as valid.
-    __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    full_record.header.valid = 1;
-
-    // Step 4: Publish the pointer to the record header.
+    // Publish the pointer to the record header.
     // The eBPF code reads the 28-byte header first, then attrs_data from header+28.
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     otel_thread_ctx_v1 = &full_record.header;
@@ -416,7 +307,7 @@ static void *thread_otel_open_invalid(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
 
 #if defined(__x86_64__) || defined(__aarch64__)
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -426,7 +317,7 @@ static void *thread_otel_open_invalid(void *data) {
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    __int128_t trace_id = atouint128(opts->argv[1]);
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
     uint64_t span_id = (uint64_t)atol(opts->argv[2]);
 
     struct otel_thread_ctx_record record;
@@ -434,9 +325,9 @@ static void *thread_otel_open_invalid(void *data) {
 
     uint64_t trace_hi = (uint64_t)(trace_id >> 64);
     uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &record.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &record.trace_id[8]);
-    u64_to_be_bytes(span_id, record.span_id);
+    otel_u64_to_be_bytes(trace_hi, &record.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &record.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, record.span_id);
     record.attrs_data_size = 0;
 
     // Deliberately leave valid=0 to simulate an incomplete/invalid record.
@@ -493,7 +384,7 @@ static void *thread_otel_open_null_ptr(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
 
 #if defined(__x86_64__) || defined(__aarch64__)
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -551,7 +442,7 @@ static void *thread_otel_exec(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
 
 #if defined(__x86_64__) || defined(__aarch64__)
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -561,30 +452,9 @@ static void *thread_otel_exec(void *data) {
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    __int128_t trace_id = atouint128(opts->argv[1]);
-    uint64_t span_id = (uint64_t)atol(opts->argv[2]);
-
     struct otel_record_with_attrs full_record;
-    memset(&full_record, 0, sizeof(full_record));
+    otel_fill_record(&full_record, opts->argv[1], opts->argv[2]);
 
-    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
-    uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
-    u64_to_be_bytes(span_id, full_record.header.span_id);
-
-    uint8_t *p = full_record.attrs_data;
-    int off = 0;
-    p[off++] = 0; p[off++] = 3;
-    memcpy(&p[off], "GET", 3); off += 3;
-    p[off++] = 1; p[off++] = 5;
-    memcpy(&p[off], "/test", 5); off += 5;
-    p[off++] = 2; p[off++] = 18;
-    memcpy(&p[off], "will@datadoghq.com", 18); off += 18;
-    full_record.header.attrs_data_size = off;
-
-    __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    full_record.header.valid = 1;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     otel_thread_ctx_v1 = &full_record.header;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
@@ -629,7 +499,7 @@ static void *thread_otel_exec_invalid(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
 
 #if defined(__x86_64__) || defined(__aarch64__)
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -639,7 +509,7 @@ static void *thread_otel_exec_invalid(void *data) {
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    __int128_t trace_id = atouint128(opts->argv[1]);
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
     uint64_t span_id = (uint64_t)atol(opts->argv[2]);
 
     struct otel_thread_ctx_record record;
@@ -647,9 +517,9 @@ static void *thread_otel_exec_invalid(void *data) {
 
     uint64_t trace_hi = (uint64_t)(trace_id >> 64);
     uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &record.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &record.trace_id[8]);
-    u64_to_be_bytes(span_id, record.span_id);
+    otel_u64_to_be_bytes(trace_hi, &record.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &record.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, record.span_id);
     record.attrs_data_size = 0;
     record.valid = 0; // intentionally invalid
 
@@ -695,7 +565,7 @@ static void *thread_otel_exec_null_ptr(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
 
 #if defined(__x86_64__) || defined(__aarch64__)
-    opts->memfd = create_tracer_memfd();
+    opts->memfd = otel_create_tracer_memfd();
     if (opts->memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return NULL;
@@ -754,7 +624,7 @@ int otel_span_fork_exec(int argc, char **argv) {
     fprintf(stderr, "OTel TLS test not supported on this architecture\n");
     return EXIT_FAILURE;
 #else
-    int memfd = create_tracer_memfd();
+    int memfd = otel_create_tracer_memfd();
     if (memfd < 0) {
         fprintf(stderr, "Failed to create tracer memfd\n");
         return EXIT_FAILURE;
@@ -766,7 +636,7 @@ int otel_span_fork_exec(int argc, char **argv) {
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    __int128_t trace_id = atouint128(argv[1]);
+    __int128_t trace_id = otel_atouint128(argv[1]);
     uint64_t span_id = (uint64_t)atol(argv[2]);
 
     struct otel_record_with_attrs full_record;
@@ -774,9 +644,9 @@ int otel_span_fork_exec(int argc, char **argv) {
 
     uint64_t trace_hi = (uint64_t)(trace_id >> 64);
     uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
-    u64_to_be_bytes(span_id, full_record.header.span_id);
+    otel_u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, full_record.header.span_id);
     full_record.header.attrs_data_size = 0;
 
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
@@ -2676,9 +2546,23 @@ int test_dnsloop(int argc, char **argv) {
 }
 
 /* clone3 is not wrapped by glibc, call it directly. */
-static pid_t sys_clone3(struct clone_args *args, size_t size) {
+static pid_t sys_clone3(void *args, size_t size) {
     return (pid_t)syscall(__NR_clone3, args, size);
 }
+
+struct clone_args_with_cgroup {
+    uint64_t flags;
+    uint64_t pidfd;
+    uint64_t child_tid;
+    uint64_t parent_tid;
+    uint64_t exit_signal;
+    uint64_t stack;
+    uint64_t stack_size;
+    uint64_t tls;
+    uint64_t set_tid;
+    uint64_t set_tid_size;
+    uint64_t cgroup;
+};
 
 // test_clone_into_cgroup forks a child directly into the given cgroup v2
 // directory using clone3 + CLONE_INTO_CGROUP, then has the child open the
@@ -2699,7 +2583,7 @@ int test_clone_into_cgroup(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    struct clone_args args = {
+    struct clone_args_with_cgroup args = {
         .flags = CLONE_INTO_CGROUP,
         .exit_signal = SIGCHLD,
         .cgroup = (uint64_t)cgroup_fd,
