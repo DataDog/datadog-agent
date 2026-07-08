@@ -60,10 +60,11 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 	}
 }
 
-// image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
-// daemon.Image loads the entire image into the memory at first,
-// but it doesn't need to load it if the information is already in the persistentCache,
-// To avoid entire loading, this wrapper uses ImageInspect and checks image ID and layer IDs.
+// image wraps github.com/google/go-containerregistry/pkg/v1/daemon.Image,
+// which loads the whole image into memory up front. The wrapper answers the
+// image ID and, in most cases, the config file from ImageInspect, and exports
+// the image the first time Trivy reads a layer or the raw config. Each scan
+// starts with an empty cache, so it reads the layers and exports the image once.
 type image struct {
 	v1.Image
 	name    string

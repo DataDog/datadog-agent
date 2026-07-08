@@ -27,14 +27,9 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return nil
-}
-
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+func (c *Collector) Init(cfg config.Component, _ option.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}
