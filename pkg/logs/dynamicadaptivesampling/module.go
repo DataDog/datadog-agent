@@ -14,6 +14,7 @@ package dynamicadaptivesampling
 
 import (
 	"context"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -22,7 +23,21 @@ import (
 	"go.uber.org/fx"
 )
 
-const smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+const (
+	smartSeverityProfilesEnabledConfigKey  = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+	smartSeverityProfilesCooldownConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown"
+)
+
+// smartSeverityProfilesSubscriptionConfig reads the cooldown duration that
+// gates how quickly the reader may de-escalate after an escalation.
+// CooldownSecs has whole-second granularity, so a sub-second configured
+// value is rounded to the nearest second rather than truncated to 0.
+func smartSeverityProfilesSubscriptionConfig() severityeventsdef.SeverityEventsConfiguration {
+	cooldown := pkgconfigsetup.Datadog().GetDuration(smartSeverityProfilesCooldownConfigKey)
+	return severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: int64(cooldown.Round(time.Second) / time.Second),
+	}
+}
 
 // startReader subscribes to the observer's severity reader and registers it
 // as the active reader (see SetReader), when smart severity profiles are
@@ -38,7 +53,7 @@ func startReader(observerComp observerdef.Component, log logcomp.Component) (fun
 		return nil, nil
 	}
 
-	sub, err := observerComp.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{})
+	sub, err := observerComp.SubscribeSeverityEventsReader(smartSeverityProfilesSubscriptionConfig())
 	if err != nil {
 		return nil, err
 	}

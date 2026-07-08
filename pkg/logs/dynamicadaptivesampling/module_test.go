@@ -9,6 +9,7 @@ package dynamicadaptivesampling
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,32 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+func TestSmartSeverityProfilesSubscriptionConfig_DefaultCooldown(t *testing.T) {
+	configmock.New(t)
+
+	got := smartSeverityProfilesSubscriptionConfig()
+
+	assert.Equal(t, int64(300), got.CooldownSecs, "default cooldown is 5m")
+}
+
+func TestSmartSeverityProfilesSubscriptionConfig_UsesConfiguredCooldown(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set(smartSeverityProfilesCooldownConfigKey, 17*time.Second, pkgconfigmodel.SourceAgentRuntime)
+
+	got := smartSeverityProfilesSubscriptionConfig()
+
+	assert.Equal(t, int64(17), got.CooldownSecs)
+}
+
+func TestSmartSeverityProfilesSubscriptionConfig_RoundsSubSecondCooldown(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set(smartSeverityProfilesCooldownConfigKey, 500*time.Millisecond, pkgconfigmodel.SourceAgentRuntime)
+
+	got := smartSeverityProfilesSubscriptionConfig()
+
+	assert.Equal(t, int64(1), got.CooldownSecs, "sub-second cooldowns must round, not truncate to 0")
+}
 
 // noopLogComponent is a minimal logcomp.Component for tests that don't
 // assert on log output.
