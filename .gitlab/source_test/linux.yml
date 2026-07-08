@@ -182,6 +182,10 @@ lint_linux-arm64:
     - .linux_lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
+  variables:
+    # Repeatedly OOMKilled at the .linux_lint default of 16Gi (pipeline 123501942: 4/4 attempts).
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
