@@ -76,6 +76,7 @@ type CheckScheduler struct {
 	shadowSenderManager sender.SenderManager
 	shadowSenderContext context.Context
 	shadowSenderCancel  context.CancelFunc
+	shadowCoreLoader    check.Loader
 	infraTagger         *infratags.Tagger // nil = no infra mode tagging
 	m                   sync.RWMutex
 }
@@ -238,7 +239,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			if includeShadowChecks {
 				if candidate, found := shadowCandidates[instanceIndex]; found {
 					sourceCheckID := result.check.ID()
-					shadowLoader, ok := shadowLoaderFor(result.loader)
+					shadowLoader, ok := s.shadowLoaderFor(result.loader)
 					if !ok {
 						log.Debugf("Skipping metric lookback shadow check %s: loader %s does not support shadow execution", check.ShadowID(sourceCheckID), result.loader.Name())
 						continue
@@ -272,14 +273,18 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	return checks, nil
 }
 
-func shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
+func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
 	switch loader.Name() {
 	case corecheckLoader.GoCheckLoaderName:
+		if s.shadowCoreLoader != nil {
+			return s.shadowCoreLoader, true
+		}
 		shadowLoader, err := corecheckLoader.NewGoCheckLoader(corecheckLoader.WithLoadMode(corecheckLoader.ShadowLoadMode))
 		if err != nil {
 			log.Debugf("Unable to create metric lookback shadow loader for %s: %v", loader.Name(), err)
 			return nil, false
 		}
+		s.shadowCoreLoader = shadowLoader
 		return shadowLoader, true
 	case "python":
 		return loader, true

@@ -88,8 +88,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(hostinfo.CheckName, hostinfo.Factory())
-	corecheckLoader.RegisterContextualCheck(telemetryCheck.CheckName, contextualCoreFactory(func(corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
-		return telemetryCheck.Factory(telemetry)
+	corecheckLoader.RegisterContextualCheck(telemetryCheck.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return telemetryCheck.Factory(telemetryForMode(ctx))
 	}))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())
