@@ -453,6 +453,24 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: autodiscovery-discovery-probe
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: autodiscovery.discovery_queue_depth
+        preserve_tags:
+          - integration_name
+          - entity_kind
+      - name: autodiscovery.discovery_results
+        preserve_tags:
+          - integration_name
+          - result
+          - entity_kind
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: ebpf
   metric:
     exclude:

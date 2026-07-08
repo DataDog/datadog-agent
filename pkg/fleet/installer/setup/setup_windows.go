@@ -174,7 +174,7 @@ func categorizeDownloadError(err error) string {
 		case http.StatusUnauthorized:
 			return "authentication required (HTTP 401)"
 		case http.StatusForbidden:
-			return "authentication failed (HTTP 403)"
+			return "tag not found or access is denied (HTTP 403)"
 		case http.StatusProxyAuthRequired:
 			return "proxy authentication required (HTTP 407)"
 		default:
