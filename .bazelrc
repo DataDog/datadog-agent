@@ -29,6 +29,7 @@ common --remote_instance_name=ci/datadog-agent # entries missing from datadog-ag
 common --remote_local_fallback # best-effort on transient connection errors (no such host)
 common --remote_retries=1
 common --remote_timeout=60
+common --rewind_lost_inputs # https://github.com/bazelbuild/bazel/pull/25477
 common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
