@@ -19,6 +19,19 @@ const (
 	importKey = "import"
 )
 
+// AgentInstaller is implemented by every environment that can install the Datadog Agent as a
+// separate, Pulumi-free step (over the environment's own client: SSH for hosts, the Kubernetes API
+// / Helm for clusters, and so on). Installing the Agent is intrinsic to what makes an environment
+// useful, so each environment defines how to do it.
+//
+// Options is that environment's agent-params option type — agentparams.Option for Host,
+// kubernetesagentparams.Option for Kubernetes, dockeragentparams.Option for DockerHost, etc. — so
+// the contract is generic rather than a single fixed signature. InstallAgent is idempotent:
+// calling it again reconfigures/reinstalls the Agent.
+type AgentInstaller[Options any] interface {
+	InstallAgent(ctx common.Context, opts ...Options) error
+}
+
 func CreateEnv[Env any]() (*Env, []reflect.StructField, []reflect.Value, error) {
 	var env Env
 

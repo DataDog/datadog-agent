@@ -10,11 +10,21 @@ import (
 	"context"
 	"io"
 	"maps"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // Diagnosable defines the interface for a diagnosable provisioner.
 type Diagnosable interface {
 	Diagnose(ctx context.Context, stackName string) (string, error)
+}
+
+// PostProvisioner is an optional interface a typed provisioner can implement to run an extra step
+// after the environment has been built and initialized — for example installing the Agent over SSH
+// (Pulumi-free) once the environment's clients are available. It runs on initial provisioning and on
+// every UpdateEnv.
+type PostProvisioner[Env any] interface {
+	PostProvision(ctx common.Context, env *Env) error
 }
 
 // Provisioner defines the interface for a provisioner.

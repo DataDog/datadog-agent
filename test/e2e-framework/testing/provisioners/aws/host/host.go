@@ -9,11 +9,13 @@ package awshost
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -25,6 +27,12 @@ type ProvisionerParams struct {
 	awsEnv            *aws.Environment
 	extraConfigParams runner.ConfigMap
 	runOptions        []ec2.Option
+
+	// sshAgentInstall, when set, installs the Agent over SSH (Pulumi-free) after provisioning
+	// instead of during Pulumi. WithSSHInstalledAgent also forces the Pulumi program to provision a
+	// bare host (ec2.WithoutAgent()).
+	sshAgentInstall     bool
+	sshAgentInstallOpts []agentparams.Option
 }
 
 type ProvisionerOption func(*ProvisionerParams) error
@@ -64,6 +72,19 @@ func WithRunOptions(runOptions ...ec2.Option) ProvisionerOption {
 	}
 }
 
+// WithSSHInstalledAgent provisions a bare host (no Agent in Pulumi) and installs the Agent over SSH
+// after provisioning, using the given agentparams options. Because the provisioner is already bound
+// to the Host environment, the option type is implied — no type parameter needed at the call site —
+// and the install runs on every UpdateEnv, so it doubles as the reconfiguration path.
+func WithSSHInstalledAgent(opts ...agentparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.sshAgentInstall = true
+		params.sshAgentInstallOpts = opts
+		params.runOptions = append(params.runOptions, ec2.WithoutAgent())
+		return nil
+	}
+}
+
 // Provisioner creates a VM environment with an EC2 VM, an ECS Fargate FakeIntake and a Host Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
@@ -92,7 +113,27 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return ec2.Run(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 
+	if params.sshAgentInstall {
+		return &sshAgentHostProvisioner{
+			TypedProvisioner: provisioner,
+			agentOpts:        params.sshAgentInstallOpts,
+		}
+	}
+
 	return provisioner
+}
+
+// sshAgentHostProvisioner decorates a Host provisioner with a post-provision step that installs the
+// Agent over SSH (see WithSSHInstalledAgent). It embeds the underlying provisioner so it still
+// satisfies provisioners.TypedProvisioner[environments.Host], and additionally implements
+// provisioners.PostProvisioner[environments.Host].
+type sshAgentHostProvisioner struct {
+	provisioners.TypedProvisioner[environments.Host]
+	agentOpts []agentparams.Option
+}
+
+func (p *sshAgentHostProvisioner) PostProvision(ctx common.Context, env *environments.Host) error {
+	return env.InstallAgent(ctx, p.agentOpts...)
 }
 
 func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {

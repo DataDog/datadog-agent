@@ -13,12 +13,15 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -42,6 +45,60 @@ var _ common.Initializable = (*Host)(nil)
 // Init initializes the environment
 func (e *Host) Init(_ common.Context) error {
 	return nil
+}
+
+// Ensure Host satisfies the Pulumi-free agent-install contract.
+var _ AgentInstaller[agentparams.Option] = (*Host)(nil)
+
+// InstallAgent installs and configures the Datadog Agent on the host over SSH, without Pulumi.
+// It resolves the environment defaults the Pulumi config would otherwise provide (pipeline id,
+// FIPS, major version, API key) from the runner profile, wires the environment's fakeintake (if
+// present) as plain config, applies the caller options on top, and delegates the SSH mechanics to
+// the host client's installer. It is idempotent, so it can also be used to reconfigure the Agent.
+func (e *Host) InstallAgent(_ common.Context, opts ...agentparams.Option) error {
+	if e.RemoteHost == nil {
+		return errors.New("RemoteHost component is not initialized")
+	}
+
+	profile := runner.GetProfile()
+	apiKey, err := profile.SecretStore().GetWithDefault(parameters.APIKey, "")
+	if err != nil {
+		return fmt.Errorf("failed to read the API key from the runner profile: %w", err)
+	}
+	majorVersion, err := profile.ParamStore().GetWithDefault(parameters.MajorVersion, "7")
+	if err != nil {
+		return fmt.Errorf("failed to read the major version from the runner profile: %w", err)
+	}
+	pipelineID, err := profile.ParamStore().GetWithDefault(parameters.PipelineID, "")
+	if err != nil {
+		return fmt.Errorf("failed to read the pipeline id from the runner profile: %w", err)
+	}
+	fips, err := profile.ParamStore().GetBoolWithDefault(parameters.FIPS, false)
+	if err != nil {
+		return fmt.Errorf("failed to read the FIPS flag from the runner profile: %w", err)
+	}
+
+	// Environment defaults are applied before the caller options so callers can override them.
+	leading := []agentparams.Option{agentparams.WithMajorVersion(majorVersion)}
+	if pipelineID != "" {
+		leading = append(leading, agentparams.WithPipeline(pipelineID))
+	}
+	if fips {
+		leading = append(leading, agentparams.WithFlavor(agentparams.FIPSFlavor))
+	}
+	// Wire the environment's fakeintake as plain config (the Pulumi WithFakeintake option builds a
+	// computed value the SSH installer cannot resolve).
+	if e.FakeIntake != nil {
+		leading = append(leading, agentparams.WithExtraConfig(
+			agentparams.IntakeConfig(e.FakeIntake.Scheme, e.FakeIntake.Host, int(e.FakeIntake.Port))))
+	}
+
+	params, err := agentparams.ResolveParams(append(leading, opts...)...)
+	if err != nil {
+		return fmt.Errorf("failed to resolve agent params: %w", err)
+	}
+
+	return e.RemoteHost.AgentInstaller().Install(params, apiKey)
 }
 
 // RemoteHostOutput implements outputs.HostOutputs

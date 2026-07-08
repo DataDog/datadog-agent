@@ -30,21 +30,38 @@ func (am *agentLinuxManager) directInstallCommand(_ config.Env, packagePath stri
 	return am.targetOS.PackageManager().Ensure("./"+packagePath, nil, "", os.AllowUnsignedPackages(true), os.WithPulumiResourceOptions(opts...))
 }
 
-func (am *agentLinuxManager) getInstallCommand(version agentparams.PackageVersion, apiKey pulumi.StringInput, _ []string) (pulumi.StringOutput, error) {
-	var commandLine string
+func (am *agentLinuxManager) getInstallCommand(version agentparams.PackageVersion, apiKey pulumi.StringInput, additionalInstallParameters []string) (pulumi.StringOutput, error) {
+	// linuxInstallCommandTemplate returns a command with a single `%s` placeholder for the
+	// API key, so it can be filled either lazily via pulumi.Sprintf (Pulumi path, apiKey is an
+	// output) or eagerly via fmt.Sprintf (SSH path, apiKey is a plain string).
+	template := linuxInstallCommandTemplate(am.targetOS.Descriptor().Architecture, version, additionalInstallParameters)
+	return pulumi.Sprintf(template, apiKey), nil
+}
+
+// LinuxInstallCommand returns the shell command that installs the Agent on a Linux host via the
+// install script, with the API key inlined. It is Pulumi-free and shared by the Pulumi manager
+// (see getInstallCommand) and the SSH-based installer (client.HostAgentInstaller), so the two
+// cannot drift.
+func LinuxInstallCommand(arch os.Architecture, version agentparams.PackageVersion, apiKey string, additionalInstallParameters []string) string {
+	return fmt.Sprintf(linuxInstallCommandTemplate(arch, version, additionalInstallParameters), apiKey)
+}
+
+// linuxInstallCommandTemplate builds the install command with a single `%s` placeholder for the
+// API key. The command carries no other `%` verbs, so a single substitution fills it in.
+func linuxInstallCommandTemplate(arch os.Architecture, version agentparams.PackageVersion, _ []string) string {
 	testEnvVars := []string{}
 
 	if version.PipelineID != "" {
 		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", version.PipelineID, version.Major))
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-a7 7"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%[1]s %[2]v"`, am.targetOS.Descriptor().Architecture, version.Major))
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%[1]s %[2]v"`, arch, version.Major))
 		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-a7/7"
 		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_YUM_VERSION_PATH=testing/pipeline-%[1]v-a%[2]v/%[2]v", version.PipelineID, version.Major))
 		// target testing keys
-		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=apttesting.datad0g.com/test-keys"))
+		testEnvVars = append(testEnvVars, "TESTING_KEYS_URL=apttesting.datad0g.com/test-keys")
 	} else {
 		testEnvVars = append(testEnvVars, fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%v", version.Major))
 
@@ -62,13 +79,12 @@ func (am *agentLinuxManager) getInstallCommand(version agentparams.PackageVersio
 		testEnvVars = append(testEnvVars, fmt.Sprintf("DD_AGENT_FLAVOR=%s", version.Flavor))
 	}
 
-	commandLine = strings.Join(testEnvVars, " ")
+	commandLine := strings.Join(testEnvVars, " ")
 
-	commandLine = fmt.Sprintf(
+	return fmt.Sprintf(
 		`for i in 1 2 3 4 5; do curl -fsSL https://s3.amazonaws.com/dd-agent/scripts/%v -o install-script.sh && break || sleep $((2**$i)); done &&  for i in 1 2 3; do DD_API_KEY=%%s %v DD_INSTALL_ONLY=true bash install-script.sh  && exit 0 || sleep $((2**$i)); done; exit 1`,
 		fmt.Sprintf("install_script_agent%s.sh", version.Major),
 		commandLine)
-	return pulumi.Sprintf(commandLine, apiKey), nil
 }
 
 func (am *agentLinuxManager) getAgentConfigFolder() string {

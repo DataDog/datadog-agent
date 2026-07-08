@@ -94,6 +94,22 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 	return common.ApplyOption(p, options)
 }
 
+// ResolveParams builds Params from options WITHOUT a Pulumi config.Env, for the non-Pulumi
+// (SSH/Helm) install path. It applies the same defaults NewParams would in the absence of
+// environment overrides (latest nightly Agent 7, base flavor) and then the caller-supplied
+// options. Environment-derived defaults (pipeline id, FIPS, version, major version) are NOT
+// read here — the caller (which owns the runner profile) passes them as leading options so
+// this package stays free of any testing/runner dependency. Later options override earlier
+// ones, exactly like NewParams.
+func ResolveParams(options ...Option) (*Params, error) {
+	p := &Params{
+		Integrations: make(map[string]*FileDefinition),
+		Files:        make(map[string]*FileDefinition),
+	}
+	options = append([]Option{WithLatestNightly(), WithFlavor(DefaultFlavor)}, options...)
+	return common.ApplyOption(p, options)
+}
+
 // WithLatest uses the latest Agent 7 version in the stable channel.
 func WithLatest() func(*Params) error {
 	return func(p *Params) error {
@@ -268,9 +284,11 @@ func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) func(*Params)
 	}
 }
 
-func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput) func(*Params) error {
-	return func(p *Params) error {
-		extraConfig := pulumi.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
+// intakeConfigTemplate is the datadog.yaml fragment that points the Agent's various forwarders at
+// an intake endpoint. Verbs: %[1]s hostname, %[2]d port, %[3]s scheme. It is shared by the Pulumi
+// path (withIntakeHostname, via pulumi.Sprintf) and the Pulumi-free path (IntakeConfig, via
+// fmt.Sprintf) so the two cannot drift.
+const intakeConfigTemplate = `dd_url: %[3]s://%[1]s:%[2]d
 logs_config.logs_dd_url: %[1]s:%[2]d
 logs_config.logs_no_ssl: true
 logs_config.force_use_http: true
@@ -311,8 +329,30 @@ event_management.forwarder.logs_no_ssl: true
 agent_telemetry.logs_dd_url: %[1]s:%[2]d
 agent_telemetry.logs_no_ssl: true
 agent_telemetry.use_compression: false
-`, hostname, port, scheme)
+`
+
+// IntakeConfig returns the datadog.yaml fragment (as a plain string) that points the Agent at the
+// given intake endpoint. It is the Pulumi-free counterpart of withIntakeHostname, used by the
+// SSH/Helm install path to wire an already-provisioned fakeintake by its resolved host/port.
+func IntakeConfig(scheme, hostname string, port int) string {
+	return fmt.Sprintf(intakeConfigTemplate, hostname, port, scheme)
+}
+
+func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput) func(*Params) error {
+	return func(p *Params) error {
+		extraConfig := pulumi.Sprintf(intakeConfigTemplate, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
+		return nil
+	}
+}
+
+// WithExtraConfig appends a plain datadog.yaml fragment to the Agent configuration. Unlike the
+// pulumi.Sprintf-based options (WithFakeintake, WithTags, ...), the value is a constant string, so
+// it is resolvable by the Pulumi-free installer. Use it to inject already-resolved config (e.g. a
+// fakeintake endpoint via IntakeConfig) on the SSH/Helm install path.
+func WithExtraConfig(config string) func(*Params) error {
+	return func(p *Params) error {
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String(config))
 		return nil
 	}
 }

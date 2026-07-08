@@ -503,6 +503,26 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		}
 	}
 
+	// Run any provisioner post-provision hooks (e.g. installing the Agent over SSH declared via a
+	// provisioner option like awshost.WithSSHInstalledAgent). These run once the environment is built
+	// and initialized, on initial provisioning and on every UpdateEnv.
+	for id, provisioner := range targetProvisioners {
+		if pp, ok := provisioner.(provisioners.PostProvisioner[Env]); ok {
+			if err := pp.PostProvision(bs, newEnv); err != nil {
+				return fmt.Errorf("post-provision step for provisioner %s failed: %w", id, err)
+			}
+		}
+	}
+
+	// If the suite opted into a Pulumi-free agent install (see WithInstalledAgent), run it now that
+	// the environment is provisioned and initialized. This also runs on every UpdateEnv, so it
+	// doubles as the reconfiguration path.
+	if bs.params.agentInstall != nil {
+		if err := bs.params.agentInstall(bs, any(newEnv)); err != nil {
+			return fmt.Errorf("failed to install agent: %w", err)
+		}
+	}
+
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)

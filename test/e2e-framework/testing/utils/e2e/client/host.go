@@ -70,6 +70,7 @@ type Host struct {
 
 	convertPathSeparator convertPathSeparatorFn
 	osFamily             oscomp.Family
+	arch                 oscomp.Architecture
 	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
 	httpTransport *http.Transport
 }
@@ -120,6 +121,7 @@ func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 		sshExecutor:          sshExecutor,
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
+		arch:                 hostOutput.Architecture,
 	}
 
 	host.httpTransport = host.newHTTPTransport()
