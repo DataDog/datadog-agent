@@ -8,6 +8,7 @@ package observerimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -200,11 +201,12 @@ func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopOb
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
-func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
-	return severityeventsdef.SeverityEventsSubscription{
-		Dispatcher:  nil,
-		Unsubscribe: func() {},
-	}, nil
+func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
+}
+
+func (*disabledObserver) SubscribeSeverityEventsReader(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
 }
 
 // NewComponent creates an observer.Component.
@@ -701,19 +703,28 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
-// SubscribeSeverityEvents registers a scorer event listener described by cfg.
-// Delegates to the engine scorer when one is configured.
-func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+// SubscribeSeverityEvents registers listener described by cfg. Delegates to
+// the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	o.engine.mu.RLock()
 	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()
 	if scorer == nil {
-		return severityeventsdef.SeverityEventsSubscription{
-			Dispatcher:  nil,
-			Unsubscribe: func() {},
-		}, nil
+		return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
 	}
-	return scorer.SubscribeSeverityEvents(cfg)
+	return scorer.SubscribeSeverityEvents(cfg, listener)
+}
+
+// SubscribeSeverityEventsReader is a convenience for pull-only consumers.
+// Delegates to the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	o.engine.mu.RLock()
+	scorer := o.engine.scorer
+	o.engine.mu.RUnlock()
+	if scorer == nil {
+		return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
+	}
+	return scorer.SubscribeSeverityEventsReader(cfg)
 }
 
 // --- DebugView implementation ---
