@@ -2520,7 +2520,7 @@ properties:
             visibility: public
             description: |-
               Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
-              auto-admitted from DogStatsD when monitor.enabled is true and does not need to be repeated here.
+              auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
             tags:
             - template_section:Dogstatsd
       monitor:
@@ -2531,12 +2531,20 @@ properties:
         tags:
         - template_section:Dogstatsd
         properties:
-          enabled:
+          mode:
             node_type: setting
-            type: boolean
-            default: false
+            type: string
+            default: disabled
+            enum:
+            - disabled
+            - dry_run
+            - enabled
             visibility: public
-            description: Enable the metric lookback monitor.
+            description: |-
+              Controls monitor operation. Valid values are:
+                - disabled: do not run the monitor or monitor-driven egress.
+                - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+                - enabled: run the monitor and let monitor decisions control egress.
             tags:
             - template_section:Dogstatsd
           metric_name:
@@ -2569,16 +2577,6 @@ properties:
               Tag keys used to partition monitor range evaluation. When empty, all retained points for the
               monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
               tuple independently and breaches if any partition exceeds range_epsilon.
-            tags:
-            - template_section:Dogstatsd
-          dry_run:
-            node_type: setting
-            type: boolean
-            default: false
-            visibility: public
-            description: |-
-              Run the monitor and log monitor state transitions without allowing monitor state to suppress egress.
-              When enabled, retained ranges start and remain eligible for intake forwarding.
             tags:
             - template_section:Dogstatsd
   statsd_forward_host:

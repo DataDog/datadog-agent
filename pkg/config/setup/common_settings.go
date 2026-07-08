@@ -39,11 +39,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.capacity", 262144)
 	config.BindEnvAndSetDefault("metric_lookback.shard_count", 16)
 	config.BindEnvAndSetDefault("metric_lookback.dogstatsd.metric_names", []string{})
-	config.BindEnvAndSetDefault("metric_lookback.monitor.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.monitor.mode", "disabled")
 	config.BindEnvAndSetDefault("metric_lookback.monitor.metric_name", "")
 	config.BindEnvAndSetDefault("metric_lookback.monitor.range_epsilon", 0.0)
 	config.BindEnvAndSetDefault("metric_lookback.monitor.partition_tags", []string{})
-	config.BindEnvAndSetDefault("metric_lookback.monitor.dry_run", false)
 
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)

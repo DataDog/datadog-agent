@@ -109,25 +109,25 @@ func TestMetricLookbackDefaults(t *testing.T) {
 
 	assert.False(t, config.GetBool("metric_lookback.enabled"))
 	assert.Empty(t, config.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, "disabled", config.GetString("metric_lookback.monitor.mode"))
 	assert.Equal(t, 0.0, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
 	assert.Empty(t, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
-	assert.False(t, config.GetBool("metric_lookback.monitor.dry_run"))
 }
 
 func TestMetricLookbackEnvOverride(t *testing.T) {
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","disk"]`)
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_MODE", "dry_run")
 	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON", "0.05")
 	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS", `["az","instance_type"]`)
-	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_DRY_RUN", "true")
 
 	config := newTestConf(t)
 
 	assert.True(t, config.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, config.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, "dry_run", config.GetString("metric_lookback.monitor.mode"))
 	assert.Equal(t, 0.05, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
 	assert.Equal(t, []string{"az", "instance_type"}, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
-	assert.True(t, config.GetBool("metric_lookback.monitor.dry_run"))
 }
 
 func TestMetricLookbackYAML(t *testing.T) {
@@ -138,18 +138,18 @@ metric_lookback:
     - cpu
     - disk
   monitor:
+    mode: dry_run
     range_epsilon: 0.05
     partition_tags:
       - az
       - instance_type
-    dry_run: true
 `)
 
 	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, "dry_run", cfg.GetString("metric_lookback.monitor.mode"))
 	assert.Equal(t, 0.05, cfg.GetFloat64("metric_lookback.monitor.range_epsilon"))
 	assert.Equal(t, []string{"az", "instance_type"}, cfg.GetStringSlice("metric_lookback.monitor.partition_tags"))
-	assert.True(t, cfg.GetBool("metric_lookback.monitor.dry_run"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {

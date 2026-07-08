@@ -19,6 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
+const (
+	metricLookbackMonitorModeDisabled = "disabled"
+	metricLookbackMonitorModeDryRun   = "dry_run"
+	metricLookbackMonitorModeEnabled  = "enabled"
+)
+
 func newMetricLookbackRetention(cfg config.Component) *metriclookback.Retention {
 	// Construct the retention owner eagerly, but keep the backing rings lazy. This
 	// lets per-instance shadow-check opt-in share the same retention path without
@@ -40,7 +46,8 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		}
 
 		metricNames := cfg.GetStringSlice("metric_lookback.dogstatsd.metric_names")
-		monitorEnabled := cfg.GetBool("metric_lookback.monitor.enabled")
+		monitorMode := metricLookbackMonitorMode(cfg)
+		monitorEnabled := monitorMode != metricLookbackMonitorModeDisabled
 		if len(metricNames) == 0 && !monitorEnabled {
 			return nil
 		}
@@ -48,7 +55,7 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		var egressController *metriclookback.EgressController
 		if monitorEnabled {
 			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{
-				DryRun:                       cfg.GetBool("metric_lookback.monitor.dry_run"),
+				DryRun:                       monitorMode == metricLookbackMonitorModeDryRun,
 				MonitorStateTransitionLogger: metricLookbackMonitorStateTransitionLogger(logger),
 			})
 		}
@@ -124,22 +131,44 @@ func metricLookbackMonitorStateTransitionLogger(logger log.Component) metriclook
 	}
 }
 
+func metricLookbackMonitorMode(cfg config.Component) string {
+	if cfg == nil {
+		return metricLookbackMonitorModeDisabled
+	}
+	mode := cfg.GetString("metric_lookback.monitor.mode")
+	if mode == "" {
+		return metricLookbackMonitorModeDisabled
+	}
+	return mode
+}
+
 func validateMetricLookbackMonitorConfig(cfg config.Component) error {
-	if cfg == nil || !cfg.GetBool("metric_lookback.enabled") || !cfg.GetBool("metric_lookback.monitor.enabled") {
+	if cfg == nil || !cfg.GetBool("metric_lookback.enabled") {
 		return nil
 	}
-	if rangeEpsilon := cfg.GetFloat64("metric_lookback.monitor.range_epsilon"); rangeEpsilon < 0 {
-		return fmt.Errorf("metric_lookback.monitor.range_epsilon must be non-negative, got %v", rangeEpsilon)
+	mode := metricLookbackMonitorMode(cfg)
+	switch mode {
+	case metricLookbackMonitorModeDisabled:
+		return nil
+	case metricLookbackMonitorModeDryRun, metricLookbackMonitorModeEnabled:
+		if cfg.GetString("metric_lookback.monitor.metric_name") == "" {
+			return fmt.Errorf("metric_lookback.monitor.metric_name is required when metric_lookback.monitor.mode is %q", mode)
+		}
+		if rangeEpsilon := cfg.GetFloat64("metric_lookback.monitor.range_epsilon"); rangeEpsilon < 0 {
+			return fmt.Errorf("metric_lookback.monitor.range_epsilon must be non-negative, got %v", rangeEpsilon)
+		}
+		return nil
+	default:
+		return fmt.Errorf("metric_lookback.monitor.mode must be one of %q, %q, or %q; got %q", metricLookbackMonitorModeDisabled, metricLookbackMonitorModeDryRun, metricLookbackMonitorModeEnabled, mode)
 	}
-	return nil
 }
 
 func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retention *metriclookback.Retention, sink monitor.DecisionSink) (*monitor.Watcher, error) {
-	if !cfg.GetBool("metric_lookback.monitor.enabled") {
+	if metricLookbackMonitorMode(cfg) == metricLookbackMonitorModeDisabled {
 		return nil, nil
 	}
 	if sink == nil {
-		logger.Warn("metric_lookback.monitor.enabled is set but egress controller is not available; monitor inactive")
+		logger.Warn("metric_lookback.monitor.mode is active but egress controller is not available; monitor inactive")
 		return nil, nil
 	}
 
@@ -179,7 +208,7 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 		return nil, err
 	}
 	if watcher == nil {
-		logger.Warn("metric_lookback.monitor.enabled is set but metric_lookback.monitor.metric_name is empty; monitor inactive")
+		logger.Warn("metric_lookback.monitor.mode is active but metric_lookback.monitor.metric_name is empty; monitor inactive")
 	}
 	return watcher, nil
 }

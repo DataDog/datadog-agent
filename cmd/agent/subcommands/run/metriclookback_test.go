@@ -43,7 +43,7 @@ func TestMetricLookbackDogStatsDFactoryMetricNamesEnableDogStatsDLookback(t *tes
 		"metric_lookback.capacity":               256,
 		"metric_lookback.shard_count":            1,
 		"metric_lookback.dogstatsd.metric_names": []string{"target.metric"},
-		"metric_lookback.monitor.enabled":        false,
+		"metric_lookback.monitor.mode":           "disabled",
 	})
 	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 
@@ -92,10 +92,9 @@ func TestMetricLookbackDogStatsDFactoryDryRunForwardsHealthyMonitorWindow(t *tes
 		"metric_lookback.capacity":               256,
 		"metric_lookback.shard_count":            1,
 		"metric_lookback.dogstatsd.metric_names": []string{},
-		"metric_lookback.monitor.enabled":        true,
+		"metric_lookback.monitor.mode":           "dry_run",
 		"metric_lookback.monitor.metric_name":    "target.metric",
 		"metric_lookback.monitor.range_epsilon":  0.05,
-		"metric_lookback.monitor.dry_run":        true,
 	})
 	serializer := serializermocks.NewMetricSerializer(t)
 	forwarded := make(chan struct{}, 1)
@@ -240,7 +239,7 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 func TestMetricLookbackDogStatsDFactoryRejectsNegativeRangeEpsilon(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
 		"metric_lookback.enabled":               true,
-		"metric_lookback.monitor.enabled":       true,
+		"metric_lookback.monitor.mode":          "enabled",
 		"metric_lookback.monitor.metric_name":   "target.metric",
 		"metric_lookback.monitor.range_epsilon": -0.01,
 	})
@@ -249,6 +248,30 @@ func TestMetricLookbackDogStatsDFactoryRejectsNegativeRangeEpsilon(t *testing.T)
 
 	require.Nil(t, factory)
 	require.ErrorContains(t, err, "metric_lookback.monitor.range_epsilon")
+}
+
+func TestMetricLookbackDogStatsDFactoryRejectsInvalidMonitorMode(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"metric_lookback.enabled":      true,
+		"metric_lookback.monitor.mode": "observe",
+	})
+
+	factory, err := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+
+	require.Nil(t, factory)
+	require.ErrorContains(t, err, "metric_lookback.monitor.mode")
+}
+
+func TestMetricLookbackDogStatsDFactoryRequiresMetricNameWhenMonitorModeActive(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"metric_lookback.enabled":      true,
+		"metric_lookback.monitor.mode": "enabled",
+	})
+
+	factory, err := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+
+	require.Nil(t, factory)
+	require.ErrorContains(t, err, "metric_lookback.monitor.metric_name")
 }
 
 func requireMetricLookbackDogStatsDFactory(t testing.TB, cfg configmock.Component, retention *metriclookback.Retention) aggregator.DogStatsDLookbackFactory {
@@ -265,7 +288,7 @@ func metricLookbackMonitorFactoryConfig(t testing.TB) configmock.Component {
 		"metric_lookback.capacity":               256,
 		"metric_lookback.shard_count":            1,
 		"metric_lookback.dogstatsd.metric_names": []string{},
-		"metric_lookback.monitor.enabled":        true,
+		"metric_lookback.monitor.mode":           "enabled",
 		"metric_lookback.monitor.metric_name":    "target.metric",
 		"metric_lookback.monitor.range_epsilon":  0.05,
 	})

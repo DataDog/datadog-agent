@@ -2704,7 +2704,7 @@ api_key:
 #     # @param metric_names - list of strings - optional - default: []
 #     # @env DD_METRIC_LOOKBACK_DOGSTATSD_METRIC_NAMES - space-separated list of strings - optional - default: []
 #     # Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
-#     # auto-admitted from DogStatsD when monitor.enabled is true and does not need to be repeated here.
+#     # auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
 #
 #     metric_names: []
 
@@ -2713,11 +2713,14 @@ api_key:
 #
 #   monitor:
 
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_METRIC_LOOKBACK_MONITOR_ENABLED - boolean - optional - default: false
-#     # Enable the metric lookback monitor.
+#     # @param mode - string - optional - default: "disabled"
+#     # @env DD_METRIC_LOOKBACK_MONITOR_MODE - string - optional - default: "disabled"
+#     # Controls monitor operation. Valid values are:
+#     #   - disabled: do not run the monitor or monitor-driven egress.
+#     #   - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+#     #   - enabled: run the monitor and let monitor decisions control egress.
 #
-#     enabled: false
+#     mode: "disabled"
 
 #     # @param metric_name - string - optional - default: ""
 #     # @env DD_METRIC_LOOKBACK_MONITOR_METRIC_NAME - string - optional - default: ""
@@ -2739,13 +2742,6 @@ api_key:
 #     # tuple independently and breaches if any partition exceeds range_epsilon.
 #
 #     partition_tags: []
-
-#     # @param dry_run - boolean - optional - default: false
-#     # @env DD_METRIC_LOOKBACK_MONITOR_DRY_RUN - boolean - optional - default: false
-#     # Run the monitor and log monitor state transitions without allowing monitor state to suppress egress.
-#     # When enabled, retained ranges start and remain eligible for intake forwarding.
-#
-#     dry_run: false
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""

@@ -58,6 +58,10 @@ enum MonitorState {
     unknown | healthy | breach
 }
 
+enum MonitorMode {
+    disabled | dry_run | enabled
+}
+
 enum EgressMode {
     forwarding | suppressed
 }
@@ -122,11 +126,10 @@ external entity LookbackConfiguration {
     capacity: Integer
     shard_count: Integer
 
-    monitor_enabled: Boolean
+    monitor_mode: MonitorMode
     monitor_metric_name: MetricName?
     monitor_range_epsilon: Decimal
     monitor_partition_tags: List<TagName>
-    monitor_dry_run: Boolean
 
     -- Additional DogStatsD metric names to retain. An empty set disables
     -- additional DogStatsD retention. The monitor metric is separately
@@ -276,22 +279,27 @@ rule GlobalDisablePreventsLookbackEffects {
         -- retain, monitor, or egress them.
 }
 
-rule EmptyMonitorMetricNameDisablesMonitorBehaviour {
+rule DisabledMonitorModeDisablesMonitorBehaviour {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
-    requires: configuration.monitor_metric_name = nil
+    requires: configuration.monitor_mode = disabled
     ensures: not exists Monitor
+    ensures: not exists EgressPolicy
     ensures: not exists DogStatsDAdmission where reason = monitor_trigger
-    @guidance
-        -- The implementation also logs a warning for this inert monitor
-        -- configuration. The warning text is diagnostic, not normative.
+}
+
+rule MonitorModeRequiresMetricName {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_metric_name = nil
+    ensures: ConfigurationRejected(reason: "metric_lookback.monitor.metric_name is required when monitor.mode is dry_run or enabled")
 }
 
 rule MonitorCreatesSharedRetentionReader {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
     requires: configuration.monitor_metric_name != nil
     ensures: Monitor.created(
         metric_name: configuration.monitor_metric_name,
@@ -306,7 +314,7 @@ rule MonitorCreatesSharedRetentionReader {
 rule MonitorMetricAutoAdmittedFromDogStatsD {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
     requires: configuration.monitor_metric_name != nil
     ensures: DogStatsDAdmission.created(
         metric_name: configuration.monitor_metric_name,
@@ -332,7 +340,7 @@ rule DogStatsDAdditionalMetricAdmission {
 rule EmptyDogStatsDAdditionalMetricsDoesNotDisableMonitorAdmission {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
     requires: configuration.monitor_metric_name != nil
     requires: configuration.dogstatsd_metric_names.count = 0
     ensures: DogStatsDAdmission.created(
@@ -516,11 +524,10 @@ rule RepeatedMonitorStateDoesNotCreateTransitionLog {
     ensures: Monitor.transition_logs = Monitor.transition_logs
 }
 
-rule NormalEgressStartsSuppressed {
+rule EnabledMonitorModeEgressStartsSuppressed {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
-    requires: configuration.monitor_dry_run = false
+    requires: configuration.monitor_mode = enabled
     ensures: EgressPolicy.created(
         mode: suppressed,
         dry_run: false,
@@ -530,11 +537,10 @@ rule NormalEgressStartsSuppressed {
     )
 }
 
-rule DryRunEgressStartsForwarding {
+rule DryRunMonitorModeEgressStartsForwarding {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.monitor_enabled = true
-    requires: configuration.monitor_dry_run = true
+    requires: configuration.monitor_mode = dry_run
     ensures: EgressPolicy.created(
         mode: forwarding,
         dry_run: true,
@@ -543,8 +549,8 @@ rule DryRunEgressStartsForwarding {
         healthy_windows_seen: 0
     )
     @guidance
-        -- Dry-run overrides the normal suppressed startup mode. There is no
-        -- startup suppression window when monitor dry-run is enabled.
+        -- Dry-run overrides the enabled mode's suppressed startup mode. There is
+        -- no startup suppression window when monitor mode is dry_run.
 }
 
 rule DryRunMonitorDecisionDoesNotChangeEgressMode {
