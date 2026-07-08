@@ -22,7 +22,7 @@ import (
 // "aws/integrations/<integration>".
 func Scenarios() map[string]pulumi.RunFunc {
 	return map[string]pulumi.RunFunc{
-		"aws/integrations/redisdb":    awsredisdb.Run,
+		"aws/integrations/redisdb":    awsredisdb.VMRun,
 		"aws/integrations/postgres":   awspostgres.VMRun,
 		"aws/integrations/kafka":      kafka.VMRun,
 		"aws/integrations/etcd":       awsetcd.Run,
