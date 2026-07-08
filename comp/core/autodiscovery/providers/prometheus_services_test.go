@@ -353,10 +353,12 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 		old                *v1.Endpoints
 		new                *v1.Endpoints
 		monitoredEndpoints []string
+		initialUpToDate    bool
 		expectUpToDate     bool
 	}{
 		{
-			name: "no change",
+			name:            "no change",
+			initialUpToDate: true,
 			old: &v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
@@ -448,7 +450,8 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 			monitoredEndpoints: []string{
 				"kube_endpoint_uid://ns/svc/",
 			},
-			expectUpToDate: true,
+			initialUpToDate: true,
+			expectUpToDate:  true,
 		},
 		{
 			name: "subsets change",
@@ -505,7 +508,58 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 			monitoredEndpoints: []string{
 				"kube_endpoint_uid://ns/svc/",
 			},
-			expectUpToDate: false,
+			initialUpToDate: true,
+			expectUpToDate:  false,
+		},
+		{
+			name: "unchanged subsets must not re-validate a pending invalidation",
+			old: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "v1",
+					Name:            "svc",
+					Namespace:       "ns",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{
+								IP: "10.0.0.1",
+								TargetRef: &v1.ObjectReference{
+									Kind: "Pod",
+									UID:  "svc-pod-1",
+								},
+								NodeName: &node,
+							},
+						},
+					},
+				},
+			},
+			new: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "v2",
+					Name:            "svc",
+					Namespace:       "ns",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{
+								IP: "10.0.0.1",
+								TargetRef: &v1.ObjectReference{
+									Kind: "Pod",
+									UID:  "svc-pod-1",
+								},
+								NodeName: &node,
+							},
+						},
+					},
+				},
+			},
+			monitoredEndpoints: []string{
+				"kube_endpoint_uid://ns/svc/",
+			},
+			initialUpToDate: false,
+			expectUpToDate:  false,
 		},
 	}
 
@@ -513,7 +567,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			p := newPromServicesProvider(checks, api, true)
-			p.setUpToDate(true)
+			p.setUpToDate(test.initialUpToDate)
 			for _, monitored := range test.monitoredEndpoints {
 				p.monitoredEndpoints[monitored] = true
 			}

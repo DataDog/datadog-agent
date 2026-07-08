@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -60,6 +61,14 @@ func newOptionalComponent(reqs Requires) Provides {
 		Hostname:      reqs.Hostname,
 		WorkloadMeta:  reqs.WorkloadMeta,
 		EventPlatform: reqs.EventPlatform,
+		Collectors:    defaultCollectors(),
 	})
 	return Provides{Comp: option.New(provides.Comp)}
+}
+
+func defaultCollectors() map[string]configfilesdiscoveryimpl.ConfigCollector {
+	return map[string]configfilesdiscoveryimpl.ConfigCollector{
+		collectors.KafkaIntegrationName: collectors.NewKafka(),
+		collectors.RedisIntegrationName: collectors.NewRedis(),
+	}
 }

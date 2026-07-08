@@ -51,7 +51,7 @@ func TestEventPlatformForwarderTestSuite(t *testing.T) {
 func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesGenresources() {
 	var genresourcesDesc passthroughPipelineDesc
 	found := false
-	for _, desc := range getPassthroughPipelines(suite.config) {
+	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeGenResources {
 			genresourcesDesc = desc
 			found = true
@@ -71,12 +71,10 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal(100, genresourcesDesc.defaultInputChanSize)
 }
 
-func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesAgentDiscoveryWhenEnabled() {
-	suite.config.SetInTest("config_files_discovery.enabled", true)
-
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesAgentDiscovery() {
 	var agentDiscoveryDesc passthroughPipelineDesc
 	found := false
-	for _, desc := range getPassthroughPipelines(suite.config) {
+	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeAgentDiscovery {
 			agentDiscoveryDesc = desc
 			found = true
@@ -95,14 +93,6 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal(1000, agentDiscoveryDesc.defaultBatchMaxSize)
 	suite.Equal(100, agentDiscoveryDesc.defaultInputChanSize)
 	suite.False(agentDiscoveryDesc.useStreamStrategy)
-}
-
-func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesSkipsAgentDiscoveryWhenDisabled() {
-	suite.config.SetInTest("config_files_discovery.enabled", false)
-
-	for _, desc := range getPassthroughPipelines(suite.config) {
-		suite.NotEqual(eventplatform.EventTypeAgentDiscovery, desc.eventType)
-	}
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {

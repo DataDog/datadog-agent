@@ -27,6 +27,7 @@ type Requires struct {
 	Hostname      hostname.Component
 	WorkloadMeta  workloadmeta.Component
 	EventPlatform eventplatform.Component
+	Collectors    map[string]ConfigCollector
 }
 
 // Provides defines the output of the config files discovery component.
@@ -45,16 +46,18 @@ func newComponent(
 	ad autodiscovery.Component,
 	resolver targetResolver,
 	sender collectedConfigSender,
+	configCollectors map[string]ConfigCollector,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker: newDockerConfigReader,
+		RuntimeDocker:     newDockerConfigReader,
+		RuntimeKubernetes: newKubernetesConfigReader,
 	}
-	collectors := map[string]configCollector{
-		redisIntegrationName: newRedisConfigCollector(),
+	if configCollectors == nil {
+		configCollectors = map[string]ConfigCollector{}
 	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver, readers, collectors, sender),
+		scheduler: newADScheduler(resolver, readers, configCollectors, sender),
 	}
 }
 
@@ -64,6 +67,7 @@ func NewComponent(reqs Requires) Provides {
 		reqs.Autodiscovery,
 		targetResolver{store: reqs.WorkloadMeta},
 		newEventPlatformCollectedConfigSender(reqs.EventPlatform, reqs.Hostname.GetSafe(context.Background())),
+		reqs.Collectors,
 	)
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: c.start, OnStop: c.stop})
 	return Provides{Comp: c}

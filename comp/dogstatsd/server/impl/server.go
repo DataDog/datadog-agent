@@ -19,7 +19,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -47,6 +47,8 @@ import (
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
+
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 var (
@@ -123,6 +125,11 @@ type dsdServer struct {
 	// running in their own routine, workers are responsible of parsing the packets
 	// and pushing them to the aggregator
 	workers []*worker
+
+	// workerWg tracks the worker run loops. stop() waits on it so that every
+	// worker has finished its run loop — including any flush-on-stop of its
+	// batcher — before stop() returns and the demultiplexer is torn down.
+	workerWg sync.WaitGroup
 
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
@@ -261,6 +268,8 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	}
 	sort.UniqInPlace(extraTags)
 
+	infraTagger := infratags.NewTagger(cfg)
+
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
 	eolTerminationUDP := false
@@ -318,6 +327,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
+			infraTagger:               infraTagger,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
@@ -513,7 +523,16 @@ func (s *dsdServer) stop(context.Context) error {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+
 	close(s.stopChan)
+
+	// Wait for every worker run loop to exit before tearing down the
+	// demultiplexer. When dogstatsd_flush_incomplete_buckets is set, each worker
+	// flushes its batcher into the time sampler as it exits (see worker.run), so
+	// waiting here guarantees those samples have reached the sampler before the
+	// demultiplexer's own stop drains and flushes them out. Without the flag the
+	// workers simply return, and this wait is a cheap barrier.
+	s.workerWg.Wait()
 
 	if s.Statistics != nil {
 		s.Statistics.Stop()
@@ -577,6 +596,7 @@ func (s *dsdServer) handleMessages() {
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		s.workerWg.Add(1)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -891,7 +911,7 @@ func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, ori
 }
 
 func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
-	if !cfg.IsSet(option) {
+	if !cfg.IsConfigured(option) {
 		return nil
 	}
 

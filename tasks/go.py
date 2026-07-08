@@ -101,6 +101,8 @@ def run_golangci_lint(
                         instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
                     elif goos == "windows":
                         instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                    elif goos == "aix":
+                        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
                     else:
                         instr = "the appropriate cross-compilation toolchain"
                     print(
@@ -384,7 +386,7 @@ def _go_only_tidy(ctx, verbose: bool):
 
 def _bazel_tidy(ctx, verbose: bool):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel(ctx, "mod", "tidy")
+    bazel(ctx, "mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
     bazel(ctx, "run", "//:go", "work", "sync")
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)

@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Builder struct represents the metric store generator
@@ -423,6 +426,7 @@ func generateConfigMapStores(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-cluster config for metadata client: %w", err)
 	}
+	restConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 
 	metadataClient, err := metadata.NewForConfig(restConfig)
 	if err != nil {

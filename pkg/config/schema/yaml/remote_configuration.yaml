@@ -19,8 +19,6 @@ properties:
       Set to true to enable Remote Configuration. Enabled by default.
       Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
       and must be explicitly enabled.
-    tags:
-    - template_section:Common
     comment: Remote config
   agent_config:
     node_type: section
@@ -95,7 +93,7 @@ properties:
         default: 5
       ttl_seconds:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -138,8 +136,8 @@ properties:
     default: ''
   max_backoff_interval:
     node_type: setting
-    type: number
-    default: 5m0s
+    type: string
+    default: 2m0s
     format: duration
     tags:
     - golang_type:duration
@@ -159,7 +157,7 @@ properties:
     comment: Websocket echo test
   org_status_refresh_interval:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -170,8 +168,5 @@ properties:
     default: ''
   refresh_interval:
     node_type: setting
-    type: number
+    type: string
     default: 0s
-    format: duration
-    tags:
-    - golang_type:duration

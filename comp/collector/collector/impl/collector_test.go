@@ -146,6 +146,22 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
 }
 
+func (suite *CollectorTestSuite) TestRunShadowCheckDoesNotIncrementNormalCheckInstances() {
+	source := NewCheckUnique("TestCheck:abc123", "TestCheck")
+	shadow := check.NewShadowCheck(source, time.Minute)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
+
+	normal := NewCheckUnique("TestCheck:def456", "TestCheck")
+	id, err = suite.c.RunCheck(normal)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(1), suite.c.checkInstances)
+}
+
 func (suite *CollectorTestSuite) TestStopCheck() {
 	ch := NewCheck()
 
