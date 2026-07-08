@@ -865,7 +865,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("sbom.container_image.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
-	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
+	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "10Mb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", true)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
