@@ -407,10 +407,8 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 }
 
 // TestFlushErrortracking_DrainIsBoundedToSnapshot: a flush must dispatch
-// only what was queued at start, ignoring items added while it drains.
-// The channel is filled to capacity so the snapshot is deterministically
-// bufSize; the refill-count check guards against a false pass if the
-// producer never actually raced the drain.
+// only what was queued at start. Retries until a refill is confirmed
+// mid-drain, so a slow CI schedule can't pass without exercising it.
 func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 	sm := &senderMock{}
 	const bufSize = 10
@@ -436,30 +434,39 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 		wg.Wait()
 	})
 
-	for len(a.errLogsCh) < bufSize {
-		runtime.Gosched()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		require.False(t, time.Now().After(deadline),
+			"producer never landed a refill while a flush was draining, across repeated attempts")
+
+		for len(a.errLogsCh) < bufSize {
+			runtime.Gosched()
+		}
+
+		before := refills.Load()
+		logsBefore := len(sm.capturedLogs())
+		callsBefore := sm.sendLogsCalls()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			a.flushErrortracking(context.Background())
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("flush did not return while a producer kept refilling the channel; the drain is not bounded to a fixed snapshot")
+		}
+
+		require.Equal(t, bufSize, len(sm.capturedLogs())-logsBefore,
+			"flush must dispatch exactly the snapshot count (channel capacity, %d), not chase concurrent refills", bufSize)
+		assert.Equal(t, callsBefore+1, sm.sendLogsCalls(),
+			"snapshot-bounded flush must dispatch in exactly one sendLogsBatch call")
+
+		if refills.Load() > before {
+			return // this attempt proved the producer actually raced the drain
+		}
 	}
-
-	before := refills.Load()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		a.flushErrortracking(context.Background())
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("flush did not return while a producer kept refilling the channel; the drain is not bounded to a fixed snapshot")
-	}
-	after := refills.Load()
-
-	require.Greater(t, after, before,
-		"producer must land at least one refill while the flush is draining, otherwise this test cannot tell a correct snapshot-bounded drain from a buggy drain-until-empty loop")
-	require.Len(t, sm.capturedLogs(), bufSize,
-		"flush must dispatch exactly the snapshot count (channel capacity, %d), not chase concurrent refills", bufSize)
-	assert.Equal(t, 1, sm.sendLogsCalls(),
-		"snapshot-bounded flush must dispatch in exactly one sendLogsBatch call")
 }
 
 // TestFlushErrortracking_LateArrivalsWaitForNextTick: records enqueued
