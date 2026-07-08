@@ -41,6 +41,8 @@ tags:
     regex: "^(parity|secded)$"
   nvlink_port:
     regex: "^\\d+$"
+  throttle_reason:
+    regex: "^(applications_clocks_setting|sw_power_cap|sync_boost|sw_thermal_slowdown|display_clock_setting|not-throttled)$"
 
 tagsets:
   container:

@@ -243,6 +243,24 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  clock.throttled_while_active:
+    metadata:
+      metric_type: gauge
+      description: Whether the GPU clock is throttled for a reason other than the GPU being idle
+      aggregation: sensor_data
+    tagsets:
+      - device
+    custom_tags:
+      - throttle_reason
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   core.limit:
     metadata:
       metric_type: gauge
