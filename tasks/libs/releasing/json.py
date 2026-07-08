@@ -102,17 +102,20 @@ def _dump_json(path, data):
 
 def load_release_json():
     """
-    Loads release.json and merges the per-project dependency shards under release/
-    into a single dependencies block, reproducing the historical single-file shape.
+    Loads release.json and merges all per-project dependency shards found under
+    release.d/ into a single dependencies block, reproducing the historical
+    single-file shape. Each shard file has the form {"dependencies": {...}}.
     """
     with open(RELEASE_JSON) as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
     dependencies = OrderedDict()
-    for filename in _dependency_shard_files():
+    for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
+        if not filename.endswith(".json"):
+            continue
         with open(_shard_path(filename)) as shard_stream:
             shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
-        for key, value in shard.items():
+        for key, value in shard.get(RELEASE_JSON_DEPENDENCIES, {}).items():
             dependencies[key] = value
 
     release_json[RELEASE_JSON_DEPENDENCIES] = OrderedDict(sorted(dependencies.items()))
@@ -122,7 +125,8 @@ def load_release_json():
 def _save_release_json(release_json):
     """
     Saves the top-level metadata to release.json and routes each dependency key
-    back to its owning shard file under release/.
+    back to its owning shard file under release.d/. Each shard is written as
+    {"dependencies": {...}} so any JSON reader can locate the block by key.
     """
     release_json = OrderedDict(release_json)
     dependencies = release_json.pop(RELEASE_JSON_DEPENDENCIES, OrderedDict())
@@ -134,7 +138,8 @@ def _save_release_json(release_json):
         shards[_shard_for_key(key)][key] = value
 
     for filename in _dependency_shard_files():
-        _dump_json(_shard_path(filename), OrderedDict(sorted(shards[filename].items())))
+        shard_deps = OrderedDict(sorted(shards[filename].items()))
+        _dump_json(_shard_path(filename), OrderedDict([(RELEASE_JSON_DEPENDENCIES, shard_deps)]))
 
 
 def _get_jmxfetch_release_json_info(release_json):

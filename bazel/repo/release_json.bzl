@@ -37,18 +37,19 @@ def read_effective_release_json(rctx, release_json_label, shard_labels = []):
         rctx: The repository context.
         release_json_label: Label for release.json (holds top-level metadata).
         shard_labels: Labels for per-project dependency shard files under
-            release.d/. Each shard is a flat JSON object whose keys are merged
-            into the returned dependencies dict. When empty, falls back to
-            reading a "dependencies" key directly from release.json (test use).
+            release.d/. Each shard has the form {"dependencies": {...}} and its
+            keys are merged into the returned dependencies dict. When empty,
+            falls back to reading a "dependencies" key directly from release.json
+            (for tests or callers that embed dependencies in release.json).
     """
     release_json = json.decode(rctx.read(rctx.path(release_json_label)))
 
     if shard_labels:
-        # New mode: merge dependency keys from per-project shard files.
+        # Merge dependency keys from per-project shard files.
         dependencies = {}
         for label in shard_labels:
             shard = json.decode(rctx.read(rctx.path(label)))
-            dependencies.update(shard)
+            dependencies.update(shard.get("dependencies", {}))
     else:
         # Fallback: read from a "dependencies" key embedded in release.json.
         # Used by tests and any callers that have not yet been migrated.
@@ -63,29 +64,29 @@ def read_effective_release_json(rctx, release_json_label, shard_labels = []):
 
 def _release_json_impl(rctx):
     rctx.file("BUILD.bazel", BUILD_FILE_CONTENT)
-    release_json = read_effective_release_json(
-        rctx,
-        rctx.attr._release_json,
-        shard_labels = rctx.attr._release_shards,
-    )
-    rctx.file("release_json.bzl", """release_json = %s\n""" % str(release_json))
+    release_json_path = rctx.path(rctx.attr._release_json)
+    release_json_data = json.decode(rctx.read(release_json_path))
+
+    # Auto-discover all shards from release.d/ so new shards are picked up
+    # without needing to update this file.
+    release_d_dir = release_json_path.dirname.get_child("release.d")
+    dependencies = {}
+    for shard_path in sorted(release_d_dir.readdir(), key = lambda p: str(p)):
+        if not str(shard_path).endswith(".json"):
+            continue
+        shard = json.decode(rctx.read(shard_path))
+        dependencies.update(shard.get("dependencies", {}))
+
+    release_json_data["dependencies"] = {
+        dep_key: rctx.getenv(dep_key) or dependencies[dep_key]
+        for dep_key in dependencies
+    }
+    rctx.file("release_json.bzl", "release_json = %s\n" % str(release_json_data))
 
 release_json = repository_rule(
     implementation = _release_json_impl,
     doc = """Import release.json as a .bzl file.""",
     attrs = {
         "_release_json": attr.label(default = "//:release.json", allow_single_file = True),
-        "_release_shards": attr.label_list(
-            default = [
-                "//:release.d/agent-data-plane.json",
-                "//:release.d/integrations-core.json",
-                "//:release.d/jmxfetch.json",
-                "//:release.d/omnibus-ruby.json",
-                "//:release.d/security-agent-policies.json",
-                "//:release.d/windows-drivers.json",
-            ],
-            allow_files = True,
-            doc = "Per-project dependency shard files under release.d/.",
-        ),
     },
 )

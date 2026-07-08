@@ -1156,7 +1156,7 @@ class TestReleaseJsonShards(unittest.TestCase):
         import json
 
         with open(os.path.join(self.shard_dir, name), "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump({"dependencies": data}, f, indent=4, separators=(',', ': '))
             f.write("\n")
 
     def _read(self, path):
