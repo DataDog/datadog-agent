@@ -211,6 +211,7 @@ go_library(
         "//comp/remote-config/rcclient/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/ebpf/btf",
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",

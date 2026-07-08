@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -1884,7 +1885,7 @@ func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
 	if ebpftest.GetBuildMode() != ebpftest.CORE {
 		return
 	}
-	spec, err := ddebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		t.Skipf("BTF not available: %v", err)
 	}
