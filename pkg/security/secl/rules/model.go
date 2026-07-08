@@ -382,9 +382,12 @@ type NetworkFilterDefinition struct {
 }
 
 // PreCheck returns an error if the network filter action is invalid
-func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
+func (n *NetworkFilterDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	if n.BPFFilter == "" {
-		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
+		return errors.New("a not empty BPF filter must be specified to the 'network_filter' action")
+	}
+	if err := validateBPFFilterWithDefault(opts, n.BPFFilter); err != nil {
+		return err
 	}
 
 	// default scope to process

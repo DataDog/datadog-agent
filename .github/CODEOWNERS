@@ -33,6 +33,7 @@
 /.claude/skills/create-runtime-setting/          @DataDog/agent-runtimes @DataDog/agent-configuration
 /.claude/skills/create-status-provider/          @DataDog/agent-configuration
 /.claude/skills/create-subcommand/               @DataDog/agent-configuration
+/.claude/skills/cws-iouring-coverage/            @DataDog/agent-security
 /.claude/skills/explain-lading-config            @DataDog/single-machine-performance
 /.claude/skills/quality-gate-size-analysis/      @DataDog/agent-build
 /.claude/skills/review-pr-comments/              @DataDog/agent-devx
@@ -80,7 +81,7 @@
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
-/renovate.json                          @DataDog/agent-build 
+/renovate.json                          @DataDog/agent-build
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
@@ -545,6 +546,7 @@
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/ad-misconfiguration @DataDog/container-platform @DataDog/agent-health @DataDog/fleet-remediation
+/comp/healthplatform/issues/gpuenvironment @DataDog/gpu-monitoring-agent @DataDog/ebpf-platform @DataDog/agent-health @DataDog/fleet-remediation
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health @DataDog/fleet-remediation
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
@@ -602,13 +604,13 @@
 /pkg/config/                            @DataDog/agent-configuration
 /pkg/config/config_template.yaml        @DataDog/agent-configuration @DataDog/documentation
 /pkg/config/settings/runtime_setting_profiling_period*.go  @DataDog/agent-runtimes
-/pkg/config/setup/apm.go                @DataDog/agent-apm @DataDog/agent-configuration
 /pkg/config/example/application_monitoring.yaml.example @DataDog/agent-apm
 /pkg/config/autodiscovery/              @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
-/pkg/config/setup                            @DataDog/agent-configuration
-/pkg/config/setup/privateactionrunner*.go      @DataDog/action-platform @DataDog/agent-configuration
-/pkg/config/setup/process*.go                 @DataDog/container-experiences @DataDog/agent-configuration
+/pkg/config/setup                               @DataDog/agent-configuration
+/pkg/config/setup/apm_settings.go               @DataDog/agent-apm @DataDog/agent-configuration
+/pkg/config/setup/privateactionrunner*.go       @DataDog/action-platform @DataDog/agent-configuration
+/pkg/config/setup/process*.go                   @DataDog/container-experiences @DataDog/agent-configuration
 /pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
@@ -629,7 +631,7 @@
 /pkg/flare/*_windows.go                 @DataDog/windows-products @DataDog/agent-configuration
 /pkg/flare/*_windows_test.go            @DataDog/windows-products @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                         @DataDog/windows-products
 /pkg/inventory/software/                @DataDog/windows-products
 /pkg/inventory/systeminfo/              @DataDog/windows-products
@@ -953,7 +955,7 @@
 /test/new-e2e/tests/ssi-gradual-rollout       @DataDog/apm-release-platform
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
-/test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
+/test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-observability
 /test/new-e2e/tests/sbom                      @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet

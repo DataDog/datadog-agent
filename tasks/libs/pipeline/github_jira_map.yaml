@@ -59,3 +59,4 @@
 '@datadog/fleet-remediation': AGTHEAL
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': DEFAULT_JIRA_PROJECT
+'@datadog/gpu-monitoring-agent': EBPF
