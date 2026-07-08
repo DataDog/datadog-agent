@@ -19,13 +19,13 @@ const (
 	subsystem = "agent_performance"
 	kindTag   = "kind"
 
-	// ContainerRestarts is the COAT metric name for Kubernetes container restarts.
-	ContainerRestarts = "containers_restarts"
-	// ContainerTerminated is the COAT metric name for Kubernetes container terminated states.
-	ContainerTerminated = "containers_terminated"
-	// MemoryUsage is the COAT metric name for container runtime memory usage.
+	// ContainerRestarts is the metric name for Kubernetes container restarts.
+	ContainerRestarts = "container_restarts"
+	// ContainerTerminated is the metric name for Kubernetes container terminated states.
+	ContainerTerminated = "container_terminated"
+	// MemoryUsage is the metric name for container runtime memory usage.
 	MemoryUsage = "memory_usage"
-	// MemoryLimit is the COAT metric name for container runtime memory limits.
+	// MemoryLimit is the metric name for container runtime memory limits.
 	MemoryLimit = "memory_limit"
 
 	clusterAgentComponent               = "cluster-agent"

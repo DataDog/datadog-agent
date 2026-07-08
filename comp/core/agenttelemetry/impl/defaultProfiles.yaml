@@ -103,11 +103,11 @@ profiles:
     exclude:
       zero_metric: true
     metrics:
-      - name: agent_performance.containers_restarts
+      - name: agent_performance.container_restarts
         preserve_tags:
           - kind
           - pod_name
-      - name: agent_performance.containers_terminated
+      - name: agent_performance.container_terminated
         preserve_tags:
           - kind
           - pod_name
