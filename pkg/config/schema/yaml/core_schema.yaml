@@ -4169,22 +4169,11 @@ properties:
             node_type: setting
             type: integer
             default: 0
-            visibility: internal
-            description: |-
-              Report partial scan results every N collected OIDs. A value of 0 uses
-              the default batch size.
-            tags:
-            - template_section:CoreAgent
+            comment: Internal, undocumented knobs for tuning partial result reporting.
           flush_interval:
             node_type: setting
             type: string
             default: 0s
-            visibility: internal
-            description: |-
-              Report partial scan results at least this often (a duration such as
-              "15s"). A value of 0s uses the default interval.
-            tags:
-            - template_section:CoreAgent
       autodiscovery:
         node_type: section
         type: object
