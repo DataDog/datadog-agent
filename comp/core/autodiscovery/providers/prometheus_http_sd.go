@@ -262,13 +262,6 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 	}
 
 	var configs []integration.Config
-	// Accumulate filter evaluation errors across all target groups so we can
-	// emit a single aggregated warning per collect() call instead of one
-	// Warnf per target (which floods logs when many targets lack an expected label).
-	var filterErrCount int
-	var firstFilterErr error
-	var firstFilterErrTarget string
-
 	for _, tg := range targetGroups {
 		tags := labelsToTags(tg.Labels)
 
@@ -279,14 +272,7 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 				port = ""
 			}
 
-			if excluded, filterErr := e.isExcluded(host, port, tg.Labels); filterErr != nil {
-				filterErrCount++
-				if firstFilterErr == nil {
-					firstFilterErr = filterErr
-					firstFilterErrTarget = target
-				}
-				log.Debugf("http_sd: exclude_filter evaluation failed for target %s: %v", target, filterErr)
-			} else if excluded {
+			if excluded, filterErr := e.isExcluded(host, port, tg.Labels); filterErr == nil && excluded {
 				log.Debugf("http_sd: target %s excluded by filter", target)
 				continue
 			}
@@ -298,10 +284,6 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 			}
 			configs = append(configs, config)
 		}
-	}
-
-	if filterErrCount > 0 {
-		log.Warnf("http_sd: exclude_filter evaluation failed for %d target(s) from %s; targets were collected (first error on %q: %v)", filterErrCount, e.url, firstFilterErrTarget, firstFilterErr)
 	}
 
 	return configs, nil
