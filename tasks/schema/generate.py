@@ -284,9 +284,10 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         print("Codegen complete. Output dir: %s" % tmpdir)
 
     if check:
-        # Compare tmpdir against SCHEMA_DIR, fail if different
+        # Compare tmpdir against SETUP_INIT_DIR, fail if different
         try:
-            ctx.run(f"diff {tmpdir}/ {SETUP_INIT_DIR}/")
+            for file in os.listdir(tmpdir):
+                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
         except Failure:
             print(
                 color_message(
@@ -296,8 +297,8 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
             raise Exit(code=1)
 
     if fix:
-        # Fix any differences by copying the codegen results into SCHEMA_DIR
-        ctx.run(f"cp {tmpdir}/*.go {SETUP_INIT_DIR}/")
+        # Fix any differences by copying the codegen results into SETUP_INIT_DIR
+        ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
 
     if not keeptmp:
         return
