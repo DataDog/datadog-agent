@@ -101,8 +101,17 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		return err
 	}
 
+	// Build cluster args: start from environment defaults, apply any provisioner overrides.
+	clusterArgs := kubernetes.OpenShiftClusterArgs{
+		PullSecretPath: gcpEnv.OpenShiftPullSecretPath(),
+		CPUs:           gcpEnv.OpenShiftCPUs(),
+		Memory:         gcpEnv.OpenShiftMemory(),
+		Disk:           gcpEnv.OpenShiftDisk(),
+	}
+	_ = optional.ApplyOptions(&clusterArgs, params.openshiftOptions)
+
 	// Create the OpenShift cluster
-	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", gcpEnv.OpenShiftPullSecretPath(), params.openshiftOptions...)
+	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", clusterArgs, params.pulumiResourceOptions...)
 	if err != nil {
 		return err
 	}

@@ -1240,7 +1240,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     }
 
     platform_flags = []
-    if arch.kmt_arch in platform_map:
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:

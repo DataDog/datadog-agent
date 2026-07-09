@@ -20,7 +20,7 @@ func TestWinprocCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\System\\Processes", 32.0)
 
 	winprocCheck := new(processChk)
-	mock := mocksender.NewMockSender(winprocCheck.ID())
+	mock := mocksender.NewMockSender(t, winprocCheck.ID())
 	winprocCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.proc.queue_length", 2.0, "", []string(nil)).Return().Times(1)
