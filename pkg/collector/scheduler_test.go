@@ -7,6 +7,7 @@ package collector
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -225,7 +227,7 @@ func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *t
 	assert.Empty(t, shadowSenderManager.requestedIDs)
 }
 
-func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowSenderManagerMissing(t *testing.T) {
+func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
@@ -246,11 +248,18 @@ func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowSenderManagerMissing(t *t
 
 	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
 
-	require.Len(t, checks, 1)
+	require.Len(t, checks, 2)
 	assert.False(t, check.IsShadow(checks[0]))
-	assert.Equal(t, []checkid.ID{checks[0].ID()}, s.configToChecks[config.Digest()])
-	require.Len(t, loader.calls, 1)
+	assert.True(t, check.IsShadow(checks[1]))
+	assert.Equal(t, []checkid.ID{checks[0].ID(), checks[1].ID()}, s.configToChecks[config.Digest()])
+	require.Len(t, loader.calls, 2)
 	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
+	assert.NotNil(t, s.shadowSenderManager)
+	assert.NotEqual(t, normalSenderManager, loader.calls[1].senderManager)
+	shadowCallSenderManager, ok := loader.calls[1].senderManager.(shadowCheckSenderManager)
+	require.True(t, ok)
+	assert.Equal(t, s.shadowSenderManager, shadowCallSenderManager.SenderManager)
+	assert.Equal(t, checks[1].ID(), shadowCallSenderManager.shadowCheckID)
 }
 
 func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
@@ -281,6 +290,33 @@ func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
 	assert.Equal(t, []checkid.ID{checks[0].ID()}, s.configToChecks[config.Digest()])
 	assert.Len(t, loader.calls, 2)
 	assert.Equal(t, []checkid.ID{check.ShadowID(checks[0].ID())}, shadowSenderManager.destroyedIDs)
+}
+
+func TestStopCancelsShadowSenderContext(t *testing.T) {
+	s := CheckScheduler{}
+	ctx := s.ensureShadowSenderContext()
+
+	s.Stop()
+
+	select {
+	case <-ctx.Done():
+		assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for shadow sender context cancellation")
+	}
+}
+
+func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
+	s := InitCheckScheduler(
+		option.None[collectorcomp.Component](),
+		&recordingSchedulerSenderManager{},
+		option.None[integrations.Component](),
+		nil,
+		nil,
+	)
+
+	assert.Nil(t, s.shadowSenderContext)
+	assert.Nil(t, s.shadowSenderCancel)
 }
 
 // MockCollector is a mock implementation of collectorcomp.Component for testing

@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "datadoginstrumentation",
+    srcs = ["webhook.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/datadoginstrumentation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/instrumentation",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//tools/cache",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datadoginstrumentation_test",
+    srcs = ["webhook_test.go"],
+    embed = [":datadoginstrumentation"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/instrumentation",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//dynamic/fake",
+    ],
+)
