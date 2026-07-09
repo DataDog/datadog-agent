@@ -224,9 +224,8 @@ func TestExtractExtensionType(t *testing.T) {
 	}
 }
 
-// TestCreateOTelFlareUsesUnpredictableDir ensures the flare is created in its
-// own private, unpredictable directory instead of at a predictable path in the
-// shared temp directory (which is world-writable on Linux).
+// TestCreateOTelFlareUsesUnpredictableDir ensures each flare gets its own unpredictable
+// directory, not a predictable path in the shared (world-writable) temp dir.
 func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 
@@ -242,16 +241,11 @@ func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
 		"each flare must use a unique directory (os.MkdirTemp), not a predictable shared path")
 }
 
-// TestCreateOTelFlareRestrictsPermissions ensures both the flare directory and
-// the archive within it are readable only by the current user, so other local
-// users on a multi-user host cannot read the collected diagnostics. The
-// cross-platform enforcement lives in (and is tested by) pkg/util/filesystem
-// (RemoveAccessToOtherUsers); here we assert the flare command actually applies
-// it. Permission bits are only meaningful on Unix, so the check is skipped on
-// Windows where enforcement is via ACLs.
-func TestCreateOTelFlareRestrictsPermissions(t *testing.T) {
+// TestCreateOTelFlareDirectoryIsPrivate checks the flare dir is private (0700 on Unix) so others can't
+// read the archive or pre-seed a symlink. Bit check is Unix-only; Windows inherits the per-user temp ACL.
+func TestCreateOTelFlareDirectoryIsPrivate(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("permission bits are not meaningful on Windows; ACL enforcement is covered by pkg/util/filesystem")
+		t.Skip("permission bits are not meaningful on Windows; the directory inherits the caller's private per-user temp ACL")
 	}
 
 	globalParams := newGlobalParamsTest(t)
@@ -264,11 +258,6 @@ func TestCreateOTelFlareRestrictsPermissions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zerof(t, dirInfo.Mode().Perm()&0o077,
 		"flare directory must not be accessible by group/other, got %o", dirInfo.Mode().Perm())
-
-	fileInfo, err := os.Stat(flarePath)
-	require.NoError(t, err)
-	assert.Zerof(t, fileInfo.Mode().Perm()&0o077,
-		"flare archive must not be accessible by group/other, got %o", fileInfo.Mode().Perm())
 }
 
 func TestFlareCommand(t *testing.T) {

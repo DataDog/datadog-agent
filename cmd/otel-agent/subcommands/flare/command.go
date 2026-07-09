@@ -38,7 +38,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -165,21 +164,11 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
 
-	// Create the flare inside a private directory and restrict its permissions so
-	// that other local users cannot read the collected diagnostics or redirect
-	// the archive through a pre-seeded symlink/junction on the shared system temp
-	// directory.
+	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
+	// Not RemoveAccessToOtherUsers: it grants dd-agent, not the caller, locking out a non-admin operator on Windows.
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir for flare: %w", err)
-	}
-
-	fperm, err := filesystem.NewPermission()
-	if err != nil {
-		return "", err
-	}
-	if err := fperm.RemoveAccessToOtherUsers(tmpDir); err != nil {
-		return "", fmt.Errorf("failed to restrict flare directory permissions: %w", err)
 	}
 
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
@@ -188,11 +177,6 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 
 	if err := createFlareArchive(filePath, data); err != nil {
 		return "", fmt.Errorf("failed to create flare archive: %w", err)
-	}
-
-	// Restrict the archive file itself as well, matching the core Agent flare builder.
-	if err := fperm.RemoveAccessToOtherUsers(filePath); err != nil {
-		return "", fmt.Errorf("failed to restrict flare archive permissions: %w", err)
 	}
 
 	fmt.Fprintln(color.Output, color.GreenString("Flare archive created: "+filePath))
@@ -523,9 +507,7 @@ func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
 
 // createFlareArchive creates a zip archive with the diagnostic data
 func createFlareArchive(filePath string, data *extensiontypes.Response) error {
-	// Create zip file. The parent directory is created private and restricted to
-	// the current user by createOTelFlare, so no other local user can pre-seed a
-	// symlink/junction here.
+	// Parent dir is created private (0700) by createOTelFlare, so no other user can pre-seed a symlink here.
 	zipFile, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file: %w", err)
