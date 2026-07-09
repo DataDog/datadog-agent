@@ -198,6 +198,35 @@ func TestExecute_OnAliveSetOnDeadNil_DoesNotPanic(t *testing.T) {
 	})
 }
 
+// An OnDead-only hook (OnAlive nil) must still fire. Regression test for a bug
+// where OnDead's defer was registered inside the `hooks.OnAlive != nil` branch,
+// so it never ran without an OnAlive hook.
+func TestExecute_OnDeadOnly_OnAliveNil_StillFires(t *testing.T) {
+	child := lifecycle.NewChild()
+	child.MarkAlive()
+	hooks := &ProcessHooks{OnAlive: nil, OnDead: child.MarkDead}
+	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 0"}, hooks)
+	assert.NoError(t, err)
+	assert.False(t, child.IsAlive(), "OnDead must fire even when OnAlive is nil")
+}
+
+// OnDead must still fire if OnAlive panics. Regression test for a bug where
+// OnDead's defer was registered only after hooks.OnAlive() returned, so a
+// panic in OnAlive skipped it despite the doc comment promising otherwise.
+func TestExecute_OnAlivePanics_OnDeadStillFires(t *testing.T) {
+	child := lifecycle.NewChild()
+	child.MarkAlive()
+	hooks := &ProcessHooks{
+		OnAlive: func() { panic("boom") },
+		OnDead:  child.MarkDead,
+	}
+	func() {
+		defer func() { recover() }()
+		_ = execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 0"}, hooks)
+	}()
+	assert.False(t, child.IsAlive(), "OnDead must fire even if OnAlive panics")
+}
+
 func TestForwardSignalToChild(t *testing.T) {
 	runTestOnLinuxOnly(t, func(t *testing.T) {
 		resultChan := make(chan error)
