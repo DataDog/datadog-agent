@@ -2664,8 +2664,8 @@ api_key:
 # dogstatsd_no_aggregation_pipeline_workers_count: 1
 
 ## @param metric_lookback - custom object - optional
-## Configure the local metric lookback ring. The first supported DogStatsD use
-## case captures selected normal DogStatsD bucketed points and final
+## Configure the local metric lookback rings. The first supported DogStatsD use
+## case captures selected normal DogStatsD bucketed points/sketches and final
 ## no-aggregation points by exact name. An optional monitor can forward retained
 ## high-resolution ranges after a watched metric breaches its configured
 ## short-window max-minus-min range threshold.
@@ -2674,25 +2674,28 @@ api_key:
 
 #   # @param enabled - boolean - optional - default: false
 #   # @env DD_METRIC_LOOKBACK_ENABLED - boolean - optional - default: false
-#   # Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed by enabled_checks.
+#   # Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed
+#   # by enabled_checks.
 #
 #   enabled: false
 
 #   # @param enabled_checks - list of strings - optional - default: []
 #   # @env DD_METRIC_LOOKBACK_ENABLED_CHECKS - space-separated list of strings - optional - default: []
-#   # Optional check-name allowlist for metric lookback shadow checks. When empty, all supported checks are eligible.
+#   # Optional check-name allowlist for metric lookback shadow checks. When empty, all supported
+#   # checks are eligible.
 #
 #   enabled_checks: []
 
 #   # @param capacity - integer - optional - default: 262144
 #   # @env DD_METRIC_LOOKBACK_CAPACITY - integer - optional - default: 262144
-#   # Total number of point records retained across all lookback ring shards.
+#   # Total number of records retained across each lookback ring's shards. Series points and
+#   # sketches use separate rings.
 #
 #   capacity: 262144
 
 #   # @param shard_count - integer - optional - default: 16
 #   # @env DD_METRIC_LOOKBACK_SHARD_COUNT - integer - optional - default: 16
-#   # Number of independent shards used by the lookback ring.
+#   # Number of independent shards used by each lookback ring.
 #
 #   shard_count: 16
 

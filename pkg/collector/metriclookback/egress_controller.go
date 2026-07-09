@@ -23,12 +23,12 @@ const (
 )
 
 var (
-	tlmEgressMode         = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_mode", []string{"mode"}, "Current metric lookback egress mode")
-	tlmEgressTransitions  = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_transitions", []string{"from", "to", "reason"}, "Count of metric lookback egress mode transitions")
-	tlmEgressRanges       = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_ranges", []string{"state"}, "Count of metric lookback egress ranges")
-	tlmEgressRuns         = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_runs", []string{"state"}, "Count of metric lookback egress forwarding attempts")
-	tlmEgressSeries       = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_series", nil, "Number of series sent by the last metric lookback egress range")
-	tlmEgressRangeSeconds = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_range_seconds", nil, "Width of the last metric lookback egress range in seconds")
+	tlmEgressMode          = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_mode", []string{"mode"}, "Current metric lookback egress mode")
+	tlmEgressTransitions   = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_transitions", []string{"from", "to", "reason"}, "Count of metric lookback egress mode transitions")
+	tlmEgressRanges        = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_ranges", []string{"state"}, "Count of metric lookback egress ranges")
+	tlmEgressRuns          = telemetryimpl.GetCompatComponent().NewCounter("metric_lookback", "egress_runs", []string{"state"}, "Count of metric lookback egress forwarding attempts")
+	tlmEgressPayloadSeries = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_payload_series", []string{"payload"}, "Number of series or sketch series sent by the last metric lookback egress range")
+	tlmEgressRangeSeconds  = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_range_seconds", nil, "Width of the last metric lookback egress range in seconds")
 )
 
 // MonitorStateTransition describes an observed change in the monitor's own
@@ -283,14 +283,14 @@ func (c *EgressController) RunOnce() {
 	forwardedAny := false
 	hadError := false
 	if hasSeries {
-		forwarded, failed := c.forwardRanges(seriesRanges, seriesAvailable, c.retention.ForwardSeriesRange, func(policy *EgressPolicy, r TimeRange) {
+		forwarded, failed := c.forwardRanges("series", seriesRanges, seriesAvailable, c.retention.ForwardSeriesRange, func(policy *EgressPolicy, r TimeRange) {
 			policy.MarkSeriesForwarded(r)
 		})
 		forwardedAny = forwardedAny || forwarded
 		hadError = hadError || failed
 	}
 	if hasSketch {
-		forwarded, failed := c.forwardRanges(sketchRanges, sketchAvailable, c.retention.ForwardSketchRange, func(policy *EgressPolicy, r TimeRange) {
+		forwarded, failed := c.forwardRanges("sketch", sketchRanges, sketchAvailable, c.retention.ForwardSketchRange, func(policy *EgressPolicy, r TimeRange) {
 			policy.MarkSketchForwarded(r)
 		})
 		forwardedAny = forwardedAny || forwarded
@@ -305,7 +305,7 @@ func (c *EgressController) RunOnce() {
 	}
 }
 
-func (c *EgressController) forwardRanges(ranges []TimeRange, available TimeRange, forward func(serializer.MetricSerializer, time.Time, time.Time) (int, error), markForwarded func(*EgressPolicy, TimeRange)) (bool, bool) {
+func (c *EgressController) forwardRanges(payload string, ranges []TimeRange, available TimeRange, forward func(serializer.MetricSerializer, time.Time, time.Time) (int, error), markForwarded func(*EgressPolicy, TimeRange)) (bool, bool) {
 	forwardedAny := false
 	for _, planned := range ranges {
 		r, ok := intersectRanges(planned, available)
@@ -315,7 +315,7 @@ func (c *EgressController) forwardRanges(ranges []TimeRange, available TimeRange
 		tlmEgressRanges.Inc("planned")
 		tlmEgressRangeSeconds.Set(r.To.Sub(r.From).Seconds())
 		count, err := forward(c.metricSerializer, r.From, r.To)
-		tlmEgressSeries.Set(float64(count))
+		tlmEgressPayloadSeries.Set(float64(count), payload)
 		if err != nil {
 			tlmEgressRanges.Inc("retry")
 			return forwardedAny, true

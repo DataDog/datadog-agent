@@ -8,6 +8,7 @@ package metriclookback
 import (
 	"context"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -243,11 +244,13 @@ func (m *DogStatsDBucketMaterializer) Flush(timestamp float64) {
 		return
 	}
 
+	var observations []monitorObservation
 	for i := range m.shards {
 		result := m.shards[i].flushThrough(last, m)
-		m.appendSealedSeries(result.series)
-		m.appendSealedSketchSeries(result.sketches)
+		observations = m.appendSealedSeries(result.series, observations)
+		observations = m.appendSealedSketchSeries(result.sketches, observations)
 	}
+	m.observeSealedPoints(observations)
 }
 
 // FlushAll seals all currently open buckets, ignoring the normal seal delay.
@@ -257,15 +260,17 @@ func (m *DogStatsDBucketMaterializer) FlushAll(_ float64) {
 	if m == nil {
 		return
 	}
+	var observations []monitorObservation
 	for i := range m.shards {
 		last, ok := m.shards[i].lastOpenBucketStart()
 		if !ok {
 			continue
 		}
 		result := m.shards[i].flushThrough(last, m)
-		m.appendSealedSeries(result.series)
-		m.appendSealedSketchSeries(result.sketches)
+		observations = m.appendSealedSeries(result.series, observations)
+		observations = m.appendSealedSketchSeries(result.sketches, observations)
 	}
+	m.observeSealedPoints(observations)
 }
 
 type dogStatsDFlushResult struct {
@@ -273,35 +278,61 @@ type dogStatsDFlushResult struct {
 	sketches []*metrics.SketchSeries
 }
 
-func (m *DogStatsDBucketMaterializer) appendSealedSeries(series []*metrics.Serie) {
+type monitorObservation struct {
+	name string
+	at   time.Time
+}
+
+func (m *DogStatsDBucketMaterializer) appendSealedSeries(series []*metrics.Serie, observations []monitorObservation) []monitorObservation {
 	for _, serie := range series {
 		if serie == nil || len(serie.Points) == 0 {
 			continue
 		}
 		_ = m.retention.AppendSerie(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, serie)
 		tlmDogStatsDBucketPoints.Add(float64(len(serie.Points)))
-		if m.monitor == nil {
+		if !m.shouldObserveMetric(serie.Name) {
 			continue
 		}
 		for _, point := range serie.Points {
-			m.monitor.Observe(serie.Name, pointObservedAt(point))
+			observations = append(observations, monitorObservation{name: serie.Name, at: pointObservedAt(point)})
 		}
 	}
+	return observations
 }
 
-func (m *DogStatsDBucketMaterializer) appendSealedSketchSeries(series []*metrics.SketchSeries) {
+func (m *DogStatsDBucketMaterializer) appendSealedSketchSeries(series []*metrics.SketchSeries, observations []monitorObservation) []monitorObservation {
 	for _, serie := range series {
 		if serie == nil || len(serie.Points) == 0 {
 			continue
 		}
 		_ = m.retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, serie)
 		tlmDogStatsDBucketSketches.Add(float64(len(serie.Points)))
-		if m.monitor == nil {
+		if !m.shouldObserveMetric(serie.Name) {
 			continue
 		}
 		for _, point := range serie.Points {
-			m.monitor.Observe(serie.Name, sketchPointObservedAt(point))
+			observations = append(observations, monitorObservation{name: serie.Name, at: sketchPointObservedAt(point)})
 		}
+	}
+	return observations
+}
+
+func (m *DogStatsDBucketMaterializer) shouldObserveMetric(name string) bool {
+	return m.monitor != nil && name == m.monitor.MetricName()
+}
+
+func (m *DogStatsDBucketMaterializer) observeSealedPoints(observations []monitorObservation) {
+	if m.monitor == nil || len(observations) == 0 {
+		return
+	}
+	sort.SliceStable(observations, func(i, j int) bool {
+		if observations[i].at.Equal(observations[j].at) {
+			return observations[i].name < observations[j].name
+		}
+		return observations[i].at.Before(observations[j].at)
+	})
+	for _, observation := range observations {
+		m.monitor.Observe(observation.name, observation.at)
 	}
 }
 

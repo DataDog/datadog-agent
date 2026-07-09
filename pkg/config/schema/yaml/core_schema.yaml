@@ -2458,8 +2458,8 @@ properties:
     type: object
     visibility: public
     description: |-
-      Configure the local metric lookback ring. The first supported DogStatsD use
-      case captures selected normal DogStatsD bucketed points and final
+      Configure the local metric lookback rings. The first supported DogStatsD use
+      case captures selected normal DogStatsD bucketed points/sketches and final
       no-aggregation points by exact name. An optional monitor can forward retained
       high-resolution ranges after a watched metric breaches its configured
       short-window max-minus-min range threshold.
@@ -2492,14 +2492,14 @@ properties:
         type: integer
         default: 262144
         visibility: public
-        description: Total number of point records retained across all lookback ring
-          shards.
+        description: Total number of records retained across each lookback ring's
+          shards. Series points and sketches use separate rings.
       shard_count:
         node_type: setting
         type: integer
         default: 16
         visibility: public
-        description: Number of independent shards used by the lookback ring.
+        description: Number of independent shards used by each lookback ring.
       dogstatsd:
         node_type: section
         type: object

@@ -50,6 +50,7 @@ func TestMetricLookbackDogStatsDFactoryMetricNamesEnableDogStatsDLookback(t *tes
 	lookback := factory(serializermocks.NewMetricSerializer(t))
 
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 	require.True(t, lookback.WantsDogStatsDMetric("target.metric"))
 	require.False(t, lookback.WantsDogStatsDMetric("other.metric"))
 }
@@ -75,6 +76,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromNoAggSeries
 	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 
 	appendFactoryNoAggTestWindow(lookback, start, 0, 30, 2)
 
@@ -107,6 +109,7 @@ func TestMetricLookbackDogStatsDFactoryDryRunForwardsHealthyMonitorWindow(t *tes
 	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 
 	for second := 0; second <= 30; second++ {
 		lookback.AppendDogStatsDNoAggSerie(&metrics.Serie{
@@ -147,6 +150,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromBucketedSam
 	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 
 	appendFactoryBucketedTestWindow(lookback, start, 0, 30, 2)
 
@@ -180,6 +184,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromDistributio
 	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 
 	appendFactoryDistributionTestWindow(lookback, start, 0, 30, 2)
 
@@ -215,6 +220,7 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 	// The DogStatsD adapter is still created because the monitor metric is auto-admitted,
 	// but this test only writes through the shadow-check sender manager.
 	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
 
 	manager := retention.NewSenderManager(context.Background(), "default-host")
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
@@ -303,6 +309,15 @@ func requireMetricLookbackDogStatsDFactory(t testing.TB, cfg configmock.Componen
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 	return factory
+}
+
+func stopLookbackOnCleanup(t testing.TB, lookback aggregator.DogStatsDLookback) {
+	t.Helper()
+	stopper, ok := lookback.(aggregator.DogStatsDLookbackStopper)
+	if !ok {
+		return
+	}
+	t.Cleanup(stopper.Stop)
 }
 
 func metricLookbackMonitorFactoryConfig(t testing.TB) configmock.Component {

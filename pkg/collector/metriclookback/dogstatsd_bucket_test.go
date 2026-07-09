@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -287,6 +288,48 @@ func TestDogStatsDBucketMaterializerMatchesContextMetricsForSupportedTypes(t *te
 			require.Equal(t, expected[0].Points, actual[0].Points)
 		})
 	}
+}
+
+func TestDogStatsDBucketMaterializerObservesMonitorAfterAppendingAllShards(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 2})
+	reader := monitor.PointReaderFunc(func(metricName string, from, to time.Time) []monitor.Point {
+		points := retention.PointsBetweenSources([]ringbuffer.Source{{Kind: ringbuffer.SourceDogStatsDBucketed}}, metricName, from, to)
+		out := make([]monitor.Point, 0, len(points))
+		for _, point := range points {
+			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value, Tags: point.Tags})
+		}
+		return out
+	})
+	var decisions []monitor.Decision
+	watcher, err := monitor.New(monitor.Config{
+		MetricName:         "target.metric",
+		RangeEpsilon:       5,
+		EvaluationInterval: 2 * time.Second,
+	}, reader, monitor.DecisionSinkFunc(func(decision monitor.Decision) {
+		decisions = append(decisions, decision)
+	}))
+	require.NoError(t, err)
+
+	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
+		BucketWidth: time.Second,
+		SealDelay:   -1,
+		ShardCount:  2,
+		Monitor:     watcher,
+	})
+
+	ctxShard0 := dogstatsdBucketTestContext("target.metric", 2)
+	ctxShard1 := dogstatsdBucketTestContext("target.metric", 3)
+	materializer.Observe(&metrics.MetricSample{Name: "target.metric", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}, 10.1, ctxShard0)
+	materializer.Observe(&metrics.MetricSample{Name: "target.metric", Value: 10, Mtype: metrics.GaugeType, SampleRate: 1}, 10.1, ctxShard1)
+	materializer.Observe(&metrics.MetricSample{Name: "target.metric", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}, 12.1, ctxShard0)
+	materializer.Observe(&metrics.MetricSample{Name: "target.metric", Value: 10, Mtype: metrics.GaugeType, SampleRate: 1}, 12.1, ctxShard1)
+
+	materializer.Flush(13)
+
+	require.NotEmpty(t, decisions)
+	require.Equal(t, monitor.Breach, decisions[0].State)
+	require.Equal(t, 4, decisions[0].PointCount)
+	require.Equal(t, float64(9), decisions[0].Range)
 }
 
 func dogstatsdBucketTestContext(name string, key ckey.ContextKey) aggregator.DogStatsDLookbackContext {
