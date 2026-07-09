@@ -71,6 +71,7 @@ const (
 	intakeEndpoint               = "/intake/"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
+	complianceEndpoint           = "/api/v2/compliance"
 	connectionsEndpoint          = "/api/v1/connections"
 	processesEndpoint            = "/api/v1/collector"
 	containersEndpoint           = "/api/v1/container"
@@ -487,6 +488,54 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 		return nil, err
 	}
 	return response.Payloads, nil
+}
+
+// ComplianceFinding is a compliance check event received at /api/v2/compliance.
+type ComplianceFinding struct {
+	FrameworkID string `json:"agent_framework_id"`
+	RuleID      string `json:"agent_rule_id"`
+	Result      string `json:"result"`
+}
+
+// GetComplianceFindings returns the compliance findings received at the
+// /api/v2/compliance intake. The endpoint has no typed aggregator, so payloads
+// are read from the generic store and decoded here.
+func (c *Client) GetComplianceFindings() ([]*ComplianceFinding, error) {
+	payloads, err := c.getFakePayloads(complianceEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	var findings []*ComplianceFinding
+	for _, p := range payloads {
+		data, err := aggregator.Inflate(p.Data, p.Encoding)
+		if err != nil {
+			return nil, err
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(data, &items); err != nil {
+			continue
+		}
+		for _, item := range items {
+			// Findings travel through the logs pipeline, so each item is a log
+			// entry whose "message" holds the marshalled check event; fall back to
+			// a flat event for robustness.
+			var entry struct {
+				ComplianceFinding
+				Message string `json:"message"`
+			}
+			if json.Unmarshal(item, &entry) != nil {
+				continue
+			}
+			f := entry.ComplianceFinding
+			if f.FrameworkID == "" && entry.Message != "" {
+				_ = json.Unmarshal([]byte(entry.Message), &f)
+			}
+			if f.FrameworkID != "" {
+				findings = append(findings, &f)
+			}
+		}
+	}
+	return findings, nil
 }
 
 // GetServerHealth fetches fakeintake health status and returns an error if

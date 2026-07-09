@@ -438,6 +438,11 @@ The package emits telemetry metrics:
   - appsec_injector.watched_changes: Counter tracking add/modify/delete operations
     Tags: proxy_type, operation, success
 
+  - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
+    CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar
+    pattern. Not emitted on DELETE (pod deletion is a no-op).
+    Tags: proxy_type, outcome, reason
+
 # Configuration Validation
 
 The package performs comprehensive validation of configuration at startup:
