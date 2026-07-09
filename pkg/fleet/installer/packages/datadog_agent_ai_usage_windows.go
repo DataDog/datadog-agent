@@ -76,6 +76,10 @@ const (
 	aiUsageChromeRegKeyPathWow = `Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\` + aiUsageNativeHostName
 )
 
+// aiUsageChromeRegKeyPaths are the two machine-wide Chrome NativeMessagingHosts registration
+// keys (native and WOW6432Node) that are created, read, and deleted together.
+var aiUsageChromeRegKeyPaths = []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow}
+
 // aiUsageTraceAgentURLRe matches the trace_agent_url line (commented or not) in the
 // ai_usage_native_host.yaml.example template.
 var aiUsageTraceAgentURLRe = regexp.MustCompile(`(?m)^[ #]*trace_agent_url:.*$`)
@@ -276,8 +280,8 @@ type aiUsageChromeRegistryBackup struct {
 }
 
 func suspendAIUsageChromeNativeHostRegistration() func() {
-	backups := make([]aiUsageChromeRegistryBackup, 0, 2)
-	for _, path := range []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow} {
+	backups := make([]aiUsageChromeRegistryBackup, 0, len(aiUsageChromeRegKeyPaths))
+	for _, path := range aiUsageChromeRegKeyPaths {
 		backup := aiUsageChromeRegistryBackup{path: path}
 		key, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE|registry.WOW64_64KEY)
 		if err == nil {
@@ -323,7 +327,7 @@ func suspendAIUsageChromeNativeHostRegistration() func() {
 }
 
 func deleteAIUsageChromeRegistry() {
-	for _, path := range []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow} {
+	for _, path := range aiUsageChromeRegKeyPaths {
 		if err := registry.DeleteKey(registry.LOCAL_MACHINE, path); err != nil && err != registry.ErrNotExist {
 			log.Warnf("AI Usage: failed to delete Chrome registry key %q: %v", path, err)
 		}
@@ -472,7 +476,7 @@ func jsonEscape(value string) string {
 // writeAIUsageChromeRegistry creates the two HKLM NativeMessagingHosts keys, with the (default)
 // value set to the manifest path, in the 64-bit registry view.
 func writeAIUsageChromeRegistry(manifestPath string) error {
-	for _, path := range []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow} {
+	for _, path := range aiUsageChromeRegKeyPaths {
 		key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, path, registry.SET_VALUE|registry.WOW64_64KEY)
 		if err != nil {
 			return fmt.Errorf("could not create registry key %q: %w", path, err)
