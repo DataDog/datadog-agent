@@ -113,7 +113,7 @@ func TestBuildRollbackJob_Overrides(t *testing.T) {
 	opts.Image = "myrepo/helm:3.14"
 	opts.BackoffLimit = &backoff
 	opts.TTLSecondsAfterFinished = &ttl
-	opts.ExtraLabels = map[string]string{"team": "platform", labelComponent: "ignored-because-overwrite"}
+	opts.ExtraLabels = map[string]string{"team": "platform", labelComponent: "ignored-because-identity-labels-are-hard-set"}
 
 	job := buildRollbackJob(opts)
 
@@ -122,9 +122,12 @@ func TestBuildRollbackJob_Overrides(t *testing.T) {
 	assert.Equal(t, int32(3), *job.Spec.BackoffLimit)
 	require.NotNil(t, job.Spec.TTLSecondsAfterFinished)
 	assert.Equal(t, int32(60), *job.Spec.TTLSecondsAfterFinished)
+	// Non-identity ExtraLabels are merged.
 	assert.Equal(t, "platform", job.Labels["team"])
-	// ExtraLabels can override package-set labels.
-	assert.Equal(t, "ignored-because-overwrite", job.Labels[labelComponent])
+	// Identity labels cannot be shadowed by ExtraLabels — the Job must stay
+	// within the Job watcher's selector (see jobWatchSelector in job_watcher.go).
+	assert.Equal(t, componentValue, job.Labels[labelComponent])
+	assert.Equal(t, managedByValue, job.Labels[labelManagedBy])
 	// Labels are mirrored onto the pod template.
 	assert.Equal(t, job.Labels, job.Spec.Template.Labels)
 }

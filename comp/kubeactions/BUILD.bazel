@@ -7,7 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/kubeactions/helmactions/fx",
-        "//comp/kubeactions/kubeactions/fx",
         "//pkg/util/fxutil",
     ],
 )
