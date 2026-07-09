@@ -10,6 +10,7 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -42,6 +43,7 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	lastCollectionTimestamp            uint64
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -144,27 +146,47 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+	seenPIDs := make(map[int]struct{})
+
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
-		return
 	}
 
 	for _, proc := range procs {
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, int(proc.Pid))
+		seenPIDs[int(proc.Pid)] = struct{}{}
 	}
+
+	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
+	utilizationProcs, err := device.GetProcessUtilization(c.lastCollectionTimestamp)
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+		}
+	}
+
+	for _, proc := range utilizationProcs {
+		seenPIDs[int(proc.Pid)] = struct{}{}
+	}
+
+	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
+	for pid := range seenPIDs {
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
+	}
+	slices.Sort(gpuDeviceInfo.ActivePIDs)
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	collector := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		seenUUIDs:      map[string]struct{}{},
-		seenPIDsToGPUs: make(map[int][]string),
-		store:          store,
+		id:                      collectorID,
+		catalog:                 workloadmeta.NodeAgent,
+		seenUUIDs:               map[string]struct{}{},
+		seenPIDsToGPUs:          make(map[int][]string),
+		store:                   store,
+		lastCollectionTimestamp: uint64(time.Now().UnixMicro()),
 	}
 
 	if config != nil {
@@ -297,6 +319,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	c.store.Notify(events)
+	c.lastCollectionTimestamp = uint64(time.Now().UnixMicro())
 
 	return nil
 }

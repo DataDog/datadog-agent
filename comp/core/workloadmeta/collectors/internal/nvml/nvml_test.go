@@ -35,15 +35,20 @@ func TestPull(t *testing.T) {
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 	expectedActivePIDs := testutil.DefaultActivePIDs()
+	expectedPhysicalActivePIDs := slices.Clone(expectedActivePIDs)
+	expectedPhysicalActivePIDs = append(expectedPhysicalActivePIDs, 1234)
+	slices.Sort(expectedPhysicalActivePIDs)
 
 	foundIDs := make(map[string]bool)
 	for _, gpu := range gpus {
 		foundIDs[gpu.ID] = true
 		var expectedName string
+		expectedGPUActivePIDs := expectedActivePIDs
 		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
 			expectedName = testutil.DefaultGPUName + " MIG 3g.40gb"
 		} else if gpu.DeviceType == workloadmeta.GPUDeviceTypePhysical {
 			expectedName = testutil.DefaultGPUName
+			expectedGPUActivePIDs = expectedPhysicalActivePIDs
 			//for now, we test totalMemory only for physical devices
 			require.Equal(t, testutil.DefaultTotalMemory, gpu.TotalMemory, "unexpected device memory for device %s", gpu.ID)
 		}
@@ -56,7 +61,7 @@ func TestPull(t *testing.T) {
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
 		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_SM], gpu.MaxClockRates[workloadmeta.GPUSM])
 		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_MEM], gpu.MaxClockRates[workloadmeta.GPUMemory])
-		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
+		require.Equal(t, expectedGPUActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
 	}
 
@@ -101,6 +106,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	// Now change those PIDs and make sure the store is updated and we get a complete override
 	// of the previous PIDs
 	expectedActivePIDs = []int{9761, 1234}
+	slices.Sort(expectedActivePIDs)
 	processInfo = testutil.MockProcessInfoList{
 		{Pid: uint32(expectedActivePIDs[0]), UsedGpuMemory: 100},
 		{Pid: uint32(expectedActivePIDs[1]), UsedGpuMemory: 200},
