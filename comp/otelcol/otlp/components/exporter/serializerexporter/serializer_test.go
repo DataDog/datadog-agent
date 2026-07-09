@@ -23,11 +23,26 @@ func TestInitSerializer(t *testing.T) {
 		return "test", nil
 	}
 	cfg := &ExporterConfig{}
-	s, fw, err := InitSerializer(logger, cfg, sourceProvider)
-	assert.Nil(t, err)
-	assert.IsType(t, &defaultforwarderimpl.DefaultForwarder{}, fw)
-	assert.NotNil(t, fw)
-	assert.NotNil(t, s)
+
+	t.Run("DefaultForwarder", func(t *testing.T) {
+		restore := setSyncForwarderGate(t, false)
+		defer restore()
+		s, fw, err := InitSerializer(logger, cfg, sourceProvider)
+		assert.Nil(t, err)
+		assert.IsType(t, &defaultforwarderimpl.DefaultForwarder{}, fw)
+		assert.NotNil(t, fw)
+		assert.NotNil(t, s)
+	})
+
+	t.Run("OTelSyncForwarder", func(t *testing.T) {
+		restore := setSyncForwarderGate(t, true)
+		defer restore()
+		s, fw, err := InitSerializer(logger, cfg, sourceProvider)
+		assert.Nil(t, err)
+		assert.IsType(t, &defaultforwarderimpl.OTelSyncForwarder{}, fw)
+		assert.NotNil(t, fw)
+		assert.NotNil(t, s)
+	})
 }
 
 func TestProxyConfiguration(t *testing.T) {
