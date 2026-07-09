@@ -2025,7 +2025,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 			}
 		}
 
-		pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, p.onNewPCE)
+		pce = resolveAndRepairTargetProcessCacheEntry(pidToResolve, p)
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 		}
@@ -2034,10 +2034,18 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	return true
 }
 
+func resolveAndRepairTargetProcessCacheEntry(pid uint32, p *EBPFProbe) *model.ProcessCacheEntry {
+	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
+	if pce != nil {
+		p.Resolvers.ProcessResolver.TryReparentFromProcfs(pce, metrics.ReparentCallpathTargetProcess, p.onNewPCE)
+	}
+	return pce
+}
+
 func resolveTargetProcessContext(pid uint32, p *EBPFProbe) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
 	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
+		pce = resolveAndRepairTargetProcessCacheEntry(pid, p)
 	}
 	if pce == nil {
 		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)

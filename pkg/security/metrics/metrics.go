@@ -646,8 +646,10 @@ var (
 	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
 	// ReparentCallpathRelatedEvent tags a reparent from the related event dispatch path
 	ReparentCallpathRelatedEvent = "callpath:related_event"
+	// ReparentCallpathTargetProcess tags a reparent from target process resolution paths (ptrace tracee, signal/setrlimit target, scoped PID lookup)
+	ReparentCallpathTargetProcess = "callpath:target_process"
 	// AllReparentCallpathTags is the list of all reparent callpath tags
-	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent}
+	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent, ReparentCallpathTargetProcess}
 )
 
 func newRuntimeMetric(name string) string {
