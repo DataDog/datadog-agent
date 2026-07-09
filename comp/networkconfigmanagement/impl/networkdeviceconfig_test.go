@@ -425,7 +425,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	assert.True(t, reqs.connFactory.conn.Closed)
 
 	if assert.NotNil(t, dc.profile) {
-		assert.Equal(t, "p2", dc.profile.Name, "Device profile should be detected as p2")
+		assert.Equal(t, "p2", string(dc.profile.Name), "Device profile should be detected as p2")
 	}
 
 	t.Run("reloading config resets detected profile", func(t *testing.T) {
@@ -449,7 +449,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	actual, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.True(t, ok)
 	if assert.NotNil(t, actual) {
-		assert.Equal(t, "p2", actual.Name)
+		assert.Equal(t, "p2", string(actual.Name))
 	}
 }
 
