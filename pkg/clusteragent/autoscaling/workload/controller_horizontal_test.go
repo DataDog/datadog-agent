@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -79,14 +80,16 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	// Pre-fetch scale subresource, mirroring what handleScaling does in the parent controller.
 	var scale *autoscalingv1.Scale
 	var gr schema.GroupResource
+	var targetGVK schema.GroupVersionKind
 	var scaleErr error
 	if autoscalerInternal.Spec() != nil {
 		if gvk, err := autoscalerInternal.TargetGVK(); err == nil {
+			targetGVK = gvk
 			scale, gr, scaleErr = f.scaler.get(context.Background(), fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
 		}
 	}
 
-	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
+	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, targetGVK, scale, gr, scaleErr)
 	return autoscalerInternal, res, err
 }
 
@@ -350,6 +353,117 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	// })
 	// assert.Equal(t, autoscaling.NoRequeue, result)
 	// assert.NoError(t, err)
+}
+
+func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	disabledStrategy := datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	disabledPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		ScaleUp:   &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+		ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+	}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       autoscalerName,
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+		ApplyPolicy: disabledPolicy,
+	}
+
+	// Case 1: horizontal disabled with prior actions → release exactly once.
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec:      spec,
+		TargetGVK: targetGVK,
+		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+			{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+		},
+	}
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	_, result, err := f.runSync(fakePai)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK)
+
+	// Case 2: horizontal disabled with no prior actions → no release.
+	f.resetFakeScaler()
+	fakePaiNoActions := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec:      spec,
+		TargetGVK: targetGVK,
+	}
+	f.scaler.mockGet(*fakePaiNoActions, 5, 5, nil)
+	_, result, err = f.runSync(fakePaiNoActions)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 0)
+}
+
+func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *testing.T) {
+	// When releaseReplicasOwnership fails (e.g. RBAC not yet granted, or
+	// JSON-patch test op detected a managedFields race), the controller
+	// must NOT clear HorizontalLastActions — otherwise the gate
+	// (`len(HorizontalLastActions) > 0`) would never fire again and the
+	// stale managedFields entry would leak permanently. The controller
+	// should also return Requeue so the workqueue retries.
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	disabledStrategy := datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	disabledPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		ScaleUp:   &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+		ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+	}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       autoscalerName,
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+		ApplyPolicy: disabledPolicy,
+	}
+
+	priorActions := []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+		{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+	}
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace:             autoscalerNamespace,
+		Name:                  autoscalerName,
+		Spec:                  spec,
+		TargetGVK:             targetGVK,
+		HorizontalLastActions: priorActions,
+	}
+
+	// Bypass the Maybe-equipped fakeScaler: install a fresh one with a
+	// strict failing expectation so the controller sees an error from
+	// releaseReplicasOwnership.
+	strictScaler := &fakeScaler{}
+	f.controller.scaler = strictScaler
+	f.scaler = strictScaler
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	strictScaler.On("releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK).
+		Return(errors.New("forbidden: missing patch permission"))
+
+	autoscaler, result, err := f.runSync(fakePai)
+	assert.Equal(t, autoscaling.Requeue, result, "must requeue so the workqueue retries the release")
+	assert.NoError(t, err, "best-effort cleanup must not surface an error to the workqueue retry counter")
+	strictScaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
+
+	// HorizontalLastActions must NOT be cleared — otherwise the gate above
+	// would never fire on the next reconcile and the stale managedFields
+	// entry would leak permanently.
+	assert.Equal(t, priorActions, autoscaler.HorizontalLastActions(),
+		"HorizontalLastActions must be retained on release failure to allow retry")
 }
 
 func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
