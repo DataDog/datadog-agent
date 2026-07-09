@@ -226,6 +226,7 @@ func isRetryableAIUsageBinaryReplaceError(err error) bool {
 func preRemoveAIUsageExtension(ctx HookContext) error {
 	removeAIUsageScheduledTask(ctx.Context)
 	deleteAIUsageChromeRegistry()
+	stopAIUsageHostProcesses(ctx.Context)
 
 	agentBinDir := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent")
 	for _, p := range []string{

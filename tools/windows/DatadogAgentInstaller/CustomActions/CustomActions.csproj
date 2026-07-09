@@ -56,7 +56,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
-    <Compile Include="AiUsageDesktopMonitorCustomAction.cs" />
     <Compile Include="AutoLoggerCustomAction.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="ConfigCustomActions.cs" />

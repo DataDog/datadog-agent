@@ -20,11 +20,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
-        // Removes legacy AI Usage artifacts (scheduled task, Chrome registry keys, host manifest)
-        // left behind by pre-migration Agents where the MSI installed the AI Usage host directly.
-        // The AI Usage host is now delivered as the "ai-usage" fleet installer extension.
-        public ManagedAction RemoveAiUsageMonitorDesktopMonitor { get; }
-
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -387,20 +382,6 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
-            RemoveAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveAiUsageMonitorDesktopMonitor)),
-                    CustomActions.RemoveAiUsageMonitorDesktopMonitor,
-                    Return.ignore,
-                    When.Before,
-                    new Step(CleanupOnUninstall.Id),
-                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
-                )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupInstallDirAfterUninstall)),
