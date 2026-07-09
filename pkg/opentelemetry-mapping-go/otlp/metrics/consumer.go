@@ -152,3 +152,12 @@ type TagsConsumer interface {
 	// ConsumeTag consumes a tag
 	ConsumeTag(tag string)
 }
+
+// TagSetConsumer is a multi-tag source consumer.
+// It is an optional interface that can be implemented by a Consumer.
+// Use it for sources that need multiple tags on the running metric (e.g. Azure Container Apps).
+// Consumers that only implement TagsConsumer receive a fallback single-tag call instead.
+type TagSetConsumer interface {
+	// ConsumeTagSet consumes a multi-tag source
+	ConsumeTagSet(key string, tags []string)
+}
