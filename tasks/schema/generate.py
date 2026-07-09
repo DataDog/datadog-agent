@@ -288,13 +288,13 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         try:
             for file in os.listdir(tmpdir):
                 ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
-        except Failure:
+        except Failure as e:
             print(
                 color_message(
                     "Codegen for configuration differs, fix this by running `dda inv schema.codegen --fix`", "yellow"
                 )
             )
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     if fix:
         # Fix any differences by copying the codegen results into SETUP_INIT_DIR
