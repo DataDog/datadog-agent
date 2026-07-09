@@ -681,6 +681,7 @@ new-e2e-sbom:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:
@@ -1277,10 +1278,26 @@ new-e2e-cspm:
     - qa_agent_linux
     - qa_dca
     - agent_deb-x64-a7
+    - agent_rpm-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
     ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestCSPM
+      - EXTRA_PARAMS: --run TestDockerHostCSPM
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL8
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestHostBenchmarksAlmaLinux9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
   timeout: 35m
 
 new-e2e-gpu:

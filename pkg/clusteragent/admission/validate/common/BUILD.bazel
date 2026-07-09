@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = ["common.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//pkg/clusteragent/admission/metrics",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
