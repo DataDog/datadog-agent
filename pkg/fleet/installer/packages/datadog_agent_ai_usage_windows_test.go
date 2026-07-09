@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 )
 
 func TestJSONEscape(t *testing.T) {
@@ -84,6 +86,12 @@ func TestWriteAIUsageConfigSubstitutesTraceURLAndPreservesExisting(t *testing.T)
 	after, err := os.ReadFile(configPath)
 	require.NoError(t, err)
 	assert.Equal(t, "preserved", string(after))
+}
+
+func TestIsRetryableAIUsageBinaryReplaceError(t *testing.T) {
+	assert.True(t, isRetryableAIUsageBinaryReplaceError(&os.PathError{Op: "open", Path: "host.exe", Err: windows.ERROR_SHARING_VIOLATION}))
+	assert.True(t, isRetryableAIUsageBinaryReplaceError(&os.PathError{Op: "open", Path: "host.exe", Err: fs.ErrPermission}))
+	assert.False(t, isRetryableAIUsageBinaryReplaceError(&os.PathError{Op: "open", Path: "host.exe", Err: os.ErrNotExist}))
 }
 
 func TestBuildAIUsageTaskXML(t *testing.T) {

@@ -102,6 +102,7 @@ go_test(
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/setup/config",
             "@in_yaml_go_yaml_v3//:yaml",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

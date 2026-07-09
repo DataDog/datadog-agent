@@ -11,18 +11,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf16"
+	"unsafe"
 
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -57,6 +61,11 @@ const (
 	aiUsageUsersGroupSID = "S-1-5-32-545"
 
 	aiUsageDefaultReceiverPort = 8126
+
+	aiUsageBinaryReplaceRetryInterval   = 500 * time.Millisecond
+	aiUsageBinaryReplaceMaxElapsedTime  = 30 * time.Second
+	aiUsageHostProcessTerminationWait   = 5 * time.Second
+	aiUsageHostProcessTerminationStatus = 1
 
 	// aiUsageChromeRegKeyPath and aiUsageChromeRegKeyPathWow are the machine-wide Chrome
 	// NativeMessagingHosts registration keys. Chrome reads the (default) value to find the
@@ -114,7 +123,15 @@ func postInstallAIUsageExtension(ctx HookContext) error {
 	// BUILTIN\Users read+execute by default — so the binary must live there rather than under the
 	// ACL-restricted installer packages directory.
 	binaryPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", aiUsageBinaryName)
-	if err := copyAIUsageFile(srcBinary, binaryPath, 0o755); err != nil {
+	restoreChromeRegistration := suspendAIUsageChromeNativeHostRegistration()
+	chromeRegistrationReplaced := false
+	defer func() {
+		if !chromeRegistrationReplaced {
+			restoreChromeRegistration()
+		}
+	}()
+	stopAIUsageHostProcesses(ctx.Context)
+	if err := copyAIUsageFileReplacingHost(ctx.Context, srcBinary, binaryPath, 0o755); err != nil {
 		return fmt.Errorf("failed to copy AI Usage native host binary: %w", err)
 	}
 
@@ -141,6 +158,7 @@ func postInstallAIUsageExtension(ctx HookContext) error {
 	if err := writeAIUsageChromeRegistry(manifestPath); err != nil {
 		return fmt.Errorf("failed to register Chrome native messaging host: %w", err)
 	}
+	chromeRegistrationReplaced = true
 
 	// 5) Register and start the logon-triggered desktop monitor scheduled task.
 	if err := configureAIUsageScheduledTask(ctx.Context, binaryPath, configPath); err != nil {
@@ -162,17 +180,50 @@ func copyAIUsageFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
+func copyAIUsageFileReplacingHost(ctx context.Context, src, dst string, perm os.FileMode) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	deadline := time.Now().Add(aiUsageBinaryReplaceMaxElapsedTime)
+	attempts := 0
+	for {
+		attempts++
+		err := copyAIUsageFile(src, dst, perm)
+		if err == nil {
+			if attempts > 1 {
+				log.Infof("AI Usage: copied native host binary after %d attempts", attempts)
+			}
+			return nil
+		}
+		if !isRetryableAIUsageBinaryReplaceError(err) || time.Now().After(deadline) {
+			return err
+		}
+
+		log.Warnf("AI Usage: native host binary is still locked, stopping running hosts before retrying copy: %v", err)
+		stopAIUsageHostProcesses(ctx)
+
+		timer := time.NewTimer(aiUsageBinaryReplaceRetryInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func isRetryableAIUsageBinaryReplaceError(err error) bool {
+	return errors.Is(err, fs.ErrPermission) ||
+		errors.Is(err, windows.ERROR_ACCESS_DENIED) ||
+		errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+}
+
 // preRemoveAIUsageExtension tears down the AI Usage native host before extension files are removed.
 // All steps are best effort so removal is not blocked.
 func preRemoveAIUsageExtension(ctx HookContext) error {
 	removeAIUsageScheduledTask(ctx.Context)
-
-	if err := registry.DeleteKey(registry.LOCAL_MACHINE, aiUsageChromeRegKeyPath); err != nil && err != registry.ErrNotExist {
-		log.Warnf("AI Usage: failed to delete Chrome registry key %q: %v", aiUsageChromeRegKeyPath, err)
-	}
-	if err := registry.DeleteKey(registry.LOCAL_MACHINE, aiUsageChromeRegKeyPathWow); err != nil && err != registry.ErrNotExist {
-		log.Warnf("AI Usage: failed to delete Chrome registry key %q: %v", aiUsageChromeRegKeyPathWow, err)
-	}
+	deleteAIUsageChromeRegistry()
 
 	agentBinDir := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent")
 	for _, p := range []string{
@@ -205,6 +256,135 @@ func writeAIUsageConfig(examplePath, configPath string) error {
 	)
 	if err := os.WriteFile(configPath, []byte(rendered), 0o644); err != nil {
 		return fmt.Errorf("could not write %s: %w", configPath, err)
+	}
+	return nil
+}
+
+type aiUsageChromeRegistryBackup struct {
+	path        string
+	exists      bool
+	value       string
+	valueExists bool
+}
+
+func suspendAIUsageChromeNativeHostRegistration() func() {
+	backups := make([]aiUsageChromeRegistryBackup, 0, 2)
+	for _, path := range []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow} {
+		backup := aiUsageChromeRegistryBackup{path: path}
+		key, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err == nil {
+			backup.exists = true
+			if value, _, err := key.GetStringValue(""); err == nil {
+				backup.value = value
+				backup.valueExists = true
+			} else if err != registry.ErrNotExist {
+				log.Warnf("AI Usage: failed to read Chrome registry value for %q before replacement: %v", path, err)
+			}
+			key.Close()
+		} else if err != registry.ErrNotExist {
+			log.Warnf("AI Usage: failed to read Chrome registry key %q before replacement: %v", path, err)
+		}
+		backups = append(backups, backup)
+	}
+
+	// Prevent Chrome from spawning a fresh host while the old executable is being terminated
+	// and replaced. The keys are written again after the new manifest is in place.
+	deleteAIUsageChromeRegistry()
+
+	return func() {
+		for _, backup := range backups {
+			if !backup.exists {
+				if err := registry.DeleteKey(registry.LOCAL_MACHINE, backup.path); err != nil && err != registry.ErrNotExist {
+					log.Warnf("AI Usage: failed to clear Chrome registry key %q after replacement failure: %v", backup.path, err)
+				}
+				continue
+			}
+			key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, backup.path, registry.SET_VALUE|registry.WOW64_64KEY)
+			if err != nil {
+				log.Warnf("AI Usage: failed to restore Chrome registry key %q after replacement failure: %v", backup.path, err)
+				continue
+			}
+			if backup.valueExists {
+				if err := key.SetStringValue("", backup.value); err != nil {
+					log.Warnf("AI Usage: failed to restore Chrome registry value for %q after replacement failure: %v", backup.path, err)
+				}
+			}
+			key.Close()
+		}
+	}
+}
+
+func deleteAIUsageChromeRegistry() {
+	for _, path := range []string{aiUsageChromeRegKeyPath, aiUsageChromeRegKeyPathWow} {
+		if err := registry.DeleteKey(registry.LOCAL_MACHINE, path); err != nil && err != registry.ErrNotExist {
+			log.Warnf("AI Usage: failed to delete Chrome registry key %q: %v", path, err)
+		}
+	}
+}
+
+func stopAIUsageHostProcesses(ctx context.Context) {
+	pids, err := aiUsageHostProcessIDs()
+	if err != nil {
+		log.Warnf("AI Usage: failed to enumerate native host processes before replacement: %v", err)
+		return
+	}
+	for _, pid := range pids {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				log.Warnf("AI Usage: context canceled before stopping native host process %d: %v", pid, err)
+				return
+			}
+		}
+		if err := stopAIUsageHostProcess(pid); err != nil {
+			log.Warnf("AI Usage: failed to stop native host process %d before replacement: %v", pid, err)
+		}
+	}
+}
+
+func aiUsageHostProcessIDs() ([]uint32, error) {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer windows.CloseHandle(snapshot)
+
+	var entry windows.ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+
+	var pids []uint32
+	err = windows.Process32First(snapshot, &entry)
+	for err == nil {
+		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), aiUsageBinaryName) {
+			pids = append(pids, entry.ProcessID)
+		}
+		err = windows.Process32Next(snapshot, &entry)
+	}
+	if err != nil && err != windows.ERROR_NO_MORE_FILES {
+		return nil, err
+	}
+	return pids, nil
+}
+
+func stopAIUsageHostProcess(pid uint32) error {
+	handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, pid)
+	if err != nil {
+		if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+			return nil
+		}
+		return err
+	}
+	defer windows.CloseHandle(handle)
+
+	if err := windows.TerminateProcess(handle, aiUsageHostProcessTerminationStatus); err != nil {
+		return err
+	}
+
+	wait, err := windows.WaitForSingleObject(handle, uint32(aiUsageHostProcessTerminationWait/time.Millisecond))
+	if err != nil {
+		return err
+	}
+	if wait == windows.WAIT_TIMEOUT {
+		return fmt.Errorf("timed out waiting for process exit")
 	}
 	return nil
 }
