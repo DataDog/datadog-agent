@@ -55,16 +55,17 @@ pub(crate) fn spawn_child(
         validate_privileged_process_request(process_name, &request)?;
     }
 
-    // Prefer primary-token spawning for privileged profiles; if the request
-    // can't be represented with explicit stdio/env/working-dir, fall back to
-    // the existing impersonation-based spawn.
+    // Prefer primary-token spawning for privileged profiles; if that fails, try
+    // impersonation-based LocalSystem spawn. Never fall back to the supervisor token.
     match profile {
         SpawnProfile::Privileged => {
-            // Legacy privileged SCM-like behavior.
-            if let Ok(handle) =
-                spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem)
-            {
-                return Ok(handle);
+            match spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem) {
+                Ok(handle) => return Ok(handle),
+                Err(e) => {
+                    log::warn!(
+                        "[{process_name}] primary-token LocalSystem spawn failed (trying impersonation): {e:#}"
+                    );
+                }
             }
         }
         SpawnProfile::Agent => {
@@ -79,12 +80,10 @@ pub(crate) fn spawn_child(
 
     let (command, mut cmd) = build_command(request)?;
     match profile {
-        SpawnProfile::Privileged => spawn_as_local_system(process_name, &command, &mut cmd).or_else(|e| {
-            log::warn!(
-                "[{process_name}] failed to spawn as LocalSystem (falling back to inherited token): {e:#}"
-            );
-            exec_spawn(process_name, &command, &mut cmd)
-        }),
+        SpawnProfile::Privileged => spawn_as_local_system(process_name, &command, &mut cmd)
+            .with_context(|| {
+                format!("[{process_name}] privileged spawn failed: could not run as LocalSystem")
+            }),
         SpawnProfile::Agent => spawn_as_agent_user(process_name, &command, &mut cmd),
     }
 }
