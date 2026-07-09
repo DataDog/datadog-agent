@@ -155,10 +155,10 @@ func TestAutoMultiLineStatus(t *testing.T) {
 		assert.False(t, isDefault)
 	})
 
-	t.Run("nothing configured is default", func(t *testing.T) {
+	t.Run("autoMultiLine is configured by default", func(t *testing.T) {
 		mockConfig := config.NewMock(t)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
-		assert.False(t, enabled)
+		assert.True(t, enabled)
 		assert.True(t, isDefault)
 	})
 

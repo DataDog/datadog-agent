@@ -365,7 +365,7 @@ require (
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
-	github.com/prometheus/procfs v0.21.0
+	github.com/prometheus/procfs v0.21.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/redis/go-redis/v9 v9.21.0
@@ -484,7 +484,7 @@ require (
 	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0
 	golang.org/x/tools v0.47.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 	google.golang.org/grpc/examples v0.0.0-20230512210959-5dcfb37c0b43
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 	gopkg.in/ini.v1 v1.67.3
