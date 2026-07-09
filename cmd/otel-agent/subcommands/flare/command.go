@@ -164,10 +164,21 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
 
-	// Create flare archive
+	// Create the flare archive inside a private, unpredictable directory rather
+	// than at a predictable path in the shared temp directory. os.TempDir() is
+	// world-writable on Unix, so a predictable filename would let a local user
+	// pre-seed a symlink and redirect (or read) the privileged archive.
+	// os.MkdirTemp creates the directory with 0700 permissions owned by the
+	// current user, which also guarantees the archive filename below cannot
+	// already exist (so the O_EXCL in createFlareArchive never misfires).
+	tmpDir, err := os.MkdirTemp("", "otel-agent-flare")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir for flare: %w", err)
+	}
+
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf("otel-agent-flare_%s.zip", timestamp)
-	filePath := filepath.Join(os.TempDir(), filename)
+	filePath := filepath.Join(tmpDir, filename)
 
 	err = createFlareArchive(filePath, data)
 	if err != nil {
@@ -502,8 +513,10 @@ func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
 
 // createFlareArchive creates a zip archive with the diagnostic data
 func createFlareArchive(filePath string, data *extensiontypes.Response) error {
-	// Create zip file
-	zipFile, err := os.Create(filePath)
+	// Use O_EXCL so we never follow a pre-existing symlink or overwrite an
+	// existing file at this path (defense-in-depth against symlink attacks on
+	// the temp path); 0600 keeps the archive readable only by the owner.
+	zipFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file: %w", err)
 	}

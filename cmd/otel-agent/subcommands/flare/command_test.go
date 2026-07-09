@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -221,6 +222,41 @@ func TestExtractExtensionType(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// TestCreateFlareArchiveRejectsSymlink ensures the flare archive is never
+// written through a pre-existing symlink. On Unix os.Create follows symlinks,
+// so a local user who pre-seeds a symlink at the (predictable) flare path could
+// redirect the privileged archive to an attacker-readable location.
+func TestCreateFlareArchiveRejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.zip")
+	link := filepath.Join(dir, "otel-agent-flare_2026-01-01_00-00-00.zip")
+	require.NoError(t, os.Symlink(target, link))
+
+	err := createFlareArchive(link, &extensiontypes.Response{})
+	require.Error(t, err, "createFlareArchive must refuse to write through an existing symlink")
+
+	_, statErr := os.Stat(target)
+	assert.Truef(t, os.IsNotExist(statErr), "symlink target must not be created through the link (stat err: %v)", statErr)
+}
+
+// TestCreateOTelFlareUsesUnpredictableDir ensures the flare is created in its
+// own private, unpredictable directory instead of at a predictable path in the
+// shared temp directory (which is world-writable on Linux).
+func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+
+	p1, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(p1))
+
+	p2, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(p2))
+
+	assert.NotEqual(t, filepath.Dir(p1), filepath.Dir(p2),
+		"each flare must use a unique directory (os.MkdirTemp), not a predictable shared path")
 }
 
 func TestFlareCommand(t *testing.T) {
