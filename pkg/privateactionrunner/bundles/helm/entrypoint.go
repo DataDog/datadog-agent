@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_helmactions
+package com_datadoghq_helm
 
 import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
@@ -18,7 +18,7 @@ func NewKubernetesHelmActions(ha helmactions.Component) *KubernetesHelmActions {
 	return &KubernetesHelmActions{
 		actions: map[string]types.Action{
 			// Manual actions
-			"rollback": NewRollbackHandler(ha),
+			"rollbackRelease": NewRollbackHandler(ha),
 		},
 	}
 }

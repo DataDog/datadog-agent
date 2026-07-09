@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_helmactions
+package com_datadoghq_helm
 
 import (
 	"context"
@@ -55,7 +55,6 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
 		job.Namespace, job.Name, in.ReleaseNamespace, in.Release, in.Revision)
 
-	// todo(dp): error core processing to indicete that HA is down?
 	rh.ha.OnRollback(&in, job)
 
 	return &HelmRollbackOutputs{
