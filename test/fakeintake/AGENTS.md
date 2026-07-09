@@ -28,6 +28,7 @@ test/fakeintake/
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
+| `/api/v2/compliance` | (raw store) | `GetComplianceFindings()` |
 | `/intake/` | EventAggregator | `FilterEvents()` |
 | `/api/v0.2/traces` | TraceAggregator | `GetTraces()` |
 | `/api/v0.2/stats` | APMStatsAggregator | `GetAPMStats()` |

@@ -6684,12 +6684,6 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-  common_root:
-    node_type: setting
-    type: string
-    default: ''
-    env_vars:
-    - DD_COMMON_ROOT
   conf_path:
     node_type: setting
     type: string
@@ -9251,6 +9245,14 @@ properties:
     node_type: section
     type: object
     properties:
+      collection_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+        - full-agent-only:true
       enabled:
         node_type: setting
         type: boolean

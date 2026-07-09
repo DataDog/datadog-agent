@@ -29,6 +29,7 @@ common --remote_instance_name=ci/datadog-agent # entries missing from datadog-ag
 common --remote_local_fallback # best-effort on transient connection errors (no such host)
 common --remote_retries=1
 common --remote_timeout=60
+common --rewind_lost_inputs # https://github.com/bazelbuild/bazel/pull/25477
 common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
@@ -60,11 +61,10 @@ common:linux --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io
 common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
-common:macos --copt=-mmacosx-version-min=12.0 # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:macos --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
-common:macos --linkopt=-mmacosx-version-min=12.0 # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
@@ -115,9 +115,6 @@ import %workspace%/bazel/configs/rust.bazelrc
 common:release --config=rust-release
 common:release --//:release
 common --config=release
-
-test --@rules_go//go/config:race
-test --test_env=GORACE=atexit_sleep_ms=50
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

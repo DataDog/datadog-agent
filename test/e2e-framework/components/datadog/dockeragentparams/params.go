@@ -221,6 +221,12 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			// forwarder; redirect those endpoints to the fakeintake as well.
 			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),
 			"DD_CONTAINER_IMAGE_DD_URL": pulumi.Sprintf("%s", url),
+			// Compliance findings ride the logs pipeline through a dedicated endpoint.
+			// Redirect it too so a containerized agent's findings reach the fakeintake,
+			// mirroring the host provisioner (agentparams withIntakeHostname).
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL":    pulumi.Sprintf("%s", url),
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_NO_SSL":    shouldSkipSSLValidation,
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_FORCE_USE_HTTP": pulumi.Bool(true),
 		}
 		for key, value := range envVars {
 			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
