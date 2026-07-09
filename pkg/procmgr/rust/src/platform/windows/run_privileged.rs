@@ -106,6 +106,13 @@ pub fn run_privileged_command(
         let _ = CloseHandle(pi.hThread);
     }
 
+    let stdout_read = stdout_pipe.take_read();
+    let stderr_read = stderr_pipe.take_read();
+    let stdout_reader =
+        std::thread::spawn(move || read_handle_to_string(stdout_read, MAX_CAPTURE_BYTES));
+    let stderr_reader =
+        std::thread::spawn(move || read_handle_to_string(stderr_read, MAX_CAPTURE_BYTES));
+
     let wait = unsafe { WaitForSingleObject(process_handle, INFINITE) };
     if wait == WAIT_FAILED {
         bail!(
@@ -126,8 +133,12 @@ pub fn run_privileged_command(
         );
     }
 
-    let stdout = stdout_pipe.read_to_string(MAX_CAPTURE_BYTES)?;
-    let stderr = stderr_pipe.read_to_string(MAX_CAPTURE_BYTES)?;
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| anyhow::anyhow!("stdout reader thread panicked"))??;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| anyhow::anyhow!("stderr reader thread panicked"))??;
 
     Ok(PrivilegedCommandOutput {
         exit_code: i32::try_from(code).unwrap_or(i32::MAX),
@@ -286,38 +297,52 @@ impl AnonymousPipe {
         }
     }
 
+    fn take_read(&mut self) -> HANDLE {
+        let read = self.read;
+        self.read = ptr::null_mut();
+        read
+    }
+
     fn read_to_string(&self, max_bytes: usize) -> Result<String> {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 4096];
-        loop {
-            if buf.len() >= max_bytes {
-                bail!("privileged command output exceeded {max_bytes} byte cap");
-            }
-            let mut nbytes = 0u32;
-            let to_read = std::cmp::min(chunk.len(), max_bytes - buf.len()) as u32;
-            let ok = unsafe {
-                ReadFile(
-                    self.read,
-                    chunk.as_mut_ptr(),
-                    to_read,
-                    &mut nbytes,
-                    ptr::null_mut(),
-                )
-            };
-            if ok == 0 {
-                let err = std::io::Error::last_os_error();
-                if err.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) {
-                    break;
-                }
-                bail!("ReadFile failed: {err}");
-            }
-            if nbytes == 0 {
+        read_handle_to_string(self.read, max_bytes)
+    }
+}
+
+fn read_handle_to_string(handle: HANDLE, max_bytes: usize) -> Result<String> {
+    if handle.is_null() {
+        return Ok(String::new());
+    }
+    let _guard = HandleGuard(handle);
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    loop {
+        if buf.len() >= max_bytes {
+            bail!("privileged command output exceeded {max_bytes} byte cap");
+        }
+        let mut nbytes = 0u32;
+        let to_read = std::cmp::min(chunk.len(), max_bytes - buf.len()) as u32;
+        let ok = unsafe {
+            ReadFile(
+                handle,
+                chunk.as_mut_ptr(),
+                to_read,
+                &mut nbytes,
+                ptr::null_mut(),
+            )
+        };
+        if ok == 0 {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) {
                 break;
             }
-            buf.extend_from_slice(&chunk[..nbytes as usize]);
+            bail!("ReadFile failed: {err}");
         }
-        String::from_utf8(buf).context("privileged command output was not valid UTF-8")
+        if nbytes == 0 {
+            break;
+        }
+        buf.extend_from_slice(&chunk[..nbytes as usize]);
     }
+    String::from_utf8(buf).context("privileged command output was not valid UTF-8")
 }
 
 impl Drop for AnonymousPipe {
