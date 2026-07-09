@@ -615,7 +615,17 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeTag(src.Tag())
 				}
 			case source.AzureContainerAppsKind:
-				if c, ok := consumer.(TagsConsumer); ok {
+				if c, ok := consumer.(TagSetConsumer); ok {
+					var tags []string
+					for key, val := range src.Identifier.Dimensions {
+						tags = append(tags, key+":"+val)
+					}
+					key := src.Identifier.Dimensions["subscription_id"] + "/" +
+						src.Identifier.Dimensions["resource_group"] + "/" +
+						src.Identifier.Dimensions["name"] + "/" +
+						src.Identifier.Primary
+					c.ConsumeTagSet(key, tags)
+				} else if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
 			}
