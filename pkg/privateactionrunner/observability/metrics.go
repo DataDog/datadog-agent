@@ -23,9 +23,8 @@ const (
 	ActionExecutionCompletedMetric = "datadog.actions.private_runner.executions.completed"
 	ActionExecutionLatencyMetric   = "datadog.actions.private_runner.executions.latency"
 
+	HealthCheckMetric   = "datadog.actions.private_runner.health.check"
 	RunnerRunningMetric = "datadog.actions.private_actions.runner.running"
-
-	HealthCheckMetric = "datadog.actions.private_runner.health.check"
 
 	KeysManagerStartupLatencyMetric = "datadog.actions.private_runner.keys_manager.startup_latency"
 )
@@ -56,6 +55,7 @@ func ReportHealthCheck(metricsClient statsd.ClientInterface) {
 		return
 	}
 	_ = metricsClient.Gauge(RunnerRunningMetric, 1, []string{}, 1.0)
+	_ = metricsClient.Gauge(HealthCheckMetric, 1, []string{}, 1.0)
 }
 
 func ReportKeysManagerReady(client statsd.ClientInterface, logger log.Logger, startTime time.Time) {
