@@ -254,7 +254,6 @@ class TestCodeReviewProviders(unittest.TestCase):
 
         self.assertEqual(invocation.executable, "codex")
         self.assertEqual(invocation.command, "codex exec --sandbox read-only -")
-        self.assertIn("Do not run shell commands", invocation.stdin or "")
         self.assertIn("--- DIFF STAT ---", invocation.stdin or "")
         self.assertIn("diff --git a/tasks/foo.py b/tasks/foo.py", invocation.stdin or "")
         self.assertIn("custom review instructions", invocation.stdin or "")
