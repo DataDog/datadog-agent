@@ -123,29 +123,46 @@ func (m *Mock) ResolveIssue(issueID string) {
 	m.resolvedIDs = append(m.resolvedIDs, issueID)
 	obs := m.observer
 	m.mu.Unlock()
-	if issue == nil || obs.ResolvedCh == nil {
+	if issue == nil {
 		return
 	}
-	// Build a resolved tombstone, mirroring the real store: ResolveIssue
-	// always notifies with State == RESOLVED, regardless of the issue's
-	// state before it was resolved.
+	notifyResolved(obs, issue)
+}
+
+func (m *Mock) ResolveAllIssues() {
+	m.mu.Lock()
+	issues := m.issues
+	m.issues = make(map[string]*healthplatformpayload.Issue)
+	obs := m.observer
+	m.mu.Unlock()
+	// Mirrors the real store: ResolveAllIssues notifies observers with a
+	// resolved tombstone for every issue that was still active, the same as
+	// resolving each of them individually.
+	for _, issue := range issues {
+		if issue != nil {
+			notifyResolved(obs, issue)
+		}
+	}
+}
+
+// notifyResolved sends a resolved tombstone for issue to obs, mirroring the
+// real store: ResolveIssue/ResolveAllIssues always notify with
+// State == RESOLVED, regardless of the issue's state beforehand, and the
+// send is non-blocking so a full or unread observer channel can't hang the
+// caller.
+func notifyResolved(obs healthplatform.IssuesObserver, issue *healthplatformpayload.Issue) {
+	if obs.ResolvedCh == nil {
+		return
+	}
 	resolved := proto.Clone(issue).(*healthplatformpayload.Issue)
 	if resolved.PersistedIssue == nil {
 		resolved.PersistedIssue = &healthplatformpayload.PersistedIssue{}
 	}
 	resolved.PersistedIssue.State = healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED
-	// Non-blocking, mirroring the real store: a full or unread observer
-	// channel must not be able to hang the caller.
 	select {
 	case obs.ResolvedCh <- resolved:
 	default:
 	}
-}
-
-func (m *Mock) ResolveAllIssues() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.issues = make(map[string]*healthplatformpayload.Issue)
 }
 
 func (m *Mock) GetActiveIssueIDsByIssueName(issueName string) []string {

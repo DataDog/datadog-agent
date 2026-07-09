@@ -9,6 +9,7 @@
 package mock
 
 import (
+	"fmt"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -56,7 +57,11 @@ func New(t testing.TB, store storedef.Component, opts ...Option) *Mock {
 // If fn returns both reports and a non-nil error, the reports are still
 // forwarded to the store before the error is returned — mirroring the real
 // runner, which does not silently drop partial results on error.
-func (m *Mock) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+//
+// A panic inside fn is recovered, mirroring the real runner: it becomes a
+// "health check panic: ..." error and ids is zeroed, so scheduler callers
+// keep their previous issue state instead of crashing.
+func (m *Mock) Run(source string, fn runnerdef.HealthCheckFunc) (ids []string, retErr error) {
 	m.t.Helper()
 	if m.runFn != nil {
 		return m.runFn(source, fn)
@@ -64,8 +69,13 @@ func (m *Mock) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error
 	if fn == nil {
 		return nil, nil
 	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			retErr = fmt.Errorf("health check panic: %v", rec)
+			ids = nil
+		}
+	}()
 	reports, err := fn()
-	var ids []string
 	for _, r := range reports {
 		if r.Source == "" {
 			r.Source = source
@@ -80,5 +90,6 @@ func (m *Mock) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error
 			ids = append(ids, r.IssueID)
 		}
 	}
-	return ids, err
+	retErr = err
+	return ids, retErr
 }
