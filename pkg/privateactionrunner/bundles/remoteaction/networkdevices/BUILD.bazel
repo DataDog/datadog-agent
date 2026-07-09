@@ -14,7 +14,6 @@ go_library(
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/snmp/gosnmplib",
-        "//pkg/util/log",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
