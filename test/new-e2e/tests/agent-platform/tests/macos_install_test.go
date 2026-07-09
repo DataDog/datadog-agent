@@ -33,10 +33,20 @@ import (
 )
 
 const (
-	macosAgentAPIPort  = 5001
-	macosGUIPort       = 5002
-	macosAuthTokenPath = "/opt/datadog-agent/etc/auth_token"
+	macosAgentAPIPort        = 5001
+	macosGUIPort             = 5002
+	macosAuthTokenPath       = "/opt/datadog-agent/etc/auth_token"
+	macosConfDefaultConfPath = "/opt/datadog-agent/etc"
 )
+
+// macosSharedStackName pins every macOS E2E suite in this package to the same
+// Pulumi stack/EC2 host instead of each suite type spawning its own instance
+// (by default, the stack name is derived per Go type, see suite.go's
+// e2e-<SuiteTypeName>-<hash> naming). Any new macOS suite added to this
+// package should pass e2e.WithStackName(macosSharedStackName) and
+// e2e.WithDevMode() in its entry-point function so it keeps targeting this
+// same shared host rather than provisioning a new one.
+const macosSharedStackName = "e2e-macosInstallSuite-d46bf3fab209fab6"
 
 type macosInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -52,6 +62,8 @@ func TestMacosInstallScript(t *testing.T) {
 			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault))),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
+		e2e.WithStackName(macosSharedStackName),
+		e2e.WithDevMode(),
 	)
 }
 
@@ -85,6 +97,21 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
 	assert.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
+}
+
+func (m *macosInstallSuite) TestAgentStatusAndConfig() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+
+	statusOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status")
+	assert.NoError(m.T(), err)
+	assert.Contains(m.T(), statusOutput, macosConfDefaultConfPath)
+
+	_, err = macosTestClient.Execute("sudo /usr/local/bin/datadog-agent version")
+	assert.NoError(m.T(), err)
+
+	confFile, err := macosTestClient.Execute("sudo test -f " + macosConfDefaultConfPath + "/datadog.yaml")
+	assert.NoError(m.T(), err)
+	assert.Empty(m.T(), strings.TrimSpace(confFile))
 }
 
 func (m *macosInstallSuite) TestAgentRestart() {
