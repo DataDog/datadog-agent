@@ -180,7 +180,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/scenarios/azure
 # gazelle:exclude test/e2e-framework/scenarios/gcp
 # gazelle:exclude test/e2e-framework/scenarios/local
-# gazelle:exclude test/e2e-framework/testing/components
 # gazelle:exclude test/e2e-framework/testing/e2e
 # gazelle:exclude test/e2e-framework/testing/environments
 # gazelle:exclude test/e2e-framework/testing/provisioners
