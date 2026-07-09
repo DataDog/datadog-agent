@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	e2ecomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -174,6 +175,34 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 	}
 
 	s.tryInstallWindowsDDOTForProcmgr()
+}
+
+func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
+	s.requireCLI()
+	host := s.Env().RemoteHost
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		owner, err := windowsProcessOwnerByImage(host, "dd-procmgrd.exe")
+		assert.NoError(ct, err)
+		assert.Contains(ct, owner, "NT AUTHORITY/SYSTEM")
+	}, 60*time.Second, 2*time.Second)
+}
+
+func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
+	s.requireCLI()
+	host := s.Env().RemoteHost
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, desc, "State", "Running")
+		pid := fieldValue(desc, "PID")
+		if !assert.NotEmpty(ct, pid) {
+			return
+		}
+		owner, err := windowsProcessOwnerByPID(host, pid)
+		assert.NoError(ct, err)
+		assert.NotContains(ct, owner, "NT AUTHORITY/SYSTEM")
+	}, 60*time.Second, 2*time.Second)
 }
 
 // tryInstallWindowsDDOTForProcmgr bootstraps DDOT under procmgr when embedded otel-agent is on the image.
@@ -469,4 +498,22 @@ func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
 		s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe "+adpProcessName)),
 		"Description", "E2E-reload-after-yaml",
 	)
+}
+
+func windowsProcessOwnerByImage(host *e2ecomponents.RemoteHost, imageName string) (string, error) {
+	script := fmt.Sprintf(
+		`powershell -NoProfile -Command '$p = Get-CimInstance Win32_Process -Filter "Name=''%s''" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"'`,
+		imageName,
+	)
+	out, err := host.Execute(script)
+	return strings.TrimSpace(out), err
+}
+
+func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
+	script := fmt.Sprintf(
+		`powershell -NoProfile -Command '$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"'`,
+		pid,
+	)
+	out, err := host.Execute(script)
+	return strings.TrimSpace(out), err
 }

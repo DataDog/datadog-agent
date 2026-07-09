@@ -13,11 +13,12 @@ use std::process::Stdio;
 use std::ptr;
 use tokio::process::Command;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
+    INVALID_HANDLE_VALUE, SetHandleInformation,
 };
 use windows_sys::Win32::Security::{
     DuplicateTokenEx, ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT,
-    LogonUserW, RevertToSelf, SecurityDelegation, TokenPrimary,
+    LogonUserW, RevertToSelf, SecurityDelegation, TOKEN_DUPLICATE, TOKEN_QUERY, TokenPrimary,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
@@ -29,7 +30,8 @@ use windows_sys::Win32::System::Console::{
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
+    CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken, PROCESS_INFORMATION,
+    STARTF_USESTDHANDLES, STARTUPINFOW,
 };
 
 use crate::handle::ProcessHandle;
@@ -57,8 +59,8 @@ pub(crate) fn spawn_child(
         validate_privileged_process_request(process_name, &request)?;
     }
 
-    // Prefer primary-token spawning for privileged profiles; if that fails, try
-    // impersonation-based LocalSystem spawn. Never fall back to the supervisor token.
+    // Prefer primary-token spawning (explicit stdio handles). Privileged fallbacks inherit
+    // the supervisor token; dd-procmgr-service runs as LocalSystem on Windows.
     match profile {
         SpawnProfile::Privileged => {
             match spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem) {
@@ -245,19 +247,8 @@ fn spawn_as_local_system(
     command: &str,
     cmd: &mut Command,
 ) -> Result<ProcessHandle> {
-    // LogonUserW + impersonation is required because dd-procmgr-service may not run as
-    // LocalSystem; we explicitly impersonate LocalSystem so the privileged behavior matches
-    // the legacy SCM service.
-    //
-    // For LocalSystem, the well-known identity is `NT AUTHORITY\\SYSTEM` with an empty password.
-    spawn_with_impersonation(
-        process_name,
-        command,
-        cmd,
-        "NT AUTHORITY",
-        "SYSTEM",
-        Some(""),
-    )
+    // dd-procmgr-service runs as LocalSystem; privileged children inherit SYSTEM.
+    exec_spawn(process_name, command, cmd)
 }
 
 fn spawn_as_agent_user(
@@ -291,6 +282,25 @@ fn spawn_as_agent_user(
     }
 }
 
+fn spawn_with_token_impersonation(
+    process_name: &str,
+    command: &str,
+    cmd: &mut Command,
+    token: TokenHandle,
+) -> Result<ProcessHandle> {
+    unsafe {
+        if ImpersonateLoggedOnUser(token.0) == 0 {
+            bail!(
+                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+
+        let _impersonation = ImpersonationGuard { _token: token };
+        exec_spawn(process_name, command, cmd)
+    }
+}
+
 fn spawn_with_impersonation(
     process_name: &str,
     command: &str,
@@ -320,17 +330,7 @@ fn spawn_with_impersonation(
             );
         }
 
-        if ImpersonateLoggedOnUser(logon_token.0) == 0 {
-            bail!(
-                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-
-        let _impersonation = ImpersonationGuard {
-            _token: logon_token,
-        };
-        exec_spawn(process_name, command, cmd)
+        spawn_with_token_impersonation(process_name, command, cmd, logon_token)
     }
 }
 
@@ -343,7 +343,7 @@ fn spawn_as_primary_token(
     // For anything else, fall back to impersonation + tokio::Command.
     let stdout_handle = map_stdio_handle(&request.stdout, STD_OUTPUT_HANDLE)?;
     let stderr_handle = map_stdio_handle(&request.stderr, STD_ERROR_HANDLE)?;
-    let stdin_handle = open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE)?;
+    let stdin_handle = map_stdio_handle_nul()?;
 
     let command_line = {
         let mut cmdline = windows_crt_escape_arg(&request.command);
@@ -368,57 +368,18 @@ fn spawn_as_primary_token(
         .as_ref()
         .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
-    // Acquire a token for the configured account.
-    let (domain, user, password) = primary_token_logon_credentials(account);
-    let domain_w = wide::null_terminated(domain);
-    let user_w = wide::null_terminated(user);
-    let password_w = password.map(wide::null_terminated);
-
-    let mut logon_token: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        LogonUserW(
-            user_w.as_ptr(),
-            domain_w.as_ptr(),
-            password_w.as_ref().map_or(std::ptr::null(), |p| p.as_ptr()),
-            LOGON32_LOGON_SERVICE,
-            LOGON32_PROVIDER_DEFAULT,
-            &mut logon_token,
-        )
-    };
-    if ok == 0 {
-        bail!(
-            "[{process_name}] LogonUserW({domain}\\{user}) failed: {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    let logon_token_guard = TokenHandle(logon_token);
-
-    // Ensure we have a primary token suitable for CreateProcessAsUserW.
-    let mut primary_token: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        DuplicateTokenEx(
-            logon_token_guard.0,
-            MAXIMUM_ALLOWED,
-            std::ptr::null(),
-            SecurityDelegation,
-            TokenPrimary,
-            &mut primary_token,
-        )
-    };
-    if ok == 0 {
-        bail!(
-            "[{process_name}] DuplicateTokenEx failed: {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    let primary_token_guard = TokenHandle(primary_token);
+    // Acquire a primary token for the configured account.
+    let primary_token_guard = TokenHandle(match account {
+        AgentAccount::LocalSystem => local_system_primary_token(process_name)?,
+        _ => primary_token_from_logon(process_name, account)?,
+    });
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
     si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = stdin_handle;
-    si.hStdOutput = stdout_handle;
-    si.hStdError = stderr_handle;
+    si.hStdInput = stdin_handle.0;
+    si.hStdOutput = stdout_handle.0;
+    si.hStdError = stderr_handle.0;
 
     let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let dw_creation_flags = CREATE_NEW_PROCESS_GROUP
@@ -445,14 +406,6 @@ fn spawn_as_primary_token(
         )
     };
 
-    // Close local stdio handles: the child has its own copies by the time
-    // CreateProcessAsUserW returns.
-    unsafe {
-        let _ = CloseHandle(stdin_handle);
-        let _ = CloseHandle(stdout_handle);
-        let _ = CloseHandle(stderr_handle);
-    }
-
     if ok == 0 {
         bail!(
             "[{process_name}] CreateProcessAsUserW failed: {}",
@@ -465,6 +418,86 @@ fn spawn_as_primary_token(
     }
 
     Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+}
+
+fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
+    let mut process_token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_DUPLICATE,
+            &mut process_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let process_token_guard = TokenHandle(process_token);
+    duplicate_primary_token(process_name, process_token_guard.0)
+}
+
+fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Result<HANDLE> {
+    let (domain, user, password) = match account {
+        AgentAccount::LocalSystem => {
+            bail!("[{process_name}] internal error: LocalSystem uses supervisor token duplication")
+        }
+        AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password,
+        } => (domain.as_str(), user.as_str(), Some(password.as_str())),
+        AgentAccount::ServiceAccountLogon { domain, user } => {
+            (domain.as_str(), user.as_str(), None)
+        }
+    };
+
+    let domain_w = wide::null_terminated(domain);
+    let user_w = wide::null_terminated(user);
+    let password_w = password.map(wide::null_terminated);
+
+    let mut logon_token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        LogonUserW(
+            user_w.as_ptr(),
+            domain_w.as_ptr(),
+            password_w.as_ref().map_or(std::ptr::null(), |p| p.as_ptr()),
+            LOGON32_LOGON_SERVICE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut logon_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] LogonUserW({domain}\\{user}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let logon_token_guard = TokenHandle(logon_token);
+    duplicate_primary_token(process_name, logon_token_guard.0)
+}
+
+fn duplicate_primary_token(process_name: &str, token: HANDLE) -> Result<HANDLE> {
+    let mut primary_token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        DuplicateTokenEx(
+            token,
+            MAXIMUM_ALLOWED,
+            std::ptr::null(),
+            SecurityDelegation,
+            TokenPrimary,
+            &mut primary_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] DuplicateTokenEx failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(primary_token)
 }
 
 fn primary_token_logon_credentials(account: &AgentAccount) -> (&str, &str, Option<&str>) {
@@ -538,6 +571,50 @@ fn set_handle_inheritable(handle: HANDLE) -> Result<()> {
     Ok(())
 }
 
+fn duplicate_inheritable_handle(source: HANDLE) -> Result<HANDLE> {
+    let mut dup: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        DuplicateHandle(
+            GetCurrentProcess(),
+            source,
+            GetCurrentProcess(),
+            &mut dup,
+            0,
+            1,
+            DUPLICATE_SAME_ACCESS,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "DuplicateHandle failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    set_handle_inheritable(dup)?;
+    Ok(dup)
+}
+
+/// Owned stdio handle for CreateProcessAsUserW (never the process-wide GetStdHandle value).
+struct MappedStdioHandle(HANDLE);
+
+impl MappedStdioHandle {
+    fn nul() -> Result<Self> {
+        Ok(Self(open_nul_handle(
+            FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+        )?))
+    }
+}
+
+impl Drop for MappedStdioHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+}
+
 fn open_nul_handle(access: u32) -> Result<HANDLE> {
     let nul = wide::null_terminated("NUL");
     let h = unsafe {
@@ -561,22 +638,25 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
     Ok(h)
 }
 
-fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<HANDLE> {
+fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<MappedStdioHandle> {
     match stdio {
         Stdio::Inherit => {
-            let h = unsafe {
+            let source = unsafe {
                 let h = GetStdHandle(kind);
                 if h == INVALID_HANDLE_VALUE || h.is_null() {
                     bail!("GetStdHandle({kind}) returned invalid");
                 }
                 h
             };
-            set_handle_inheritable(h)?;
-            Ok(h)
+            Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
         }
-        Stdio::Null => open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE),
+        Stdio::Null => MappedStdioHandle::nul(),
         other => bail!("primary-token spawn only supports inherit/null stdio, got {other:?}"),
     }
+}
+
+fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
+    MappedStdioHandle::nul()
 }
 
 fn build_command(request: SpawnRequest) -> Result<(String, Command)> {

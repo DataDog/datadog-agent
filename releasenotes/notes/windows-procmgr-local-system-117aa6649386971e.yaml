@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    On Windows, the ``dd-procmgr-service`` Windows service now runs as ``LocalSystem``.
+    dd-procmgr spawns privileged managed processes (such as process-agent) as
+    ``NT AUTHORITY\SYSTEM`` and agent-profile processes as the Datadog agent user.

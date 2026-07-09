@@ -26,7 +26,7 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 /// Agent service account resolved from installer state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AgentAccount {
-    /// Well-known LocalSystem account (spawn inherits supervisor when needed).
+    /// Well-known LocalSystem account (spawn inherits supervisor when procmgr runs as SYSTEM).
     LocalSystem,
     /// Interactive/service logon with a stored password (typical `ddagentuser`).
     PasswordLogon {
