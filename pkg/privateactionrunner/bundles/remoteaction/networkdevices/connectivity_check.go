@@ -66,15 +66,16 @@ type ConnectivityCheckRequest struct {
 }
 
 type SNMPCredential struct {
-	ID           string `json:"id"`
-	Version      string `json:"version"`
-	Community    string `json:"community,omitempty"`
-	User         string `json:"user,omitempty"`
-	AuthProtocol string `json:"authProtocol,omitempty"`
-	AuthKey      string `json:"authKey,omitempty"`
-	PrivProtocol string `json:"privProtocol,omitempty"`
-	PrivKey      string `json:"privKey,omitempty"`
-	ContextName  string `json:"contextName,omitempty"`
+	ID              string `json:"id"`
+	Version         string `json:"version"`
+	Community       string `json:"community,omitempty"`
+	User            string `json:"user,omitempty"`
+	AuthProtocol    string `json:"authProtocol,omitempty"`
+	AuthKey         string `json:"authKey,omitempty"`
+	PrivProtocol    string `json:"privProtocol,omitempty"`
+	PrivKey         string `json:"privKey,omitempty"`
+	ContextName     string `json:"contextName,omitempty"`
+	ContextEngineID string `json:"contextEngineId,omitempty"`
 }
 
 type secretInputs struct {
@@ -340,6 +341,7 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions, cred S
 
 		c.SecurityModel = gosnmp.UserSecurityModel
 		c.ContextName = cred.ContextName
+		c.ContextEngineID = cred.ContextEngineID
 
 		c.SecurityParameters = &gosnmp.UsmSecurityParameters{
 			UserName:                 cred.User,
