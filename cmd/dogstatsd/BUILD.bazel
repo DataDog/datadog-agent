@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "COMMON_TAGS", "DOGSTATSD_TAGS", "WINDOWS_EXCLUDED_TAGS")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "DOGSTATSD_TAGS", "FIPS_TAGS", "WINDOWS_EXCLUDED_TAGS")
 
 # gazelle:dd_agent_go_test on
 
@@ -136,9 +136,15 @@ dd_agent_go_binary(
     embed = [":dogstatsd_lib"],
     # TODO: This seems like something we should move into dd_agent_go_binary.
     # But maybe we should 'or' in COMMON_TAGS there too.
+    # Note to reviewer: We would like to put fips tags in the sort with the others,
+    # but the select() semamtics aren't that sophisticated. What we really need is to fix
+    # rules_go/go_binary so that tags are deduped and sourced.
     gotags = select({
         "@platforms//os:windows": sorted(COMMON_TAGS | (DOGSTATSD_TAGS - WINDOWS_EXCLUDED_TAGS)),
         "//conditions:default": sorted(COMMON_TAGS | DOGSTATSD_TAGS),
+    }) + select({
+        "//packages/agent:fips_flavor": sorted(FIPS_TAGS),
+        "//conditions:default": [],
     }),
     target_compatible_with = select({
         "@platforms//os:linux": [],
