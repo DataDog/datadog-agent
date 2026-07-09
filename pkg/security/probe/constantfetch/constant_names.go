@@ -52,6 +52,7 @@ const (
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
 	OffsetNameQstrName                  = "qstr_name_offset"
+	OffsetNameDentryDParent             = "dentry_d_parent_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
@@ -88,13 +89,15 @@ const (
 	OffsetNameBPFProgAuxStructName            = "bpf_prog_aux_name_offset"
 
 	// namespace nr offsets
-	OffsetNamePIDStructLevel    = "pid_level_offset"
-	OffsetNamePIDStructNumbers  = "pid_numbers_offset"
-	OffsetNameDentryStructDSB   = "dentry_sb_offset"
-	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
-	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
-	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
-	OffsetNameTaskStructSignal  = "task_struct_signal_offset"
+	OffsetNamePIDStructLevel     = "pid_level_offset"
+	OffsetNamePIDStructNumbers   = "pid_numbers_offset"
+	OffsetNameDentryStructDSB    = "dentry_sb_offset"
+	OffsetNameTaskStructPID      = "task_struct_pid_offset"      // kernels >= 4.19
+	OffsetNameTaskStructPIDLink  = "task_struct_pid_link_offset" // kernels < 4.19
+	OffsetNamePIDLinkStructPID   = "pid_link_pid_offset"         // kernels < 4.19
+	OffsetNameTaskStructCred     = "task_struct_cred_offset"
+	OffsetNameTaskStructRealCred = "task_struct_real_cred_offset"
+	OffsetNameTaskStructSignal   = "task_struct_signal_offset"
 
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"

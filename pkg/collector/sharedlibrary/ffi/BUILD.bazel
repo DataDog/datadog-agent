@@ -19,8 +19,8 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/collector/aggregator",
         "//pkg/util/filesystem",
-        "@//pkg/collector/aggregator",
     ],
 )
 
