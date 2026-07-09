@@ -127,6 +127,10 @@ lint_flavor_heroku_linux-x64:
     - .linux_x64
   variables:
     FLAVORS: '--flavors heroku'
+    # Repeatedly OOMKilled / timing out at the .linux_lint default of 16Gi (pipeline 123669532: OOMKilled then
+    # context-deadline-exceeded), same root cause as lint_linux-arm64 below.
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46

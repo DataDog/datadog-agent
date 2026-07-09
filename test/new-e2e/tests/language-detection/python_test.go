@@ -21,7 +21,7 @@ func (s *languageDetectionSuite) TestPythonDetection() {
 	s.installPython()
 
 	s.Env().RemoteHost.MustExecute("echo 'import time\ntime.sleep(30)' > prog.py")
-	s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null &")
+	pid := s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null & echo -n $!")
 
-	s.checkDetectedLanguage("python3", "python")
+	s.checkDetectedLanguage(pid, "python")
 }

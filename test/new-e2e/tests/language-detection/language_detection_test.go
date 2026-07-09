@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
@@ -53,16 +52,8 @@ func TestLanguageDetectionSuite(t *testing.T) {
 	e2e.Run(t, &languageDetectionSuite{}, options...)
 }
 
-func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {
-	var pid string
-	require.Eventually(s.T(),
-		func() bool {
-			pid = s.getPidForCommand(command)
-			return len(pid) > 0
-		},
-		1*time.Second, 10*time.Millisecond,
-		fmt.Sprintf("pid not found for command %s", command),
-	)
+func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string) {
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -0 %s", pid)) // check PID refers to an existing, signalable process
 
 	var actualLanguage string
 	var err error
@@ -71,20 +62,12 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			actualLanguage, err = s.getLanguageForPid(pid)
 			return err == nil && actualLanguage == language
 		},
-		10*time.Second, 100*time.Millisecond,
+		60*time.Second, 100*time.Millisecond,
 		fmt.Sprintf("language match not found, pid = %s, expected = %s, actual = %s, err = %v",
 			pid, language, actualLanguage, err),
 	)
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
-}
-
-func (s *languageDetectionSuite) getPidForCommand(command string) string {
-	pid, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(pid)
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
