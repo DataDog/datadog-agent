@@ -2736,7 +2736,7 @@ api_key:
 #     # Approximate width of each monitor evaluation window. Shorter windows can detect
 #     # breaches sooner; longer windows evaluate more retained points together.
 #
-#     evaluation_interval: 30s
+#     evaluation_interval: "30s"
 
 #     # @param range_epsilon - float - optional - default: 0
 #     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
@@ -2765,14 +2765,14 @@ api_key:
 #     # Extra retained time to forward before a breach or unknown monitor window.
 #     # This captures context before the monitor-triggering window.
 #
-#     pre_trigger_window: 0s
+#     pre_trigger_window: "0s"
 
 #     # @param post_recovery_window - duration - optional - default: "30s"
 #     # @env DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW - duration - optional - default: "30s"
 #     # Extra retained time to forward after the first healthy monitor window that
 #     # suppresses egress. The default approximates the previous two-healthy-window behavior.
 #
-#     post_recovery_window: 30s
+#     post_recovery_window: "30s"
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
