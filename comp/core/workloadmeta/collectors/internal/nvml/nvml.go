@@ -9,6 +9,7 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -20,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -146,15 +147,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	seenPIDs := make(map[int]struct{})
-	appendPID := func(pid uint32) {
-		activePID := int(pid)
-		if _, ok := seenPIDs[activePID]; ok {
-			return
-		}
-		seenPIDs[activePID] = struct{}{}
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, activePID)
-	}
-
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -163,19 +155,30 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 
 	for _, proc := range procs {
-		appendPID(proc.Pid)
+		seenPIDs[int(proc.Pid)] = struct{}{}
 	}
 
 	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
 	utilizationProcs, err := device.GetProcessUtilization(c.lastCollectionTimestamp)
 	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			utilizationProcs = nil // error not found occurs normally when no process is using the GPU, clear the array to avoid processing any data
+		} else {
+			// only logs
+			if logLimiter.ShouldLog() {
+				log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+			}
 		}
 	}
 
 	for _, proc := range utilizationProcs {
-		appendPID(proc.Pid)
+		seenPIDs[int(proc.Pid)] = struct{}{}
+	}
+
+	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
+	for pid := range seenPIDs {
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
 	}
 }
 
@@ -212,7 +215,7 @@ func GetFxOptions() fx.Option {
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
-		return errors.NewDisabled(componentName, "Agent does not have NVML library available")
+		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
 	}
 
 	c.store = store
@@ -268,6 +271,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
 	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
+	timestamp := time.Now().UnixMicro()
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -320,7 +324,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	c.store.Notify(events)
-	c.lastCollectionTimestamp = uint64(time.Now().UnixMicro())
+	c.lastCollectionTimestamp = uint64(timestamp)
 
 	return nil
 }
