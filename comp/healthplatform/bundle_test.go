@@ -166,7 +166,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		HP storedef.Component
 	}
 
-	const tickInterval = 50 * time.Millisecond
+	const tickInterval = 500 * time.Millisecond
 
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
@@ -240,10 +240,20 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	deps.HP.ResolveIssue(issueAID)
 	deps.HP.ResolveIssue(issueBID)
 
-	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) &&
-			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
-	}, waitTimeout, waitInterval, "expected a forwarded payload with issueA=RESOLVED and issueB=RESOLVED")
+	// The egress component may split issues resolved back-to-back across separate
+	// ticks/reports, so issueA and issueB reaching RESOLVED is not guaranteed to land in
+	// the same latest payload. Latch each as seen once observed, and stop once both have.
+	var seenAResolved, seenBResolved bool
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		if latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) {
+			seenAResolved = true
+		}
+		if latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) {
+			seenBResolved = true
+		}
+		assert.True(c, seenAResolved, "issueA never observed as RESOLVED")
+		assert.True(c, seenBResolved, "issueB never observed as RESOLVED")
+	}, waitTimeout, waitInterval, "expected issueA and issueB to each be forwarded as RESOLVED")
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
