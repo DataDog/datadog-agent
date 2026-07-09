@@ -83,7 +83,17 @@ static void __attribute__((always_inline)) process_go_label(
     }
 }
 
-static int __attribute__((always_inline)) read_and_process_label(
+// __noinline: this is the shared body behind all 42 unrolled call sites
+// above (10x process_go_slice_pair + 4 buckets x 8x process_go_bucket_slot).
+// Kept always_inline, it was duplicated at every call site — ~930
+// instructions each, ~39000 total — which overflowed the BPF verifier's
+// 16-bit signed jump-offset encoding for branches inside this program
+// ("jump out of range"). As __noinline__ it compiles once and is reached via
+// BPF_PSEUDO_CALL from all 42 sites instead. Callers still resolve their
+// array/bucket offsets with compile-time-constant indices before calling in,
+// so this receives only fixed-offset pointers — no runtime-indexed map
+// access crosses the call boundary.
+static int __attribute__((__noinline__)) read_and_process_label(
     struct span_context_t *span,
     struct go_labels_scratch_t *s,
     struct go_string_t *key_hdr,
