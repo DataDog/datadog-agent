@@ -316,6 +316,17 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 
 		if _, ok := rateAsGaugeMetrics[pointDims.name]; ok {
 			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicRate(pointDims, startTs, ts, val)
+			t.logger.Warn("Computed OTLP cumulative monotonic sum delta.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Float64("point_value", val),
+				zap.Float64("delta_or_rate", dx),
+				zap.Bool("rate_as_gauge", true),
+				zap.Bool("is_first_point", isFirstPoint),
+				zap.Bool("should_drop_point", shouldDropPoint),
+				zap.Bool("will_emit", !shouldDropPoint && !isFirstPoint),
+			)
 			if shouldDropPoint {
 				t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
 			} else if !isFirstPoint {
@@ -325,6 +336,19 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 		}
 
 		dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val)
+		willEmitInitial := i == 0 && isFirstPoint && shouldConsumeInitialValue(t.cfg.InitialCumulMonoValueMode, startTs, ts)
+		t.logger.Warn("Computed OTLP cumulative monotonic sum delta.",
+			zap.String(metricName, pointDims.name),
+			zap.Uint64("start_timestamp", startTs),
+			zap.Uint64("timestamp", ts),
+			zap.Float64("point_value", val),
+			zap.Float64("delta", dx),
+			zap.Bool("rate_as_gauge", false),
+			zap.Bool("is_first_point", isFirstPoint),
+			zap.Bool("should_drop_point", shouldDropPoint),
+			zap.Bool("will_emit_delta", !shouldDropPoint && !isFirstPoint),
+			zap.Bool("will_emit_initial", willEmitInitial),
+		)
 		if shouldDropPoint {
 			t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
 			continue
@@ -332,7 +356,7 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 
 		if !isFirstPoint {
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
-		} else if i == 0 && shouldConsumeInitialValue(t.cfg.InitialCumulMonoValueMode, startTs, ts) {
+		} else if willEmitInitial {
 			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)

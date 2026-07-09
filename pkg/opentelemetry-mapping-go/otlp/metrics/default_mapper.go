@@ -92,6 +92,9 @@ func (m *defaultMapper) MapHistogramMetrics(
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
 		histInfo := histogramInfo{ok: true}
+		countDiffOK := true
+		sumDiffOK := true
+		sumSkippable := false
 
 		countDims := pointDims.WithSuffix("count")
 		if delta {
@@ -99,6 +102,7 @@ func (m *defaultMapper) MapHistogramMetrics(
 		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
 			histInfo.count = uint64(dx)
 		} else { // not ok
+			countDiffOK = false
 			histInfo.ok = false
 		}
 
@@ -109,9 +113,12 @@ func (m *defaultMapper) MapHistogramMetrics(
 			} else if dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
 				histInfo.sum = dx
 			} else { // not ok
+				sumDiffOK = false
 				histInfo.ok = false
 			}
 		} else { // skippable
+			sumSkippable = true
+			sumDiffOK = false
 			histInfo.ok = false
 		}
 
@@ -123,6 +130,20 @@ func (m *defaultMapper) MapHistogramMetrics(
 		maxDims := pointDims.WithSuffix("max")
 		if p.HasMax() {
 			histInfo.hasMaxFromLastTimeWindow = delta || m.prevPts.PutAndCheckMax(maxDims, startTs, ts, p.Max())
+		}
+
+		if !delta && !histInfo.ok {
+			m.logger.Warn("Cumulative OTLP histogram exact count/sum delta is unavailable; sketch may be emitted from buckets only.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Uint64("point_count", p.Count()),
+				zap.Float64("point_sum", p.Sum()),
+				zap.Bool("count_diff_ok", countDiffOK),
+				zap.Bool("sum_diff_ok", sumDiffOK),
+				zap.Bool("sum_skippable", sumSkippable),
+				zap.Int("bucket_count", p.BucketCounts().Len()),
+			)
 		}
 
 		if m.cfg.SendHistogramAggregations && histInfo.ok {
@@ -378,6 +399,9 @@ func (m *defaultMapper) getSketchBuckets(
 	//   there was at least a nonzero bucket.
 	var minBound, maxBound float64
 	var minBoundSet bool
+	inputBucketCount := bucketCounts.Len()
+	bucketDiffOKCount := 0
+	nonZeroBucketCount := 0
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
 		originalLowerBound, originalUpperBound := lowerBound, upperBound
@@ -415,15 +439,32 @@ func (m *defaultMapper) getSketchBuckets(
 			if err != nil {
 				return err
 			}
-		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
-			nonZeroBucket = dx > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
-			if err != nil {
-				return err
+		} else {
+			dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count))
+			if ok {
+				bucketDiffOKCount++
+				nonZeroBucket = dx > 0
+				err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+				if err != nil {
+					return err
+				}
 			}
+			m.logger.Warn("Computed OTLP cumulative histogram bucket delta.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Int("bucket_index", j),
+				zap.Float64("lower_bound", originalLowerBound),
+				zap.Float64("upper_bound", originalUpperBound),
+				zap.Uint64("cumulative_bucket_count", count),
+				zap.Float64("bucket_delta", dx),
+				zap.Bool("diff_ok", ok),
+				zap.Bool("will_emit_bucket", nonZeroBucket),
+			)
 		}
 
 		if nonZeroBucket {
+			nonZeroBucketCount++
 			if !minBoundSet {
 				minBound = originalLowerBound
 				minBoundSet = true
@@ -433,6 +474,22 @@ func (m *defaultMapper) getSketchBuckets(
 	}
 
 	sketch := as.Finish()
+	if sketch == nil {
+		if !delta {
+			m.logger.Warn("Dropping OTLP cumulative histogram sketch because bucket deltas produced no values.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Bool("hist_info_ok", histInfo.ok),
+				zap.Uint64("hist_info_count", histInfo.count),
+				zap.Float64("hist_info_sum", histInfo.sum),
+				zap.Int("input_bucket_count", inputBucketCount),
+				zap.Int("bucket_diff_ok_count", bucketDiffOKCount),
+				zap.Int("non_zero_bucket_count", nonZeroBucketCount),
+			)
+		}
+		return nil
+	}
 	if sketch != nil {
 		if histInfo.ok {
 			// override approximate sum, count and average in sketch with exact values if available.
@@ -471,6 +528,24 @@ func (m *defaultMapper) getSketchBuckets(
 		var interval int64
 		if m.cfg.InferDeltaInterval && delta {
 			interval = inferDeltaInterval(startTs, ts)
+		}
+		if !delta {
+			m.logger.Warn("Emitting OTLP cumulative histogram sketch.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Bool("hist_info_ok", histInfo.ok),
+				zap.Uint64("hist_info_count", histInfo.count),
+				zap.Float64("hist_info_sum", histInfo.sum),
+				zap.Int("input_bucket_count", inputBucketCount),
+				zap.Int("bucket_diff_ok_count", bucketDiffOKCount),
+				zap.Int("non_zero_bucket_count", nonZeroBucketCount),
+				zap.Int64("sketch_count", sketch.Basic.Cnt),
+				zap.Float64("sketch_sum", sketch.Basic.Sum),
+				zap.Float64("sketch_avg", sketch.Basic.Avg),
+				zap.Float64("sketch_min", sketch.Basic.Min),
+				zap.Float64("sketch_max", sketch.Basic.Max),
+			)
 		}
 		consumer.ConsumeSketch(ctx, pointDims, ts, interval, sketch)
 	}
