@@ -360,7 +360,7 @@ fn spawn_as_primary_token(
         .chain([0])
         .collect();
 
-    let env_block = env_block_from_current_plus_overrides(&request.env)?;
+    let env_block = env_block_from_baseline_plus_overrides(&request.env)?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let current_dir_w = request
@@ -540,12 +540,15 @@ fn windows_crt_escape_arg(s: &str) -> String {
     out
 }
 
-fn env_block_from_current_plus_overrides(overrides: &[(String, String)]) -> Result<Vec<u16>> {
-    let mut vars: HashMap<String, String> = std::env::vars().collect();
+fn env_block_from_baseline_plus_overrides(overrides: &[(String, String)]) -> Result<Vec<u16>> {
+    let mut vars = super::child_baseline_env_vars();
     for (k, v) in overrides {
         vars.insert(k.clone(), v.clone());
     }
+    Ok(env_vars_to_wide_block(&vars))
+}
 
+fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {
     let mut block: Vec<u16> = Vec::new();
     for (k, v) in vars {
         let kv = format!("{k}={v}");
@@ -554,7 +557,7 @@ fn env_block_from_current_plus_overrides(overrides: &[(String, String)]) -> Resu
     }
     // Double NUL terminator.
     block.push(0);
-    Ok(block)
+    block
 }
 
 fn set_handle_inheritable(handle: HANDLE) -> Result<()> {

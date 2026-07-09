@@ -10,6 +10,7 @@ mod wide;
 pub(crate) use spawn::spawn_child;
 
 use anyhow::Result;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -372,13 +373,25 @@ const FALLBACK_ENV_KEYS: &[&str] = &[
 /// managed children (e.g. otel-agent) see PATH, profile directories, and system roots for
 /// the **dd-procmgr** process token — not the fleet installer's environment.
 pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
-    if let Err(e) = try_apply_create_environment_block(cmd) {
-        log::warn!("CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback");
-        apply_fallback_process_env(cmd);
+    for (key, value) in child_baseline_env_vars() {
+        cmd.env(key, value);
     }
 }
 
-fn try_apply_create_environment_block(cmd: &mut tokio::process::Command) -> Result<()> {
+/// Baseline environment for managed children after clearing inherited procmgr variables.
+pub(crate) fn child_baseline_env_vars() -> HashMap<String, String> {
+    match try_create_environment_block_vars() {
+        Ok(vars) => vars,
+        Err(e) => {
+            log::warn!(
+                "CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback"
+            );
+            fallback_process_env_vars()
+        }
+    }
+}
+
+fn try_create_environment_block_vars() -> Result<HashMap<String, String>> {
     use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
     use windows_sys::Win32::System::Environment::{
         CreateEnvironmentBlock, DestroyEnvironmentBlock,
@@ -409,19 +422,20 @@ fn try_apply_create_environment_block(cmd: &mut tokio::process::Command) -> Resu
         );
     }
 
-    merge_wide_env_block_into_cmd(cmd, env_block as *const u16);
+    let vars = wide_env_block_to_map(env_block as *const u16);
 
     unsafe {
         let _ = DestroyEnvironmentBlock(env_block as *const c_void);
         CloseHandle(token);
     }
-    Ok(())
+    Ok(vars)
 }
 
-fn merge_wide_env_block_into_cmd(cmd: &mut tokio::process::Command, block: *const u16) {
+fn wide_env_block_to_map(block: *const u16) -> HashMap<String, String> {
     if block.is_null() {
-        return;
+        return HashMap::new();
     }
+    let mut vars = HashMap::new();
     let mut p = block;
     loop {
         // SAFETY: `block` must point at a valid NUL-terminated Windows environment block from
@@ -438,10 +452,14 @@ fn merge_wide_env_block_into_cmd(cmd: &mut tokio::process::Command, block: *cons
             let slice = std::slice::from_raw_parts(entry_start, len);
             p = p.add(1);
             if let Some((k, v)) = split_env_entry_wide(slice) {
-                cmd.env(k, v);
+                vars.insert(
+                    k.to_string_lossy().into_owned(),
+                    v.to_string_lossy().into_owned(),
+                );
             }
         }
     }
+    vars
 }
 
 fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::OsString)> {
@@ -457,12 +475,14 @@ fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::O
     ))
 }
 
-fn apply_fallback_process_env(cmd: &mut tokio::process::Command) {
+fn fallback_process_env_vars() -> HashMap<String, String> {
+    let mut vars = HashMap::new();
     for &key in FALLBACK_ENV_KEYS {
         if let Ok(val) = std::env::var(key)
             && !val.is_empty()
         {
-            cmd.env(key, val);
+            vars.insert(key.to_string(), val);
         }
     }
+    vars
 }
