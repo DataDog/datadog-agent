@@ -14,6 +14,14 @@ import (
 	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
 
+type UnknownDeviceError struct {
+	deviceID string
+}
+
+func (u *UnknownDeviceError) Error() string {
+	return fmt.Sprintf("unknown device: %q", u.deviceID)
+}
+
 // DeviceMap wraps a sync.Map of DeviceContexts to streamline the process of
 // fetching and locking them.
 type DeviceMap struct {
@@ -47,14 +55,19 @@ func (d *DeviceMap) RegisterDevice(ctx context.Context, device *ncmconfig.Device
 	return dc.Unlock()
 }
 
+// Get fetches a DeviceContext, or returns an UnknownDeviceError.
 func (d *DeviceMap) Get(deviceID string) (*DeviceContext, error) {
 	dc, ok := d.devices.Load(deviceID)
 	if !ok {
-		return nil, fmt.Errorf("unknown device: %q", deviceID)
+		return nil, &UnknownDeviceError{deviceID}
 	}
 	return dc, nil
 }
 
+// GetAndLock fetches a DeviceContext and locks it. It can return
+// UnknownDeviceError, if the deviceID isn't recognized, or
+// DeadlineExceeded/Canceled if the context terminatesj while waiting for the
+// lock.
 func (d *DeviceMap) GetAndLock(ctx context.Context, deviceID string) (*DeviceContext, error) {
 	dc, err := d.Get(deviceID)
 	if err != nil {
