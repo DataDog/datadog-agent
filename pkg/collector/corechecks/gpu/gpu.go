@@ -240,6 +240,18 @@ func (c *Check) Cancel() {
 	c.CheckBase.Cancel()
 }
 
+// Interval returns the scheduling interval for the check. When
+// gpu.collection_interval_override (DD_GPU_COLLECTION_INTERVAL_OVERRIDE) is set to
+// a positive number of seconds it overrides the cadence, taking precedence over
+// the instance's min_collection_interval. Otherwise the check falls back to the
+// instance's min_collection_interval / default.
+func (c *Check) Interval() time.Duration {
+	if iv := pkgconfigsetup.Datadog().GetInt("gpu.collection_interval_override"); iv > 0 {
+		return time.Duration(iv) * time.Second
+	}
+	return c.CheckBase.Interval()
+}
+
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
