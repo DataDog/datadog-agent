@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/logs/dynamicadaptivesampling
+module github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling
 
 go 1.26.0
 

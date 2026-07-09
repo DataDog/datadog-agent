@@ -5,7 +5,7 @@
 
 //go:build python
 
-package dynamicadaptivesampling
+package smartadaptivesampling
 
 import (
 	"testing"

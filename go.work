@@ -114,7 +114,7 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/dynamicadaptivesampling
+	pkg/logs/smartadaptivesampling
 	pkg/logs/message
 	pkg/logs/sources
 	pkg/logs/status/statusinterface

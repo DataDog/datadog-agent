@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package dynamicadaptivesampling is used to make the bridge between anomaly detection
+// Package smartadaptivesampling is used to make the bridge between anomaly detection
 // pipeline and adaptive sampling, it provides severity change events.
-package dynamicadaptivesampling
+package smartadaptivesampling
 
 import (
 	"sync/atomic"

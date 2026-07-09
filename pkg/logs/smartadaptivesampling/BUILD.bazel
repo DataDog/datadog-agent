@@ -1,13 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "dynamicadaptivesampling",
+    name = "smartadaptivesampling",
     srcs = [
         "module.go",
         "module_noop.go",
         "profile.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/logs/dynamicadaptivesampling",
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/observer/def",
@@ -19,12 +19,12 @@ go_library(
 )
 
 go_test(
-    name = "dynamicadaptivesampling_test",
+    name = "smartadaptivesampling_test",
     srcs = [
         "module_test.go",
         "profile_test.go",
     ],
-    embed = [":dynamicadaptivesampling"],
+    embed = [":smartadaptivesampling"],
     gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",

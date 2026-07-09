@@ -913,7 +913,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.80.2
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.80.2
 	github.com/DataDog/datadog-agent/pkg/config/schema v0.0.0
-	github.com/DataDog/datadog-agent/pkg/logs/dynamicadaptivesampling v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.80.2
 	github.com/DataDog/datadog-agent/pkg/serializer v0.80.2
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -1329,7 +1329,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ./pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/dynamicadaptivesampling => ./pkg/logs/dynamicadaptivesampling
+	github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling => ./pkg/logs/smartadaptivesampling
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
