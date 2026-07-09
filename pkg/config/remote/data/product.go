@@ -46,6 +46,8 @@ const (
 	ProductAgentFlags = "AGENT_REMOTE_FLAGS"
 	// ProductDOQueryActions is to execute database queries remotely for Data Observability
 	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
+	// ProductDebug is a free-form RC product used for development/debug scaffolding.
+	ProductDebug Product = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list
