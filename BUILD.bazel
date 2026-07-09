@@ -174,7 +174,6 @@ exports_files(["go.mod"])
 # TODO: break the cycle (e.g. move GetKubeAPIServerHostname to another package, or
 # trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
-# gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
 # gazelle:exclude test/e2e-framework/components/datadog/apps/aspnetsample
