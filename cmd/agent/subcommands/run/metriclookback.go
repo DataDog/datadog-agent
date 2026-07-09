@@ -55,6 +55,8 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		var egressController *metriclookback.EgressController
 		if monitorEnabled {
 			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{
+				PreTriggerWindow:             cfg.GetDuration("metric_lookback.egress.pre_trigger_window"),
+				PostRecoveryWindow:           cfg.GetDuration("metric_lookback.egress.post_recovery_window"),
 				DryRun:                       monitorMode == metricLookbackMonitorModeDryRun,
 				MonitorStateTransitionLogger: metricLookbackMonitorStateTransitionLogger(logger),
 			})
@@ -157,6 +159,15 @@ func validateMetricLookbackMonitorConfig(cfg config.Component) error {
 		if rangeEpsilon := cfg.GetFloat64("metric_lookback.monitor.range_epsilon"); rangeEpsilon < 0 {
 			return fmt.Errorf("metric_lookback.monitor.range_epsilon must be non-negative, got %v", rangeEpsilon)
 		}
+		if evaluationInterval := cfg.GetDuration("metric_lookback.monitor.evaluation_interval"); evaluationInterval < 0 {
+			return fmt.Errorf("metric_lookback.monitor.evaluation_interval must be non-negative, got %v", evaluationInterval)
+		}
+		if preTriggerWindow := cfg.GetDuration("metric_lookback.egress.pre_trigger_window"); preTriggerWindow < 0 {
+			return fmt.Errorf("metric_lookback.egress.pre_trigger_window must be non-negative, got %v", preTriggerWindow)
+		}
+		if postRecoveryWindow := cfg.GetDuration("metric_lookback.egress.post_recovery_window"); postRecoveryWindow < 0 {
+			return fmt.Errorf("metric_lookback.egress.post_recovery_window must be non-negative, got %v", postRecoveryWindow)
+		}
 		return nil
 	default:
 		return fmt.Errorf("metric_lookback.monitor.mode must be one of %q, %q, or %q; got %q", metricLookbackMonitorModeDisabled, metricLookbackMonitorModeDryRun, metricLookbackMonitorModeEnabled, mode)
@@ -200,9 +211,10 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 		return out
 	})
 	watcher, err := monitor.New(monitor.Config{
-		MetricName:    metricName,
-		RangeEpsilon:  cfg.GetFloat64("metric_lookback.monitor.range_epsilon"),
-		PartitionTags: cfg.GetStringSlice("metric_lookback.monitor.partition_tags"),
+		MetricName:         metricName,
+		RangeEpsilon:       cfg.GetFloat64("metric_lookback.monitor.range_epsilon"),
+		PartitionTags:      cfg.GetStringSlice("metric_lookback.monitor.partition_tags"),
+		EvaluationInterval: cfg.GetDuration("metric_lookback.monitor.evaluation_interval"),
 	}, reader, sink)
 	if err != nil {
 		return nil, err

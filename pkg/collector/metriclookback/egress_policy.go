@@ -16,9 +16,6 @@ const (
 	// DefaultEgressSendDelay waits until retained metric timestamps are old enough
 	// that the regular coarser metric pipeline should have had time to send first.
 	DefaultEgressSendDelay = 30 * time.Second
-	// DefaultHealthyWindowsToSuppressEgress is the number of consecutive healthy
-	// monitor windows required before egress stops forwarding retained ranges.
-	DefaultHealthyWindowsToSuppressEgress = 2
 	// DefaultMonitorStaleTimeout keeps stale-monitor reopening disabled by default.
 	// Empty periods without the trigger metric should not enable egress.
 	DefaultMonitorStaleTimeout = 0
@@ -56,17 +53,14 @@ func (m EgressMode) String() string {
 
 // EgressPolicyOptions controls the pure range-planning policy.
 type EgressPolicyOptions struct {
-	// PreWindow extends a forwarding range before a monitor breach or unknown
-	// window.
-	PreWindow time.Duration
-	// PostWindow extends a forwarding range after the healthy window that suppresses
-	// egress.
-	PostWindow time.Duration
+	// PreTriggerWindow extends a forwarding range before a monitor breach or
+	// unknown window.
+	PreTriggerWindow time.Duration
+	// PostRecoveryWindow extends a forwarding range after the first healthy window
+	// that suppresses egress.
+	PostRecoveryWindow time.Duration
 	// SendDelay is the minimum age of a metric timestamp before it is forwarded.
 	SendDelay time.Duration
-	// HealthyWindowsToSuppress is the number of consecutive healthy monitor windows
-	// required before egress transitions from forwarding to suppressed.
-	HealthyWindowsToSuppress int
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
 	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
@@ -80,14 +74,12 @@ type EgressPolicyOptions struct {
 // half-open retained timestamp ranges that should be forwarded. It owns no
 // retention or serializer resources so it can be tested exhaustively.
 type EgressPolicy struct {
-	preWindow                time.Duration
-	postWindow               time.Duration
-	sendDelay                time.Duration
-	healthyWindowsToSuppress int
-	monitorStaleTimeout      time.Duration
+	preTriggerWindow    time.Duration
+	postRecoveryWindow  time.Duration
+	sendDelay           time.Duration
+	monitorStaleTimeout time.Duration
 
-	mode         EgressMode
-	healthyCount int
+	mode EgressMode
 
 	forwardingRanges      []TimeRange
 	forwardedSeriesRanges []TimeRange
@@ -108,19 +100,15 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 	if opts.SendDelay == 0 {
 		opts.SendDelay = DefaultEgressSendDelay
 	}
-	if opts.HealthyWindowsToSuppress <= 0 {
-		opts.HealthyWindowsToSuppress = DefaultHealthyWindowsToSuppressEgress
-	}
 	if opts.MonitorStaleTimeout < 0 {
 		opts.MonitorStaleTimeout = 0
 	}
 	policy := &EgressPolicy{
-		preWindow:                nonNegativeDuration(opts.PreWindow),
-		postWindow:               nonNegativeDuration(opts.PostWindow),
-		sendDelay:                opts.SendDelay,
-		healthyWindowsToSuppress: opts.HealthyWindowsToSuppress,
-		monitorStaleTimeout:      opts.MonitorStaleTimeout,
-		mode:                     EgressSuppressed,
+		preTriggerWindow:    nonNegativeDuration(opts.PreTriggerWindow),
+		postRecoveryWindow:  nonNegativeDuration(opts.PostRecoveryWindow),
+		sendDelay:           opts.SendDelay,
+		monitorStaleTimeout: opts.MonitorStaleTimeout,
+		mode:                EgressSuppressed,
 	}
 	if opts.StartForwarding {
 		policy.openForwardingAt(time.Time{})
@@ -178,29 +166,23 @@ func (p *EgressPolicy) onHealthy(decision monitor.Decision) {
 	if p.mode == EgressSuppressed {
 		return
 	}
-	p.healthyCount++
-	if p.healthyCount < p.healthyWindowsToSuppress {
-		return
-	}
-	closeAt := decision.WindowTo.Add(p.postWindow)
+	closeAt := decision.WindowTo.Add(p.postRecoveryWindow)
 	p.closeForwardingAt(closeAt)
 	p.mode = EgressSuppressed
 }
 
 func (p *EgressPolicy) onBreach(decision monitor.Decision) {
-	p.healthyCount = 0
 	if p.mode == EgressForwarding {
 		return
 	}
-	p.openForwardingAt(decision.WindowFrom.Add(-p.preWindow))
+	p.openForwardingAt(decision.WindowFrom.Add(-p.preTriggerWindow))
 }
 
 func (p *EgressPolicy) onUnknown(decision monitor.Decision) {
-	p.healthyCount = 0
 	if p.mode == EgressForwarding {
 		return
 	}
-	p.openForwardingAt(decision.WindowFrom.Add(-p.preWindow))
+	p.openForwardingAt(decision.WindowFrom.Add(-p.preTriggerWindow))
 }
 
 // MarkStaleIfNeeded returns suppressed egress to forwarding when no fresh
@@ -212,7 +194,6 @@ func (p *EgressPolicy) MarkStaleIfNeeded(now time.Time) bool {
 	if now.Sub(p.lastDecisionAt) <= p.monitorStaleTimeout {
 		return false
 	}
-	p.healthyCount = 0
 	p.openForwardingAt(p.lastMonitorAt)
 	return true
 }

@@ -149,8 +149,7 @@ func TestEgressControllerAppliesMonitorDecisions(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	serializer := serializermocks.NewMetricSerializer(t)
 	controller := NewEgressController(retention, serializer, EgressControllerOptions{
-		HealthyWindowsToSuppress: 1,
-		Now:                      func() time.Time { return time.Unix(100, 0) },
+		Now: func() time.Time { return time.Unix(100, 0) },
 	})
 
 	require.Equal(t, EgressSuppressed, controller.Mode())
@@ -199,9 +198,8 @@ func TestEgressControllerDryRunStartsForwardingAndIgnoresMonitorDecisions(t *tes
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	serializer := serializermocks.NewMetricSerializer(t)
 	controller := NewEgressController(retention, serializer, EgressControllerOptions{
-		DryRun:                   true,
-		HealthyWindowsToSuppress: 1,
-		Now:                      func() time.Time { return time.Unix(100, 0) },
+		DryRun: true,
+		Now:    func() time.Time { return time.Unix(100, 0) },
 	})
 
 	require.Equal(t, EgressForwarding, controller.Mode())

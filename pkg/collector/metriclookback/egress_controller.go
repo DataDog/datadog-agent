@@ -49,20 +49,18 @@ type MonitorStateTransitionLogger func(MonitorStateTransition)
 
 // EgressControllerOptions controls how retained ranges are forwarded. Most
 // options are code-level defaults; public config currently selects monitor
-// enablement, the watched metric/range epsilon, and dry-run mode.
+// enablement, the watched metric/range epsilon, dry-run mode, and trigger/recovery
+// egress context windows.
 type EgressControllerOptions struct {
-	// PreWindow extends forwarding before a monitor breach/unknown window.
-	PreWindow time.Duration
-	// PostWindow extends forwarding after the healthy window that suppresses
-	// egress.
-	PostWindow time.Duration
+	// PreTriggerWindow extends forwarding before a monitor breach/unknown window.
+	PreTriggerWindow time.Duration
+	// PostRecoveryWindow extends forwarding after the first healthy window that
+	// suppresses egress.
+	PostRecoveryWindow time.Duration
 	// SendDelay is the minimum age of a metric timestamp before it is forwarded.
 	SendDelay time.Duration
 	// EgressInterval is how often the background loop checks for eligible ranges.
 	EgressInterval time.Duration
-	// HealthyWindowsToSuppress is the number of consecutive healthy monitor windows
-	// required before egress transitions to suppressed.
-	HealthyWindowsToSuppress int
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
 	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
@@ -119,12 +117,11 @@ func NewEgressController(retention *Retention, metricSerializer serializer.Metri
 		opts.Now = time.Now
 	}
 	policy := NewEgressPolicy(EgressPolicyOptions{
-		PreWindow:                opts.PreWindow,
-		PostWindow:               opts.PostWindow,
-		SendDelay:                opts.SendDelay,
-		HealthyWindowsToSuppress: opts.HealthyWindowsToSuppress,
-		MonitorStaleTimeout:      opts.MonitorStaleTimeout,
-		StartForwarding:          opts.DryRun,
+		PreTriggerWindow:    opts.PreTriggerWindow,
+		PostRecoveryWindow:  opts.PostRecoveryWindow,
+		SendDelay:           opts.SendDelay,
+		MonitorStaleTimeout: opts.MonitorStaleTimeout,
+		StartForwarding:     opts.DryRun,
 	})
 	return &EgressController{
 		retention:        retention,

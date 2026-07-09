@@ -2542,6 +2542,17 @@ properties:
             default: ''
             visibility: public
             description: Exact metric name watched by the monitor.
+          evaluation_interval:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Approximate width of each monitor evaluation window. Shorter windows can detect
+              breaches sooner; longer windows evaluate more retained points together.
+            tags:
+            - golang_type:duration
           range_epsilon:
             node_type: setting
             type: number
@@ -2565,6 +2576,36 @@ properties:
               Tag keys used to partition monitor range evaluation. When empty, all retained points for the
               monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
               tuple independently and breaches if any partition exceeds range_epsilon.
+      egress:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure monitor-triggered egress ranges.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          pre_trigger_window:
+            node_type: setting
+            type: string
+            default: 0s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward before a breach or unknown monitor window.
+              This captures context before the monitor-triggering window.
+            tags:
+            - golang_type:duration
+          post_recovery_window:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward after the first healthy monitor window that
+              suppresses egress. The default approximates the previous two-healthy-window behavior.
+            tags:
+            - golang_type:duration
       collection_interval:
         node_type: setting
         type: string

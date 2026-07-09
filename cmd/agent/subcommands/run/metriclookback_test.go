@@ -250,6 +250,29 @@ func TestMetricLookbackDogStatsDFactoryRejectsNegativeRangeEpsilon(t *testing.T)
 	require.ErrorContains(t, err, "metric_lookback.monitor.range_epsilon")
 }
 
+func TestMetricLookbackDogStatsDFactoryRejectsNegativeWindowDurations(t *testing.T) {
+	for _, key := range []string{
+		"metric_lookback.monitor.evaluation_interval",
+		"metric_lookback.egress.pre_trigger_window",
+		"metric_lookback.egress.post_recovery_window",
+	} {
+		t.Run(key, func(t *testing.T) {
+			cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+				"metric_lookback.enabled":               true,
+				"metric_lookback.monitor.mode":          "enabled",
+				"metric_lookback.monitor.metric_name":   "target.metric",
+				"metric_lookback.monitor.range_epsilon": 0.05,
+				key:                                     -time.Second,
+			})
+
+			factory, err := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+
+			require.Nil(t, factory)
+			require.ErrorContains(t, err, key)
+		})
+	}
+}
+
 func TestMetricLookbackDogStatsDFactoryRejectsInvalidMonitorMode(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
 		"metric_lookback.enabled":      true,
@@ -284,13 +307,16 @@ func requireMetricLookbackDogStatsDFactory(t testing.TB, cfg configmock.Componen
 
 func metricLookbackMonitorFactoryConfig(t testing.TB) configmock.Component {
 	return configmock.NewMockWithOverrides(t, map[string]interface{}{
-		"metric_lookback.enabled":                true,
-		"metric_lookback.capacity":               256,
-		"metric_lookback.shard_count":            1,
-		"metric_lookback.dogstatsd.metric_names": []string{},
-		"metric_lookback.monitor.mode":           "enabled",
-		"metric_lookback.monitor.metric_name":    "target.metric",
-		"metric_lookback.monitor.range_epsilon":  0.05,
+		"metric_lookback.enabled":                     true,
+		"metric_lookback.capacity":                    256,
+		"metric_lookback.shard_count":                 1,
+		"metric_lookback.dogstatsd.metric_names":      []string{},
+		"metric_lookback.monitor.mode":                "enabled",
+		"metric_lookback.monitor.metric_name":         "target.metric",
+		"metric_lookback.monitor.evaluation_interval": 30 * time.Second,
+		"metric_lookback.monitor.range_epsilon":       0.05,
+		"metric_lookback.egress.pre_trigger_window":   0 * time.Second,
+		"metric_lookback.egress.post_recovery_window": 30 * time.Second,
 	})
 }
 

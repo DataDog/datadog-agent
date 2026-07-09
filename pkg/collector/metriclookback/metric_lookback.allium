@@ -134,6 +134,10 @@ external entity LookbackConfiguration {
     monitor_metric_name: MetricName?
     monitor_range_epsilon: Decimal
     monitor_partition_tags: List<TagName>
+    monitor_evaluation_interval: Duration
+
+    egress_pre_trigger_window: Duration
+    egress_post_recovery_window: Duration
 
     -- Additional DogStatsD metric names to retain. An empty set disables
     -- additional DogStatsD retention. The monitor metric is separately
@@ -189,6 +193,7 @@ entity Monitor {
     metric_name: MetricName
     range_epsilon: Decimal
     partition_tags: List<TagName>
+    evaluation_interval: Duration
     state: MonitorState?
     decisions: List<MonitorDecision>
     transition_logs: List<MonitorStateTransitionLog>
@@ -232,7 +237,6 @@ entity EgressPolicy {
     forwarding_ranges: List<TimeRange>
     forwarded_series_ranges: List<TimeRange>
     forwarded_sketch_ranges: List<TimeRange>
-    healthy_windows_seen: Integer
 }
 
 entity ForwardAttempt {
@@ -247,8 +251,7 @@ entity ForwardAttempt {
 ------------------------------------------------------------
 
 config {
-    -- Approximate monitor evaluation window size. The implementation currently
-    -- uses this as an internal default, not as a public configuration field.
+    -- Approximate monitor evaluation window size.
     monitor_evaluation_interval: Duration = 30.seconds
 
     -- Minimum retained points needed to classify a monitor window as healthy or
@@ -259,14 +262,9 @@ config {
     -- intake forwarding.
     egress_send_delay: Duration = 30.seconds
 
-    -- Consecutive healthy monitor windows required before normal-mode egress is
-    -- suppressed after it has been forwarding.
-    healthy_windows_to_suppress_egress: Integer = 2
-
-    -- Domain-level pre/post windows around monitor transitions. Current code
-    -- defaults both to zero unless options override them.
-    egress_pre_window: Duration = 0.seconds
-    egress_post_window: Duration = 0.seconds
+    -- Domain-level context windows around monitor transitions.
+    egress_pre_trigger_window: Duration = 0.seconds
+    egress_post_recovery_window: Duration = 30.seconds
 }
 
 ------------------------------------------------------------
@@ -311,6 +309,7 @@ rule MonitorCreatesSharedRetentionReader {
         metric_name: configuration.monitor_metric_name,
         range_epsilon: configuration.monitor_range_epsilon,
         partition_tags: configuration.monitor_partition_tags,
+        evaluation_interval: configuration.monitor_evaluation_interval,
         state: nil,
         decisions: [],
         transition_logs: []
@@ -539,8 +538,7 @@ rule EnabledMonitorModeEgressStartsSuppressed {
         dry_run: false,
         forwarding_ranges: [],
         forwarded_series_ranges: [],
-        forwarded_sketch_ranges: [],
-        healthy_windows_seen: 0
+        forwarded_sketch_ranges: []
     )
 }
 
@@ -553,8 +551,7 @@ rule DryRunMonitorModeEgressStartsForwarding {
         dry_run: true,
         forwarding_ranges: [TimeRange{start: nil, end: nil}],
         forwarded_series_ranges: [],
-        forwarded_sketch_ranges: [],
-        healthy_windows_seen: 0
+        forwarded_sketch_ranges: []
     )
     @guidance
         -- Dry-run overrides the enabled mode's suppressed startup mode. There is
@@ -566,7 +563,6 @@ rule DryRunMonitorDecisionDoesNotChangeEgressMode {
     requires: EgressPolicy.dry_run = true
     ensures: EgressPolicy.mode = forwarding
     ensures: EgressPolicy.forwarding_ranges = EgressPolicy.forwarding_ranges
-    ensures: EgressPolicy.healthy_windows_seen = EgressPolicy.healthy_windows_seen
 }
 
 rule BreachOrUnknownOpensForwardingInNormalMode {
@@ -575,9 +571,8 @@ rule BreachOrUnknownOpensForwardingInNormalMode {
     requires: decision.state in {breach, unknown}
     requires: EgressPolicy.mode = suppressed
     ensures: EgressPolicy.mode = forwarding
-    ensures: EgressPolicy.healthy_windows_seen = 0
     ensures: EgressPolicy.forwarding_ranges = EgressPolicy.forwarding_ranges + [TimeRange{
-        start: decision.window.start - config.egress_pre_window,
+        start: decision.window.start - config.egress_pre_trigger_window,
         end: nil
     }]
 }
@@ -588,28 +583,15 @@ rule BreachOrUnknownKeepsForwardingOpenInNormalMode {
     requires: decision.state in {breach, unknown}
     requires: EgressPolicy.mode = forwarding
     ensures: EgressPolicy.mode = forwarding
-    ensures: EgressPolicy.healthy_windows_seen = 0
 }
 
-rule HealthyDecisionCountsTowardSuppressionInNormalMode {
+rule HealthyDecisionSuppressesEgressInNormalMode {
     when: decision: MonitorDecision.created
     requires: EgressPolicy.dry_run = false
     requires: decision.state = healthy
     requires: EgressPolicy.mode = forwarding
-    requires: EgressPolicy.healthy_windows_seen + 1 < config.healthy_windows_to_suppress_egress
-    ensures: EgressPolicy.mode = forwarding
-    ensures: EgressPolicy.healthy_windows_seen = EgressPolicy.healthy_windows_seen + 1
-}
-
-rule ConsecutiveHealthyDecisionsSuppressEgressInNormalMode {
-    when: decision: MonitorDecision.created
-    requires: EgressPolicy.dry_run = false
-    requires: decision.state = healthy
-    requires: EgressPolicy.mode = forwarding
-    requires: EgressPolicy.healthy_windows_seen + 1 >= config.healthy_windows_to_suppress_egress
     ensures: EgressPolicy.mode = suppressed
-    ensures: EgressPolicy.healthy_windows_seen = EgressPolicy.healthy_windows_seen + 1
-    ensures: open_range(EgressPolicy.forwarding_ranges).end = decision.window.end + config.egress_post_window
+    ensures: open_range(EgressPolicy.forwarding_ranges).end = decision.window.end + config.egress_post_recovery_window
 }
 
 rule HealthyDecisionWhileSuppressedDoesNotOpenEgress {
@@ -622,7 +604,6 @@ rule HealthyDecisionWhileSuppressedDoesNotOpenEgress {
 
 rule ForwardingRangesAreClippedBySendDelay {
     when: EgressRun(now)
-    requires: EgressPolicy.mode = forwarding
     let eligible_through = now - config.egress_send_delay
     let candidates = EgressPolicy.forwarding_ranges where start = nil or start < eligible_through
     ensures:

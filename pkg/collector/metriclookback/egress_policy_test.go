@@ -35,8 +35,8 @@ func TestEgressPolicyCanStartForwarding(t *testing.T) {
 func TestEgressPolicyBreachOpensForwardingAndAppliesSendDelay(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{
-		SendDelay: 10 * time.Second,
-		PreWindow: 5 * time.Second,
+		SendDelay:        10 * time.Second,
+		PreTriggerWindow: 5 * time.Second,
 	})
 
 	policy.OnDecision(monitor.Decision{
@@ -87,24 +87,20 @@ func TestEgressPolicyTracksSeriesAndSketchForwardedRangesSeparately(t *testing.T
 	require.Equal(t, []TimeRange{first}, policy.ForwardedSketchRanges())
 }
 
-func TestEgressPolicySuppressesAfterConsecutiveHealthyWindows(t *testing.T) {
+func TestEgressPolicySuppressesAfterHealthyWindowWithPostRecoveryWindow(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{
-		SendDelay:                time.Nanosecond,
-		HealthyWindowsToSuppress: 2,
-		PostWindow:               5 * time.Second,
+		SendDelay:          time.Nanosecond,
+		PostRecoveryWindow: 5 * time.Second,
 	})
 	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(15 * time.Second)})
 
 	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(15 * time.Second), WindowTo: start.Add(30 * time.Second)})
-	require.Equal(t, EgressForwarding, policy.Mode())
-
-	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(30 * time.Second), WindowTo: start.Add(45 * time.Second)})
 	require.Equal(t, EgressSuppressed, policy.Mode())
-	require.Equal(t, []TimeRange{{From: start, To: start.Add(50 * time.Second)}}, policy.ForwardingRanges())
+	require.Equal(t, []TimeRange{{From: start, To: start.Add(35 * time.Second)}}, policy.ForwardingRanges())
 }
 
-func TestEgressPolicyBreachReopensSuppressedEgressWithPreWindow(t *testing.T) {
+func TestEgressPolicyBreachReopensSuppressedEgressWithPreTriggerWindow(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := suppressedPolicy(start)
 
@@ -152,7 +148,7 @@ func TestEgressPolicyStaleMonitorReopensSuppressedEgressWhenConfigured(t *testin
 
 func TestEgressPolicyStaleMonitorReopenDisabledByDefault(t *testing.T) {
 	start := time.Unix(100, 0)
-	policy := NewEgressPolicy(EgressPolicyOptions{HealthyWindowsToSuppress: 1})
+	policy := NewEgressPolicy(EgressPolicyOptions{})
 	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
 	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(10 * time.Second), WindowTo: start.Add(30 * time.Second)})
 
@@ -188,10 +184,9 @@ func TestEgressPolicyHalfOpenBoundariesDoNotOverlapForwardedRanges(t *testing.T)
 
 func suppressedPolicy(start time.Time) *EgressPolicy {
 	policy := NewEgressPolicy(EgressPolicyOptions{
-		SendDelay:                time.Nanosecond,
-		HealthyWindowsToSuppress: 1,
-		PreWindow:                5 * time.Second,
-		MonitorStaleTimeout:      30 * time.Second,
+		SendDelay:           time.Nanosecond,
+		PreTriggerWindow:    5 * time.Second,
+		MonitorStaleTimeout: 30 * time.Second,
 	})
 	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
 	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(10 * time.Second), WindowTo: start.Add(30 * time.Second)})
