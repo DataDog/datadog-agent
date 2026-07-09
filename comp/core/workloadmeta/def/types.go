@@ -832,12 +832,13 @@ type KubernetesPod struct {
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
 	Resources                  ContainerResources  `proto:"ignore"`
+	DeletionTimestamp          *time.Time          `proto:"ignore"`
+	ReadyTimestamp             *time.Time          `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
 	CreationTimestamp          time.Time                   `proto:"ignore"`
-	DeletionTimestamp          *time.Time                  `proto:"ignore"`
 	StartTime                  *time.Time                  `proto:"ignore"`
 	NodeName                   string                      `proto:"ignore"`
 	HostIP                     string                      `proto:"ignore"`

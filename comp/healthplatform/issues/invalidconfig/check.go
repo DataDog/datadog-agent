@@ -54,7 +54,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueName: IssueID,
+			IssueName: IssueName,
 			Source:    "agent",
 			Context: map[string]string{
 				contextKeyConfigPath: c.cfg.ConfigFileUsed(),

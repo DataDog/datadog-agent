@@ -126,9 +126,14 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
+	var sourceCategory []string
+	if sc := source.Config().SourceCategory; sc != "" {
+		sourceCategory = []string{"sourcecategory:" + sc}
+	}
+	baseBytes := message.TagMetadataBytes(source.Config().Tags, sourceCategory)
 	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling, source.Config().ExperimentalNoisyLogDetection)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes, baseBytes)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -304,7 +309,7 @@ func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *pr
 	return filters
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int, baseBytesEstimate int) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
@@ -312,9 +317,9 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, baseBytesEstimate)
 	case samplerNoisyLogDetection:
-		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}

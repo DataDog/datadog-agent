@@ -13,7 +13,9 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -46,26 +48,56 @@ type SystemdServiceManager struct {
 	installerPath string
 }
 
-// NewSystemdServiceManager builds a manager pointing at whichever
-// datadog-installer binary is on disk at call time. Every supported install
-// flow leaves at least one candidate present before apm-inject's post-install
-// runs:
-//   - SSI / DD_NO_AGENT_INSTALL: copyInstallerSSI is invoked before the
-//     package install loop in pkg/fleet/installer/setup/common/setup.go,
-//     so /opt/datadog-packages/run/datadog-installer-ssi is in place.
-//   - Regular OCI agent install: datadog-agent is installed before
-//     datadog-apm-inject, so the agent's embedded installer is in place.
-//   - Legacy deb/rpm: /usr/bin/datadog-installer ships with the package.
+// NewSystemdServiceManager builds a manager pointing at the first on-disk
+// datadog-installer that supports the `apm instrument-start`/`instrument-stop`
+// subcommands the unit invokes. The resolved path is baked into the unit's
+// ExecStart/ExecStop. installerPath is "" when no supported installer is found
+// (no candidate on disk, or only older ones); callers must then skip rendering
+// the unit and fall back to direct ld.so.preload management.
 func NewSystemdServiceManager() *SystemdServiceManager {
-	installerPath, err := resolveInstallerPath(installerPathCandidates)
+	installerPath, err := resolveInstallerPath(installerPathCandidates, supportsInstrumentSubcommands)
 	if err != nil {
-		log.Warnf("could not resolve datadog-installer path for APM inject service: %v; writeServiceFile will refuse to render the unit", err)
+		log.Warnf("no datadog-installer supporting `apm instrument-start` found for APM inject service: %v", err)
 	}
 	return &SystemdServiceManager{
 		servicePath:   filepath.Join(systemd.UserUnitsPath, systemdServiceName),
 		serviceName:   systemdServiceName,
 		installerPath: installerPath,
 	}
+}
+
+// InstallerPath returns the supported datadog-installer path resolved at
+// construction time, or "" if none was found.
+func (s *SystemdServiceManager) InstallerPath() string {
+	return s.installerPath
+}
+
+// serviceFileExists reports whether the unit file has been written to disk.
+// Used to skip Uninstall (and the systemctl calls it issues) when there is
+// nothing to clean up, avoiding spurious error spans in the trace.
+func (s *SystemdServiceManager) serviceFileExists() bool {
+	_, err := os.Stat(s.servicePath)
+	return err == nil
+}
+
+// installerVerifier reports whether the datadog-installer at path supports the
+// subcommands the unit invokes. It is a parameter of resolveInstallerPath so
+// tests can exercise pure path resolution without an executable installer.
+type installerVerifier func(path string) bool
+
+// supportsInstrumentSubcommands reports whether the installer at path exposes
+// `apm instrument-start` and `apm instrument-stop`. It inspects the `apm --help`
+// usage text rather than the exit status (which varies by command tree); the
+// subcommands are not Hidden, so a supporting installer lists both.
+func supportsInstrumentSubcommands(path string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "apm", "--help").CombinedOutput()
+	supported := bytes.Contains(out, []byte("instrument-start")) && bytes.Contains(out, []byte("instrument-stop"))
+	if !supported {
+		log.Debugf("installer candidate %s does not expose apm instrument-start/stop (err: %v)", path, err)
+	}
+	return supported
 }
 
 // Setup writes the embedded service file and enables it for future boots.
@@ -76,6 +108,7 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 func (s *SystemdServiceManager) Setup(ctx context.Context) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "systemd_service_setup")
 	defer func() { span.Finish(err) }()
+	span.SetTag("installer_path", s.installerPath)
 
 	if err := s.writeServiceFile(); err != nil {
 		return err
@@ -144,7 +177,8 @@ func (s *SystemdServiceManager) writeServiceFile() error {
 	return nil
 }
 
-func resolveInstallerPath(candidates []string) (string, error) {
+func resolveInstallerPath(candidates []string, verify installerVerifier) (string, error) {
+	var skippedUnsupported []string
 	for _, p := range candidates {
 		info, err := os.Stat(p)
 		// Skip if doesn't exist.
@@ -155,7 +189,17 @@ func resolveInstallerPath(candidates []string) (string, error) {
 		if info.IsDir() || info.Mode()&0111 == 0 {
 			continue
 		}
+		// Skip binaries too old to support the subcommands the unit invokes, so we
+		// never bake a doomed ExecStart into the service file and fall through to a
+		// supported candidate if one exists.
+		if verify != nil && !verify(p) {
+			skippedUnsupported = append(skippedUnsupported, p)
+			continue
+		}
 		return p, nil
+	}
+	if len(skippedUnsupported) > 0 {
+		return "", fmt.Errorf("found datadog-installer binaries but none support `apm instrument-start` (too old): %v", skippedUnsupported)
 	}
 	return "", fmt.Errorf("no datadog-installer binary found among %v", candidates)
 }
