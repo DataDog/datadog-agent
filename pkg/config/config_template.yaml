@@ -1267,8 +1267,8 @@ api_key:
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
 
-#   # @param auto_multi_line_detection - boolean - optional - default: false
-#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+#   # @param auto_multi_line_detection - boolean - optional - default: true
+#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: true
 #   # Enable automatic aggregation of multi-line logs for common log patterns.
 #   # More information can be found in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
@@ -5103,6 +5103,17 @@ api_key:
 #       # Set to false to disable Infra-Attribute-Processor for traces pipeline in the OTLP ingest endpoint.
 #
 #       enabled: true
+
+#       # @param container_tag_promotion - string - optional - default: "off"
+#       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION - string - optional - default: "off"
+#       # Controls how the Infra-Attribute-Processor promotes custom container tags into
+#       # `_dd.tags.container` (visible in the Infrastructure tab) for the traces pipeline.
+#       # This setting only affects traces. Accepted values:
+#       #   off:       tags are written as-is; only keys recognized by the trace-agent reach `_dd.tags.container` (default).
+#       #   duplicate: write both the original tag and a `datadog.container.tag.<key>` copy.
+#       #   rename:    write only the `datadog.container.tag.<key>` form (smaller payload).
+#
+#       container_tag_promotion: "off"
 
 #   # @param logs - custom object - optional
 #   # Logs-specific configuration for OTLP ingest in the Datadog Agent.

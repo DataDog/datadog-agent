@@ -38,72 +38,6 @@ func TestSeverityToStatus(t *testing.T) {
 	}
 }
 
-func TestBuildSyslogFields_RFC5424(t *testing.T) {
-	parsed := &SyslogMessage{
-		Pri:       165,
-		Version:   "1",
-		Timestamp: "2003-10-11T22:14:15.003Z",
-		Hostname:  "mymachine",
-		AppName:   "evntslog",
-		ProcID:    "-",
-		MsgID:     "ID47",
-		StructuredData: map[string]map[string]string{
-			"exampleSDID@32473": {"iut": "3"},
-		},
-		Msg: []byte("An application event log entry"),
-	}
-
-	fields := BuildSyslogFields(parsed)
-
-	assert.Equal(t, "2003-10-11T22:14:15.003Z", fields["timestamp"])
-	assert.Equal(t, "mymachine", fields["hostname"])
-	assert.Equal(t, "evntslog", fields["appname"])
-	assert.Equal(t, "-", fields["procid"])
-	assert.Equal(t, "ID47", fields["msgid"])
-	assert.Equal(t, 5, fields["severity"])  // 165 % 8
-	assert.Equal(t, 20, fields["facility"]) // 165 / 8
-	assert.Equal(t, "1", fields["version"])
-	assert.Equal(t, map[string]map[string]string{
-		"exampleSDID@32473": {"iut": "3"},
-	}, fields["structured_data"])
-}
-
-func TestBuildSyslogFields_BSD(t *testing.T) {
-	parsed := &SyslogMessage{
-		Pri:       38,
-		Timestamp: "Oct 11 22:14:15",
-		Hostname:  "mymachine",
-		AppName:   "su",
-		ProcID:    "-",
-		MsgID:     "-",
-	}
-
-	fields := BuildSyslogFields(parsed)
-
-	// BSD: no version, no structured_data
-	_, hasVersion := fields["version"]
-	assert.False(t, hasVersion, "BSD messages should not have version")
-	_, hasSD := fields["structured_data"]
-	assert.False(t, hasSD, "BSD messages should not have structured_data")
-
-	// severity = 38 % 8 = 6, facility = 38 / 8 = 4
-	assert.Equal(t, 6, fields["severity"])
-	assert.Equal(t, 4, fields["facility"])
-}
-
-func TestBuildSyslogFields_NoPri(t *testing.T) {
-	parsed := &SyslogMessage{
-		Pri: -1,
-	}
-
-	fields := BuildSyslogFields(parsed)
-
-	_, hasSev := fields["severity"]
-	assert.False(t, hasSev, "Pri=-1 should omit severity")
-	_, hasFac := fields["facility"]
-	assert.False(t, hasFac, "Pri=-1 should omit facility")
-}
-
 // ---------------------------------------------------------------------------
 // parseStructuredData unit tests
 // ---------------------------------------------------------------------------
@@ -737,26 +671,5 @@ func BenchmarkParseBSDLine(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ParseBSDLine(input) //nolint:errcheck
-	}
-}
-
-func BenchmarkBuildSyslogFields(b *testing.B) {
-	parsed := &SyslogMessage{
-		Pri:       165,
-		Version:   "1",
-		Timestamp: "2003-10-11T22:14:15.003Z",
-		Hostname:  "mymachine",
-		AppName:   "evntslog",
-		ProcID:    "-",
-		MsgID:     "ID47",
-		StructuredData: map[string]map[string]string{
-			"exampleSDID@32473": {"iut": "3"},
-		},
-		Msg: []byte("An application event log entry"),
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		BuildSyslogFields(parsed)
 	}
 }

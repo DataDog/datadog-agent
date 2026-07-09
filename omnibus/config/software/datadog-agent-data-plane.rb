@@ -55,7 +55,15 @@ elsif windows_target?
     raise "Agent Data Plane Windows artifacts are only available for amd64."
   end
   package_target = "windows-#{target_arch}"
-  package_target = "fips-#{package_target}" if fips_mode?
+  if fips_mode?
+    # The saluki CI publishes the Windows FIPS zip with the fips suffix
+    # (e.g. windows-amd64-fips.zip), unlike Linux which embeds fips in the
+    # version string (e.g. fips-linux-amd64.tar.gz). Preserve the existing
+    # release.json key name (AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64 →
+    # "fips-windows-amd64") while using the correct filename suffix for S3.
+    adp_hash_key = "fips-#{package_target}"
+    package_target = "#{package_target}-fips"
+  end
   package_extension = "zip"
 else
   raise "Agent Data Plane is only packaged for Linux, macOS, and Windows."
@@ -75,7 +83,6 @@ build do
 
   if windows_target?
     copy 'bin/agent-data-plane.exe', "#{install_dir}/bin/agent"
-    copy 'bin/aws_lc_fips_*_crypto.dll', "#{install_dir}/bin/agent" if fips_mode?
     copy 'LICENSES', "#{install_dir}/LICENSES"
     copy 'LICENSE-3rdparty.csv', "#{install_dir}/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
   else

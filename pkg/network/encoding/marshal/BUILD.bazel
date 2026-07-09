@@ -112,7 +112,6 @@ go_test(
             "//pkg/network/protocols/postgres",
             "//pkg/network/protocols/redis",
             "//pkg/network/protocols/tls",
-            "@com_github_golang_protobuf//proto",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
@@ -120,11 +119,7 @@ go_test(
             "//pkg/network/protocols/postgres",
             "//pkg/network/protocols/redis",
             "//pkg/network/protocols/tls",
-            "@com_github_golang_protobuf//proto",
             "@com_github_stretchr_testify//suite",
-        ],
-        "@rules_go//go/platform:windows": [
-            "@com_github_golang_protobuf//proto",
         ],
         "//conditions:default": [],
     }),
