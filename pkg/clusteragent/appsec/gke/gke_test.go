@@ -10,6 +10,7 @@ package gke
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -120,14 +121,29 @@ func getExtension(t *testing.T, client dynamic.Interface, namespace string, gate
 	return extension
 }
 
-func requireEventContains(t *testing.T, recorder *record.FakeRecorder, want string) {
+func requireEventReasons(t *testing.T, recorder *record.FakeRecorder, want ...string) {
 	t.Helper()
-	select {
-	case event := <-recorder.Events:
-		require.Contains(t, event, want)
-	default:
-		t.Fatalf("expected event containing %q", want)
+	events := drainEvents(recorder)
+	reasons := make([]string, 0, len(events))
+	for _, event := range events {
+		fields := strings.Fields(event)
+		require.GreaterOrEqual(t, len(fields), 2, "unexpected fake recorder event format: %q", event)
+		reasons = append(reasons, fields[1])
 	}
+	require.Equal(t, want, reasons, "events: %v", events)
+}
+
+func requireNoEvents(t *testing.T, recorder *record.FakeRecorder) {
+	t.Helper()
+	require.Empty(t, drainEvents(recorder))
+}
+
+func drainEvents(recorder *record.FakeRecorder) []string {
+	events := make([]string, 0, len(recorder.Events))
+	for len(recorder.Events) > 0 {
+		events = append(events, <-recorder.Events)
+	}
+	return events
 }
 
 func requireNoExtensions(t *testing.T, client dynamic.Interface, namespace string) {
@@ -135,6 +151,20 @@ func requireNoExtensions(t *testing.T, client dynamic.Interface, namespace strin
 	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Empty(t, list.Items)
+}
+
+func requireExtensionNotFound(t *testing.T, client dynamic.Interface, namespace string, gatewayName string) {
+	t.Helper()
+	_, err := client.Resource(trafficExtensionGVR).Namespace(namespace).Get(context.Background(), extensionName(gatewayName), metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err), "expected GCPTrafficExtension %s/%s to be absent, got %v", namespace, extensionName(gatewayName), err)
+}
+
+func requireSingleExtensionObjectEqual(t *testing.T, client dynamic.Interface, namespace string, want map[string]any) {
+	t.Helper()
+	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, list.Items, 1)
+	require.Equal(t, want, list.Items[0].Object)
 }
 
 func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing.T) {
@@ -193,18 +223,20 @@ func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing
 	require.Equal(t, testServiceName, backendRef["name"])
 	require.EqualValues(t, testServicePort, backendRef["port"])
 	require.NotContains(t, backendRef, "namespace")
-	requireEventContains(t, recorder, EventReasonGCPTrafficExtensionCreated)
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreated)
 }
 
 func TestAdded_isIdempotent_whenExtensionAlreadyExists(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
-	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
 
 	// When
 	require.NoError(t, pattern.Added(ctx, gateway))
+	before := getExtension(t, client, "test-ns", "test-gateway").DeepCopy()
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreated)
 	err := pattern.Added(ctx, gateway)
 
 	// Then
@@ -212,6 +244,8 @@ func TestAdded_isIdempotent_whenExtensionAlreadyExists(t *testing.T) {
 	list, err := client.Resource(trafficExtensionGVR).Namespace("test-ns").List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
+	require.Equal(t, before.Object, getExtension(t, client, "test-ns", "test-gateway").Object)
+	requireNoEvents(t, recorder)
 }
 
 func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
@@ -229,7 +263,7 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 			// Given
 			ctx := context.Background()
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
-			pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+			pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
 			// When
 			err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", tt.gatewayClass))
@@ -237,6 +271,7 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 			// Then
 			require.NoError(t, err)
 			requireNoExtensions(t, client, "test-ns")
+			requireNoEvents(t, recorder)
 		})
 	}
 }
@@ -256,9 +291,8 @@ func TestDeleted_removesManagedExtension_andIsNotFoundSafe(t *testing.T) {
 	// Then
 	require.NoError(t, err)
 	require.NoError(t, secondErr)
-	_, err = client.Resource(trafficExtensionGVR).Namespace("test-ns").Get(ctx, extensionName("test-gateway"), metav1.GetOptions{})
-	require.True(t, apierrors.IsNotFound(err))
-	requireEventContains(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
 }
 
 func TestMode_alwaysReturnsExternal(t *testing.T) {
@@ -275,17 +309,35 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 	tests := []struct {
 		name       string
 		config     appsecconfig.Config
-		objects    []runtime.Object
+		setup      func(*testing.T, *dynamicfake.FakeDynamicClient)
 		wantErrSub string
 	}{
-		{name: "missing processor service name", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.ServiceName = ""; return c }(), objects: []runtime.Object{newTestCRD()}, wantErrSub: "processor service name"},
-		{name: "missing processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 0; return c }(), objects: []runtime.Object{newTestCRD()}, wantErrSub: "processor port"},
-		{name: "CRD absent", config: defaultGKEConfig(), objects: nil, wantErrSub: "GCPTrafficExtension CRD not found"},
+		{name: "missing processor service name", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.ServiceName = ""; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			require.NoError(t, err)
+		}, wantErrSub: "processor service name"},
+		{name: "zero processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 0; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			require.NoError(t, err)
+		}, wantErrSub: "processor port must be positive"},
+		{name: "negative processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = -1; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			require.NoError(t, err)
+		}, wantErrSub: "processor port must be positive"},
+		{name: "CRD absent", config: defaultGKEConfig(), wantErrSub: "GCPTrafficExtension CRD not found"},
+		{name: "CRD API error", config: defaultGKEConfig(), setup: func(_ *testing.T, client *dynamicfake.FakeDynamicClient) {
+			client.PrependReactor("get", "customresourcedefinitions", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, apierrors.NewInternalError(errors.New("internal server error"))
+			})
+		}, wantErrSub: "error getting GCPTrafficExtension CRD"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
-			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), tt.objects...)
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+			if tt.setup != nil {
+				tt.setup(t, client)
+			}
 			pattern, _ := newTestGKEPattern(t, client, logmock.New(t), tt.config)
 
 			// When
@@ -298,14 +350,30 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 	}
 }
 
+func TestIsInjectionPossible_returnsNil_whenConfigurationAndCRDAreValid(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), newTestCRD())
+	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.IsInjectionPossible(ctx)
+
+	// Then
+	require.NoError(t, err)
+}
+
 func TestExtensionName_isDeterministicAndDNSLabelSafe(t *testing.T) {
 	// Given
+	maxPassthroughGatewayName := strings.Repeat("a", 63-len(extensionNamePrefix))
 	longName := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 	// When / Then
 	require.Equal(t, "datadog-appsec-short-gateway", extensionName("short-gateway"))
+	require.Equal(t, extensionNamePrefix+maxPassthroughGatewayName, extensionName(maxPassthroughGatewayName))
 	longExtensionName := extensionName(longName)
 	require.Equal(t, "datadog-appsec-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-11ee3912", longExtensionName)
+	require.Equal(t, longExtensionName, extensionName(longName))
 	require.LessOrEqual(t, len(longExtensionName), 63)
 	require.Regexp(t, `^d.*[a-z0-9]$`, longExtensionName)
 }
@@ -314,7 +382,7 @@ func TestAdded_createsDistinctExtensions_whenTwoGatewaysShareNamespace(t *testin
 	// Given
 	ctx := context.Background()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
-	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
 	// When
 	require.NoError(t, pattern.Added(ctx, newTestGateway("test-ns", "gateway-one", testGatewayClass)))
@@ -325,6 +393,7 @@ func TestAdded_createsDistinctExtensions_whenTwoGatewaysShareNamespace(t *testin
 	require.NoError(t, err)
 	require.Len(t, list.Items, 2)
 	require.NotEqual(t, list.Items[0].GetName(), list.Items[1].GetName())
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreated, EventReasonGCPTrafficExtensionCreated)
 }
 
 func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
@@ -333,7 +402,7 @@ func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetAnnotations(map[string]string{"keep": "me"})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
-	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
 	// When
 	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
@@ -344,6 +413,7 @@ func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	require.Equal(t, "me", list.Items[0].GetAnnotations()["keep"])
+	requireNoEvents(t, recorder)
 }
 
 func TestAdded_skipsForeignExtension_withoutOverwriting(t *testing.T) {
@@ -352,7 +422,7 @@ func TestAdded_skipsForeignExtension_withoutOverwriting(t *testing.T) {
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
 	before := existing.DeepCopy()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
-	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
 	// When
 	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
@@ -361,6 +431,7 @@ func TestAdded_skipsForeignExtension_withoutOverwriting(t *testing.T) {
 	require.NoError(t, err)
 	after := getExtension(t, client, "test-ns", "test-gateway")
 	require.Equal(t, before.Object, after.Object)
+	requireNoEvents(t, recorder)
 }
 
 func TestDeleted_skipsForeignExtension_withoutDeleting(t *testing.T) {
@@ -369,7 +440,7 @@ func TestDeleted_skipsForeignExtension_withoutDeleting(t *testing.T) {
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
 	before := existing.DeepCopy()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
-	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
 	// When
 	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", ""))
@@ -378,6 +449,7 @@ func TestDeleted_skipsForeignExtension_withoutDeleting(t *testing.T) {
 	require.NoError(t, err)
 	after := getExtension(t, client, "test-ns", "test-gateway")
 	require.Equal(t, before.Object, after.Object)
+	requireNoEvents(t, recorder)
 }
 
 func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
@@ -414,11 +486,8 @@ func TestAdded_returnsNilAndRecordsNoCreateFailedEvent_whenCreateAlreadyExists(t
 
 	// Then
 	require.NoError(t, err)
-	select {
-	case event := <-recorder.Events:
-		require.NotContains(t, event, EventReasonGCPTrafficExtensionCreateFailed)
-	default:
-	}
+	requireNoExtensions(t, client, "test-ns")
+	requireNoEvents(t, recorder)
 }
 
 func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
@@ -462,7 +531,8 @@ func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
 			// Then
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "GCPTrafficExtension")
-			requireEventContains(t, recorder, EventReasonGCPTrafficExtensionCreateFailed)
+			requireNoExtensions(t, client, "test-ns")
+			requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreateFailed)
 		})
 	}
 }
@@ -508,7 +578,8 @@ func TestDeleted_returnsErrorAndRecordsEvent_whenGetOrDeleteFails(t *testing.T) 
 			// Then
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "GCPTrafficExtension")
-			requireEventContains(t, recorder, EventReasonGCPTrafficExtensionDeleteFailed)
+			requireSingleExtensionObjectEqual(t, client, "test-ns", existing.Object)
+			requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleteFailed)
 		})
 	}
 }
