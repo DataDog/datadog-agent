@@ -706,12 +706,18 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 
 // IsAttributeParsingEnabled returns whether the full syslog parser should be
 // active for this source. When AttributeParsing is explicitly set, that value
-// is used. When nil (unconfigured), it is auto-enabled if any remap_source
-// processing rule — either per-source or global — is defined, and defaults
-// to false otherwise.
+// is used. When nil (unconfigured), it is auto-enabled if debug_attr_parsing is
+// on or if any remap_source processing rule — either per-source or global — is
+// defined, and defaults to false otherwise.
 func (c *LogsConfig) IsAttributeParsingEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	if c.AttributeParsing != nil {
 		return *c.AttributeParsing
+	}
+	// Debug rendering requires the syslog parser to run: enabling
+	// debug_attr_parsing without attribute_parsing would otherwise install the
+	// noop parser and silently emit raw text instead of the structured envelope.
+	if c.DebugAttrParsing != nil && *c.DebugAttrParsing {
+		return true
 	}
 	for _, rule := range c.ProcessingRules {
 		if rule.Type == RemapSource {

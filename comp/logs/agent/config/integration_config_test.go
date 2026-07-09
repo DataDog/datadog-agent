@@ -694,4 +694,30 @@ func TestIsAttributeParsingEnabled(t *testing.T) {
 		c := &LogsConfig{}
 		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
 	})
+
+	// debug_attr_parsing has no effect unless the syslog parser runs, so it must
+	// imply attribute parsing when attribute_parsing is left unset. Otherwise the
+	// decoder installs the noop parser and the structured envelope is never
+	// rendered.
+	t.Run("nil auto-enables with debug_attr_parsing", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		debug := true
+		c := &LogsConfig{DebugAttrParsing: &debug}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("explicit false overrides debug_attr_parsing", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		disabled := false
+		debug := true
+		c := &LogsConfig{AttributeParsing: &disabled, DebugAttrParsing: &debug}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with debug_attr_parsing off stays off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		debug := false
+		c := &LogsConfig{DebugAttrParsing: &debug}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
 }
