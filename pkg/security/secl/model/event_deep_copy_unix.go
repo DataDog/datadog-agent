@@ -243,7 +243,6 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.EnvsTruncated = fieldToCopy.EnvsTruncated
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
-	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
@@ -256,6 +255,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -488,7 +488,6 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.EnvsTruncated = fieldToCopy.EnvsTruncated
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
-	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
@@ -501,6 +500,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
