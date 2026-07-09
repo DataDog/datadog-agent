@@ -673,17 +673,7 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	enabled, isDefault := c.AutoMultiLineStatus(coreConfig)
-	if c.Type == UDPType {
-		if isDefault {
-			// UDP datagrams are documented as complete messages; don't let them
-			// silently inherit the global auto-multi-line default.
-			return false
-		}
-		if enabled {
-			log.Warn("Auto multi line detection is not supported for UDP sources, but it has been enabled for log source:", c.Source)
-		}
-	}
+	enabled, _ := c.AutoMultiLineStatus(coreConfig)
 	return enabled
 }
 

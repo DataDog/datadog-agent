@@ -57,15 +57,15 @@ func TestGetLogsMeta(t *testing.T) {
 
 	status.SetCurrentTransport("")
 	meta := getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: true}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
 
 	status.SetCurrentTransport(status.TransportTCP)
 	meta = getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
-
-	conf.SetInTest("logs_config.auto_multi_line_detection", false)
-	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
+
+	conf.SetInTest("logs_config.auto_multi_line_detection", true)
+	meta = getLogsMeta(conf)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
 }
 
 func TestGetInstallMethod(t *testing.T) {
