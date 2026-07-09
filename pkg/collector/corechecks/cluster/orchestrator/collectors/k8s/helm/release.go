@@ -43,6 +43,9 @@ type RevisionSummary struct {
 	AppVersion   string
 	// Updated is the revision's last-deployed time.
 	Updated string
+	// Config holds the user-supplied values for this revision, so the UI can
+	// diff values across revisions without re-collecting each one over time.
+	Config map[string]interface{}
 }
 
 // Info describes the deployment state of a release.

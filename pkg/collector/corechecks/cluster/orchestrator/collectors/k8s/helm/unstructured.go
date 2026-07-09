@@ -277,6 +277,7 @@ func revisionSummaries(releases []*Release) []RevisionSummary {
 			ChartVersion: chartVersion,
 			AppVersion:   appVersion,
 			Updated:      updated,
+			Config:       r.Config,
 		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {
@@ -289,13 +290,17 @@ func revisionSummaries(releases []*Release) []RevisionSummary {
 func revisionSummariesToInterface(summaries []RevisionSummary) []interface{} {
 	out := make([]interface{}, 0, len(summaries))
 	for _, s := range summaries {
-		out = append(out, map[string]interface{}{
+		entry := map[string]interface{}{
 			"revision":     int64(s.Revision),
 			"status":       s.Status,
 			"chartVersion": s.ChartVersion,
 			"appVersion":   s.AppVersion,
 			"updated":      s.Updated,
-		})
+		}
+		if len(s.Config) > 0 {
+			entry["config"] = s.Config
+		}
+		out = append(out, entry)
 	}
 	return out
 }
