@@ -46,7 +46,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("STATSD_URL"),
-							Value: pulumi.StringPtr("unix:///opt/datadog-agent/run/dsd.socket"),
+							Value: pulumi.StringPtr("unix:///var/run/datadog/dsd.socket"),
 						},
 					},
 					Cpu:    pulumi.IntPtr(50),
@@ -54,7 +54,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 					MountPoints: ecs.TaskDefinitionMountPointArray{
 						ecs.TaskDefinitionMountPointArgs{
 							SourceVolume:  pulumi.StringPtr("dd-sockets"),
-							ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
+							ContainerPath: pulumi.StringPtr("/var/run/datadog"),
 							ReadOnly:      pulumi.BoolPtr(true),
 						},
 					},
@@ -71,7 +71,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Volumes: classicECS.TaskDefinitionVolumeArray{
 				classicECS.TaskDefinitionVolumeArgs{
 					Name:     pulumi.String("dd-sockets"),
-					HostPath: pulumi.StringPtr("/opt/datadog-agent/run"),
+					HostPath: pulumi.StringPtr("/var/run/datadog"),
 				},
 			},
 		},

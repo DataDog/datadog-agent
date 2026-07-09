@@ -116,6 +116,8 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
+	// test can be flaky due to missing CPU stats when cpu usage is extremely low (json output omits 0 values), so we want to re-run a full scan to ensure we have CPU stats
+	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 

@@ -14,6 +14,8 @@ import (
 
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+
+	"github.com/stretchr/testify/require"
 )
 
 type ec2VMSELinuxSuite struct {
@@ -61,7 +63,27 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.MustExecute("sudo yum install -y docker-ce docker-ce-cli")
 	v.Env().RemoteHost.MustExecute("sudo systemctl start docker")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker $(whoami)")
-	v.Env().RemoteHost.Reconnect()
+
+	// Starting the docker daemon reconfigures the host's netfilter rules for
+	// its bridge network, which can transiently reset the SSH connection we
+	// use to drive this suite. This surfaces as "ssh: handshake failed: ...
+	// connection reset by peer" on Reconnect(), right after "systemctl start
+	// docker". The previous code ignored the error from Reconnect(), which
+	// left a dead client in place and only surfaced the real failure on the
+	// unrelated "docker pull" line below (via an internal single-shot
+	// reconnect-on-error in MustExecute). Retry the reconnect itself a few
+	// times so a transient reset here doesn't fail the whole suite, and
+	// fail fast with a clear error attributed to the actual failing step if
+	// it doesn't recover.
+	var reconnectErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		reconnectErr = v.Env().RemoteHost.Reconnect()
+		if reconnectErr == nil {
+			break
+		}
+		v.T().Logf("SetupSuite: reconnect attempt %d/3 failed after starting docker, retrying: %v", attempt, reconnectErr)
+	}
+	require.NoError(v.T(), reconnectErr, "failed to reconnect to host after starting docker and adding user to the docker group")
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")
