@@ -12,6 +12,7 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -259,8 +260,9 @@ func (c *EgressController) RunOnce() {
 	defer c.runMu.Unlock()
 
 	now := c.now()
-	available, ok := c.availableRange()
-	if !ok {
+	seriesAvailable, hasSeries := c.availableSeriesRange()
+	sketchAvailable, hasSketch := c.availableSketchRange()
+	if !hasSeries && !hasSketch {
 		tlmEgressRuns.Inc("empty")
 		return
 	}
@@ -271,15 +273,42 @@ func (c *EgressController) RunOnce() {
 		c.recordModeTransition(before, c.policy.Mode(), "stale")
 	}
 	mode := c.policy.Mode()
-	ranges := c.policy.RangesToForward(now)
+	seriesRanges := c.policy.SeriesRangesToForward(now)
+	sketchRanges := c.policy.SketchRangesToForward(now)
 	c.policyMu.Unlock()
 	c.recordMode(mode)
 
-	if len(ranges) == 0 {
+	if len(seriesRanges) == 0 && len(sketchRanges) == 0 {
 		tlmEgressRuns.Inc("empty")
 		return
 	}
 
+	forwardedAny := false
+	hadError := false
+	if hasSeries {
+		forwarded, failed := c.forwardRanges(seriesRanges, seriesAvailable, c.retention.ForwardSeriesRange, func(policy *EgressPolicy, r TimeRange) {
+			policy.MarkSeriesForwarded(r)
+		})
+		forwardedAny = forwardedAny || forwarded
+		hadError = hadError || failed
+	}
+	if hasSketch {
+		forwarded, failed := c.forwardRanges(sketchRanges, sketchAvailable, c.retention.ForwardSketchRange, func(policy *EgressPolicy, r TimeRange) {
+			policy.MarkSketchForwarded(r)
+		})
+		forwardedAny = forwardedAny || forwarded
+		hadError = hadError || failed
+	}
+	if hadError {
+		tlmEgressRuns.Inc("error")
+		return
+	}
+	if !forwardedAny {
+		tlmEgressRuns.Inc("empty")
+	}
+}
+
+func (c *EgressController) forwardRanges(ranges []TimeRange, available TimeRange, forward func(serializer.MetricSerializer, time.Time, time.Time) (int, error), markForwarded func(*EgressPolicy, TimeRange)) (bool, bool) {
 	forwardedAny := false
 	for _, planned := range ranges {
 		r, ok := intersectRanges(planned, available)
@@ -288,12 +317,11 @@ func (c *EgressController) RunOnce() {
 		}
 		tlmEgressRanges.Inc("planned")
 		tlmEgressRangeSeconds.Set(r.To.Sub(r.From).Seconds())
-		count, err := c.retention.ForwardRange(c.metricSerializer, r.From, r.To)
+		count, err := forward(c.metricSerializer, r.From, r.To)
 		tlmEgressSeries.Set(float64(count))
 		if err != nil {
 			tlmEgressRanges.Inc("retry")
-			tlmEgressRuns.Inc("error")
-			return
+			return forwardedAny, true
 		}
 		if count == 0 {
 			// Do not mark empty ranges as forwarded. A later-arriving retained point with
@@ -303,40 +331,30 @@ func (c *EgressController) RunOnce() {
 			continue
 		}
 		c.policyMu.Lock()
-		c.policy.MarkForwarded(r)
+		markForwarded(c.policy, r)
 		c.policyMu.Unlock()
 		tlmEgressRanges.Inc("forwarded")
 		tlmEgressRuns.Inc("success")
-		c.retention.Stats()
 		forwardedAny = true
 	}
-	if !forwardedAny {
-		tlmEgressRuns.Inc("empty")
-	}
+	return forwardedAny, false
 }
 
-func (c *EgressController) availableRange() (TimeRange, bool) {
-	stats := c.retention.Stats()
-	if stats.Records == 0 && c.retention.SketchStats().Records == 0 {
-		return TimeRange{}, false
-	}
+func (c *EgressController) availableSeriesRange() (TimeRange, bool) {
+	return availableRangeFromStats(c.retention.Stats())
+}
 
-	oldestUnixMicro := stats.OldestUnixMicro
-	newestUnixMicro := stats.NewestUnixMicro
-	if sketchStats := c.retention.SketchStats(); sketchStats.Records > 0 {
-		if oldestUnixMicro == 0 || sketchStats.OldestUnixMicro < oldestUnixMicro {
-			oldestUnixMicro = sketchStats.OldestUnixMicro
-		}
-		if sketchStats.NewestUnixMicro > newestUnixMicro {
-			newestUnixMicro = sketchStats.NewestUnixMicro
-		}
-	}
-	if oldestUnixMicro == 0 || newestUnixMicro == 0 {
+func (c *EgressController) availableSketchRange() (TimeRange, bool) {
+	return availableRangeFromStats(c.retention.SketchStats())
+}
+
+func availableRangeFromStats(stats ringbuffer.Stats) (TimeRange, bool) {
+	if stats.Records == 0 || stats.OldestUnixMicro == 0 || stats.NewestUnixMicro == 0 {
 		return TimeRange{}, false
 	}
 	return TimeRange{
-		From: time.UnixMicro(oldestUnixMicro),
-		To:   time.UnixMicro(newestUnixMicro).Add(time.Microsecond),
+		From: time.UnixMicro(stats.OldestUnixMicro),
+		To:   time.UnixMicro(stats.NewestUnixMicro).Add(time.Microsecond),
 	}, true
 }
 

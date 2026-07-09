@@ -64,6 +64,29 @@ func TestEgressPolicyMarksForwardedRangesWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestEgressPolicyTracksSeriesAndSketchForwardedRangesSeparately(t *testing.T) {
+	start := time.Unix(100, 0)
+	policy := NewEgressPolicy(EgressPolicyOptions{SendDelay: time.Nanosecond})
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
+
+	first := TimeRange{From: start, To: start.Add(10 * time.Second)}
+	policy.MarkSeriesForwarded(first)
+
+	now := start.Add(10*time.Second + time.Nanosecond)
+	for _, r := range policy.SeriesRangesToForward(now) {
+		require.False(t, rangesOverlap(r, first))
+	}
+	require.Contains(t, policy.SketchRangesToForward(now), first)
+	require.Equal(t, []TimeRange{first}, policy.ForwardedSeriesRanges())
+	require.Empty(t, policy.ForwardedSketchRanges())
+
+	policy.MarkSketchForwarded(first)
+	for _, r := range policy.SketchRangesToForward(now) {
+		require.False(t, rangesOverlap(r, first))
+	}
+	require.Equal(t, []TimeRange{first}, policy.ForwardedSketchRanges())
+}
+
 func TestEgressPolicySuppressesAfterConsecutiveHealthyWindows(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{

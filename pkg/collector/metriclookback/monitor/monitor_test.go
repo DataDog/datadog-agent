@@ -7,6 +7,7 @@ package monitor
 
 import (
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -336,6 +337,92 @@ func TestWatcherIgnoresOutOfOrderObservedTime(t *testing.T) {
 	require.False(t, watcher.Observe("target", start))
 	require.False(t, watcher.Observe("target", start.Add(-time.Second)))
 	require.Equal(t, uint64(0), watcher.Decisions())
+}
+
+func TestWatcherSerializesConcurrentDecisionsInWindowOrder(t *testing.T) {
+	start := time.Unix(100, 0)
+	firstWindowTo := start.Add(30 * time.Second)
+	secondWindowTo := start.Add(60 * time.Second)
+
+	firstReadStarted := make(chan struct{})
+	releaseFirstRead := make(chan struct{})
+	secondReadStarted := make(chan struct{})
+	var firstOnce sync.Once
+	var secondOnce sync.Once
+	defer func() {
+		select {
+		case <-releaseFirstRead:
+		default:
+			close(releaseFirstRead)
+		}
+	}()
+
+	reader := PointReaderFunc(func(_ string, from, to time.Time) []Point {
+		switch {
+		case from.Equal(start) && to.Equal(firstWindowTo):
+			firstOnce.Do(func() { close(firstReadStarted) })
+			<-releaseFirstRead
+			return []Point{
+				{Ts: start, Value: 1},
+				{Ts: firstWindowTo, Value: 2},
+			}
+		case from.Equal(firstWindowTo) && to.Equal(secondWindowTo):
+			secondOnce.Do(func() { close(secondReadStarted) })
+			return []Point{
+				{Ts: firstWindowTo, Value: 3},
+				{Ts: secondWindowTo, Value: 3.1},
+			}
+		default:
+			return nil
+		}
+	})
+	decisions := make(chan Decision, 2)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.5,
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+
+	firstResult := make(chan bool, 1)
+	go func() {
+		firstResult <- watcher.Observe("target", firstWindowTo)
+	}()
+	select {
+	case <-firstReadStarted:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for first evaluation to start")
+	}
+
+	secondResult := make(chan bool, 1)
+	go func() {
+		secondResult <- watcher.Observe("target", secondWindowTo)
+	}()
+
+	select {
+	case <-secondReadStarted:
+		require.FailNow(t, "second evaluation started before the first decision was delivered")
+	case decision := <-decisions:
+		require.FailNow(t, "decision emitted before first evaluation was released", "decision=%+v", decision)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(releaseFirstRead)
+
+	firstDecision := requireDecision(t, decisions)
+	require.Equal(t, firstWindowTo, firstDecision.WindowTo)
+	require.Equal(t, Breach, firstDecision.State)
+
+	secondDecision := requireDecision(t, decisions)
+	require.Equal(t, secondWindowTo, secondDecision.WindowTo)
+	require.Equal(t, Healthy, secondDecision.State)
+
+	require.True(t, <-firstResult)
+	require.False(t, <-secondResult)
 }
 
 func requireWatcher(t *testing.T, cfg Config, reader PointReader, sink DecisionSink) *Watcher {

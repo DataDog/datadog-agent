@@ -260,51 +260,116 @@ func (r *Retention) ForwardAll(metricSerializer serializer.MetricSerializer) (in
 // [from, to) window through the provided serializer as iterable series and
 // sketch payloads. A zero from or to leaves that side of the window unbounded.
 // It returns the number of series and sketch series sent. Forwarding is
-// non-destructive.
+// non-destructive. Retrying callers that need to avoid duplicates after partial
+// serializer failures should use ForwardSeriesRange and ForwardSketchRange so
+// each pipeline can be marked forwarded independently.
 func (r *Retention) ForwardRange(metricSerializer serializer.MetricSerializer, from, to time.Time) (int, error) {
-	if r == nil {
-		return 0, errors.New("metric lookback is disabled")
+	seriesCount, err := r.ForwardSeriesRange(metricSerializer, from, to)
+	if err != nil {
+		return 0, err
 	}
-	if metricSerializer == nil {
-		return 0, errors.New("serializer is not available")
-	}
-	if !to.IsZero() && !from.IsZero() && !from.Before(to) {
-		return 0, nil
-	}
-
-	inclusiveTo := exclusiveToInclusive(to)
-	seriesCount := 0
-	var seriesSource metrics.SerieSource
-	if buffer := r.getBuffer(false); buffer != nil {
-		seriesSource = buffer.SerieSourceBetween(from, inclusiveTo)
-		seriesCount = int(seriesSource.Count())
-	}
-
-	var sketchSource metrics.SketchesSource
-	sketchCount := 0
-	if sketchBuffer := r.getSketchBuffer(false); sketchBuffer != nil {
-		sketchSource = sketchBuffer.SketchSourceBetween(from, inclusiveTo)
-		sketchCount = int(sketchSource.Count())
-	}
-	if seriesCount == 0 && sketchCount == 0 {
-		return 0, nil
-	}
-	if seriesCount > 0 {
-		if err := metricSerializer.SendIterableSeries(seriesSource); err != nil {
-			return 0, err
-		}
-	}
-	if sketchCount > 0 {
-		if err := metricSerializer.SendSketch(sketchSource); err != nil {
-			return 0, err
-		}
+	sketchCount, err := r.ForwardSketchRange(metricSerializer, from, to)
+	if err != nil {
+		return 0, err
 	}
 	return seriesCount + sketchCount, nil
 }
 
-func exclusiveToInclusive(to time.Time) time.Time {
+// ForwardSeriesRange sends series samples whose original timestamps fall in the
+// half-open [from, to) window. A zero from or to leaves that side of the window
+// unbounded. Forwarding is non-destructive.
+func (r *Retention) ForwardSeriesRange(metricSerializer serializer.MetricSerializer, from, to time.Time) (int, error) {
+	inclusiveFrom, inclusiveTo, ok, err := r.forwardRangeBounds(metricSerializer, from, to)
+	if err != nil || !ok {
+		return 0, err
+	}
+
+	seriesCount := 0
+	var seriesSource metrics.SerieSource
+	if buffer := r.getBuffer(false); buffer != nil {
+		seriesSource = buffer.SerieSourceBetween(inclusiveFrom, inclusiveTo)
+		seriesCount = int(seriesSource.Count())
+	}
+	if seriesCount == 0 {
+		return 0, nil
+	}
+	if err := metricSerializer.SendIterableSeries(seriesSource); err != nil {
+		return 0, err
+	}
+	return seriesCount, nil
+}
+
+// ForwardSketchRange sends sketch samples whose original timestamps fall in the
+// half-open [from, to) window. A zero from or to leaves that side of the window
+// unbounded. Forwarding is non-destructive.
+func (r *Retention) ForwardSketchRange(metricSerializer serializer.MetricSerializer, from, to time.Time) (int, error) {
+	inclusiveFrom, inclusiveTo, ok, err := r.forwardRangeBounds(metricSerializer, from, to)
+	if err != nil || !ok {
+		return 0, err
+	}
+
+	sketchCount := 0
+	var sketchSource metrics.SketchesSource
+	if sketchBuffer := r.getSketchBuffer(false); sketchBuffer != nil {
+		sketchSource = sketchBuffer.SketchSourceBetween(inclusiveFrom, inclusiveTo)
+		sketchCount = int(sketchSource.Count())
+	}
+	if sketchCount == 0 {
+		return 0, nil
+	}
+	if err := metricSerializer.SendSketch(sketchSource); err != nil {
+		return 0, err
+	}
+	return sketchCount, nil
+}
+
+func (r *Retention) forwardRangeBounds(metricSerializer serializer.MetricSerializer, from, to time.Time) (time.Time, time.Time, bool, error) {
+	if r == nil {
+		return time.Time{}, time.Time{}, false, errors.New("metric lookback is disabled")
+	}
+	if metricSerializer == nil {
+		return time.Time{}, time.Time{}, false, errors.New("serializer is not available")
+	}
+	if !to.IsZero() && !from.IsZero() && !from.Before(to) {
+		return time.Time{}, time.Time{}, false, nil
+	}
+
+	inclusiveFrom, inclusiveTo, ok := halfOpenRangeToInclusiveMicroRange(from, to)
+	if !ok {
+		return time.Time{}, time.Time{}, false, nil
+	}
+	return inclusiveFrom, inclusiveTo, true, nil
+}
+
+// halfOpenRangeToInclusiveMicroRange converts the public [from, to) range to
+// the inclusive microsecond bounds used by retention records.
+func halfOpenRangeToInclusiveMicroRange(from, to time.Time) (time.Time, time.Time, bool) {
+	inclusiveFrom := inclusiveMicroLowerBound(from)
+	inclusiveTo := exclusiveMicroUpperBound(to)
+	if !inclusiveFrom.IsZero() && !inclusiveTo.IsZero() && inclusiveFrom.After(inclusiveTo) {
+		return time.Time{}, time.Time{}, false
+	}
+	return inclusiveFrom, inclusiveTo, true
+}
+
+func inclusiveMicroLowerBound(from time.Time) time.Time {
+	if from.IsZero() {
+		return time.Time{}
+	}
+	truncated := time.UnixMicro(from.UnixMicro())
+	if from.Equal(truncated) || from.Before(truncated) {
+		return truncated
+	}
+	return truncated.Add(time.Microsecond)
+}
+
+func exclusiveMicroUpperBound(to time.Time) time.Time {
 	if to.IsZero() {
 		return time.Time{}
 	}
-	return to.Add(-time.Microsecond)
+	truncated := time.UnixMicro(to.UnixMicro())
+	if to.Equal(truncated) || to.Before(truncated) {
+		return truncated.Add(-time.Microsecond)
+	}
+	return truncated
 }

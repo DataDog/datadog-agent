@@ -2462,7 +2462,7 @@ properties:
       case captures selected normal DogStatsD bucketed points and final
       no-aggregation points by exact name. An optional monitor can forward retained
       high-resolution ranges after a watched metric breaches its configured
-      short-window range threshold.
+      short-window max-minus-min range threshold.
     tags:
     - template_section:Dogstatsd
     - full-agent-only:true
@@ -2548,8 +2548,10 @@ properties:
             default: 0
             visibility: public
             description: |-
-              Monitor range threshold. The Agent fails to start when this value is negative. Egress forwards
-              retained ranges after the watched metric's window range is greater than this epsilon.
+              Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
+              The monitor computes a window range as the maximum retained point value minus the minimum
+              retained point value in each completed evaluation window, or in each configured tag partition.
+              Egress forwards retained ranges after that window range is greater than this epsilon.
             tags:
             - golang_type:float64
           partition_tags:

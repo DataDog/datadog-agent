@@ -89,8 +89,9 @@ type EgressPolicy struct {
 	mode         EgressMode
 	healthyCount int
 
-	forwardingRanges []TimeRange
-	forwardedRanges  []TimeRange
+	forwardingRanges      []TimeRange
+	forwardedSeriesRanges []TimeRange
+	forwardedSketchRanges []TimeRange
 
 	lastMonitorAt  time.Time
 	lastDecisionAt time.Time
@@ -216,10 +217,32 @@ func (p *EgressPolicy) MarkStaleIfNeeded(now time.Time) bool {
 	return true
 }
 
-// RangesToForward returns half-open ranges that are in a forwarding interval,
-// old enough under send delay, and not already marked as forwarded.
+// RangesToForward returns half-open series ranges that are in a forwarding
+// interval, old enough under send delay, and not already marked as forwarded.
 func (p *EgressPolicy) RangesToForward(now time.Time) []TimeRange {
-	if p == nil || now.IsZero() {
+	return p.SeriesRangesToForward(now)
+}
+
+// SeriesRangesToForward returns half-open series ranges that are in a forwarding
+// interval, old enough under send delay, and not already marked as forwarded.
+func (p *EgressPolicy) SeriesRangesToForward(now time.Time) []TimeRange {
+	if p == nil {
+		return nil
+	}
+	return p.rangesToForward(now, p.forwardedSeriesRanges)
+}
+
+// SketchRangesToForward returns half-open sketch ranges that are in a forwarding
+// interval, old enough under send delay, and not already marked as forwarded.
+func (p *EgressPolicy) SketchRangesToForward(now time.Time) []TimeRange {
+	if p == nil {
+		return nil
+	}
+	return p.rangesToForward(now, p.forwardedSketchRanges)
+}
+
+func (p *EgressPolicy) rangesToForward(now time.Time, forwardedRanges []TimeRange) []TimeRange {
+	if now.IsZero() {
 		return nil
 	}
 	eligibleThrough := now.Add(-p.sendDelay)
@@ -240,15 +263,32 @@ func (p *EgressPolicy) RangesToForward(now time.Time) []TimeRange {
 	if len(candidates) == 0 {
 		return nil
 	}
-	return subtractRanges(candidates, p.forwardedRanges)
+	return subtractRanges(candidates, forwardedRanges)
 }
 
-// MarkForwarded records that a half-open range was successfully forwarded.
+// MarkForwarded records that a half-open range was successfully forwarded for
+// both series and sketch payloads.
 func (p *EgressPolicy) MarkForwarded(r TimeRange) {
+	p.MarkSeriesForwarded(r)
+	p.MarkSketchForwarded(r)
+}
+
+// MarkSeriesForwarded records that a half-open range was successfully forwarded
+// for series payloads.
+func (p *EgressPolicy) MarkSeriesForwarded(r TimeRange) {
 	if p == nil || !validHalfOpenRange(r) {
 		return
 	}
-	p.forwardedRanges = appendAndMergeRanges(p.forwardedRanges, r)
+	p.forwardedSeriesRanges = appendAndMergeRanges(p.forwardedSeriesRanges, r)
+}
+
+// MarkSketchForwarded records that a half-open range was successfully forwarded
+// for sketch payloads.
+func (p *EgressPolicy) MarkSketchForwarded(r TimeRange) {
+	if p == nil || !validHalfOpenRange(r) {
+		return
+	}
+	p.forwardedSketchRanges = appendAndMergeRanges(p.forwardedSketchRanges, r)
 }
 
 // ForwardingRanges returns a copy of the policy's forwarding ranges for tests
@@ -260,13 +300,28 @@ func (p *EgressPolicy) ForwardingRanges() []TimeRange {
 	return append([]TimeRange(nil), p.forwardingRanges...)
 }
 
-// ForwardedRanges returns a copy of successfully forwarded ranges for tests and
-// diagnostics.
+// ForwardedRanges returns a copy of successfully forwarded series ranges for
+// tests and diagnostics.
 func (p *EgressPolicy) ForwardedRanges() []TimeRange {
+	return p.ForwardedSeriesRanges()
+}
+
+// ForwardedSeriesRanges returns a copy of successfully forwarded series ranges
+// for tests and diagnostics.
+func (p *EgressPolicy) ForwardedSeriesRanges() []TimeRange {
 	if p == nil {
 		return nil
 	}
-	return append([]TimeRange(nil), p.forwardedRanges...)
+	return append([]TimeRange(nil), p.forwardedSeriesRanges...)
+}
+
+// ForwardedSketchRanges returns a copy of successfully forwarded sketch ranges
+// for tests and diagnostics.
+func (p *EgressPolicy) ForwardedSketchRanges() []TimeRange {
+	if p == nil {
+		return nil
+	}
+	return append([]TimeRange(nil), p.forwardedSketchRanges...)
 }
 
 func (p *EgressPolicy) openForwardingAt(from time.Time) {

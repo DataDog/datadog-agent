@@ -70,6 +70,10 @@ enum ForwardAttemptState {
     planned | forwarded | retry | empty | error
 }
 
+enum ForwardPayload {
+    series | sketch
+}
+
 ------------------------------------------------------------
 -- Value Types
 ------------------------------------------------------------
@@ -226,14 +230,16 @@ entity EgressPolicy {
     mode: EgressMode
     dry_run: Boolean
     forwarding_ranges: List<TimeRange>
-    forwarded_ranges: List<TimeRange>
+    forwarded_series_ranges: List<TimeRange>
+    forwarded_sketch_ranges: List<TimeRange>
     healthy_windows_seen: Integer
 }
 
 entity ForwardAttempt {
     range: TimeRange
+    payload: ForwardPayload
     state: ForwardAttemptState
-    series_count: Integer
+    payload_count: Integer
 }
 
 ------------------------------------------------------------
@@ -532,7 +538,8 @@ rule EnabledMonitorModeEgressStartsSuppressed {
         mode: suppressed,
         dry_run: false,
         forwarding_ranges: [],
-        forwarded_ranges: [],
+        forwarded_series_ranges: [],
+        forwarded_sketch_ranges: [],
         healthy_windows_seen: 0
     )
 }
@@ -545,7 +552,8 @@ rule DryRunMonitorModeEgressStartsForwarding {
         mode: forwarding,
         dry_run: true,
         forwarding_ranges: [TimeRange{start: nil, end: nil}],
-        forwarded_ranges: [],
+        forwarded_series_ranges: [],
+        forwarded_sketch_ranges: [],
         healthy_windows_seen: 0
     )
     @guidance
@@ -625,23 +633,39 @@ rule ForwardingRangesAreClippedBySendDelay {
                 ForwardRangePlanned(range: range)
 }
 
-rule ForwardingRangeCannotBeForwardedTwice {
+rule ForwardingSeriesRangeCannotBeForwardedTwice {
     when: ForwardRangePlanned(range)
     requires: range.is_forwardable
-    requires: not overlaps(range, EgressPolicy.forwarded_ranges)
-    ensures: ForwardAttempt.created(range: range, state: planned, series_count: 0)
+    requires: not overlaps(range, EgressPolicy.forwarded_series_ranges)
+    ensures: ForwardAttempt.created(range: range, payload: series, state: planned, payload_count: 0)
 }
 
-rule SuccessfulForwardMarksRangeForwarded {
+rule ForwardingSketchRangeCannotBeForwardedTwice {
+    when: ForwardRangePlanned(range)
+    requires: range.is_forwardable
+    requires: not overlaps(range, EgressPolicy.forwarded_sketch_ranges)
+    ensures: ForwardAttempt.created(range: range, payload: sketch, state: planned, payload_count: 0)
+}
+
+rule SuccessfulSeriesForwardMarksSeriesRangeForwarded {
     when: attempt: ForwardAttempt.state transitions_to forwarded
-    requires: attempt.series_count > 0
-    ensures: EgressPolicy.forwarded_ranges = EgressPolicy.forwarded_ranges + [attempt.range]
+    requires: attempt.payload = series
+    requires: attempt.payload_count > 0
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges + [attempt.range]
+}
+
+rule SuccessfulSketchForwardMarksSketchRangeForwarded {
+    when: attempt: ForwardAttempt.state transitions_to forwarded
+    requires: attempt.payload = sketch
+    requires: attempt.payload_count > 0
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges + [attempt.range]
 }
 
 rule EmptyForwardDoesNotMarkRangeForwarded {
     when: attempt: ForwardAttempt.state transitions_to empty
-    requires: attempt.series_count = 0
-    ensures: EgressPolicy.forwarded_ranges = EgressPolicy.forwarded_ranges
+    requires: attempt.payload_count = 0
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges
     @guidance
         -- A later-arriving retained point with an older timestamp can still be
         -- forwarded if it falls in the same range. Empty sends are not treated as
@@ -650,7 +674,8 @@ rule EmptyForwardDoesNotMarkRangeForwarded {
 
 rule FailedForwardRemainsEligibleForRetry {
     when: attempt: ForwardAttempt.state transitions_to retry
-    ensures: EgressPolicy.forwarded_ranges = EgressPolicy.forwarded_ranges
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges
 }
 
 ------------------------------------------------------------

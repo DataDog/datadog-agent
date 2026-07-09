@@ -67,6 +67,50 @@ func TestRetentionForwardRangeIsHalfOpen(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
+func TestRetentionForwardRangeIncludesFinalEligibleMicrosecond(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+		{Name: "metric.edge", Value: 1, Mtype: metrics.GaugeType, Timestamp: 20},
+		{Name: "metric.after", Value: 2, Mtype: metrics.GaugeType, Timestamp: 21},
+	})
+	require.NoError(t, err)
+
+	serializer := serializermocks.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SerieSource)
+		require.Equal(t, uint64(1), source.Count())
+		require.True(t, source.MoveNext())
+		require.Equal(t, "metric.edge", source.Current().Name)
+		require.False(t, source.MoveNext())
+	}).Return(nil).Once()
+
+	count, err := retention.ForwardRange(serializer, time.Unix(19, 0), time.Unix(20, 500))
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
+func TestRetentionForwardRangeExcludesMicrosecondBeforeSubMicrosecondLowerBound(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+		{Name: "metric.before", Value: 1, Mtype: metrics.GaugeType, Timestamp: 20},
+		{Name: "metric.after", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20.001},
+	})
+	require.NoError(t, err)
+
+	serializer := serializermocks.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SerieSource)
+		require.Equal(t, uint64(1), source.Count())
+		require.True(t, source.MoveNext())
+		require.Equal(t, "metric.after", source.Current().Name)
+		require.False(t, source.MoveNext())
+	}).Return(nil).Once()
+
+	count, err := retention.ForwardRange(serializer, time.Unix(20, 500), time.Unix(21, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
 func TestRetentionAppendSketchSeriesAndForwardRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{

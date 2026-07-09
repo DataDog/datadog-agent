@@ -157,6 +157,10 @@ type Watcher struct {
 	reader             PointReader
 	sink               DecisionSink
 
+	// observeMu serializes window evaluation and decision delivery in the same
+	// order windows are claimed.
+	observeMu sync.Mutex
+
 	mu             sync.Mutex
 	lastEvaluation time.Time
 	decisions      uint64
@@ -219,6 +223,11 @@ func (w *Watcher) Observe(name string, observedAt time.Time) bool {
 	if w == nil || name != w.metricName || observedAt.IsZero() {
 		return false
 	}
+
+	// Serialize window selection, evaluation, and decision delivery so concurrent
+	// producers cannot emit monitor decisions out of chronological order.
+	w.observeMu.Lock()
+	defer w.observeMu.Unlock()
 
 	from, to, shouldEvaluate := w.nextWindow(observedAt)
 	if !shouldEvaluate {

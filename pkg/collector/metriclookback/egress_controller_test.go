@@ -102,6 +102,49 @@ func TestEgressControllerRetriesFailedRange(t *testing.T) {
 	require.Len(t, controller.policy.ForwardedRanges(), 1)
 }
 
+func TestEgressControllerDoesNotRetrySeriesAfterSketchFailure(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+	from := time.Unix(100, 0)
+	require.NoError(t, retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+		Name:      "target.series",
+		Value:     1,
+		Mtype:     metrics.GaugeType,
+		Timestamp: float64(from.Unix()),
+	}}))
+	require.NoError(t, retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{Name: "target.sketch"},
+		Points: []metrics.SketchPoint{{
+			Ts:     from.Unix(),
+			Sketch: testSketchData(1, 2),
+		}},
+	}))
+
+	serializer := serializermocks.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SerieSource)
+		require.Equal(t, uint64(1), source.Count())
+	}).Return(nil).Once()
+	serializer.On("SendSketch", mock.Anything).Return(errors.New("boom")).Once()
+	serializer.On("SendSketch", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SketchesSource)
+		require.Equal(t, uint64(1), source.Count())
+	}).Return(nil).Once()
+
+	controller := NewEgressController(retention, serializer, EgressControllerOptions{
+		SendDelay: time.Nanosecond,
+		Now:       func() time.Time { return from.Add(time.Minute) },
+	})
+	controller.policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: from, WindowTo: from.Add(time.Second)})
+
+	controller.RunOnce()
+	require.Len(t, controller.policy.ForwardedSeriesRanges(), 1)
+	require.Empty(t, controller.policy.ForwardedSketchRanges())
+
+	controller.RunOnce()
+	require.Len(t, controller.policy.ForwardedSeriesRanges(), 1)
+	require.Len(t, controller.policy.ForwardedSketchRanges(), 1)
+}
+
 func TestEgressControllerAppliesMonitorDecisions(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	serializer := serializermocks.NewMetricSerializer(t)
