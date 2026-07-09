@@ -384,6 +384,15 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.config.Probe.NetworkEnabled {
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
+	}
+
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.IsSkLookupPidResolutionSupported() {
+		seclog.Warnf("The sk_lookup based network pid resolution feature of CWS isn't supported on this kernel version, setting event_monitoring_config.network.sk_lookup_pid_resolution.enabled to false")
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
+	}
+
 	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
 		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
@@ -2936,8 +2945,8 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
-			Name:  "sk_lookup_pid_supported",
-			Value: utils.BoolTouint64(p.IsSkLookupPidResolutionSupported()),
+			Name:  "sk_lookup_pid_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkSkLookupPidResolutionEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
@@ -3067,7 +3076,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
-		NetworkSkLookupPidEnabled:     p.IsSkLookupPidResolutionSupported(),
+		NetworkSkLookupPidEnabled:     p.config.Probe.NetworkSkLookupPidResolutionEnabled,
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),

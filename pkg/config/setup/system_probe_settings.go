@@ -291,6 +291,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.runtime_compilation.enabled", false)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.enabled", true)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.ingress.enabled", true)
+	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.sk_lookup_pid_resolution.enabled", true)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.raw_packet.enabled", true)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.raw_packet.limiter_rate", 10)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.network.raw_packet.filter", "no_pid_tcp_syn")
