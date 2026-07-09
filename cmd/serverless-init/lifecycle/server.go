@@ -178,6 +178,7 @@ type Server struct {
 	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
 
 	httpServer *http.Server
+	listener   net.Listener // set once ListenAndServe binds successfully
 }
 
 // writeTimeoutHeadroom covers work that shares WriteTimeout's wall clock but
@@ -273,19 +274,50 @@ func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[stri
 	s.baseTraceTags = baseTraceTags
 }
 
-// Listen binds the TCP port synchronously. Call before Serve so the socket is
+// listen binds the TCP port synchronously. Call before serve so the socket is
 // ready before the MicroVM platform sends the first lifecycle hook.
-func (s *Server) Listen() (net.Listener, error) {
+func (s *Server) listen() (net.Listener, error) {
 	return net.Listen("tcp", s.httpServer.Addr)
 }
 
-// Serve accepts connections on l until Stop is called. Blocks until the server exits.
-// Call in a goroutine after a successful Listen.
-func (s *Server) Serve(l net.Listener) {
+// serve accepts connections on l until Stop is called. Blocks until the server
+// exits. Returns http.ErrServerClosed after a graceful Stop; callers should
+// treat that as expected and only react to any other, unexpected error.
+func (s *Server) serve(l net.Listener) error {
 	log.Infof("MicroVM lifecycle server listening on %s", l.Addr())
-	if err := s.httpServer.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Errorf("MicroVM lifecycle server error: %v", err)
+	return s.httpServer.Serve(l)
+}
+
+// ListenAndServe binds the TCP port synchronously, returning a bind failure
+// directly so the caller can react to it (e.g. fail startup) without racing
+// the server loop. Once bound, it starts accepting connections in a
+// background goroutine and returns nil immediately; onServeError, if
+// non-nil, is invoked from that goroutine if the server ever stops for a
+// reason other than a graceful Stop. Binding and serving are combined here,
+// rather than exposed as separate steps, so there is no way to call one
+// without the other in the correct order.
+func (s *Server) ListenAndServe(onServeError func(error)) error {
+	l, err := s.listen()
+	if err != nil {
+		return err
 	}
+	s.listener = l
+	go func() {
+		if err := s.serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) && onServeError != nil {
+			onServeError(err)
+		}
+	}()
+	return nil
+}
+
+// Addr returns the address ListenAndServe bound, or nil if it has not been
+// called yet (or failed to bind). Lets callers using port 0 (random free
+// port) — e.g. tests — discover which port the server ended up on.
+func (s *Server) Addr() net.Addr {
+	if s == nil || s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
 }
 
 // Stop gracefully shuts down the lifecycle server, waiting for any in-flight
@@ -437,7 +469,11 @@ func (s *Server) flushAll(flushCtx context.Context) {
 	var wg sync.WaitGroup
 	wg.Go(s.metricFlusher.Flush)
 	wg.Go(s.traceFlusher.Flush)
-	wg.Go(func() { s.logsFlusher.Flush(flushCtx) })
+	wg.Go(func() {
+		if s.logsFlusher != nil {
+			s.logsFlusher.Flush(flushCtx)
+		}
+	})
 	s.waitForFlushes(flushCtx, &wg)
 }
 
