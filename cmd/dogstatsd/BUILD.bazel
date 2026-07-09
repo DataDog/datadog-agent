@@ -138,9 +138,8 @@ dd_agent_go_binary(
     # Maybe we should 'or' in COMMON_TAGS there too.
     # Or perhaps we need the equivalent of build_tags.py functions as starlark in build_tags.bzl.
     # Then we can select on platform and have the value be something like get_build_flags("dogstatsd", "linux")
-    # Note to reviewer: We would like to put fips tags in the sort with the others,
-    # but the select() semamtics aren't that sophisticated. What we really need is to fix
-    # rules_go/go_binary so that tags are deduped and sourced.
+    # We would like to put fips tags in the sort with the others, but the select() semantics aren't that
+    # sophisticated. What we really need is to fix rules_go/go_binary so that tags are deduped and sourced.
     gotags = select({
         "@platforms//os:macos": sorted((COMMON_TAGS | DOGSTATSD_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
         "@platforms//os:windows": sorted((COMMON_TAGS | DOGSTATSD_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
