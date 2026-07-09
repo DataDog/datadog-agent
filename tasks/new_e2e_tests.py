@@ -91,6 +91,13 @@ def _check_e2e_local_config_or_exit(
             "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
             1,
         )
+
+    # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
+    # rename like account-admin -> account-admin-8h). No-op if already present.
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
+
+    setup_aws_sso_config(cfg, interactive=False)
+
     azure_missing = cfg is None or cfg.configParams.azure is None
     gcp_missing = cfg is None or cfg.configParams.gcp is None
     if azure_missing:
