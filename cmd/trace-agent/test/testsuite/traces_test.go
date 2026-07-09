@@ -6,8 +6,8 @@
 package testsuite
 
 import (
-	"encoding/binary"
 	_ "embed"
+	"encoding/binary"
 	"slices"
 	"strings"
 	"testing"
