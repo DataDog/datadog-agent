@@ -5832,6 +5832,12 @@ properties:
         node_type: section
         type: object
         properties:
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
           dry_run:
             node_type: section
             type: object
@@ -5840,13 +5846,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Run the scorer for telemetry and observer evaluation without emitting scorer outputs.
-          alpha:
-            node_type: setting
-            type: number
-            default: 0.014
-            tags:
-            - golang_type:float64
           high_threshold:
             node_type: setting
             type: number
