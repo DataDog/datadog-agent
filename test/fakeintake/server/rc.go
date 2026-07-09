@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	yaml "go.yaml.in/yaml/v3"
+	"google.golang.org/protobuf/proto"
 
 	core "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
