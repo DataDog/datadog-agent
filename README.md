@@ -32,7 +32,7 @@ To build the Agent you need:
       interpreter and libraries. By default, this environment is only used for dev dependencies
       listed in `requirements.txt`.
 
-**Note:** You may have previously installed `invoke` via brew on MacOS, or `pip` in
+**Note:** You may have previously installed `invoke` via brew on macOS, or `pip` in
       any other platform. We recommend you use the version pinned in the requirements
       file for a smooth development/build experience.
 
