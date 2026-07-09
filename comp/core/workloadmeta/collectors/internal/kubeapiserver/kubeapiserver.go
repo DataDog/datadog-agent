@@ -86,7 +86,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
 // need to collect metadata from in order to make other enabled features work
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
-	res := []string{"nodes"} // nodes are always needed
+	// resources that we need to collect metadata from in order to make other enabled features work
+	var res []string
 
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 
@@ -239,6 +240,10 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			go reflector.Run(ctx.Done())
 		}
 	}
+
+	nodeReflector, nodeStore := newNodeStore(ctx, wlmetaStore, c.config, client)
+	objectStores = append(objectStores, nodeStore)
+	go nodeReflector.Run(ctx.Done())
 
 	if shouldHavePodStore(c.config) {
 		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
