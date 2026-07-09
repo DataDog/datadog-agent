@@ -8,6 +8,7 @@ package procmgr
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,14 +54,16 @@ func (s *parProcmgrWindowsSuite) TestPARSupervisedByProcmgrAndLegacySCMStopped()
 	require.NoError(s.T(), err)
 
 	parBin := filepath.Join(installRoot, "bin", "agent", "privateactionrunner.exe")
-	_, err = host.Execute(fmt.Sprintf(`powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath '%s')) { exit 1 }"`, parBin))
-	if err != nil {
+	exists, err := host.FileExists(parBin)
+	require.NoError(s.T(), err)
+	if !exists {
 		s.T().Skip("privateactionrunner.exe not installed; skipping PAR procmgr test")
 	}
 
 	cfg := filepath.Join(installRoot, "processes.d", parProcmgrConfigFileName)
-	_, err = host.Execute(fmt.Sprintf(`powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath '%s')) { exit 1 }"`, cfg))
-	require.NoError(s.T(), err, "fleet PAR processes.d config should exist at %s", cfg)
+	exists, err = host.FileExists(cfg)
+	require.NoError(s.T(), err)
+	require.True(s.T(), exists, "fleet PAR processes.d config should exist at %s", cfg)
 
 	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -70,7 +73,11 @@ func (s *parProcmgrWindowsSuite) TestPARSupervisedByProcmgrAndLegacySCMStopped()
 		assert.Contains(ct, out, "Running")
 	}, 120*time.Second, 3*time.Second)
 
-	_, err = host.Execute(
-		fmt.Sprintf(`powershell -NoProfile -Command "$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0"`, parLegacySCMServiceName))
-	require.NoError(s.T(), err, "%s Windows service must not be Running when PAR is managed by dd-procmgr", parLegacySCMServiceName)
+	out, err := host.Execute(fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		parLegacySCMServiceName,
+	))
+	require.NoError(s.T(), err)
+	require.NotEqual(s.T(), "Running", strings.TrimSpace(out),
+		"%s Windows service must not be Running when PAR is managed by dd-procmgr", parLegacySCMServiceName)
 }
