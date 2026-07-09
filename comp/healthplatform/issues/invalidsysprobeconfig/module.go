@@ -32,7 +32,7 @@ type invalidSysprobeConfigModule struct {
 
 // NewModule captures the configs so the once-only startup check can read them.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidSysprobeConfigModule{datadog: deps.Config, checker: newChecker(deps.SysProbeConfig)}
+	return &invalidSysprobeConfigModule{datadog: deps.Config, checker: newChecker(deps.SysProbeConfig, deps.Hostname)}
 }
 
 func (m *invalidSysprobeConfigModule) IssueName() string {

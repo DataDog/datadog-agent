@@ -8,6 +8,7 @@ package issueregistryimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -18,6 +19,7 @@ import (
 type Requires struct {
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component `optional:"true"`
+	Hostname       hostnameinterface.Component
 }
 
 type registryImpl struct {
@@ -30,6 +32,7 @@ func New(reqs Requires) registrydef.Component {
 	deps := issuesmod.ModuleDeps{
 		Config:         reqs.Config,
 		SysProbeConfig: reqs.SysProbeConfig,
+		Hostname:       reqs.Hostname,
 	}
 	for _, module := range issuesmod.GetAllModules(deps) {
 		r.RegisterModule(module)

@@ -6,11 +6,14 @@
 package invalidsysprobeconfig
 
 import (
+	"context"
 	"fmt"
+	"hash/fnv"
 	"strconv"
 
 	"go.yaml.in/yaml/v3"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -21,11 +24,21 @@ import (
 
 // checker validates the customer-provided system-probe config against the schema.
 type checker struct {
-	cfg sysprobeconfig.Component
+	cfg      sysprobeconfig.Component
+	hostname hostnameinterface.Component
 }
 
-func newChecker(cfg sysprobeconfig.Component) *checker {
-	return &checker{cfg: cfg}
+func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component) *checker {
+	return &checker{cfg: cfg, hostname: hostname}
+}
+
+// instanceIssueID scopes IssueID to this host and config file so the recommendations
+// service (which keys on orgID + issueID, ignoring hostname) keeps per-host violations
+// distinct instead of collapsing them into a single case.
+func (c *checker) instanceIssueID() string {
+	h := fnv.New64a()
+	fmt.Fprintf(h, "%s\x00%s", c.hostname.GetSafe(context.Background()), c.cfg.ConfigFileUsed())
+	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
@@ -51,7 +64,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	return []runnerdef.IssueReport{
 		{
-			IssueID:   IssueID,
+			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "system-probe",
 			Context: func() map[string]string {

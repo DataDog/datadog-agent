@@ -12,13 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+func testHostname(name string) hostnameinterface.Component {
+	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(name))
+	return hn
+}
+
 // A valid system-probe setting passes the schema → no report.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(sysprobeconfigmock.NewMock(t)).Run()
+	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h")).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
@@ -28,12 +35,27 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	reports, err := newChecker(cfg).Run()
+	reports, err := newChecker(cfg, testHostname("h")).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
-	assert.Equal(t, IssueID, reports[0].IssueID)
+	assert.Regexp(t, `^invalid-system-probe-config:[0-9a-f]{16}$`, reports[0].IssueID)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.Equal(t, "system-probe", reports[0].Source)
+}
+
+// The reported IssueID is scoped per host so the recommendations service keeps each host's
+// violation distinct instead of collapsing them into one case.
+func TestInstanceIssueID_UniquePerHost(t *testing.T) {
+	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.health_port": "not-an-integer",
+	})
+	a, err := newChecker(cfg, testHostname("host-a")).Run()
+	require.NoError(t, err)
+	b, err := newChecker(cfg, testHostname("host-b")).Run()
+	require.NoError(t, err)
+	require.Len(t, a, 1)
+	require.Len(t, b, 1)
+	assert.NotEqual(t, a[0].IssueID, b[0].IssueID, "issue id must differ per host")
 }
 
 // The core guarantee: we validate the customer's config, not values that Adjust() rewrites
@@ -67,7 +89,7 @@ func TestBuildIssue_LocksContract(t *testing.T) {
 // Without system-probe config the startup check must NOT register, or the bundle would
 // resolve a real persisted issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil)}
+	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil, nil)}
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }
 
@@ -77,7 +99,7 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 		"system_probe_config.health_port": "not-an-integer",
 	})
 	dd := config.NewMock(t)
-	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp)}
+	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp, testHostname("h"))}
 
 	// Enabled (default) → violation surfaces.
 	reports, err := m.BuiltInStartupHealthCheck().Fn()

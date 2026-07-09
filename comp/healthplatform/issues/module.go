@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -28,6 +29,7 @@ import (
 type ModuleDeps struct {
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component
+	Hostname       hostnameinterface.Component
 }
 
 // ModuleFactory is a function that creates a new Module instance
