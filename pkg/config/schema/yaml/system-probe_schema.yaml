@@ -2192,6 +2192,18 @@ properties:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 tags: []
+          sk_lookup_pid_resolution:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
+                tags: []
       basename_approvers_size:
         node_type: setting
         type: integer
@@ -2706,6 +2718,10 @@ properties:
         node_type: setting
         type: string
         default: 60s
+      service_collection_max_consecutive_timeouts:
+        node_type: setting
+        type: integer
+        default: 5
       service_collection_min_process_age:
         node_type: setting
         type: string
@@ -2772,7 +2788,7 @@ properties:
           dir:
             node_type: setting
             type: string
-            default: /tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info
+            default: ${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info
           enabled:
             node_type: setting
             type: boolean

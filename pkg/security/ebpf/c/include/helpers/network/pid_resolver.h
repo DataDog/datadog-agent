@@ -152,7 +152,7 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
 
     // pid from socket lookup, falling back to the flow_pid map on unsupported kernels
     if (pkt->pid == 0) {
-        if (is_sk_lookup_pid_supported()) {
+        if (is_sk_lookup_pid_enabled()) {
             // On egress, only resolve from the packet's 5-tuple when it was locally generated.
             if (pkt->network_direction == INGRESS || is_packet_locally_originated(skb)) {
                 resolve_pid_from_sk_lookup(skb, pkt);

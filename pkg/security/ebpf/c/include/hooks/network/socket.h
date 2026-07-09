@@ -105,7 +105,7 @@ static void __attribute__((always_inline)) save_pid_with_socket_storage(struct b
     }
 
     // record the owning pid in sk-local storage so TC classifiers can resolve it through bpf_sk_lookup
-    if (is_sk_lookup_pid_supported()) {
+    if (is_sk_lookup_pid_enabled()) {
         u32 *stored_tgid = bpf_sk_storage_get(&sk_storage_pid, ctx, &tgid, BPF_SK_STORAGE_GET_F_CREATE);
         if (stored_tgid != NULL) {
             *stored_tgid = tgid;
