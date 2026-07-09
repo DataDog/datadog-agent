@@ -1337,6 +1337,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Config files discovery
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
 
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
