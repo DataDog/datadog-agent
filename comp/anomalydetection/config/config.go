@@ -7,6 +7,8 @@
 // multiple packages.
 package config
 
+import pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+
 const (
 	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"
 	AnomalyScorerDryRunEnabledConfigKey       = "anomaly_detection.anomaly_scorer.dry_run.enabled"
@@ -14,37 +16,29 @@ const (
 	SmartSeverityProfilesEnabledConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
 )
 
-// BoolConfig is the subset of config readers needed for anomaly-detection gate
-// evaluation. Both the core config component and the global pkg/config reader
-// satisfy this interface.
-type BoolConfig interface {
-	GetBool(key string) bool
-	IsConfigured(key string) bool
-}
-
 // SmartSeverityProfilesEnabled returns whether smart severity profiles are enabled.
-func SmartSeverityProfilesEnabled(cfg BoolConfig) bool {
+func SmartSeverityProfilesEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(SmartSeverityProfilesEnabledConfigKey)
 }
 
 // ReportingEventsEnabled returns whether Datadog anomaly events are enabled.
-func ReportingEventsEnabled(cfg BoolConfig) bool {
+func ReportingEventsEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(ReportingEventsEnabledConfigKey)
 }
 
 // AnomalyScorerDryRunEnabled returns whether the scorer should run in shadow
 // mode for telemetry without output side effects.
-func AnomalyScorerDryRunEnabled(cfg BoolConfig) bool {
+func AnomalyScorerDryRunEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(AnomalyScorerDryRunEnabledConfigKey)
 }
 
 // RecordingEnabled returns whether anomaly-detection raw signal recording is enabled.
-func RecordingEnabled(cfg BoolConfig) bool {
+func RecordingEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(AnomalyDetectionRecordingEnabledConfigKey)
 }
 
 // ObserverRequired returns whether the observer pipeline should start.
-func ObserverRequired(cfg BoolConfig) bool {
+func ObserverRequired(cfg pkgconfigmodel.Reader) bool {
 	return SmartSeverityProfilesEnabled(cfg) ||
 		ReportingEventsEnabled(cfg) ||
 		AnomalyScorerDryRunEnabled(cfg) ||
@@ -52,7 +46,7 @@ func ObserverRequired(cfg BoolConfig) bool {
 }
 
 // ScorerRequired returns whether the anomaly scorer should be constructed.
-func ScorerRequired(cfg BoolConfig) bool {
+func ScorerRequired(cfg pkgconfigmodel.Reader) bool {
 	return SmartSeverityProfilesEnabled(cfg) ||
 		ReportingEventsEnabled(cfg) ||
 		AnomalyScorerDryRunEnabled(cfg)
