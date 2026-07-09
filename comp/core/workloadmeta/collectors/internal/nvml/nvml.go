@@ -44,7 +44,7 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
-	lastCollectionTimestamp            uint64
+	lastCollectionTimestamp            time.Time
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -160,7 +160,7 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 
 	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
-	utilizationProcs, err := device.GetProcessUtilization(c.lastCollectionTimestamp)
+	utilizationProcs, err := device.GetProcessUtilization(uint64(c.lastCollectionTimestamp.UnixMicro()))
 	if err != nil {
 		var nvmlErr *ddnvml.NvmlAPIError
 		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
@@ -192,7 +192,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenUUIDs:               map[string]struct{}{},
 		seenPIDsToGPUs:          make(map[int][]string),
 		store:                   store,
-		lastCollectionTimestamp: uint64(time.Now().UnixMicro()),
+		lastCollectionTimestamp: time.Now(),
 	}
 
 	if config != nil {
@@ -273,7 +273,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
 	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
-	timestamp := time.Now().UnixMicro()
+	timestamp := time.Now()
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -326,7 +326,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	c.store.Notify(events)
-	c.lastCollectionTimestamp = uint64(timestamp)
+	c.lastCollectionTimestamp = timestamp
 
 	return nil
 }
