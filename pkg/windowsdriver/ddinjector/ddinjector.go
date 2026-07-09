@@ -36,6 +36,11 @@ const maxKnownVersion = CountersVersion2
 // stay visible.
 var capabilitiesErrorLogLimit = log.NewLogLimit(1, 10*time.Minute)
 
+// unsupportedVersionLogLimit throttles the log emitted when the driver reports
+// a counter version the agent cannot decode; the collection loop runs every few
+// seconds, so an unthrottled log would spam.
+var unsupportedVersionLogLimit = log.NewLogLimit(1, 10*time.Minute)
+
 // InjectorCounters encapsulates ddinjector counters to be reported upstream.
 type InjectorCounters struct {
 	// v1 fields
@@ -86,11 +91,14 @@ func NewInjector() (*Injector, error) {
 }
 
 // negotiateCounterVersion queries the driver capabilities and returns the
-// highest counter version both the agent and the driver understand.
+// highest counter version both the agent and the driver understand, or 0 when
+// there is no common version and no counters should be collected.
 //
 // Older drivers do not implement the capabilities IOCTL; in that case we fall
-// back to V1 (the frozen baseline every driver supports) and log the failure at
-// a throttled rate.
+// back to V1 (the frozen baseline every such driver supports) and log the
+// failure at a throttled rate. A driver that answers the query but advertises a
+// version below V1 is affirmatively reporting that it supports no counters we
+// know, so we honor that and collect nothing rather than forcing a V1 read.
 func (inj *Injector) negotiateCounterVersion() uint32 {
 	driverMax, err := doQueryDriverCapabilities(inj.handle)
 	if err != nil {
@@ -101,8 +109,10 @@ func (inj *Injector) negotiateCounterVersion() uint32 {
 	}
 
 	if driverMax < CountersVersion1 {
-		log.Warnf("ddinjector reported counter version %d below the V1 baseline, using V1", driverMax)
-		return CountersVersion1
+		if unsupportedVersionLogLimit.ShouldLog() {
+			log.Warnf("ddinjector reported counter version %d below the V1 baseline, collecting no counters", driverMax)
+		}
+		return 0
 	}
 	return min(driverMax, maxKnownVersion)
 }
@@ -111,6 +121,14 @@ func (inj *Injector) negotiateCounterVersion() uint32 {
 // contract version with the driver and collecting whatever it supports.
 func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	negotiated := inj.negotiateCounterVersion()
+
+	// The driver reports no counter version we understand; clear all gauges so
+	// stale values are not reported and skip the counters query entirely.
+	if negotiated == 0 {
+		clearV1Gauges(counters)
+		clearV2Gauges(counters)
+		return nil
+	}
 
 	// A V2 buffer has the V1 counters at its head, so always read into the
 	// widest known struct and tell the driver only how much we expect for the
@@ -173,6 +191,28 @@ func populateV2Gauges(counters *InjectorCounters, raw *DDInjectorCountersV2) {
 	counters.BootRecoveryCrashBootsDetected.Set(float64(raw.BootRecoveryCrashBootsDetected))
 	counters.BootRecoveryDriverSelfDisabled.Set(float64(raw.BootRecoveryDriverSelfDisabled))
 	counters.BootRecoveryStabilityTimerFired.Set(float64(raw.BootRecoveryStabilityTimerFired))
+}
+
+// clearV1Gauges resets V1 gauges when the driver supports no counter version
+// the agent can decode.
+func clearV1Gauges(counters *InjectorCounters) {
+	counters.ProcessesAddedToInjectionTracker.Set(0)
+	counters.ProcessesRemovedFromInjectionTracker.Set(0)
+	counters.ProcessesSkippedSubsystem.Set(0)
+	counters.ProcessesSkippedContainer.Set(0)
+	counters.ProcessesSkippedProtected.Set(0)
+	counters.ProcessesSkippedSystem.Set(0)
+	counters.ProcessesSkippedExcluded.Set(0)
+	counters.InjectionAttempts.Set(0)
+	counters.InjectionAttemptFailures.Set(0)
+	counters.InjectionMaxTimeUs.Set(0)
+	counters.InjectionSuccesses.Set(0)
+	counters.InjectionFailures.Set(0)
+	counters.PeCachingFailures.Set(0)
+	counters.ImportDirectoryRestorationFailures.Set(0)
+	counters.PeMemoryAllocationFailures.Set(0)
+	counters.PeInjectionContextAllocated.Set(0)
+	counters.PeInjectionContextCleanedup.Set(0)
 }
 
 // clearV2Gauges resets V2 gauges when the current driver contract is V1-only.

@@ -345,9 +345,10 @@ func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	inj.Close()
 }
 
-// TestQueryCountersDriverBelowV1 covers a driver reporting a counter version
-// below the V1 baseline: negotiation floors it to V1 and only V1 gauges are
-// populated.
+// TestQueryCountersDriverBelowV1 covers a driver that answers the capabilities
+// query but reports a version below the V1 baseline (e.g. 0): the agent
+// negotiates "no version", skips the counters query, and leaves every gauge at
+// zero.
 func TestQueryCountersDriverBelowV1(t *testing.T) {
 	currentTest = t
 	overrideDriverCallbacks()
@@ -358,15 +359,52 @@ func TestQueryCountersDriverBelowV1(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, inj)
 
-	mockCapabilitiesVersion = 0 // driver reports a version below V1, with no error
+	mockCapabilitiesVersion = 0 // driver reports no supported counter version, with no error
 	fillMockCountersV1()
 
 	counters := createCounters()
 	err = inj.GetCounters(counters)
 	assert.NoError(t, err)
 
-	assert.Equal(t, CountersVersion1, mockRequestedVersion)
+	// No counters query should have been issued and no gauges populated.
+	assert.Zero(t, mockRequestedVersion)
+	assertV1CountersZero(t, counters)
+	assertV2CountersZero(t, counters)
+
+	inj.Close()
+}
+
+// TestQueryCountersDriverBelowV1ClearsCounters covers a long-lived system-probe
+// process that first observes a V2 driver, then a driver reporting no supported
+// version: all previously collected gauges are cleared and no query is issued.
+func TestQueryCountersDriverBelowV1ClearsCounters(t *testing.T) {
+	currentTest = t
+	overrideDriverCallbacks()
+	defer restoreDriverCallbacks()
+	resetMockState()
+
+	inj, err := NewInjector()
+	assert.NoError(t, err)
+	assert.NotNil(t, inj)
+
+	mockCapabilitiesVersion = CountersVersion2
+	fillMockCountersV2()
+
+	counters := createCounters()
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
+	assertV2CountersEqual(t, &mockCountersV2, counters)
+
+	// Driver now reports no supported version.
+	mockCapabilitiesVersion = 0
+	mockRequestedVersion = 99 // sentinel; a skipped query leaves this untouched
+
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint32(99), mockRequestedVersion)
+	assertV1CountersZero(t, counters)
 	assertV2CountersZero(t, counters)
 
 	inj.Close()
