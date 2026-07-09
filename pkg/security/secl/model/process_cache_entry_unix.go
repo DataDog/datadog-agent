@@ -20,31 +20,30 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	pc.validLineageResult = nil
-	pc.Ancestor = parent
-	pc.Parent = &parent.Process
+	// prevent creating a cycle in the ancestor chain
+	if parent == pc {
+		return
+	}
 
-	// keep some context
-	pc.copyProcessContextFrom(parent)
+	pc.Ancestor = parent
+
+	if parent != nil {
+		pc.Parent = &parent.Process
+		pc.copyProcessContextFrom(parent)
+	} else {
+		pc.Parent = nil
+	}
 }
 
-func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a node has a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
 	)
 
 	for pc != nil {
-		if pc.validLineageResult != nil {
-			return pc.validLineageResult.valid, pc.validLineageResult.err
-		}
-		pc.validLineageResult = result
-
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
-
-		if pc.IsParentMissing {
-			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
-		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
@@ -58,26 +57,20 @@ func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, e
 	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 }
 
-// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	vlres := &validLineageResult{
-		valid: false,
-		// if this error is returned, it means that we saw this cache entry in
-		// an ancestor of the current pce, hence a cycle
-		err: ErrCycleInProcessLineage,
-	}
-
-	res, err := hasValidLineage(pc, vlres)
-
-	vlres.valid = res
-	vlres.err = err
-
-	return res, err
+// StopExecution marks this process cache entry as no longer being the current
+// executing image. This happens both on exec replacement and on final exit.
+func (pc *ProcessCacheEntry) StopExecution(stopTime time.Time) {
+	pc.StopExecutionTime = stopTime
 }
 
-// Exit a process
+// Exit marks a process final exit. If this entry had already stopped executing
+// because it was replaced by a later exec, keep that StopExecutionTime and only
+// record the final process ExitTime.
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
+	if pc.StopExecutionTime.IsZero() {
+		pc.StopExecution(exitTime)
+	}
 }
 
 func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
@@ -121,8 +114,9 @@ func (pc *ProcessCacheEntry) SetAsExec() {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetExecParent(pc)
 
-	// use exec time as exit time
-	pc.Exit(entry.ExecTime)
+	// The previous cache entry stopped executing at this exec, but the process
+	// itself did not exit. Keep ExitTime reserved for the final do_exit event.
+	pc.StopExecution(entry.ExecTime)
 }
 
 // GetContainerPIDs return the pids
@@ -202,6 +196,14 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.TracerMetadata = pc.TracerMetadata
 
 	child.SetForkParent(pc)
+}
+
+// Reparent updates the parent of the process cache entry to reflect reparenting by the kernel.
+// This handles the subreaper mechanism where children are reparented when their parent exits.
+func (pc *ProcessCacheEntry) Reparent(newParent *ProcessCacheEntry) {
+	pc.PPid = newParent.Pid
+	pc.IsParentMissing = false
+	pc.setAncestor(newParent)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs

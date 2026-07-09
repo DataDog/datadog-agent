@@ -192,6 +192,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -252,9 +253,9 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -497,9 +498,9 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName

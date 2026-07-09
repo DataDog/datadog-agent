@@ -1179,6 +1179,8 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
+	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
+
 	return relatedEvent
 }
 
@@ -1220,11 +1222,23 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Error = model.ErrNoProcessContext
 			}
 		} else {
+			// If the kernel reports a different ppid than the one in our
+			// cache, the process was reparented (e.g. subreaper). Update
+			// the cache tree immediately using the authoritative kernel value.
+			if event.PIDContext.PPid != 0 {
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
+			}
+
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				entry.SID = event.PIDContext.SID
 			}
+
+			// Attempt to repair the lineage of processes that were orphaned
+			// during subreaper reparenting (the exit tracepoint may fire
+			// before the kernel has completed forget_original_parent).
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -2011,7 +2025,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 			}
 		}
 
-		pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, p.onNewPCE)
+		pce = resolveAndRepairTargetProcessCacheEntry(pidToResolve, p)
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 		}
@@ -2020,10 +2034,18 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	return true
 }
 
+func resolveAndRepairTargetProcessCacheEntry(pid uint32, p *EBPFProbe) *model.ProcessCacheEntry {
+	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
+	if pce != nil {
+		p.Resolvers.ProcessResolver.TryReparentFromProcfs(pce, metrics.ReparentCallpathTargetProcess, p.onNewPCE)
+	}
+	return pce
+}
+
 func resolveTargetProcessContext(pid uint32, p *EBPFProbe) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
 	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
+		pce = resolveAndRepairTargetProcessCacheEntry(pid, p)
 	}
 	if pce == nil {
 		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
@@ -3613,6 +3635,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")

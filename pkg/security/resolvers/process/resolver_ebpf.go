@@ -59,6 +59,8 @@ const (
 	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
+	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxIterations         = 64               // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
 
 // EBPFResolver resolved process context
@@ -87,19 +89,24 @@ type EBPFResolver struct {
 	opts                ResolverOpts
 
 	// stats
-	hitsStats                 map[string]*atomic.Int64
-	missStats                 *atomic.Int64
-	addedEntriesFromEvent     *atomic.Int64
-	addedEntriesFromKernelMap *atomic.Int64
-	addedEntriesFromProcFS    *atomic.Int64
-	flushedEntries            *atomic.Int64
-	pathErrStats              *atomic.Int64
-	argsTruncated             *atomic.Int64
-	argsSize                  *atomic.Int64
-	envsTruncated             *atomic.Int64
-	envsSize                  *atomic.Int64
-	brokenLineage             *atomic.Int64
-	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
+	hitsStats                    map[string]*atomic.Int64
+	missStats                    *atomic.Int64
+	addedEntriesFromEvent        *atomic.Int64
+	addedEntriesFromKernelMap    *atomic.Int64
+	addedEntriesFromProcFS       *atomic.Int64
+	flushedEntries               *atomic.Int64
+	pathErrStats                 *atomic.Int64
+	argsTruncated                *atomic.Int64
+	argsSize                     *atomic.Int64
+	envsTruncated                *atomic.Int64
+	envsSize                     *atomic.Int64
+	brokenLineage                *atomic.Int64
+	reparentSuccessStats         map[string]*atomic.Int64
+	reparentFailedStats          map[string]*atomic.Int64
+	reparentProcfsResolutionOk   *atomic.Int64
+	reparentProcfsResolutionFail *atomic.Int64
+	procFallbackLimiterDrop      *atomic.Int64
+	inodeErrStats                map[string]*atomic.Int64 // inode error stats by tag
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
@@ -125,13 +132,274 @@ func (p *EBPFResolver) SetPreReparentCb(cb func(*model.ProcessCacheEntry)) {
 	p.preReparentCb = cb
 }
 
+// execChainRoot returns the oldest ProcessCacheEntry for the same PID in
+// entry's exec chain. The Ancestor link is used for both exec transitions
+// (same PID) and fork lineage (different PID); reparenting must update the
+// fork edge at the root of the exec chain so the exec chain is preserved.
+func execChainRoot(entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	root := entry
+	for iterations := 0; root != nil && root.Ancestor != nil && root.Ancestor.Pid == root.Pid; iterations++ {
+		if iterations >= tryReparentMaxIterations {
+			break
+		}
+		root = root.Ancestor
+	}
+	return root
+}
+
+// updateExecChainPPid updates the cached PPid on every same-PID exec entry
+// reachable from entry. This keeps process.ppid consistent while the actual
+// parent edge is stored only on the root fork entry.
+func updateExecChainPPid(entry *model.ProcessCacheEntry, ppid uint32) {
+	pid := entry.Pid
+	for iterations, pc := 0, entry; pc != nil && pc.Pid == pid; iterations, pc = iterations+1, pc.Ancestor {
+		if iterations >= tryReparentMaxIterations {
+			break
+		}
+		pc.PPid = ppid
+	}
+}
+
+// wouldCreateAncestorCycle returns true if newParent is already below entry in
+// the ancestor chain. Reparenting in that case would create a cycle and retain
+// the whole chain indefinitely.
+func wouldCreateAncestorCycle(entry *model.ProcessCacheEntry, newParent *model.ProcessCacheEntry) bool {
+	for iterations, pc := 0, newParent; pc != nil; iterations, pc = iterations+1, pc.Ancestor {
+		if pc == entry {
+			return true
+		}
+		if iterations >= tryReparentMaxIterations {
+			return true
+		}
+	}
+	return false
+}
+
+func markExecChainExited(entry *model.ProcessCacheEntry, exitTime time.Time) {
+	pid := entry.Pid
+	for iterations, pc := 0, entry; pc != nil && pc.Pid == pid; iterations, pc = iterations+1, pc.Ancestor {
+		if iterations >= tryReparentMaxIterations {
+			break
+		}
+		pc.Exit(exitTime)
+	}
+}
+
+// reparentTo looks up newPPid in the cache (falling back to procfs) and
+// reparents entry's exec-chain root to the resolved parent. Metrics are tracked
+// via callpathTag. Must be called with the lock held.
+func (p *EBPFResolver) reparentTo(entry *model.ProcessCacheEntry, newPPid uint32, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+	target := execChainRoot(entry)
+	if target == nil || newPPid == 0 {
+		p.reparentFailedStats[callpathTag].Inc()
+		return nil
+	}
+
+	newParent := p.entryCache[newPPid]
+	if newParent == nil {
+		newParent = p.resolveFromProcfs(newPPid, 0, procResolveMaxDepth, newEntryCb)
+		if newParent != nil {
+			p.reparentProcfsResolutionOk.Inc()
+		} else {
+			p.reparentProcfsResolutionFail.Inc()
+		}
+	}
+	if newParent != nil {
+		if newParent == target || wouldCreateAncestorCycle(target, newParent) {
+			p.reparentFailedStats[callpathTag].Inc()
+			return nil
+		}
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
+		target.Reparent(newParent)
+		updateExecChainPPid(entry, newParent.Pid)
+		p.reparentSuccessStats[callpathTag].Inc()
+	} else {
+		p.reparentFailedStats[callpathTag].Inc()
+	}
+	return newParent
+}
+
+// resolveParentFromProcfs resolves the PPid of the given entry from procfs and links
+// it to its parent in the cache if available. Unlike reparentTo, this only checks
+// the local cache and does NOT fall back to resolveFromProcfs for the parent, since
+// it is called during insertEntry where deep procfs resolution is not desirable.
+// Must be called with the lock held.
+func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string) {
+	proc, err := process.NewProcess(int32(entry.Pid))
+	if err != nil {
+		seclog.Debugf("unable to create process for pid %d during ppid resolution: %v", entry.Pid, err)
+		return
+	}
+
+	newPPid, err := proc.Ppid()
+	if err != nil {
+		seclog.Debugf("unable to resolve ppid from procfs for pid %d: %v", entry.Pid, err)
+		return
+	}
+
+	newPPidU32 := uint32(newPPid)
+	if newPPidU32 == entry.PPid {
+		return
+	}
+
+	if newParent := p.entryCache[newPPidU32]; newParent != nil {
+		target := execChainRoot(entry)
+		if newParent == target || wouldCreateAncestorCycle(target, newParent) {
+			p.reparentFailedStats[callpathTag].Inc()
+			return
+		}
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
+		target.Reparent(newParent)
+		updateExecChainPPid(entry, newPPidU32)
+		p.reparentSuccessStats[callpathTag].Inc()
+	} else {
+		p.reparentFailedStats[callpathTag].Inc()
+	}
+}
+
+// tryReparentFromProcfs is the internal unlocked version.
+// Must be called with the lock held.
+func (p *EBPFResolver) tryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+	var prev *model.ProcessCacheEntry
+	forkDepth := 0
+	iterations := 0
+	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		iterations++
+		if iterations > tryReparentMaxIterations {
+			break
+		}
+
+		if prev != nil && pc.Pid != prev.Pid {
+			forkDepth++
+
+			if !pc.ExitTime.IsZero() {
+				entryToReparent := prev
+				if prev.Pid == entry.Pid {
+					// prev is the fork-root of entry's exec chain. Reparent from
+					// the head so PPid is updated on all same-PID exec entries.
+					entryToReparent = entry
+				}
+				if p.tryReparentEntryFromProcfs(entryToReparent, pc, callpathTag, newEntryCb) {
+					break
+				}
+			}
+		}
+
+		if pc.Ancestor == nil {
+			if p.tryResolveMissingAncestor(pc, callpathTag, newEntryCb) == nil {
+				break
+			}
+		}
+
+		if forkDepth > tryReparentMaxForkDepth {
+			break
+		}
+	}
+}
+
+// TryReparentFromProcfs walks the ancestor chain of the given entry up to
+// pid 1 and looks for exited ancestors whose child edge may not have been
+// reparented yet. Since ProcessCacheEntry no longer keeps reverse Children
+// references, the repair is lazy: when an entry (or one of its ancestors) is
+// observed below an exited parent, the direct child edge is checked against
+// procfs and moved to the current kernel parent when procfs has caught up.
+// When a broken ancestor link is encountered (Ancestor is nil, PPid unknown),
+// the parent is resolved from procfs so the walk can continue. Only ancestors
+// within tryReparentMaxForkDepth fork levels are checked (exec transitions do
+// not count toward the depth).
+func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.tryReparentFromProcfs(entry, callpathTag, newEntryCb)
+}
+
+// TryReparentFromProcfsLocked is like TryReparentFromProcfs but assumes the
+// caller already holds the resolver lock. Use this from callbacks invoked
+// during resolution (e.g. newEntryCb) to avoid deadlocking on the non-reentrant mutex.
+func (p *EBPFResolver) TryReparentFromProcfsLocked(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+	p.tryReparentFromProcfs(entry, callpathTag, newEntryCb)
+}
+
+// TryReparentFromKernelPPid compares the live ppid reported by the kernel in
+// the event with the ppid stored in the cache entry. When they differ the
+// kernel has reparented the process (e.g. subreaper) and we update the cache
+// to reflect the new parent. The new parent is resolved from the cache or, as
+// a fallback, from procfs.
+func (p *EBPFResolver) TryReparentFromKernelPPid(entry *model.ProcessCacheEntry, kernelPPid uint32, newEntryCb func(*model.ProcessCacheEntry, error)) {
+	if kernelPPid == 0 || entry.Pid <= 1 {
+		return
+	}
+
+	if kernelPPid == entry.PPid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	p.reparentTo(entry, kernelPPid, metrics.ReparentCallpathKernelPPid, newEntryCb)
+}
+
+// tryResolveMissingAncestor attempts to fill a broken ancestor link by
+// resolving the parent from the cache or procfs. Returns the resolved parent
+// or nil if resolution failed.
+// Must be called with the lock held.
+func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+	ppid := pc.PPid
+	if ppid == 0 {
+		proc, err := process.NewProcess(int32(pc.Pid))
+		if err != nil {
+			p.reparentFailedStats[callpathTag].Inc()
+			return nil
+		}
+		newPPid, err := proc.Ppid()
+		if err != nil || newPPid <= 0 {
+			p.reparentFailedStats[callpathTag].Inc()
+			return nil
+		}
+		ppid = uint32(newPPid)
+	}
+
+	return p.reparentTo(pc, ppid, callpathTag, newEntryCb)
+}
+
+// tryReparentEntryFromProcfs reads the current ppid of a single entry from
+// procfs and updates its parent link. If procfs hasn't been updated yet (race)
+// or fails, the entry stays linked to the dead parent. It returns true when the
+// entry was successfully reparented.
+// Must be called with the lock held.
+func (p *EBPFResolver) tryReparentEntryFromProcfs(entry *model.ProcessCacheEntry, exitedEntry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) bool {
+	proc, err := process.NewProcess(int32(entry.Pid))
+	if err != nil {
+		return false
+	}
+
+	newPPid, err := proc.Ppid()
+	if err != nil {
+		return false
+	}
+
+	newPPidU32 := uint32(newPPid)
+	if newPPidU32 == 0 || newPPidU32 == exitedEntry.Pid {
+		p.reparentFailedStats[callpathTag].Inc()
+		return false
+	}
+
+	return p.reparentTo(entry, newPPidU32, callpathTag, newEntryCb) != nil
+}
+
 // DequeueExited dequeue exited process
 func (p *EBPFResolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
 
-	delEntry := func(pid uint32, exitTime time.Time) {
-		p.deleteEntry(pid, exitTime)
+	delEntry := func(entry *model.ProcessCacheEntry, exitTime time.Time) {
+		p.deleteEntry(entry.Pid, exitTime)
 		p.flushedEntries.Inc()
 	}
 
@@ -143,11 +411,11 @@ func (p *EBPFResolver) DequeueExited() {
 		}
 
 		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		} else if tm := entry.ForkTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		} else if entry.ForkTime.IsZero() && entry.ExecTime.IsZero() {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		}
 	}
 
@@ -245,6 +513,37 @@ func (p *EBPFResolver) SendStats() error {
 	if count := p.brokenLineage.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessEventBrokenLineage, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver broken lineage metric: %w", err)
+		}
+	}
+
+	for _, tag := range metrics.AllReparentCallpathTags {
+		if count := p.reparentSuccessStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentSuccess, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver reparent success metric: %w", err)
+			}
+		}
+		if count := p.reparentFailedStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentFailed, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver reparent failed metric: %w", err)
+			}
+		}
+	}
+
+	if count := p.reparentProcfsResolutionOk.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentProcfsSuccess, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver reparent procfs resolution success metric: %w", err)
+		}
+	}
+
+	if count := p.reparentProcfsResolutionFail.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentProcfsFailed, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver reparent procfs resolution failed metric: %w", err)
+		}
+	}
+
+	if count := p.procFallbackLimiterDrop.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverProcFallbackLimiterDrop, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver proc fallback limiter drop metric: %w", err)
 		}
 	}
 
@@ -357,13 +656,13 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 		return false
 	}
 
-	// Use the event timestamp as exit time
-	// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
-	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-	event.ProcessCacheEntry.ExitTime = event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent)
+	// Use the event timestamp as exit time.
+	// The local process cache hasn't been updated yet with the exit time when the exit event is first seen.
+	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss.
+	markExecChainExited(event.ProcessCacheEntry, event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent))
 	event.Exit.Process = &event.ProcessCacheEntry.Process
-	return true
 
+	return true
 }
 
 // enrichEventFromProcfs uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -599,6 +898,11 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 
 	p.entryCache[entry.Pid] = entry
 
+	// resolve missing PPid from procfs
+	if entry.PPid == 0 && entry.Pid != 1 {
+		p.resolveParentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext)
+	}
+
 	// handle cgroup & container context
 	if p.cgroupResolver != nil {
 		// safeguard log, this should never happen. cgroupContext should be null for entries from procfs or snapshot as
@@ -649,7 +953,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
-		prev.Exit(entry.ForkTime)
+		markExecChainExited(prev, entry.ForkTime)
 	}
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
@@ -712,7 +1016,7 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		p.cgroupResolver.DelPID(entry.Pid)
 	}
 
-	entry.Exit(exitTime)
+	markExecChainExited(entry, exitTime)
 	delete(p.entryCache, entry.Pid)
 }
 
@@ -763,6 +1067,8 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 			p.hitsStats[metrics.ProcFSTag].Inc()
 			return entry
 		}
+	} else {
+		p.procFallbackLimiterDrop.Inc()
 	}
 
 	p.missStats.Inc()
@@ -831,6 +1137,7 @@ func (p *EBPFResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 	entry.ExecTime = p.timeResolver.ApplyBootTime(entry.ExecTime)
 	entry.ForkTime = p.timeResolver.ApplyBootTime(entry.ForkTime)
 	entry.ExitTime = p.timeResolver.ApplyBootTime(entry.ExitTime)
+	entry.StopExecutionTime = p.timeResolver.ApplyBootTime(entry.StopExecutionTime)
 }
 
 // ResolveFromCache resolves cache entry from the cache
@@ -1597,38 +1904,48 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	}
 
 	p := &EBPFResolver{
-		manager:                   manager,
-		config:                    config,
-		statsdClient:              statsdClient,
-		scrubber:                  scrubber,
-		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		opts:                      *opts,
-		argsEnvsCache:             argsEnvsCache,
-		state:                     atomic.NewInt64(Snapshotting),
-		hitsStats:                 map[string]*atomic.Int64{},
-		missStats:                 atomic.NewInt64(0),
-		addedEntriesFromEvent:     atomic.NewInt64(0),
-		addedEntriesFromKernelMap: atomic.NewInt64(0),
-		addedEntriesFromProcFS:    atomic.NewInt64(0),
-		flushedEntries:            atomic.NewInt64(0),
-		pathErrStats:              atomic.NewInt64(0),
-		argsTruncated:             atomic.NewInt64(0),
-		argsSize:                  atomic.NewInt64(0),
-		envsTruncated:             atomic.NewInt64(0),
-		envsSize:                  atomic.NewInt64(0),
-		brokenLineage:             atomic.NewInt64(0),
-		inodeErrStats:             make(map[string]*atomic.Int64),
-		mountResolver:             mountResolver,
-		cgroupResolver:            cgroupResolver,
-		userGroupResolver:         userGroupResolver,
-		timeResolver:              timeResolver,
-		pathResolver:              pathResolver,
-		envVarsResolver:           envVarsResolver,
-		userSessionResolver:       userSessionResolver,
+		manager:                      manager,
+		config:                       config,
+		statsdClient:                 statsdClient,
+		scrubber:                     scrubber,
+		entryCache:                   make(map[uint32]*model.ProcessCacheEntry),
+		opts:                         *opts,
+		argsEnvsCache:                argsEnvsCache,
+		state:                        atomic.NewInt64(Snapshotting),
+		hitsStats:                    map[string]*atomic.Int64{},
+		missStats:                    atomic.NewInt64(0),
+		addedEntriesFromEvent:        atomic.NewInt64(0),
+		addedEntriesFromKernelMap:    atomic.NewInt64(0),
+		addedEntriesFromProcFS:       atomic.NewInt64(0),
+		flushedEntries:               atomic.NewInt64(0),
+		pathErrStats:                 atomic.NewInt64(0),
+		argsTruncated:                atomic.NewInt64(0),
+		argsSize:                     atomic.NewInt64(0),
+		envsTruncated:                atomic.NewInt64(0),
+		envsSize:                     atomic.NewInt64(0),
+		brokenLineage:                atomic.NewInt64(0),
+		reparentSuccessStats:         make(map[string]*atomic.Int64),
+		reparentFailedStats:          make(map[string]*atomic.Int64),
+		reparentProcfsResolutionOk:   atomic.NewInt64(0),
+		reparentProcfsResolutionFail: atomic.NewInt64(0),
+		procFallbackLimiterDrop:      atomic.NewInt64(0),
+		inodeErrStats:                make(map[string]*atomic.Int64),
+		mountResolver:                mountResolver,
+		cgroupResolver:               cgroupResolver,
+		userGroupResolver:            userGroupResolver,
+		timeResolver:                 timeResolver,
+		pathResolver:                 pathResolver,
+		envVarsResolver:              envVarsResolver,
+		userSessionResolver:          userSessionResolver,
 	}
 
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
+	}
+
+	for _, tag := range metrics.AllReparentCallpathTags {
+		p.reparentSuccessStats[tag] = atomic.NewInt64(0)
+		p.reparentFailedStats[tag] = atomic.NewInt64(0)
 	}
 
 	for _, tag := range allInodeErrTags() {

@@ -404,8 +404,14 @@ type Process struct {
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	// ExitTime is set only when the process exits (do_exit).
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	// StopExecutionTime is set when this process cache entry stops being the
+	// currently executing image, either because it was replaced by a later exec
+	// or because the process exited. Unlike ExitTime, it is intentionally not
+	// exposed as a SECL field and must not be used as proof of a final process exit.
+	StopExecutionTime time.Time `field:"-"`
 
 	ForkFlags uint64 `field:"-"`
 
@@ -413,7 +419,6 @@ type Process struct {
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
-	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -457,15 +462,7 @@ type Process struct {
 
 	Source uint64 `field:"-"`
 
-	// lineage
-	validLineageResult *validLineageResult `field:"-"`
-
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
-}
-
-type validLineageResult struct {
-	valid bool
-	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -684,6 +681,7 @@ type PIDContext struct {
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
+	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
 	SID           uint32 `field:"sid"`        // SECLDoc[sid] Definition:`Session ID of the process`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
