@@ -50,31 +50,41 @@ const (
 var scheduledNetworkPathRCConfig = []byte(`{
   "type": "scheduled",
   "test_config_id": "aaa-bbb-ccc",
-  "tests": [
-    {
-      "hostname": "198.51.100.2",
-      "protocol": "UDP",
-      "interval_sec": 10,
-      "max_ttl": 10,
-      "traceroute_queries": 1,
-      "e2e_queries": 1
-    },
-    {
-      "hostname": "198.51.100.2",
-      "protocol": "TCP",
-      "port": 443,
-      "interval_sec": 10,
-      "max_ttl": 10,
-      "traceroute_queries": 1,
-      "e2e_queries": 1
-    }
-  ]
+  "config": {
+    "tests": [
+      {
+        "hostname": "198.51.100.2",
+        "protocol": "UDP",
+        "interval_sec": 10,
+        "max_ttl": 10,
+        "traceroute_queries": 1,
+        "e2e_queries": 1
+      },
+      {
+        "hostname": "198.51.100.2",
+        "protocol": "TCP",
+        "port": 443,
+        "interval_sec": 10,
+        "max_ttl": 10,
+        "traceroute_queries": 1,
+        "e2e_queries": 1
+      }
+    ]
+  }
 }`)
 
 var dynamicNetworkPathRCConfig = []byte(`{
   "type": "dynamic",
   "test_config_id": "dynamic-sentinel",
-  "filters": []
+  "config": {
+    "filters": [
+      {
+        "type": "exclude",
+        "match_domain": "*.ignored.example.com",
+        "match_domain_strategy": "wildcard"
+      }
+    ]
+  }
 }`)
 
 type remoteConfigTestSuite struct {

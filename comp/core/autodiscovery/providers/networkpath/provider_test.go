@@ -31,24 +31,27 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 			"type": "scheduled",
 			"test_config_id": "test-config-a",
 			"unknown_root_field": true,
-			"tests": [
-				{
-					"hostname": "api.example.com",
-					"port": 443,
-					"protocol": "tcp",
-					"interval_sec": 60,
-					"timeout_ms": 1000,
-					"max_ttl": 30,
-					"tcp_method": "syn",
-					"traceroute_queries": 3,
-					"e2e_queries": 50,
-					"source_service": "frontend",
-					"destination_service": "api",
-					"tags": ["env:prod"],
-					"unknown_endpoint_field": "ignored"
-				},
-				{"hostname": "db.example.com"}
-			]
+			"config": {
+				"unknown_config_field": true,
+				"tests": [
+					{
+						"hostname": "api.example.com",
+						"port": 443,
+						"protocol": "tcp",
+						"interval_sec": 60,
+						"timeout_ms": 1000,
+						"max_ttl": 30,
+						"tcp_method": "syn",
+						"traceroute_queries": 3,
+						"e2e_queries": 50,
+						"source_service": "frontend",
+						"destination_service": "api",
+						"tags": ["env:prod"],
+						"unknown_endpoint_field": "ignored"
+					},
+					{"hostname": "db.example.com"}
+				]
+			}
 		}`)},
 	}, statuses.callback)
 
@@ -244,7 +247,7 @@ func TestProviderMixedSnapshotSchedulesValidAndKeepsInvalidError(t *testing.T) {
 	assert.Equal(t, "db.example.com", instance["hostname"])
 }
 
-func TestProviderEmptyTestsUnschedulesPath(t *testing.T) {
+func TestProviderEmptyTestsFailsClosed(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
@@ -257,27 +260,28 @@ func TestProviderEmptyTestsUnschedulesPath(t *testing.T) {
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"test-config-a","tests":[]}`)},
+		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"test-config-a","config":{"tests":[]}}`)},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
-	second := <-changesCh
-	require.Len(t, second.Unschedule, 1)
-	assert.Empty(t, second.Schedule)
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.Contains(t, statuses.values["path/a"].Error, "config.tests must contain at least one item")
+	assertNoChanges(t, changesCh)
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
 }
 
-func TestProviderIgnoresDynamicType(t *testing.T) {
+func TestProviderRejectsDynamicType(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/a": {Config: []byte(`{"type":"dynamic","test_config_id":"test-config-a","filters":[]}`)},
+		"path/a": {Config: []byte(rawDynamicConfigString("test-config-a"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
-	assert.Empty(t, provider.GetConfigErrors())
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "dynamic"`)
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
 	assertNoChanges(t, changesCh)
 }
 
@@ -294,17 +298,17 @@ func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/dynamic": {Config: []byte(`{"type":"dynamic","test_config_id":"dynamic-sentinel","filters":[]}`)},
+		"path/dynamic": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/dynamic"].State)
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/dynamic"].State)
 	second := <-changesCh
 	require.Len(t, second.Unschedule, 1)
 	assert.Empty(t, second.Schedule)
 	instance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
 	assert.Equal(t, "test-config-a", instance["test_config_id"])
 	assert.Equal(t, "api.example.com", instance["hostname"])
-	assert.Empty(t, provider.GetConfigErrors())
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/dynamic"])
 }
 
 func TestProviderRejectsUnsupportedType(t *testing.T) {
@@ -314,7 +318,7 @@ func TestProviderRejectsUnsupportedType(t *testing.T) {
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/a": {Config: []byte(`{"type":"triggered","test_config_id":"test-config-a","tests":[]}`)},
+		"path/a": {Config: []byte(`{"type":"triggered","test_config_id":"test-config-a","config":{"tests":[{"hostname":"api.example.com"}]}}`)},
 	}, statuses.callback)
 
 	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
@@ -364,18 +368,23 @@ func TestParseConfigValidation(t *testing.T) {
 		},
 		{
 			name:        "missing type",
-			raw:         `{"test_config_id":"test-config-a","tests":[]}`,
+			raw:         `{"test_config_id":"test-config-a","config":{"tests":[{"hostname":"api.example.com"}]}}`,
 			expectedErr: "type is required",
 		},
 		{
 			name:        "missing test config id",
-			raw:         `{"type":"scheduled","tests":[]}`,
+			raw:         `{"type":"scheduled","config":{"tests":[{"hostname":"api.example.com"}]}}`,
 			expectedErr: "test_config_id is required",
 		},
 		{
 			name:        "missing tests",
+			raw:         `{"type":"scheduled","test_config_id":"test-config-a","config":{}}`,
+			expectedErr: "config.tests must be provided",
+		},
+		{
+			name:        "missing config",
 			raw:         `{"type":"scheduled","test_config_id":"test-config-a"}`,
-			expectedErr: "tests must be provided",
+			expectedErr: "config must be provided",
 		},
 		{
 			name:        "missing hostname",
@@ -451,7 +460,11 @@ func rawScheduledConfig(testConfigID string, endpoints ...string) []byte {
 
 func rawScheduledConfigString(testConfigID string, endpoints ...string) string {
 	tests := strings.Join(endpoints, ",")
-	return `{"type":"scheduled","test_config_id":"` + testConfigID + `","tests":[` + tests + `]}`
+	return `{"type":"scheduled","test_config_id":"` + testConfigID + `","config":{"tests":[` + tests + `]}}`
+}
+
+func rawDynamicConfigString(testConfigID string) string {
+	return `{"type":"dynamic","test_config_id":"` + testConfigID + `","config":{"filters":[{"type":"exclude","match_domain":"*.example.com","match_domain_strategy":"wildcard"}]}}`
 }
 
 func unmarshalInstance(t *testing.T, instanceData integration.Data) map[string]interface{} {

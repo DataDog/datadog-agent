@@ -42,10 +42,14 @@ type Provider struct {
 	configErrors map[string]types.ErrorMsgSet
 }
 
-type scheduledConfig struct {
+type remoteConfigEnvelope struct {
 	Type         string           `json:"type"`
 	TestConfigID string           `json:"test_config_id"`
-	Tests        []endpointConfig `json:"tests"`
+	Config       *scheduledConfig `json:"config"`
+}
+
+type scheduledConfig struct {
+	Tests []endpointConfig `json:"tests"`
 }
 
 type endpointConfig struct {
@@ -137,15 +141,6 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		// are treated as deleted after the snapshot has been processed.
 		seenPaths[path] = struct{}{}
 
-		if isDynamicConfig(rawConfig.Config) {
-			// Dynamic Network Path configs are acknowledged but do not emit AD changes
-			// until dynamic config handling is implemented.
-			log.Debugf("Ignoring dynamic NETWORK_PATH update %s: dynamic Network Path config handling is not implemented yet", path)
-			delete(p.configErrors, path)
-			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-			continue
-		}
-
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
 			// Keep the last valid configs active when a replacement payload is invalid.
@@ -214,28 +209,37 @@ func (p *Provider) sendChanges(changes integration.ConfigChanges) {
 }
 
 func parseConfig(raw []byte) ([]integration.Config, error) {
-	var scheduled scheduledConfig
-	if err := json.Unmarshal(raw, &scheduled); err != nil {
+	var envelope remoteConfigEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, fmt.Errorf("invalid Network Path config: %w", err)
 	}
 
-	if scheduled.Type == "" {
+	if envelope.Type == "" {
 		return nil, errors.New("invalid Network Path config: type is required")
 	}
-	if scheduled.Type != scheduledType {
-		return nil, fmt.Errorf("unsupported Network Path config type %q", scheduled.Type)
+	if envelope.Type == dynamicType {
+		return nil, errors.New("unsupported Network Path config type \"dynamic\": dynamic Network Path Remote Configuration is not implemented")
+	}
+	if envelope.Type != scheduledType {
+		return nil, fmt.Errorf("unsupported Network Path config type %q", envelope.Type)
 	}
 
-	testConfigID := strings.TrimSpace(scheduled.TestConfigID)
+	testConfigID := strings.TrimSpace(envelope.TestConfigID)
 	if testConfigID == "" {
 		return nil, errors.New("invalid Network Path config: test_config_id is required")
 	}
-	if scheduled.Tests == nil {
-		return nil, errors.New("invalid Network Path config: tests must be provided")
+	if envelope.Config == nil {
+		return nil, errors.New("invalid Network Path config: config must be provided")
+	}
+	if envelope.Config.Tests == nil {
+		return nil, errors.New("invalid Network Path config: config.tests must be provided")
+	}
+	if len(envelope.Config.Tests) == 0 {
+		return nil, errors.New("invalid Network Path config: config.tests must contain at least one item")
 	}
 
-	configs := make([]integration.Config, 0, len(scheduled.Tests))
-	for i, endpoint := range scheduled.Tests {
+	configs := make([]integration.Config, 0, len(envelope.Config.Tests))
+	for i, endpoint := range envelope.Config.Tests {
 		instance, err := translateEndpoint(testConfigID, endpoint)
 		if err != nil {
 			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
@@ -254,13 +258,6 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	}
 
 	return configs, nil
-}
-
-func isDynamicConfig(raw []byte) bool {
-	var envelope struct {
-		Type string `json:"type"`
-	}
-	return json.Unmarshal(raw, &envelope) == nil && envelope.Type == dynamicType
 }
 
 func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
