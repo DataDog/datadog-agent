@@ -2061,7 +2061,7 @@ fn test_cli_run_privileged_denied_when_disabled() {
 
 #[cfg(windows)]
 #[test]
-fn test_cli_run_privileged_executes_as_system() {
+fn test_cli_run_privileged_executes_catalog_command() {
     let env = TestEnv::new()
         .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1")
         .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1")
@@ -2075,14 +2075,16 @@ fn test_cli_run_privileged_executes_as_system() {
         "--args",
         "/C",
         "--args",
-        "whoami",
+        "echo",
+        "--args",
+        "procmgr-privileged-ok",
     ]);
     out.assert_success();
     let json = out.stdout_json();
     assert_eq!(json["exit_code"], 0, "stdout: {}", out.stdout);
-    let whoami = json["stdout"].as_str().unwrap_or("").to_ascii_lowercase();
+    let stdout = json["stdout"].as_str().unwrap_or("");
     assert!(
-        whoami.contains("system"),
-        "expected privileged child to run as SYSTEM, got stdout={whoami:?}"
+        stdout.contains("procmgr-privileged-ok"),
+        "expected catalog echo output, got stdout={stdout:?}"
     );
 }
