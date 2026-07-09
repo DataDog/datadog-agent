@@ -99,7 +99,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/clusteragent/admission/controllers
 # gazelle:exclude pkg/clusteragent/admission/patch
 # gazelle:exclude pkg/clusteragent/admission/mutate/agent_sidecar
-# gazelle:exclude pkg/clusteragent/admission/mutate/appsec
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoinstrumentation
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoscaling
 # gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics/*.go
