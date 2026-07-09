@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/impl"
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
