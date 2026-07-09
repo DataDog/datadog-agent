@@ -87,6 +87,7 @@ def rewrite_rpaths_for_files(ctx, inputs, rpath):
             outputs = [output],
             arguments = [args],
             executable = toolchain.patch_file,
+            toolchain = "//bazel/toolchains/rpath_rewriter",
         )
         outputs.append(output)
 
