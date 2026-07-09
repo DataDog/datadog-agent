@@ -24,25 +24,6 @@ func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	return c.leafAtPathFromNode(key, c.root)
 }
 
-// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-// 1) have a default, 2) have an environment variable binded
-// Note that it returns the keys lowercased.
-//
-// TODO: remove once viper is no longer used. This is only used to detect unknown configuration from YAML which we do
-// natively now (see 'warnings').
-func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
-
-	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	ret := make(map[string]interface{})
-	for key := range c.knownKeys {
-		ret[key] = struct{}{}
-	}
-	return ret
-}
-
 // GetEnvVars gets all environment variables
 func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()

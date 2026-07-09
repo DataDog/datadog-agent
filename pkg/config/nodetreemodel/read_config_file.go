@@ -102,6 +102,51 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }
 
+func (c *ntmConfig) deleteDeprecated(name []string, n *nodeImpl) bool {
+	isEmptyNode := false
+	if len(name) > 1 {
+		node, err := getNodeFromtree(name[0], n)
+		if err == nil {
+			isEmptyNode = c.deleteDeprecated(name[1:], node)
+		}
+	}
+
+	if isEmptyNode || len(name) == 1 {
+		n.RemoveChild(name[0])
+	}
+	return n.ChildrenLen() == 0
+}
+
+func (c *ntmConfig) processDeprecation(tree *nodeImpl) {
+	for newName, oldNames := range c.deprecated {
+		alreadyFound := ""
+		for _, oldName := range oldNames {
+			n, err := getNodeFromtree(oldName, tree)
+			if err != nil {
+				continue
+			}
+
+			// deprecated names are sorted by priority, we stop backporting the value after finding one
+			if alreadyFound == "" {
+				tree.setAt(newName, n.Get(), n.Source()) // nolint:errcheck
+				alreadyFound = oldName
+				c.warnings = append(c.warnings,
+					fmt.Sprintf("setting '%s' is deprecated, use '%s' instead", oldName, newName),
+				)
+			} else {
+				c.warnings = append(c.warnings,
+					fmt.Sprintf("setting '%s' is deprecated, use '%s' instead (value ignored in favor of '%s')", oldName, newName, alreadyFound),
+				)
+			}
+
+			parts := splitKeyFunc(oldName)
+			c.deleteDeprecated(parts, tree)
+			c.unknownKeys.Delete(oldName)
+		}
+	}
+
+}
+
 func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Source, content []byte) error {
 	var inData map[string]interface{}
 
@@ -111,7 +156,8 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, &c.unknownKeys)...)
+	c.warnings = append(c.warnings, c.loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, &c.unknownKeys)...)
+	c.processDeprecation(target)
 	return nil
 }
 
@@ -134,14 +180,14 @@ var valuelessLeaf = &nodeImpl{}
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys *sync.Map) []error {
-	warnings := []error{}
+func (c *ntmConfig) loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys *sync.Map) []string {
+	warnings := []string{}
 	for key, value := range inData {
 		key = strings.ToLower(key)
 
 		// If the key contains a dot, it represents a nested key
 		if strings.Contains(key, ".") {
-			parts := strings.Split(key, ".")
+			parts := splitKeyFunc(key)
 			key = parts[0]
 			value = buildNestedMap(parts[1:], value)
 		}
@@ -155,12 +201,12 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// Not found but known, the leaf setting must be valueless. This should never happen
 				schemaChild = valuelessLeaf
 			} else {
-				if !isKnown {
-					warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
-				}
-
 				// if the key is not defined in the schema, we can still add it to the destination
 				if value == nil || isScalar(value) || isSlice(value) {
+					if _, found := c.silenceUnknownWarning[currPath]; !found && !isKnown {
+						warnings = append(warnings, "unknown key from YAML: "+currPath)
+					}
+
 					dest.InsertChildNode(key, newLeafNode(value, source))
 					unknownKeys.Store(currPath, struct{}{})
 					continue
@@ -177,7 +223,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 			c, _ := dest.GetChild(key)
 			if c != nil && c.IsInnerNode() {
 				// Both default and dest have a child but they conflict in type. This should never happen.
-				warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
+				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
 				// If a setting is known and nil we mimic the behavior of viper and ignore the value
 				// to keep the default one. We still insert nil value for unknown settings to keep
@@ -206,7 +252,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 
 		childValue, err := ToMapStringInterface(value, currPath)
 		if err != nil {
-			warnings = append(warnings, err)
+			warnings = append(warnings, err.Error())
 			// Insert child node here as a leaf. It has the wrong type, but this maintains better
 			// compatibility with how viper works.
 			dest.InsertChildNode(key, newLeafNode(value, source))
@@ -215,7 +261,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 
 		if !dest.HasChild(key) {
 			destChild := newInnerNode(nil)
-			warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
+			warnings = append(warnings, c.loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
 			dest.InsertChildNode(key, destChild)
 			continue
 		}
@@ -223,10 +269,10 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 		destChild, _ := dest.GetChild(key)
 		if destChild.IsLeafNode() {
 			// Both default and dest have a child but they conflict in type. This should never happen.
-			warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
+			warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			continue
 		}
-		warnings = append(warnings, loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
+		warnings = append(warnings, c.loadYamlInto(destChild, source, childValue, currPath, schemaChild, knownKeys, unknownKeys)...)
 	}
 	return warnings
 }

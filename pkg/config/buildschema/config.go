@@ -74,6 +74,10 @@ func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...strin
 	b.addToSchema(key, val, env, false)
 }
 
+func (b *builder) BindEnvAndSetDefaultWithDeprecation(_ string, _ interface{}, _ []string, _ ...string) {
+	b.notImplemented()
+}
+
 func (b *builder) BuildSchema() {
 }
 
@@ -252,17 +256,12 @@ func (b *builder) IsSetting(_ string) bool {
 	return false
 }
 
-func (b *builder) GetKnownKeysLowercased() map[string]interface{} {
-	b.notImplemented()
-	return nil
-}
-
 func (b *builder) GetEnvVars() []string {
 	b.notImplemented()
 	return nil
 }
 
-func (b *builder) Warnings() *model.Warnings {
+func (b *builder) Warnings() []string {
 	b.notImplemented()
 	return nil
 }

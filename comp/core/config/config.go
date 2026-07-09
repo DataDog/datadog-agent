@@ -32,9 +32,6 @@ type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
 	pkgconfigmodel.Config
-
-	// warnings are the warnings generated during setup
-	warnings *pkgconfigmodel.Warnings
 }
 
 type dependencies struct {
@@ -82,21 +79,19 @@ func newComponent(deps dependencies) (provides, error) {
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
-	warnings := &pkgconfigmodel.Warnings{}
 
 	if deps.Cfgstream != nil && deps.Cfgstream.IsActive() {
 		// Snapshot already in the global builder; skip disk load to avoid
 		// clobbering streamed values via same-source last-write-wins.
-		return &cfg{Config: config, warnings: warnings}, nil
+		return &cfg{Config: config}, nil
 	}
 
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			warnings.Errors = []error{e}
 			e = nil
 		}
-		return &cfg{Config: config, warnings: warnings}, e
+		return &cfg{Config: config}, e
 	}
 
 	if err != nil {
@@ -109,11 +104,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 		}
 	}
 
-	return &cfg{Config: config, warnings: warnings}, nil
-}
-
-func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
-	return c.warnings
+	return &cfg{Config: config}, nil
 }
 
 func (c *cfg) StartTime() time.Time {

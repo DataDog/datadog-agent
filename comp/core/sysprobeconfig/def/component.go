@@ -30,9 +30,6 @@ import (
 type Component interface {
 	model.ReaderWriter
 
-	// Warnings returns config warnings collected during setup.
-	Warnings() *model.Warnings
-
 	// SysProbeObject returns the wrapper sysconfig
 	SysProbeObject() *sysconfigtypes.Config
 }

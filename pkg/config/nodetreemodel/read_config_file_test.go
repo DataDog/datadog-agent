@@ -6,7 +6,6 @@
 package nodetreemodel
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,7 +206,7 @@ c:
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
+	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
 
 	expected := &nodeImpl{
 		children: map[string]*nodeImpl{
@@ -241,7 +240,7 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, errors.New("expected map at 'c' got: 1234"), c.warnings[0])
+	assert.Equal(t, "expected map at 'c' got: 1234", c.warnings[0])
 
 	// The file node with "1234" still exists, but it was not merged because it didn't match
 	// the schema layer.

@@ -444,28 +444,6 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 	return nil
 }
 
-func findUnknownKeys(config pkgconfigmodel.Config) []string {
-	var unknownKeys []string
-	knownKeys := config.GetKnownKeysLowercased()
-	loadedKeys := config.AllKeysLowercased()
-	for _, loadedKey := range loadedKeys {
-		if _, found := knownKeys[loadedKey]; !found {
-			nestedValue := false
-			// If a value is within a known key it is considered known.
-			for knownKey := range knownKeys {
-				if strings.HasPrefix(loadedKey, knownKey+".") {
-					nestedValue = true
-					break
-				}
-			}
-			if !nestedValue {
-				unknownKeys = append(unknownKeys, loadedKey)
-			}
-		}
-	}
-	return unknownKeys
-}
-
 func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 	messages := make([]string, 0)
 	checkAndRecordString := func(str string, prefix string) {
@@ -808,8 +786,8 @@ func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 		return err
 	}
 
-	for _, key := range findUnknownKeys(config) {
-		log.Warnf("Unknown key in config file: %v", key)
+	for _, warn := range config.Warnings() {
+		log.Warnf("%s", warn)
 	}
 
 	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
