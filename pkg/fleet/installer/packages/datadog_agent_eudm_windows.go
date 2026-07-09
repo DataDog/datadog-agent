@@ -130,11 +130,23 @@ func postInstallEUDMExtension(ctx HookContext) error {
 	// BUILTIN\Users read+execute by default — so the binary must live there rather than under the
 	// ACL-restricted installer packages directory.
 	binaryPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", aiUsageBinaryName)
+	manifestPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", "dist", aiUsageNativeHostName+".json")
 	restoreChromeRegistration := suspendAIUsageChromeNativeHostRegistration()
-	chromeRegistrationReplaced := false
+	success := false
 	defer func() {
-		if !chromeRegistrationReplaced {
-			restoreChromeRegistration()
+		if success {
+			return
+		}
+		// The hook failed. installSingle will not record the extension in the DB, so a later
+		// uninstall will never run preRemoveEUDMExtension — roll back the partial install here so
+		// we don't leave a machine-wide Chrome registration or the copied host binary behind.
+		restoreChromeRegistration()
+		removeAIUsageScheduledTask(ctx.Context)
+		if err := os.Remove(manifestPath); err != nil && !os.IsNotExist(err) {
+			log.Warnf("AI Usage: failed to remove manifest during rollback: %v", err)
+		}
+		if err := os.Remove(binaryPath); err != nil && !os.IsNotExist(err) {
+			log.Warnf("AI Usage: failed to remove host binary during rollback: %v", err)
 		}
 	}()
 	stopAIUsageHostProcesses(ctx.Context)
@@ -160,7 +172,6 @@ func postInstallEUDMExtension(ctx HookContext) error {
 
 	// 3) Write the Chrome host manifest JSON next to the binary (bin\agent\dist), pointing at the
 	// copied binary. Program Files inheritance makes it user-readable.
-	manifestPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", "dist", aiUsageNativeHostName+".json")
 	extensionID := readAIUsageChromeExtensionID(configPath, examplePath)
 	if err := writeAIUsageManifest(manifestPath, binaryPath, extensionID); err != nil {
 		return fmt.Errorf("failed to write AI Usage native messaging manifest: %w", err)
@@ -170,13 +181,14 @@ func postInstallEUDMExtension(ctx HookContext) error {
 	if err := writeAIUsageChromeRegistry(manifestPath); err != nil {
 		return fmt.Errorf("failed to register Chrome native messaging host: %w", err)
 	}
-	chromeRegistrationReplaced = true
 
 	// 5) Register and start the logon-triggered desktop monitor scheduled task.
 	if err := configureAIUsageScheduledTask(ctx.Context, binaryPath, configPath); err != nil {
 		return fmt.Errorf("failed to configure AI Usage desktop monitor task: %w", err)
 	}
 
+	// Everything succeeded: keep the new Chrome registration and copied artifacts in place.
+	success = true
 	return nil
 }
 
@@ -397,7 +409,7 @@ func stopAIUsageHostProcess(pid uint32) error {
 		return err
 	}
 	if wait == uint32(windows.WAIT_TIMEOUT) {
-		return fmt.Errorf("timed out waiting for process exit")
+		return errors.New("timed out waiting for process exit")
 	}
 	return nil
 }
