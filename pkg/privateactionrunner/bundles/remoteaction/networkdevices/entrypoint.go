@@ -8,6 +8,7 @@
 package com_datadoghq_remoteaction_networkdevices
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -17,10 +18,10 @@ type NetworkDevicesBundle struct {
 }
 
 // NewNetworkDevices creates a new network devices bundle.
-func NewNetworkDevices() types.Bundle {
+func NewNetworkDevices(encryptionStore *encryptioncontext.Store) types.Bundle {
 	return &NetworkDevicesBundle{
 		actions: map[string]types.Action{
-			"connectivityCheck": NewConnectivityCheckHandler(),
+			"connectivityCheck": NewConnectivityCheckHandler(encryptionStore),
 		},
 	}
 }
