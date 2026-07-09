@@ -63,6 +63,8 @@ const (
 	DataStreamsKafkaActions = "dsm-kafka-actions"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
+	// ExampleTaskManager schedules one-shot example shared-library checks from RC DEBUG tasks.
+	ExampleTaskManager = "example-task-manager"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
 	PrometheusHTTPSD = "prometheus-http-sd"
 	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.

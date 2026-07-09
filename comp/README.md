@@ -852,6 +852,12 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 Package queryactions provides the Data Observability query actions component
 
+### [comp/exampletaskmanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/exampletaskmanager)
+
+*Datadog Team*: sensitive-data-scanner
+
+Package exampletaskmanager schedules one-shot example Rust shared-library checks from RC DEBUG tasks.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products

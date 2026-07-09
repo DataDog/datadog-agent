@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "exampletaskmanager.go",
+        "handler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/exampletaskmanager/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/exampletaskmanager/def",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+    ],
+)
