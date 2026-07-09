@@ -48,10 +48,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DecompressPythonDistributions { get; }
 
-        public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
-
-        public ManagedAction RemoveParFleetProcmgrConfigOnUpgradeRollback { get; }
-
         public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
@@ -297,26 +293,12 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
-                    Return.check,
-                    When.After,
-                    new Step(CleanupOnRollback.Id),
-                    Conditions.FirstInstall
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
-
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
+                    new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
@@ -871,24 +853,6 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
                                "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
-
-            // Upgrade rollback only: postinst may have written PAR processes.d YAML that older
-            // agents do not suppress via SCM. Only remove YAML created during this install session.
-            // Must be sequenced before RunPostInstallHook so the rollback script is registered
-            // before postinst can write the config (see StartDDServicesRollback).
-            RemoveParFleetProcmgrConfigOnUpgradeRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveParFleetProcmgrConfigOnUpgradeRollback)),
-                    CustomActions.RemoveParFleetProcmgrConfigOnUpgradeRollback,
-                    Return.check,
-                    When.Before,
-                    new Step(RunPostInstallHook.Id),
-                    Conditions.Upgrading
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLogger)),
