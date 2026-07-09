@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    The Cluster Agent's Prometheus HTTP Service Discovery provider supports
+    an optional ``exclude_filter`` field per endpoint entry. The field
+    accepts a CEL expression evaluated against each discovered target's
+    ``host``, ``port``, and ``labels`` fields. Targets for which the
+    expression returns ``true`` are skipped at collection time.
