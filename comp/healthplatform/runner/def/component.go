@@ -9,7 +9,7 @@
 // store, and returns the set of IssueIds that were reported.
 package runner
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 // IssueReport is the lightweight value that HealthCheckFunc implementations
 // return. The runner translates each IssueReport into a proto Issue using the
