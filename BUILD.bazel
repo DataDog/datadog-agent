@@ -185,7 +185,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/components/datadog/dogstatsd-standalone
 # gazelle:exclude test/e2e-framework/components/datadog/operator
 # gazelle:exclude test/e2e-framework/components/datadog/otel-standalone
-# gazelle:exclude test/e2e-framework/components/kubernetes
 # gazelle:exclude test/e2e-framework/components/windows/defender
 # gazelle:exclude test/e2e-framework/components/windows/fipsmode
 # gazelle:exclude test/e2e-framework/components/windows/testsigning
