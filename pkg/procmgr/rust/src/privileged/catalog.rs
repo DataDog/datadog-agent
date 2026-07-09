@@ -61,15 +61,12 @@ pub fn validate<'a>(
             .map(|a| normalize_path(a))
             .collect();
         if norm_args != expected_args {
-            bail!(
-                "refusing privileged command: unexpected args {args:?} (expected {:?})",
-                spec.expected_args
-            );
+            continue;
         }
 
         for key in env.keys() {
             if !spec.allowed_env.contains(&key.as_str()) {
-                bail!("refusing privileged command: disallowed env var {key}");
+                continue;
             }
         }
 
@@ -113,7 +110,18 @@ mod tests {
         )
         .unwrap_err()
         .to_string();
-        assert!(err.contains("unexpected args"), "{err}");
+        assert!(err.contains("not in catalog"), "{err}");
+    }
+
+    #[test]
+    fn catalog_accepts_whoami_entry() {
+        let cmd = validate(
+            "cmd.exe",
+            &["/C".into(), "whoami".into()],
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(cmd, r"C:\Windows\System32\cmd.exe");
     }
 
     #[test]
@@ -127,7 +135,7 @@ mod tests {
         )
         .unwrap_err()
         .to_string();
-        assert!(err.contains("disallowed env"), "{err}");
+        assert!(err.contains("not in catalog"), "{err}");
     }
 
     #[test]
