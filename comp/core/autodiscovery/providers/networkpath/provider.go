@@ -187,14 +187,15 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		statuses[path] = state.ApplyStatus{State: state.ApplyStateAcknowledged}
 
 		current := activeByPath[path]
-		pathChanges := diffConfigs(current, parsed.configs)
-		if pathChanges.IsEmpty() {
+		// Keep no-op snapshots from emitting unschedule/schedule churn before downstream dedupe.
+		if sameConfigs(current, parsed.configs) {
 			continue
 		}
 
-		// A valid snapshot replaces the desired config set for this RC path.
+		// A valid snapshot replaces the whole config set for this RC path.
+		changes.Unschedule = append(changes.Unschedule, current...)
 		nextActiveByPath[path] = parsed.configs
-		changes.Merge(pathChanges)
+		changes.Schedule = append(changes.Schedule, parsed.configs...)
 	}
 
 	for path, current := range activeByPath {
@@ -365,39 +366,18 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	return instance, nil
 }
 
-func diffConfigs(current, next []integration.Config) integration.ConfigChanges {
-	matchedCurrent := make([]bool, len(current))
-	changes := integration.ConfigChanges{}
-	for _, nextConfig := range next {
-		matched := false
-		for i, currentConfig := range current {
-			if matchedCurrent[i] || !sameConfigIdentity(currentConfig, nextConfig) {
-				continue
-			}
-			matchedCurrent[i] = true
-			matched = true
-			break
-		}
-		if !matched {
-			changes.ScheduleConfig(nextConfig)
-			continue
+func sameConfigs(a, b []integration.Config) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name ||
+			a[i].Source != b[i].Source ||
+			a[i].FastDigest() != b[i].FastDigest() {
+			return false
 		}
 	}
-
-	for i, config := range current {
-		if matchedCurrent[i] {
-			continue
-		}
-		changes.UnscheduleConfig(config)
-	}
-
-	return changes
-}
-
-func sameConfigIdentity(a, b integration.Config) bool {
-	return a.Name == b.Name &&
-		a.Source == b.Source &&
-		a.FastDigest() == b.FastDigest()
+	return true
 }
 
 func errorSet(err error) types.ErrorMsgSet {
