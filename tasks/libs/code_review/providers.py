@@ -102,7 +102,6 @@ def build_provider_invocation(
     if provider == "codex":
         prompt = (
             f"Review the current git changes against {review_prompt.base} using the precomputed diff below.\n"
-            "Do not run shell commands. The local wrapper already collected the patch for you.\n"
             "Do not modify files. Return only review findings and an overall correctness verdict.\n\n"
             f"{review_prompt.content}\n"
             "## Precomputed Diff\n\n"
