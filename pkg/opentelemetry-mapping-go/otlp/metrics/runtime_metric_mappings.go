@@ -31,9 +31,9 @@ var runtimeMetricPrefixLanguageMap = map[string]string{
 // runtimeMetricPrefixes lists all OTel runtime metric prefixes, those we remap and others.
 var runtimeMetricPrefixes = []string{
 	// Legacy runtime metrics.
-	"process.runtime.go",
-	"process.runtime.dotnet",
-	"process.runtime.jvm",
+	"process.runtime.go.",
+	"process.runtime.dotnet.",
+	"process.runtime.jvm.",
 
 	// https://opentelemetry.io/docs/specs/semconv/runtime/jvm-metrics/
 	"jvm.",
@@ -46,7 +46,7 @@ var runtimeMetricPrefixes = []string{
 	"go.processor.",
 	"go.schedule.",
 
-	// https://learn.microsoft.com/en-us/dotnet/core/diagnostics/built-in-metrics-runtime
+	// https://opentelemetry.io/docs/specs/semconv/runtime/dotnet-metrics/
 	"dotnet.assembly.",
 	"dotnet.exceptions",
 	"dotnet.gc.",
