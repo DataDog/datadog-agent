@@ -131,16 +131,20 @@ func postInstallEUDMExtension(ctx HookContext) error {
 	// ACL-restricted installer packages directory.
 	binaryPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", aiUsageBinaryName)
 	manifestPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", "dist", aiUsageNativeHostName+".json")
-	restoreChromeRegistration := suspendAIUsageChromeNativeHostRegistration()
+	// Clear any existing Chrome registration before replacing the host binary so Chrome does not
+	// spawn the old host mid-replacement. It is rewritten in step 4 once the new manifest is in place.
+	deleteAIUsageChromeRegistry()
 	success := false
 	defer func() {
 		if success {
 			return
 		}
 		// The hook failed. installSingle will not record the extension in the DB, so a later
-		// uninstall will never run preRemoveEUDMExtension — roll back the partial install here so
-		// we don't leave a machine-wide Chrome registration or the copied host binary behind.
-		restoreChromeRegistration()
+		// uninstall will never run preRemoveEUDMExtension — roll back the partial install here so we
+		// don't leave a machine-wide Chrome registration or the copied host binary behind. We delete
+		// the registration rather than restore the previous one: the binary and manifest it would
+		// point at are being removed too, so a clean "not installed" state is the only coherent one.
+		deleteAIUsageChromeRegistry()
 		removeAIUsageScheduledTask(ctx.Context)
 		if err := os.Remove(manifestPath); err != nil && !os.IsNotExist(err) {
 			log.Warnf("AI Usage: failed to remove manifest during rollback: %v", err)
@@ -283,60 +287,6 @@ func writeAIUsageConfig(examplePath, configPath string) error {
 		return fmt.Errorf("could not write %s: %w", configPath, err)
 	}
 	return nil
-}
-
-type aiUsageChromeRegistryBackup struct {
-	path        string
-	exists      bool
-	value       string
-	valueExists bool
-}
-
-func suspendAIUsageChromeNativeHostRegistration() func() {
-	backups := make([]aiUsageChromeRegistryBackup, 0, len(aiUsageChromeRegKeyPaths))
-	for _, path := range aiUsageChromeRegKeyPaths {
-		backup := aiUsageChromeRegistryBackup{path: path}
-		key, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE|registry.WOW64_64KEY)
-		if err == nil {
-			backup.exists = true
-			if value, _, err := key.GetStringValue(""); err == nil {
-				backup.value = value
-				backup.valueExists = true
-			} else if err != registry.ErrNotExist {
-				log.Warnf("AI Usage: failed to read Chrome registry value for %q before replacement: %v", path, err)
-			}
-			key.Close()
-		} else if err != registry.ErrNotExist {
-			log.Warnf("AI Usage: failed to read Chrome registry key %q before replacement: %v", path, err)
-		}
-		backups = append(backups, backup)
-	}
-
-	// Prevent Chrome from spawning a fresh host while the old executable is being terminated
-	// and replaced. The keys are written again after the new manifest is in place.
-	deleteAIUsageChromeRegistry()
-
-	return func() {
-		for _, backup := range backups {
-			if !backup.exists {
-				if err := registry.DeleteKey(registry.LOCAL_MACHINE, backup.path); err != nil && err != registry.ErrNotExist {
-					log.Warnf("AI Usage: failed to clear Chrome registry key %q after replacement failure: %v", backup.path, err)
-				}
-				continue
-			}
-			key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, backup.path, registry.SET_VALUE|registry.WOW64_64KEY)
-			if err != nil {
-				log.Warnf("AI Usage: failed to restore Chrome registry key %q after replacement failure: %v", backup.path, err)
-				continue
-			}
-			if backup.valueExists {
-				if err := key.SetStringValue("", backup.value); err != nil {
-					log.Warnf("AI Usage: failed to restore Chrome registry value for %q after replacement failure: %v", backup.path, err)
-				}
-			}
-			key.Close()
-		}
-	}
 }
 
 func deleteAIUsageChromeRegistry() {
