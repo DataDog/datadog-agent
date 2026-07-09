@@ -517,6 +517,15 @@ One GCPTrafficExtension per Gateway is created with:
     and one extension entry with failOpen: true, supportedEvents: [RequestHeaders, ResponseHeaders],
     timeout: 1s, and a backendRef to the user-deployed callout Service (no namespace field)
 
+Body inspection note: supportedEvents intentionally lists only the header events. The Datadog
+callout still inspects request/response bodies when a rule needs them: the dd-trace-go ext_proc
+callout dynamically requests the body via the ext_proc mode-override (ModeOverride
+RequestBodyMode=STREAMED) after seeing the request headers, and GKE's managed data plane honors
+allow_mode_override. This was verified on a live GKE cluster: with supportedEvents restricted to
+header events, a WAF rule matching the parsed JSON request body still blocked the request (HTTP
+403). Statically adding RequestBody/ResponseBody here is therefore unnecessary and would defeat the
+callout's dynamic negotiation by forcing the data plane to stream every body unconditionally.
+
 Load balancer programming lag is approximately 2 minutes after GCPTrafficExtension creation.
 
 ### Error Handling and RBAC Requirements
