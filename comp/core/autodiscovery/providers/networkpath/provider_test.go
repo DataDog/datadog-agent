@@ -181,6 +181,49 @@ func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
 	assertNoChanges(t, changesCh)
 }
 
+func TestProviderUpdateDoesNotHoldStateLockWhileApplyingStatus(t *testing.T) {
+	provider := NewProvider()
+	callbackStarted := make(chan struct{})
+	releaseCallback := make(chan struct{})
+	updateDone := make(chan struct{})
+
+	go func() {
+		provider.Update(map[string]state.RawConfig{
+			"path/a": {Config: rawScheduledConfig("test-config-a", `{"port":443}`)},
+		}, func(_ string, _ state.ApplyStatus) {
+			close(callbackStarted)
+			<-releaseCallback
+		})
+		close(updateDone)
+	}()
+
+	select {
+	case <-callbackStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("apply status callback was not called")
+	}
+
+	errorsAvailable := make(chan bool)
+	go func() {
+		_, found := provider.GetConfigErrors()["path/a"]
+		errorsAvailable <- found
+	}()
+
+	select {
+	case found := <-errorsAvailable:
+		assert.True(t, found)
+	case <-time.After(2 * time.Second):
+		t.Fatal("GetConfigErrors blocked while Update was applying status")
+	}
+
+	close(releaseCallback)
+	select {
+	case <-updateDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Update did not return after apply status callback was released")
+	}
+}
+
 func TestProviderMissingPathUnschedulesActiveConfigs(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())

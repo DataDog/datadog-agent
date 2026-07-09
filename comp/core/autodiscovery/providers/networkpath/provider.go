@@ -34,6 +34,7 @@ const (
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
 type Provider struct {
+	updateMutex   sync.Mutex
 	stateMutex    sync.RWMutex
 	configChanges chan integration.ConfigChanges
 	shutdownCh    chan struct{}
@@ -90,6 +91,11 @@ type networkPathInstanceConfig struct {
 	Tags              []string `yaml:"tags,omitempty"`
 }
 
+type parsedConfig struct {
+	configs []integration.Config
+	err     error
+}
+
 // NewProvider creates a Network Path Remote Configuration provider.
 func NewProvider() *Provider {
 	configChanges := make(chan integration.ConfigChanges, 10)
@@ -139,11 +145,11 @@ func (p *Provider) GetConfigErrors() map[string]types.ErrorMsgSet {
 
 // Update handles NETWORK_PATH Remote Configuration snapshots.
 func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	p.stateMutex.Lock()
+	p.updateMutex.Lock()
+	defer p.updateMutex.Unlock()
 
-	changes := integration.ConfigChanges{}
+	parsedByPath := make(map[string]parsedConfig, len(updates))
 	seenPaths := make(map[string]struct{}, len(updates))
-
 	for path, rawConfig := range updates {
 		// Update receives the full NETWORK_PATH snapshot. Paths not marked as seen here
 		// are treated as deleted after the snapshot has been processed.
@@ -151,49 +157,73 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
-			// Keep the last valid configs active when a replacement payload is invalid.
 			log.Warnf("Skipping invalid NETWORK_PATH update %s: %v", path, err)
-			p.configErrors[path] = errorSet(err)
-			applyStateCallback(path, state.ApplyStatus{
+		}
+		parsedByPath[path] = parsedConfig{configs: configs, err: err}
+	}
+
+	p.stateMutex.RLock()
+	activeByPath := maps.Clone(p.activeByPath)
+	configErrors := maps.Clone(p.configErrors)
+	p.stateMutex.RUnlock()
+
+	changes := integration.ConfigChanges{}
+	nextActiveByPath := maps.Clone(activeByPath)
+	nextConfigErrors := maps.Clone(configErrors)
+	statuses := make(map[string]state.ApplyStatus, len(updates))
+
+	for path, parsed := range parsedByPath {
+		if parsed.err != nil {
+			// Keep the last valid configs active when a replacement payload is invalid.
+			nextConfigErrors[path] = errorSet(parsed.err)
+			statuses[path] = state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
+				Error: parsed.err.Error(),
+			}
 			continue
 		}
 
-		delete(p.configErrors, path)
-		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		delete(nextConfigErrors, path)
+		statuses[path] = state.ApplyStatus{State: state.ApplyStateAcknowledged}
 
-		current := p.activeByPath[path]
+		current := activeByPath[path]
 		// Keep no-op snapshots from emitting unschedule/schedule churn before downstream dedupe.
-		if sameConfigs(current, configs) {
+		if sameConfigs(current, parsed.configs) {
 			continue
 		}
 
 		// A valid snapshot replaces the whole config set for this RC path.
 		changes.Unschedule = append(changes.Unschedule, current...)
-		p.activeByPath[path] = configs
-		changes.Schedule = append(changes.Schedule, configs...)
+		nextActiveByPath[path] = parsed.configs
+		changes.Schedule = append(changes.Schedule, parsed.configs...)
 	}
 
-	for path, current := range p.activeByPath {
+	for path, current := range activeByPath {
 		if _, found := seenPaths[path]; found {
 			continue
 		}
 		// Active paths missing from the snapshot were deleted from RC.
 		changes.Unschedule = append(changes.Unschedule, current...)
-		delete(p.activeByPath, path)
-		delete(p.configErrors, path)
+		delete(nextActiveByPath, path)
+		delete(nextConfigErrors, path)
 	}
-	for path := range p.configErrors {
+	for path := range configErrors {
 		if _, found := seenPaths[path]; found {
 			continue
 		}
 		// Drop stale errors for deleted paths that never had active configs.
-		delete(p.configErrors, path)
+		delete(nextConfigErrors, path)
 	}
 
+	p.stateMutex.Lock()
+	p.activeByPath = nextActiveByPath
+	p.configErrors = nextConfigErrors
 	p.stateMutex.Unlock()
+
+	for path, status := range statuses {
+		applyStateCallback(path, status)
+	}
+
 	p.sendChanges(changes)
 }
 
