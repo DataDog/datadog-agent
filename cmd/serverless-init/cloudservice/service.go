@@ -28,9 +28,13 @@ type TraceAgent interface {
 
 // TracingContext holds dependencies passed to CloudService.Init.
 // TraceAgent and SpanTags are used by CloudRunJobs for span creation.
+// LifecycleCtx is populated by main.go for MicroVM environments so that
+// MicroVM.Init can construct and start the lifecycle hook server; it is nil
+// for all other cloud services and ignored by their Init implementations.
 type TracingContext struct {
-	TraceAgent TraceAgent
-	SpanTags   map[string]string
+	TraceAgent   TraceAgent
+	SpanTags     map[string]string
+	LifecycleCtx *LifecycleContext
 }
 
 // EnhancedMetricTags holds base tags and high-cardinality tags for enhanced metrics.
@@ -197,6 +201,10 @@ func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessM
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
 	arch := runtime.GOARCH
+
+	if isMicroVM() {
+		return &MicroVM{}
+	}
 
 	if arch != archAMD64 {
 		log.Errorf(unsupportedArchMsg, arch)
