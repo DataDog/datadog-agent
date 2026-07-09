@@ -21,7 +21,7 @@ Before running E2E tests, ensure you have the following installed:
 
 ### Cloud Provider Setup
 
-You need access to the `account-admin` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
+You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin-8h`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
 
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
@@ -119,7 +119,7 @@ By default, the image is names `agent` unless you override it with the `--target
 Then push the image to a registry:
 ```bash
 # Login to ECR
-aws-vault exec sso-agent-sandbox-account-admin -- \
+aws-vault exec sso-agent-sandbox-account-admin-8h -- \
 aws ecr get-login-password --region us-east-1 | \
 docker login --username AWS --password-stdin 376334461865.dkr.ecr.us-east-1.amazonaws.com
 # Push the image

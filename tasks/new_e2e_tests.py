@@ -654,7 +654,7 @@ def run(
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
             sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
+                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
                 hide=True,
             ).stdout.strip()
             registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
@@ -1506,7 +1506,7 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
     )
     if ecr_password_res.exited != 0:
         ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
+            "aws-vault exec sso-agent-qa-account-admin-8h -- aws ecr get-login-password", hide=True, warn=True
         )
     if ecr_password_res.exited != 0:
         print(

@@ -92,7 +92,7 @@ def deploy(
         flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
         flags["ddagent:imagePullUsername"] = "AWS"
         flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password --region us-east-1",
+            "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1",
             hide=True,
         ).stdout.strip()
     return common_deploy(
