@@ -34,6 +34,7 @@ dd_agent_go_test(
         "//comp/haagent/mock",
         "//comp/healthplatform/store/mock",
         "//pkg/aggregator",
+        "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "//pkg/collector/runner/expvars",

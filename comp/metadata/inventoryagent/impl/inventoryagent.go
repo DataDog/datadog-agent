@@ -200,8 +200,8 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
-		// Build a config object from the fetched YAML only. No env var is bound on this config
-		// (we never call BindEnv), so the current process's environment variables are not applied
+		// Build a config object from the fetched YAML only. No env var is bound on this config,
+		// so the current process's environment variables are not applied
 		// and the values reflect the remote process's YAML exactly. A dynamic schema is used since
 		// the remote config's keys are not part of this freshly created config's schema.
 		cfg := create.NewConfig(name)

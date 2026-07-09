@@ -68,6 +68,7 @@ var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_C2C_LINK_ERROR_REPLAY_B2B":                    nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B,
 	"FI_DEV_PCIE_REPLAY_COUNTER":                          nvml.FI_DEV_PCIE_REPLAY_COUNTER,
 	"FI_DEV_PERF_POLICY_THERMAL":                          nvml.FI_DEV_PERF_POLICY_THERMAL,
+	"FI_DEV_GET_GPU_RECOVERY_ACTION":                      nvml.FI_DEV_GET_GPU_RECOVERY_ACTION,
 }
 
 func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {

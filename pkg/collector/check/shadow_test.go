@@ -45,6 +45,16 @@ func TestShadowCheckIDTracksInnerCheckID(t *testing.T) {
 	assert.Equal(t, checkid.ID("cpu:def456:shadow"), shadow.ID())
 }
 
+func TestShadowCheckCanUseExplicitSourceID(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:shadow-config-digest")}
+	shadow := NewShadowCheckForSource(inner, checkid.ID("cpu:source-digest"), time.Second, nil)
+
+	assert.Equal(t, checkid.ID("cpu:source-digest:shadow"), shadow.ID())
+
+	inner.id = checkid.ID("cpu:changed-inner-digest")
+	assert.Equal(t, checkid.ID("cpu:source-digest:shadow"), shadow.ID())
+}
+
 func TestShadowCheckDelegatesInnerCheckBehavior(t *testing.T) {
 	expectedErr := errors.New("run failed")
 	expectedWarnings := []error{errors.New("warning")}
@@ -115,6 +125,43 @@ func TestAsFindsWrappedCheckCapability(t *testing.T) {
 	aware.SetIssueReporter(reporter)
 
 	assert.Equal(t, reporter, inner.reporter)
+}
+
+func TestIsShadowUnwrapsCheckWrappers(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:abc123")}
+	shadow := NewShadowCheck(inner, time.Second)
+
+	assert.True(t, IsShadow(&recordingWrapper{Check: shadow}))
+	assert.False(t, IsShadow(&recordingWrapper{Check: inner}))
+}
+
+type recordingWrapper struct {
+	Check
+}
+
+func (w *recordingWrapper) Unwrap() Check {
+	return w.Check
+}
+
+func TestShadowCheckExposesSenderManagerOverride(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:abc123")}
+	shadowSenderManager := &recordingSenderManager{}
+	shadow := NewShadowCheckWithSenderManagerOverride(inner, time.Second, shadowSenderManager)
+
+	gotSenderManager, ok := SenderManagerOverride(shadow)
+	require.True(t, ok)
+	assert.Same(t, shadowSenderManager, gotSenderManager)
+}
+
+func TestSenderManagerOverrideIgnoresNormalChecksAndUnsetShadowChecks(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:abc123")}
+	shadow := NewShadowCheck(inner, time.Second)
+
+	_, ok := SenderManagerOverride(inner)
+	assert.False(t, ok)
+
+	_, ok = SenderManagerOverride(shadow)
+	assert.False(t, ok)
 }
 
 type recordingCheck struct {
@@ -238,4 +285,8 @@ type issueAwareRecordingCheck struct {
 
 func (c *issueAwareRecordingCheck) SetIssueReporter(reporter healthplatformstore.Component) {
 	c.reporter = reporter
+}
+
+type recordingSenderManager struct {
+	sender.SenderManager
 }

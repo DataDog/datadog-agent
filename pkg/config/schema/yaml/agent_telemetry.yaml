@@ -57,14 +57,38 @@ properties:
     type: boolean
     default: true
     comment: Agent Telemetry
-  force_use_http:
-    node_type: setting
-    type: boolean
-    default: false
-  force_use_tcp:
-    node_type: setting
-    type: boolean
-    default: false
+  errortracking:
+    node_type: section
+    type: object
+    properties:
+      bouncer_window_seconds:
+        node_type: setting
+        type: integer
+        default: 900
+      buffer_size:
+        node_type: setting
+        type: integer
+        default: 2048
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          experimental error log forwarding to telemetry. Use-sites must
+          additionally gate on pkg/config/utils.IsAgentTelemetryEnabled so
+          gov/FIPS exclusion is inherited from the parent agent_telemetry flag.
+      flush_interval_seconds:
+        node_type: setting
+        type: integer
+        default: 60
+      shutdown_drain_timeout_seconds:
+        node_type: setting
+        type: integer
+        default: 5
+      startup_jitter_seconds:
+        node_type: setting
+        type: integer
+        default: 0
   input_chan_size:
     node_type: setting
     type: integer
@@ -111,14 +135,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-  use_http:
-    node_type: setting
-    type: boolean
-    default: false
-  use_tcp:
-    node_type: setting
-    type: boolean
-    default: false
   use_v2_api:
     node_type: setting
     type: boolean
