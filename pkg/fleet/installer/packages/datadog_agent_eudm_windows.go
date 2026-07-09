@@ -9,10 +9,10 @@ package packages
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,15 +49,12 @@ const (
 
 	aiUsageTaskName        = "Datadog AI Usage Agent"
 	aiUsageTaskDescription = "Starts the Datadog AI Usage Agent desktop monitor in the interactive user session."
-	// aiUsageUsersGroupSID is BUILTIN\Users. The desktop monitor task runs in the
-	// interactive user session at LeastPrivilege, and Chrome launches the native host
-	// as the browser user, so BUILTIN\Users needs read/execute access.
+	// aiUsageUsersGroupSID is BUILTIN\Users, the principal the desktop monitor scheduled task
+	// runs as (in the interactive user session at LeastPrivilege).
 	aiUsageUsersGroupSID = "S-1-5-32-545"
 
 	aiUsageDefaultReceiverPort = 8126
 
-	aiUsageBinaryReplaceRetryInterval   = 500 * time.Millisecond
-	aiUsageBinaryReplaceMaxElapsedTime  = 30 * time.Second
 	aiUsageHostProcessTerminationWait   = 5 * time.Second
 	aiUsageHostProcessTerminationStatus = 1
 	aiUsageTaskXMLNamespace             = "http://schemas.microsoft.com/windows/2004/02/mit/task"
@@ -107,61 +104,53 @@ func aiUsageExtensionPath(ctx HookContext) string {
 func preInstallEUDMExtension(ctx HookContext) error {
 	deleteAIUsageChromeRegistry()
 	removeAIUsageScheduledTask(ctx.Context)
+	stopAIUsageHostProcesses(ctx.Context)
 	return nil
 }
 
 // postInstallEUDMExtension sets up the eudm extension's AI Usage native host after the layer is extracted.
 func postInstallEUDMExtension(ctx HookContext) error {
-	if paths.DatadogProgramFilesDir == "" {
-		return errors.New("cannot install AI Usage extension: Agent install directory is unknown")
+	if paths.DatadogDataDir == "" {
+		return errors.New("cannot install AI Usage extension: Agent data directory is unknown")
 	}
 	extensionPath := aiUsageExtensionPath(ctx)
-	srcBinary := filepath.Join(extensionPath, aiUsageBinaryName)
-	if _, err := os.Stat(srcBinary); err != nil {
-		return fmt.Errorf("AI Usage native host binary not found at %s: %w", srcBinary, err)
-	}
 
-	// 1) Copy the native host binary into the Agent's Program Files bin directory. Chrome and the
-	// desktop-monitor task launch it as the interactive user, and Program Files grants
-	// BUILTIN\Users read+execute by default — so the binary must live there rather than under the
-	// ACL-restricted installer packages directory.
+	// The native host runs in place from the extracted extension layer. That directory is world
+	// read/execute, so Chrome and the desktop-monitor task (which launch it as the interactive
+	// browser user) can execute it without copying it elsewhere or changing ACLs. The generated
+	// manifest is written into the same layer dir. postInstall re-runs on every upgrade, repointing
+	// the manifest/registration/task at the new layer, so the versioned path stays valid.
+	binaryPath := filepath.Join(extensionPath, aiUsageBinaryName)
+	if _, err := os.Stat(binaryPath); err != nil {
+		return fmt.Errorf("AI Usage native host binary not found at %s: %w", binaryPath, err)
+	}
+	manifestPath := filepath.Join(extensionPath, aiUsageNativeHostName+".json")
+
 	// The Chrome registration was already cleared in preInstallEUDMExtension (which installSingle
-	// runs immediately before this hook); it is rewritten in step 4 once the new manifest is in place.
-	binaryPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", aiUsageBinaryName)
-	manifestPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", "dist", aiUsageNativeHostName+".json")
+	// runs immediately before this hook); it is rewritten in step 3 once the manifest is in place.
 	success := false
 	defer func() {
 		if success {
 			return
 		}
-		// The hook failed. installSingle will not record the extension in the DB, so a later
-		// uninstall will never run preRemoveEUDMExtension — roll back the partial install here so we
-		// don't leave a machine-wide Chrome registration or the copied host binary behind. We delete
-		// the registration rather than restore the previous one: the binary and manifest it would
-		// point at are being removed too, so a clean "not installed" state is the only coherent one.
+		// The hook failed. installSingle removes the extracted extension directory (binary +
+		// manifest) on error, so here we only undo the machine-wide state: the Chrome registration
+		// and the scheduled task.
 		deleteAIUsageChromeRegistry()
 		removeAIUsageScheduledTask(ctx.Context)
-		if err := os.Remove(manifestPath); err != nil && !os.IsNotExist(err) {
-			log.Warnf("AI Usage: failed to remove manifest during rollback: %v", err)
-		}
-		if err := os.Remove(binaryPath); err != nil && !os.IsNotExist(err) {
-			log.Warnf("AI Usage: failed to remove host binary during rollback: %v", err)
-		}
 	}()
-	stopAIUsageHostProcesses(ctx.Context)
-	if err := copyAIUsageFileReplacingHost(ctx.Context, srcBinary, binaryPath, 0o755); err != nil {
-		return fmt.Errorf("failed to copy AI Usage native host binary: %w", err)
-	}
 
-	// 2) Generate ai_usage_native_host.yaml in ProgramData (best effort; preserve an existing file),
-	// then grant BUILTIN\Users read since Chrome launches the host as the browser user.
+	// 1) Generate ai_usage_native_host.yaml in ProgramData (best effort; preserve an existing file),
+	// then grant Everyone read/execute on it. C:\ProgramData\Datadog is ACL-restricted, so the
+	// config would otherwise be unreadable by the interactive browser user that Chrome and the
+	// desktop-monitor task launch the host as.
 	configPath := filepath.Join(paths.DatadogDataDir, aiUsageConfigName)
 	examplePath := filepath.Join(extensionPath, aiUsageConfigName+".example")
 	if err := writeAIUsageConfig(examplePath, configPath); err != nil {
 		return fmt.Errorf("failed to write %s: %w", aiUsageConfigName, err)
 	}
-	if _, err := os.Stat(configPath); err == nil {
-		grantAIUsageUsersAccess(ctx.Context, configPath, "(R)")
+	if err := grantAIUsageConfigWorldRead(configPath); err != nil {
+		log.Warnf("AI Usage: failed to grant read access on %q: %v", configPath, err)
 	}
 	// Also lay down the editable sample config next to the active one (mirrors what the MSI used
 	// to install at C:\ProgramData\Datadog\ai_usage_native_host.yaml.example). Best effort.
@@ -169,24 +158,22 @@ func postInstallEUDMExtension(ctx HookContext) error {
 		log.Warnf("AI Usage: failed to copy example config to %q: %v", configPath+".example", err)
 	}
 
-	// 3) Write the Chrome host manifest JSON next to the binary (bin\agent\dist), pointing at the
-	// copied binary. Program Files inheritance makes it user-readable.
+	// 2) Write the Chrome host manifest JSON into the extension layer, pointing at the host binary.
 	extensionID := readAIUsageChromeExtensionID(configPath, examplePath)
 	if err := writeAIUsageManifest(manifestPath, binaryPath, extensionID); err != nil {
 		return fmt.Errorf("failed to write AI Usage native messaging manifest: %w", err)
 	}
 
-	// 4) Register the two Chrome NativeMessagingHosts registry entries pointing at the manifest.
+	// 3) Register the two Chrome NativeMessagingHosts registry entries pointing at the manifest.
 	if err := writeAIUsageChromeRegistry(manifestPath); err != nil {
 		return fmt.Errorf("failed to register Chrome native messaging host: %w", err)
 	}
 
-	// 5) Register and start the logon-triggered desktop monitor scheduled task.
+	// 4) Register and start the logon-triggered desktop monitor scheduled task.
 	if err := configureAIUsageScheduledTask(ctx.Context, binaryPath, configPath); err != nil {
 		return fmt.Errorf("failed to configure AI Usage desktop monitor task: %w", err)
 	}
 
-	// Everything succeeded: keep the new Chrome registration and copied artifacts in place.
 	success = true
 	return nil
 }
@@ -203,62 +190,16 @@ func copyAIUsageFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-func copyAIUsageFileReplacingHost(ctx context.Context, src, dst string, perm os.FileMode) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	deadline := time.Now().Add(aiUsageBinaryReplaceMaxElapsedTime)
-	attempts := 0
-	for {
-		attempts++
-		err := copyAIUsageFile(src, dst, perm)
-		if err == nil {
-			if attempts > 1 {
-				log.Infof("AI Usage: copied native host binary after %d attempts", attempts)
-			}
-			return nil
-		}
-		if !isRetryableAIUsageBinaryReplaceError(err) || time.Now().After(deadline) {
-			return err
-		}
-
-		log.Warnf("AI Usage: native host binary is still locked, stopping running hosts before retrying copy: %v", err)
-		stopAIUsageHostProcesses(ctx)
-
-		timer := time.NewTimer(aiUsageBinaryReplaceRetryInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-}
-
-func isRetryableAIUsageBinaryReplaceError(err error) bool {
-	return errors.Is(err, fs.ErrPermission) ||
-		errors.Is(err, windows.ERROR_ACCESS_DENIED) ||
-		errors.Is(err, windows.ERROR_SHARING_VIOLATION)
-}
-
 // preRemoveEUDMExtension tears down the AI Usage native host before extension files are removed.
 // All steps are best effort so removal is not blocked.
 func preRemoveEUDMExtension(ctx HookContext) error {
+	// Tear down the machine-wide state and stop the running host. The binary and manifest live in
+	// the extension layer directory, which is removed with the extension itself, so there are no
+	// extra files to clean up here. The user-editable ai_usage_native_host.yaml under
+	// ProgramData\Datadog is preserved (mirrors ddot preserving otel-config.yaml).
 	removeAIUsageScheduledTask(ctx.Context)
 	deleteAIUsageChromeRegistry()
 	stopAIUsageHostProcesses(ctx.Context)
-
-	agentBinDir := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent")
-	for _, p := range []string{
-		filepath.Join(agentBinDir, "dist", aiUsageNativeHostName+".json"),
-		filepath.Join(agentBinDir, aiUsageBinaryName),
-	} {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			log.Warnf("AI Usage: failed to remove %q: %v", p, err)
-		}
-	}
-	// Preserve the user-editable ai_usage_native_host.yaml (mirrors ddot preserving otel-config.yaml).
 	return nil
 }
 
@@ -282,6 +223,33 @@ func writeAIUsageConfig(examplePath, configPath string) error {
 		return fmt.Errorf("could not write %s: %w", configPath, err)
 	}
 	return nil
+}
+
+// grantAIUsageConfigWorldRead sets an explicit DACL on the config so Everyone can read/execute it
+// while SYSTEM and Administrators keep full control. C:\ProgramData\Datadog is ACL-restricted, so
+// the config must be granted read access explicitly for the native host (which Chrome and the
+// desktop-monitor task launch as the interactive browser user) to read it. Mirrors the SDDL +
+// SetNamedSecurityInfo approach used for the DDOT service (no icacls shell-out).
+func grantAIUsageConfigWorldRead(path string) error {
+	// SY = SYSTEM, BA = BUILTIN\Administrators (GA = full control); WD = Everyone (GR|GX = generic
+	// read + execute).
+	const sddl = `D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGX;;;WD)`
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return fmt.Errorf("could not parse SDDL: %w", err)
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("could not extract DACL: %w", err)
+	}
+	// PROTECTED_DACL_SECURITY_INFORMATION drops the restrictive inherited ACEs so only the explicit
+	// entries above apply.
+	return windows.SetNamedSecurityInfo(
+		path,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		nil, nil, dacl, nil,
+	)
 }
 
 func deleteAIUsageChromeRegistry() {
@@ -411,24 +379,27 @@ func writeAIUsageManifest(manifestPath, hostExe, extensionID string) error {
 		log.Warnf("AI Usage: failed to delete obsolete manifest %q: %v", obsolete, err)
 	}
 
-	manifest := fmt.Sprintf(`{
-  "name": "%s",
-  "description": "Datadog AI usage native messaging host",
-  "path": "%s",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://%s/"
-  ]
-}
-`, aiUsageNativeHostName, jsonEscape(hostExe), jsonEscape(extensionID))
-	return os.WriteFile(manifestPath, []byte(manifest), 0o644)
+	manifest := aiUsageChromeManifest{
+		Name:           aiUsageNativeHostName,
+		Description:    "Datadog AI usage native messaging host",
+		Path:           hostExe,
+		Type:           "stdio",
+		AllowedOrigins: []string{fmt.Sprintf("chrome-extension://%s/", extensionID)},
+	}
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("could not marshal AI Usage manifest: %w", err)
+	}
+	return os.WriteFile(manifestPath, append(data, '\n'), 0o644)
 }
 
-// jsonEscape escapes backslashes and double quotes for embedding a string in a JSON literal.
-func jsonEscape(value string) string {
-	value = strings.ReplaceAll(value, `\`, `\\`)
-	value = strings.ReplaceAll(value, `"`, `\"`)
-	return value
+// aiUsageChromeManifest is the Chrome native messaging host manifest.
+type aiUsageChromeManifest struct {
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Path           string   `json:"path"`
+	Type           string   `json:"type"`
+	AllowedOrigins []string `json:"allowed_origins"`
 }
 
 // writeAIUsageChromeRegistry creates the two HKLM NativeMessagingHosts keys, with the (default)
@@ -446,16 +417,6 @@ func writeAIUsageChromeRegistry(manifestPath string) error {
 		key.Close()
 	}
 	return nil
-}
-
-// grantAIUsageUsersAccess grants BUILTIN\Users the given icacls permission set on path (best effort).
-// icacls /grant merges the ACE with the existing DACL rather than replacing it.
-func grantAIUsageUsersAccess(ctx context.Context, path, perms string) {
-	icacls := filepath.Join(os.Getenv("SystemRoot"), "System32", "icacls.exe")
-	// e.g. icacls "<path>" /grant "*S-1-5-32-545:(RX)"
-	if out, err := exec.CommandContext(ctx, icacls, path, "/grant", fmt.Sprintf("*%s:%s", aiUsageUsersGroupSID, perms)).CombinedOutput(); err != nil {
-		log.Warnf("AI Usage: failed to grant Users access on %q: %v (%s)", path, err, strings.TrimSpace(string(out)))
-	}
 }
 
 // configureAIUsageScheduledTask registers and starts the logon-triggered desktop monitor task.

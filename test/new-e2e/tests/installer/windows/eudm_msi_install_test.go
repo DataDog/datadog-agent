@@ -16,7 +16,6 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 const (
@@ -130,20 +129,17 @@ func (s *testEUDMExtensionMSI) TestInstallWithoutEUDMSkipsExtension() {
 }
 
 // assertAIUsageInstalled asserts every artifact the eudm extension's AI Usage hook creates on
-// install: the native host binary copied into the Agent bin dir, the generated config, the Chrome
-// host manifest, the HKLM Chrome registration, and the logon-triggered scheduled task.
+// install: the native host binary and Chrome host manifest in the extension layer, the generated
+// config in ProgramData, the HKLM Chrome registration, and the logon-triggered scheduled task.
 func (s *testEUDMExtensionMSI) assertAIUsageInstalled() {
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	s.Require().NoError(err)
-
-	agentBinDir := filepath.Join(installPath, "bin", "agent")
+	eudmExtDir := filepath.Join(consts.GetStableDirFor(consts.AgentPackage), "ext", eudmExtensionName)
 	s.Require().Host(s.Env().RemoteHost).FileExists(
-		filepath.Join(agentBinDir, aiUsageBinaryName),
-		"native host binary should be copied into the Agent bin directory",
+		filepath.Join(eudmExtDir, aiUsageBinaryName),
+		"native host binary should be present in the extension layer",
 	)
 	s.Require().Host(s.Env().RemoteHost).FileExists(
-		filepath.Join(agentBinDir, "dist", aiUsageNativeHostName+".json"),
-		"Chrome native messaging manifest should be present",
+		filepath.Join(eudmExtDir, aiUsageNativeHostName+".json"),
+		"Chrome native messaging manifest should be present in the extension layer",
 	)
 	s.Require().Host(s.Env().RemoteHost).FileExists(
 		filepath.Join(aiUsageConfigDir, aiUsageConfigName),
