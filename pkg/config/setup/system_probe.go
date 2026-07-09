@@ -370,6 +370,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
+	cfg.BindEnvAndSetDefault("discovery.service_collection_max_consecutive_timeouts", 5)
 	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config

@@ -2707,6 +2707,10 @@ properties:
         type: integer
         default: 500
         minimum: 0
+      service_collection_max_consecutive_timeouts:
+        node_type: setting
+        type: integer
+        default: 5
       service_map:
         node_type: section
         type: object
