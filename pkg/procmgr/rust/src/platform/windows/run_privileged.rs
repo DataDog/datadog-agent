@@ -378,7 +378,9 @@ mod tests {
 
     #[test]
     fn privileged_echo_runs_as_system() {
-        unsafe { std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1"); }
+        unsafe {
+            std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1");
+        }
         let out = run_privileged_command(
             "cmd.exe",
             &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
