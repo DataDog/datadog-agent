@@ -160,7 +160,7 @@ func restoreDriverCallbacks() {
 }
 
 // resetMockState clears mock configuration between tests so they do not leak
-// into each other (including the package-level "log once" flag).
+// into each other.
 func resetMockState() {
 	mockCapabilitiesVersion = 0
 	mockCapabilitiesError = nil
@@ -169,7 +169,6 @@ func resetMockState() {
 	mockQueryCountersError = nil
 	mockBytesReturnedOverride = 0
 	mockRequestedVersion = 0
-	capabilitiesErrorLogged.Store(false)
 }
 
 // fillMockCountersV1 populates mockCountersV1 with deterministic test values.
@@ -342,6 +341,33 @@ func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	assert.Equal(t, maxKnownVersion, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
+
+	inj.Close()
+}
+
+// TestQueryCountersDriverBelowV1 covers a driver reporting a counter version
+// below the V1 baseline: negotiation floors it to V1 and only V1 gauges are
+// populated.
+func TestQueryCountersDriverBelowV1(t *testing.T) {
+	currentTest = t
+	overrideDriverCallbacks()
+	defer restoreDriverCallbacks()
+	resetMockState()
+
+	inj, err := NewInjector()
+	assert.NoError(t, err)
+	assert.NotNil(t, inj)
+
+	mockCapabilitiesVersion = 0 // driver reports a version below V1, with no error
+	fillMockCountersV1()
+
+	counters := createCounters()
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
+
+	assert.Equal(t, CountersVersion1, mockRequestedVersion)
+	assertV1CountersEqual(t, &mockCountersV1, counters)
+	assertV2CountersZero(t, counters)
 
 	inj.Close()
 }

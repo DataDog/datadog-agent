@@ -11,7 +11,7 @@ package ddinjector
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -30,10 +30,11 @@ const (
 // agent about a new counter version.
 const maxKnownVersion = CountersVersion2
 
-// capabilitiesErrorLogged ensures the capabilities-query fallback is logged
-// only once (older drivers without the capabilities IOCTL would otherwise spam
-// the log on every collection).
-var capabilitiesErrorLogged atomic.Bool
+// capabilitiesErrorLogLimit throttles the capabilities-query fallback log so an
+// older driver without the capabilities IOCTL does not spam the log on every
+// collection, while still re-logging periodically so transient error streaks
+// stay visible.
+var capabilitiesErrorLogLimit = log.NewLogLimit(1, 10*time.Minute)
 
 // InjectorCounters encapsulates ddinjector counters to be reported upstream.
 type InjectorCounters struct {
@@ -88,18 +89,22 @@ func NewInjector() (*Injector, error) {
 // highest counter version both the agent and the driver understand.
 //
 // Older drivers do not implement the capabilities IOCTL; in that case we fall
-// back to V1 (the frozen baseline every driver supports) and log the first
-// occurrence only.
+// back to V1 (the frozen baseline every driver supports) and log the failure at
+// a throttled rate.
 func (inj *Injector) negotiateCounterVersion() uint32 {
 	driverMax, err := doQueryDriverCapabilities(inj.handle)
 	if err != nil {
-		if capabilitiesErrorLogged.CompareAndSwap(false, true) {
-			log.Warnf("ddinjector capabilities query failed, falling back to V1 counters (logging first error only): %v", err)
+		if capabilitiesErrorLogLimit.ShouldLog() {
+			log.Warnf("ddinjector capabilities query failed, falling back to V1 counters: %v", err)
 		}
 		return CountersVersion1
 	}
 
-	return max(min(driverMax, maxKnownVersion), CountersVersion1)
+	if driverMax < CountersVersion1 {
+		log.Warnf("ddinjector reported counter version %d below the V1 baseline, using V1", driverMax)
+		return CountersVersion1
+	}
+	return min(driverMax, maxKnownVersion)
 }
 
 // GetCounters queries the ddinjector current counters, negotiating the counter
@@ -113,7 +118,7 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	// version.
 	raw := DDInjectorCountersV2{}
 	expectedSize := uint32(DDInjectorCountersV1Size)
-	if negotiated >= CountersVersion2 {
+	if negotiated == CountersVersion2 {
 		expectedSize = uint32(DDInjectorCountersV2Size)
 	}
 
@@ -122,6 +127,9 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	if err != nil {
 		return fmt.Errorf("ddinjector DeviceIoControl failed: %w", err)
 	}
+	// Require at least the negotiated size rather than an exact match: a
+	// forward-compatible driver may return a larger native struct, and we only
+	// reinterpret the head we understand.
 	if bytesReturned < expectedSize {
 		return fmt.Errorf("ddinjector returned %d bytes, expected at least %d", bytesReturned, expectedSize)
 	}
@@ -129,7 +137,7 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	// The V1 counters occupy the head of the buffer, so reinterpret it to
 	// populate the V1 gauges without depending on cgo nested-field naming.
 	populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
-	if negotiated >= CountersVersion2 {
+	if negotiated == CountersVersion2 {
 		populateV2Gauges(counters, &raw)
 	} else {
 		clearV2Gauges(counters)
