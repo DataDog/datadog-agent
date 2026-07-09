@@ -4,11 +4,10 @@ go 1.26.0
 
 require go.opentelemetry.io/collector/confmap v1.61.0
 
-require github.com/gobwas/glob v0.2.3 // indirect
-
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect

@@ -65,7 +65,10 @@ func (a *Agent) Reset() {
 func (a *Agent) Insert(v float64, sampleRate float64) {
 	k := agentConfig.key(v)
 	// bounds enforcement
-	if sampleRate <= 0 || sampleRate > 1 {
+	//
+	// A rate outside (0, 1] is invalid and falls back to unsampled. This
+	// inequality must handle non-finite values, hence the negation.
+	if !(sampleRate > 0 && sampleRate <= 1) {
 		sampleRate = 1
 	}
 

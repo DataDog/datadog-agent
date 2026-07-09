@@ -311,6 +311,9 @@ event_management.forwarder.logs_no_ssl: true
 agent_telemetry.logs_dd_url: %[1]s:%[2]d
 agent_telemetry.logs_no_ssl: true
 agent_telemetry.use_compression: false
+compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
+compliance_config.endpoints.logs_no_ssl: true
+compliance_config.endpoints.force_use_http: true
 `, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
 		return nil
