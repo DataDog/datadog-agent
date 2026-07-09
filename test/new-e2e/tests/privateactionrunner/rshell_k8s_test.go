@@ -73,7 +73,7 @@ func (s *parK8sSuite) TestRshellHappyFlow() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().Equal(0, rshellExitCode(result), "expected exit code 0, got %d (stderr: %v)", rshellExitCode(result), result.Outputs["stderr"])
+	s.Require().Equal(0, rshellExitCode(result), "unexpected PAR rshell result: %+v", result)
 	assert.Contains(s.T(), result.Outputs["stdout"], testDataContent)
 }
 
@@ -140,7 +140,7 @@ func (s *parK8sSuite) TestRshellRemediationWriteFile() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().Equal(0, rshellExitCode(result), "expected exit code 0, got %d (stderr: %v)", rshellExitCode(result), result.Outputs["stderr"])
+	s.Require().Equal(0, rshellExitCode(result), "unexpected PAR rshell result: %+v", result)
 	assert.Contains(s.T(), result.Outputs["stdout"], content)
 }
 

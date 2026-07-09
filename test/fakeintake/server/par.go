@@ -57,7 +57,8 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	fi.par.queue = fi.par.queue[1:]
 
 	bundleID, actionName := parSplitFQN(task.ActionFQN)
-	inputs, err := parStruct(task.Inputs)
+	remoteAction, actionInputs := parRemoteActionFromInputs(task.Inputs)
+	inputs, err := parStruct(actionInputs)
 	if err != nil {
 		http.Error(w, "invalid task inputs", http.StatusBadRequest)
 		return
@@ -70,19 +71,7 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		TaskId:     task.TaskID,
 		Inputs:     inputs,
 	}
-	// rshell policy fields are delivered in the signed task fields in production
-	// (resolved from execution policies by the backend). The runner reads them
-	// from system_inputs.remote_action, not inputs. Surface any values supplied
-	// via the test inputs in the serialized task payload so skip-verification
-	// e2e flows behave like a real backend-signed task.
-	remoteAction := &privateactionspb.RemoteAction{}
-	if v, ok := task.Inputs["allowedCommands"]; ok {
-		remoteAction.AllowedCommands = parStringSlice(v)
-	}
-	if v, ok := task.Inputs["allowedPaths"]; ok {
-		remoteAction.AllowedPaths = parStringSlice(v)
-	}
-	if len(remoteAction.AllowedCommands) > 0 || len(remoteAction.AllowedPaths) > 0 {
+	if remoteAction != nil {
 		pbTask.SystemInputs = &privateactionspb.SystemInputs{
 			Input: &privateactionspb.SystemInputs_RemoteAction{
 				RemoteAction: remoteAction,
@@ -102,7 +91,7 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		"task_id":   task.TaskID,
 		"job_id":    task.TaskID,
 		"org_id":    0,
-		"inputs":    task.Inputs,
+		"inputs":    actionInputs,
 		"signed_envelope": map[string]interface{}{
 			"data": signedTaskData,
 		},
@@ -118,10 +107,43 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func parStringSlice(value interface{}) []string {
+func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb.RemoteAction, map[string]interface{}) {
+	actionInputs := make(map[string]interface{}, len(inputs))
+	for key, value := range inputs {
+		actionInputs[key] = value
+	}
+
+	// rshell policy fields are delivered in the signed task fields in production
+	// (resolved from execution policies by the backend). The runner reads them
+	// from system_inputs.remote_action, not inputs. Surface any flat test inputs
+	// in the serialized task payload so skip-verification e2e flows behave like a
+	// real backend-signed task.
+	remoteAction := &privateactionspb.RemoteAction{}
+	hasRemoteAction := false
+	if v, ok := inputs["allowedCommands"]; ok {
+		if commands, ok := parStringSlice(v); ok {
+			remoteAction.AllowedCommands = commands
+			hasRemoteAction = true
+			delete(actionInputs, "allowedCommands")
+		}
+	}
+	if v, ok := inputs["allowedPaths"]; ok {
+		if paths, ok := parStringSlice(v); ok {
+			remoteAction.AllowedPaths = paths
+			hasRemoteAction = true
+			delete(actionInputs, "allowedPaths")
+		}
+	}
+	if !hasRemoteAction {
+		return nil, actionInputs
+	}
+	return remoteAction, actionInputs
+}
+
+func parStringSlice(value interface{}) ([]string, bool) {
 	switch values := value.(type) {
 	case []string:
-		return values
+		return values, true
 	case []interface{}:
 		strings := make([]string, 0, len(values))
 		for _, value := range values {
@@ -129,9 +151,9 @@ func parStringSlice(value interface{}) []string {
 				strings = append(strings, s)
 			}
 		}
-		return strings
+		return strings, true
 	default:
-		return nil
+		return nil, false
 	}
 }
 
