@@ -66,7 +66,7 @@ pub fn validate<'a>(
 
         for key in env.keys() {
             if !spec.allowed_env.contains(&key.as_str()) {
-                continue;
+                bail!("refusing privileged command: disallowed env var {key}");
             }
         }
 
@@ -135,7 +135,7 @@ mod tests {
         )
         .unwrap_err()
         .to_string();
-        assert!(err.contains("not in catalog"), "{err}");
+        assert!(err.contains("disallowed env"), "{err}");
     }
 
     #[test]
