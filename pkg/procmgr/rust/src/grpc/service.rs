@@ -217,19 +217,19 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
         #[cfg(windows)]
         {
+            if !crate::privileged::enabled() {
+                log::warn!("RunPrivilegedCommand denied: privileged commands are disabled");
+                return Err(Status::permission_denied(
+                    "privileged commands are disabled",
+                ));
+            }
+
             let client_pid = client_pid_from_request(&request)?;
             if !crate::peer_auth::authorize_par_caller(client_pid) {
                 log::warn!(
                     "RunPrivilegedCommand denied: caller pid={client_pid} is not privateactionrunner"
                 );
                 return Err(Status::permission_denied("caller is not authorized"));
-            }
-
-            if !crate::privileged::enabled() {
-                log::warn!("RunPrivilegedCommand denied: privileged commands are disabled");
-                return Err(Status::permission_denied(
-                    "privileged commands are disabled",
-                ));
             }
 
             let req = request.into_inner();
