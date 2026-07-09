@@ -36,6 +36,8 @@ const (
 type Provider struct {
 	stateMutex    sync.RWMutex
 	configChanges chan integration.ConfigChanges
+	shutdownCh    chan struct{}
+	closeOnce     sync.Once
 	closed        bool
 
 	activeByPath map[string][]integration.Config
@@ -94,6 +96,7 @@ func NewProvider() *Provider {
 	configChanges <- integration.ConfigChanges{}
 	return &Provider{
 		configChanges: configChanges,
+		shutdownCh:    make(chan struct{}),
 		activeByPath:  make(map[string][]integration.Config),
 		configErrors:  make(map[string]types.ErrorMsgSet),
 	}
@@ -108,15 +111,20 @@ func (p *Provider) String() string {
 func (p *Provider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	go func() {
 		<-ctx.Done()
-		p.stateMutex.Lock()
-		defer p.stateMutex.Unlock()
-		if p.closed {
-			return
-		}
-		p.closed = true
-		close(p.configChanges)
+		p.close()
 	}()
 	return p.configChanges
+}
+
+func (p *Provider) close() {
+	p.closeOnce.Do(func() {
+		close(p.shutdownCh)
+
+		p.stateMutex.Lock()
+		defer p.stateMutex.Unlock()
+		p.closed = true
+		close(p.configChanges)
+	})
 }
 
 // GetConfigErrors returns configuration errors indexed by RC config path.
@@ -199,7 +207,10 @@ func (p *Provider) sendChanges(changes integration.ConfigChanges) {
 	if p.closed {
 		return
 	}
-	p.configChanges <- changes
+	select {
+	case p.configChanges <- changes:
+	case <-p.shutdownCh:
+	}
 }
 
 func parseConfig(raw []byte) ([]integration.Config, error) {

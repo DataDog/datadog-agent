@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,30 @@ func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
 
 	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderSendChangesReturnsOnShutdownWhenChannelFull(t *testing.T) {
+	provider := NewProvider()
+	ctx, cancel := context.WithCancel(context.Background())
+	provider.Stream(ctx)
+
+	for len(provider.configChanges) < cap(provider.configChanges) {
+		provider.configChanges <- integration.ConfigChanges{Schedule: []integration.Config{{Name: networkpathcheck.CheckName}}}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		provider.sendChanges(integration.ConfigChanges{Schedule: []integration.Config{{Name: networkpathcheck.CheckName}}})
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("sendChanges blocked after stream shutdown")
+	}
 }
 
 func TestProviderValidUpdateReplacesWholePath(t *testing.T) {
