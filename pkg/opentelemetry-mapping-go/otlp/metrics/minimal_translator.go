@@ -90,7 +90,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier.Primary
+			host = src.Identifier
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 

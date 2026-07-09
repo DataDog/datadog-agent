@@ -56,7 +56,11 @@ type SourceIdentifier struct {
 
 // Tag associated to a source.
 func (s Source) Tag() string {
-	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier.Primary)
+	identifier := s.Identifier
+	if identifier == "" {
+		identifier = s.SourceIdentifier.Primary
+	}
+	return fmt.Sprintf("%s:%s", s.Kind, identifier)
 }
 
 // Provider identifies a source.

@@ -19,7 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -65,7 +66,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testLiteralHost}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testLiteralHost, SourceIdentifier: source.SourceIdentifier{Primary: testLiteralHost}},
 		},
 		{
 			name: "custom hostname",
@@ -78,7 +79,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testCustomName}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testCustomName, SourceIdentifier: source.SourceIdentifier{Primary: testCustomName}},
 		},
 		{
 			name: "container ID",
@@ -94,7 +95,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID, SourceIdentifier: source.SourceIdentifier{Primary: testHostID}},
 		},
 		{
 			name: "ECS Fargate",
@@ -107,7 +108,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.AWSECSLaunchtypeKey):   conventions.AWSECSLaunchtypeFargate.Value.AsString(),
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: "example-task-ARN"}},
+			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN", SourceIdentifier: source.SourceIdentifier{Primary: "example-task-ARN"}},
 		},
 		{
 			name: "Azure App Service",
@@ -186,22 +187,100 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (semconv v1.35.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
-				"azure.container_app.instance.id":    "replica-1",
+				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):  semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:  "replica-1",
+				string(conventions.ServiceNameKey):    "my-app",
+				string(semconv1_27.CloudAccountIDKey): "sub-123",
+				AttributeAzureResourceGroupName:       "my-rg",
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
 		},
 		{
-			name: "Azure Container Apps (legacy)",
+			name: "Azure Container Apps (legacy platform value)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey): "azure_container_apps",
-				"azure.container_app.instance.id":    "replica-1",
+				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):  "azure_container_apps",
+				AttributeAzureContainerAppInstanceID:  "replica-1",
+				string(conventions.ServiceNameKey):    "my-app",
+				string(semconv1_27.CloudAccountIDKey): "sub-123",
+				AttributeAzureResourceGroupName:       "my-rg",
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps (name, subscription_id, resource_group all from cloud.resource_id fallback)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):   semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:   "replica-1",
+				string(semconv1_27.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps (resource_group from cloud.resource_id, name and subscription_id from primary attrs take precedence)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):   semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:   "replica-1",
+				string(conventions.ServiceNameKey):     "my-app",
+				string(semconv1_27.CloudAccountIDKey):  "sub-123",
+				string(semconv1_27.CloudResourceIDKey): "/subscriptions/sub-999/resourceGroups/my-rg/providers/Microsoft.App/containerApps/other-name",
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
 		},
 		{
 			name: "GCP",
@@ -212,7 +291,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.CloudAccountIDKey): testCloudAccount,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testGCPIntegrationHostname}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testGCPIntegrationHostname, SourceIdentifier: source.SourceIdentifier{Primary: testGCPIntegrationHostname}},
 		},
 		{
 			name: "GCP, no account id",
@@ -230,7 +309,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID, SourceIdentifier: source.SourceIdentifier{Primary: testHostID}},
 		},
 		{
 			name: "host id v. hostname",
@@ -239,7 +318,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey): testHostName,
 			}),
 			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID, SourceIdentifier: source.SourceIdentifier{Primary: testHostID}},
 		},
 		{
 			name:  "no hostname",
@@ -293,7 +372,7 @@ func TestLiteralHostNonString(t *testing.T) {
 	attrs.PutInt(AttributeHost, 1000)
 	src, ok := SourceFromAttrs(attrs, nil)
 	assert.True(t, ok)
-	assert.Equal(t, source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: "1000"}}, src)
+	assert.Equal(t, source.Source{Kind: source.HostnameKind, Identifier: "1000", SourceIdentifier: source.SourceIdentifier{Primary: "1000"}}, src)
 }
 
 func TestGetClusterName(t *testing.T) {
