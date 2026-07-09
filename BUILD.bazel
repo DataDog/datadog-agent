@@ -187,7 +187,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/scenarios/aws/ec2docker
 # gazelle:exclude test/e2e-framework/scenarios/aws/ecs
 # gazelle:exclude test/e2e-framework/scenarios/aws/eks
-# gazelle:exclude test/e2e-framework/scenarios/aws/fakeintake
 # gazelle:exclude test/e2e-framework/scenarios/aws/gensim-eks
 # gazelle:exclude test/e2e-framework/scenarios/aws/installer
 # gazelle:exclude test/e2e-framework/scenarios/aws/kindvm
