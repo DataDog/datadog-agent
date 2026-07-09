@@ -275,10 +275,9 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 		CollectTimestamp: mockClock.Now().Unix(),
 		Inventories: []ncmreport.InventoryEntry{
 			{
-				Namespace:  "default",
-				ConfigID:   "abc-123",
-				DeviceID:   "default:10.0.0.1",
-				ReportedAt: mockClock.Now().Unix(),
+				Namespace: "default",
+				ConfigID:  "abc-123",
+				DeviceID:  "default:10.0.0.1",
 			},
 		},
 	}
@@ -293,10 +292,9 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
   "namespace": "default",
   "inventories": [
     {
-	  "namespace": "default",
+      "namespace": "default",
       "config_id": "abc-123",
-      "device_id": "default:10.0.0.1",
-      "reported_at": 1754043600
+      "device_id": "default:10.0.0.1"
     }
   ],
   "collect_timestamp": 1754043600,
