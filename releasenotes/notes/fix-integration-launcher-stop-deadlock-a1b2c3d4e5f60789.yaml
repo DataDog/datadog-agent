@@ -1,0 +1,14 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a shutdown hang and goroutine leak in the integrations logs launcher.
+    Stopping the launcher more than once previously blocked forever on an
+    unbuffered channel once the run loop had already exited. Stopping the
+    launcher is now idempotent and safe to call multiple times.

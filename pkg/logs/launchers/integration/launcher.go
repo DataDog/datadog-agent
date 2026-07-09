@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/afero"
@@ -38,6 +39,7 @@ type Launcher struct {
 	sources              *sources.LogSources
 	addedConfigs         chan integrations.IntegrationConfig
 	stop                 chan struct{}
+	stopOnce             sync.Once
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]*fileInfo
@@ -115,9 +117,14 @@ func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ audi
 	go s.run()
 }
 
-// Stop stops the launcher
+// Stop stops the launcher. It is safe to call multiple times: subsequent calls
+// are no-ops. Closing the stop channel (rather than sending on it) ensures the
+// run loop is unblocked even if it has already returned, avoiding a goroutine
+// leak / shutdown deadlock when Stop is called more than once.
 func (s *Launcher) Stop() {
-	s.stop <- struct{}{}
+	s.stopOnce.Do(func() {
+		close(s.stop)
+	})
 }
 
 // run checks if there are new files to tail and tails them
