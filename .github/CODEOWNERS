@@ -378,6 +378,7 @@
 /comp/forwarder @DataDog/agent-metric-pipelines
 /comp/healthplatform @DataDog/fleet-remediation
 /comp/host-profiler @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/comp/kubeactions @DataDog/container-integrations
 /comp/logs @DataDog/agent-log-pipelines
 /comp/logs-library @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/agent-configuration

@@ -383,6 +383,17 @@ Package hostprofiler implements the "host-profiler" bundle,
 
 Package collector defines the host profiler collector component.
 
+## [comp/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions) (Component Bundle)
+
+*Datadog Team*: container-integrations
+
+Package kubeactions implements the "kubeactions" bundle, providing components
+for executing Kubernetes and Helm actions on behalf of the cluster agent.
+
+### [comp/kubeactions/helmactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/helmactions)
+
+Package helmactions provides a component for executing Helm actions.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines
