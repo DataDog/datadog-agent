@@ -65,13 +65,12 @@ properties:
   auto_multi_line_detection:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     visibility: public
     description: |-
       Enable automatic aggregation of multi-line logs for common log patterns.
       More information can be found in Datadog documentation:
       https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
-    example: 'true'
     comment: Auto multiline detection settings
   force_use_http:
     node_type: setting
