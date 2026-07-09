@@ -123,9 +123,12 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
 
-	secrets, err := encryptioncontext.DecryptInto[secretInputs](h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt secret inputs: %w", err)
+	var secrets secretInputs
+	if req.EncryptedCredentials != "" {
+		secrets, err = encryptioncontext.DecryptInto[secretInputs](h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt secret inputs: %w", err)
+		}
 	}
 
 	res, err := runChecks(ctx, req, secrets)
