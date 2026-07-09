@@ -169,7 +169,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/registry
 # gazelle:exclude test/e2e-framework/run
-# gazelle:exclude test/e2e-framework/scenarios/aws/ec2
 # gazelle:exclude test/e2e-framework/scenarios/aws/ec2docker
 # gazelle:exclude test/e2e-framework/scenarios/aws/ecs
 # gazelle:exclude test/e2e-framework/scenarios/aws/eks
