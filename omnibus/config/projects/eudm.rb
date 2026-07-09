@@ -5,13 +5,14 @@
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
 
-# The AI Usage native host ships as the "ai-usage" fleet installer extension layer for the
-# datadog-agent OCI package (Windows only). This project builds + signs the native host binary
-# and produces datadog-agent-ai-usage-<version>-1-x86_64.zip, which the agent_win_oci job passes
-# to `datadog-package create --extension ai-usage=<dir>`. Mirrors omnibus/config/projects/ddot.rb.
+# The "eudm" (End User Device Monitoring) fleet installer extension layer for the datadog-agent
+# OCI package (Windows only). It currently carries the AI Usage native host feature; this project
+# builds + signs the native host binary and produces datadog-agent-eudm-<version>-1-x86_64.zip,
+# which the agent_win_oci job passes to `datadog-package create --extension eudm=<dir>`.
+# Mirrors omnibus/config/projects/ddot.rb.
 
-name 'ai-usage'
-package_name 'datadog-agent-ai-usage'
+name 'eudm'
+package_name 'datadog-agent-eudm'
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -31,16 +32,16 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-# Dedicated install_dir so the produced ZIP unzips to the flat ext/ai-usage/ layout the extension
+# Dedicated install_dir so the produced ZIP unzips to the flat ext/eudm/ layout the extension
 # hook expects (binary + example config at the root). Must not contain spaces (Omnibus does not
-# quote the Git commands it launches). Matches AI_USAGE_ARTIFACT_DIR in tasks/msi.py.
-INSTALL_DIR = 'C:/opt/datadog-agent-ai-usage'
+# quote the Git commands it launches). Matches EUDM_ARTIFACT_DIR in tasks/msi.py.
+INSTALL_DIR = 'C:/opt/datadog-agent-eudm'
 install_dir INSTALL_DIR
 
-third_party_licenses_path "LICENSES-ai-usage"
-license_file_path "LICENSE-ai-usage"
-json_manifest_path File.join(install_dir, "version-manifest.ai-usage.json")
-text_manifest_path File.join(install_dir, "version-manifest.ai-usage.txt")
+third_party_licenses_path "LICENSES-eudm"
+license_file_path "LICENSE-eudm"
+json_manifest_path File.join(install_dir, "version-manifest.eudm.json")
+text_manifest_path File.join(install_dir, "version-manifest.eudm.txt")
 
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
@@ -73,7 +74,7 @@ end
 # ------------------------------------
 
 # Windows only: skip the MSI packager and rely on the default Windows ZIP packager, which emits
-# datadog-agent-ai-usage-<version>-1-x86_64.zip from the contents of install_dir.
+# datadog-agent-eudm-<version>-1-x86_64.zip from the contents of install_dir.
 package :msi do
   skip_packager true
 end

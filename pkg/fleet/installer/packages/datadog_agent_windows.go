@@ -993,8 +993,8 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preInstallDDOTExtension(ctx)
-	case "ai-usage":
-		return preInstallAIUsageExtension(ctx)
+	case "eudm":
+		return preInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1005,8 +1005,8 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
-	case "ai-usage":
-		return postInstallAIUsageExtension(ctx)
+	case "eudm":
+		return postInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1017,8 +1017,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preRemoveDDOTExtension(ctx)
-	case "ai-usage":
-		return preRemoveAIUsageExtension(ctx)
+	case "eudm":
+		return preRemoveEUDMExtension(ctx)
 	default:
 		return nil
 	}

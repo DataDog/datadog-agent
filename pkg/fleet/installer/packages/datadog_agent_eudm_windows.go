@@ -31,11 +31,12 @@ import (
 	textunicode "golang.org/x/text/encoding/unicode"
 )
 
-// AI Usage Chrome Native Messaging host / desktop monitor extension.
+// AI Usage Chrome Native Messaging host / desktop monitor: the AI Usage feature of the
+// End User Device Monitoring (eudm) extension.
 //
-// This extension replaces the setup that used to be performed by the Windows MSI
+// This replaces the setup that used to be performed by the Windows MSI
 // (see tools/windows/DatadogAgentInstaller). It lays down, from the extracted
-// extension layer (ext/ai-usage):
+// extension layer (ext/eudm):
 //   - the two Chrome NativeMessagingHosts HKLM registry entries (native + WOW6432Node),
 //   - the generated ai_usage_native_host.yaml config (with trace_agent_url pointing at
 //     the local trace receiver),
@@ -107,14 +108,14 @@ func aiUsageExtensionPath(ctx HookContext) string {
 	return filepath.Join(packagePath, "ext", ctx.Extension)
 }
 
-// preInstallAIUsageExtension removes any stale scheduled task before extension files are laid down.
-func preInstallAIUsageExtension(ctx HookContext) error {
+// preInstallEUDMExtension removes any stale scheduled task before extension files are laid down.
+func preInstallEUDMExtension(ctx HookContext) error {
 	removeAIUsageScheduledTask(ctx.Context)
 	return nil
 }
 
-// postInstallAIUsageExtension sets up the AI Usage native host after the extension layer is extracted.
-func postInstallAIUsageExtension(ctx HookContext) error {
+// postInstallEUDMExtension sets up the eudm extension's AI Usage native host after the layer is extracted.
+func postInstallEUDMExtension(ctx HookContext) error {
 	if paths.DatadogProgramFilesDir == "" {
 		return errors.New("cannot install AI Usage extension: Agent install directory is unknown")
 	}
@@ -230,9 +231,9 @@ func isRetryableAIUsageBinaryReplaceError(err error) bool {
 		errors.Is(err, windows.ERROR_SHARING_VIOLATION)
 }
 
-// preRemoveAIUsageExtension tears down the AI Usage native host before extension files are removed.
+// preRemoveEUDMExtension tears down the AI Usage native host before extension files are removed.
 // All steps are best effort so removal is not blocked.
-func preRemoveAIUsageExtension(ctx HookContext) error {
+func preRemoveEUDMExtension(ctx HookContext) error {
 	removeAIUsageScheduledTask(ctx.Context)
 	deleteAIUsageChromeRegistry()
 	stopAIUsageHostProcesses(ctx.Context)

@@ -112,9 +112,9 @@ pkg_install(
     target_compatible_with = _MACOS_OR_WINDOWS,
 )
 
-# Windows-only flat layout for the "ai-usage" fleet installer extension layer. The binary and
+# Windows-only flat layout for the "eudm" fleet installer extension layer. The binary and
 # example config are placed at the layer root, matching the paths that the extension hook expects
-# under ext/ai-usage/ (see pkg/fleet/installer/packages/datadog_agent_ai_usage_windows.go). The
+# under ext/eudm/ (see pkg/fleet/installer/packages/datadog_agent_eudm_windows.go). The
 # Chrome manifest and registry entries are created at install time by the extension hook, so only
 # the binary and example config ship in the layer.
 pkg_files(

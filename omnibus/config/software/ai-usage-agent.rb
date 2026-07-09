@@ -21,12 +21,12 @@ always_build true
 build do
   license :project_license
 
-  # The AI Usage Chrome native messaging host is a Rust binary built by Bazel. It ships as the
-  # "ai-usage" fleet installer extension layer (Windows only), so we stage the flat layout the
+  # The AI Usage Chrome native messaging host is a Rust binary built by Bazel. It ships inside the
+  # "eudm" fleet installer extension layer (Windows only), so we stage the flat layout the
   # extension hook expects — the binary and the example config at the install_dir root:
   #   <install_dir>/ai-usage-agent-native-host.exe
   #   <install_dir>/ai_usage_native_host.yaml.example
-  # (see pkg/fleet/installer/packages/datadog_agent_ai_usage_windows.go).
+  # (see pkg/fleet/installer/packages/datadog_agent_eudm_windows.go).
   if windows_target?
     command "bazel run -- //cmd/ai_prompt_logger:install-extension --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
   end

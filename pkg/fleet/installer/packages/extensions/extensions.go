@@ -456,7 +456,7 @@ func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (e
 
 // Restore restores the extensions after a package upgrade. Any extension name listed in
 // exclude is dropped from the restored set (e.g. an extension whose enabling condition is
-// no longer met, such as ai-usage when End User Device Monitoring has been disabled).
+// no longer met, such as eudm when End User Device Monitoring has been disabled).
 func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry, exclude ...string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.restore")
 	defer func() { span.Finish(err) }()

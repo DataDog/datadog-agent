@@ -157,8 +157,8 @@ windows_zip_ddot_x64:
   variables:
     OMNIBUS_TARGET: ddot
 
-# Like .windows_zip_base, but for omnibus targets whose build invokes Bazel (e.g. the ai-usage
-# Rust native host). Uses the Bazel-cache docker wrapper (as .windows_msi_base does) instead of a
+# Like .windows_zip_base, but for omnibus targets whose build invokes Bazel (e.g. the eudm
+# extension's ai-usage Rust native host). Uses the Bazel-cache docker wrapper (as .windows_msi_base does) instead of a
 # plain `docker run`, so `bazel run` has the cache/toolchain available inside the container.
 .windows_zip_bazel_base:
   stage: package_build
@@ -219,7 +219,7 @@ windows_zip_ddot_x64:
     paths:
       - omnibus/pkg/pipeline-$CI_PIPELINE_ID
 
-windows_zip_ai_usage_x64:
+windows_zip_eudm_x64:
   extends: .windows_zip_bazel_base
   variables:
-    OMNIBUS_TARGET: ai-usage
+    OMNIBUS_TARGET: eudm

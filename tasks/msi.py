@@ -37,7 +37,7 @@ BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
 DDOT_ARTIFACT_DIR = os.path.join('C:\\', 'opt', 'datadog-agent-ddot')
-AI_USAGE_ARTIFACT_DIR = os.path.join('C:\\', 'opt', 'datadog-agent-ai-usage')
+EUDM_ARTIFACT_DIR = os.path.join('C:\\', 'opt', 'datadog-agent-eudm')
 # Match to AgentInstaller.cs BinSource
 AGENT_BIN_SOURCE_DIR = os.path.join('C:\\', 'opt', 'datadog-agent', 'bin', 'agent')
 
@@ -661,10 +661,10 @@ def fetch_driver_msm(ctx, drivers=None):
     help={
         'ref': 'The name of the ref (branch, tag) to fetch the latest artifacts from',
         'ddot': 'Also download the DDOT zip artifact (default: False)',
-        'ai_usage': 'Also download the AI Usage extension zip artifact (default: False)',
+        'eudm': 'Also download the EUDM extension zip artifact (AI Usage host) (default: False)',
     },
 )
-def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: bool = False) -> None:
+def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, eudm: bool = False) -> None:
     """
     Initialize the build environment with artifacts from a ref (default: main)
 
@@ -672,7 +672,7 @@ def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: b
     dda inv msi.fetch-artifacts --ref main
     dda inv msi.fetch-artifacts --ref 7.66.x
     dda inv msi.fetch-artifacts --ref main --ddot
-    dda inv msi.fetch-artifacts --ref main --ai-usage
+    dda inv msi.fetch-artifacts --ref main --eudm
     """
     if ref is None:
         ref = 'main'
@@ -685,8 +685,8 @@ def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: b
         if ddot:
             download_latest_artifacts_for_ref(project, ref, tmp_dir, job='windows_zip_ddot_x64')
 
-        if ai_usage:
-            download_latest_artifacts_for_ref(project, ref, tmp_dir, job='windows_zip_ai_usage_x64')
+        if eudm:
+            download_latest_artifacts_for_ref(project, ref, tmp_dir, job='windows_zip_eudm_x64')
 
         tmp_dir_path = Path(tmp_dir)
 
@@ -694,11 +694,11 @@ def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: b
 
         # Recursively search for the zip files
         ddot_zips = list(tmp_dir_path.glob("**/datadog-agent-ddot-*x86_64.zip"))
-        ai_usage_zips = list(tmp_dir_path.glob("**/datadog-agent-ai-usage-*x86_64.zip"))
+        eudm_zips = list(tmp_dir_path.glob("**/datadog-agent-eudm-*x86_64.zip"))
         ddot_set = set(ddot_zips)
-        ai_usage_set = set(ai_usage_zips)
+        eudm_set = set(eudm_zips)
         agent_zips = [
-            z for z in tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip") if z not in ddot_set and z not in ai_usage_set
+            z for z in tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip") if z not in ddot_set and z not in eudm_set
         ]
         installer_zips = list(tmp_dir_path.glob("**/datadog-installer-*-x86_64.zip"))
 
@@ -706,8 +706,8 @@ def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: b
         print(f"Found {len(installer_zips)} installer zip files")
         if ddot:
             print(f"Found {len(ddot_zips)} DDOT zip files")
-        if ai_usage:
-            print(f"Found {len(ai_usage_zips)} AI Usage zip files")
+        if eudm:
+            print(f"Found {len(eudm_zips)} EUDM extension zip files")
 
         if not agent_zips and not installer_zips:
             print("No zip files found. Directory contents:")
@@ -741,11 +741,11 @@ def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False, ai_usage: b
                 with zipfile.ZipFile(zip_file, "r") as zip_ref:
                     zip_ref.extractall(dest)
 
-        # Extract AI Usage zips
-        if ai_usage_zips:
-            dest = Path(AI_USAGE_ARTIFACT_DIR)
+        # Extract EUDM extension zips
+        if eudm_zips:
+            dest = Path(EUDM_ARTIFACT_DIR)
             dest.mkdir(parents=True, exist_ok=True)
-            for zip_file in ai_usage_zips:
+            for zip_file in eudm_zips:
                 print(f"Extracting {zip_file} to {dest}")
                 with zipfile.ZipFile(zip_file, "r") as zip_ref:
                     zip_ref.extractall(dest)
@@ -804,8 +804,8 @@ def download_latest_artifacts_for_ref(
         'source_type': "Source type - 'msi' or 'zip' (default: msi)",
         'ddot': 'Include the DDOT extension layer (auto-detected from fetch-artifacts --ddot)',
         'ddot_path': 'Explicit path to the extracted DDOT artifact directory (overrides auto-detect)',
-        'ai_usage': 'Include the AI Usage extension layer (auto-detected from fetch-artifacts --ai-usage)',
-        'ai_usage_path': 'Explicit path to the extracted AI Usage artifact directory (overrides auto-detect)',
+        'eudm': 'Include the EUDM extension layer, AI Usage host (auto-detected from fetch-artifacts --eudm)',
+        'eudm_path': 'Explicit path to the extracted EUDM extension artifact directory (overrides auto-detect)',
     },
 )
 def package_oci(
@@ -815,8 +815,8 @@ def package_oci(
     source_type="msi",
     ddot=False,
     ddot_path=None,
-    ai_usage=False,
-    ai_usage_path=None,
+    eudm=False,
+    eudm_path=None,
 ):
     """
     Create an OCI package from an MSI installer.
@@ -825,14 +825,14 @@ def package_oci(
     auto-detected from the directory populated by fetch-artifacts --ddot.
     Use --ddot-path to override with an explicit directory.
 
-    Use --ai-usage (or --ai-usage-path) to include the AI Usage extension layer,
+    Use --eudm (or --eudm-path) to include the EUDM extension layer (AI Usage host),
     analogous to --ddot.
 
     Example:
         dda inv msi.package-oci
         dda inv msi.package-oci --ddot
         dda inv msi.package-oci --ddot-path C:\\path\\to\\extracted-ddot
-        dda inv msi.package-oci --ai-usage
+        dda inv msi.package-oci --eudm
 
     Requires:
         datadog-package: Install from https://github.com/DataDog/datadog-package
@@ -918,22 +918,22 @@ def package_oci(
         ddot_ext_dir = str(ddot_dir)
         print(f"Auto-detected DDOT directory: {ddot_ext_dir}")
 
-    # Resolve AI Usage extension directory
-    ai_usage_ext_dir = None
-    if ai_usage_path is not None:
-        if not os.path.isdir(ai_usage_path):
-            print(f"AI Usage directory not found: {ai_usage_path}")
+    # Resolve EUDM extension directory
+    eudm_ext_dir = None
+    if eudm_path is not None:
+        if not os.path.isdir(eudm_path):
+            print(f"EUDM extension directory not found: {eudm_path}")
             raise Exit(code=1)
-        ai_usage_ext_dir = ai_usage_path
-        print(f"Using AI Usage directory: {ai_usage_ext_dir}")
-    elif ai_usage:
-        ai_usage_dir = Path(AI_USAGE_ARTIFACT_DIR)
-        if not ai_usage_dir.exists() or not any(ai_usage_dir.iterdir()):
-            print(f"No AI Usage artifacts found in {ai_usage_dir}")
-            print("Run 'dda inv msi.fetch-artifacts --ai-usage' first, or provide --ai-usage-path.")
+        eudm_ext_dir = eudm_path
+        print(f"Using EUDM extension directory: {eudm_ext_dir}")
+    elif eudm:
+        eudm_dir = Path(EUDM_ARTIFACT_DIR)
+        if not eudm_dir.exists() or not any(eudm_dir.iterdir()):
+            print(f"No EUDM extension artifacts found in {eudm_dir}")
+            print("Run 'dda inv msi.fetch-artifacts --eudm' first, or provide --eudm-path.")
             raise Exit(code=1)
-        ai_usage_ext_dir = str(ai_usage_dir)
-        print(f"Auto-detected AI Usage directory: {ai_usage_ext_dir}")
+        eudm_ext_dir = str(eudm_dir)
+        print(f"Auto-detected EUDM extension directory: {eudm_ext_dir}")
 
     installer_bin_path = 'C:\\opt\\datadog-installer\\datadog-installer.exe'
     if os.path.exists(installer_bin_path):
@@ -968,8 +968,8 @@ def package_oci(
 
         if ddot_ext_dir:
             extra_flags += f' --extension ddot={ddot_ext_dir}'
-        if ai_usage_ext_dir:
-            extra_flags += f' --extension ai-usage={ai_usage_ext_dir}'
+        if eudm_ext_dir:
+            extra_flags += f' --extension eudm={eudm_ext_dir}'
         if installer_bin_path:
             extra_flags += f' --installer {installer_bin_path}'
 

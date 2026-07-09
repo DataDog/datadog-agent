@@ -295,10 +295,10 @@ build do
   end
 
   # Note: on Windows the AI Usage Chrome native messaging host is no longer staged into the MSI
-  # payload. It ships as the "ai-usage" fleet installer extension layer, built via
-  # //cmd/ai_prompt_logger:install-extension and attached to the datadog-agent OCI image with
-  # `datadog-package create --extension ai-usage=<dir>` (see the ai_usage_win_zip CI job and
-  # tasks/msi.py). It is installed at runtime only when EUDM is enabled.
+  # payload. It ships inside the "eudm" (End User Device Monitoring) fleet installer extension
+  # layer, built via //cmd/ai_prompt_logger:install-extension and attached to the datadog-agent
+  # OCI image with `datadog-package create --extension eudm=<dir>` (see the windows_zip_eudm_x64
+  # CI job and tasks/msi.py). It is installed at runtime only when EUDM is enabled.
 
   # APM Hands Off config file
   if linux_target?
