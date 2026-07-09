@@ -28,10 +28,11 @@ func TestCommand(t *testing.T) {
 	client := MustConnect(t, srv)
 
 	for _, tc := range []struct {
-		name      string
-		cmd       *profile.PlainCommand
-		expected  string
-		expectErr bool
+		name         string
+		cmd          *profile.PlainCommand
+		expected     string
+		expectCmdErr bool
+		expectVdErr  bool
 	}{{
 		name: "unchecked_command",
 		cmd: &profile.PlainCommand{
@@ -56,7 +57,7 @@ func TestCommand(t *testing.T) {
 				Require: []*regexp.Regexp{regexp.MustCompile("Realco")},
 			},
 		},
-		expectErr: true,
+		expectVdErr: true,
 	}, {
 		name: "has_rejection",
 		cmd: &profile.PlainCommand{
@@ -65,7 +66,7 @@ func TestCommand(t *testing.T) {
 				Reject: []*regexp.Regexp{regexp.MustCompile("Fakesco")},
 			},
 		},
-		expectErr: true,
+		expectVdErr: true,
 	}, {
 		name: "command_fails",
 		cmd: &profile.PlainCommand{
@@ -75,15 +76,20 @@ func TestCommand(t *testing.T) {
 				Reject:  []*regexp.Regexp{regexp.MustCompile("Realco")},
 			},
 		},
-		expectErr: true,
+		expectCmdErr: true,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := ExecuteCommand(context.Background(), client, tc.cmd)
-			if tc.expectErr {
+			if tc.expectCmdErr || tc.expectVdErr {
 				assert.Error(t, err)
+				if tc.expectCmdErr {
+					assert.Error(t, result.Error)
+				} else {
+					assert.Error(t, result.ValidationError)
+				}
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.expected, string(result))
+				assert.Equal(t, tc.expected, result.Output)
 			}
 		})
 	}
@@ -168,7 +174,7 @@ func TestSCPCommand(t *testing.T) {
 				assert.ErrorContains(t, err, tc.expectErr)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.expected, response)
+				assert.Equal(t, tc.expected, response.Output)
 			}
 		})
 	}

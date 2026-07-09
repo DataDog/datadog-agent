@@ -20,9 +20,9 @@ type Connector interface {
 // Connection is an active connection that can fetch data from a device
 type Connection interface {
 	SetProfile(p *profile.NCMProfile)
-	RetrieveRunningConfig(ctx context.Context) ([]byte, error)
-	RetrieveStartupConfig(ctx context.Context) ([]byte, error)
+	RetrieveRunningConfig(ctx context.Context) (*CommandResult, error)
+	RetrieveStartupConfig(ctx context.Context) (*CommandResult, error)
 	Verify(ctx context.Context) error
-	PushConfig(ctx context.Context, config string) error
+	PushConfig(ctx context.Context, config string) ([]*CommandResult, error)
 	Close() error
 }
