@@ -7,7 +7,7 @@ This module contains tasks that automatically update the Kubernetes versions use
 The automation runs twice daily (6am and 6pm UTC) via GitHub Actions and:
 1. Fetches the latest Kubernetes version from Docker Hub's `kindest/node` repository
 2. Extracts the index digest for the version
-3. Updates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml` if a new version is available
+3. Updates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e_containers.yml` if a new version is available
 4. Creates a pull request with the change
 
 **Note:** This automation maintains two separate test configurations:
@@ -39,7 +39,7 @@ dda inv k8s-versions.fetch-versions
 - `new_versions`: JSON object with the new version data
 
 ### `k8s-versions.update-e2e-yaml`
-Updates the e2e.yml file with the new Kubernetes version.
+Updates the e2e_containers.yml file with the new Kubernetes version.
 
 **What it does:**
 - Reads the stored versions from `k8s_versions.json`
@@ -87,14 +87,14 @@ pip install requests pyyaml
 # Fetch latest versions
 dda inv k8s-versions.fetch-versions
 
-# Update e2e.yml (will add versions found above)
+# Update e2e_containers.yml (will add versions found above)
 dda inv k8s-versions.update-e2e-yaml
 
 # Check the diff
-git diff .gitlab/test/e2e/e2e.yml
+git diff .gitlab/test/e2e/e2e_containers.yml
 
 # Restore the file when done testing
-git checkout .gitlab/test/e2e/e2e.yml
+git checkout .gitlab/test/e2e/e2e_containers.yml
 ```
 
 ## How It Works
@@ -114,7 +114,7 @@ The task extracts the **index digest** (not the image digest) for the latest ver
 
 ### YAML Update Strategy
 The task:
-1. Locates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml`
+1. Locates the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e_containers.yml`
 2. Compares the desired latest version with current version in the k8s-latest job
 3. If different, updates the k8s-latest job with the new version
 4. **Never modifies** the `new-e2e-containers` matrix
@@ -178,4 +178,4 @@ version_tags = [
 
 - [Kind Node Images](https://hub.docker.com/r/kindest/node/tags)
 - [Docker Hub API](https://docs.docker.com/docker-hub/api/latest/)
-- [GitLab CI E2E Tests](.gitlab/test/e2e/e2e.yml)
+- [GitLab CI E2E Container Tests](.gitlab/test/e2e/e2e_containers.yml)

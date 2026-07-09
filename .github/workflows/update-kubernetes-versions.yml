@@ -139,7 +139,7 @@ jobs:
         if: steps.fetch-versions.outputs.has_new_versions == 'true'
         run: dda inv k8s-versions.update-kind-versions-file
 
-      - name: Update e2e.yml with new version
+      - name: Update e2e_containers.yml with new version
         id: update-yaml
         if: steps.fetch-versions.outputs.has_new_versions == 'true'
         run: |
@@ -156,7 +156,7 @@ jobs:
           title: "[automated] Update Kubernetes latest version in e2e tests"
           body: |
             ### What does this PR do?
-            Updates the Kubernetes version used by the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml` to the latest stable release from `kindest/node`.
+            Updates the Kubernetes version used by the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e_containers.yml` to the latest stable release from `kindest/node`.
 
             ### Motivation
             Keep e2e tests running against the latest Kubernetes version to ensure compatibility.

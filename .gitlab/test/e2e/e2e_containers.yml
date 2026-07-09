@@ -1,0 +1,181 @@
+---
+# e2e stage - container-integrations owned jobs
+# Owned by: container-integrations, agent-devx
+
+.on_container_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/core/tagger/**/*
+        - comp/core/workloadmeta/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
+        - comp/forwarder/defaultforwarder/**/*
+        - comp/serializer/**/*
+        - pkg/aggregator/*/**
+        - comp/languagedetection/**/*
+        - pkg/clusteragent/admission/mutate/**/*
+        - pkg/clusteragent/languagedetection/**/*
+        - pkg/collector/corechecks/cluster/**/*
+        - pkg/collector/corechecks/containers/**/*
+        - pkg/collector/corechecks/containerimage/**/*
+        - pkg/collector/corechecks/containerlifecycle/**/*
+        - pkg/collector/corechecks/sbom/**/*
+        - pkg/sbom/**/*
+        - pkg/util/clusteragent/**/*
+        - pkg/util/containerd/**/*
+        - pkg/util/containers/**/*
+        - pkg/util/docker/**/*
+        - pkg/util/ecs/**/*
+        - pkg/util/kubernetes/**/*
+        - pkg/util/cgroups/**/*
+        - pkg/util/trivy/**/*
+        - test/new-e2e/tests/containers/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-containers-ecs:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run TestECSSuite
+
+new-e2e-containers:
+  extends:
+    - .new_e2e_template_needs_container_deploy_linux
+  # TODO once images are deployed to ECR for dev branches, update
+  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
+  # and move rules to template
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      # Temporarily disable old version of Kubernetes
+      # On this version, the reported kubernetes CPU usage appears to be significantly off
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
+      - EXTRA_PARAMS: --run TestDockerSuite
+      - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+
+new-e2e-containers-k8s-latest:
+  extends:
+    - .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
+
+new-e2e-containers-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - new-e2e-containers-eks-init
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+# TODO: Re-enable when openshift test infrastructure is stable
+new-e2e-containers-openshift-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - when: never # Skip: openshift test is broken
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+# TODO: Re-enable when openshift test infrastructure is stable
+new-e2e-containers-openshift:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - when: never # Skip: openshift test is broken
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
+    - new-e2e-containers-openshift-init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]

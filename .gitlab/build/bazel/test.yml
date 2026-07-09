@@ -1,6 +1,3 @@
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .bazel:test:
   stage: source_test
   rules:

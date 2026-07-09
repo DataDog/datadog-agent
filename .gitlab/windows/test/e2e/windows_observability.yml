@@ -1,0 +1,92 @@
+---
+# Windows e2e observability and security jobs.
+
+new-e2e-npm-packages-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "TestEC2VMWKitSuite"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-netpath-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-alp-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --run "Windows"
+  # Temporary for #incident-44744
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-cws-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+    EXTRA_PARAMS: --run "Windows"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-process-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --run "Windows"
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-windows-usm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/usm
+    TEAM: universal-service-monitoring
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestWindowsUSMSuite

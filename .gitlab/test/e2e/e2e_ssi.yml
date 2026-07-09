@@ -1,0 +1,185 @@
+---
+# e2e stage - injection-platform owned jobs
+# Owned by: injection-platform, agent-devx
+
+.on_ssi_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
+        - pkg/clusteragent/admission/mutate/common/**/*
+        - pkg/clusteragent/admission/mutate/config/**/*
+        - pkg/clusteragent/admission/mutate/tagsfromlabels/**/*
+        - pkg/clusteragent/admission/common/**/*
+        - pkg/clusteragent/admission/controllers/webhook/**/*
+        - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
+        - comp/languagedetection/**/*
+        - pkg/ssi/**/*
+        - test/new-e2e/tests/ssi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+.new-e2e_ssi:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
+
+.new-e2e_ssi_extra_distribution_init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+.new-e2e_ssi_extra_distribution:
+  extends: .new-e2e_ssi
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+
+new-e2e-ssi-kind:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: kind
+    E2E_STACK_NAME_SUFFIX: kind
+    # TestInjectionMode includes the image_volume injection mode, which requires image volume
+    # SubPath support. Kind's kindest/node:v1.34 ships with a containerd version that lacks this,
+    # so we run this suite on v1.35 where it works out of the box.
+    EXTRA_PARAMS: "-c ddinfra:kubernetesVersion=1.35"
+
+new-e2e-ssi-eks-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: eks
+    E2E_STACK_NAME_SUFFIX: eks
+
+new-e2e-ssi-eks:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-eks-init
+  variables:
+    E2E_PROVISIONER: eks
+    E2E_STACK_NAME_SUFFIX: eks
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on EKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+
+new-e2e-ssi-gke-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke
+    E2E_STACK_NAME_SUFFIX: gke
+
+new-e2e-ssi-gke:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-init
+  variables:
+    E2E_PROVISIONER: gke
+    E2E_STACK_NAME_SUFFIX: gke
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-ssi-gke-autopilot-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+
+new-e2e-ssi-gke-autopilot:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-autopilot-init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+  allow_failure: true
+
+new-e2e-ssi-openshift-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    E2E_PROVISIONER: openshift
+    E2E_STACK_NAME_SUFFIX: openshift
+    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+
+new-e2e-ssi-openshift:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-openshift-init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    E2E_PROVISIONER: openshift
+    E2E_STACK_NAME_SUFFIX: openshift
+    E2E_PRE_INITIALIZED: "true"
+    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-ssi-aks:
+  extends: .new-e2e_ssi_extra_distribution
+  variables:
+    E2E_PROVISIONER: aks
+    E2E_STACK_NAME_SUFFIX: aks
+    # Image volume is not supported on AKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+
+new-e2e-ssi-gradual-rollout:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi-gradual-rollout/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ssi-gradual-rollout
+    TEAM: apm-release-platform
