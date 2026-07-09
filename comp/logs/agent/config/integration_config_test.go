@@ -637,3 +637,61 @@ func TestValidateIPFilter(t *testing.T) {
 		assert.Nil(t, err)
 	})
 }
+
+func TestIsAttributeParsingEnabled(t *testing.T) {
+	remapRule := &ProcessingRule{
+		Type: RemapSource,
+		Name: "remap",
+		Matching: []*SourceMatchEntry{
+			{Attribute: "syslog.appname", Value: "nginx", NewSource: "nginx"},
+		},
+	}
+	otherRule := &ProcessingRule{Type: ExcludeAtMatch, Name: "ex", Pattern: ".*"}
+
+	t.Run("explicit true wins", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		enabled := true
+		c := &LogsConfig{AttributeParsing: &enabled}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("explicit false overrides remap rule", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		disabled := false
+		c := &LogsConfig{AttributeParsing: &disabled, ProcessingRules: []*ProcessingRule{remapRule}}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil auto-enables with per-source remap_source", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{ProcessingRules: []*ProcessingRule{remapRule}}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with non-remap per-source rule stays off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{ProcessingRules: []*ProcessingRule{otherRule}}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil auto-enables with global remap_source", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetInTest("logs_config.processing_rules", []map[string]any{
+			{
+				"type": "remap_source",
+				"name": "global-remap",
+				"matching": []map[string]any{
+					{"attribute": "syslog.appname", "value": "nginx", "new_source": "nginx"},
+				},
+			},
+		})
+		c := &LogsConfig{}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with no rules defaults off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+}

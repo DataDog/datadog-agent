@@ -858,3 +858,110 @@ func BenchmarkParseBSDLine(b *testing.B) {
 		ParseBSDLine(input) //nolint:errcheck
 	}
 }
+
+// ---------------------------------------------------------------------------
+// BSD 20-byte "with-year" TIMESTAMP variant: "Mmm DD YYYY HH:MM:SS"
+// ---------------------------------------------------------------------------
+
+func TestParse_BSD_TimestampWithYear(t *testing.T) {
+	// Some network appliances insert a 4-digit year between the day and time.
+	// The 20-byte variant must be accepted, with HOSTNAME and TAG still parsed.
+	msg, err := Parse([]byte(`<13>May 04 2026 21:09:42 myhost myapp: hello world`))
+	require.NoError(t, err)
+	assert.False(t, msg.Partial)
+	assert.Equal(t, "May 04 2026 21:09:42", msg.Timestamp)
+	assert.Equal(t, "myhost", msg.Hostname)
+	assert.Equal(t, "myapp", msg.AppName)
+	assert.Equal(t, "hello world", string(msg.Msg))
+}
+
+func TestParse_BSD_TimestampWithYear_Malformed(t *testing.T) {
+	// A 20-byte-shaped prefix that fails structural validation is not a valid
+	// timestamp. With a valid PRI, RFC 3164 §4.3.2 applies and the whole
+	// remainder becomes MSG CONTENT (no error, not partial).
+	msg, err := Parse([]byte(`<13>May 04 2026-21:09:42 myhost data`))
+	require.NoError(t, err)
+	assert.False(t, msg.Partial)
+	assert.Equal(t, nilvalue, msg.Timestamp)
+	assert.Equal(t, "May 04 2026-21:09:42 myhost data", string(msg.Msg))
+}
+
+func TestIsValidBSDTimestampWithYear(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"valid", "May 04 2026 21:09:42", true},
+		{"valid december", "Dec 31 1999 00:00:00", true},
+		{"too short", "May 04 2026 21:09:4", false},
+		{"bad month", "Foo 04 2026 21:09:42", false},
+		{"missing space after day", "May 04X2026 21:09:42", false},
+		{"missing space after year", "May 04 2026-21:09:42", false},
+		{"non-digit year", "May 04 20X6 21:09:42", false},
+		{"bad first colon", "May 04 2026 21-09:42", false},
+		{"bad second colon", "May 04 2026 21:09-42", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isValidBSDTimestampWithYear([]byte(tt.in)))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BSD "double-header": ISO 8601 timestamp in the TAG position
+// ---------------------------------------------------------------------------
+
+func TestParse_BSD_DoubleHeaderISO(t *testing.T) {
+	// Cisco FTD and similar devices embed a second, ISO 8601 timestamp after
+	// the BSD hostname. No real TAG is present; the whole remainder is MSG.
+	msg, err := Parse([]byte(`<134>May  5 14:55:43 fw01 2026-07-09T14:55:43Z realhost %ASA-6-302013: Built connection`))
+	require.NoError(t, err)
+	assert.Equal(t, "May  5 14:55:43", msg.Timestamp)
+	assert.Equal(t, "fw01", msg.Hostname)
+	assert.Equal(t, nilvalue, msg.AppName, "ISO timestamp must not be parsed as a TAG")
+	assert.Equal(t, "2026-07-09T14:55:43Z realhost %ASA-6-302013: Built connection", string(msg.Msg))
+}
+
+func TestLooksLikeISOTimestamp(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"iso datetime", "2026-07-09T14:55:43Z rest", true},
+		{"iso date minimal", "2026-", true},
+		{"too short", "2026", false},
+		{"not a year", "20a6-07-09", false},
+		{"no dash", "20260709T00", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, looksLikeISOTimestamp([]byte(tt.in)))
+		})
+	}
+}
+
+func TestParse_BSD_ImplausibleTag_NoDelimiter(t *testing.T) {
+	// After a valid BSD timestamp and hostname, a delimiter-free remainder that
+	// is not a plausible program name must stay in MSG rather than becoming the
+	// AppName (e.g. a bare year or a CSV fragment).
+	tests := []struct {
+		name string
+		in   string
+		msg  string
+	}{
+		{"all-digit fragment", "<13>Feb 13 20:07:26 myhost 2026", "2026"},
+		{"csv fragment", "<13>Feb 13 20:07:26 myhost 1,2,3", "1,2,3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, err := Parse([]byte(tt.in))
+			require.NoError(t, err)
+			assert.Equal(t, "myhost", msg.Hostname)
+			assert.Equal(t, nilvalue, msg.AppName)
+			assert.Equal(t, tt.msg, string(msg.Msg))
+		})
+	}
+}

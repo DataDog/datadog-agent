@@ -748,3 +748,26 @@ func BenchmarkRender(b *testing.B) {
 		})
 	}
 }
+
+func TestGetAttribute_EmptyFieldsNotFound(t *testing.T) {
+	// Empty syslog string fields (and absent severity/facility encoded as -1)
+	// must be reported as absent, not present-but-empty, so downstream
+	// remapping does not match on hollow values.
+	sc := &SyslogStructuredContent{
+		syslog: SyslogFields{Severity: -1, Facility: -1},
+	}
+	for _, path := range []string{
+		"syslog.timestamp",
+		"syslog.hostname",
+		"syslog.appname",
+		"syslog.procid",
+		"syslog.msgid",
+		"syslog.version",
+		"syslog.severity",
+		"syslog.facility",
+	} {
+		val, ok := sc.GetAttribute(path)
+		assert.False(t, ok, "%s should be absent when empty", path)
+		assert.Equal(t, "", val, "%s should return empty string when absent", path)
+	}
+}
