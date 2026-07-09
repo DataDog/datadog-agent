@@ -178,7 +178,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/components/datadog/apps/sbomtargets
 # gazelle:exclude test/e2e-framework/components/datadog/apps/singlestep
 # gazelle:exclude test/e2e-framework/components/datadog/apps/tracegen
-# gazelle:exclude test/e2e-framework/components/datadog/csi-driver
 # gazelle:exclude test/e2e-framework/components/datadog/dogstatsd-standalone
 # gazelle:exclude test/e2e-framework/components/datadog/operator
 # gazelle:exclude test/e2e-framework/components/datadog/otel-standalone
