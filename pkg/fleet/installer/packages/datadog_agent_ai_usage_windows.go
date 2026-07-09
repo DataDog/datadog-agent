@@ -147,6 +147,11 @@ func postInstallAIUsageExtension(ctx HookContext) error {
 	if _, err := os.Stat(configPath); err == nil {
 		grantAIUsageUsersAccess(ctx.Context, configPath, "(R)")
 	}
+	// Also lay down the editable sample config next to the active one (mirrors what the MSI used
+	// to install at C:\ProgramData\Datadog\ai_usage_native_host.yaml.example). Best effort.
+	if err := copyAIUsageFile(examplePath, configPath+".example", 0o644); err != nil {
+		log.Warnf("AI Usage: failed to copy example config to %q: %v", configPath+".example", err)
+	}
 
 	// 3) Write the Chrome host manifest JSON next to the binary (bin\agent\dist), pointing at the
 	// copied binary. Program Files inheritance makes it user-readable.
@@ -386,7 +391,7 @@ func stopAIUsageHostProcess(pid uint32) error {
 	if err != nil {
 		return err
 	}
-	if wait == windows.WAIT_TIMEOUT {
+	if wait == uint32(windows.WAIT_TIMEOUT) {
 		return fmt.Errorf("timed out waiting for process exit")
 	}
 	return nil

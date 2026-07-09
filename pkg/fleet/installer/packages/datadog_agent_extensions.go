@@ -209,7 +209,16 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 
-	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks, overrides)
+	// Honor End User Device Monitoring being disabled: the ai-usage extension is EUDM-gated in
+	// installAgentExtensions, but restore replays whatever was previously saved. If a host had
+	// ai-usage installed and then switched infrastructure_mode away from end_user_device (or
+	// reinstalled with EUDM off), exclude ai-usage from restore so it is not silently brought back.
+	var exclude []string
+	if runtime.GOOS == "windows" && !isEndUserDeviceMode(env) {
+		exclude = append(exclude, "ai-usage")
+	}
+
+	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks, overrides, exclude...)
 }
 
 // installAgentExtensions installs the given extensions for the agent package.

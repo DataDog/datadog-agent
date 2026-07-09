@@ -454,8 +454,10 @@ func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (e
 	return nil
 }
 
-// Restore restores the extensions after a package upgrade
-func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry) (err error) {
+// Restore restores the extensions after a package upgrade. Any extension name listed in
+// exclude is dropped from the restored set (e.g. an extension whose enabling condition is
+// no longer met, such as ai-usage when End User Device Monitoring has been disabled).
+func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry, exclude ...string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.restore")
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)
@@ -473,6 +475,23 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 		return nil // No extensions to restore
 	}
 	extensionsList := strings.Split(content, "\n")
+	if len(exclude) > 0 {
+		excluded := make(map[string]struct{}, len(exclude))
+		for _, e := range exclude {
+			excluded[e] = struct{}{}
+		}
+		filtered := extensionsList[:0]
+		for _, ext := range extensionsList {
+			if _, skip := excluded[ext]; skip {
+				continue
+			}
+			filtered = append(filtered, ext)
+		}
+		extensionsList = filtered
+	}
+	if len(extensionsList) == 0 {
+		return nil // Nothing left to restore after filtering
+	}
 	span.SetTag("extensions", strings.Join(extensionsList, ","))
 
 	err = Install(ctx, downloader, downloadURL, extensionsList, isExperiment, hooks, overrides)
