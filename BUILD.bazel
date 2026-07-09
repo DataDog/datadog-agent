@@ -168,7 +168,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
-# gazelle:exclude test/e2e-framework/components/datadog/apps/aspnetsample
 # gazelle:exclude test/e2e-framework/components/datadog/apps/cpustress
 # gazelle:exclude test/e2e-framework/components/datadog/apps/dogstatsd
 # gazelle:exclude test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller
