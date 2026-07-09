@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "id": "datasecurity",
+      "crate": "datasecurity",
+      "default": true,
+      "platforms": ["linux", "darwin"]
+    },
+    {
+      "id": "example",
+      "crate": "example",
+      "default": false,
+      "platforms": ["linux", "darwin"]
+    }
+  ]
+}
+

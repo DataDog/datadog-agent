@@ -1,0 +1,23 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "sds_proto",
+    srcs = ["sds_result.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "sds_go_proto",
+    importpath = "pkg/proto/pbgo/sds",
+    proto = ":sds_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "sds",
+    embed = [":sds_go_proto"],
+    importpath = "pkg/proto/pbgo/sds",
+    visibility = ["//visibility:public"],
+)

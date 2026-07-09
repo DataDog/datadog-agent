@@ -1048,6 +1048,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
+	// Data security component (Remote-Config-driven sensitive data scanning)
+	config.BindEnvAndSetDefault("data_security.enabled", false)
+	// Sensitive Data Scanner results forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
+
 	// Data Observability
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
