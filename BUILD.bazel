@@ -166,8 +166,6 @@ exports_files(["go.mod"])
 # trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
-# gazelle:exclude test/files
-# gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
@@ -225,9 +223,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/tests/windows/scripts
 # gazelle:exclude test/new-e2e/tests/windows/service-test
 # gazelle:exclude test/new-e2e/tests/windows/windows-certificate
-# gazelle:exclude test/regression
-# gazelle:exclude test/required_files
-# gazelle:exclude test/static
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor
