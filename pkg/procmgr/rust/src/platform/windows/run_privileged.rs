@@ -11,7 +11,8 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+    CloseHandle, ERROR_BROKEN_PIPE, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
+    SetHandleInformation,
 };
 use windows_sys::Win32::Security::{
     DuplicateTokenEx, SECURITY_ATTRIBUTES, SecurityDelegation, TOKEN_DUPLICATE, TOKEN_QUERY,
@@ -304,7 +305,11 @@ impl AnonymousPipe {
                 )
             };
             if ok == 0 {
-                bail!("ReadFile failed: {}", std::io::Error::last_os_error());
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) {
+                    break;
+                }
+                bail!("ReadFile failed: {err}");
             }
             if nbytes == 0 {
                 break;
