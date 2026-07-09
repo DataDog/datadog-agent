@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
@@ -105,24 +106,98 @@ func TestSourceFromAttrs(t *testing.T) {
 			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: "example-task-ARN"}},
 		},
 		{
-			name: "Azure Container Apps (semconv v1.35.0 or later)",
+			name: "Azure Container Apps (semconv v1.40.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
-				"azure.container_app.instance.id":    "replica-1",
+				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):  conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:  "replica-1",
+				string(conventions.ServiceNameKey):    "my-app",
+				string(semconv1_27.CloudAccountIDKey): "sub-123",
+				AttributeAzureResourceGroupName:       "my-rg",
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
 		},
 		{
-			name: "Azure Container Apps (legacy)",
+			name: "Azure Container Apps (legacy platform value)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey): "azure_container_apps",
-				"azure.container_app.instance.id":    "replica-1",
+				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):  "azure_container_apps",
+				AttributeAzureContainerAppInstanceID:  "replica-1",
+				string(conventions.ServiceNameKey):    "my-app",
+				string(semconv1_27.CloudAccountIDKey): "sub-123",
+				AttributeAzureResourceGroupName:       "my-rg",
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: "replica-1"}},
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps (name, subscription_id, resource_group all from cloud.resource_id fallback)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):   conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:   "replica-1",
+				string(semconv1_27.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			}),
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps (resource_group from cloud.resource_id, name and subscription_id from primary attrs take precedence)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):   conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:   "replica-1",
+				string(conventions.ServiceNameKey):     "my-app",
+				string(semconv1_27.CloudAccountIDKey):  "sub-123",
+				string(semconv1_27.CloudResourceIDKey): "/subscriptions/sub-999/resourceGroups/my-rg/providers/Microsoft.App/containerApps/other-name",
+			}),
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"replica_name":    "replica-1",
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
 		},
 		{
 			name: "GCP",
