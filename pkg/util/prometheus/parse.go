@@ -10,6 +10,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -24,16 +25,24 @@ type Metric map[string]string
 
 // Sample represents a single metric data point.
 type Sample struct {
-	Metric    Metric
-	Value     float64
-	Timestamp int64 // milliseconds since epoch, 0 if not set
+	Metric    Metric  `json:"labels"`
+	Value     float64 `json:"value"`
+	Timestamp int64   `json:"timestamp"` // milliseconds since epoch, 0 if not set
 }
 
 // MetricFamily represents a metric family that is returned by a prometheus endpoint.
 type MetricFamily struct {
-	Name    string
-	Type    string
-	Samples []Sample
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Samples []Sample `json:"samples"`
+}
+
+// trimCounterSuffix removes the OpenMetrics counter suffix (_total).
+func trimCounterSuffix(name string) string {
+	if trimmed, ok := strings.CutSuffix(name, "_total"); ok {
+		return trimmed
+	}
+	return name
 }
 
 // trimHistogramSuffix removes histogram-specific suffixes (_bucket, _sum, _count).
@@ -78,12 +87,18 @@ func preprocessData(data []byte, filter []string) []byte {
 }
 
 // ParseMetricsWithFilter parses prometheus-formatted metrics from the input data, ignoring lines which contain
-// text that matches the passed in filter.
-func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error) {
+// text that matches the passed in filter. The contentType selects the parser: "application/openmetrics-text"
+// uses the OpenMetrics parser, anything else uses the Prometheus text parser.
+func ParseMetricsWithFilter(data []byte, filter []string, contentType string) ([]MetricFamily, error) {
 	data = preprocessData(data, filter)
 
 	st := labels.NewSymbolTable()
-	parser := textparse.NewPromParser(data, st, false)
+	var parser textparse.Parser
+	if strings.HasPrefix(contentType, "application/openmetrics-text") {
+		parser = textparse.NewOpenMetricsParser(data, st)
+	} else {
+		parser = textparse.NewPromParser(data, st, false)
+	}
 
 	var result []MetricFamily
 	var lbls labels.Labels
@@ -122,6 +137,8 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 				name := rawName
 				if len(result) > 0 {
 					switch result[len(result)-1].Type {
+					case "COUNTER":
+						name = trimCounterSuffix(rawName)
 					case "HISTOGRAM":
 						name = trimHistogramSuffix(rawName)
 					case "SUMMARY":
@@ -172,5 +189,19 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
 func ParseMetrics(data []byte) ([]MetricFamily, error) {
-	return ParseMetricsWithFilter(data, nil)
+	return ParseMetricsWithFilter(data, nil, "")
+}
+
+// ParseMetricsToJSON parses prometheus-formatted metrics and returns the result as a JSON string.
+// This is used by the Python check bridge to avoid Python-side parsing overhead.
+func ParseMetricsToJSON(data []byte, contentType string) (string, error) {
+	families, err := ParseMetricsWithFilter(data, nil, contentType)
+	if err != nil {
+		return "", err
+	}
+	out, err := json.Marshal(families)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }

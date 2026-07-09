@@ -227,10 +227,10 @@ func (suite *ProviderTestSuite) TestPrometheusFiltering() {
 				suite.T().Fatalf("error created kubelet mock: %v", err)
 			}
 
-			prometheus.ParseMetricsWithFilterFunc = func(data []byte, filter []string) ([]prom.MetricFamily, error) {
+			prometheus.ParseMetricsWithFilterFunc = func(data []byte, filter []string, contentType string) ([]prom.MetricFamily, error) {
 				// We are going to intercept the parsed prometheus metric family data to determine if the configured provider
 				// has the expected text blacklist settings by default, and that this functionality still works
-				metrics, err := prom.ParseMetricsWithFilter(data, filter)
+				metrics, err := prom.ParseMetricsWithFilter(data, filter, contentType)
 				var found bool
 				for _, metric := range metrics {
 					if metric.Name == "container_cpu_usage_seconds_total" {

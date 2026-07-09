@@ -27,6 +27,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	promutil "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -668,6 +669,20 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
 	}
+}
+
+// ParsePrometheusMetrics parses Prometheus/OpenMetrics text format using the Go parser
+// and returns the result as a JSON string.
+//
+//export ParsePrometheusMetrics
+func ParsePrometheusMetrics(rawText *C.char, contentType *C.char, errResult **C.char) *C.char {
+	data := []byte(C.GoString(rawText))
+	jsonResult, err := promutil.ParseMetricsToJSON(data, C.GoString(contentType))
+	if err != nil {
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	return TrackedCString(jsonResult)
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
