@@ -67,13 +67,13 @@ func execute(logConfig *serverlessLog.Config, args []string, hooks *ProcessHooks
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	if hooks != nil && hooks.OnAlive != nil {
-		hooks.OnAlive()
+	if hooks != nil && hooks.OnDead != nil {
 		// Defer OnDead so it fires even on panic / runtime.Goexit. The
 		// child process is no longer being supervised once we leave this frame.
-		if hooks.OnDead != nil {
-			defer hooks.OnDead()
-		}
+		defer hooks.OnDead()
+	}
+	if hooks != nil && hooks.OnAlive != nil {
+		hooks.OnAlive()
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
