@@ -193,7 +193,7 @@ func TestStopDrainsThroughWrappedDemux(t *testing.T) {
 // TestShutdownCascadeFlushesLateSample is the end-to-end integration of the
 // serverless-init shutdown cascade. It builds the full Fx graph that
 // cmd/serverless-init wires (forwarder -> demultiplexer -> DogStatsD server),
-// with a counting forwarder injected and both flush-on-stop gates enabled, then
+// with a counting forwarder injected and the flush-on-stop gate enabled, then
 // submits a late metric through the production emit path (ServerlessMetricAgent
 // on the bundle's Demux) and stops the app. app.Stop fires the OnStop hooks in
 // reverse construction order — dsdServer.stop -> demux.Stop() ->
@@ -207,9 +207,8 @@ func TestShutdownCascadeFlushesLateSample(t *testing.T) {
 	}
 	mockConfig := configmock.New(t)
 	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
-	// Enable both serverless-init flush-on-stop gates the cascade relies on,
-	// mirroring the overrides cmd/serverless-init sets in preloadEarly.
-	mockConfig.SetInTest("dogstatsd_flush_on_stop", true)
+	// Enable the flush-on-stop gate the cascade relies on, mirroring the
+	// override cmd/serverless-init sets in preloadEarly.
 	mockConfig.SetInTest("dogstatsd_flush_incomplete_buckets", true)
 	// The Fx demux uses the 15s DefaultFlushInterval; the test completes well
 	// within that window, so the only flush is the one app.Stop drives.

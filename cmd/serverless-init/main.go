@@ -171,8 +171,19 @@ func preloadEarly() {
 	// UDS listener, which requires a filesystem socket that has no use here.
 	setOverride("dogstatsd_socket", "")
 
+	// Also suppress the UDS streams listener. Its default is already empty (so
+	// it never starts), but set it explicitly so a user override can't turn on
+	// a filesystem socket that has no use in serverless-init.
+	setOverride("dogstatsd_stream_socket", "")
+
 	// Force series v2 API for the serializer.
 	setOverride("use_v2_api.series", true)
+
+	// Send metric payloads uncompressed, as the bespoke serverless demultiplexer
+	// did before this bundle replaced it. Left unset, the serializer would use
+	// the default compressor kind, which serverless-init's build tags may not
+	// compile in. Adopting a compressor here is tracked in SVLS-9451.
+	setOverride("serializer_compressor_kind", "none")
 
 	// Disable UDS listener for the APM receiver — traces are sent via HTTP to
 	// localhost in serverless. Avoids noisy error logs.
