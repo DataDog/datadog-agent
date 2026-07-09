@@ -21,6 +21,7 @@ type MetricSeries struct {
 	metricspb.MetricPayload_MetricSeries
 
 	collectedTime time.Time
+	apiKey        string
 }
 
 func (mp *MetricSeries) name() string {
@@ -35,6 +36,11 @@ func (mp *MetricSeries) GetTags() []string {
 // GetCollectedTime return the time when the payload has been collected by the fakeintake server
 func (mp *MetricSeries) GetCollectedTime() time.Time {
 	return mp.collectedTime
+}
+
+// GetAPIKey returns the API key used by the payload containing this metric series.
+func (mp *MetricSeries) GetAPIKey() string {
+	return mp.apiKey
 }
 
 // ParseMetricSeries return the parsed metrics from payload
@@ -62,7 +68,11 @@ func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 
 	metrics = []*MetricSeries{}
 	for _, serie := range metricsPayload.Series {
-		metrics = append(metrics, &MetricSeries{MetricPayload_MetricSeries: *serie, collectedTime: payload.Timestamp})
+		metrics = append(metrics, &MetricSeries{
+			MetricPayload_MetricSeries: *serie,
+			collectedTime:              payload.Timestamp,
+			apiKey:                     payload.APIKey,
+		})
 	}
 
 	return metrics, err

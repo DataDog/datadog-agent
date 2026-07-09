@@ -94,6 +94,7 @@ func TestParseMetricSeriesV3_SingleGauge(t *testing.T) {
 		Encoding:    encodingEmpty, // no compression
 		ContentType: "application/x-protobuf",
 		Timestamp:   time.Unix(999, 0),
+		APIKey:      "test-api-key",
 	}
 
 	series, err := ParseMetricSeriesV3(payload)
@@ -112,6 +113,7 @@ func TestParseMetricSeriesV3_SingleGauge(t *testing.T) {
 	assert.Equal(t, int64(1000), s.Points[0].Timestamp)
 	assert.Equal(t, 42.0, s.Points[0].Value)
 	assert.Equal(t, time.Unix(999, 0), s.GetCollectedTime())
+	assert.Equal(t, "test-api-key", s.GetAPIKey())
 }
 
 func TestParseMetricSeriesV3_Unit(t *testing.T) {

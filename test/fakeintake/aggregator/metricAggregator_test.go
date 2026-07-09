@@ -32,10 +32,15 @@ func TestNewMetricPayloads(t *testing.T) {
 	})
 
 	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
-		metrics, err := ParseMetricSeries(api.Payload{Data: metricsData, Encoding: encodingDeflate})
+		metrics, err := ParseMetricSeries(api.Payload{
+			Data:     metricsData,
+			Encoding: encodingDeflate,
+			APIKey:   "test-api-key",
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, 151, len(metrics))
 		assert.Equal(t, "datadog.dogstatsd.client.aggregated_context_by_type", metrics[0].name())
+		assert.Equal(t, "test-api-key", metrics[0].GetAPIKey())
 		expectedTags := []string{"client:go", "client_version:5.1.1", "client_transport:udp", "metrics_type:distribution"}
 		sort.Strings(expectedTags)
 		gotTags := metrics[0].GetTags()

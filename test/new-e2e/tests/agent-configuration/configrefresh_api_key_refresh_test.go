@@ -6,6 +6,7 @@
 package agentconfiguration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func TestLinuxAPIKeyFreshSuite(t *testing.T) {
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {
 	const firstAPIKey = "abcdefghijklmnopqrstuvwxyz123456"
 	const secondAPIKey = "123456abcdefghijklmnopqrstuvwxyz"
+	const refreshMetric = "e2e.agent_configuration.api_key_refresh"
 
 	// Create config that has an encoded (secret) api key
 	config := `secret_backend_command: /tmp/secret.py
@@ -62,23 +64,41 @@ api_key: ENC[api_key]
 	status := v.Env().Agent.Client.Status()
 	assert.Contains(v.T(), status.Content, "API key ending with 3456")
 
+	fakeIntake := v.Env().FakeIntake.Client()
+	require.NoError(v.T(), fakeIntake.FlushServerAndResetAggregators())
+
 	// Change the api key in the secret backend, and refresh it in the Agent
 	secretClient.SetSecret("api_key", secondAPIKey)
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// Assert that the status command shows the new API Key
-	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		status = v.Env().Agent.Client.Status()
 		assert.Contains(t, status.Content, "API key ending with wxyz")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Assert that the fakeIntake has received the new API Key
-	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
-		assert.NoError(t, err)
-		assert.Equal(t, secondAPIKey, lastAPIKey)
-	}, 1*time.Minute, 10*time.Second)
+	// Send a controlled post-refresh payload and check its own API key.
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		v.Env().RemoteHost.MustExecuteOn(t, fmt.Sprintf(
+			`bash -c 'echo -n "%s:1|g" > /dev/udp/127.0.0.1/8125'`,
+			refreshMetric,
+		))
+
+		metrics, err := fakeIntake.FilterMetrics(refreshMetric)
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		hasRefreshedAPIKey := false
+		for _, metric := range metrics {
+			if metric.GetAPIKey() == secondAPIKey {
+				hasRefreshedAPIKey = true
+				break
+			}
+		}
+		assert.True(t, hasRefreshedAPIKey, "forced metric was not sent using the refreshed API key")
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {

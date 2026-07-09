@@ -90,6 +90,7 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 		series = append(series, &MetricSeries{
 			MetricPayload_MetricSeries: *ms,
 			collectedTime:              payload.Timestamp,
+			apiKey:                     payload.APIKey,
 		})
 	}
 
