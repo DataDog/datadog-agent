@@ -45,8 +45,7 @@ const (
 	disableClientIDCheck = "disable-client-id-check"
 
 	// packageDatadogAgentDDOT is the package name reported for the Datadog Distribution of
-	// OpenTelemetry Collector (DDOT). DDOT ships either as this standalone package or as an
-	// extension of the datadog-agent package.
+	// OpenTelemetry Collector (DDOT), which ships as an extension of the datadog-agent package.
 	packageDatadogAgentDDOT = "datadog-agent-ddot"
 
 	// ddotExtensionName is the name under which DDOT is registered in the extensions database
@@ -817,14 +816,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		"datadog-agent": d.env.ConfigID,
 	}
 	// DDOT (the otel-agent) shares the datadog-agent config — otel-config.yaml lives in the
-	// same config dir and is patched by the same config experiment — but, in the process-manager
-	// model, it ships as an extension of datadog-agent rather than a standalone package. Report a
-	// datadog-agent-ddot package state so the fleet backend can gate config promotes on DDOT.
-	// Hosts without DDOT (and agents predating this change) report nothing here, so the backend
-	// must treat a missing datadog-agent-ddot state as "no signal / do not block".
-	_, ddotIsPackage := configAndPackageStates.States[packageDatadogAgentDDOT]
+	// same config dir and is patched by the same config experiment — but ships as an extension of
+	// datadog-agent rather than its own package, so it has no package state of its own. Report a
+	// synthetic datadog-agent-ddot package state so the fleet backend can gate config promotes on
+	// DDOT. Hosts without DDOT (and agents predating this change) report nothing here, so the
+	// backend must treat a missing datadog-agent-ddot state as "no signal / do not block".
 	ddotExtension := slices.Contains(configAndPackageStates.Extensions["datadog-agent"], ddotExtensionName)
-	if ddotIsPackage || ddotExtension {
+	if ddotExtension {
 		runningVersions[packageDatadogAgentDDOT] = version.AgentPackageVersion
 		runningConfigVersions[packageDatadogAgentDDOT] = d.env.ConfigID
 	}
@@ -858,10 +856,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	// When DDOT is an extension (not its own package) it is absent from the states above; add a
-	// synthetic datadog-agent-ddot entry mirroring the shared datadog-agent config so the backend
-	// sees the same experiment/stable config version for DDOT.
-	if ddotExtension && !ddotIsPackage {
+	// DDOT is absent from the states above since it's not its own package; add a synthetic
+	// datadog-agent-ddot entry mirroring the shared datadog-agent config so the backend sees the
+	// same experiment/stable config version for DDOT.
+	if ddotExtension {
 		agentConfig := configAndPackageStates.ConfigStates["datadog-agent"]
 		packages = append(packages, &pbgo.PackageState{
 			Package:                 packageDatadogAgentDDOT,
