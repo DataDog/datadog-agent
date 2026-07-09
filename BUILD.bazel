@@ -167,7 +167,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/run
-# gazelle:exclude test/e2e-framework/testing/e2e
 # gazelle:exclude test/files
 # gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
