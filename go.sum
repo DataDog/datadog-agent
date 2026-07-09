@@ -5038,6 +5038,8 @@ go.etcd.io/etcd/client/pkg/v3 v3.6.11 h1:e41mp315Yn3QMGPmEzCyLsMINgJXTY/dX8kM++1
 go.etcd.io/etcd/client/pkg/v3 v3.6.11/go.mod h1:DysuMe/inqRyC/1tjRR6hReH/VV9Lufs27YKSKBWWJg=
 go.etcd.io/etcd/client/v2 v2.305.31 h1:lOUj3oJwKQKhjD7EoV00qneZKDGt3dDOf6nHW35dFP0=
 go.etcd.io/etcd/client/v2 v2.305.31/go.mod h1:DfiSCOLj3COe8SPmlMwSrd/0B1qWULMT4DtkdXNQR4s=
+go.etcd.io/etcd/client/v2 v2.305.32 h1:cXVte/p8Czwev9OFobUZktQgJlU5ltftyu/30SmZhHI=
+go.etcd.io/etcd/client/v2 v2.305.32/go.mod h1:r6H448xnVt+FYOGcsxJ0/Y/yPTxBQLp6RSC3cKap58o=
 go.etcd.io/etcd/client/v3 v3.6.11 h1:LAByD96VmmeuairkvdAcE0RZnrmGz/q3ceeWePo9bwc=
 go.etcd.io/etcd/client/v3 v3.6.11/go.mod h1:vOTDMCo+fGPEClJqcFEFSqZ+8e7WKV7AyqJjX//HR2w=
 go.etcd.io/etcd/pkg/v3 v3.6.5 h1:byxWB4AqIKI4SBmquZUG1WGtvMfMaorXFoCcFbVeoxM=
