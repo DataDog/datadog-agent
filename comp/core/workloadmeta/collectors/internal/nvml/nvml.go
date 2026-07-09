@@ -10,7 +10,6 @@ package nvml
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -147,6 +146,14 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	seenPIDs := make(map[int]struct{})
+	appendPID := func(pid uint32) {
+		activePID := int(pid)
+		if _, ok := seenPIDs[activePID]; ok {
+			return
+		}
+		seenPIDs[activePID] = struct{}{}
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, activePID)
+	}
 
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
@@ -156,7 +163,7 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 
 	for _, proc := range procs {
-		seenPIDs[int(proc.Pid)] = struct{}{}
+		appendPID(proc.Pid)
 	}
 
 	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
@@ -168,14 +175,8 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 
 	for _, proc := range utilizationProcs {
-		seenPIDs[int(proc.Pid)] = struct{}{}
+		appendPID(proc.Pid)
 	}
-
-	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
-	for pid := range seenPIDs {
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
-	}
-	slices.Sort(gpuDeviceInfo.ActivePIDs)
 }
 
 // newCollector creates a new collector with the default values, useful for testing.

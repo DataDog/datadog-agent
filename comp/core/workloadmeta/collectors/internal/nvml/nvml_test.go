@@ -76,6 +76,16 @@ func TestPull(t *testing.T) {
 	}
 }
 
+func requireSamePIDs(t *testing.T, expected, actual []int) {
+	t.Helper()
+
+	expected = slices.Clone(expected)
+	actual = slices.Clone(actual)
+	slices.Sort(expected)
+	slices.Sort(actual)
+	require.Equal(t, expected, actual)
+}
+
 func TestGpuProcessInfoUpdate(t *testing.T) {
 	// Seed the callback with the default process info so the first pull mirrors
 	// the package defaults without mutating any global state.
@@ -100,13 +110,12 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	for _, gpu := range gpus {
-		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
+		requireSamePIDs(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
 
 	// Now change those PIDs and make sure the store is updated and we get a complete override
 	// of the previous PIDs
 	expectedActivePIDs = []int{9761, 1234}
-	slices.Sort(expectedActivePIDs)
 	processInfo = testutil.MockProcessInfoList{
 		{Pid: uint32(expectedActivePIDs[0]), UsedGpuMemory: 100},
 		{Pid: uint32(expectedActivePIDs[1]), UsedGpuMemory: 200},
@@ -117,7 +126,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	for _, gpu := range gpus {
-		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
+		requireSamePIDs(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
 }
 
