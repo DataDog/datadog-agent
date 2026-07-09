@@ -61,7 +61,7 @@ func TestPull(t *testing.T) {
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
 		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_SM], gpu.MaxClockRates[workloadmeta.GPUSM])
 		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_MEM], gpu.MaxClockRates[workloadmeta.GPUMemory])
-		require.Equal(t, expectedGPUActivePIDs, gpu.ActivePIDs)
+		require.ElementsMatch(t, expectedGPUActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
 	}
 
@@ -74,16 +74,6 @@ func TestPull(t *testing.T) {
 			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
 		}
 	}
-}
-
-func requireSamePIDs(t *testing.T, expected, actual []int) {
-	t.Helper()
-
-	expected = slices.Clone(expected)
-	actual = slices.Clone(actual)
-	slices.Sort(expected)
-	slices.Sort(actual)
-	require.Equal(t, expected, actual)
 }
 
 func TestGpuProcessInfoUpdate(t *testing.T) {
@@ -110,7 +100,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	for _, gpu := range gpus {
-		requireSamePIDs(t, expectedActivePIDs, gpu.ActivePIDs)
+		require.ElementsMatch(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
 
 	// Now change those PIDs and make sure the store is updated and we get a complete override
@@ -126,7 +116,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	for _, gpu := range gpus {
-		requireSamePIDs(t, expectedActivePIDs, gpu.ActivePIDs)
+		require.ElementsMatch(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
 }
 
