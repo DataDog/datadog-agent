@@ -18,12 +18,12 @@ pub struct PrivilegedCommandSpec {
 fn catalog() -> &'static [PrivilegedCommandSpec] {
     &[
         PrivilegedCommandSpec {
-            expected_command: "cmd.exe",
+            expected_command: r"C:\Windows\System32\cmd.exe",
             expected_args: &["/C", "echo", "procmgr-privileged-ok"],
             allowed_env: &[],
         },
         PrivilegedCommandSpec {
-            expected_command: "cmd.exe",
+            expected_command: r"C:\Windows\System32\cmd.exe",
             expected_args: &["/C", "whoami"],
             allowed_env: &[],
         },
@@ -31,13 +31,28 @@ fn catalog() -> &'static [PrivilegedCommandSpec] {
 }
 
 /// Reject requests that do not exactly match a catalog entry.
-pub fn validate(command: &str, args: &[String], env: &HashMap<String, String>) -> Result<()> {
-    let norm_cmd = command_basename(command);
+///
+/// Returns the canonical catalog executable path to use at spawn time so callers
+/// cannot substitute a same-basename binary from another directory.
+pub fn validate<'a>(
+    command: &str,
+    args: &[String],
+    env: &HashMap<String, String>,
+) -> Result<&'a str> {
+    let norm_cmd = normalize_path(command);
+    let caller_basename = command_basename(command);
     let norm_args: Vec<String> = args.iter().map(|a| normalize_path(a)).collect();
 
     for spec in catalog() {
-        if norm_cmd != command_basename(spec.expected_command) {
+        let expected_cmd = normalize_path(spec.expected_command);
+        if caller_basename != command_basename(spec.expected_command) {
             continue;
+        }
+
+        if norm_cmd.contains('\\') && norm_cmd != expected_cmd {
+            bail!(
+                "refusing privileged command: command path does not match catalog (got {command})"
+            );
         }
 
         let expected_args: Vec<String> = spec
@@ -58,7 +73,7 @@ pub fn validate(command: &str, args: &[String], env: &HashMap<String, String>) -
             }
         }
 
-        return Ok(());
+        return Ok(spec.expected_command);
     }
 
     bail!("refusing privileged command: command not in catalog (got {command})");
@@ -126,12 +141,36 @@ mod tests {
     }
 
     #[test]
-    fn catalog_accepts_normalized_paths() {
-        validate(
+    fn catalog_accepts_canonical_system32_path() {
+        let cmd = validate(
             r"C:\Windows\System32\cmd.exe",
             &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &HashMap::new(),
         )
         .unwrap();
+        assert_eq!(cmd, r"C:\Windows\System32\cmd.exe");
+    }
+
+    #[test]
+    fn catalog_substitutes_basename_with_canonical_path() {
+        let cmd = validate(
+            "cmd.exe",
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(cmd, r"C:\Windows\System32\cmd.exe");
+    }
+
+    #[test]
+    fn catalog_rejects_wrong_path_same_basename() {
+        let err = validate(
+            r"C:\Temp\cmd.exe",
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
+            &HashMap::new(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("path does not match catalog"), "{err}");
     }
 }

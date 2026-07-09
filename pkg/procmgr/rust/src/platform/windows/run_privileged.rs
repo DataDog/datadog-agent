@@ -14,8 +14,8 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
 };
 use windows_sys::Win32::Security::{
-    DuplicateTokenEx, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
-    SECURITY_ATTRIBUTES, SecurityDelegation, TokenPrimary,
+    DuplicateTokenEx, SECURITY_ATTRIBUTES, SecurityDelegation, TOKEN_DUPLICATE, TOKEN_QUERY,
+    TokenPrimary,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
@@ -25,8 +25,8 @@ use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-    STARTUPINFOW, WaitForSingleObject,
+    CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, INFINITE, OpenProcessToken,
+    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW, WAIT_FAILED, WaitForSingleObject,
 };
 
 use super::wide;
@@ -106,7 +106,7 @@ pub fn run_privileged_command(
     }
 
     let wait = unsafe { WaitForSingleObject(process_handle, INFINITE) };
-    if wait == 0 {
+    if wait == WAIT_FAILED {
         bail!(
             "WaitForSingleObject failed: {}",
             std::io::Error::last_os_error()
@@ -185,33 +185,26 @@ fn env_block_from_current_plus_overrides(overrides: &HashMap<String, String>) ->
 }
 
 fn local_system_primary_token() -> Result<HANDLE> {
-    let domain_w = wide::null_terminated("NT AUTHORITY");
-    let user_w = wide::null_terminated("SYSTEM");
-    let password_w = wide::null_terminated("");
-
-    let mut logon_token: HANDLE = ptr::null_mut();
+    let mut process_token: HANDLE = ptr::null_mut();
     let ok = unsafe {
-        LogonUserW(
-            user_w.as_ptr(),
-            domain_w.as_ptr(),
-            password_w.as_ptr(),
-            LOGON32_LOGON_SERVICE,
-            LOGON32_PROVIDER_DEFAULT,
-            &mut logon_token,
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_DUPLICATE,
+            &mut process_token,
         )
     };
     if ok == 0 {
         bail!(
-            "LogonUserW(NT AUTHORITY\\SYSTEM) failed: {}",
+            "OpenProcessToken failed: {}",
             std::io::Error::last_os_error()
         );
     }
-    let logon_guard = TokenHandle(logon_token);
+    let process_token_guard = TokenHandle(process_token);
 
     let mut primary_token: HANDLE = ptr::null_mut();
     let ok = unsafe {
         DuplicateTokenEx(
-            logon_guard.0,
+            process_token_guard.0,
             MAXIMUM_ALLOWED,
             ptr::null(),
             SecurityDelegation,
@@ -382,7 +375,7 @@ mod tests {
             std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1");
         }
         let out = run_privileged_command(
-            "cmd.exe",
+            r"C:\Windows\System32\cmd.exe",
             &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &HashMap::new(),
         )

@@ -239,14 +239,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
                 req.args
             );
 
-            crate::privileged::catalog::validate(&req.command, &req.args, &req.env).map_err(
-                |e| {
+            let command = crate::privileged::catalog::validate(&req.command, &req.args, &req.env)
+                .map_err(|e| {
                     log::warn!("RunPrivilegedCommand denied: catalog validation failed: {e:#}");
                     Status::permission_denied(e.to_string())
-                },
-            )?;
-
-            let command = req.command;
+                })?
+                .to_string();
             let args = req.args;
             let env = req.env;
             let output = tokio::task::spawn_blocking(move || {
