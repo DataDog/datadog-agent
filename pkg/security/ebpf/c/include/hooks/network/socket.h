@@ -180,50 +180,6 @@ int hook_connect6(struct bpf_sock_addr *ctx) {
     return 1;
 }
 
-SEC("cgroup/sendmsg4")
-int hook_sendmsg4(struct bpf_sock_addr *ctx) {
-    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        save_pid_with_socket_cookie(ctx, tgid);
-        save_pid_with_socket_storage(ctx->sk, tgid);
-    }
-    return 1;
-}
-
-SEC("cgroup/sendmsg6")
-int hook_sendmsg6(struct bpf_sock_addr *ctx) {
-    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        save_pid_with_socket_cookie(ctx, tgid);
-        save_pid_with_socket_storage(ctx->sk, tgid);
-    }
-    return 1;
-}
-
-SEC("cgroup/recvmsg4")
-int hook_recvmsg4(struct bpf_sock_addr *ctx) {
-    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        save_pid_with_socket_cookie(ctx, tgid);
-        save_pid_with_socket_storage(ctx->sk, tgid);
-    }
-    return 1;
-}
-
-SEC("cgroup/recvmsg6")
-int hook_recvmsg6(struct bpf_sock_addr *ctx) {
-    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        save_pid_with_socket_cookie(ctx, tgid);
-        save_pid_with_socket_storage(ctx->sk, tgid);
-    }
-    return 1;
-}
-
 SEC("cgroup/sock_release")
 int hook_sock_release(struct bpf_sock *ctx) {
     u64 cookie = bpf_get_socket_cookie(ctx);
