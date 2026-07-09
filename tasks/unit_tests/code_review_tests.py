@@ -266,9 +266,9 @@ class TestCodeReviewProviders(unittest.TestCase):
         review_diff = collect_review_diff(ctx, Path("/repo"), "origin/main")
 
         self.assertIn("--- DIFF STAT ---\ntasks/foo.py | 2 ++", review_diff)
-        self.assertIn("--- CHANGED FILES ---\ntasks/foo.py", review_diff)
+        self.assertNotIn("--- CHANGED FILES ---", review_diff)
         self.assertIn("--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py", review_diff)
-        self.assertEqual(len(ctx.commands), 3)
+        self.assertEqual(len(ctx.commands), 2)
         self.assertTrue(all("origin/main...HEAD" in command for command in ctx.commands))
 
     def test_build_claude_invocation_references_prompt_file(self):

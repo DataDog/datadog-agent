@@ -148,7 +148,6 @@ def collect_review_diff(ctx, repo_root: Path, base: str) -> str:
     sections = []
     for title, command in (
         ("DIFF STAT", f"git diff --find-renames --stat {diff_range}"),
-        ("CHANGED FILES", f"git diff --find-renames --name-only {diff_range}"),
         ("PATCH", f"git diff --find-renames {diff_range}"),
     ):
         result = ctx.run(f"cd {shlex.quote(str(repo_root))} && {command}", hide=True, warn=True)
