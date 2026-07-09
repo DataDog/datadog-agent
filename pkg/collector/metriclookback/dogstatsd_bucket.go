@@ -393,16 +393,18 @@ func (s *dogStatsDBucketShard) flushThrough(lastBucketStart int64, m *DogStatsDB
 				continue
 			}
 			result.sketches = append(result.sketches, &metrics.SketchSeries{
-				Name:     desc.name,
-				Tags:     tagset.CompositeTagsFromSlice(append([]string(nil), desc.tags...)),
-				Host:     desc.host,
-				Interval: m.bucketWidthSeconds,
+				DistributionMetadata: metrics.DistributionMetadata{
+					Name:     desc.name,
+					Tags:     tagset.CompositeTagsFromSlice(append([]string(nil), desc.tags...)),
+					Host:     desc.host,
+					Interval: m.bucketWidthSeconds,
+					NoIndex:  desc.noIndex,
+					Source:   desc.source,
+				},
 				Points: []metrics.SketchPoint{{
 					Ts:     bucketStart,
 					Sketch: sketch,
 				}},
-				NoIndex: desc.noIndex,
-				Source:  desc.source,
 			})
 			sealedBucket = true
 		}
