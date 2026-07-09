@@ -32,8 +32,15 @@ const (
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
 	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
-	maxUDSPathLen                    = 100
+	// ManagedByLabelValue is the app.kubernetes.io/managed-by value used by Datadog-created AppSec injection resources.
+	ManagedByLabelValue = "datadog-cluster-agent"
+	maxUDSPathLen       = 100
 )
+
+// IsManagedByDatadog reports whether labels identify an AppSec injection resource created by the Datadog Cluster Agent.
+func IsManagedByDatadog(labels map[string]string) bool {
+	return labels[kubernetes.KubeAppManagedByLabelKey] == ManagedByLabelValue
+}
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
 // It has to be associated with both proxyMaps in proxies.go and the list of supported proxies in the Helm chart / Datadog Operator
@@ -113,7 +120,7 @@ type Sidecar struct {
 // GKE contains configuration specific to GKE Gateway (gke-gateway) proxy type
 type GKE struct {
 	// GatewayClasses is the list of GatewayClass names eligible for AppSec
-	// traffic extension injection. When empty the built-in allowlist is used.
+	// traffic extension injection.
 	GatewayClasses []string
 }
 
@@ -314,7 +321,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	staticLabels := map[string]string{
 		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
 		kubernetes.KubeAppPartOfLabelKey:    "datadog",
-		kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent",
+		kubernetes.KubeAppManagedByLabelKey: ManagedByLabelValue,
 		AppsecInjectionVersionAnnotation:    "v2",
 	}
 

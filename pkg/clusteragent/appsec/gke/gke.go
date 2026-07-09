@@ -29,26 +29,11 @@ import (
 )
 
 const (
-	managedByDatadogClusterAgent = "datadog-cluster-agent"
-	extensionNamePrefix          = "datadog-appsec-"
+	extensionNamePrefix = "datadog-appsec-"
 )
 
 var (
 	_ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
-
-	// supportedGatewayClasses is the built-in allowlist of external-managed,
-	// single-cluster GKE GatewayClasses. The multi-cluster variants
-	// (gke-l7-*-external-managed-mc) are intentionally excluded: multi-cluster
-	// Gateways require the callout backendRef to be a ServiceImport
-	// (group net.gke.io), whereas newGCPTrafficExtension only emits a core
-	// Service backendRef. Emitting a Service-kind extension for an -mc Gateway
-	// would fail to program the callout, so multi-cluster support is deferred to
-	// a follow-up. Users who know their -mc callout is reachable via a plain
-	// Service can still opt in via appsec.proxy.gke.gateway_classes.
-	supportedGatewayClasses = []string{
-		"gke-l7-global-external-managed",
-		"gke-l7-regional-external-managed",
-	}
 
 	gkeServiceNamespaceInfoOnce sync.Once
 )
@@ -80,10 +65,6 @@ func (g *gkeGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) er
 		return fmt.Errorf("processor port must be positive for gke-gateway proxy type, got: %d", g.config.Processor.Port)
 	}
 
-	gkeServiceNamespaceInfoOnce.Do(func() {
-		g.logger.Infof("GKE Gateway AppSec uses same-namespace Service backendRefs: the callout Service %q must exist in each Gateway namespace; processor namespace %q is not used for GKE", g.config.Processor.ServiceName, g.config.Processor.Namespace)
-	})
-
 	_, err := g.client.Resource(crdGVR).Get(ctx, gcpTrafficExtensionCRDName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return fmt.Errorf("%w: GCPTrafficExtension CRD not found, is GKE Gateway service extensions enabled in the cluster? Cannot enable appsec proxy injection for gke-gateway", err)
@@ -91,6 +72,10 @@ func (g *gkeGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) er
 	if err != nil {
 		return fmt.Errorf("%w: error getting GCPTrafficExtension CRD", err)
 	}
+
+	gkeServiceNamespaceInfoOnce.Do(func() {
+		g.logger.Infof("GKE Gateway AppSec uses same-namespace Service backendRefs: the callout Service %q must exist in each Gateway namespace; processor namespace %q is not used for GKE", g.config.Processor.ServiceName, g.config.Processor.Namespace)
+	})
 
 	return nil
 }
@@ -103,7 +88,7 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 		g.logger.Debugf("Skipping GKE Gateway AppSec injection for gateway %s/%s: invalid spec.gatewayClassName: %v", namespace, gatewayName, err)
 		return nil
 	}
-	if gatewayClass == "" || !slices.Contains(g.effectiveGatewayClasses(), gatewayClass) {
+	if gatewayClass == "" || !slices.Contains(g.config.Product.GKE.GatewayClasses, gatewayClass) {
 		g.logger.Debugf("Skipping GKE Gateway AppSec injection for gateway %s/%s: unsupported gatewayClassName %q", namespace, gatewayName, gatewayClass)
 		return nil
 	}
@@ -111,7 +96,7 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 	extName := extensionName(gatewayName)
 	existing, err := g.client.Resource(trafficExtensionGVR).Namespace(namespace).Get(ctx, extName, metav1.GetOptions{})
 	if err == nil {
-		if isManagedExtension(existing) {
+		if appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
 			g.logger.Debugf("GCPTrafficExtension %s/%s already exists and is managed by Datadog", namespace, extName)
 			return nil
 		}
@@ -125,6 +110,10 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 
 	extension := g.newGCPTrafficExtension(namespace, gatewayName)
 	_, err = g.client.Resource(trafficExtensionGVR).Namespace(namespace).Create(ctx, extension, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		g.logger.Debugf("GCPTrafficExtension %s/%s already exists", namespace, extName)
+		return nil
+	}
 	if err != nil {
 		g.recordExtensionCreateFailed(namespace, gatewayName, extName, err)
 		return fmt.Errorf("could not create GCPTrafficExtension %s/%s: %w", namespace, extName, err)
@@ -149,7 +138,7 @@ func (g *gkeGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstructu
 		g.recordExtensionDeleteFailed(namespace, gatewayName, extName, err)
 		return fmt.Errorf("could not check if GCPTrafficExtension %s/%s was already deleted: %w", namespace, extName, err)
 	}
-	if !isManagedExtension(existing) {
+	if !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
 		g.logger.Warnf("Skipping GCPTrafficExtension %s/%s deletion: object is not managed by Datadog", namespace, extName)
 		return nil
 	}
@@ -165,13 +154,10 @@ func (g *gkeGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstructu
 	return nil
 }
 
-func (g *gkeGatewayInjectionPattern) effectiveGatewayClasses() []string {
-	if len(g.config.Product.GKE.GatewayClasses) > 0 {
-		return g.config.Product.GKE.GatewayClasses
-	}
-	return supportedGatewayClasses
-}
-
+// extensionName returns a DNS-1123 label-safe GCPTrafficExtension name. The 63
+// character limit is the RFC-1123 label maximum for metadata.name; longer
+// Gateway names are bounded with an 8-character sha256 suffix. Other proxies
+// such as Envoy Gateway use a fixed per-namespace name and do not need this.
 func extensionName(gatewayName string) string {
 	if len(extensionNamePrefix)+len(gatewayName) <= 63 {
 		return extensionNamePrefix + gatewayName
@@ -187,7 +173,7 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[kubernetes.KubeAppManagedByLabelKey] = managedByDatadogClusterAgent
+	labels[kubernetes.KubeAppManagedByLabelKey] = appsecconfig.ManagedByLabelValue
 	annotations := maps.Clone(g.config.CommonAnnotations)
 
 	extension := &unstructured.Unstructured{Object: map[string]any{
@@ -222,6 +208,7 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 								"name":  g.config.Processor.ServiceName,
 								"port":  int64(g.config.Processor.Port),
 							},
+							// cluster.local is GKE's fixed cluster DNS domain; GKE does not support custom cluster domains.
 							"authority":       fmt.Sprintf("%s.%s.svc.cluster.local", g.config.Processor.ServiceName, namespace),
 							"failOpen":        true,
 							"supportedEvents": []any{"RequestHeaders", "ResponseHeaders"},
@@ -235,10 +222,6 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 	extension.SetLabels(labels)
 	extension.SetAnnotations(annotations)
 	return extension
-}
-
-func isManagedExtension(extension *unstructured.Unstructured) bool {
-	return extension.GetLabels()[kubernetes.KubeAppManagedByLabelKey] == managedByDatadogClusterAgent
 }
 
 // New returns a new InjectionPattern for GKE Gateway.

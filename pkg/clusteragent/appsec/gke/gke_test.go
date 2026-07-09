@@ -102,6 +102,9 @@ func defaultGKEConfig() appsecconfig.Config {
 				Namespace:   "ignored-by-gke",
 				Port:        testServicePort,
 			},
+			GKE: appsecconfig.GKE{
+				GatewayClasses: []string{"gke-l7-global-external-managed", "gke-l7-regional-external-managed"},
+			},
 		},
 		Injection: appsecconfig.Injection{
 			CommonLabels:      map[string]string{"app": "datadog"},
@@ -150,7 +153,7 @@ func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing
 	require.Equal(t, "networking.gke.io/v1", extension.GetAPIVersion())
 	require.Equal(t, "GCPTrafficExtension", extension.GetKind())
 	expectedLabels := map[string]string{"app": "datadog"}
-	expectedLabels[kubernetes.KubeAppManagedByLabelKey] = "datadog-cluster-agent"
+	expectedLabels[kubernetes.KubeAppManagedByLabelKey] = appsecconfig.ManagedByLabelValue
 	require.Equal(t, expectedLabels, extension.GetLabels())
 	require.Equal(t, map[string]string{"managed-by": "datadog"}, extension.GetAnnotations())
 
@@ -242,7 +245,7 @@ func TestDeleted_removesManagedExtension_andIsNotFoundSafe(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	gateway := newTestGateway("test-ns", "test-gateway", "istio")
-	extension := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent"})
+	extension := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), extension)
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
@@ -327,7 +330,7 @@ func TestAdded_createsDistinctExtensions_whenTwoGatewaysShareNamespace(t *testin
 func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
 	// Given
 	ctx := context.Background()
-	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent"})
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetAnnotations(map[string]string{"keep": "me"})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
 	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
@@ -392,7 +395,30 @@ func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
 	// Then
 	require.NoError(t, err)
 	extension := getExtension(t, client, "test-ns", "test-gateway")
-	require.Equal(t, "datadog-cluster-agent", extension.GetLabels()[kubernetes.KubeAppManagedByLabelKey])
+	require.True(t, appsecconfig.IsManagedByDatadog(extension.GetLabels()))
+	require.Equal(t, appsecconfig.ManagedByLabelValue, extension.GetLabels()[kubernetes.KubeAppManagedByLabelKey])
+}
+
+func TestAdded_returnsNilAndRecordsNoCreateFailedEvent_whenCreateAlreadyExists(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	client.PrependReactor("create", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		created := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
+		return true, nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, created.GetName())
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	select {
+	case event := <-recorder.Events:
+		require.NotContains(t, event, EventReasonGCPTrafficExtensionCreateFailed)
+	default:
+	}
 }
 
 func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
@@ -471,7 +497,7 @@ func TestDeleted_returnsErrorAndRecordsEvent_whenGetOrDeleteFails(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			ctx := context.Background()
-			existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent"})
+			existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
 			tt.reactor(client)
 			pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
