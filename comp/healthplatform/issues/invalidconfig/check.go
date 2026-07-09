@@ -78,10 +78,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 // the agent and cluster-agent validating their own distinct config files)
 // would all report the bare IssueID: downstream aggregation keys recommendations
 // on (org, IssueID) alone and would collapse them into a single case.
+//
+// Uses a 64-bit digest rather than 32-bit: at 32 bits, an org with ~10k
+// distinct host/config-path pairs would already have a ~1% chance of two of
+// them colliding (birthday bound), silently recreating the exact aggregation
+// bug this ID scoping exists to fix. At 64 bits that probability is ~2.7e-12
+// at the same fleet size — negligible at any realistic scale.
 func (c *checker) instanceIssueID() string {
-	h := fnv.New32a()
+	h := fnv.New64a()
 	fmt.Fprintf(h, "%s\x00%s", c.hostname.GetSafe(context.Background()), c.cfg.ConfigFileUsed())
-	return fmt.Sprintf("%s:%08x", IssueID, h.Sum32())
+	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
 // normalizeForSchema coerces a Go-native config map into JSON-native types via
