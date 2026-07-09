@@ -22,7 +22,7 @@ var parInstallRootProcmgrSpec = installRootProcmgrSpec{
 // WritePARProcmgrConfig writes datadog-agent-action.yaml under installRootResolved\processes.d so
 // dd-procmgrd picks it up. installRootResolved is the resolved MSI Program Files install root.
 func WritePARProcmgrConfig(installRootResolved string) error {
-	return writeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec, RemovePARProcmgrConfig)
+	return writeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec)
 }
 
 // RemovePARProcmgrConfig removes the PAR processes.d YAML from installRootResolved\processes.d.

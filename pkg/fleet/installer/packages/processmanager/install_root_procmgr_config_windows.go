@@ -8,7 +8,6 @@
 package processmanager
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +48,7 @@ func (s installRootProcmgrSpec) renderConfig(installRootResolved string) string 
 	return config
 }
 
-func writeInstallRootProcmgrConfig(installRootResolved string, spec installRootProcmgrSpec, remove func(string) error) error {
+func writeInstallRootProcmgrConfig(installRootResolved string, spec installRootProcmgrSpec) error {
 	installRoot, err := os.OpenRoot(installRootResolved)
 	if err != nil {
 		return fmt.Errorf("open install root: %w", err)
@@ -59,11 +58,6 @@ func writeInstallRootProcmgrConfig(installRootResolved string, spec installRootP
 	binaryPath := filepath.Join(installRootResolved, filepath.FromSlash(spec.binaryRelPath))
 	if _, err := installRoot.Stat(spec.binaryRelPath); err != nil {
 		log.Debugf("%s processes.d: skip write (%s stat %s: %v)", spec.logLabel, filepath.Base(spec.binaryRelPath), binaryPath, err)
-		if errors.Is(err, os.ErrNotExist) {
-			// Drop a stale processes.d YAML when the supervised binary is absent, e.g. after
-			// upgrading to a build/flavor that no longer ships it.
-			return remove(installRootResolved)
-		}
 		return nil
 	}
 
