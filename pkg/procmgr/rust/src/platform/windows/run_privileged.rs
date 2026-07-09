@@ -141,7 +141,7 @@ pub fn run_privileged_command(
         .map_err(|_| anyhow::anyhow!("stderr reader thread panicked"))??;
 
     Ok(PrivilegedCommandOutput {
-        exit_code: i32::try_from(code).unwrap_or(i32::MAX),
+        exit_code: windows_exit_code_to_i32(code),
         stdout,
         stderr,
     })
@@ -308,6 +308,11 @@ impl AnonymousPipe {
     }
 }
 
+fn windows_exit_code_to_i32(code: u32) -> i32 {
+    // Windows exit codes are DWORDs; preserve the full bit pattern in proto int32.
+    code as i32
+}
+
 fn read_handle_to_string(handle: HANDLE, max_bytes: usize) -> Result<String> {
     if handle.is_null() {
         return Ok(String::new());
@@ -398,6 +403,11 @@ impl Drop for TokenHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_exit_code_preserves_high_bit() {
+        assert_eq!(windows_exit_code_to_i32(0x8007_0005), -2_147_024_891);
+    }
 
     #[test]
     fn privileged_echo_runs_as_system() {
