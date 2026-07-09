@@ -164,12 +164,6 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 		// A valid snapshot replaces the whole config set for this RC path.
 		changes.Unschedule = append(changes.Unschedule, current...)
-		if len(configs) == 0 {
-			// Empty tests are valid and mean this path no longer contributes configs.
-			delete(p.activeByPath, path)
-			continue
-		}
-
 		p.activeByPath[path] = configs
 		changes.Schedule = append(changes.Schedule, configs...)
 	}
