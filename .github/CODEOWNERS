@@ -432,8 +432,8 @@
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
-/comp/exampletaskmanager @DataDog/sensitive-data-scanner
 /comp/etw @DataDog/windows-products
+/comp/exampletaskmanager @DataDog/sensitive-data-scanner
 /comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/network-device-monitoring-core
