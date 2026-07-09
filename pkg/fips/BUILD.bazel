@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "fips.go",
         "fips_buildinfo.go",
+        "fips_buildinfo_disabled.go",
         "fips_disabled.go",
         "fips_goboring.go",
     ],
