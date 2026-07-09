@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -18,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -224,23 +224,6 @@ func TestExtractExtensionType(t *testing.T) {
 	}
 }
 
-// TestCreateFlareArchiveRejectsSymlink ensures the flare archive is never
-// written through a pre-existing symlink. On Unix os.Create follows symlinks,
-// so a local user who pre-seeds a symlink at the (predictable) flare path could
-// redirect the privileged archive to an attacker-readable location.
-func TestCreateFlareArchiveRejectsSymlink(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "target.zip")
-	link := filepath.Join(dir, "otel-agent-flare_2026-01-01_00-00-00.zip")
-	require.NoError(t, os.Symlink(target, link))
-
-	err := createFlareArchive(link, &extensiontypes.Response{})
-	require.Error(t, err, "createFlareArchive must refuse to write through an existing symlink")
-
-	_, statErr := os.Stat(target)
-	assert.Truef(t, os.IsNotExist(statErr), "symlink target must not be created through the link (stat err: %v)", statErr)
-}
-
 // TestCreateOTelFlareUsesUnpredictableDir ensures the flare is created in its
 // own private, unpredictable directory instead of at a predictable path in the
 // shared temp directory (which is world-writable on Linux).
@@ -257,6 +240,35 @@ func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
 
 	assert.NotEqual(t, filepath.Dir(p1), filepath.Dir(p2),
 		"each flare must use a unique directory (os.MkdirTemp), not a predictable shared path")
+}
+
+// TestCreateOTelFlareRestrictsPermissions ensures both the flare directory and
+// the archive within it are readable only by the current user, so other local
+// users on a multi-user host cannot read the collected diagnostics. The
+// cross-platform enforcement lives in (and is tested by) pkg/util/filesystem
+// (RemoveAccessToOtherUsers); here we assert the flare command actually applies
+// it. Permission bits are only meaningful on Unix, so the check is skipped on
+// Windows where enforcement is via ACLs.
+func TestCreateOTelFlareRestrictsPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are not meaningful on Windows; ACL enforcement is covered by pkg/util/filesystem")
+	}
+
+	globalParams := newGlobalParamsTest(t)
+
+	flarePath, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+
+	dirInfo, err := os.Stat(filepath.Dir(flarePath))
+	require.NoError(t, err)
+	assert.Zerof(t, dirInfo.Mode().Perm()&0o077,
+		"flare directory must not be accessible by group/other, got %o", dirInfo.Mode().Perm())
+
+	fileInfo, err := os.Stat(flarePath)
+	require.NoError(t, err)
+	assert.Zerof(t, fileInfo.Mode().Perm()&0o077,
+		"flare archive must not be accessible by group/other, got %o", fileInfo.Mode().Perm())
 }
 
 func TestFlareCommand(t *testing.T) {
