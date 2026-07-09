@@ -151,6 +151,63 @@ func TestProviderValidUpdateReplacesWholePath(t *testing.T) {
 	assert.Equal(t, "db.example.com", newInstance["hostname"])
 }
 
+func TestProviderValidUpdateOnlyRestartsChangedTests(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig(
+			"test-config-a",
+			`{"hostname":"api.example.com"}`,
+			`{"hostname":"db.example.com"}`,
+		)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 2)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig(
+			"test-config-a",
+			`{"hostname":"api.example.com"}`,
+			`{"hostname":"cache.example.com"}`,
+		)},
+	}, applyStatuses().callback)
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	require.Len(t, second.Schedule, 1)
+
+	oldInstance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
+	newInstance := unmarshalInstance(t, second.Schedule[0].Instances[0])
+	assert.Equal(t, "db.example.com", oldInstance["hostname"])
+	assert.Equal(t, "cache.example.com", newInstance["hostname"])
+}
+
+func TestProviderReorderedSnapshotDoesNotRestartChecks(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig(
+			"test-config-a",
+			`{"hostname":"api.example.com"}`,
+			`{"hostname":"db.example.com"}`,
+		)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 2)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig(
+			"test-config-a",
+			`{"hostname":"db.example.com"}`,
+			`{"hostname":"api.example.com"}`,
+		)},
+	}, applyStatuses().callback)
+	assertNoChanges(t, changesCh)
+}
+
 func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
