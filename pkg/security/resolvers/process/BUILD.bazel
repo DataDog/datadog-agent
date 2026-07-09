@@ -87,6 +87,7 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
@@ -97,6 +98,7 @@ go_test(
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
