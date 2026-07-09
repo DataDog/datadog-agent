@@ -24,36 +24,36 @@ type BoolConfig interface {
 
 // SmartSeverityProfilesEnabled returns whether smart severity profiles are enabled.
 func SmartSeverityProfilesEnabled(cfg BoolConfig) bool {
-	return cfg != nil && cfg.GetBool(SmartSeverityProfilesEnabledConfigKey)
+	return cfg.GetBool(SmartSeverityProfilesEnabledConfigKey)
 }
 
 // ReportingEventsEnabled returns whether Datadog anomaly events are enabled.
 func ReportingEventsEnabled(cfg BoolConfig) bool {
-	return cfg != nil && cfg.GetBool(ReportingEventsEnabledConfigKey)
+	return cfg.GetBool(ReportingEventsEnabledConfigKey)
 }
 
 // AnomalyScorerDryRunEnabled returns whether the scorer should run in shadow
 // mode for telemetry without output side effects.
 func AnomalyScorerDryRunEnabled(cfg BoolConfig) bool {
-	return cfg != nil && cfg.GetBool(AnomalyScorerDryRunEnabledConfigKey)
+	return cfg.GetBool(AnomalyScorerDryRunEnabledConfigKey)
 }
 
 // RecordingEnabled returns whether anomaly-detection raw signal recording is enabled.
 func RecordingEnabled(cfg BoolConfig) bool {
-	return cfg != nil && cfg.GetBool(AnomalyDetectionRecordingEnabledConfigKey)
+	return cfg.GetBool(AnomalyDetectionRecordingEnabledConfigKey)
 }
 
 // ObserverRequired returns whether the observer pipeline should start.
 func ObserverRequired(cfg BoolConfig) bool {
-	return cfg != nil && (SmartSeverityProfilesEnabled(cfg) ||
+	return SmartSeverityProfilesEnabled(cfg) ||
 		ReportingEventsEnabled(cfg) ||
 		AnomalyScorerDryRunEnabled(cfg) ||
-		RecordingEnabled(cfg))
+		RecordingEnabled(cfg)
 }
 
 // ScorerRequired returns whether the anomaly scorer should be constructed.
 func ScorerRequired(cfg BoolConfig) bool {
-	return cfg != nil && (SmartSeverityProfilesEnabled(cfg) ||
+	return SmartSeverityProfilesEnabled(cfg) ||
 		ReportingEventsEnabled(cfg) ||
-		AnomalyScorerDryRunEnabled(cfg))
+		AnomalyScorerDryRunEnabled(cfg)
 }
