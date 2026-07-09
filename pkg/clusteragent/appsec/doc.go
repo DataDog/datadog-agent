@@ -514,15 +514,8 @@ One GCPTrafficExtension per Gateway is created with:
   - metadata.labels: app.kubernetes.io/managed-by=datadog-cluster-agent
   - spec.targetRefs: one entry pointing at the Gateway (no namespace field; local ref)
   - spec.extensionChains: one chain with matchCondition.celExpressions: [{celMatcher: "1 == 1"}]
-    and one extension entry with failOpen: true, timeout: 1s, and a backendRef to the user-deployed
-    callout Service (no namespace field)
-  - supportedEvents: [RequestHeaders, RequestBody, ResponseHeaders, ResponseBody] with
-    requestBodySendMode/responseBodySendMode: Streamed. Body events are subscribed statically because
-    GKE GCPTrafficExtension has no Envoy ext_proc AllowModeOverride equivalent: the callout cannot
-    request bodies dynamically at runtime, so bodies are only delivered if the corresponding events
-    are listed here. Omitting them would make body-based AppSec rules (e.g. attack payloads in
-    POST/PUT bodies) silently miss GKE Gateway traffic even when the callout has body parsing enabled.
-    Streamed is the default send mode and, unlike FullDuplexStreamed, does not require trailer events.
+    and one extension entry with failOpen: true, supportedEvents: [RequestHeaders, ResponseHeaders],
+    timeout: 1s, and a backendRef to the user-deployed callout Service (no namespace field)
 
 Load balancer programming lag is approximately 2 minutes after GCPTrafficExtension creation.
 

@@ -222,21 +222,10 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 								"name":  g.config.Processor.ServiceName,
 								"port":  int64(g.config.Processor.Port),
 							},
-							"authority": fmt.Sprintf("%s.%s.svc.cluster.local", g.config.Processor.ServiceName, namespace),
-							"failOpen":  true,
-							// Subscribe to header AND body events. Unlike Envoy ext_proc
-							// (envoygateway sets AllowModeOverride so the processor can request
-							// bodies at runtime), GKE GCPTrafficExtension has no dynamic
-							// mode-override: it only delivers the events statically listed here.
-							// Without the body events, body-based AppSec rules (e.g. payloads in
-							// POST/PUT bodies) would silently never reach the callout even when
-							// body parsing is enabled. Streamed is the GKE default send mode when
-							// body events are supported and does not require trailer events
-							// (FullDuplexStreamed would).
-							"supportedEvents":      []any{"RequestHeaders", "RequestBody", "ResponseHeaders", "ResponseBody"},
-							"requestBodySendMode":  "Streamed",
-							"responseBodySendMode": "Streamed",
-							"timeout":              "1s",
+							"authority":       fmt.Sprintf("%s.%s.svc.cluster.local", g.config.Processor.ServiceName, namespace),
+							"failOpen":        true,
+							"supportedEvents": []any{"RequestHeaders", "ResponseHeaders"},
+							"timeout":         "1s",
 						},
 					},
 				},
