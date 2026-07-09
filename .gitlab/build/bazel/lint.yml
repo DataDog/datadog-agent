@@ -50,3 +50,34 @@ bazel:run-go-mod-tidy:
     - bazel run //:go_mod_tidy_all -- -diff
   variables:
     FIX_COMMAND: "bazel run //:go_mod_tidy_all"
+
+# TEMPORARY — investigating openssl/python_unix remote-cache misses on edge cache. Remove after use.
+bazel:debug-buildbarn-digest-compare:
+  extends: [ .bazel:runner:linux-amd64 ]
+  stage: lint
+  rules:
+    - when: on_success
+  allow_failure: true
+  script:
+    - bazel build --//:install_dir=/opt/datadog-agent --execution_log_json_file=/tmp/bb_debug_exec_log.json @cpython//:install
+    - |
+      python3 - <<'PYEOF'
+      import json
+      with open('/tmp/bb_debug_exec_log.json') as f:
+          data = f.read()
+      decoder = json.JSONDecoder()
+      idx = 0
+      n = len(data)
+      targets = {"@@+http_archive+openssl//:openssl", "@@+http_archive+cpython//:python_unix"}
+      while idx < n:
+          while idx < n and data[idx] in ' \t\r\n':
+              idx += 1
+          if idx >= n:
+              break
+          obj, end = decoder.raw_decode(data, idx)
+          idx = end
+          if obj.get("targetLabel") in targets and obj.get("mnemonic") == "CcConfigureMakeRule":
+              print("=== BUILDBARN_DEBUG", obj.get("targetLabel"), "===")
+              print("  digest:", obj.get("digest"))
+              print("  cacheHit:", obj.get("cacheHit"), "runner:", obj.get("runner"))
+      PYEOF
