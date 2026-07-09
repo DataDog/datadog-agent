@@ -32,12 +32,6 @@ build do
   # we assume the go deps are already installed before running omnibus
   command "invoke dogstatsd.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
-  mkdir "#{install_dir}/etc/datadog-dogstatsd"
-  unless windows_target?
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/scripts/"
-  end
-
   # move around bin and config files
   if windows_target?
     mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
@@ -45,25 +39,31 @@ build do
   else
     copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
   end
-  move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux_target?
     if debian_target?
-      erb source: "upstart_debian.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir }
-    # Ship a different upstart job definition on RHEL to accommodate the old
-    # version of upstart (0.6.5) that RHEL 6 provides.
-    elsif redhat_target? || suse_target?
-      erb source: "upstart_redhat.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir }
+      install_target = "//packages/dogstatsd/linux:install_debian"
+    else
+      install_target = "//packages/dogstatsd/linux:install_redhat"
     end
-    erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-dogstatsd.service",
-        mode: 0644,
-        vars: { install_dir: install_dir }
+    # Bazel places the yaml example, init scripts, service file, and creates
+    # /etc/datadog-dogstatsd/ and /var/log/datadog/.
+    command_on_repo_root "bazel run --//:install_dir=#{install_dir} -- #{install_target} --destdir=/",
+      :live_stream => Omnibus.logger.live_stream(:info)
+    mkdir "#{install_dir}/run"
+    mkdir "#{install_dir}/scripts"
+    project.extra_package_file '/etc/init/datadog-dogstatsd.conf'
+    project.extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
+  elsif windows_target?
+    mkdir "#{install_dir}/etc/datadog-dogstatsd"
+    move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
+    conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-dogstatsd"
+    conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+    mkdir conf_dir
+    move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", conf_dir_root, :force => true
+  else
+    # macOS: stage yaml in install_dir/etc/ where the .pkg will find it.
+    mkdir "#{install_dir}/etc/datadog-dogstatsd"
+    move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
   end
 end

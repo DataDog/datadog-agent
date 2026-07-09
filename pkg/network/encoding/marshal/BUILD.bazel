@@ -125,9 +125,6 @@ go_test(
             "@com_github_golang_protobuf//proto",
             "@com_github_stretchr_testify//suite",
         ],
-        "@rules_go//go/platform:windows": [
-            "@com_github_golang_protobuf//proto",
-        ],
         "//conditions:default": [],
     }),
 )

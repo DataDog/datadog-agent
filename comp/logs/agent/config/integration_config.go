@@ -114,6 +114,13 @@ type LogsConfig struct {
 	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
 	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
 
+	// DebugAttrParsing controls whether the syslog parser renders structured
+	// JSON output (with "message", "syslog", and optionally "siem" keys) or
+	// passes through the original log line as-is. When false (the default),
+	// only the raw message is sent to intake. Set to true to include the full
+	// structured envelope.
+	DebugAttrParsing *bool `mapstructure:"debug_attr_parsing" json:"debug_attr_parsing" yaml:"debug_attr_parsing"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
@@ -666,7 +673,17 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	enabled, _ := c.AutoMultiLineStatus(coreConfig)
+	enabled, isDefault := c.AutoMultiLineStatus(coreConfig)
+	if c.Type == UDPType {
+		if isDefault {
+			// UDP datagrams are documented as complete messages; don't let them
+			// silently inherit the global auto-multi-line default.
+			return false
+		}
+		if enabled {
+			log.Warn("Auto multi line detection is not supported for UDP sources, but it has been enabled for log source:", c.Source)
+		}
+	}
 	return enabled
 }
 
@@ -692,6 +709,16 @@ func (c *LogsConfig) IsSIEMParsingEnabled() bool {
 		return *c.SIEMParsing
 	}
 	return true
+}
+
+// IsDebugAttrParsingEnabled returns whether the syslog parser should render
+// the full structured JSON envelope (message + syslog + siem keys). When nil
+// (unconfigured), it defaults to false — only the raw message is rendered.
+func (c *LogsConfig) IsDebugAttrParsingEnabled() bool {
+	if c.DebugAttrParsing != nil {
+		return *c.DebugAttrParsing
+	}
+	return false
 }
 
 // GetMaxMessageSizeBytes returns the per-source max message size if configured,

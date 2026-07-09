@@ -29,10 +29,14 @@ var discoveryForceDisabledProtocols = []string{
 	smNS("redis", "enabled"),
 }
 
-const defaultDiscoveryServiceCollectionBatchSize = 500
+const (
+	defaultDiscoveryServiceCollectionBatchSize              = 500
+	defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts = 5
+)
 
 func adjustDiscovery(cfg model.Config) {
 	adjustDiscoveryServiceCollectionBatchSize(cfg)
+	adjustDiscoveryServiceCollectionMaxConsecutiveTimeouts(cfg)
 
 	if !cfg.GetBool(discoveryNS("service_map", "enabled")) {
 		return
@@ -109,4 +113,15 @@ func adjustDiscoveryServiceCollectionBatchSize(cfg model.Config) {
 
 	log.Warnf("%s cannot be negative: %d, using default value %d", key, batchSize, defaultDiscoveryServiceCollectionBatchSize)
 	cfg.Set(key, defaultDiscoveryServiceCollectionBatchSize, model.SourceAgentRuntime)
+}
+
+func adjustDiscoveryServiceCollectionMaxConsecutiveTimeouts(cfg model.Config) {
+	key := discoveryNS("service_collection_max_consecutive_timeouts")
+	maxTimeouts := cfg.GetInt(key)
+	if maxTimeouts >= 0 {
+		return
+	}
+
+	log.Warnf("%s cannot be negative: %d, using default value %d", key, maxTimeouts, defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts)
+	cfg.Set(key, defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts, model.SourceAgentRuntime)
 }
