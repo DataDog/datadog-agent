@@ -16,7 +16,6 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
         "//comp/otelcol/ddflareextension/types",
-        "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "//pkg/util/input",
         "//pkg/util/option",
