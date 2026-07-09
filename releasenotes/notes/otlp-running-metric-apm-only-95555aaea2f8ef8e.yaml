@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    OTLP: The ``otel.datadog_exporter.metrics.running`` telemetry metric is no
+    longer emitted for payloads that contain only APM metrics.
