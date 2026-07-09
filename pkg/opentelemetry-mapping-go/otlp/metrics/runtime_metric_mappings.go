@@ -61,6 +61,8 @@ var runtimeMetricPrefixes = []string{
 
 	// https://opentelemetry.io/docs/specs/semconv/runtime/nodejs-metrics/
 	"nodejs.eventloop.",
+	// https://opentelemetry.io/docs/specs/semconv/runtime/v8js-metrics/
+	"v8js.",
 }
 
 func isRuntimeMetric(name string) bool {
