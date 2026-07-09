@@ -137,8 +137,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/logs/launchers/container/tailerfactory/*.go
 # gazelle:exclude pkg/logs/launchers/file/*.go
-# gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
-# gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
 # gazelle:exclude pkg/network/tracer/connection/*.go
 # gazelle:exclude pkg/network/tracer/connection/fentry
 # gazelle:exclude pkg/network/tracer/connection/kprobe
