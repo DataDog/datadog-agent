@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -180,6 +181,7 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	for pid := range seenPIDs {
 		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
 	}
+	slices.Sort(gpuDeviceInfo.ActivePIDs) // Sort to ensure the gpu device info doesn't change due to PID ordering changes
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
