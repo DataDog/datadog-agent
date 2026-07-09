@@ -111,7 +111,7 @@ Two agent versions are resolved at suite startup from environment variables:
 | Prefix | Role | Key env vars |
 |---|---|---|
 | `CURRENT_AGENT` | Agent built by the current pipeline | Assertions: `CURRENT_AGENT_ASSERT_VERSION`, `CURRENT_AGENT_ASSERT_PACKAGE_VERSION`. Resolution: `CURRENT_AGENT_PIPELINE` or `CURRENT_AGENT_SOURCE_VERSION` (falls back to `E2E_PIPELINE_ID`). |
-| `STABLE_AGENT` | Baseline for upgrade tests (default: 7.77.0) | Assertions: `STABLE_AGENT_ASSERT_VERSION`, `STABLE_AGENT_ASSERT_PACKAGE_VERSION`. Resolution: `STABLE_AGENT_SOURCE_VERSION` or `STABLE_AGENT_PIPELINE`. |
+| `STABLE_AGENT` | Baseline for upgrade tests (default: 7.79.2) | Assertions: `STABLE_AGENT_ASSERT_VERSION`, `STABLE_AGENT_ASSERT_PACKAGE_VERSION`. Resolution: `STABLE_AGENT_SOURCE_VERSION` or `STABLE_AGENT_PIPELINE`. |
 
 These are exactly the variables `dda inv new-e2e-tests.setup-env` emits.
 `getAgentVersionVars()` reads the `_ASSERT_*` pair (the `_ASSERT_VERSION` is
