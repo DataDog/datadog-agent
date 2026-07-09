@@ -59,8 +59,13 @@ fn image_path_matches_par_install(image_path: &Path) -> bool {
 }
 
 fn expected_par_exe_paths() -> Vec<PathBuf> {
+    let install_root = crate::platform::agent_install_root();
     vec![
-        crate::platform::agent_install_root()
+        install_root
+            .join("bin")
+            .join("agent")
+            .join(PAR_EXE_BASENAME),
+        install_root
             .join("embedded")
             .join("bin")
             .join(PAR_EXE_BASENAME),
