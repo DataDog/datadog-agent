@@ -229,7 +229,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	}
 	defer conn.Close()
 
-	err = conn.PushConfig(ctx, rawConfig)
+	_, err = conn.PushConfig(ctx, rawConfig)
 	if err != nil {
 		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
 	}

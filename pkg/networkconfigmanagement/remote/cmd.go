@@ -16,9 +16,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
 
-type result struct {
-	message string
-	err     error
+// CommandResult records a command that was run and the resulting output.
+type CommandResult struct {
+	CommandStr      string
+	Output          string
+	Error           error
+	ValidationError error
+}
+
+// AnyError returns .Error or .ValidationError, whichever is not nil, or nil if
+// both are nil.
+func (c *CommandResult) AnyError() error {
+	err := c.Error
+	if err == nil {
+		err = c.ValidationError
+	}
+	if err == nil {
+		return nil
+	}
+	if c.Output != "" {
+		return fmt.Errorf("%w: %q", err, c.Output)
+	}
+	return err
 }
 
 // sshClient is a common interface between ssh.Client and RetryingSSHClient
@@ -28,28 +47,36 @@ type sshClient interface {
 
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
-func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (string, error) {
+func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*CommandResult, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer session.Close()
-	ch := make(chan result, 1)
+	ch := make(chan *CommandResult, 1)
 	go func() {
 		output, err := session.CombinedOutput(cmd.Command)
-		ch <- result{string(output), err}
+		ch <- &CommandResult{
+			CommandStr: cmd.Command,
+			Output:     string(output),
+			Error:      err,
+		}
 	}()
 	select {
 	case r := <-ch:
-		if r.err != nil {
-			if r.message != "" {
-				return "", fmt.Errorf("%w: %q", r.err, r.message)
-			}
-			return "", r.err
+		if r.Error == nil {
+			r.ValidationError = cmd.Validator.Validate(r.Output)
 		}
-		return r.message, cmd.Validator.Validate(r.message)
+		err := r.AnyError()
+		if err != nil {
+			if r.Output != "" {
+				return r, fmt.Errorf("%w: %q", err, r.Output)
+			}
+			return r, err
+		}
+		return r, nil
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -59,34 +86,43 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 var filenameRE = regexp.MustCompile("^[a-zA-Z0-9_:./-]*$")
 
 // ExecuteSCP executes an SCP command, sending the given data over SSH.
-func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, data string) (string, error) {
+func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, data string) (*CommandResult, error) {
 	if !filenameRE.MatchString(cmd.Filepath) {
-		return "", fmt.Errorf("bad filename for scp: %q", cmd.Filepath)
+		return nil, fmt.Errorf("bad filename for scp: %q", cmd.Filepath)
 	}
 	session, err := client.NewSession()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer session.Close()
 	cmdStr := fmt.Sprintf("%s -t %s", cmd.RemoteCommand, cmd.Filepath)
-	ch := make(chan result)
+	ch := make(chan *CommandResult)
 	go func() {
 		response, err := executeSCP(session, cmdStr, filepath.Base(cmd.Filepath), data)
-		ch <- result{response, err}
+		ch <- &CommandResult{
+			CommandStr: cmdStr,
+			Output:     response,
+			Error:      err,
+		}
 	}()
-	var response string
+	var r *CommandResult
 	select {
-	case result := <-ch:
-		response = result.message
-		err = result.err
+	case r = <-ch:
+		// got a result, continue
 	case <-ctx.Done():
-		err = ctx.Err()
+		return nil, fmt.Errorf("scp command %q failed: %w", cmdStr, ctx.Err())
 	}
+
+	if r.Error == nil {
+		r.ValidationError = cmd.Validator.Validate(r.Output)
+	}
+	err = r.AnyError()
 	if err != nil {
-		return "", fmt.Errorf("scp command %q failed: %w", cmdStr, err)
+		if r.Output != "" {
+			return r, fmt.Errorf("%w: %q", err, r.Output)
+		}
+		return r, err
 	}
-	if err := cmd.Validator.Validate(response); err != nil {
-		return response, fmt.Errorf("scp command %q bad output: %w", cmdStr, err)
-	}
-	return response, nil
+
+	return r, nil
 }

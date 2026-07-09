@@ -49,10 +49,20 @@ ip address 192.168.1.1 255.255.255.0`
 	versionOutput = `Cisco Device Version 1.0`
 )
 
+type result = ncmremote.CommandResult
+
+func ok(msg string) *result {
+	return &result{Output: msg}
+}
+
+func fail(err error) *result {
+	return &result{Error: err}
+}
+
 func newMockConnection() *MockConnection {
 	// Set up mock remote client
 	return &MockConnection{
-		OutputMap: map[string]result{
+		OutputMap: map[string]*result{
 			"show running-config": ok(runningOutput),
 			"show startup-config": ok(startupOutput),
 			"show version":        ok(versionOutput),
@@ -61,22 +71,9 @@ func newMockConnection() *MockConnection {
 	}
 }
 
-type result struct {
-	response string
-	err      error
-}
-
-func ok(msg string) result {
-	return result{response: msg}
-}
-
-func fail(err error) result {
-	return result{err: err}
-}
-
 // MockConnection simulates a Connection
 type MockConnection struct {
-	OutputMap map[string]result // cmd -> output
+	OutputMap map[string]*result // cmd -> output
 	Opened    bool
 	Closed    bool
 	Calls     []string
@@ -85,7 +82,7 @@ type MockConnection struct {
 
 var _ ncmremote.Connection = (*MockConnection)(nil)
 
-func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
+func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandResult, error) {
 	r := fail(errors.New("unsupported command"))
 	if cmd != nil {
 		var ok bool
@@ -93,18 +90,19 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
 		if !ok {
 			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
 		}
-		if r.err == nil {
-			r.err = cmd.Validator.Validate(r.response)
+		r.CommandStr = cmd.Command
+		if r.Error == nil {
+			r.ValidationError = cmd.Validator.Validate(r.Output)
 		}
 	}
-	return []byte(r.response), r.err
+	return r, r.AnyError()
 }
 
-func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveRunningConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetRunning)
 }
 
-func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveStartupConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetStartup)
 }
 
@@ -113,8 +111,8 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (m *MockConnection) PushConfig(_ context.Context, _ string) ([]*ncmremote.CommandResult, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
