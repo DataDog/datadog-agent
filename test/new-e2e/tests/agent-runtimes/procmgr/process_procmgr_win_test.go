@@ -182,8 +182,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 		assert.NoError(ct, err)
 	}, 120*time.Second, 3*time.Second)
 
-	// Stage 2: Mutate privileged *env* (DD_FLEET_POLICIES_DIR) so it violates the non-empty rule.
-	// This should make dd-procmgr refuse the privileged spawn request.
+	// Stage 2: Mutate privileged *env* (DD_FLEET_POLICIES_DIR) so it no longer matches the
+	// catalog-pinned fleet policies path. This should make dd-procmgr refuse the privileged spawn request.
 	envMutatePS := fmt.Sprintf(`powershell -NoProfile -Command "$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c -replace '(?m)^(\s*DD_FLEET_POLICIES_DIR:\s*).*$','$1""'; if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8"`,
 		escapePSSingleQuotedLiteral(cfgPath))
 	_, err = host.Execute(envMutatePS)

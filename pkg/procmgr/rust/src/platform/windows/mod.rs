@@ -318,6 +318,22 @@ fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
 }
 
+/// Fleet policies directory for managed processes (`DD_FLEET_POLICIES_DIR`).
+///
+/// Mirrors `pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess` on Windows.
+pub(crate) fn fleet_policies_dir_for_managed_process() -> PathBuf {
+    open_datadog_agent_key()
+        .and_then(|k| registry_nonempty_string(&k, "fleet_policies_dir"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            program_data_root()
+                .join("Installer")
+                .join("managed")
+                .join("datadog-agent")
+                .join("stable")
+        })
+}
+
 /// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
 /// (`/opt/datadog-agent/processes.d`) and omnibus. Resolves the install root like
 /// `pkg/util/winutil.GetProgramFilesDirForProduct` in Go (`InstallPath` registry value,
