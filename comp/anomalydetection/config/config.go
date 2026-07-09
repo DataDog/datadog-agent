@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package anomalydetectionconfig defines shared anomaly-detection config
-// contracts used across multiple components.
-// It is useful to get implicit configurations, for instance if smart log
-// sampling enabled, it will enable automatically anomaly detection.
-package anomalydetectionconfig
+// Package config defines shared anomaly-detection config helpers used across
+// multiple packages.
+package config
 
 const (
 	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"

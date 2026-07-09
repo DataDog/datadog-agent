@@ -20,7 +20,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/impl"
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"

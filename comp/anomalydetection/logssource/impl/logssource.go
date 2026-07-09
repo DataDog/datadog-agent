@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/impl"
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
