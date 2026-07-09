@@ -248,15 +248,15 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
+	// In the v1 idx format the decision maker (_dd.p.dm) is no longer carried as a
+	// chunk attribute: it is promoted to the dedicated SamplingMechanism chunk field.
+	// The probabilistic sampler sets mechanism 9 (the legacy "_dd.p.dm: -9" tag).
+	const probabilitySamplingMechanism = 9
 	for _, p := range traces {
 		for _, tp := range p.IdxTracerPayloads {
 			for _, chunk := range tp.Chunks {
-				dm, ok := idxStrAttr(tp.Strings, chunk.Attributes, "_dd.p.dm")
-				if !ok {
-					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
-				}
-				if dm != "-9" {
-					t.Errorf("Expected dm == -9, but got %v for service %s", dm, idxStr(tp.Strings, chunk.Spans[0].ServiceRef))
+				if chunk.SamplingMechanism != probabilitySamplingMechanism {
+					t.Errorf("Expected chunk SamplingMechanism == %d, but got %d for service %s", probabilitySamplingMechanism, chunk.SamplingMechanism, idxStr(tp.Strings, chunk.Spans[0].ServiceRef))
 				}
 			}
 		}
