@@ -490,6 +490,37 @@ func TestAdded_returnsNilAndRecordsNoCreateFailedEvent_whenCreateAlreadyExists(t
 	requireNoEvents(t, recorder)
 }
 
+func TestAdded_skipsForeignExtensionAndRecordsNoEvent_whenCreateAlreadyExistsRaceRevealsForeignObject(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	foreign := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
+	before := foreign.DeepCopy()
+	getCalls := 0
+	client.PrependReactor("get", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		getCalls++
+		if getCalls == 1 {
+			return true, nil, apierrors.NewNotFound(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, action.(k8stesting.GetAction).GetName())
+		}
+		return true, foreign.DeepCopy(), nil
+	})
+	client.PrependReactor("create", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		created := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
+		return true, nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, created.GetName())
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	require.Equal(t, 2, getCalls)
+	after := getExtension(t, client, "test-ns", "test-gateway")
+	require.Equal(t, before.Object, after.Object)
+	requireNoEvents(t, recorder)
+}
+
 func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
 	tests := []struct {
 		name    string

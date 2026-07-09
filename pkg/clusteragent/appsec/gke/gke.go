@@ -32,16 +32,13 @@ const (
 	extensionNamePrefix = "datadog-appsec-"
 )
 
-var (
-	_ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
-
-	gkeServiceNamespaceInfoOnce sync.Once
-)
+var _ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
 
 type gkeGatewayInjectionPattern struct {
-	client dynamic.Interface
-	logger log.Component
-	config appsecconfig.Config
+	client                   dynamic.Interface
+	logger                   log.Component
+	config                   appsecconfig.Config
+	serviceNamespaceInfoOnce sync.Once
 	eventRecorder
 }
 
@@ -73,7 +70,7 @@ func (g *gkeGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) er
 		return fmt.Errorf("%w: error getting GCPTrafficExtension CRD", err)
 	}
 
-	gkeServiceNamespaceInfoOnce.Do(func() {
+	g.serviceNamespaceInfoOnce.Do(func() {
 		g.logger.Infof("GKE Gateway AppSec uses same-namespace Service backendRefs: the callout Service %q must exist in each Gateway namespace; processor namespace %q is not used for GKE", g.config.Processor.ServiceName, g.config.Processor.Namespace)
 	})
 
@@ -111,6 +108,13 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 	extension := g.newGCPTrafficExtension(namespace, gatewayName)
 	_, err = g.client.Resource(trafficExtensionGVR).Namespace(namespace).Create(ctx, extension, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
+		// AlreadyExists means someone created the same name between our Get(NotFound) and Create;
+		// re-check ownership so we do not silently claim a foreign object as our success.
+		existing, getErr := g.client.Resource(trafficExtensionGVR).Namespace(namespace).Get(ctx, extName, metav1.GetOptions{})
+		if getErr == nil && !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
+			g.logger.Warnf("Skipping GCPTrafficExtension %s/%s: object already exists and is not managed by Datadog", namespace, extName)
+			return nil
+		}
 		g.logger.Debugf("GCPTrafficExtension %s/%s already exists", namespace, extName)
 		return nil
 	}
