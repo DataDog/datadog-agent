@@ -17,8 +17,9 @@ func TestReportHealthCheck(t *testing.T) {
 
 	ReportHealthCheck(recorder)
 
-	require.Len(t, recorder.calls, 1)
+	require.Len(t, recorder.calls, 2)
 	assert.Equal(t, RunnerRunningMetric, recorder.calls[0].name)
+	assert.Equal(t, HealthCheckMetric, recorder.calls[1].name)
 }
 
 func TestReportHealthCheck_NilMetricsClientDoesNotPanic(t *testing.T) {
