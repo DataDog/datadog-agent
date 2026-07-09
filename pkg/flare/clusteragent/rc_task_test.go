@@ -9,12 +9,14 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -64,7 +66,7 @@ func TestHandleRCFlareTask_CreateArchiveError(t *testing.T) {
 	origCreate := createDCAArchiveFunc
 	t.Cleanup(func() { createDCAArchiveFunc = origCreate })
 
-	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return "", errors.New("archive creation failed")
 	}
 
@@ -87,7 +89,7 @@ func TestHandleRCFlareTask_SendError(t *testing.T) {
 		sendFlareFunc = origSend
 	})
 
-	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return "/tmp/fake-flare.zip", nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
@@ -121,7 +123,7 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 	var capturedCaseID, capturedUserHandle string
 	var capturedSource flarehelpers.FlareSource
 
-	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return tmpPath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, caseID, userHandle, _, _ string, source flarehelpers.FlareSource) (string, error) {
@@ -160,7 +162,7 @@ func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
 	tmpPath := tmpFile.Name()
 	t.Cleanup(func() { os.Remove(tmpPath) })
 
-	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return tmpPath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
@@ -177,4 +179,65 @@ func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
 	assert.ErrorContains(t, err, "send failed")
 	_, statErr := os.Stat(tmpPath)
 	assert.NoError(t, statErr, "flare archive should be kept when upload fails")
+}
+
+func TestHandleRCFlareTask_ProfilingArgs(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	var capturedArgs flaretypes.FlareArgs
+
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, args flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		capturedArgs = args
+		return "/tmp/fake-flare.zip", nil
+	}
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		return "ok", nil
+	}
+
+	tests := []struct {
+		name            string
+		enableProfiling string
+		wantDuration    time.Duration
+	}{
+		{
+			name:            "enable_profiling=true uses config defaults",
+			enableProfiling: "true",
+			wantDuration:    30 * time.Second,
+		},
+		{
+			name:            "enable_profiling=false disables profiling",
+			enableProfiling: "false",
+			wantDuration:    0,
+		},
+		{
+			name:            "enable_profiling absent disables profiling",
+			enableProfiling: "",
+			wantDuration:    0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			capturedArgs = flaretypes.FlareArgs{}
+			cfg := configmock.New(t)
+
+			args := map[string]string{
+				"case_id":     "12345",
+				"user_handle": "test@example.com",
+			}
+			if tc.enableProfiling != "" {
+				args["enable_profiling"] = tc.enableProfiling
+			}
+
+			task := buildAgentTaskConfig(t, "flare", "uuid-prof", args)
+			err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantDuration, capturedArgs.ProfileDuration)
+		})
+	}
 }

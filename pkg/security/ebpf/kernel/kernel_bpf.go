@@ -10,17 +10,47 @@ package kernel
 
 import (
 	"runtime"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
+	"golang.org/x/sys/unix"
 )
 
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
+}
+
+// ioUringParams mirrors the kernel's struct io_uring_params. Only its size matters here: the kernel
+// writes the submission/completion ring offsets into it during io_uring_setup.
+type ioUringParams struct {
+	sqEntries    uint32
+	cqEntries    uint32
+	flags        uint32
+	sqThreadCPU  uint32
+	sqThreadIdle uint32
+	features     uint32
+	wqFd         uint32
+	resv         [3]uint32
+	sqOff        [10]uint32 // struct io_sqring_offsets
+	cqOff        [10]uint32 // struct io_cqring_offsets
+}
+
+// HaveIOURing returns whether the kernel supports io-uring.
+func (k *Version) HaveIOURing() bool {
+	// probe support by issuing an io_uring_setup(2) syscall directly, avoiding a dedicated io-uring
+	// library dependency in the agent binary
+	var params ioUringParams
+	fd, _, errno := unix.Syscall(unix.SYS_IO_URING_SETUP, 1, uintptr(unsafe.Pointer(&params)), 0)
+	if errno != 0 {
+		return false
+	}
+	_ = unix.Close(int(fd))
+	return true
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.

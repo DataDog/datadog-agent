@@ -18,7 +18,7 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b.C", "test")
-	cfg.SetKnown("d.E.f") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("d.E.f", "")
 	cfg.BuildSchema()
 
 	assert.Equal(t,
@@ -52,8 +52,8 @@ func TestGet(t *testing.T) {
 
 func TestGetDefaultType(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetKnown("a") //nolint:forbidigo // testing behavior
-	cfg.SetKnown("b") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", map[string]interface{}{})
+	cfg.BindEnvAndSetDefault("b", map[string]interface{}{})
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader(`---

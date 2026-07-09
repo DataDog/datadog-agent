@@ -29,6 +29,8 @@ import (
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
+// team: agent-health fleet-remediation
+
 // findInvalidConfigIssue returns the invalid-config issue among a health
 // report's issues, if any. The issue's map key is IssueID scoped with a
 // host+path suffix (invalidconfig.IssueID + ":" + digest), so lookups must
@@ -41,8 +43,6 @@ func findInvalidConfigIssue(issues map[string]*healthplatformpayload.Issue) *hea
 	}
 	return nil
 }
-
-// team: agent-health
 
 // requireSchema skips the test when the compressed schema files haven't been
 // generated yet (run `dda inv schema.generate`). CI always has them; local

@@ -126,6 +126,11 @@ type dsdServer struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
+	// workerWg tracks the worker run loops. stop() waits on it so that every
+	// worker has finished its run loop — including any flush-on-stop of its
+	// batcher — before stop() returns and the demultiplexer is torn down.
+	workerWg sync.WaitGroup
+
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
 	serverlessFlushChan     chan bool
@@ -518,7 +523,16 @@ func (s *dsdServer) stop(context.Context) error {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+
 	close(s.stopChan)
+
+	// Wait for every worker run loop to exit before tearing down the
+	// demultiplexer. When dogstatsd_flush_incomplete_buckets is set, each worker
+	// flushes its batcher into the time sampler as it exits (see worker.run), so
+	// waiting here guarantees those samples have reached the sampler before the
+	// demultiplexer's own stop drains and flushes them out. Without the flag the
+	// workers simply return, and this wait is a cheap barrier.
+	s.workerWg.Wait()
 
 	if s.Statistics != nil {
 		s.Statistics.Stop()
@@ -582,6 +596,7 @@ func (s *dsdServer) handleMessages() {
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		s.workerWg.Add(1)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

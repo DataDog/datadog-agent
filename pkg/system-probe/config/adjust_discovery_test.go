@@ -52,6 +52,30 @@ func TestAdjustDiscoveryServiceCollectionBatchSize(t *testing.T) {
 	}
 }
 
+func TestAdjustDiscoveryServiceCollectionMaxConsecutiveTimeouts(t *testing.T) {
+	key := discoveryNS("service_collection_max_consecutive_timeouts")
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{"positive value preserved", 7, 7},
+		{"zero disables timeout guard", 0, 0},
+		{"negative value falls back to default", -1, defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setInt(cfg, key, tc.input)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetInt(key))
+		})
+	}
+}
+
 func TestAdjustDiscovery_Coexistence(t *testing.T) {
 	tests := []struct {
 		name                     string
