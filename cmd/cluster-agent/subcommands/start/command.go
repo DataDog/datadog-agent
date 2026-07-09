@@ -71,6 +71,8 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	kubeactionscomp "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
+	kubeactionsfx "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -264,6 +266,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remotetraceroutefx.Module(),
+				kubeactionsfx.Module(),
 			)
 		},
 	}
@@ -302,6 +305,7 @@ func start(log log.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	kubeActions kubeactionscomp.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -636,7 +640,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -805,6 +809,7 @@ func startPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipc ipc.Component,
 	demux demultiplexer.Component,
+	ka kubeactionscomp.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -822,7 +827,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ka)
 	if err != nil {
 		return nil, err
 	}

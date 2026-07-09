@@ -23,6 +23,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -80,6 +81,7 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
+	ka             kubeactions.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -111,7 +113,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	// The kubeactions component lives in the cluster agent (kubeapiserver build)
+	// and is wired through the cluster-agent start command. The standalone runner
+	// has no kubeactions provider, so pass nil here.
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -134,6 +139,7 @@ func NewPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
 	metricsClient statsdclient.ClientInterface,
+	ka kubeactions.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -145,6 +151,7 @@ func NewPrivateActionRunner(
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
 		metricsClient:  metricsClient,
+		ka:             ka,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -247,7 +254,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ka)
 	if err != nil {
 		return err
 	}

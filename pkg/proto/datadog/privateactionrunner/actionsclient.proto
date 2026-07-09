@@ -26,5 +26,6 @@ enum Client {
   CI_ACTION_WORKER = 18;
   DOD_SANDBOXER = 19;
   RSHELL_TERMINAL = 20;
+  KUBE_TRAY = 26;
   DEV = 9999;
 }

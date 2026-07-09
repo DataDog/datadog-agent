@@ -12,6 +12,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -46,9 +47,10 @@ func NewWorkflowRunner(
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
+	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, ka),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,

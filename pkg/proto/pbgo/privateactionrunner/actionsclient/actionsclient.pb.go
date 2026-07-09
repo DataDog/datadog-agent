@@ -45,6 +45,7 @@ const (
 	Client_CI_ACTION_WORKER                                   Client = 18
 	Client_DOD_SANDBOXER                                      Client = 19
 	Client_RSHELL_TERMINAL                                    Client = 20
+	Client_KUBE_TRAY                                          Client = 26
 	Client_DEV                                                Client = 9999
 )
 
@@ -72,6 +73,7 @@ var (
 		18:   "CI_ACTION_WORKER",
 		19:   "DOD_SANDBOXER",
 		20:   "RSHELL_TERMINAL",
+		26:   "KUBE_TRAY",
 		9999: "DEV",
 	}
 	Client_value = map[string]int32{
@@ -96,6 +98,7 @@ var (
 		"CI_ACTION_WORKER":                                   18,
 		"DOD_SANDBOXER":                                      19,
 		"RSHELL_TERMINAL":                                    20,
+		"KUBE_TRAY":                                          26,
 		"DEV":                                                9999,
 	}
 )
@@ -131,7 +134,7 @@ var File_datadog_privateactionrunner_actionsclient_proto protoreflect.FileDescri
 
 const file_datadog_privateactionrunner_actionsclient_proto_rawDesc = "" +
 	"\n" +
-	"/datadog/privateactionrunner/actionsclient.proto\x12)datadog.privateactionrunner.actionsclient*\x8b\x04\n" +
+	"/datadog/privateactionrunner/actionsclient.proto\x12)datadog.privateactionrunner.actionsclient*\x9a\x04\n" +
 	"\x06Client\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\r\n" +
 	"\tWORKFLOWS\x10\x01\x12\x0f\n" +
@@ -154,7 +157,8 @@ const file_datadog_privateactionrunner_actionsclient_proto_rawDesc = "" +
 	"\x1aDATA_OBSERVABILITY_CRAWLER\x10\x11\x12\x14\n" +
 	"\x10CI_ACTION_WORKER\x10\x12\x12\x11\n" +
 	"\rDOD_SANDBOXER\x10\x13\x12\x13\n" +
-	"\x0fRSHELL_TERMINAL\x10\x14\x12\b\n" +
+	"\x0fRSHELL_TERMINAL\x10\x14\x12\r\n" +
+	"\tKUBE_TRAY\x10\x1a\x12\b\n" +
 	"\x03DEV\x10\x8fNBSZQgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclientb\x06proto3"
 
 var (

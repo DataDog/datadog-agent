@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubeactions",
+    srcs = [
+        "delete_pod.go",
+        "entrypoint.go",
+        "get_resource.go",
+        "patch_deployment.go",
+        "restart_deployment.go",
+        "rollback_deployment.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/kubeactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/kubeactions/kubeactions/def",
+        "//comp/kubeactions/kubeactions/impl",
+        "//pkg/privateactionrunner/bundle-support/kubernetes",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
+
+go_test(
+    name = "kubeactions_test",
+    srcs = ["entrypoint_test.go"],
+    embed = [":kubeactions"],
+    gotags = ["test"],
+    deps = [
+        "//comp/kubeactions/kubeactions/def",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
