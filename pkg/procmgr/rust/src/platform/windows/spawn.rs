@@ -12,7 +12,9 @@ use std::os::windows::ffi::OsStrExt;
 use std::process::Stdio;
 use std::ptr;
 use tokio::process::Command;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{
+    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+};
 use windows_sys::Win32::Security::{
     DuplicateTokenEx, ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT,
     LogonUserW, RevertToSelf, SecurityDelegation, TokenPrimary,
@@ -522,6 +524,20 @@ fn env_block_from_current_plus_overrides(overrides: &[(String, String)]) -> Resu
     Ok(block)
 }
 
+fn set_handle_inheritable(handle: HANDLE) -> Result<()> {
+    if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+        bail!("cannot mark invalid handle inheritable");
+    }
+    let ok = unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) };
+    if ok == 0 {
+        bail!(
+            "SetHandleInformation(HANDLE_FLAG_INHERIT) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
+}
+
 fn open_nul_handle(access: u32) -> Result<HANDLE> {
     let nul = wide::null_terminated("NUL");
     let h = unsafe {
@@ -541,18 +557,23 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
             std::io::Error::last_os_error()
         );
     }
+    set_handle_inheritable(h)?;
     Ok(h)
 }
 
 fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<HANDLE> {
     match stdio {
-        Stdio::Inherit => unsafe {
-            let h = GetStdHandle(kind);
-            if h == INVALID_HANDLE_VALUE || h.is_null() {
-                bail!("GetStdHandle({kind}) returned invalid");
-            }
+        Stdio::Inherit => {
+            let h = unsafe {
+                let h = GetStdHandle(kind);
+                if h == INVALID_HANDLE_VALUE || h.is_null() {
+                    bail!("GetStdHandle({kind}) returned invalid");
+                }
+                h
+            };
+            set_handle_inheritable(h)?;
             Ok(h)
-        },
+        }
         Stdio::Null => open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE),
         other => bail!("primary-token spawn only supports inherit/null stdio, got {other:?}"),
     }
