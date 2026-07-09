@@ -27,7 +27,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.205-0.20260707135643-e2e53de32031 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5 // indirect
