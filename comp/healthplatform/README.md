@@ -8,7 +8,7 @@ Every health issue has three identity fields. Follow these rules when adding a n
 
 - **Format**: kebab-case — lowercase letters, digits, and hyphens only
 - **Scope**: unique per issue *instance* — used as the store map key
-- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`)
+- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`), or a hashed suffix when the distinguishing value isn't human-readable, as `invalidconfig` does with `"invalid-config:" + fnv32a(hostname + configPath)`
 - **Examples**: `"invalid-config"`, `"rofs-permissions"`, `"check-execution-failure"`
 
 ### `issue_name` (`IssueName`)
