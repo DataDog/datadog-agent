@@ -6,9 +6,6 @@
 package activedirectory
 
 import (
-	"strings"
-	stdtime "time" // stdlib; the pulumiverse "time" below already owns the `time` name
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -113,12 +110,14 @@ try {
 		DomainMode                    = "7"
 		DomainName                    = "%s"
 		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
+		NoRebootOnCompletion          = $true
 		Force                         = $true
 	}; Install-ADDSForest @HashArguments
-	# Install-ADDSForest may return RebootRequired:False yet still require a reboot for ADWS to start.
-	# Schedule the reboot 5 seconds out so the command returns and Pulumi acknowledges success
-	# before the SSH connection drops. Exit 1190 means a reboot is already pending; ignore it.
-	shutdown.exe /r /f /t 5; if ($LASTEXITCODE -eq 1190) { $LASTEXITCODE = 0 }
+	# Record the pre-reboot boot time so ensure-adws-started can deterministically confirm the reboot
+	# completed (a newer boot time) instead of racing a fixed sleep.
+	(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToFileTimeUtc() | Set-Content -Path C:\dcpromo-preboot.txt -NoNewline
+	# Issue the single, controlled reboot 5 seconds out so this command returns success before SSH drops.
+	shutdown.exe /r /f /t 5
 }
 `, params.DomainName, params.DomainPassword),
 	}, pulumi.Parent(adCtx.comp), pulumi.DependsOn(adCtx.createdResources))
@@ -128,7 +127,7 @@ try {
 	adCtx.createdResources = append(adCtx.createdResources, installCmd)
 
 	waitForRebootCmd, err := time.NewSleep(adCtx.pulumiContext, adCtx.comp.namer.ResourceName("wait-for-host-to-reboot"), &time.SleepArgs{
-		CreateDuration: pulumi.String("30s"),
+		CreateDuration: pulumi.String("90s"),
 	},
 		pulumi.Provider(adCtx.timeProvider),
 		pulumi.DependsOn(adCtx.createdResources)) // Depend on all the previously created resources
@@ -147,47 +146,35 @@ try {
 	// a relative identifier" (ActiveDirectoryServer:8208) until that stabilization completes.
 	// See WINA-2095.
 	//
-	// Install-ADDSForest triggers a reboot; if ensure-adws-started runs while the DC is still
-	// mid-reboot, the command fails (host unreachable, or ADWS/AD not ready yet). Retry the whole
-	// command up to twice, with backoff, on known-transient errors so it re-runs against a settled
-	// DC. Anything else fails fast so we don't mask real regressions. See WINA-2876.
-	const maxDCReadyRetries = 2
-	dcTransientErrors := []string{
-		"i/o timeout",                              // dial tcp — DC unreachable (mid-reboot)
-		"exited without exit status",               // SSH dropped mid-command (box rebooted)
-		"Get-ADDomain timed out",                   // AD not queryable yet
-		"RID allocation probe timed out",           // RID pool not ready
-		"unable to allocate a relative identifier", // raw AD RID error
-		"WaitForStatus",                            // ADWS not Running yet
-		"Time out has expired",                     // WaitForStatus timeout text
-	}
-	ensureAdwsRetryHook, err := adCtx.pulumiContext.RegisterErrorHook(
-		adCtx.comp.namer.ResourceName("ensure-adws-retry"),
-		func(args *pulumi.ErrorHookArgs) (bool, error) {
-			attempts := len(args.Errors) // failures so far; args.Errors is newest-first
-			latest := ""
-			if attempts > 0 {
-				latest = args.Errors[0]
-			}
-			if attempts == 0 || attempts > maxDCReadyRetries {
-				return false, nil // out of retries -> fail with the real error
-			}
-			for _, s := range dcTransientErrors {
-				if strings.Contains(latest, s) {
-					stdtime.Sleep(stdtime.Duration(30*attempts) * stdtime.Second) // 30s, then 60s
-					return true, nil                                              // retry the command
-				}
-			}
-			return false, nil // unknown error -> fail fast
-		},
-	)
-	if err != nil {
-		return err
-	}
-
+	// ensure-adws-started runs only after wait-for-host-to-reboot, and first confirms the host has
+	// actually rebooted since promotion (a boot time newer than the recorded baseline) before probing
+	// ADWS/AD — so it never races the reboot. See WINA-2876.
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 		Create: pulumi.String(`
-(Get-Service ADWS).WaitForStatus('Running', '00:01:00')
+# Deterministically wait for the controlled post-promotion reboot to complete. install-forest records
+# the pre-reboot boot time; skip when no promotion happened this run (file absent = already a DC).
+if (Test-Path C:\dcpromo-preboot.txt) {
+    $baseline = [long](Get-Content C:\dcpromo-preboot.txt)
+    $deadline = [DateTime]::Now.AddMinutes(15)
+    while ([DateTime]::Now -lt $deadline) {
+        if ((Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToFileTimeUtc() -gt $baseline) { break }
+        Start-Sleep -Seconds 10
+    }
+    if ([DateTime]::Now -ge $deadline) { throw "host did not reboot after promotion" }
+}
+
+# Wait for ADWS to be Running, nudging it if necessary. A freshly-promoted DC can take well over a
+# minute to bring ADWS up, so poll instead of a single 60s WaitForStatus.
+$deadline = [DateTime]::Now.AddMinutes(5)
+while ([DateTime]::Now -lt $deadline) {
+    $svc = Get-Service ADWS -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -eq 'Running') { break }
+    try { Start-Service ADWS -ErrorAction Stop } catch {}
+    Start-Sleep -Seconds 5
+}
+if ((Get-Service ADWS -ErrorAction SilentlyContinue).Status -ne 'Running') {
+    throw "ADWS did not reach Running state"
+}
 $timeout = [DateTime]::Now.AddMinutes(5)
 while ([DateTime]::Now -lt $timeout) {
     try {
@@ -224,8 +211,7 @@ if ([DateTime]::Now -ge $timeout) {
     throw "RID allocation probe timed out — DC not ready to issue RID pools"
 }
 `),
-	}, utils.PulumiDependsOn(waitForRebootCmd),
-		pulumi.ResourceHooks(&pulumi.ResourceHookBinding{OnError: []*pulumi.ErrorHook{ensureAdwsRetryHook}}))
+	}, utils.PulumiDependsOn(waitForRebootCmd))
 	if err != nil {
 		return err
 	}
