@@ -8,7 +8,7 @@ package anomalydetection
 // Item 7 — sub-gate independence matrix (observer gate on in all cases).
 //
 // Three independent sub-gates (metrics.enabled, logs.enabled, logs.internal.enabled)
-// sit under anomaly_detection.reporting.events.enabled=true. This file verifies
+// sit under anomaly_detection.anomaly_scorer.dry_run.enabled=true. This file verifies
 // that each sub-gate activates or suppresses the correct path independently.
 // The all-gates-off case is covered by defaults_nix_test.go.
 //
@@ -43,8 +43,8 @@ func TestObserverConfigMatrixMetricsOffLogsOff(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
   metrics:
     enabled: false
@@ -87,8 +87,8 @@ func TestObserverConfigMatrixMetricsOnLogsOff(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
   metrics:
     enabled: true
@@ -129,8 +129,8 @@ func TestObserverConfigMatrixMetricsOffLogsOn(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
   metrics:
     enabled: false
@@ -156,30 +156,30 @@ func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
 	}, 2*time.Minute, 3*time.Second)
 }
 
-// --- Case 4: reporting gate only (default sub-gates on) -------------------
+// --- Case 4: dry-run gate only (default sub-gates on) -------------------
 
 type masterOnlyDefaultsOnSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestObserverConfigMatrixReportingEventsOnlyDefaultsOn verifies that enabling
+// TestObserverConfigMatrixDryRunOnlyDefaultsOn verifies that enabling
 // an observer gate implicitly keeps the metrics and internal log paths active
 // through their default=true sub-gates.
-func TestObserverConfigMatrixReportingEventsOnlyDefaultsOn(t *testing.T) {
+func TestObserverConfigMatrixDryRunOnlyDefaultsOn(t *testing.T) {
 	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
 `
 	e2e.Run(t, &masterOnlyDefaultsOnSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
-	), e2e.WithStackName("anomalydetection-matrix-reporting-events-defaults-on"))
+	), e2e.WithStackName("anomalydetection-matrix-dry-run-defaults-on"))
 }
 
 // TestBothPathsActive verifies that the metrics and internal log paths both

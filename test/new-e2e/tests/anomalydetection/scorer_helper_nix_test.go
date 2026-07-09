@@ -68,20 +68,19 @@ func TestAnomalyDetectionScorerHelper(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
-      enabled: true
-  metrics:
-    enabled: true
-  logs:
-    enabled: false
   anomaly_scorer:
+    dry_run:
+      enabled: true
     alpha: 0.3
     window: 5s
     low_threshold: 0.005
     high_threshold: 0.010
     output:
       logs: true
+  metrics:
+    enabled: true
+  logs:
+    enabled: false
   detectors:
     cusum:
       enabled: true

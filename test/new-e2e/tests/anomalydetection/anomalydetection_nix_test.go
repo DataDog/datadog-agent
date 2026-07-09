@@ -50,8 +50,8 @@ func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
   metrics:
     enabled: true
@@ -198,8 +198,8 @@ log_level: debug
 logs_config:
   file_scan_period: 1
 anomaly_detection:
-  reporting:
-    events:
+  anomaly_scorer:
+    dry_run:
       enabled: true
   metrics:
     enabled: false
