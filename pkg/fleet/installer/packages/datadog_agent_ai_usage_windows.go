@@ -9,6 +9,7 @@ package packages
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,7 +19,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf16"
 	"unsafe"
 
 	"go.yaml.in/yaml/v2"
@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+	textunicode "golang.org/x/text/encoding/unicode"
 )
 
 // AI Usage Chrome Native Messaging host / desktop monitor extension.
@@ -66,6 +67,7 @@ const (
 	aiUsageBinaryReplaceMaxElapsedTime  = 30 * time.Second
 	aiUsageHostProcessTerminationWait   = 5 * time.Second
 	aiUsageHostProcessTerminationStatus = 1
+	aiUsageTaskXMLNamespace             = "http://schemas.microsoft.com/windows/2004/02/mit/task"
 
 	// aiUsageChromeRegKeyPath and aiUsageChromeRegKeyPathWow are the machine-wide Chrome
 	// NativeMessagingHosts registration keys. Chrome reads the (default) value to find the
@@ -500,9 +502,17 @@ func configureAIUsageScheduledTask(ctx context.Context, hostPath, configPath str
 			log.Warnf("AI Usage: failed to remove temporary task XML %q: %v", tmpPath, err)
 		}
 	}()
-	// Task Scheduler XML must be UTF-16LE with a BOM.
-	xml := buildAIUsageTaskXML(hostPath, configPath)
-	if _, err := tmp.Write(utf16LEWithBOM(xml)); err != nil {
+	taskXML, err := buildAIUsageTaskXML(hostPath, configPath)
+	if err != nil {
+		tmp.Close()
+		return fmt.Errorf("could not build task XML: %w", err)
+	}
+	encodedXML, err := encodeAIUsageTaskXML(taskXML)
+	if err != nil {
+		tmp.Close()
+		return fmt.Errorf("could not encode task XML: %w", err)
+	}
+	if _, err := tmp.Write(encodedXML); err != nil {
 		tmp.Close()
 		return fmt.Errorf("could not write task XML: %w", err)
 	}
@@ -529,51 +539,126 @@ func removeAIUsageScheduledTask(ctx context.Context) {
 // buildAIUsageTaskXML builds the Task Scheduler definition for the desktop monitor: a
 // logon-triggered task running as BUILTIN\Users at least privilege, parallel instances,
 // restart-on-failure, no execution time limit.
-func buildAIUsageTaskXML(hostPath, configPath string) string {
-	return `<?xml version="1.0" encoding="UTF-16"?>` +
-		`<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">` +
-		`<RegistrationInfo><Author>Datadog</Author><Description>` + xmlEscape(aiUsageTaskDescription) + `</Description></RegistrationInfo>` +
-		`<Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>` +
-		`<Principals><Principal id="Author"><GroupId>` + aiUsageUsersGroupSID + `</GroupId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>` +
-		`<Settings>` +
-		`<MultipleInstancesPolicy>Parallel</MultipleInstancesPolicy>` +
-		`<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>` +
-		`<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>` +
-		`<AllowHardTerminate>true</AllowHardTerminate>` +
-		`<StartWhenAvailable>false</StartWhenAvailable>` +
-		`<RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>` +
-		`<AllowStartOnDemand>true</AllowStartOnDemand>` +
-		`<Enabled>true</Enabled>` +
-		`<Hidden>false</Hidden>` +
-		`<RunOnlyIfIdle>false</RunOnlyIfIdle>` +
-		`<WakeToRun>false</WakeToRun>` +
-		`<RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure>` +
-		`<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>` +
-		`<Priority>7</Priority>` +
-		`</Settings>` +
-		`<Actions Context="Author"><Exec><Command>` + xmlEscape(hostPath) + `</Command>` +
-		`<Arguments>` + xmlEscape(`--desktop-monitor --config "`+configPath+`"`) + `</Arguments></Exec></Actions>` +
-		`</Task>`
-}
-
-// xmlEscape escapes the five XML predefined entities.
-func xmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, `"`, "&quot;")
-	s = strings.ReplaceAll(s, "'", "&apos;")
-	return s
-}
-
-// utf16LEWithBOM encodes s as UTF-16LE with a leading byte-order mark, as required by
-// schtasks /XML.
-func utf16LEWithBOM(s string) []byte {
-	runes := utf16.Encode([]rune(s))
-	out := make([]byte, 0, 2+len(runes)*2)
-	out = append(out, 0xFF, 0xFE) // UTF-16LE BOM
-	for _, r := range runes {
-		out = append(out, byte(r), byte(r>>8))
+func buildAIUsageTaskXML(hostPath, configPath string) (string, error) {
+	task := aiUsageScheduledTaskXML{
+		Version: "1.4",
+		XMLNS:   aiUsageTaskXMLNamespace,
+		RegistrationInfo: aiUsageTaskRegistrationInfo{
+			Author:      "Datadog",
+			Description: aiUsageTaskDescription,
+		},
+		Triggers: aiUsageTaskTriggers{
+			LogonTrigger: aiUsageTaskLogonTrigger{Enabled: true},
+		},
+		Principals: aiUsageTaskPrincipals{
+			Principal: aiUsageTaskPrincipal{
+				ID:       "Author",
+				GroupID:  aiUsageUsersGroupSID,
+				RunLevel: "LeastPrivilege",
+			},
+		},
+		Settings: aiUsageTaskSettings{
+			MultipleInstancesPolicy:    "Parallel",
+			DisallowStartIfOnBatteries: false,
+			StopIfGoingOnBatteries:     false,
+			AllowHardTerminate:         true,
+			StartWhenAvailable:         false,
+			RunOnlyIfNetworkAvailable:  false,
+			AllowStartOnDemand:         true,
+			Enabled:                    true,
+			Hidden:                     false,
+			RunOnlyIfIdle:              false,
+			WakeToRun:                  false,
+			RestartOnFailure: aiUsageTaskRestartOnFailure{
+				Interval: "PT1M",
+				Count:    3,
+			},
+			ExecutionTimeLimit: "PT0S",
+			Priority:           7,
+		},
+		Actions: aiUsageTaskActions{
+			Context: "Author",
+			Exec: aiUsageTaskExec{
+				Command:   hostPath,
+				Arguments: `--desktop-monitor --config "` + configPath + `"`,
+			},
+		},
 	}
-	return out
+
+	data, err := xml.Marshal(task)
+	if err != nil {
+		return "", err
+	}
+	return `<?xml version="1.0" encoding="UTF-16"?>` + string(data), nil
+}
+
+// encodeAIUsageTaskXML encodes Task Scheduler XML as UTF-16LE with a BOM.
+func encodeAIUsageTaskXML(taskXML string) ([]byte, error) {
+	return textunicode.UTF16(textunicode.LittleEndian, textunicode.UseBOM).NewEncoder().Bytes([]byte(taskXML))
+}
+
+type aiUsageScheduledTaskXML struct {
+	XMLName          xml.Name                    `xml:"Task"`
+	Version          string                      `xml:"version,attr"`
+	XMLNS            string                      `xml:"xmlns,attr"`
+	RegistrationInfo aiUsageTaskRegistrationInfo `xml:"RegistrationInfo"`
+	Triggers         aiUsageTaskTriggers         `xml:"Triggers"`
+	Principals       aiUsageTaskPrincipals       `xml:"Principals"`
+	Settings         aiUsageTaskSettings         `xml:"Settings"`
+	Actions          aiUsageTaskActions          `xml:"Actions"`
+}
+
+type aiUsageTaskRegistrationInfo struct {
+	Author      string `xml:"Author"`
+	Description string `xml:"Description"`
+}
+
+type aiUsageTaskTriggers struct {
+	LogonTrigger aiUsageTaskLogonTrigger `xml:"LogonTrigger"`
+}
+
+type aiUsageTaskLogonTrigger struct {
+	Enabled bool `xml:"Enabled"`
+}
+
+type aiUsageTaskPrincipals struct {
+	Principal aiUsageTaskPrincipal `xml:"Principal"`
+}
+
+type aiUsageTaskPrincipal struct {
+	ID       string `xml:"id,attr"`
+	GroupID  string `xml:"GroupId"`
+	RunLevel string `xml:"RunLevel"`
+}
+
+type aiUsageTaskSettings struct {
+	MultipleInstancesPolicy    string                      `xml:"MultipleInstancesPolicy"`
+	DisallowStartIfOnBatteries bool                        `xml:"DisallowStartIfOnBatteries"`
+	StopIfGoingOnBatteries     bool                        `xml:"StopIfGoingOnBatteries"`
+	AllowHardTerminate         bool                        `xml:"AllowHardTerminate"`
+	StartWhenAvailable         bool                        `xml:"StartWhenAvailable"`
+	RunOnlyIfNetworkAvailable  bool                        `xml:"RunOnlyIfNetworkAvailable"`
+	AllowStartOnDemand         bool                        `xml:"AllowStartOnDemand"`
+	Enabled                    bool                        `xml:"Enabled"`
+	Hidden                     bool                        `xml:"Hidden"`
+	RunOnlyIfIdle              bool                        `xml:"RunOnlyIfIdle"`
+	WakeToRun                  bool                        `xml:"WakeToRun"`
+	RestartOnFailure           aiUsageTaskRestartOnFailure `xml:"RestartOnFailure"`
+	ExecutionTimeLimit         string                      `xml:"ExecutionTimeLimit"`
+	Priority                   int                         `xml:"Priority"`
+}
+
+type aiUsageTaskRestartOnFailure struct {
+	Interval string `xml:"Interval"`
+	Count    int    `xml:"Count"`
+}
+
+type aiUsageTaskActions struct {
+	Context string          `xml:"Context,attr"`
+	Exec    aiUsageTaskExec `xml:"Exec"`
+}
+
+type aiUsageTaskExec struct {
+	Command   string `xml:"Command"`
+	Arguments string `xml:"Arguments"`
 }

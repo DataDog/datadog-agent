@@ -25,12 +25,9 @@ func TestJSONEscape(t *testing.T) {
 	assert.Equal(t, "plain", jsonEscape("plain"))
 }
 
-func TestXMLEscape(t *testing.T) {
-	assert.Equal(t, "a&amp;b&lt;c&gt;d&quot;e&apos;f", xmlEscape(`a&b<c>d"e'f`))
-}
-
-func TestUTF16LEWithBOM(t *testing.T) {
-	out := utf16LEWithBOM("Ab")
+func TestEncodeAIUsageTaskXML(t *testing.T) {
+	out, err := encodeAIUsageTaskXML("Ab")
+	require.NoError(t, err)
 	// BOM (FF FE) followed by 'A' (41 00) and 'b' (62 00), little-endian.
 	require.Equal(t, []byte{0xFF, 0xFE, 0x41, 0x00, 0x62, 0x00}, out)
 }
@@ -95,11 +92,12 @@ func TestIsRetryableAIUsageBinaryReplaceError(t *testing.T) {
 }
 
 func TestBuildAIUsageTaskXML(t *testing.T) {
-	xml := buildAIUsageTaskXML(`C:\Program Files\Datadog\host.exe`, `C:\ProgramData\Datadog\ai_usage_native_host.yaml`)
+	xml, err := buildAIUsageTaskXML(`C:\Program Files\Datadog\host.exe`, `C:\ProgramData\Datadog\ai_usage_native_host.yaml`)
+	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(xml, `<?xml version="1.0" encoding="UTF-16"?>`))
 	assert.Contains(t, xml, "<LogonTrigger>")
 	assert.Contains(t, xml, "<GroupId>"+aiUsageUsersGroupSID+"</GroupId>")
 	assert.Contains(t, xml, "<RunLevel>LeastPrivilege</RunLevel>")
 	assert.Contains(t, xml, "<Command>C:\\Program Files\\Datadog\\host.exe</Command>")
-	assert.Contains(t, xml, "--desktop-monitor --config")
+	assert.Contains(t, xml, "--desktop-monitor --config &#34;C:\\ProgramData\\Datadog\\ai_usage_native_host.yaml&#34;")
 }
