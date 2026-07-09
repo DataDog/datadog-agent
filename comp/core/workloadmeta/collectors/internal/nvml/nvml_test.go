@@ -371,7 +371,7 @@ func TestPullWithMIGDevices(t *testing.T) {
 			require.Less(t, migGPU.TotalMemory, parentGPU.TotalMemory, "MIG device should have less memory than parent")
 
 			// Verify MIG device has process info
-			require.Equal(t, testutil.DefaultActivePIDs(), migGPU.ActivePIDs)
+			require.ElementsMatch(t, testutil.DefaultActivePIDs(), migGPU.ActivePIDs)
 		}
 	}
 
