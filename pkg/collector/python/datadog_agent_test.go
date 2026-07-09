@@ -39,6 +39,14 @@ func TestEmitAgentTelemetry(t *testing.T) {
 	testEmitAgentTelemetry(t)
 }
 
+func TestParsePrometheusMetrics(t *testing.T) {
+	testParsePrometheusMetrics(t)
+}
+
+func TestParsePrometheusMetricsError(t *testing.T) {
+	testParsePrometheusMetricsError(t)
+}
+
 func TestObfuscaterConfig(t *testing.T) {
 	testObfuscaterConfig(t)
 }

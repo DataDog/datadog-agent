@@ -27,6 +27,7 @@ static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
+static cb_parse_prometheus_metrics_t cb_parse_prometheus_metrics = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -47,6 +48,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *parse_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -67,6 +69,7 @@ static PyMethodDef methods[] = {
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
+    { "parse_prometheus_metrics", (PyCFunction)parse_prometheus_metrics, METH_VARARGS|METH_KEYWORDS, "Parse Prometheus/OpenMetrics text using the Go parser." },
     { NULL, NULL } // guards
 };
 
@@ -158,6 +161,10 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
 
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
     cb_emit_agent_telemetry = cb;
+}
+
+void _set_parse_prometheus_metrics_cb(cb_parse_prometheus_metrics_t cb) {
+    cb_parse_prometheus_metrics = cb;
 }
 
 
@@ -965,4 +972,52 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     PyGILState_Release(gstate);
 
     Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *parse_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.parse_prometheus_metrics` method, parsing
+    Prometheus/OpenMetrics text format metrics using the Go parser and returning the result as
+    a JSON string.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the raw metrics text.
+    \param kwargs A PyObject* pointer to a map of key value pairs (content_type).
+    \return A PyObject* pointer to a string containing the parsed metrics as JSON.
+
+    This function is callable as the `datadog_agent.parse_prometheus_metrics` Python method and
+    uses the `cb_parse_prometheus_metrics()` callback to parse the metrics using the Go parser
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *parse_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_parse_prometheus_metrics == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *raw_text = NULL;
+    char *content_type = NULL;
+    static char *kwlist[] = {"raw_text", "content_type", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &raw_text, &content_type)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *error_message = NULL;
+    char *json_result = cb_parse_prometheus_metrics(raw_text, content_type, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (json_result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_parse_prometheus_metrics response");
+    } else {
+        retval = PyUnicode_FromString(json_result);
+    }
+
+    cgo_free(error_message);
+    cgo_free(json_result);
+    PyGILState_Release(gstate);
+    return retval;
 }
