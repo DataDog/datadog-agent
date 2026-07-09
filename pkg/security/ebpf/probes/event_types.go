@@ -90,10 +90,6 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 			hookFunc("hook_post_bind6"),
 			hookFunc("hook_connect4"),
 			hookFunc("hook_connect6"),
-			hookFunc("hook_sendmsg4"),
-			hookFunc("hook_sendmsg6"),
-			hookFunc("hook_recvmsg4"),
-			hookFunc("hook_recvmsg6"),
 		}})
 	}
 
