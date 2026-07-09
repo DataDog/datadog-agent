@@ -13,7 +13,7 @@ import (
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 )
 
-func TestAnomalyDetectionEnabled(t *testing.T) {
+func TestObserverRequired(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
@@ -25,18 +25,8 @@ func TestAnomalyDetectionEnabled(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "enabled explicitly",
+			name: "enabled by smart severity profiles",
 			yaml: `
-anomaly_detection:
-  enabled: true
-`,
-			want: true,
-		},
-		{
-			name: "enabled implicitly by smart severity profiles",
-			yaml: `
-anomaly_detection:
-  enabled: false
 logs_config:
   experimental_adaptive_sampling:
     smart_severity_profiles:
@@ -44,42 +34,69 @@ logs_config:
 `,
 			want: true,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := compconfig.NewMockFromYAML(t, tt.yaml)
-			assert.Equal(t, tt.want, AnomalyDetectionEnabled(cfg))
-		})
-	}
-}
-
-func TestAnomalyScorerEnabled(t *testing.T) {
-	tests := []struct {
-		name string
-		yaml string
-		want bool
-	}{
 		{
-			name: "disabled by default",
-			yaml: ``,
-			want: false,
+			name: "enabled by reporting events",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+`,
+			want: true,
 		},
 		{
-			name: "explicit scorer flag enables scorer",
+			name: "enabled by scorer dry run",
 			yaml: `
 anomaly_detection:
   anomaly_scorer:
+    dry_run:
+      enabled: true
+`,
+			want: true,
+		},
+		{
+			name: "enabled by recording",
+			yaml: `
+anomaly_detection:
+  recording:
     enabled: true
 `,
 			want: true,
 		},
 		{
-			name: "smart severity profiles override disabled scorer flag",
+			name: "stdout alone does not enable observer",
 			yaml: `
 anomaly_detection:
-  anomaly_scorer:
-    enabled: false
+  reporting:
+    stdout:
+      enabled: true
+`,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := compconfig.NewMockFromYAML(t, tt.yaml)
+			assert.Equal(t, tt.want, ObserverRequired(cfg))
+		})
+	}
+}
+
+func TestScorerRequired(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{
+			name: "disabled by default",
+			yaml: ``,
+			want: false,
+		},
+		{
+			name: "enabled by smart severity profiles",
+			yaml: `
 logs_config:
   experimental_adaptive_sampling:
     smart_severity_profiles:
@@ -87,12 +104,51 @@ logs_config:
 `,
 			want: true,
 		},
+		{
+			name: "enabled by reporting events",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+`,
+			want: true,
+		},
+		{
+			name: "enabled by scorer dry run",
+			yaml: `
+anomaly_detection:
+  anomaly_scorer:
+    dry_run:
+      enabled: true
+`,
+			want: true,
+		},
+		{
+			name: "recording alone does not require scorer",
+			yaml: `
+anomaly_detection:
+  recording:
+    enabled: true
+`,
+			want: false,
+		},
+		{
+			name: "stdout alone does not require scorer",
+			yaml: `
+anomaly_detection:
+  reporting:
+    stdout:
+      enabled: true
+`,
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := compconfig.NewMockFromYAML(t, tt.yaml)
-			assert.Equal(t, tt.want, AnomalyScorerEnabled(cfg))
+			assert.Equal(t, tt.want, ScorerRequired(cfg))
 		})
 	}
 }

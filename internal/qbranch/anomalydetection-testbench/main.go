@@ -178,13 +178,13 @@ func main() {
 		core.Bundle(),
 		// The testbench drives the engine directly via DebugView, so it needs the
 		// full observerImpl, not the disabled stub that NewComponent returns when
-		// anomaly detection is off. Force the feature on; replay is driven by
+		// no observer gate is active. Force scorer dry-run on; replay is driven by
 		// DebugView.Reset with the testbench's own ComponentSettings, so this does
 		// not change scenario results. Keep the agent-internal log tap off so
 		// pkg/util/log messages (e.g. from parquet loading) are never ingested as
 		// scenario data — the testbench feeds the engine exclusively via DebugView.
 		fx.Decorate(func(c config.Component) config.Component {
-			c.Set("anomaly_detection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 			return c
 		}),

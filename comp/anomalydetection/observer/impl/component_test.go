@@ -80,7 +80,9 @@ func TestNewComponentReturnsErrorForInvalidMetricProcessingRulesConfig(t *testin
 			name: "invalid rule type",
 			yaml: `
 anomaly_detection:
-  enabled: true
+  reporting:
+    events:
+      enabled: true
   metrics:
     enabled: true
     processing_rules:
@@ -93,7 +95,9 @@ anomaly_detection:
 			name: "invalid name pattern",
 			yaml: `
 anomaly_detection:
-  enabled: true
+  reporting:
+    events:
+      enabled: true
   metrics:
     enabled: true
     processing_rules:
@@ -128,7 +132,6 @@ anomaly_detection:
 func TestNewComponentWithAnalysisDisabledUsesNoopHandleAndDoesNotInitializeObserverMetrics(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 anomaly_detection:
-  enabled: false
   metrics:
     enabled: true
     processing_rules:

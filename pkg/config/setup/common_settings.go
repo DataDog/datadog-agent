@@ -2141,9 +2141,6 @@ func podman(config pkgconfigmodel.Setup) {
 }
 
 func anomalyDetection(config pkgconfigmodel.Setup) {
-	// Master switch. When false the entire anomaly detection subsystem is a no-op.
-	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
-
 	// Log ingestion gate. When false, all log sources (container, kubelet, internal)
 	// are not routed into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
@@ -2220,7 +2217,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.dry_run.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.alpha", 0.014)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.saturation_k", 5.0)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.window", 15*time.Second)

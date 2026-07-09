@@ -131,20 +131,6 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
 
-// warnSmartSeverityOverrides logs when smart severity profiles force-enable a
-// gate the user explicitly disabled. Gates left unset (default false) are not
-// warned about, since smart severity profiles enabling them silently matches
-// user expectations.
-func warnSmartSeverityOverrides(cfg config.Component, log log.Component) {
-	if cfg == nil || log == nil || !anomalydetectionconfig.SmartSeverityProfilesEnabled(cfg) {
-		return
-	}
-	if cfg.IsConfigured(anomalydetectionconfig.AnomalyDetectionEnabledConfigKey) &&
-		!cfg.GetBool(anomalydetectionconfig.AnomalyDetectionEnabledConfigKey) {
-		log.Warnf("[observer] Auto-enabling anomaly detection since smart adaptive log sampling enabled")
-	}
-}
-
 // settingsFromAgentConfig reads component configuration from the agent config
 // system (datadog.yaml). Keys follow the pattern:
 //
@@ -180,14 +166,17 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 
 	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
 	const scorerPrefix = "anomaly_detection.anomaly_scorer."
-	if anomalydetectionconfig.AnomalyScorerEnabled(cfg) {
+	if anomalydetectionconfig.ScorerRequired(cfg) {
 		settings.Enabled["anomaly_scorer"] = true
 		if settings.configs == nil {
 			settings.configs = make(map[string]any)
 		}
-		settings.configs["anomaly_scorer"] = readAnomalyScorerConfig(cfg, scorerPrefix)
-	} else if cfg.IsConfigured(scorerPrefix + "enabled") {
-		settings.Enabled["anomaly_scorer"] = false
+		scorerCfg := readAnomalyScorerConfig(cfg, scorerPrefix)
+		if anomalydetectionconfig.AnomalyScorerDryRunEnabled(cfg) {
+			scorerCfg.Logs = false
+			scorerCfg.CorrelationEvents = false
+		}
+		settings.configs["anomaly_scorer"] = scorerCfg
 	}
 
 	settings.Baseline = DefaultBaselineConfig()
@@ -231,14 +220,12 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{Comp: &disabledObserver{}}, nil
 	}
 
-	warnSmartSeverityOverrides(cfg, deps.Log)
-
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
 	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
 	// dispatch goroutine — return the zero-allocation stub instead. The predicate
-	// mirrors the analysisEnabled/recorderEnabled gates used further down.
-	if !anomalydetectionconfig.AnomalyDetectionEnabled(cfg) {
+	// mirrors the observerRequired/recorderEnabled gates used further down.
+	if !anomalydetectionconfig.ObserverRequired(cfg) {
 		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
 			return Provides{Comp: &disabledObserver{}}, nil
 		}
@@ -347,16 +334,16 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
-	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := anomalydetectionconfig.AnomalyDetectionEnabled(cfg)
-	if analysisEnabled {
+	// Recording enables parquet writers. ObserverRequired enables the live
+	// anomaly-detection pipeline and its default metric/log ingestion paths.
+	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	if observerRequired {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if analysisEnabled {
+	if observerRequired {
 		obs.handleFunc = obs.innerHandle
 	}
 
@@ -405,7 +392,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		logsRules = &logsfilter.Rules{}
 	}
 
-	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
+	if (observerRequired || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
 		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")

@@ -10,9 +10,10 @@
 package anomalydetectionconfig
 
 const (
-	AnomalyDetectionEnabledConfigKey      = "anomaly_detection.enabled"
-	AnomalyScorerEnabledConfigKey         = "anomaly_detection.anomaly_scorer.enabled"
-	SmartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"
+	AnomalyScorerDryRunEnabledConfigKey       = "anomaly_detection.anomaly_scorer.dry_run.enabled"
+	ReportingEventsEnabledConfigKey           = "anomaly_detection.reporting.events.enabled"
+	SmartSeverityProfilesEnabledConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
 )
 
 // BoolConfig is the subset of config readers needed for anomaly-detection gate
