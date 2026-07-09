@@ -173,7 +173,6 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		}
 		scorerCfg := readAnomalyScorerConfig(cfg, scorerPrefix)
 		if anomalydetectionconfig.AnomalyScorerDryRunEnabled(cfg) {
-			scorerCfg.Logs = false
 			scorerCfg.CorrelationEvents = false
 		}
 		settings.configs["anomaly_scorer"] = scorerCfg
