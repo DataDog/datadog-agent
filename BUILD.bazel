@@ -124,7 +124,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
-# gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
 # gazelle:exclude pkg/serverless/trace/span_modifier.go
