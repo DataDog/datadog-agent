@@ -31,17 +31,9 @@ import (
 	textunicode "golang.org/x/text/encoding/unicode"
 )
 
-// AI Usage Chrome Native Messaging host / desktop monitor: the AI Usage feature of the
 // End User Device Monitoring (eudm) extension.
-//
-// This replaces the setup that used to be performed by the Windows MSI
-// (see tools/windows/DatadogAgentInstaller). It lays down, from the extracted
-// extension layer (ext/eudm):
-//   - the two Chrome NativeMessagingHosts HKLM registry entries (native + WOW6432Node),
-//   - the generated ai_usage_native_host.yaml config (with trace_agent_url pointing at
-//     the local trace receiver),
-//   - the Chrome host manifest JSON (with the resolved chrome_extension_id),
-//   - the "Datadog AI Usage Agent" scheduled task (logon-triggered desktop monitor).
+// Features:
+// - AI Usage Chrome Native Messaging host / desktop monitor
 const (
 	// aiUsageNativeHostName is the Chrome native messaging host name. It is used for the
 	// HKLM registry key, the manifest filename, and the manifest "name" field.
@@ -108,8 +100,12 @@ func aiUsageExtensionPath(ctx HookContext) string {
 	return filepath.Join(packagePath, "ext", ctx.Extension)
 }
 
-// preInstallEUDMExtension removes any stale scheduled task before extension files are laid down.
+// preInstallEUDMExtension quiesces the AI Usage host before the extension files are laid down: it
+// clears the machine-wide Chrome registration (so Chrome does not spawn the old host while
+// postInstallEUDMExtension replaces the binary) and removes the stale scheduled task. installSingle
+// always runs this immediately before postInstallEUDMExtension.
 func preInstallEUDMExtension(ctx HookContext) error {
+	deleteAIUsageChromeRegistry()
 	removeAIUsageScheduledTask(ctx.Context)
 	return nil
 }
@@ -129,11 +125,10 @@ func postInstallEUDMExtension(ctx HookContext) error {
 	// desktop-monitor task launch it as the interactive user, and Program Files grants
 	// BUILTIN\Users read+execute by default — so the binary must live there rather than under the
 	// ACL-restricted installer packages directory.
+	// The Chrome registration was already cleared in preInstallEUDMExtension (which installSingle
+	// runs immediately before this hook); it is rewritten in step 4 once the new manifest is in place.
 	binaryPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", aiUsageBinaryName)
 	manifestPath := filepath.Join(paths.DatadogProgramFilesDir, "bin", "agent", "dist", aiUsageNativeHostName+".json")
-	// Clear any existing Chrome registration before replacing the host binary so Chrome does not
-	// spawn the old host mid-replacement. It is rewritten in step 4 once the new manifest is in place.
-	deleteAIUsageChromeRegistry()
 	success := false
 	defer func() {
 		if success {
