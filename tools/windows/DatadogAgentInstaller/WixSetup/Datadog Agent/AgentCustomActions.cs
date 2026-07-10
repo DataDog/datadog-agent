@@ -20,6 +20,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
+        public ManagedAction ConfigureAiUsageMonitorDesktopMonitor { get; }
+
+        public ManagedAction RemoveAiUsageMonitorDesktopMonitor { get; }
+
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -46,7 +50,11 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction CleanupOnRollback { get; }
 
+        public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
+
         public ManagedAction CleanupOnUninstall { get; }
+
+        public ManagedAction CleanupInstallDirAfterUninstall { get; }
 
         public ManagedAction ConfigureUser { get; }
 
@@ -252,9 +260,10 @@ namespace WixSetup.Datadog_Agent
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
-            // Cleanup leftover files on rollback
-            // must be before the DecompressPythonDistributions custom action.
-            // That way, if DecompressPythonDistributions fails, this will get executed.
+            // Cleanup leftover files on rollback. DecompressPythonDistributions must be sequenced
+            // after every rollback cleanup action so a decompression failure still runs them all.
+            // Rollback CAs run in reverse install-sequence order, so schedule RemoveEmptyInstallDirOnRollback
+            // before CleanupOnRollback if it should run after fleet/config cleanup on rollback.
             CleanupOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnRollback)),
                     CustomActions.CleanupFiles,
@@ -269,6 +278,20 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
+                    CustomActions.RemoveEmptyInstallDirOnRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(CleanupOnRollback.Id),
+                    Conditions.FirstInstall
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
@@ -332,6 +355,21 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
+            ConfigureAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAiUsageMonitorDesktopMonitor)),
+                    CustomActions.ConfigureAiUsageMonitorDesktopMonitor,
+                    Return.ignore,
+                    When.After,
+                    new Step(WriteConfig.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
@@ -347,6 +385,33 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveAiUsageMonitorDesktopMonitor)),
+                    CustomActions.RemoveAiUsageMonitorDesktopMonitor,
+                    Return.ignore,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupInstallDirAfterUninstall)),
+                    CustomActions.RemoveEmptyInstallDirAfterUninstall,
+                    Return.check,
+                    When.After,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),
@@ -579,7 +644,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
@@ -759,6 +824,7 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
                                "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
@@ -780,6 +846,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
@@ -801,7 +868,8 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
 
             ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLoggerRollback)),
@@ -815,7 +883,8 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
 
             RemoveAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveAutoLogger)),

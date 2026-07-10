@@ -65,6 +65,7 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
+    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -85,8 +86,3 @@ IOT_AGENT_CORECHECKS = [
     "systemd",
     "jetson",
 ]
-
-CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
-CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
-CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
-LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"

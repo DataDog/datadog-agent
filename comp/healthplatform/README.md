@@ -1,14 +1,14 @@
-# Health Platform — Issue Naming Conventions
+# Health Platform — Developer Guide
+
+## Issue identity fields
 
 Every health issue has three identity fields. Follow these rules when adding a new issue module.
-
-## Field reference
 
 ### `id`
 
 - **Format**: kebab-case — lowercase letters, digits, and hyphens only
 - **Scope**: unique per issue *instance* — used as the store map key
-- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`)
+- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`), or a hashed suffix when the distinguishing value isn't human-readable, as `invalidconfig` does with `"invalid-config:" + fnv64a(hostname + configPath)`. Prefer a 64-bit (or wider) digest over 32-bit for this — at 32 bits, fleets of ~10k+ distinct instances have a non-negligible birthday-collision chance, which can silently re-collapse the very instances the suffix exists to distinguish.
 - **Examples**: `"invalid-config"`, `"rofs-permissions"`, `"check-execution-failure"`
 
 ### `issue_name` (`IssueName`)
@@ -29,12 +29,32 @@ Every health issue has three identity fields. Follow these rules when adding a n
 
 > Static titles are acceptable only when there is genuinely no instance-specific value to embed (e.g. singleton issues like `"Admission Controller Unreachable"`).
 
+## Issue lifecycle state
+
+Issues have two canonical states defined in the `IssueState` proto enum:
+
+| Value | Name | Meaning |
+|---|---|---|
+| `4` | `ISSUE_STATE_ACTIVE` | Issue is currently present |
+| `3` | `ISSUE_STATE_RESOLVED` | Issue has been resolved |
+
+The enum also retains three deprecated values for wire compatibility with older agents:
+`UNSPECIFIED=0`, `NEW=1`, `ONGOING=2` — consumers must treat all three as equivalent to `ACTIVE`.
+`RESOLVED=3` is unchanged from the original enum so agents that pre-date this simplification are handled transparently.
+
+The state machine in the store (`store/impl/store.go`):
+- Any `ReportIssue` call sets or keeps the issue `ACTIVE` and updates `LastSeen`.
+- `ResolveIssue` / `ResolveAllIssues` transitions to `RESOLVED` and sets `ResolvedAt`.
+- A resolved issue that is reported again resets to `ACTIVE` with a fresh `FirstSeen`.
+
+On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
+
 ## Current issues
 
 | Package | `id` | `issue_name` | `title` |
 |---|---|---|---|
 | `admisconfig` | set by caller | `Autodiscovery Misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has Schema Violations"` |
+| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `"Agent cannot write to: <directories>"` |
 | `checkfailure` | `check-execution-failure` | `Check Execution Failure` | `"Check '<checkName>' Failed"` |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `"Admission Controller Unreachable"` |

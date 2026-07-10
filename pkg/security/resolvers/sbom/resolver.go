@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -27,7 +26,6 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -53,7 +51,11 @@ const (
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
 	maxPendingFileEvents     = 256
-	maxRetryForwarding       = 10
+	// maxForwardWait bounds how long forwarding keeps retrying while the image's
+	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
+	// re-arming when no image SBOM will ever be produced (for example when
+	// container image SBOM collection is disabled and the image stays pending).
+	maxForwardWait = 30 * time.Minute
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -78,7 +80,26 @@ const (
 // container
 type Data struct {
 	files    fileQuerier
-	packages []sbomtypes.PackageWithInstalledFiles // Store original packages for forwarding
+	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+}
+
+// newData builds the cached scan Data from a freshly generated report. It keeps
+// only the compact representation: per-package metadata in packages (dropping the
+// plain-text InstalledFiles) and murmur3 hashes of the file paths in the file
+// querier. Runtime file->package lookups use the hashes and forwarding only needs
+// the package metadata, so retaining the paths would waste megabytes per workload
+// for the lifetime of the data cache. The file querier stores pointers into
+// packages so LastAccess updates stay visible to the forwarding path.
+func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data {
+	packages := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		packages[i] = report[i].Package
+	}
+
+	return &Data{
+		files:    newFileQuerier(report, packages, usrMerged),
+		packages: packages,
+	}
 }
 
 // SBOM defines an SBOM
@@ -117,8 +138,8 @@ func (s *SBOM) IsComputed() bool {
 
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
-	// build file cache
-	s.data.files = newFileQuerier(pkgs, s.usrMerged)
+	// build the compact file cache and package metadata, dropping installed-file lists
+	s.data = newData(pkgs, s.usrMerged)
 }
 
 func (s *SBOM) stop() {
@@ -262,9 +283,6 @@ func (r *Resolver) Start(ctx context.Context) error {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		enrichTicker := time.NewTicker(r.cfg.SBOMResolverEnrichmentTicker)
-		defer enrichTicker.Stop()
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -277,13 +295,6 @@ func (r *Resolver) Start(ctx context.Context) error {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
 						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
-					}
-				}
-			case <-enrichTicker.C:
-				if r.wmeta != nil {
-					seclog.Debugf("Enriching SBOM with runtime usage")
-					if err := r.enrichSBOMsWithUsage(); err != nil {
-						seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
 					}
 				}
 			}
@@ -306,14 +317,7 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		if refresher == nil {
 			refresher = debouncer.New(
 				r.cfg.SBOMResolverRefreshInterval, func() {
-					// invalid cache data
-					r.removeSBOMData(sbom.workloadKey)
-
-					r.sbomsLock.Lock()
-					sbom.Lock()
-					r.triggerScan(sbom)
-					sbom.Unlock()
-					r.sbomsLock.Unlock()
+					r.refreshScan(sbom)
 				},
 			)
 			refresher.Start()
@@ -326,6 +330,22 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		return nil
 	}
 	return fmt.Errorf("container %s not found", containerID)
+}
+
+// refreshScan invalidates a workload's cached SBOM data and re-queues it for a
+// full re-scan. The state is reset to pending because analyzeWorkload drops any
+// SBOM not in the pending state: a workload is left in the computed state by its
+// initial scan, so without this reset the refresh re-scan is discarded and the
+// runtime properties are never recomputed.
+func (r *Resolver) refreshScan(sbom *SBOM) {
+	r.removeSBOMData(sbom.workloadKey)
+
+	r.sbomsLock.Lock()
+	sbom.Lock()
+	sbom.state.Store(pendingState)
+	r.triggerScan(sbom)
+	sbom.Unlock()
+	r.sbomsLock.Unlock()
 }
 
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
@@ -388,14 +408,20 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 				}
 
 				if sbom.status == workloadmeta.Pending || sbom.status == "" {
-					if sbom.forwardRetryCount++; sbom.forwardRetryCount > maxRetryForwarding {
-						seclog.Warnf("Max retries reached for forwarding SBOM of container '%s', giving up", sbom.ContainerID)
-					} else {
-						seclog.Debugf("Image SBOM for container '%s' is still in %s state, will retry forwarding later", sbom.status, sbom.ContainerID)
-						sbom.forwarder.Call()
+					// Retry until the image's Trivy SBOM is ready: an idle workload may
+					// produce no further file accesses to re-trigger forwarding, and the
+					// overlayfs scan can take several minutes. Bound the total wait so a
+					// permanently-pending image (e.g. container image SBOM collection
+					// disabled) stops re-arming instead of looping forever.
+					sbom.forwardRetryCount++
+					if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
+						seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
+						return
 					}
+					sbom.forwarder.Call()
 					return
 				}
+				sbom.forwardRetryCount = 0
 
 				if sbom.data == nil || len(sbom.data.packages) == 0 {
 					return
@@ -403,8 +429,13 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 
 				seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
 
+				// Snapshot the package metadata: the forwarded report outlives the
+				// lock and the backing slice keeps being mutated (LastAccess) at runtime.
+				packages := make([]sbomtypes.Package, len(sbom.data.packages))
+				copy(packages, sbom.data.packages)
+
 				// Create SBOM report and notify listeners
-				packagesReport := NewPackagesReport(sbom.data.packages, sbom.ContainerID)
+				packagesReport := NewPackagesReport(packages, sbom.ContainerID)
 				scanResult := &sbompkg.ScanResult{
 					Report:           packagesReport,
 					CreatedAt:        time.Now(),
@@ -569,63 +600,6 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) enrichSBOMsWithUsage() error {
-	r.sbomsLock.RLock()
-	defer r.sbomsLock.RUnlock()
-
-	enriched := false
-	images := r.wmeta.ListImages()
-	for _, image := range images {
-		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
-		if err != nil {
-			seclog.Warnf("failed to uncompress SBOM for image '%s': %v", image.Name, err)
-			continue
-		}
-
-		if uncompressedSBOM == nil {
-			continue
-		}
-
-		for _, sbom := range r.sboms.Values() {
-			sbom.Lock()
-			if sbom.data != nil && (sbom.workloadKey == workloadKey(image.Name) || sbom.workloadKey == workloadKey(image.ID)) {
-				enriched = enriched || r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
-			}
-			sbom.Unlock()
-		}
-	}
-
-	return nil
-}
-
-func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) bool {
-	enriched := false
-	componentMap := make(map[string]*cyclonedx_v1_4.Component)
-	for _, component := range wsbom.CycloneDXBOM.Components {
-		componentMap[component.Name+"/"+component.Version] = component
-	}
-
-	files := sbom.data.files
-	for _, pkg := range files.pkgs {
-		if !pkg.LastAccess.IsZero() {
-			if component, ok := componentMap[pkg.Name+"/"+pkg.Version]; ok {
-				if component.Properties == nil {
-					component.Properties = []*cyclonedx_v1_4.Property{}
-				}
-
-				lastAccess := pkg.LastAccess.Format(time.RFC3339)
-				component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
-					Name:  "LastAccess",
-					Value: &lastAccess,
-				})
-
-				enriched = true
-			}
-		}
-	}
-	return enriched
-}
-
 func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
 	r.pendingScanLock.Lock()
 	defer r.pendingScanLock.Unlock()
@@ -685,10 +659,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 
-	data := &Data{
-		files:    newFileQuerier(report, sb.usrMerged),
-		packages: report, // Store original packages for forwarding with LastAccess
-	}
+	data := newData(report, sb.usrMerged)
 	sb.data = data
 
 	// mark the SBOM as successful
@@ -780,9 +751,12 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		oldSuidBit := pkg.SuidBit
 		oldAccessedByRoot := pkg.AccessedByRoot
 
-		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields
+		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields. SuidBit
+		// and AccessedByRoot are sticky within a scan generation: once a package's
+		// setuid binary has run, or it has run as root, that holds until the next
+		// SBOM refresh, regardless of later accesses to its non-setuid files.
 		pkg.LastAccess = time.Now()
-		pkg.SuidBit = fs.FileMode(file.Mode)&04000 != 0
+		pkg.SuidBit = pkg.SuidBit || fs.FileMode(file.Mode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
@@ -845,7 +819,7 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 			continue
 		}
 		pkg.LastAccess = now
-		pkg.SuidBit = fs.FileMode(event.fileMode)&04000 != 0
+		pkg.SuidBit = pkg.SuidBit || fs.FileMode(event.fileMode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
 
 		sbom.invalidated = true
