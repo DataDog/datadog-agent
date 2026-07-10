@@ -84,10 +84,10 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 	return db.RemovePackage(pkg, isExperiment)
 }
 
-// InstalledExtensions returns the names of the extensions installed for pkg (stable or experiment).
+// InstalledExtensionsPerPackage returns the names of the extensions installed for pkg (stable or experiment).
 // It returns a nil slice, no error, if the extensions database doesn't exist yet or has no entry
 // for pkg (no extensions have ever been installed for it on this host).
-func InstalledExtensions(pkg string, isExperiment bool) ([]string, error) {
+func InstalledExtensionsPerPackage(pkg string, isExperiment bool) ([]string, error) {
 	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, nil
@@ -112,6 +112,49 @@ func InstalledExtensions(pkg string, isExperiment bool) ([]string, error) {
 		names = append(names, name)
 	}
 	return names, nil
+}
+
+type PackageExtensions struct {
+	Stable     []string
+	Experiment []string
+}
+
+// InstalledExtensions returns the installed extensions for every package that has an entry
+// in the extensions database, for both the stable and experiment channels.
+func InstalledExtensions() (map[string]PackageExtensions, error) {
+	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	// Open & lock the extensions database
+	db, err := newExtensionsDB(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create extensions db: %w", err)
+	}
+	defer db.Close()
+
+	dbPkgs, err := db.GetAllPackages()
+	if err != nil {
+		return nil, fmt.Errorf("could not get all packages: %w", err)
+	}
+
+	result := make(map[string]PackageExtensions)
+	for key, dbPkg := range dbPkgs {
+		pkg, isExperiment := decodeKey(key)
+		names := make([]string, 0, len(dbPkg.Extensions))
+		for name := range dbPkg.Extensions {
+			names = append(names, name)
+		}
+		entry := result[pkg]
+		if isExperiment {
+			entry.Experiment = names
+		} else {
+			entry.Stable = names
+		}
+		result[pkg] = entry
+	}
+	return result, nil
 }
 
 // Install installs extensions for a package.

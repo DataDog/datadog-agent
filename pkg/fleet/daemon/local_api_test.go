@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -78,9 +79,9 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState(ctx context.Context) (map[string]PackageState, error) {
+func (m *testDaemon) GetState(ctx context.Context) (*repository.ConfigAndPackageStates, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[string]PackageState), args.Error(1)
+	return args.Get(0).(*repository.ConfigAndPackageStates), args.Error(1)
 }
 
 func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {

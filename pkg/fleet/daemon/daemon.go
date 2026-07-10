@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -830,20 +829,4 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
-}
-
-// extensionNamesByChannel splits a package's per-extension states into the names installed on
-// the stable channel and those installed on the experiment channel, sorted for stable ordering.
-func extensionNamesByChannel(states map[string]repository.State) (stable, experiment []string) {
-	for name, s := range states {
-		if s.HasStable() {
-			stable = append(stable, name)
-		}
-		if s.HasExperiment() {
-			experiment = append(experiment, name)
-		}
-	}
-	sort.Strings(stable)
-	sort.Strings(experiment)
-	return stable, experiment
 }

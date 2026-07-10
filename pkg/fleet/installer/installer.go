@@ -172,23 +172,20 @@ func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository
 		ConfigStates:  configStates,
 		PackageStates: make(map[string]repository.PackageState),
 	}
+	allExtensions, err := extensions.InstalledExtensions()
+	if err != nil {
+		return nil, fmt.Errorf("could not get installed extensions: %w", err)
+	}
 	for pkg, s := range packageStates {
-		stableExtensions, err := extensions.InstalledExtensions(pkg, false)
-		if err != nil {
-			return nil, fmt.Errorf("could not get installed stable extensions for %s: %w", pkg, err)
-		}
-		experimentExtensions, err := extensions.InstalledExtensions(pkg, true)
-		if err != nil {
-			return nil, fmt.Errorf("could not get installed experiment extensions for %s: %w", pkg, err)
-		}
+		pkgExtensions := allExtensions[pkg]
 		result.PackageStates[pkg] = repository.PackageState{
 			Stable: repository.VersionState{
 				Version:    s.Stable,
-				Extensions: stableExtensions,
+				Extensions: pkgExtensions.Stable,
 			},
 			Experiment: repository.VersionState{
 				Version:    s.Experiment,
-				Extensions: experimentExtensions,
+				Extensions: pkgExtensions.Experiment,
 			},
 		}
 	}

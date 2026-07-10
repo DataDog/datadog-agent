@@ -72,23 +72,20 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.ConfigAndP
 		ConfigStates:  configStates,
 		PackageStates: make(map[string]repository.PackageState),
 	}
+	allExtensions, err := extensions.InstalledExtensions()
+	if err != nil {
+		return nil, fmt.Errorf("error getting installed extensions: %w", err)
+	}
 	for pkg, s := range packageStates {
-		stableExtensions, err := extensions.InstalledExtensions(pkg, false)
-		if err != nil {
-			return nil, fmt.Errorf("error getting installed stable extensions for %s: %w", pkg, err)
-		}
-		experimentExtensions, err := extensions.InstalledExtensions(pkg, true)
-		if err != nil {
-			return nil, fmt.Errorf("error getting installed experiment extensions for %s: %w", pkg, err)
-		}
+		pkgExtensions := allExtensions[pkg]
 		result.PackageStates[pkg] = repository.PackageState{
 			Stable: repository.VersionState{
 				Version:    s.Stable,
-				Extensions: stableExtensions,
+				Extensions: pkgExtensions.Stable,
 			},
 			Experiment: repository.VersionState{
 				Version:    s.Experiment,
-				Extensions: experimentExtensions,
+				Extensions: pkgExtensions.Experiment,
 			},
 		}
 	}

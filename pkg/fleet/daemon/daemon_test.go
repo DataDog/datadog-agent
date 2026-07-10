@@ -63,9 +63,9 @@ func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (repos
 	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+func (m *testPackageManager) ConfigAndPackageStates(ctx context.Context) (*repository.ConfigAndPackageStates, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(*repository.PackageStates), args.Error(1)
+	return args.Get(0).(*repository.ConfigAndPackageStates), args.Error(1)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
@@ -260,9 +260,9 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
-		States:       map[string]repository.State{},
-		ConfigStates: map[string]repository.State{},
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.ConfigAndPackageStates{
+		PackageStates: map[string]repository.PackageState{},
+		ConfigStates:  map[string]repository.State{},
 	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
@@ -487,10 +487,10 @@ func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 
 func TestRefreshStateRunningVersions(t *testing.T) {
 	// Setup test state
-	testPackageStates := map[string]repository.State{
+	testPackageStates := map[string]repository.PackageState{
 		"datadog-agent": {
-			Stable:     "7.50.0",
-			Experiment: "7.51.0",
+			Stable:     repository.VersionState{Version: "7.50.0"},
+			Experiment: repository.VersionState{Version: "7.51.0"},
 		},
 	}
 	testConfigStates := map[string]repository.State{
@@ -505,9 +505,9 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
-		States:       testPackageStates,
-		ConfigStates: testConfigStates,
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.ConfigAndPackageStates{
+		PackageStates: testPackageStates,
+		ConfigStates:  testConfigStates,
 	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}

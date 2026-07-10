@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"go.etcd.io/bbolt"
 )
@@ -52,6 +53,34 @@ func newExtensionsDB(dbPath string) (*extensionsDB, error) {
 // Close closes the database
 func (p *extensionsDB) Close() error {
 	return p.db.Close()
+}
+
+// GetAllPackages returns every stored package entry, keyed by its raw db key
+// (pkg, or pkg+"-exp" for the experiment channel).
+func (p *extensionsDB) GetAllPackages() (map[string]dbPackage, error) {
+	result := make(map[string]dbPackage)
+	err := p.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketExtensions)
+		if b == nil {
+			return errors.New("bucket not found")
+		}
+		return b.ForEach(func(k, v []byte) error {
+			var dbPkg dbPackage
+			if err := json.Unmarshal(v, &dbPkg); err != nil {
+				// See GetPackage for why an UnmarshalTypeError from the legacy schema is tolerated.
+				var typeErr *json.UnmarshalTypeError
+				if !errors.As(err, &typeErr) || dbPkg.Name == "" {
+					return fmt.Errorf("could not unmarshal package %s: %w", k, err)
+				}
+			}
+			result[string(k)] = dbPkg
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not get all packages: %w", err)
+	}
+	return result, nil
 }
 
 // GetPackage returns a package by pkg
@@ -174,4 +203,11 @@ func getKey(pkg string, isExperiment bool) []byte {
 		return []byte(pkg + "-exp")
 	}
 	return []byte(pkg)
+}
+
+func decodeKey(key string) (pkg string, isExperiment bool) {
+	if strings.HasSuffix(key, "-exp") {
+		return strings.TrimSuffix(key, "-exp"), true
+	}
+	return key, false
 }

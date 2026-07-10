@@ -273,3 +273,50 @@ func TestRemoveAllMissingDB(t *testing.T) {
 	err := RemoveAll(context.Background(), "datadog-agent", false, &mockHooks{})
 	require.NoError(t, err, "RemoveAll should return nil when the extensions DB does not exist")
 }
+
+// TestInstalledExtensionsMissingDB verifies that InstalledExtensions returns a nil
+// map without error when the extensions database file does not exist yet.
+func TestInstalledExtensionsMissingDB(t *testing.T) {
+	ExtensionsDBDir = filepath.Join(t.TempDir(), "does-not-exist")
+
+	got, err := InstalledExtensions()
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+// TestInstalledExtensions verifies that InstalledExtensions reads back the stable and
+// experiment extensions for every package in a single pass, matching what repeatedly
+// calling InstalledExtensionsPerPackage per package/channel would return.
+func TestInstalledExtensions(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+
+	require.NoError(t, db.SetPackage(dbPackage{
+		Name:       "datadog-agent",
+		Version:    "7.50.0",
+		Extensions: map[string]string{"python": "sha256:stable-python"},
+	}, false))
+	require.NoError(t, db.SetPackage(dbPackage{
+		Name:       "datadog-agent",
+		Version:    "7.51.0",
+		Extensions: map[string]string{"ruby": "sha256:experiment-ruby"},
+	}, true))
+	require.NoError(t, db.SetPackage(dbPackage{
+		Name:       "datadog-apm-inject",
+		Version:    "1.0.0",
+		Extensions: map[string]string{"java": "sha256:stable-java"},
+	}, false))
+	db.Close()
+
+	got, err := InstalledExtensions()
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+
+	assert.ElementsMatch(t, []string{"python"}, got["datadog-agent"].Stable)
+	assert.ElementsMatch(t, []string{"ruby"}, got["datadog-agent"].Experiment)
+	assert.ElementsMatch(t, []string{"java"}, got["datadog-apm-inject"].Stable)
+	assert.Empty(t, got["datadog-apm-inject"].Experiment)
+}
