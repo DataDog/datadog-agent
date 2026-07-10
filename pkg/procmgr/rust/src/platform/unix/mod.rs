@@ -3,77 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result};
-use log::info;
+mod spawn;
+
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
 
-use crate::handle::ProcessHandle;
-use crate::spawn::{SpawnProfile, SpawnRequest};
-use crate::spawn_context;
+pub(crate) use spawn::spawn_child;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
-pub fn setup_process_group(cmd: &mut tokio::process::Command) {
+pub fn setup_process_group(cmd: &mut Command) {
     cmd.process_group(0);
-}
-
-/// Spawn a managed child. On Unix, procmgr already runs as `dd-agent`; both profiles
-/// use the supervisor identity until a distinct host-privileged child is needed.
-pub(crate) fn spawn_child(
-    process_name: &str,
-    request: SpawnRequest,
-    profile: SpawnProfile,
-) -> Result<ProcessHandle> {
-    info!("[{process_name}] spawn profile: {profile}");
-    let SpawnRequest {
-        command,
-        args,
-        env,
-        working_dir,
-        stdout_config: _,
-        stderr_config: _,
-        stdout,
-        stderr,
-    } = request;
-    let mut cmd = Command::new(&command);
-    cmd.args(&args);
-    cmd.env_clear();
-    for (k, v) in env {
-        cmd.env(k, v);
-    }
-    if let Some(dir) = working_dir {
-        cmd.current_dir(dir);
-    }
-    cmd.stdout(stdout);
-    cmd.stderr(stderr);
-
-    setup_process_group(&mut cmd);
-    let child = cmd
-        .spawn()
-        .with_context(|| spawn_context::failed_message(process_name, &command))?;
-    Ok(ProcessHandle::from_child(child))
 }
 
 /// Negate a PID to produce the process group ID for `kill(2)`.
 /// Sending a signal to `-pgid` targets every process in the group.
-pub(crate) fn process_group_id(pid: u32) -> Result<Pid> {
+pub(crate) fn process_group_id(pid: u32) -> Result<Pid, anyhow::Error> {
+    use anyhow::Context;
     let raw = i32::try_from(pid).context("PID overflows i32")?;
     Ok(Pid::from_raw(-raw))
 }
 
 /// Send SIGTERM to the entire process group (graceful stop).
-pub fn send_graceful_stop(pid: u32) -> Result<()> {
+pub fn send_graceful_stop(pid: u32) -> Result<(), anyhow::Error> {
+    use anyhow::Context;
     signal::kill(process_group_id(pid)?, Signal::SIGTERM)
         .with_context(|| format!("failed to send SIGTERM to pgid {pid}"))?;
     Ok(())
 }
 
 /// Send SIGKILL to the entire process group (force kill).
-pub fn send_force_kill(pid: u32) -> Result<()> {
+pub fn send_force_kill(pid: u32) -> Result<(), anyhow::Error> {
+    use anyhow::Context;
     signal::kill(process_group_id(pid)?, Signal::SIGKILL)
         .with_context(|| format!("failed to send SIGKILL to pgid {pid}"))?;
     Ok(())

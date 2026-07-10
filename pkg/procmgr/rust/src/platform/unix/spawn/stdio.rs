@@ -3,64 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
 use log::warn;
+use std::path::Path;
 use std::process::Stdio;
 
-use crate::platform;
+use crate::spawn::StdioSetting;
 
-pub(crate) fn is_inherit_or_null(config: &str) -> bool {
-    matches!(config, "inherit" | "" | "null")
-}
-
-/// Reject privileged stdio configs that would open file paths before catalog validation.
-pub(super) fn require_inherit_or_null(
-    process_name: &str,
-    stdout: &str,
-    stderr: &str,
-) -> Result<()> {
-    if !is_inherit_or_null(stdout) || !is_inherit_or_null(stderr) {
-        bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
-    }
-    Ok(())
-}
-
-/// Map inherit/null stdio only. Caller must run [`require_inherit_or_null`] first.
-pub(super) fn from_inherit_or_null(s: &str) -> Stdio {
-    match s {
-        "null" => Stdio::null(),
-        "inherit" | "" => Stdio::inherit(),
-        _ => Stdio::null(),
-    }
-}
-
-pub(super) fn stdout_from_config(yaml_value: &str) -> Stdio {
-    from_config(yaml_value, platform::stdout_inheritable())
-}
-
-pub(super) fn stderr_from_config(yaml_value: &str) -> Stdio {
-    from_config(yaml_value, platform::stderr_inheritable())
-}
-
-fn from_config(yaml_value: &str, inheritable: bool) -> Stdio {
-    #[cfg(not(windows))]
+/// Resolve portable stdio settings for `tokio::process::Command`.
+pub(crate) fn to_command_stdio(setting: &StdioSetting, inheritable: bool) -> Stdio {
     let _ = inheritable;
-    #[cfg(windows)]
-    if !inheritable && matches!(yaml_value, "inherit" | "") {
-        return Stdio::null();
-    }
-    from_str(yaml_value)
-}
-
-fn from_str(s: &str) -> Stdio {
-    match s {
-        "null" => Stdio::null(),
-        "inherit" | "" => Stdio::inherit(),
-        path => from_path(path),
+    match setting {
+        StdioSetting::Null => Stdio::null(),
+        StdioSetting::Inherit => Stdio::inherit(),
+        StdioSetting::File(path) => file_to_stdio(path),
     }
 }
 
-fn from_path(path: &str) -> Stdio {
+fn file_to_stdio(path: &Path) -> Stdio {
     match std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -68,7 +27,10 @@ fn from_path(path: &str) -> Stdio {
     {
         Ok(f) => f.into(),
         Err(e) => {
-            warn!("failed to open stdio file {path}: {e}, falling back to inherit");
+            warn!(
+                "failed to open stdio file {}: {e}, falling back to inherit",
+                path.display()
+            );
             Stdio::inherit()
         }
     }
@@ -78,11 +40,15 @@ fn from_path(path: &str) -> Stdio {
 mod tests {
     use super::*;
     use crate::test_helpers;
+    use std::path::PathBuf;
 
-    #[test]
-    fn require_inherit_or_null_rejects_file_paths() {
-        let err = require_inherit_or_null("proc", r"C:\logs\out.log", "inherit").unwrap_err();
-        assert!(err.to_string().contains("inherit or null"));
+    fn command_stdio(yaml: &str) -> Stdio {
+        let setting = match yaml {
+            "null" => StdioSetting::Null,
+            "inherit" | "" => StdioSetting::Inherit,
+            path => StdioSetting::File(path.into()),
+        };
+        to_command_stdio(&setting, true)
     }
 
     #[test]
@@ -90,8 +56,8 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let status = std::process::Command::new(cmd)
             .args(&args)
-            .stdout(from_str("inherit"))
-            .stderr(from_str("inherit"))
+            .stdout(command_stdio("inherit"))
+            .stderr(command_stdio("inherit"))
             .status()
             .unwrap();
         assert!(status.success());
@@ -102,7 +68,7 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let status = std::process::Command::new(cmd)
             .args(&args)
-            .stdout(from_str(""))
+            .stdout(command_stdio(""))
             .status()
             .unwrap();
         assert!(status.success());
@@ -114,7 +80,7 @@ mod tests {
         let out = std::process::Command::new(sh)
             .arg(flag)
             .arg("echo hello")
-            .stdout(from_str("null"))
+            .stdout(command_stdio("null"))
             .output()
             .unwrap();
         assert!(
@@ -133,7 +99,7 @@ mod tests {
         let status = std::process::Command::new(sh)
             .arg(flag)
             .arg("echo fileline")
-            .stdout(from_str(path_str))
+            .stdout(command_stdio(path_str))
             .status()
             .unwrap();
         assert!(status.success());
@@ -154,7 +120,7 @@ mod tests {
             let status = std::process::Command::new(sh)
                 .arg(flag)
                 .arg(format!("echo {msg}"))
-                .stdout(from_str(path_str))
+                .stdout(command_stdio(path_str))
                 .status()
                 .unwrap();
             assert!(status.success());
@@ -167,20 +133,16 @@ mod tests {
     #[test]
     fn unopenable_path_falls_back_to_inherit() {
         let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
         let bad_path = "/nonexistent_dir_pmgr_stdio/out.log";
-        #[cfg(windows)]
-        let bad_path = r"C:\nonexistent_dir_pmgr_stdio\out.log";
         let out = std::process::Command::new(sh)
             .arg(flag)
             .arg("echo fallback_ok")
-            .stdout(from_str(bad_path))
+            .stdout(command_stdio(bad_path))
             .output()
             .unwrap();
         assert!(
             out.status.success(),
             "spawn with unopenable stdout path should still succeed (falls back to inherit)"
         );
-        // Child stdout is inherited (not piped), so `out.stdout` is empty; success is the signal.
     }
 }

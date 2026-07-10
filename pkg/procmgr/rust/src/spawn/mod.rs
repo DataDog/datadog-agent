@@ -7,14 +7,13 @@
 
 mod profile;
 mod request;
-mod stdio;
+mod stdio_setting;
 
 #[cfg(windows)]
 pub(crate) use profile::DATADOG_AGENT_PROCESS;
 pub use profile::{SpawnProfile, profile_for};
 pub use request::SpawnRequest;
-#[cfg(windows)]
-pub(crate) use stdio::is_inherit_or_null;
+pub(crate) use stdio_setting::StdioSetting;
 
 use anyhow::Result;
 

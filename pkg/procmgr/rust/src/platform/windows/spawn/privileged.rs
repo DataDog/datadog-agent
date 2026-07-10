@@ -5,7 +5,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::spawn::{SpawnRequest, is_inherit_or_null};
+use crate::spawn::SpawnRequest;
 
 use super::super::{install_root, program_data_root};
 
@@ -28,7 +28,7 @@ pub(super) fn validate_process_request(
 }
 
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !is_inherit_or_null(&request.stdout_config) || !is_inherit_or_null(&request.stderr_config) {
+    if !request.stdout_setting.is_inherit_or_null() || !request.stderr_setting.is_inherit_or_null() {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())

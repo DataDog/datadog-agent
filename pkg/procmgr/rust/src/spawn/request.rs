@@ -6,13 +6,12 @@
 use anyhow::{Context, Result};
 use log::info;
 use std::path::PathBuf;
-use std::process::Stdio;
 
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file};
 
 use super::profile::SpawnProfile;
-use super::stdio;
+use super::stdio_setting::{self, StdioSetting};
 
 /// Platform-agnostic spawn inputs for procmgr managed processes.
 ///
@@ -24,14 +23,8 @@ pub struct SpawnRequest {
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
     pub working_dir: Option<PathBuf>,
-    /// Raw stdout value from process config (inherit, null, or file path).
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub stdout_config: String,
-    /// Raw stderr value from process config (inherit, null, or file path).
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub stderr_config: String,
-    pub stdout: Stdio,
-    pub stderr: Stdio,
+    pub stdout_setting: StdioSetting,
+    pub stderr_setting: StdioSetting,
 }
 
 impl SpawnRequest {
@@ -40,22 +33,12 @@ impl SpawnRequest {
         config: &ProcessConfig,
         profile: SpawnProfile,
     ) -> Result<Self> {
-        let stdout_config = config.stdout.clone();
-        let stderr_config = config.stderr.clone();
-        let (stdout, stderr) = if matches!(profile, SpawnProfile::Privileged) {
-            // Validate before opening paths: tampered privileged YAML must not create
-            // files as the supervisor (LocalSystem) before the catalog guard rejects spawn.
-            stdio::require_inherit_or_null(process_name, &stdout_config, &stderr_config)?;
-            (
-                stdio::from_inherit_or_null(&stdout_config),
-                stdio::from_inherit_or_null(&stderr_config),
-            )
-        } else {
-            (
-                stdio::stdout_from_config(&stdout_config),
-                stdio::stderr_from_config(&stderr_config),
-            )
-        };
+        let stdout = stdio_setting::parse_stdio_setting(&config.stdout);
+        let stderr = stdio_setting::parse_stdio_setting(&config.stderr);
+
+        if matches!(profile, SpawnProfile::Privileged) {
+            stdio_setting::require_inherit_or_null(process_name, &stdout, &stderr)?;
+        }
 
         Ok(Self {
             command: expand_env_vars(&config.command),
@@ -69,10 +52,8 @@ impl SpawnRequest {
                 .working_dir
                 .as_ref()
                 .map(|dir| PathBuf::from(expand_env_vars(dir))),
-            stdout_config,
-            stderr_config,
-            stdout,
-            stderr,
+            stdout_setting: stdout,
+            stderr_setting: stderr,
         })
     }
 }

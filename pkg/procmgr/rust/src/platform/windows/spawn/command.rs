@@ -9,6 +9,7 @@ use tokio::process::Command;
 use windows_sys::Win32::Security::ImpersonateLoggedOnUser;
 
 use crate::handle::ProcessHandle;
+use crate::platform;
 use crate::spawn::SpawnRequest;
 use crate::spawn_context;
 
@@ -17,6 +18,7 @@ use super::super::{apply_child_baseline_env, setup_process_group};
 use super::logon::{
     ImpersonationGuard, LogonUserCredentials, TokenHandle, logon_user_credentials, logon_user_token,
 };
+use super::stdio;
 
 pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> {
     let SpawnRequest {
@@ -24,11 +26,12 @@ pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> 
         args,
         env,
         working_dir,
-        stdout_config: _,
-        stderr_config: _,
-        stdout,
-        stderr,
+        stdout_setting,
+        stderr_setting,
     } = request;
+
+    let stdout = stdio::to_command_stdio(&stdout_setting, platform::stdout_inheritable());
+    let stderr = stdio::to_command_stdio(&stderr_setting, platform::stderr_inheritable());
 
     let mut cmd = Command::new(&command);
     cmd.args(&args);

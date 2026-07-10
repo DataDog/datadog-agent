@@ -24,7 +24,7 @@ use crate::spawn::SpawnRequest;
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
-use super::stdio::{map_stdio_config, map_stdio_handle_nul};
+use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 
 pub(super) fn spawn_as_primary_token(
     process_name: &str,
@@ -33,15 +33,15 @@ pub(super) fn spawn_as_primary_token(
 ) -> Result<ProcessHandle> {
     // Only support stdio shapes that can be mapped to explicit Win32 handles.
     // For anything else, fall back to impersonation + tokio::Command.
-    let stdout_handle = map_stdio_config(
+    let stdout_handle = map_stdio_setting(
         process_name,
-        &request.stdout_config,
+        &request.stdout_setting,
         windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
         account,
     )?;
-    let stderr_handle = map_stdio_config(
+    let stderr_handle = map_stdio_setting(
         process_name,
-        &request.stderr_config,
+        &request.stderr_setting,
         STD_ERROR_HANDLE,
         account,
     )?;
