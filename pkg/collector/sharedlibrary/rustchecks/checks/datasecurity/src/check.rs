@@ -2,14 +2,12 @@ use anyhow::{Context, Result};
 use shlib_core::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::constants::{
-    AGENTLESS_REGION, AGENTLESS_VERSION, RESOURCE_TYPE_RDS_INSTANCE,
-};
+use crate::backend::{self, InstanceConnections, QueryResult};
+use crate::constants::{AGENTLESS_REGION, AGENTLESS_VERSION};
 use crate::payload::{
-    Agentless, PostgresConnection, Resource, ScanConfig, ScanLocation, ScanResult, ScanningSource,
+    Agentless, PostgresConnection, Resource, ScanConfig, ScanResult, ScanningSource,
     SdsResultPayload,
 };
-use crate::postgres::{run_postgres_query, QueryResult};
 use crate::scanner::ScannerHandle;
 
 /// Check implementation.
@@ -19,13 +17,14 @@ pub fn check(check: &AgentCheck) -> Result<()> {
         .instance
         .get("scan_config")
         .context("reading scan_config from instance config")?;
-    let postgres: PostgresConnection = check
+    let backend: String = check
         .instance
-        .get("postgres")
-        .context("reading postgres connection from instance config")?;
+        .get("backend")
+        .context("reading backend from instance config")?;
+    let postgres: Option<PostgresConnection> = check.instance.get("postgres").ok();
 
     println!(
-        "datasecurity: check started (task_id={})",
+        "datasecurity: check started (task_id={}, backend={backend})",
         task_id.as_deref().unwrap_or("<none>")
     );
 
@@ -38,21 +37,6 @@ pub fn check(check: &AgentCheck) -> Result<()> {
         anyhow::bail!("no scanning rules in payload");
     }
 
-    let postgres_scan = task
-        .scan_data
-        .postgres
-        .as_ref()
-        .context("no postgres scan_data in payload")?;
-
-    let query = &postgres_scan.query;
-    let table = &postgres_scan.table;
-
-    println!(
-        "datasecurity: loaded scan config (rules={}, table={}, query={query})",
-        task.scanning_rules.len(),
-        table,
-    );
-
     let scanner_handle = ScannerHandle::new(&task.scanning_rules)
         .context("creating sds scanner")?;
     println!(
@@ -60,37 +44,18 @@ pub fn check(check: &AgentCheck) -> Result<()> {
         task.scanning_rules.len()
     );
 
-    println!(
-        "datasecurity: connecting to postgres host={} port={} dbname={} user={}",
-        postgres.host, postgres.port, postgres.dbname, postgres.username
-    );
-    println!("datasecurity: running postgres query: {query}");
-
+    let connections = InstanceConnections {
+        postgres: postgres.as_ref(),
+    };
+    backend::log_connection(&backend, &connections)?;
     let query_result =
-        run_postgres_query(&postgres, query).context("running postgres query")?;
+        backend::execute_scan(&backend, task, &connections).context("running backend scan")?;
 
-    let row_count = query_result
-        .columns
-        .values()
-        .map(|values| values.len())
-        .max()
-        .unwrap_or(0);
-    if let Ok(columns_json) = serde_json::to_string(&query_result.columns) {
-        println!(
-            "datasecurity: postgres query returned {row_count} row(s) in {:.3}s: {columns_json}",
-            query_result.duration_s
-        );
-    } else {
-        println!(
-            "datasecurity: postgres query returned {row_count} row(s) in {:.3}s",
-            query_result.duration_s
-        );
-    }
+    log_scan_stats(&backend, &query_result);
 
-    let payload = build_sds_result_payload(&scanner_handle, query_result, table)
+    let payload = build_sds_result_payload(&backend, &scanner_handle, query_result)
         .context("building sds result payload")?;
 
-    // Scanner is dropped here when `scanner_handle` goes out of scope.
     drop(scanner_handle);
 
     println!(
@@ -125,15 +90,36 @@ pub fn check(check: &AgentCheck) -> Result<()> {
     println!("datasecurity: check completed");
     Ok(())
 }
+
+fn log_scan_stats(backend: &str, query_result: &QueryResult) {
+    let row_count = query_result
+        .columns
+        .values()
+        .map(|values| values.len())
+        .max()
+        .unwrap_or(0);
+    if let Ok(columns_json) = serde_json::to_string(&query_result.columns) {
+        println!(
+            "datasecurity: {backend} scan returned {row_count} row(s) in {:.3}s: {columns_json}",
+            query_result.duration_s
+        );
+    } else {
+        println!(
+            "datasecurity: {backend} scan returned {row_count} row(s) in {:.3}s",
+            query_result.duration_s
+        );
+    }
+}
+
 fn build_sds_result_payload(
+    backend: &str,
     scanner_handle: &ScannerHandle,
     result: QueryResult,
-    table_name: &str,
 ) -> Result<SdsResultPayload> {
     let table_matches = scanner_handle.scan_columns(&result.columns)?;
 
     let resource_name = if result.host.is_empty() {
-        result.dbname.clone()
+        result.database.clone()
     } else {
         result.host.clone()
     };
@@ -143,11 +129,13 @@ fn build_sds_result_payload(
         .context("system time before unix epoch")?
         .as_millis() as i64;
 
+    let (resource_type, location) = backend::build_location(backend, &result)?;
+
     Ok(SdsResultPayload {
         scan_source: "AGENTLESS",
         timestamp,
         resource: Resource {
-            resource_type: RESOURCE_TYPE_RDS_INSTANCE.to_string(),
+            resource_type: resource_type.to_string(),
             name: resource_name.clone(),
         },
         scanning_source: ScanningSource {
@@ -159,15 +147,7 @@ fn build_sds_result_payload(
         scan_results: vec![ScanResult {
             duration: (result.duration_s * 1000.0) as i64,
             table_matches,
-            location: ScanLocation {
-                database: result.dbname.clone(),
-                rds_table: crate::payload::RdsTable {
-                    instance_arn: result.host.clone(),
-                    database_name: result.dbname.clone(),
-                    table_name: table_name.to_string(),
-                },
-            },
+            location,
         }],
     })
 }
-

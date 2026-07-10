@@ -129,6 +129,30 @@ def _cargo_build_env(repo_root: Path) -> dict[str, str]:
     return env
 
 
+def _datasecurity_engine_features() -> list[str]:
+    """
+    Map DD_DATASECURITY_ENGINES to Cargo feature flags for the datasecurity crate.
+
+    Accepted values (comma-separated):
+      - all (default)
+      - postgres
+    """
+    raw = os.environ.get("DD_DATASECURITY_ENGINES", "all").strip().lower()
+    if not raw or raw == "all":
+        return ["engine-all"]
+
+    features: list[str] = []
+    for engine in {v.strip() for v in raw.split(",") if v.strip()}:
+        if engine == "postgres":
+            features.append("engine-postgres")
+        else:
+            raise Exit(f"Unknown datasecurity engine {engine!r}; expected all or postgres")
+
+    if not features:
+        raise Exit("DD_DATASECURITY_ENGINES did not select any engines")
+    return features
+
+
 @task
 def build(ctx, checks_d_dir, manifest_path=None):
     """
@@ -138,6 +162,7 @@ def build(ctx, checks_d_dir, manifest_path=None):
       - `DD_RUST_SHARED_CHECKS_INCLUDE` (comma-separated ids)
       - `DD_RUST_SHARED_CHECKS_EXCLUDE` (comma-separated ids)
       - `DD_RUST_SHARED_CHECKS_INCLUDE_EXAMPLE` / `DD_RUST_SHARED_CHECKS_ENABLE_EXAMPLE` (true/1)
+      - `DD_DATASECURITY_ENGINES` (all|postgres, comma-separated; default: all)
     """
 
     if not checks_d_dir:
@@ -187,6 +212,11 @@ def build(ctx, checks_d_dir, manifest_path=None):
     ]
     for s in selected:
         cargo_args += ["-p", s.crate]
+
+    datasecurity_features = _datasecurity_engine_features()
+    if any(s.crate == "datasecurity" for s in selected):
+        cargo_args += ["--features", ",".join(datasecurity_features)]
+        print(f"Building datasecurity with engines: {datasecurity_features}")
 
     bazel_run_args = [
         "run",

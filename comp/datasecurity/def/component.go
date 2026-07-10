@@ -7,7 +7,7 @@
 //
 // The component subscribes to the DEBUG remote-config product on startup. Each
 // payload carries scanning rules and a per-integration scan query. For each
-// payload the component looks up the related postgres instance credentials,
+// payload the component looks up the related integration instance credentials,
 // builds an in-memory runtime configuration (rules, query, host, password, …)
 // and schedules the datasecurity shared-library check once via autodiscovery
 // with min_collection_interval: 0. Scanning, querying and event submission are handled by

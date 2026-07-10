@@ -1,8 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
     srcs = [
+        "backend_postgres.go",
+        "backends.go",
         "datasecurity.go",
         "handler.go",
     ],
@@ -31,5 +33,16 @@ go_library(
         "//pkg/util/option",
         "@//pkg/collector/aggregator",
         "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["backends_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

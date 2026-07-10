@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -18,11 +17,7 @@ import (
 )
 
 const (
-	// postgresIntegrationName is the integration whose instance we look up to
-	// run the scan query. Only postgres is supported for now.
-	postgresIntegrationName = "postgres"
-
-	// dataSecuritySection is the key of the postgres instance section that
+	// dataSecuritySection is the key of the integration instance section that
 	// carries the per-instance opt-in (enabled: true).
 	dataSecuritySection = "data_security"
 
@@ -36,7 +31,7 @@ const (
 //	  "tasks": [
 //	    {
 //	      "scanning_rules": [ { "id": "...", "name": "...", "regex": "..." }, ... ],
-//	      "scan_data": { "postgres": { "query": "SELECT ..." } }
+//	      "scan_data": { "postgres": { "query": "SELECT ...", "table": "..." } }
 //	    }
 //	  ]
 //	}
@@ -68,10 +63,11 @@ type rcPostgresScanData struct {
 // runtimeInstanceConfig is forwarded in-memory to the datasecurity shared-library
 // check. It is never written to disk.
 type runtimeInstanceConfig struct {
-	MinCollectionInterval int            `yaml:"min_collection_interval"`
-	TaskID                string         `yaml:"task_id"`
-	ScanConfig            rcPayload      `yaml:"scan_config"`
-	Postgres              postgresConfig `yaml:"postgres"`
+	MinCollectionInterval int             `yaml:"min_collection_interval"`
+	TaskID                string          `yaml:"task_id"`
+	ScanConfig            rcPayload       `yaml:"scan_config"`
+	Backend               string          `yaml:"backend"`
+	Postgres              *postgresConfig `yaml:"postgres,omitempty"`
 }
 
 type postgresConfig struct {
@@ -116,8 +112,8 @@ func (c *component) onUpdate(updates map[string]state.RawConfig, applyStatus fun
 				applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 				continue
 			}
-			if errors.Is(err, errNoPostgresQuery) {
-				c.log.Infof("datasecurity: no postgres query in payload for %s, nothing to schedule", configShortName(path))
+			if errors.Is(err, errNoScanData) {
+				c.log.Infof("datasecurity: no supported scan target in payload for %s, nothing to schedule", configShortName(path))
 				applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 				continue
 			}
@@ -139,7 +135,7 @@ func (c *component) onUpdate(updates map[string]state.RawConfig, applyStatus fun
 
 var (
 	errNotDataSecurityPayload = errors.New("not a data security scan payload")
-	errNoPostgresQuery        = errors.New("no postgres query in payload")
+	errNoScanData             = errors.New("no supported scan target in payload")
 )
 
 // configShortName returns the RC config name segment (e.g. test-aimene-data-security).
@@ -156,67 +152,53 @@ func configShortName(path string) string {
 }
 
 // buildCheckConfig builds an autodiscovery config for a one-shot datasecurity
-// shared-library check from the RC payload and the postgres instance credentials.
+// shared-library check from the RC payload and the matching integration credentials.
 func (c *component) buildCheckConfig(path string, payload rcPayload) (integration.Config, error) {
 	if len(payload.Tasks) == 0 {
 		return integration.Config{}, fmt.Errorf("%w: no tasks", errNotDataSecurityPayload)
 	}
 
+	backend, err := detectBackend(payload)
+	if err != nil {
+		return integration.Config{}, err
+	}
+
 	hasRules := false
-	hasQuery := false
 	ruleCount := 0
-	var queryPreview string
 	for _, t := range payload.Tasks {
 		ruleCount += len(t.ScanningRules)
 		if len(t.ScanningRules) > 0 {
 			hasRules = true
 		}
-		if t.ScanData.Postgres != nil && t.ScanData.Postgres.Query != "" {
-			hasQuery = true
-			queryPreview = t.ScanData.Postgres.Query
-		}
 	}
-	c.log.Infof("datasecurity: scan payload %s has %d task(s), %d rule(s), postgres_query=%t",
-		configShortName(path), len(payload.Tasks), ruleCount, hasQuery)
-	if hasQuery {
-		c.log.Infof("datasecurity: postgres query for %s: %s", configShortName(path), queryPreview)
-	}
+	c.log.Infof("datasecurity: scan payload %s has %d task(s), %d rule(s), backend=%s",
+		configShortName(path), len(payload.Tasks), ruleCount, backend)
 
 	if !hasRules {
 		return integration.Config{}, errors.New("no scanning rules in payload")
-	}
-	if !hasQuery {
-		return integration.Config{}, errNoPostgresQuery
 	}
 
 	if !c.cfg.GetBool("shared_library_check.enabled") {
 		return integration.Config{}, errors.New("shared_library_check.enabled must be true to run datasecurity scans")
 	}
 
-	instance, baseCfg, ok := c.findPostgresInstance()
+	instance, baseCfg, ok := c.findIntegrationInstance(backend)
 	if !ok {
-		return integration.Config{}, errors.New("no postgres instance with data_security.enabled: true found")
+		backendDef, _ := backendByKind(backend)
+		return integration.Config{}, fmt.Errorf(
+			"no %s instance with data_security.enabled: true found",
+			backendDef.IntegrationName(),
+		)
 	}
-
-	host := stringField(instance, "host")
-	if host == "" {
-		host = "localhost"
-	}
-	dbname := stringField(instance, "dbname", "database")
-	user := stringField(instance, "username", "user")
-	password := stringField(instance, "password")
 
 	runtimeCfg := runtimeInstanceConfig{
 		MinCollectionInterval: 0,
 		TaskID:                path,
 		ScanConfig:            payload,
-		Postgres: postgresConfig{
-			Host:     host,
-			Port:     portInt(instance),
-			Username: user,
-			Password: password,
-			Dbname:   dbname,
-		},
+		Backend:               string(backend),
+	}
+	if err := applyRuntimeConnection(backend, instance, &runtimeCfg); err != nil {
+		return integration.Config{}, err
 	}
 
 	instanceYAML, err := yaml.Marshal(runtimeCfg)
@@ -232,33 +214,6 @@ func (c *component) buildCheckConfig(path string, payload rcPayload) (integratio
 		Provider:   baseCfg.Provider,
 		NodeName:   baseCfg.NodeName,
 	}, nil
-}
-
-// findPostgresInstance returns the first postgres instance with data_security.enabled: true
-// and the integration config it belongs to.
-// TODO: match against the database reported_hostname from the RC payload instead of
-// taking the first eligible instance.
-func (c *component) findPostgresInstance() (map[string]any, integration.Config, bool) {
-	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if cfg.Name != postgresIntegrationName {
-			continue
-		}
-		for _, instanceData := range cfg.Instances {
-			var instance map[string]any
-			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				continue
-			}
-			if !instanceDataSecurityEnabled(instance) {
-				continue
-			}
-
-			c.log.Infof("datasecurity: using postgres instance (connect_host=%q reported_hostname=%q)",
-				stringField(instance, "host"), stringField(instance, "reported_hostname"))
-			return instance, cfg, true
-		}
-	}
-
-	return nil, integration.Config{}, false
 }
 
 // instanceDataSecurityEnabled reports whether a parsed instance has opted into
@@ -281,21 +236,4 @@ func stringField(instance map[string]any, keys ...string) string {
 		}
 	}
 	return ""
-}
-
-// portInt returns the postgres port as an int, defaulting to 5432.
-func portInt(instance map[string]any) int {
-	switch v := instance["port"].(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	case string:
-		if port, err := strconv.Atoi(v); err == nil {
-			return port
-		}
-	}
-	return 5432
 }

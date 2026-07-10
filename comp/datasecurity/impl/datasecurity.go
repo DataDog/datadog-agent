@@ -118,7 +118,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 			return
 		}
 
-		if c.hasEligiblePostgres() {
+		if c.hasEligibleIntegration() {
 			c.subscribeAndWait(ctx)
 			return
 		}
@@ -130,7 +130,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if c.hasEligiblePostgres() {
+				if c.hasEligibleIntegration() {
 					c.subscribeAndWait(ctx)
 					return
 				}
@@ -145,11 +145,6 @@ func (c *component) subscribeAndWait(ctx context.Context) {
 	c.rcclient.Subscribe(data.ProductDebug, c.onUpdate)
 	c.log.Infof("datasecurity: subscribed to RC product %q", data.ProductDebug)
 	<-ctx.Done()
-}
-
-func (c *component) hasEligiblePostgres() bool {
-	_, _, ok := c.findPostgresInstance()
-	return ok
 }
 
 func (c *component) sendChanges(changes integration.ConfigChanges) {

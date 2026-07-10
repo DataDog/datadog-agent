@@ -1,22 +1,66 @@
-use std::collections::HashMap;
-use std::time::Instant;
-
 use anyhow::{Context, Result};
-use postgres::{Client, NoTls, Row};
-use serde_json::Value;
 
-use crate::payload::PostgresConnection;
+use crate::backend::{InstanceConnections, QueryResult, ScanEngine};
+use crate::constants::RESOURCE_TYPE_RDS_INSTANCE;
+use crate::payload::{PostgresConnection, PostgresScanData, ScanLocation, ScanTask};
 
-pub struct QueryResult {
-    pub columns: HashMap<String, Vec<Value>>,
-    pub duration_s: f64,
-    pub dbname: String,
-    pub host: String,
+pub struct PostgresEngine;
+
+pub const ENGINE: PostgresEngine = PostgresEngine;
+
+impl ScanEngine for PostgresEngine {
+    fn name(&self) -> &'static str {
+        "postgres"
+    }
+
+    fn run_scan(
+        &self,
+        task: &ScanTask,
+        connections: &InstanceConnections<'_>,
+    ) -> Result<QueryResult> {
+        let scan_data = task
+            .scan_data
+            .postgres
+            .as_ref()
+            .context("no postgres scan_data in payload")?;
+        let conn = connections
+            .postgres
+            .context("reading postgres connection from instance config")?;
+        run_postgres_scan(conn, scan_data)
+    }
+
+    fn build_location(&self, result: &QueryResult) -> Result<(&'static str, ScanLocation)> {
+        Ok((
+            RESOURCE_TYPE_RDS_INSTANCE,
+            ScanLocation {
+                database: result.database.clone(),
+                rds_table: crate::payload::RdsTable {
+                    instance_arn: result.host.clone(),
+                    database_name: result.database.clone(),
+                    table_name: result.collection_or_table.clone(),
+                },
+            },
+        ))
+    }
+
+    fn log_connection(&self, connections: &InstanceConnections<'_>) {
+        if let Some(conn) = connections.postgres {
+            println!(
+                "datasecurity: connecting to postgres host={} port={} dbname={} user={}",
+                conn.host, conn.port, conn.dbname, conn.username
+            );
+        }
+    }
 }
 
-/// Connects to postgres, runs `query`, and returns column-oriented data matching
-/// the Go datasecurity component (`map[string][]interface{}`).
-pub fn run_postgres_query(conn: &PostgresConnection, query: &str) -> Result<QueryResult> {
+fn run_postgres_scan(
+    conn: &PostgresConnection,
+    scan_data: &PostgresScanData,
+) -> Result<QueryResult> {
+    use std::time::Instant;
+
+    use postgres::{Client, NoTls};
+
     let conn_str = format!(
         "host={} port={} dbname={} user={} password={} sslmode=disable",
         conn.host, conn.port, conn.dbname, conn.username, conn.password
@@ -26,7 +70,7 @@ pub fn run_postgres_query(conn: &PostgresConnection, query: &str) -> Result<Quer
 
     let start = Instant::now();
     let rows = client
-        .query(query, &[])
+        .query(&scan_data.query, &[])
         .context("running postgres query")?;
 
     let columns = rows_to_columns(&rows)?;
@@ -35,12 +79,16 @@ pub fn run_postgres_query(conn: &PostgresConnection, query: &str) -> Result<Quer
     Ok(QueryResult {
         columns,
         duration_s,
-        dbname: conn.dbname.clone(),
+        database: conn.dbname.clone(),
         host: conn.host.clone(),
+        collection_or_table: scan_data.table.clone(),
     })
 }
 
-fn rows_to_columns(rows: &[Row]) -> Result<HashMap<String, Vec<Value>>> {
+fn rows_to_columns(rows: &[postgres::Row]) -> Result<std::collections::HashMap<String, Vec<serde_json::Value>>> {
+    use serde_json::Value;
+    use std::collections::HashMap;
+
     if rows.is_empty() {
         return Ok(HashMap::new());
     }
@@ -66,7 +114,9 @@ fn rows_to_columns(rows: &[Row]) -> Result<HashMap<String, Vec<Value>>> {
     Ok(columns)
 }
 
-fn row_to_json(row: &Row, index: usize) -> Result<Value> {
+fn row_to_json(row: &postgres::Row, index: usize) -> Result<serde_json::Value> {
+    use serde_json::Value;
+
     if let Ok(v) = row.try_get::<_, Option<bool>>(index) {
         return Ok(v.map(Value::Bool).unwrap_or(Value::Null));
     }
