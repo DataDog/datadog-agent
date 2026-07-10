@@ -5,7 +5,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::spawn_request::SpawnRequest;
+use crate::spawn::SpawnRequest;
 
 use super::super::{fleet_policies_dir_for_managed_process, install_root, program_data_root};
 use super::stdio::is_stdio_config_inherit_or_null;
@@ -123,7 +123,7 @@ fn privileged_process_spec(
     install_root: &std::path::PathBuf,
     etc_root: &std::path::PathBuf,
 ) -> Result<PrivilegedProcessSpec> {
-    use crate::spawn_profile::DATADOG_AGENT_PROCESS;
+    use crate::spawn::DATADOG_AGENT_PROCESS;
 
     match process_name {
         DATADOG_AGENT_PROCESS => {

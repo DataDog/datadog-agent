@@ -12,9 +12,8 @@ use std::path::PathBuf;
 use tokio::process::Command;
 
 use crate::handle::ProcessHandle;
+use crate::spawn::{SpawnProfile, SpawnRequest};
 use crate::spawn_context;
-use crate::spawn_profile::SpawnProfile;
-use crate::spawn_request::SpawnRequest;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.

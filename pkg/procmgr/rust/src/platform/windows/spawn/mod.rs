@@ -15,8 +15,7 @@ use anyhow::{Context, Result};
 use log::info;
 
 use crate::handle::ProcessHandle;
-use crate::spawn_profile::SpawnProfile;
-use crate::spawn_request::SpawnRequest;
+use crate::spawn::{SpawnProfile, SpawnRequest};
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 

@@ -19,7 +19,7 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use crate::handle::ProcessHandle;
-use crate::spawn_request::SpawnRequest;
+use crate::spawn::SpawnRequest;
 
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;

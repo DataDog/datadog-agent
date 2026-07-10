@@ -4,16 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::{ProcessConfig, RestartPolicy};
-use crate::env::parse_environment_file;
+use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
-use crate::spawn_profile;
-use crate::spawn_request::SpawnRequest;
+use crate::spawn::spawn_managed_child;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
-use std::process::Stdio;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
 
@@ -227,9 +225,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let profile = spawn_profile::profile_for(&self.name);
-        let request = self.build_spawn_request()?;
-        let handle = platform::spawn_child(&self.name, request, profile)?;
+        let handle = spawn_managed_child(&self.name, &self.config)?;
 
         self.pid = handle.id();
         info!(
@@ -268,67 +264,6 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
-    }
-
-    fn build_spawn_request(&self) -> Result<SpawnRequest> {
-        // Collect environment variables that should be visible to the child.
-        //
-        // Platform backends are responsible for applying any baseline
-        // environment and clearing the process env (e.g. Windows
-        // `apply_child_baseline_env` after `env_clear`).
-        let mut env = Vec::new();
-
-        if let Some(ref raw_path) = self.config.environment_file {
-            let raw_path = expand_env_vars(raw_path);
-            let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
-                (true, stripped)
-            } else {
-                (false, raw_path.as_str())
-            };
-
-            if optional && !std::path::Path::new(path).exists() {
-                info!(
-                    "[{}] optional environment file not found, skipping: {}",
-                    self.name, path
-                );
-            } else {
-                let vars = parse_environment_file(path).with_context(|| {
-                    format!("[{}] failed to read environment file: {}", self.name, path)
-                })?;
-                env.extend(vars);
-            }
-        }
-
-        for (k, v) in &self.config.env {
-            env.push((k.clone(), expand_env_vars(v)));
-        }
-
-        let stdout_config = self.config.stdout.clone();
-        let stderr_config = self.config.stderr.clone();
-        let stdout = stdio_from_config(&stdout_config, platform::stdout_inheritable());
-        let stderr = stdio_from_config(&stderr_config, platform::stderr_inheritable());
-
-        let working_dir = self
-            .config
-            .working_dir
-            .as_ref()
-            .map(|dir| std::path::PathBuf::from(expand_env_vars(dir)));
-
-        Ok(SpawnRequest {
-            command: expand_env_vars(&self.config.command),
-            args: self
-                .config
-                .args
-                .iter()
-                .map(|a| expand_env_vars(a))
-                .collect(),
-            env,
-            working_dir,
-            stdout_config,
-            stderr_config,
-            stdout,
-            stderr,
-        })
     }
 
     pub fn is_running(&self) -> bool {
@@ -561,88 +496,11 @@ impl ManagedProcess {
     }
 }
 
-/// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
-///
-/// This lets a single process definition be pointed at the stable or experiment configuration
-/// directory by the supervising dd-procmgr, which exports the target directory in its own
-/// environment (the stable and experiment procmgr units export different values). It mirrors how
-/// the datadog-agent stable/experiment units each select their own config directory, so the
-/// experiment collector reads the experiment config while the process definition stays identical.
-/// Unknown variables are left as the literal `${VAR}` and logged, so a misconfiguration surfaces
-/// as a startup failure rather than silently resolving to an empty path.
-fn expand_env_vars(input: &str) -> String {
-    expand_vars_with(input, |name| std::env::var(name).ok())
-}
-
-/// Core of [`expand_env_vars`] with the variable lookup injected, so it can be unit-tested without
-/// mutating the process environment.
-fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut rest = input;
-    while let Some(start) = rest.find("${") {
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        match after.find('}') {
-            Some(end) => {
-                let name = &after[..end];
-                match lookup(name) {
-                    Some(val) => out.push_str(&val),
-                    None => {
-                        warn!(
-                            "process config references unset variable ${{{name}}}, leaving it literal"
-                        );
-                        out.push_str(&rest[start..start + 2 + end + 1]);
-                    }
-                }
-                rest = &after[end + 1..];
-            }
-            None => {
-                // No closing brace: emit the remainder verbatim.
-                out.push_str(&rest[start..]);
-                return out;
-            }
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-fn stdio_from_path(path: &str) -> Stdio {
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-    {
-        Ok(f) => f.into(),
-        Err(e) => {
-            warn!("failed to open stdio file {path}: {e}, falling back to inherit");
-            Stdio::inherit()
-        }
-    }
-}
-
-fn stdio_from_str(s: &str) -> Stdio {
-    match s {
-        "null" => Stdio::null(),
-        "inherit" | "" => Stdio::inherit(),
-        path => stdio_from_path(path),
-    }
-}
-
-fn stdio_from_config(yaml_value: &str, inheritable: bool) -> Stdio {
-    #[cfg(not(windows))]
-    let _ = inheritable;
-    #[cfg(windows)]
-    if !inheritable && (yaml_value == "inherit" || yaml_value.is_empty()) {
-        return Stdio::null();
-    }
-    stdio_from_str(yaml_value)
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::env::expand_vars_with;
     use crate::test_helpers;
     #[cfg(unix)]
     use nix::sys::signal::Signal;
@@ -1299,106 +1157,5 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "without stop_requested, non-zero exit should be Failed"
         );
-    }
-
-    // -- stdio_from_str (YAML stdout/stderr: inherit, "", null, file path, unopenable path) --
-
-    #[test]
-    fn test_stdio_from_str_inherit_spawns() {
-        let (cmd, args) = test_helpers::true_cmd();
-        let status = std::process::Command::new(cmd)
-            .args(&args)
-            .stdout(super::stdio_from_str("inherit"))
-            .stderr(super::stdio_from_str("inherit"))
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-
-    #[test]
-    fn test_stdio_from_str_empty_string_matches_inherit() {
-        let (cmd, args) = test_helpers::true_cmd();
-        let status = std::process::Command::new(cmd)
-            .args(&args)
-            .stdout(super::stdio_from_str(""))
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-
-    #[test]
-    fn test_stdio_from_str_null_discards_child_stdout() {
-        let (sh, flag) = test_helpers::shell_cmd();
-        let out = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo hello")
-            .stdout(super::stdio_from_str("null"))
-            .output()
-            .unwrap();
-        assert!(
-            out.stdout.is_empty(),
-            "stdout should be discarded, got {:?}",
-            String::from_utf8_lossy(&out.stdout)
-        );
-    }
-
-    #[test]
-    fn test_stdio_from_str_writable_path_redirect() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("pmgr_stdio_redirect.log");
-        let path_str = path.to_str().unwrap();
-        let (sh, flag) = test_helpers::shell_cmd();
-        let status = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo fileline")
-            .stdout(super::stdio_from_str(path_str))
-            .status()
-            .unwrap();
-        assert!(status.success());
-        let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(
-            contents.contains("fileline"),
-            "expected fileline in log, got {contents:?}"
-        );
-    }
-
-    #[test]
-    fn test_stdio_from_str_path_appends_on_respawn() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("pmgr_stdio_append.log");
-        let path_str = path.to_str().unwrap();
-        let (sh, flag) = test_helpers::shell_cmd();
-        for msg in ["first", "second"] {
-            let status = std::process::Command::new(sh)
-                .arg(flag)
-                .arg(format!("echo {msg}"))
-                .stdout(super::stdio_from_str(path_str))
-                .status()
-                .unwrap();
-            assert!(status.success());
-        }
-        let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(contents.contains("first"), "got {contents:?}");
-        assert!(contents.contains("second"), "got {contents:?}");
-    }
-
-    #[test]
-    fn test_stdio_from_str_unopenable_path_falls_back_to_inherit() {
-        let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
-        let bad_path = "/nonexistent_dir_pmgr_stdio/out.log";
-        #[cfg(windows)]
-        let bad_path = r"C:\nonexistent_dir_pmgr_stdio\out.log";
-        let out = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo fallback_ok")
-            .stdout(super::stdio_from_str(bad_path))
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "spawn with unopenable stdout path should still succeed (falls back to inherit)"
-        );
-        // Child stdout is inherited (not piped), so `out.stdout` is empty; success is the signal.
     }
 }

@@ -9,8 +9,8 @@ use tokio::process::Command;
 use windows_sys::Win32::Security::ImpersonateLoggedOnUser;
 
 use crate::handle::ProcessHandle;
+use crate::spawn::SpawnRequest;
 use crate::spawn_context;
-use crate::spawn_request::SpawnRequest;
 
 use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::super::{apply_child_baseline_env, setup_process_group};
