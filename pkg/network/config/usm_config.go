@@ -91,8 +91,8 @@ type USMConfig struct {
 	HTTPReplaceRules []*ReplaceRule
 
 	// HTTPUseDirectConsumer forces the use of direct consumer for HTTP monitoring instead of batch consumer
-	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
-	// When false (default), batch consumer is always used regardless of kernel version
+	// When true (default), direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false, batch consumer is always used regardless of kernel version
 	HTTPUseDirectConsumer bool
 
 	// HTTP Windows-specific Configuration
