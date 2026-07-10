@@ -3,7 +3,7 @@
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
     "ignorePaths": [],
     "constraints": {
-      "go": "1.26.4"
+      "go": "1.26.5"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",

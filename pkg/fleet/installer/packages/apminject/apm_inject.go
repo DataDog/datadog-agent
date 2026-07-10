@@ -145,20 +145,7 @@ func (a *InjectorInstaller) Remove(ctx context.Context) (err error) {
 // Instrument instruments the APM injector
 func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	if shouldInstrumentHost(a.Env) {
-		systemdRunning, err := systemd.IsRunning()
-		if err != nil {
-			return err
-		}
-		if systemdRunning {
-			// Best-effort: set up the systemd unit that re-asserts
-			// /etc/ld.so.preload on every boot. This never fails the install — the
-			// unit is a reliability enhancement, and the direct InstrumentLDPreload
-			// below already persists across reboots on its own.
-			a.setupSystemdPreloadUnit(ctx)
-		}
-		// Always write /etc/ld.so.preload directly so the current boot is covered
-		// (and so host injection works even when the systemd unit was skipped).
-		if err := a.InstrumentLDPreload(ctx); err != nil {
+		if err := a.instrumentHost(ctx); err != nil {
 			return err
 		}
 	}
@@ -186,6 +173,28 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	}
 
 	return nil
+}
+
+// instrumentHost writes the injector into /etc/ld.so.preload for host injection.
+// On a systemd host it also sets up the datadog-apm-inject unit that re-asserts
+// the entry on every boot; the direct write always runs so the current boot is
+// covered even when the unit was skipped.
+func (a *InjectorInstaller) instrumentHost(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_host")
+	defer func() { span.Finish(err) }()
+
+	systemdRunning, _ := systemd.IsRunning()
+	span.SetTag("systemd_running", systemdRunning)
+	if systemdRunning {
+		// Best-effort: set up the systemd unit that re-asserts
+		// /etc/ld.so.preload on every boot. This never fails the install — the
+		// unit is a reliability enhancement, and the direct InstrumentLDPreload
+		// below already persists across reboots on its own.
+		a.setupSystemdPreloadUnit(ctx)
+	}
+	// Always write /etc/ld.so.preload directly so the current boot is covered
+	// (and so host injection works even when the systemd unit was skipped).
+	return a.InstrumentLDPreload(ctx)
 }
 
 // setupSystemdPreloadUnit installs (or refreshes) the datadog-apm-inject systemd unit
@@ -242,18 +251,7 @@ func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 	errs := []error{}
 
 	if shouldInstrumentHost(a.Env) {
-		systemdRunning, err := systemd.IsRunning()
-		if err != nil {
-			errs = append(errs, err)
-		} else if systemdRunning {
-			errs = append(errs, NewSystemdServiceManager().Uninstall(ctx))
-			// Safety net: explicitly remove the ld.so.preload entry even if the
-			// service's ExecStop did not run (e.g. service was in a failed state
-			// when stopped). UninstrumentLDPreload is pure file I/O and idempotent.
-			errs = append(errs, a.UninstrumentLDPreload(ctx))
-		} else {
-			errs = append(errs, a.UninstrumentLDPreload(ctx))
-		}
+		errs = append(errs, a.uninstrumentHost(ctx))
 	}
 
 	if shouldInstrumentDocker(a.Env) {
@@ -262,6 +260,34 @@ func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 	}
 
 	return multierr.Combine(errs...)
+}
+
+// uninstrumentHost removes host injection from /etc/ld.so.preload. If the
+// datadog-apm-inject unit was installed, it is also uninstalled, and, as a
+// safety net, the ld.so.preload entry is removed directly in case the unit's
+// ExecStop did not run (e.g. it was in a failed state). The unit is uninstalled
+// whenever its service file is present, regardless of what systemd.IsRunning
+// reports — leaving an enabled stale unit behind would let a later boot
+// re-add the ld.so.preload entry even though uninstrumentation reported
+// success.
+func (a *InjectorInstaller) uninstrumentHost(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_host")
+	defer func() { span.Finish(err) }()
+
+	systemdRunning, _ := systemd.IsRunning()
+	span.SetTag("systemd_running", systemdRunning)
+
+	mgr := NewSystemdServiceManager()
+	if !mgr.serviceFileExists() {
+		return a.UninstrumentLDPreload(ctx)
+	}
+	return multierr.Combine(
+		mgr.Uninstall(ctx),
+		// Safety net: explicitly remove the ld.so.preload entry even if the
+		// service's ExecStop did not run (e.g. service was in a failed state
+		// when stopped). UninstrumentLDPreload is pure file I/O and idempotent.
+		a.UninstrumentLDPreload(ctx),
+	)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
