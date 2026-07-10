@@ -447,6 +447,19 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
+    copy_checks_d = ""
+    copy_checks_d_final = ""
+    if sys.platform.startswith("linux"):
+        from tasks.rust_shared_checks import build as rust_shared_checks_build
+
+        checks_d_staging = "bin/agent/dist/checks.d"
+        rust_shared_checks_build(ctx, checks_d_dir=checks_d_staging)
+        if os.path.isdir(checks_d_staging) and any(
+            f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
+        ):
+            copy_checks_d = f"COPY {checks_d_staging} /etc/datadog-agent/checks.d\n"
+            copy_checks_d_final = "COPY --from=bin /etc/datadog-agent/checks.d /etc/datadog-agent/checks.d\n"
+
     copy_extra_agents = ""
     if security_agent:
         from tasks.security_agent import build as security_agent_build
@@ -526,6 +539,7 @@ RUN apt-get clean && \
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
+{copy_checks_d}
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_ebpf_assets}
@@ -563,6 +577,7 @@ COPY --from=bin /opt/datadog-agent/bin/agent/agent                              
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
+{copy_checks_d_final}
 {copy_extra_agents}
 {copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
