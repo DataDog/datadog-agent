@@ -15,6 +15,38 @@ use tokio::process::Child as TokioChild;
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 
+/// Owned Win32 process handle for token-based spawns (`CreateProcessAsUserW`).
+#[cfg(windows)]
+struct OwnedProcessHandle {
+    handle: HANDLE,
+}
+
+#[cfg(windows)]
+// SAFETY: The Win32 HANDLE is a kernel handle safe to send across threads.
+// The kernel serialises concurrent operations on the same handle.
+unsafe impl Send for OwnedProcessHandle {}
+
+#[cfg(windows)]
+unsafe impl Sync for OwnedProcessHandle {}
+
+#[cfg(windows)]
+impl OwnedProcessHandle {
+    fn get(&self) -> HANDLE {
+        self.handle
+    }
+}
+
+#[cfg(windows)]
+impl Drop for OwnedProcessHandle {
+    fn drop(&mut self) {
+        if !self.handle.is_null() {
+            unsafe {
+                CloseHandle(self.handle);
+            }
+        }
+    }
+}
+
 /// Platform-agnostic process handle for procmgr supervision.
 ///
 /// On Unix we wrap `tokio::process::Child`.
@@ -32,20 +64,10 @@ pub struct ProcessHandle {
 #[cfg(windows)]
 enum ProcessHandleInner {
     Tokio(TokioChild),
-    Raw { pid: u32, process_handle: HANDLE },
-}
-
-#[cfg(windows)]
-impl Drop for ProcessHandleInner {
-    fn drop(&mut self) {
-        if let ProcessHandleInner::Raw { process_handle, .. } = self {
-            if !process_handle.is_null() {
-                unsafe {
-                    CloseHandle(*process_handle);
-                }
-            }
-        }
-    }
+    Raw {
+        pid: u32,
+        process_handle: OwnedProcessHandle,
+    },
 }
 
 impl ProcessHandle {
@@ -66,7 +88,9 @@ impl ProcessHandle {
         Self {
             inner: ProcessHandleInner::Raw {
                 pid,
-                process_handle,
+                process_handle: OwnedProcessHandle {
+                    handle: process_handle,
+                },
             },
         }
     }
@@ -93,7 +117,7 @@ impl ProcessHandle {
             match &mut self.inner {
                 ProcessHandleInner::Tokio(child) => Ok(child.wait().await?),
                 ProcessHandleInner::Raw { process_handle, .. } => {
-                    raw_wait_exit_code(*process_handle).await
+                    raw_wait_exit_code(process_handle.get()).await
                 }
             }
         }
@@ -113,7 +137,7 @@ impl ProcessHandle {
                     Ok(())
                 }
                 ProcessHandleInner::Raw { process_handle, .. } => {
-                    raw_terminate_process(*process_handle)
+                    raw_terminate_process(process_handle.get())
                 }
             }
         }
