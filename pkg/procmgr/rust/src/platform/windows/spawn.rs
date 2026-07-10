@@ -485,7 +485,7 @@ fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Resul
         }
     };
 
-    let domain_w = wide::null_terminated(domain);
+    let domain_w = wide::null_terminated(logon_domain(domain));
     let user_w = wide::null_terminated(user);
     let password_w = password.map(wide::null_terminated);
 
@@ -502,7 +502,8 @@ fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Resul
     };
     if ok == 0 {
         bail!(
-            "[{process_name}] LogonUserW({domain}\\{user}) failed: {}",
+            "[{process_name}] LogonUserW({}\\{user}) failed: {}",
+            logon_domain(domain),
             std::io::Error::last_os_error()
         );
     }
@@ -810,6 +811,19 @@ mod tests {
     fn logon_domain_uses_dot_for_local_accounts() {
         assert_eq!(logon_domain(""), ".");
         assert_eq!(logon_domain("WIN-HOST"), "WIN-HOST");
+    }
+
+    #[test]
+    fn primary_token_logon_credentials_normalize_empty_domain_for_logon() {
+        let acct = AgentAccount::PasswordLogon {
+            domain: String::new(),
+            user: "ddagentuser".to_string(),
+            password: "secret".to_string(),
+        };
+        let (domain, user, password) = primary_token_logon_credentials(&acct);
+        assert_eq!(logon_domain(domain), ".");
+        assert_eq!(user, "ddagentuser");
+        assert_eq!(password, Some("secret"));
     }
 
     #[test]
