@@ -1236,6 +1236,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15*time.Minute)
 	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
+	config.BindEnvAndSetDefault("health_platform.invalidsysprobeconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -1337,6 +1338,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Config files discovery
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
 
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)

@@ -564,6 +564,12 @@ func (p *PodAutoscalerInternal) SetDeleted() {
 	p.deleted = true
 }
 
+// ClearDeleted clears the deletion flag, e.g. when a profile re-claims a generated
+// DPA that a prior reconcile marked deleted.
+func (p *PodAutoscalerInternal) ClearDeleted() {
+	p.deleted = false
+}
+
 // UpdateFromStatus updates the PodAutoscalerInternal from an existing status.
 // It assumes the PodAutoscalerInternal is empty so it's not emptying existing data.
 func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.DatadogPodAutoscalerStatus) {
