@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
-//go:build python
+//go:build test && python
 
-package smartadaptivesampling
+package smartadaptivesamplingimpl
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,12 +17,11 @@ import (
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
-	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// noopLogComponent satisfies logcomp.Component in tests.
 type noopLogComponent struct{}
 
 func (noopLogComponent) Trace(...interface{})                   {}
@@ -38,9 +38,12 @@ func (noopLogComponent) Critical(...interface{}) error          { return nil }
 func (noopLogComponent) Criticalf(string, ...interface{}) error { return nil }
 func (noopLogComponent) Flush()                                 {}
 
-var _ logcomp.Component = noopLogComponent{}
+var _ log.Component = noopLogComponent{}
 
-// fakeObserverComponent returns a configured reader subscription.
+type fakeReader struct{ level severityeventsdef.SeverityLevel }
+
+func (r *fakeReader) GetSeverity() severityeventsdef.SeverityLevel { return r.level }
+
 type fakeObserverComponent struct {
 	sub               severityeventsdef.SeverityEventsReaderSubscription
 	err               error
@@ -63,52 +66,54 @@ func (f *fakeObserverComponent) SubscribeSeverityEventsReader(severityeventsdef.
 
 var _ observerdef.Component = (*fakeObserverComponent)(nil)
 
-func TestStartReader_DisabledReturnsNoUnsubscribeAndNoError(t *testing.T) {
-	configmock.New(t)
-	resetForTest(t)
-
-	comp := &fakeObserverComponent{}
-	unsubscribe, err := startReader(comp, noopLogComponent{})
-
+func newComponent(t *testing.T, enabled bool, observer observerdef.Component) (*component, *compdef.TestLifecycle) {
+	t.Helper()
+	lifecycle := compdef.NewTestLifecycle(t)
+	provides, err := NewComponent(Requires{
+		Lifecycle: lifecycle,
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey: enabled,
+		}),
+		Observer: observer,
+		Log:      noopLogComponent{},
+	})
 	require.NoError(t, err)
-	assert.Nil(t, unsubscribe)
-	_, ok := Current()
-	assert.False(t, ok, "reader must not be registered when the feature is disabled")
+	return provides.Comp.(*component), lifecycle
 }
 
-func TestStartReader_SubscribeErrorIsPropagated(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.Set(anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
-	resetForTest(t)
+func TestLifecycleDisabled(t *testing.T) {
+	comp, lifecycle := newComponent(t, false, &fakeObserverComponent{})
+	require.NoError(t, lifecycle.Start(context.Background()))
 
-	wantErr := assert.AnError
-	comp := &fakeObserverComponent{err: wantErr}
-	unsubscribe, err := startReader(comp, noopLogComponent{})
-
-	assert.Equal(t, wantErr, err)
-	assert.Nil(t, unsubscribe)
+	level, ok := comp.Current()
+	assert.False(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
 }
 
-func TestStartReader_SuccessRegistersReaderAndReturnsUnsubscribe(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.Set(anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
-	resetForTest(t)
+func TestLifecyclePropagatesSubscriptionError(t *testing.T) {
+	comp, lifecycle := newComponent(t, true, &fakeObserverComponent{err: assert.AnError})
+	assert.ErrorIs(t, lifecycle.Start(context.Background()), assert.AnError)
 
-	fake := &fakeReader{level: severityeventsdef.SeverityHigh}
-	comp := &fakeObserverComponent{}
-	comp.sub = severityeventsdef.SeverityEventsReaderSubscription{
-		Reader:      fake,
-		Unsubscribe: func() { comp.unsubscribeCalled = true },
+	_, ok := comp.Current()
+	assert.False(t, ok)
+}
+
+func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
+	reader := &fakeReader{level: severityeventsdef.SeverityHigh}
+	observer := &fakeObserverComponent{}
+	observer.sub = severityeventsdef.SeverityEventsReaderSubscription{
+		Reader:      reader,
+		Unsubscribe: func() { observer.unsubscribeCalled = true },
 	}
+	comp, lifecycle := newComponent(t, true, observer)
 
-	unsubscribe, err := startReader(comp, noopLogComponent{})
-
-	require.NoError(t, err)
-	require.NotNil(t, unsubscribe)
-	level, ok := Current()
+	require.NoError(t, lifecycle.Start(context.Background()))
+	level, ok := comp.Current()
 	require.True(t, ok)
 	assert.Equal(t, severityeventsdef.SeverityHigh, level)
 
-	unsubscribe()
-	assert.True(t, comp.unsubscribeCalled)
+	require.NoError(t, lifecycle.Stop(context.Background()))
+	assert.True(t, observer.unsubscribeCalled)
+	_, ok = comp.Current()
+	assert.False(t, ok)
 }

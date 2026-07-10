@@ -89,6 +89,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs-library v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2
+	github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
@@ -136,7 +137,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.78.1
-	github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.78.1
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.78.1
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.80.2
@@ -1269,6 +1269,10 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ./comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
+	github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def => ./comp/logs/smartadaptivesampling/def
+	github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/fx => ./comp/logs/smartadaptivesampling/fx
+	github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/impl => ./comp/logs/smartadaptivesampling/impl
+	github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/mock => ./comp/logs/smartadaptivesampling/mock
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
@@ -1319,7 +1323,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ./pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling => ./pkg/logs/smartadaptivesampling
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils

@@ -415,6 +415,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
+/comp/logs/smartadaptivesampling @DataDog/q-branch
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/network-device-monitoring-core
@@ -453,6 +454,7 @@
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
+/comp/logs/smartadaptivesampling @DataDog/agent-log-pipelines @DataDog/q-branch
 
 # Per-team ownership of individual event platform pipeline descriptor files.
 # Each file holds the passthroughPipelineDesc entries for one owning team so
@@ -714,7 +716,6 @@
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
 /pkg/logonduration                      @DataDog/windows-products
 /pkg/logs/                              @DataDog/agent-log-pipelines
-/pkg/logs/smartadaptivesampling         @DataDog/agent-log-pipelines @DataDog/q-branch
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products

@@ -109,6 +109,10 @@ modules:
     used_by_otel: true
   comp/logs/agent/config:
     used_by_otel: true
+  comp/logs/smartadaptivesampling/def: default
+  comp/logs/smartadaptivesampling/fx: default
+  comp/logs/smartadaptivesampling/impl: default
+  comp/logs/smartadaptivesampling/mock: default
   comp/netflow/payload: default
   comp/otelcol/collector-contrib/def: default
   comp/otelcol/collector-contrib/impl: default
@@ -228,7 +232,6 @@ modules:
     used_by_otel: true
   pkg/logs/message:
     used_by_otel: true
-  pkg/logs/smartadaptivesampling: default
   pkg/logs/sources:
     used_by_otel: true
   pkg/logs/status/statusinterface:
