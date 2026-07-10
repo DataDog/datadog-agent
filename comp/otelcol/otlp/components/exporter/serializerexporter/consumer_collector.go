@@ -15,7 +15,6 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -28,7 +27,6 @@ type tagSetKey struct {
 type collectorConsumer struct {
 	*serializerConsumer
 	seenHosts   map[string]struct{}
-	seenTags    map[string]struct{}
 	seenTagSets map[tagSetKey][]string
 	buildInfo   component.BuildInfo
 	// getPushTime returns a Unix time in nanoseconds, representing the time pushing metrics.
@@ -48,17 +46,12 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 		series = append(series, runningMetric)
 	}
 
-	var nonFargateTags []string
-	for tag := range c.seenTags {
-		if strings.HasPrefix(tag, string(source.AWSECSFargateKind)+":") {
-			series = append(series, exporterFargateMetrics(timestamp, append(buildTags, tag)))
-		} else {
-			nonFargateTags = append(nonFargateTags, tag)
-		}
-	}
-	if (len(c.seenHosts) > 0 && len(c.seenTags) == 0) || len(nonFargateTags) > 0 {
-		tags := append(buildTags, nonFargateTags...)
-		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, tags))
+	// Suppress the hostless fallback emission of "metrics.running" (no Host set)
+	// when every signal seen was already attributed to a specific workload
+	// type via seenTagSets, to avoid double-counting a single workload for
+	// billing.
+	if len(c.seenHosts) > 0 && len(c.seenTagSets) == 0 {
+		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, buildTags))
 	}
 
 	for key, tags := range c.seenTagSets {
@@ -80,11 +73,6 @@ func (c *collectorConsumer) addTelemetryMetric(_ string, _ exporter.Settings, _ 
 // ConsumeHost implements the metrics.HostConsumer interface.
 func (c *collectorConsumer) ConsumeHost(host string) {
 	c.seenHosts[host] = struct{}{}
-}
-
-// ConsumeTag implements the metrics.TagsConsumer interface.
-func (c *collectorConsumer) ConsumeTag(tag string) {
-	c.seenTags[tag] = struct{}{}
 }
 
 // ConsumeTagSet implements the metrics.TagSetConsumer interface.
@@ -119,27 +107,13 @@ func exporterDefaultMetrics(exporterType string, hostname string, timestamp uint
 	return metrics
 }
 
-// exporterWorkloadMetrics creates a workload-specific exporter running metric.
+// exporterWorkloadMetrics creates a built-in metric to report that a
+// workload-specific exporter (e.g. Fargate, Azure Container Apps) is
+// running. The resulting metric name is
+// "otel.datadog_exporter.metrics.running.<metricSuffix>".
 func exporterWorkloadMetrics(metricSuffix string, timestamp uint64, tags []string) *metrics.Serie {
 	return &metrics.Serie{
 		Name: "otel.datadog_exporter.metrics.running." + metricSuffix,
-		Points: []metrics.Point{
-			{
-				Ts:    float64(timestamp),
-				Value: 1.0,
-			},
-		},
-		Host:   "",
-		MType:  metrics.APIGaugeType,
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
-	}
-}
-
-// exporterFargateMetrics creates a built-in metric to report that a Fargate exporter is running.
-func exporterFargateMetrics(timestamp uint64, tags []string) *metrics.Serie {
-	return &metrics.Serie{
-		Name: "otel.datadog_exporter.metrics.running.fargate",
 		Points: []metrics.Point{
 			{
 				Ts:    float64(timestamp),
