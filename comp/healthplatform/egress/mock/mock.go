@@ -10,17 +10,18 @@ package mock
 
 import (
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockEgress struct{}
+// Mock is a no-op implementation of egressdef.Component. The interface has no
+// methods — egress behaviour is entirely lifecycle-driven (on each tick it
+// POSTs store.GetAllIssues() to the forwarder) — so there is nothing to fake.
+// This exists so tests can supply an egress component without pulling in the
+// real implementation's networking and ticker. To test egress's own tick
+// logic, construct the real (unexported) type directly, as
+// egress/impl/egress_test.go does.
+type Mock struct{}
 
 // New returns a no-op mock egress for testing.
 func New() egressdef.Component {
-	return &mockEgress{}
-}
-
-// MockModule provides a mock egress via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
+	return &Mock{}
 }
