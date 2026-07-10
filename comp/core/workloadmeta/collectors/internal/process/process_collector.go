@@ -75,6 +75,7 @@ type collector struct {
 
 	// Service discovery fields
 	sysProbeClient                          *sysprobeclient.CheckClient
+	getServicesFromSystemProbe              func(client *sysprobeclient.CheckClient, newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error)
 	serviceCollectionBatchSize              int
 	serviceCollectionMaxConsecutiveTimeouts int
 	consecutiveServiceDiscoveryTimeouts     int
@@ -126,6 +127,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 
 		// Initialize service discovery fields
 		sysProbeClient:                          sysprobeclient.GetCheckClient(),
+		getServicesFromSystemProbe:              getServicesFromSystemProbe,
 		serviceCollectionBatchSize:              systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
 		serviceCollectionMaxConsecutiveTimeouts: systemProbeConfig.GetInt(serviceCollectionMaxConsecutiveTimeoutsConfigKey),
 		serviceCollectionMinProcessAge:          systemProbeConfig.GetDuration(serviceCollectionMinProcessAgeConfigKey),
@@ -380,15 +382,15 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 	return newPids, heartbeatPids
 }
 
-// getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
+// getServicesFromSystemProbe calls the system-probe /discovery/services endpoint.
+func getServicesFromSystemProbe(client *sysprobeclient.CheckClient, newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
 	// Create params with categorized PIDs
 	params := core.Params{
 		NewPids:       newPids,
 		HeartbeatPids: heartbeatPids,
 	}
 
-	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
+	response, err := sysprobeclient.Post[model.ServicesResponse](client, "/services", params, sysconfig.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}
@@ -485,7 +487,7 @@ func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []i
 		log.Debugf("Requesting service discovery batch %d/%d with %d new PIDs and %d heartbeat PIDs",
 			batchIndex+1, len(batches), len(batch.newPids), len(batch.heartbeatPids))
 
-		resp, err := c.getDiscoveryServices(batch.newPids, batch.heartbeatPids)
+		resp, err := c.getServicesFromSystemProbe(c.sysProbeClient, batch.newPids, batch.heartbeatPids)
 		if err != nil {
 			// CheckClient handles startup warnings internally, but we still need to suppress
 			// the error if system-probe hasn't started yet.

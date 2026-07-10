@@ -427,14 +427,11 @@ func TestServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T) {
 	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
 	c.mockClock.Set(baseTime)
 
-	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
-		time.Sleep(50 * time.Millisecond)
-		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
-	})
-	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(socketPath),
-		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
-	)
+	requests := 0
+	c.collector.getServicesFromSystemProbe = func(_ *sysprobeclient.CheckClient, _ []int32, _ []int32) (*model.ServicesResponse, error) {
+		requests++
+		return nil, context.DeadlineExceeded
+	}
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
 	for i := 0; i < maxConsecutiveTimeouts; i++ {
@@ -445,12 +442,12 @@ func TestServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T) {
 
 	assert.True(t, c.collector.serviceDiscoveryDisabledByTimeouts())
 	assert.Equal(t, maxConsecutiveTimeouts, c.collector.consecutiveServiceDiscoveryTimeouts)
-	assert.Equal(t, maxConsecutiveTimeouts, requests())
+	assert.Equal(t, maxConsecutiveTimeouts, requests)
 
 	entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
 	require.Empty(t, entities)
 	require.Empty(t, injectedPids)
-	assert.Equal(t, maxConsecutiveTimeouts, requests(), "disabled service discovery should not send more requests")
+	assert.Equal(t, maxConsecutiveTimeouts, requests, "disabled service discovery should not send more requests")
 }
 
 func TestServiceDiscoverySuccessfulRequestResetsConsecutiveTimeouts(t *testing.T) {
@@ -544,38 +541,28 @@ func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPrev
 	c.collector.store = c.mockStore
 	c.collector.consecutiveServiceDiscoveryTimeouts = 4
 
-	var requestMux sync.Mutex
+	requests := 0
 	var successfulRequestPIDs []int32
-	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(call int, params core.Params) serviceDiscoveryTestResponse {
+	c.collector.getServicesFromSystemProbe = func(_ *sysprobeclient.CheckClient, newPids []int32, _ []int32) (*model.ServicesResponse, error) {
+		call := requests
+		requests++
 		if call == 1 {
-			time.Sleep(50 * time.Millisecond)
-			return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
+			return nil, context.DeadlineExceeded
 		}
 
-		requestMux.Lock()
-		successfulRequestPIDs = append([]int32(nil), params.NewPids...)
-		requestMux.Unlock()
-
-		services := make([]model.Service, 0, len(params.NewPids))
-		for _, pid := range params.NewPids {
+		successfulRequestPIDs = append([]int32(nil), newPids...)
+		services := make([]model.Service, 0, len(newPids))
+		for _, pid := range newPids {
 			services = append(services, makeModelService(pid, "timeout-batch-"+strconv.Itoa(int(pid))))
 		}
-		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
-			Services: services,
-		}}
-	})
-	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(socketPath),
-		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
-	)
+		return &model.ServicesResponse{Services: services}, nil
+	}
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
 	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
-	assert.Equal(t, 2, requests())
-	requestMux.Lock()
+	assert.Equal(t, 2, requests)
 	successfulPidsSlice := append([]int32(nil), successfulRequestPIDs...)
-	requestMux.Unlock()
 	require.Len(t, successfulPidsSlice, 2)
 
 	require.Len(t, entities, len(successfulPidsSlice))
