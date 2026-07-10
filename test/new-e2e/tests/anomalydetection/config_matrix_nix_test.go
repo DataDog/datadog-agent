@@ -5,12 +5,12 @@
 
 package anomalydetection
 
-// Item 7 — sub-gate independence matrix (master=on in all cases).
+// Item 7 — sub-gate independence matrix (observer gate on in all cases).
 //
 // Three independent sub-gates (metrics.enabled, logs.enabled, logs.internal.enabled)
-// sit under anomaly_detection.enabled=true. This file verifies that each sub-gate
-// activates or suppresses the correct path independently. The master=off case is
-// covered by defaults_nix_test.go.
+// sit under anomaly_detection.anomaly_scorer.dry_run.enabled=true. This file verifies
+// that each sub-gate activates or suppresses the correct path independently.
+// The all-gates-off case is covered by defaults_nix_test.go.
 //
 // Each case has its own suite type so exactly one test method runs per provisioned
 // VM. Sharing a suite type across entry points causes every method on the suite to
@@ -43,7 +43,9 @@ func TestObserverConfigMatrixMetricsOffLogsOff(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: false
   logs:
@@ -85,7 +87,9 @@ func TestObserverConfigMatrixMetricsOnLogsOff(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: true
   logs:
@@ -125,7 +129,9 @@ func TestObserverConfigMatrixMetricsOffLogsOn(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: false
   logs:
@@ -150,37 +156,35 @@ func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
 	}, 2*time.Minute, 3*time.Second)
 }
 
-// --- Case 4: all gates on ------------------------------------------------
+// --- Case 4: dry-run gate only (default sub-gates on) -------------------
 
-type allGatesOnSuite struct {
+type masterOnlyDefaultsOnSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestObserverConfigMatrixAllGatesOn verifies both the metrics and log paths
-// are active simultaneously with no disabled warnings.
-func TestObserverConfigMatrixAllGatesOn(t *testing.T) {
+// TestObserverConfigMatrixDryRunOnlyDefaultsOn verifies that enabling
+// an observer gate implicitly keeps the metrics and internal log paths active
+// through their default=true sub-gates.
+func TestObserverConfigMatrixDryRunOnlyDefaultsOn(t *testing.T) {
 	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
-  metrics:
-    enabled: true
-  logs:
-    internal:
+  anomaly_scorer:
+    dry_run:
       enabled: true
 `
-	e2e.Run(t, &allGatesOnSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &masterOnlyDefaultsOnSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
-	), e2e.WithStackName("anomalydetection-matrix-all-on"))
+	), e2e.WithStackName("anomalydetection-matrix-dry-run-defaults-on"))
 }
 
-// TestBothPathsActive is the full-active baseline: metrics telemetry and
-// internal log ingestion telemetry must both be present.
-func (s *allGatesOnSuite) TestBothPathsActive() {
+// TestBothPathsActive verifies that the metrics and internal log paths both
+// start when only an observer gate is enabled.
+func (s *masterOnlyDefaultsOnSuite) TestBothPathsActive() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		tel := observerTelemetryOutput(s)
