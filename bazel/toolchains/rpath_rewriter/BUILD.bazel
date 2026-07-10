@@ -4,7 +4,7 @@ load(":install_name_tool.bzl", "macos_rpath_rewriter")
 load(":patchelf.bzl", "patchelf_rpath_rewriter")
 load(":toolchain.bzl", "noop_toolchain", "rpath_rewriter_toolchain")
 
-# Provides rpath rewriting toolchains. Rewriters either expose a `patch_file`
+# Provides rpath rewriting toolchains. Rewriters either expose a `rewriter_tool`
 # executable taking <thing-to-patch> <new-rpath> <output-path>, or expose no
 # executable to signal that rpath rewriting is not applicable for the target.
 toolchain_type(
@@ -19,7 +19,7 @@ patchelf_rpath_rewriter(
 
 rpath_rewriter_toolchain(
     name = "patchelf_rpath_rewriter_toolchain",
-    patch_file = ":patchelf_rpath_rewriter",
+    rewriter_tool = ":patchelf_rpath_rewriter",
 )
 
 macos_rpath_rewriter(
@@ -29,7 +29,7 @@ macos_rpath_rewriter(
 
 rpath_rewriter_toolchain(
     name = "install_name_tool_rpath_rewriter_toolchain",
-    patch_file = ":install_name_tool_rpath_rewriter",
+    rewriter_tool = ":install_name_tool_rpath_rewriter",
 )
 
 noop_toolchain(

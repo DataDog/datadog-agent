@@ -1,9 +1,9 @@
 """Toolchain to provide a hermetic patchelf-based rpath patcher."""
 
 def _patchelf_rpath_rewriter_impl(ctx):
-    patch_file = ctx.actions.declare_file(ctx.label.name + "_patch_file.sh")
+    rewriter_tool = ctx.actions.declare_file(ctx.label.name + "_rewriter_tool.sh")
     ctx.actions.write(
-        output = patch_file,
+        output = rewriter_tool,
         is_executable = True,
         content = """#!/usr/bin/env bash
 set -euo pipefail
@@ -17,8 +17,8 @@ OUTPUT=$3
     )
 
     return DefaultInfo(
-        executable = patch_file,
-        files = depset([patch_file, ctx.executable.patchelf]),
+        executable = rewriter_tool,
+        files = depset([rewriter_tool, ctx.executable.patchelf]),
     )
 
 patchelf_rpath_rewriter = rule(
