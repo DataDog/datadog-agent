@@ -340,29 +340,39 @@ fn spawn_with_impersonation(
     user: &str,
     password: Option<&str>,
 ) -> Result<ProcessHandle> {
-    let domain_wide = wide::null_terminated(logon_domain(domain));
-    let user_wide = wide::null_terminated(user);
-    let password_wide = password.map(wide::null_terminated);
+    let logon_token = logon_user_token(process_name, domain, user, password)?;
+    spawn_with_token_impersonation(process_name, command, cmd, logon_token)
+}
 
-    unsafe {
-        let mut logon_token = TokenHandle(ptr::null_mut());
-        let ok = LogonUserW(
-            user_wide.as_ptr(),
-            domain_wide.as_ptr(),
-            password_wide.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+fn logon_user_token(
+    process_name: &str,
+    domain: &str,
+    user: &str,
+    password: Option<&str>,
+) -> Result<TokenHandle> {
+    let domain_w = wide::null_terminated(logon_domain(domain));
+    let user_w = wide::null_terminated(user);
+    let password_w = password.map(wide::null_terminated);
+
+    let mut logon_token: HANDLE = ptr::null_mut();
+    let ok = unsafe {
+        LogonUserW(
+            user_w.as_ptr(),
+            domain_w.as_ptr(),
+            password_w.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
             LOGON32_LOGON_SERVICE,
             LOGON32_PROVIDER_DEFAULT,
-            &mut logon_token.0,
+            &mut logon_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] LogonUserW({}\\{user}) failed: {}",
+            logon_domain(domain),
+            std::io::Error::last_os_error()
         );
-        if ok == 0 {
-            bail!(
-                "[{process_name}] LogonUserW failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-
-        spawn_with_token_impersonation(process_name, command, cmd, logon_token)
     }
+    Ok(TokenHandle(logon_token))
 }
 
 fn spawn_as_primary_token(
@@ -471,44 +481,12 @@ fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
 }
 
 fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Result<HANDLE> {
-    let (domain, user, password) = match account {
-        AgentAccount::LocalSystem => {
-            bail!("[{process_name}] internal error: LocalSystem uses supervisor token duplication")
-        }
-        AgentAccount::PasswordLogon {
-            domain,
-            user,
-            password,
-        } => (domain.as_str(), user.as_str(), Some(password.as_str())),
-        AgentAccount::ServiceAccountLogon { domain, user } => {
-            (domain.as_str(), user.as_str(), None)
-        }
-    };
-
-    let domain_w = wide::null_terminated(logon_domain(domain));
-    let user_w = wide::null_terminated(user);
-    let password_w = password.map(wide::null_terminated);
-
-    let mut logon_token: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        LogonUserW(
-            user_w.as_ptr(),
-            domain_w.as_ptr(),
-            password_w.as_ref().map_or(std::ptr::null(), |p| p.as_ptr()),
-            LOGON32_LOGON_SERVICE,
-            LOGON32_PROVIDER_DEFAULT,
-            &mut logon_token,
-        )
-    };
-    if ok == 0 {
-        bail!(
-            "[{process_name}] LogonUserW({}\\{user}) failed: {}",
-            logon_domain(domain),
-            std::io::Error::last_os_error()
-        );
+    if matches!(account, AgentAccount::LocalSystem) {
+        bail!("[{process_name}] internal error: LocalSystem uses supervisor token duplication")
     }
-    let logon_token_guard = TokenHandle(logon_token);
-    duplicate_primary_token(process_name, logon_token_guard.0)
+    let (domain, user, password) = primary_token_logon_credentials(account);
+    let logon_token = logon_user_token(process_name, domain, user, password)?;
+    duplicate_primary_token(process_name, logon_token.0)
 }
 
 fn duplicate_primary_token(process_name: &str, token: HANDLE) -> Result<HANDLE> {

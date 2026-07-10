@@ -84,8 +84,8 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     } else {
         format!("{domain}\\{user}")
     };
-    let system_wide = wide::null_terminated("");
-    let account_wide = wide::null_terminated(&account);
+    let system_w = wide::null_terminated("");
+    let account_w = wide::null_terminated(&account);
 
     unsafe {
         let mut sid_size = 0u32;
@@ -93,8 +93,8 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut sid_type = 0i32;
 
         let _ = LookupAccountNameW(
-            system_wide.as_ptr(),
-            account_wide.as_ptr(),
+            system_w.as_ptr(),
+            account_w.as_ptr(),
             ptr::null_mut(),
             &mut sid_size,
             ptr::null_mut(),
@@ -105,8 +105,8 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut sid = vec![0u8; sid_size as usize];
         let mut _domain_buf = vec![0u16; domain_size as usize];
         let ok = LookupAccountNameW(
-            system_wide.as_ptr(),
-            account_wide.as_ptr(),
+            system_w.as_ptr(),
+            account_w.as_ptr(),
             sid.as_mut_ptr() as *mut _,
             &mut sid_size,
             _domain_buf.as_mut_ptr(),
@@ -125,12 +125,12 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
 }
 
 fn read_agent_password_from_lsa() -> Result<Option<String>> {
-    let mut key_wide = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
-    let key_len = key_wide.len().saturating_sub(1);
+    let mut key_w = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
+    let key_len = key_w.len().saturating_sub(1);
     let mut key_name = LSA_UNICODE_STRING {
         Length: (key_len * 2) as u16,
-        MaximumLength: (key_wide.len() * 2) as u16,
-        Buffer: key_wide.as_mut_ptr(),
+        MaximumLength: (key_w.len() * 2) as u16,
+        Buffer: key_w.as_mut_ptr(),
     };
 
     unsafe {
