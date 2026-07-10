@@ -183,33 +183,38 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) ([]*CommandResult, error) {
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*PushResult, error) {
 	if c.prof == nil {
 		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
-	if len(c.prof.Commands.PushConfig) == 0 {
+	pc := c.prof.Commands.PushConfig
+	if !pc.CanPush() {
 		return nil, fmt.Errorf("no push commands for profile %q", c.prof.Name)
 	}
-	var results []*CommandResult
-	for _, untypedCmd := range c.prof.Commands.PushConfig {
-		switch cmd := untypedCmd.(type) {
-		case *profile.SCPCommand:
-			result, err := ExecuteSCP(ctx, c.client, cmd, rawConfig)
-			if result != nil {
-				results = append(results, result)
-			}
-			if err != nil {
-				return results, fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
-			}
-		case *profile.PlainCommand:
-			result, err := ExecuteCommand(ctx, c.client, cmd)
-			if result != nil {
-				results = append(results, result)
-			}
-			if err != nil {
-				return results, fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
-			}
-		}
+	results := &PushResult{}
+	// Copy the raw configuration to the device
+	result, err := ExecuteSCP(ctx, c.client, pc.Copy, rawConfig)
+	if result != nil {
+		results.CopyConfig = append(results.CopyConfig, result)
+	}
+	if err != nil {
+		return results, fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
+	}
+	// Set the running configuration from the file
+	result, err = ExecuteCommand(ctx, c.client, pc.SetRunning)
+	if result != nil {
+		results.SetRunning = append(results.SetRunning, result)
+	}
+	if err != nil {
+		return results, fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
+	}
+	// Set the startup configuration from the running config
+	result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
+	if result != nil {
+		results.SetStartup = append(results.SetStartup, result)
+	}
+	if err != nil {
+		return results, fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
 	}
 	return results, nil
 }
