@@ -33,11 +33,9 @@ const (
 func DetectMode() Conf {
 
 	envToSet := map[string]string{
-		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
-		"DD_REMOTE_CONFIGURATION_ENABLED":      "false",
-		"DD_HOSTNAME":                          "none",
-		"DD_APM_ENABLED":                       "true",
-		"DD_TRACE_ENABLED":                     "true",
+		"DD_HOSTNAME":      "none",
+		"DD_APM_ENABLED":   "true",
+		"DD_TRACE_ENABLED": "true",
 	}
 
 	if len(os.Args) == 1 {
