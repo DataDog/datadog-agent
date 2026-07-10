@@ -392,25 +392,21 @@ func TestCombiningAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 //	                                                 IsTruncated
 //	                                                 flags on
 //	                                                 contributing
-//	                                                 lines. This
-//	                                                 test covers
-//	                                                 the combined-
-//	                                                 emission case
-//	                                                 specifically;
-//	                                                 the @guarantee
-//	                                                 itself applies
-//	                                                 to all
-//	                                                 bucket.flush()
-//	                                                 paths.
+//	                                                 lines.
 //
-// LOAD-BEARING for the refactor safety net. A combined emission
-// of 2+ lines where the LATER contributor (not the leader)
-// arrived with upstream IsTruncated=true MUST emit with no
-// markers and IsTruncated=false (assuming no overflow). The
-// upstream signal from non-leader contributors is fully dropped
-// — both content-wise (no markers) and flag-wise (since the
-// emitted message's IsTruncated mirrors only the leader's
-// pre-emit state, which here is false).
+// KNOWN BUG, fix pending. This test pins the CURRENT (buggy)
+// behaviour that the @guarantee documents; see the @guarantee's
+// annotation for the full status and the shape of the intended
+// fix. This test is NOT asserting desired behaviour.
+//
+// Concretely: a combined emission of 2+ lines where a LATER
+// contributor (not the leader) arrived with upstream
+// IsTruncated=true currently emits with no markers and
+// IsTruncated=false (assuming no overflow). The upstream signal
+// from non-leader contributors is dropped — both content-wise
+// (no markers) and flag-wise (since the emitted message's
+// IsTruncated mirrors only the leader's pre-emit state, which
+// here is false).
 func TestCombiningAggregator_BucketFlushIgnoresUpstreamFlag_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := 200 // large, no overflow
