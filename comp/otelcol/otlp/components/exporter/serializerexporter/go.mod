@@ -212,8 +212,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog => github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514
-
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (

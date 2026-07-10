@@ -582,8 +582,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.156.0/go.mod h1:ZindxjMqsb8RvStA4cIH4b2jG1QP1/v3D8/hyeQqsrc=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.156.0 h1:oLDjBh/iT0pq38XWZD/FVO//kZtdsci3Y7J16KqI9GE=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.156.0/go.mod h1:4FQ2Xa+6noNSWCeAyfI41XJXFsO/QhVeEBMDEEnP+DI=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514 h1:o+AAU2uERivzrGHfOa4K7jPaJE1o0TDiXGdCV2xcyws=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.156.0 h1:ZEw9DbPpK7r6iAL65Dj3IUCWdXF4FM8ZbGBPJa+f9GE=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.156.0/go.mod h1:pue+2b5alMlZ0IT1cRyCU8K6JljqtnrIyQH5EU/6eU8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.156.0 h1:SCjJcfLQUNrvS3pxmTCpkauG+EuBO9FfpYxwZGh1R2k=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.156.0/go.mod h1:a2EWclAv09obxPpx4JrIDGlcoU5XmsC9Z55hN43InIM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.156.0 h1:ESNQwLZhQlKcbCzGfFNJu3MkNur35dVBbf7sE0MLDdk=
