@@ -3,10 +3,36 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use anyhow::{Result, bail};
 use log::warn;
 use std::process::Stdio;
 
 use crate::platform;
+
+pub(crate) fn is_inherit_or_null(config: &str) -> bool {
+    matches!(config, "inherit" | "" | "null")
+}
+
+/// Reject privileged stdio configs that would open file paths before catalog validation.
+pub(super) fn require_inherit_or_null(
+    process_name: &str,
+    stdout: &str,
+    stderr: &str,
+) -> Result<()> {
+    if !is_inherit_or_null(stdout) || !is_inherit_or_null(stderr) {
+        bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
+    }
+    Ok(())
+}
+
+/// Map inherit/null stdio only. Caller must run [`require_inherit_or_null`] first.
+pub(super) fn from_inherit_or_null(s: &str) -> Stdio {
+    match s {
+        "null" => Stdio::null(),
+        "inherit" | "" => Stdio::inherit(),
+        _ => Stdio::null(),
+    }
+}
 
 pub(super) fn stdout_from_config(yaml_value: &str) -> Stdio {
     from_config(yaml_value, platform::stdout_inheritable())
@@ -52,6 +78,12 @@ fn from_path(path: &str) -> Stdio {
 mod tests {
     use super::*;
     use crate::test_helpers;
+
+    #[test]
+    fn require_inherit_or_null_rejects_file_paths() {
+        let err = require_inherit_or_null("proc", r"C:\logs\out.log", "inherit").unwrap_err();
+        assert!(err.to_string().contains("inherit or null"));
+    }
 
     #[test]
     fn inherit_spawns() {

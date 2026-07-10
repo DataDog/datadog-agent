@@ -13,6 +13,8 @@ mod stdio;
 pub(crate) use profile::DATADOG_AGENT_PROCESS;
 pub use profile::{SpawnProfile, profile_for};
 pub use request::SpawnRequest;
+#[cfg(windows)]
+pub(crate) use stdio::is_inherit_or_null;
 
 use anyhow::Result;
 
@@ -25,6 +27,7 @@ pub(crate) fn spawn_managed_child(
     process_name: &str,
     config: &ProcessConfig,
 ) -> Result<ProcessHandle> {
-    let request = SpawnRequest::from_config(process_name, config)?;
-    platform::spawn_child(process_name, request, profile_for(process_name))
+    let profile = profile_for(process_name);
+    let request = SpawnRequest::from_config(process_name, config, profile)?;
+    platform::spawn_child(process_name, request, profile)
 }

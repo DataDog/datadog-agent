@@ -5,10 +5,9 @@
 
 use anyhow::{Result, bail};
 
-use crate::spawn::SpawnRequest;
+use crate::spawn::{SpawnRequest, is_inherit_or_null};
 
 use super::super::{fleet_policies_dir_for_managed_process, install_root, program_data_root};
-use super::stdio::is_stdio_config_inherit_or_null;
 
 /// Reject privileged spawn requests that don't exactly match our embedded catalog spec.
 pub(super) fn validate_privileged_process_request(
@@ -29,9 +28,7 @@ pub(super) fn validate_privileged_process_request(
 }
 
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !is_stdio_config_inherit_or_null(&request.stdout_config)
-        || !is_stdio_config_inherit_or_null(&request.stderr_config)
-    {
+    if !is_inherit_or_null(&request.stdout_config) || !is_inherit_or_null(&request.stderr_config) {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())
