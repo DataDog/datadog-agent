@@ -31,6 +31,16 @@ func (c *CommandResult) AnyError() error {
 	if err == nil {
 		err = c.ValidationError
 	}
+	return err
+}
+
+// FormattedError returns nil if there was no error, and otherwise wraps
+// .AnyError to append any captured output to the error message.
+func (c *CommandResult) FormattedError() error {
+	err := c.Error
+	if err == nil {
+		err = c.ValidationError
+	}
 	if err == nil {
 		return nil
 	}
@@ -38,6 +48,17 @@ func (c *CommandResult) AnyError() error {
 		return fmt.Errorf("%w: %q", err, c.Output)
 	}
 	return err
+}
+
+type ResultList []*CommandResult
+
+func (rl ResultList) AnyError() error {
+	for _, result := range rl {
+		if err := result.AnyError(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // sshClient is a common interface between ssh.Client and RetryingSSHClient
@@ -67,7 +88,7 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		if r.Error == nil {
 			r.ValidationError = cmd.Validator.Validate(r.Output)
 		}
-		err := r.AnyError()
+		err := r.FormattedError()
 		if err != nil {
 			if r.Output != "" {
 				return r, fmt.Errorf("%w: %q", err, r.Output)
@@ -116,7 +137,7 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 	if r.Error == nil {
 		r.ValidationError = cmd.Validator.Validate(r.Output)
 	}
-	err = r.AnyError()
+	err = r.FormattedError()
 	if err != nil {
 		if r.Output != "" {
 			return r, fmt.Errorf("%w: %q", err, r.Output)
