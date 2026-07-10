@@ -26,6 +26,7 @@ import (
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -206,6 +207,29 @@ func publishUptime() interface{} {
 	return int(time.Since(ift.start) / time.Second)
 }
 
+// SemanticCoreInfo is the operator-facing snapshot of the live semantic-core registry,
+// rendered in the APM Agent status section.
+type SemanticCoreInfo struct {
+	ContentHash string
+	Version     string
+	Source      string
+}
+
+func publishSemanticCoreInfo() interface{} {
+	live := semantics.DefaultRegistry()
+	source := "remote-config"
+	// Status is rendered rarely (operator runs `agent status`), so rebuilding the
+	// embedded registry per call is fine and avoids caching any state.
+	if e, err := semantics.NewEmbeddedRegistry(); err == nil && semantics.RegistryEqual(live, e) {
+		source = "embedded"
+	}
+	return SemanticCoreInfo{
+		ContentHash: live.ContentHash(),
+		Version:     live.Version(),
+		Source:      source,
+	}
+}
+
 type infoString string
 
 func (s infoString) String() string { return string(s) }
@@ -361,6 +385,7 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
+	expvar.Publish("semantic_core", expvar.Func(publishSemanticCoreInfo))
 
 	// copy the config to ensure we don't expose sensitive data such as API keys
 	c := *conf
