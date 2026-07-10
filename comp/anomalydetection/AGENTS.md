@@ -196,11 +196,7 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-<<<<<<< HEAD
-=======
-| `anomaly_detection.reporting.events.enabled` | `false` | Event reporter (change events) |
->>>>>>> e69f59d243c (docs(anomaly): add production safety guidelines)
-| `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |
+| `anomaly_detection.recording.enabled` | `false` | Reserved for Parquet recording; production currently wires a no-op recorder |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
