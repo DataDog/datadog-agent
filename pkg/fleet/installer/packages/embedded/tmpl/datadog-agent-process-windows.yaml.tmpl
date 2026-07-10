@@ -3,10 +3,6 @@ command: '{{.InstallDir}}/bin/agent/process-agent.exe'
 args:
   - --cfgpath
   - '{{.EtcDir}}/datadog.yaml'
-  - --sysprobe-config
-  - '{{.EtcDir}}/system-probe.yaml'
-  - --pid
-  - '{{.InstallDir}}/run/process-agent.pid'
 auto_start: true
 condition_path_exists: '{{.InstallDir}}/bin/agent/process-agent.exe'
 restart: on-failure

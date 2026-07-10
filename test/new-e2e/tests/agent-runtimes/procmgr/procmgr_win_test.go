@@ -280,23 +280,13 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	s.hasDDOT = true
 }
 
-func windowsDDOTProcmgrYAMLContent(installPath, configRoot string) string {
+func windowsDDOTProcmgrYAMLContent(installPath, _ string) string {
 	toSlash := func(p string) string {
 		return filepath.ToSlash(p)
 	}
 	exe := toSlash(filepath.Join(installPath, "ext", "ddot", "embedded", "bin", "otel-agent.exe"))
-	otelCfg := toSlash(filepath.Join(configRoot, "otel-config.yaml"))
-	ddCfg := toSlash(filepath.Join(configRoot, "datadog.yaml"))
 	return fmt.Sprintf(`%s
 command: %s
-args:
-  - run
-  - --sync-delay
-  - 90s
-  - --config
-  - %s
-  - --core-config
-  - %s
 auto_start: true
 condition_path_exists: %s
 restart: on-failure
@@ -304,11 +294,10 @@ restart_sec: 2
 start_limit_interval_sec: 10
 start_limit_burst: 5
 env:
-  DD_OTELCOLLECTOR_ENABLED: "true"
   DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
 stdout: inherit
 stderr: inherit
-`, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe)
+`, windowsDDOTDescOriginalLine, exe, exe)
 }
 
 func (s *procmgrWindowsSuite) requireDDOTWindows() {

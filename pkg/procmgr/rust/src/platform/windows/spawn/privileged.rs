@@ -112,16 +112,6 @@ fn privileged_process_spec(
             expected_args: vec![
                 "--cfgpath".to_string(),
                 etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
-                "--sysprobe-config".to_string(),
-                etc_root
-                    .join("system-probe.yaml")
-                    .to_string_lossy()
-                    .into_owned(),
-                "--pid".to_string(),
-                install_root
-                    .join(r"run\process-agent.pid")
-                    .to_string_lossy()
-                    .into_owned(),
             ],
             disallow_working_dir: true,
         }),

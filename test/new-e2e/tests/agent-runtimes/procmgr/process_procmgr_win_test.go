@@ -78,8 +78,6 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 	}, 120*time.Second, 3*time.Second)
 
 	expectedCfg := filepath.Join(configRoot, "datadog.yaml")
-	expectedSysprobe := filepath.Join(configRoot, "system-probe.yaml")
-	expectedPid := filepath.Join(installRoot, "run", "process-agent.pid")
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		cmdLine, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $p.CommandLine`))
@@ -89,33 +87,16 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 		cmdNorm := strings.ToLower(strings.ReplaceAll(cmdLine, "/", "\\"))
 		processBinNorm := strings.ToLower(strings.ReplaceAll(processBin, "/", "\\"))
 		expectedCfgNorm := strings.ToLower(strings.ReplaceAll(expectedCfg, "/", "\\"))
-		expectedSysprobeNorm := strings.ToLower(strings.ReplaceAll(expectedSysprobe, "/", "\\"))
-		expectedPidNorm := strings.ToLower(strings.ReplaceAll(expectedPid, "/", "\\"))
 
-		// Assert the command line matches our embedded privileged catalog spec
-		// (exact flags + values).
+		// Assert the command line matches legacy SCM registration and the embedded privileged catalog.
 		assert.Contains(ct, cmdNorm, processBinNorm)
 
 		idxCfgFlag := strings.Index(cmdNorm, "--cfgpath")
 		idxCfgVal := strings.Index(cmdNorm, expectedCfgNorm)
-		idxSysFlag := strings.Index(cmdNorm, "--sysprobe-config")
-		idxSysVal := strings.Index(cmdNorm, expectedSysprobeNorm)
-		idxPidFlag := strings.Index(cmdNorm, "--pid")
-		idxPidVal := strings.Index(cmdNorm, expectedPidNorm)
 
 		assert.GreaterOrEqual(ct, idxCfgFlag, 0)
 		assert.GreaterOrEqual(ct, idxCfgVal, 0)
-		assert.GreaterOrEqual(ct, idxSysFlag, 0)
-		assert.GreaterOrEqual(ct, idxSysVal, 0)
-		assert.GreaterOrEqual(ct, idxPidFlag, 0)
-		assert.GreaterOrEqual(ct, idxPidVal, 0)
-
-		// Order check: --cfgpath <cfg> ... --sysprobe-config <sysprobe> ... --pid <pid>
 		assert.Less(ct, idxCfgFlag, idxCfgVal)
-		assert.Less(ct, idxCfgVal, idxSysFlag)
-		assert.Less(ct, idxSysFlag, idxSysVal)
-		assert.Less(ct, idxSysVal, idxPidFlag)
-		assert.Less(ct, idxPidFlag, idxPidVal)
 	}, 120*time.Second, 3*time.Second)
 
 	_, err = host.Execute(psRemote(

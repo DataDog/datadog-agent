@@ -3,10 +3,6 @@ command: '__PROCESS_INSTALL_ROOT__/bin/agent/process-agent.exe'
 args:
   - --cfgpath
   - '__PROCESS_ETC_ROOT__/datadog.yaml'
-  - --sysprobe-config
-  - '__PROCESS_ETC_ROOT__/system-probe.yaml'
-  - --pid
-  - '__PROCESS_INSTALL_ROOT__/run/process-agent.pid'
 auto_start: true
 condition_path_exists: '__PROCESS_INSTALL_ROOT__/bin/agent/process-agent.exe'
 restart: on-failure
