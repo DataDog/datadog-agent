@@ -7,8 +7,12 @@
 package run
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"time"
+
+	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -250,10 +254,20 @@ func tryStartProcmgrService(svcs []Servicedef) bool {
 			log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
 			return false
 		}
+		if !waitForServiceRunning(svc.serviceName) {
+			log.Warnf("Failed to start services %s: service did not reach running state", svc.name)
+			return false
+		}
 		log.Debugf("Started service %s", svc.name)
 		return true
 	}
 	return false
+}
+
+func waitForServiceRunning(serviceName string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+	return winutil.WaitForState(ctx, serviceName, svc.Running) == nil
 }
 
 func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
