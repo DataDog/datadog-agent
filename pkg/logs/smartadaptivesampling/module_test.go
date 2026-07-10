@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -75,22 +76,9 @@ func TestStartReader_DisabledReturnsNoUnsubscribeAndNoError(t *testing.T) {
 	assert.False(t, ok, "reader must not be registered when the feature is disabled")
 }
 
-func TestStartReader_EnabledButNoObserverReturnsNoUnsubscribeAndNoError(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.Set(smartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
-	resetForTest(t)
-
-	unsubscribe, err := startReader(nil, noopLogComponent{})
-
-	require.NoError(t, err)
-	assert.Nil(t, unsubscribe)
-	_, ok := Current()
-	assert.False(t, ok, "reader must not be registered when no observer is present")
-}
-
 func TestStartReader_SubscribeErrorIsPropagated(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set(smartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set(anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
 	resetForTest(t)
 
 	wantErr := assert.AnError
@@ -103,7 +91,7 @@ func TestStartReader_SubscribeErrorIsPropagated(t *testing.T) {
 
 func TestStartReader_SuccessRegistersReaderAndReturnsUnsubscribe(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set(smartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set(anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey, true, pkgconfigmodel.SourceAgentRuntime)
 	resetForTest(t)
 
 	fake := &fakeReader{level: severityeventsdef.SeverityHigh}

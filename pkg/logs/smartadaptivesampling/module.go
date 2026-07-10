@@ -12,6 +12,7 @@ package smartadaptivesampling
 import (
 	"context"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -19,15 +20,9 @@ import (
 	"go.uber.org/fx"
 )
 
-const smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
-
 // startReader registers the observer severity reader when enabled.
 func startReader(observerComp observerdef.Component, log logcomp.Component) (func(), error) {
-	if !pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey) {
-		return nil, nil
-	}
-
-	if observerComp == nil {
+	if !anomalydetectionconfig.SmartSeverityProfilesEnabled(pkgconfigsetup.Datadog()) {
 		return nil, nil
 	}
 
@@ -46,7 +41,7 @@ type moduleParams struct {
 	fx.In
 
 	Lc       fx.Lifecycle
-	Observer observerdef.Component `optional:"true"`
+	Observer observerdef.Component
 	Log      logcomp.Component
 }
 
