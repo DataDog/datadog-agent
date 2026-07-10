@@ -9,8 +9,9 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  # Set to 20% higher than the memory_usage check value
-  memory_allotment: 594 MiB
+  # Experimental headroom for isolating whether executable pageout causes a
+  # finite working-set rebuild or sustained reclaim under memory pressure.
+  memory_allotment: 1 GiB
 
   environment:
     DD_API_KEY: a0000001

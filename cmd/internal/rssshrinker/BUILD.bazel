@@ -16,5 +16,4 @@ go_library(
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/cmd/internal/rssshrinker",
     visibility = ["//cmd:__subpackages__"],
-    deps = ["@org_golang_x_sys//unix"],
 )

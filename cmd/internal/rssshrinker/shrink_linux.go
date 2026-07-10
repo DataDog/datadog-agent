@@ -13,8 +13,6 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 )
 
 // MADV_PAGEOUT asks Linux to reclaim these pages.
@@ -69,17 +67,14 @@ func pageOutFileBackedMemory() {
 			continue
 		}
 
-		address, perms, offsetStr, pathname := fields[0], fields[1], fields[2], strings.Join(fields[5:], " ")
+		address, perms, pathname := fields[0], fields[1], strings.Join(fields[5:], " ")
 
 		// Ignore pseudo-paths about stack, heap, vdso, named anonymous mapping, etc.
 		if strings.HasPrefix(pathname, "[") {
 			continue
 		}
 
-		// We only want to page out read-only memory. After pageout, ask Linux
-		// to prefetch the backing file range into page cache. This preserves
-		// the RSS reduction while testing whether keeping the file cache warm
-		// avoids sustained refault CPU from future accesses to this mapping.
+		// We only want to page out read-only memory.
 		if len(perms) != 4 || perms[0] != 'r' || perms[1] != '-' {
 			continue
 		}
@@ -103,29 +98,7 @@ func pageOutFileBackedMemory() {
 			continue
 		}
 
-		offset, err := strconv.ParseUint(offsetStr, 16, strconv.IntSize)
-		if err != nil {
-			continue
-		}
-
-		length := uintptr(end - begin)
-
 		// nolint:govet
-		_ = syscall.Madvise(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(begin))), length), MADV_PAGEOUT)
-		prefetchFileRange(pathname, offset, length)
+		_ = syscall.Madvise(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(begin))), uintptr(end-begin)), MADV_PAGEOUT)
 	}
-}
-
-func prefetchFileRange(pathname string, offset uint64, length uintptr) {
-	if length > uintptr(int(^uint(0)>>1)) {
-		return
-	}
-
-	file, err := os.Open(pathname)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	_ = unix.Fadvise(int(file.Fd()), int64(offset), int64(length), unix.FADV_WILLNEED)
 }
