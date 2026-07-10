@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -20,9 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -47,7 +43,7 @@ const (
 	networkPathTestConfigID      = "aaa-bbb-ccc"
 )
 
-var scheduledNetworkPathRCConfig = []byte(`{
+var linuxScheduledNetworkPathRCConfig = []byte(`{
   "type": "scheduled",
   "test_config_id": "aaa-bbb-ccc",
   "config": {
@@ -62,6 +58,24 @@ var scheduledNetworkPathRCConfig = []byte(`{
       },
       {
         "hostname": "198.51.100.2",
+        "protocol": "TCP",
+        "port": 443,
+        "interval_sec": 10,
+        "max_ttl": 10,
+        "traceroute_queries": 1,
+        "e2e_queries": 1
+      }
+    ]
+  }
+}`)
+
+var crossPlatformScheduledNetworkPathRCConfig = []byte(`{
+  "type": "scheduled",
+  "test_config_id": "aaa-bbb-ccc",
+  "config": {
+    "tests": [
+      {
+        "hostname": "api.datadoghq.eu",
         "protocol": "TCP",
         "port": 443,
         "interval_sec": 10,
@@ -89,6 +103,25 @@ var dynamicNetworkPathRCConfig = []byte(`{
 
 type remoteConfigTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
+	platform         remoteConfigTestPlatform
+	scheduledConfig  []byte
+	expectedPaths    []remoteConfigPathExpectation
+	localConfigCount int
+}
+
+type remoteConfigTestPlatform string
+
+const (
+	remoteConfigPlatformLinux   remoteConfigTestPlatform = "linux"
+	remoteConfigPlatformWindows remoteConfigTestPlatform = "windows"
+	remoteConfigPlatformMacOS   remoteConfigTestPlatform = "macos"
+)
+
+type remoteConfigPathExpectation struct {
+	hostname         string
+	protocol         payload.Protocol
+	port             uint16
+	configSubstrings []string
 }
 
 type configCheckEntry struct {
@@ -100,32 +133,19 @@ type configCheckEntry struct {
 	} `json:"instances"`
 }
 
-func TestRemoteConfigSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &remoteConfigTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithRunOptions(
-			scenec2.WithAgentOptions(
-				agentparams.WithAgentConfig(string(remoteConfigAgentDatadogYaml)),
-				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-				agentparams.WithIntegration("network_path.d", string(remoteConfigLocalNetworkPathYaml)),
-				agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
-				agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
-			)),
-	),
-	))
+func remoteConfigAgentOptions() []agentparams.Option {
+	return []agentparams.Option{
+		agentparams.WithAgentConfig(string(remoteConfigAgentDatadogYaml)),
+		agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
+	}
 }
 
 func (s *remoteConfigTestSuite) TestScheduledNetworkPathRemoteConfig() {
 	t := s.T()
 
-	t.Cleanup(func() {
-		s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_teardown.sh")
-	})
-	s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_setup.sh")
+	s.preparePlatform()
 
 	agentHostname := s.Env().Agent.Client.Hostname()
-	targetIP := net.ParseIP("198.51.100.2")
-	routerIP := net.ParseIP("192.0.2.2")
 	fakeIntakeClient := s.Env().FakeIntake.Client()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -144,42 +164,76 @@ func (s *remoteConfigTestSuite) TestScheduledNetworkPathRemoteConfig() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		entries := s.networkPathConfigCheckEntries(c)
-		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, 2)
+		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, s.localConfigCount)
 		assertNetworkPathConfigCount(c, entries, isRemoteConfigNetworkPathSource, 0)
 	}, 2*time.Minute, 5*time.Second)
 
-	require.NoError(t, fakeIntakeClient.RCAddConfig("", networkPathRCProduct, networkPathRCConfigID, networkPathRCConfigName, scheduledNetworkPathRCConfig))
+	require.NoError(t, fakeIntakeClient.RCAddConfig("", networkPathRCProduct, networkPathRCConfigID, networkPathRCConfigName, s.scheduledConfig))
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		entries := s.networkPathConfigCheckEntries(c)
-		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, 2)
-		assertNetworkPathConfigCount(c, entries, isRemoteConfigNetworkPathSource, 2)
-		assertNetworkPathConfig(c, entries, isRemoteConfigNetworkPathSource, "hostname: 198.51.100.2", "protocol: UDP", "test_config_id: aaa-bbb-ccc")
-		assertNetworkPathConfig(c, entries, isRemoteConfigNetworkPathSource, "hostname: 198.51.100.2", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc")
+		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, s.localConfigCount)
+		assertNetworkPathConfigCount(c, entries, isRemoteConfigNetworkPathSource, len(s.expectedPaths))
+		for _, expectedPath := range s.expectedPaths {
+			assertNetworkPathConfig(c, entries, isRemoteConfigNetworkPathSource, expectedPath.configSubstrings...)
+		}
 	}, 3*time.Minute, 5*time.Second)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertFakeTraceroutePath(c, s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
-			return np.Destination.Hostname == targetIP.String() && np.Protocol == "TCP" && np.Destination.Port == 80
-		}), agentHostname, routerIP, targetIP, 80, "")
-		assertFakeTraceroutePath(c, s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
-			return np.Destination.Hostname == targetIP.String() && np.Protocol == "TCP" && np.Destination.Port == 8080
-		}), agentHostname, routerIP, targetIP, 8080, "")
-		assertFakeTraceroutePath(c, s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
-			return np.Destination.Hostname == targetIP.String() && np.Protocol == "UDP" && np.Destination.Port == 0
-		}), agentHostname, routerIP, targetIP, 0, networkPathTestConfigID)
-		assertFakeTraceroutePath(c, s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
-			return np.Destination.Hostname == targetIP.String() && np.Protocol == "TCP" && np.Destination.Port == 443
-		}), agentHostname, routerIP, targetIP, 443, networkPathTestConfigID)
+		if s.platform == remoteConfigPlatformLinux {
+			s.assertLinuxLocalPaths(c, agentHostname)
+		}
+		for _, expectedPath := range s.expectedPaths {
+			np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
+				return np.Destination.Hostname == expectedPath.hostname && np.Protocol == expectedPath.protocol && np.Destination.Port == expectedPath.port && np.TestConfigID == networkPathTestConfigID
+			})
+			assertRemoteConfigPath(c, np, agentHostname, expectedPath)
+			if s.platform == remoteConfigPlatformLinux {
+				assertFakeTracerouteTopology(c, np, net.ParseIP("192.0.2.2"), net.ParseIP("198.51.100.2"))
+			}
+		}
 	}, 5*time.Minute, 3*time.Second)
 
 	s.deleteRemoteConfig(t, fakeIntakeClient)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		entries := s.networkPathConfigCheckEntries(c)
-		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, 2)
+		assertNetworkPathConfigCount(c, entries, isLocalNetworkPathSource, s.localConfigCount)
 		assertNetworkPathConfigCount(c, entries, isRemoteConfigNetworkPathSource, 0)
 	}, 3*time.Minute, 5*time.Second)
+}
+
+func (s *remoteConfigTestSuite) assertLinuxLocalPaths(c *assert.CollectT, agentHostname string) {
+	targetIP := net.ParseIP("198.51.100.2")
+	routerIP := net.ParseIP("192.0.2.2")
+	for _, port := range []uint16{80, 8080} {
+		np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
+			return np.Destination.Hostname == targetIP.String() && np.Protocol == payload.ProtocolTCP && np.Destination.Port == port && np.TestConfigID == ""
+		})
+		assertPayloadBase(c, np, agentHostname)
+		assert.Equal(c, payload.SourceProductNetworkPath, np.SourceProduct)
+		assert.Equal(c, targetIP.String(), np.Destination.Hostname)
+		assert.Equal(c, port, np.Destination.Port)
+		require.Len(c, np.Traceroute.Runs, 1)
+		require.Len(c, np.E2eProbe.RTTs, 1)
+		assertFakeTracerouteTopology(c, np, routerIP, targetIP)
+	}
+}
+
+func (s *remoteConfigTestSuite) preparePlatform() {
+	switch s.platform {
+	case remoteConfigPlatformLinux:
+		s.T().Cleanup(func() {
+			s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_teardown.sh")
+		})
+		s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_setup.sh")
+	case remoteConfigPlatformWindows:
+		_, err := s.Env().RemoteHost.Host.Execute("Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False")
+		s.Require().NoError(err)
+	case remoteConfigPlatformMacOS:
+	default:
+		s.Require().Failf("unsupported platform", "platform=%q", s.platform)
+	}
 }
 
 func (s *remoteConfigTestSuite) networkPathConfigCheckEntries(c *assert.CollectT) []configCheckEntry {
@@ -238,20 +292,29 @@ func containsAll(value string, substrings ...string) bool {
 	return true
 }
 
-func assertFakeTraceroutePath(c *assert.CollectT, np *aggregator.Netpath, agentHostname string, routerIP, targetIP net.IP, expectedPort uint16, expectedTestConfigID string) {
+func assertRemoteConfigPath(c *assert.CollectT, np *aggregator.Netpath, agentHostname string, expected remoteConfigPathExpectation) {
 	assertPayloadBase(c, np, agentHostname)
 	assert.Equal(c, payload.SourceProductNetworkPath, np.SourceProduct)
-	assert.Equal(c, targetIP.String(), np.Destination.Hostname)
-	assert.Equal(c, expectedPort, np.Destination.Port)
-	assert.Equal(c, expectedTestConfigID, np.TestConfigID)
+	assert.Equal(c, expected.hostname, np.Destination.Hostname)
+	assert.Equal(c, expected.protocol, np.Protocol)
+	assert.Equal(c, expected.port, np.Destination.Port)
+	assert.Equal(c, networkPathTestConfigID, np.TestConfigID)
 
 	require.Len(c, np.Traceroute.Runs, 1)
 	run := np.Traceroute.Runs[0]
 	assert.NotEmpty(c, run.RunID)
 	assert.NotEmpty(c, run.Source.IPAddress)
 	assert.NotZero(c, run.Source.Port)
-	assert.Equal(c, targetIP, run.Destination.IPAddress)
+	assert.NotEmpty(c, run.Destination.IPAddress)
+	assert.NotEmpty(c, run.Hops)
 
+	require.Len(c, np.E2eProbe.RTTs, 1)
+	assert.Equal(c, 1, np.E2eProbe.PacketsSent)
+}
+
+func assertFakeTracerouteTopology(c *assert.CollectT, np *aggregator.Netpath, routerIP, targetIP net.IP) {
+	run := np.Traceroute.Runs[0]
+	assert.Equal(c, targetIP, run.Destination.IPAddress)
 	require.Len(c, run.Hops, 2)
 	assert.Equal(c, 1, run.Hops[0].TTL)
 	assert.Equal(c, routerIP, run.Hops[0].IPAddress)
@@ -260,8 +323,6 @@ func assertFakeTraceroutePath(c *assert.CollectT, np *aggregator.Netpath, agentH
 	assert.Equal(c, targetIP, run.Hops[1].IPAddress)
 	assert.True(c, run.Hops[1].Reachable)
 
-	require.Len(c, np.E2eProbe.RTTs, 1)
-	assert.Equal(c, 1, np.E2eProbe.PacketsSent)
 	assert.Equal(c, 1, np.E2eProbe.PacketsReceived)
 	assert.Equal(c, float32(0), np.E2eProbe.PacketLossPercentage)
 }
