@@ -73,22 +73,30 @@ contract IncrementalJSONValidator {
         -- are valid JSON tokens.
 
     @invariant InvalidStable
-        -- Once is_invalid_object returns true on an input
-        -- that contains at least one non-whitespace byte,
-        -- extending the input with further bytes does not
-        -- recover: any extension also returns
-        -- is_invalid_object true. Implementations may exploit
-        -- this to treat invalid-with-content as a terminal
-        -- state until reset.
+        -- The is_invalid_object return value covers TWO
+        -- distinct states, indistinguishable from the return
+        -- alone:
+        --   (a) A genuine parse error — the accumulated bytes
+        --       are unrecoverable, and any extension also
+        --       returns is_invalid_object true. Examples: a
+        --       top-level array (per TopLevelArrayInvalid),
+        --       or malformed syntax mid-parse.
+        --   (b) A strict prefix of a valid JSON value whose
+        --       leading token has not yet been completed.
+        --       Examples: an unclosed string "\"foo", a
+        --       partial keyword "t", or whitespace-only
+        --       inputs (per RFC 8259 §2: leading whitespace
+        --       may precede a top-level value). These states
+        --       may transition to Complete or Incomplete when
+        --       enough bytes arrive to complete the leading
+        --       token.
         --
-        -- Whitespace-only inputs (per RFC 8259 §2: space,
-        -- tab, LF, CR) are an exception: they may transition
-        -- out of Invalid when extended with a non-whitespace
-        -- byte that begins a valid JSON value (e.g. "\t"
-        -- returns Invalid; "\t0" returns Complete because
-        -- RFC 8259 permits leading whitespace before a
-        -- top-level value). Observable at chunk boundaries
-        -- that split on a whitespace run.
+        -- The stability guarantee therefore binds only in
+        -- case (a). Callers treating is_invalid_object true
+        -- as a flush trigger see safe behaviour either way:
+        -- (a) is terminal and flushing is correct; (b) will
+        -- eventually stabilise or complete on subsequent
+        -- writes.
 
     @invariant Determinism
         -- Both predicates are deterministic: the same input

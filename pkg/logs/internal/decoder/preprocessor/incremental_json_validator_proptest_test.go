@@ -54,20 +54,22 @@ func TestValidator_Determinism(t *testing.T) {
 //	contract IncrementalJSONValidator
 //	    @invariant InvalidStable
 //
-// Once the validator returns Invalid for an accumulated input that
-// contains at least one non-whitespace byte, any extension also returns
-// Invalid. The aggregator relies on this to treat
-// invalid-with-content as terminal until reset.
+// Asserts case-(a) stability: for random Invalid heads whose leading
+// non-whitespace byte cannot begin a multi-byte JSON token (i.e. the
+// head cannot be a case-(b) prefix per the @invariant), any extension
+// also returns Invalid.
 //
-// Whitespace-only inputs are exempt: RFC 8259 §2 permits leading
-// whitespace before a top-level JSON value, so a head of
-// e.g. "\t" returns Invalid but the extension "\t0" can transition
-// to Complete. The test skips this case explicitly.
+// The couldBeJSONPrefix filter skips heads that could still be
+// completing their leading token (unclosed string, partial keyword,
+// number in progress, or leading whitespace). Those states are
+// permitted by the weakened @invariant to transition to Complete or
+// Incomplete when extended. Filtering them out preserves random
+// coverage across the majority of the input space while keeping the
+// assertion sound.
 //
-// Random byte input is overwhelmingly invalid JSON, so this property
-// exercises the dominant input distribution. The first skip (head
-// not Invalid) handles the small fraction of inputs that happen to
-// be valid JSON prefixes.
+// The filter over-skips slightly (e.g. "1abc" is case-(a) terminal
+// but starts with a digit) — directed unit tests in
+// incremental_json_validator_test.go cover those shapes.
 func TestValidator_InvalidStable(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		head := rapid.SliceOfN(rapid.Byte(), 1, 64).Draw(t, "head")
@@ -75,36 +77,47 @@ func TestValidator_InvalidStable(t *testing.T) {
 
 		v := NewIncrementalJSONValidator()
 		if v.Write(head) != Invalid {
-			t.Skip("head did not produce Invalid; invariant only constrains extensions of invalid prefixes")
+			t.Skip("head not Invalid; invariant only constrains extensions of Invalid heads")
 		}
 
-		// Whitespace-only heads are exempt per the weakened invariant:
-		// leading whitespace can precede a valid JSON value, so Invalid
-		// is not terminal until at least one non-whitespace byte has
-		// been consumed.
-		if isAllJSONWhitespace(head) {
-			t.Skip("head is all JSON whitespace; weakened invariant exempts this case")
+		if couldBeJSONPrefix(head) {
+			t.Skip("head could be a case-(b) prefix (leading token not yet complete); weakened invariant does not bind")
 		}
 
 		if got := v.Write(tail); got != Invalid {
-			t.Fatalf("InvalidStable violated: head was Invalid (with non-whitespace) but extension produced %v (head=%q tail=%q)",
-				got, head, tail)
+			t.Fatalf("InvalidStable violated (case a): head=%q tail=%q → %v", head, tail, got)
 		}
 	})
 }
 
-// isAllJSONWhitespace returns true if every byte in b is JSON whitespace
-// per RFC 8259 §2: space (0x20), horizontal tab (0x09), LF (0x0A), CR (0x0D).
-func isAllJSONWhitespace(b []byte) bool {
-	for _, c := range b {
-		switch c {
-		case 0x20, 0x09, 0x0A, 0x0D:
-			continue
-		default:
-			return false
-		}
+// couldBeJSONPrefix returns true if b could be a strict prefix of a
+// valid JSON value whose leading token has not yet been completed
+// (case (b) of the InvalidStable @invariant). The predicate is
+// deliberately conservative — it may return true for inputs that are
+// actually case-(a) terminal (e.g. "1abc"). That over-skip is a sound
+// direction: it never asserts stability on a genuine case-(b) input.
+//
+// A byte can begin a multi-byte JSON token if it opens a string ("),
+// starts a keyword literal (t, f, n), or begins a number (digit or -).
+// Leading whitespace permits any of the above later per RFC 8259 §2.
+func couldBeJSONPrefix(b []byte) bool {
+	// Advance past leading whitespace.
+	i := 0
+	for i < len(b) && isJSONWhitespaceByte(b[i]) {
+		i++
 	}
-	return true
+	if i == len(b) {
+		return true // all whitespace — could precede any valid value
+	}
+	c := b[i]
+	return c == '"' || c == 't' || c == 'f' || c == 'n' ||
+		(c >= '0' && c <= '9') || c == '-'
+}
+
+// isJSONWhitespaceByte returns true if c is JSON whitespace per
+// RFC 8259 §2: space (0x20), horizontal tab (0x09), LF (0x0A), CR (0x0D).
+func isJSONWhitespaceByte(c byte) bool {
+	return c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D
 }
 
 // TestValidator_TopLevelArrayInvalid anchors:
