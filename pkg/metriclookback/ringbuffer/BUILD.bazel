@@ -1,5 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "ringbuffer",
@@ -7,7 +6,7 @@ go_library(
         "buffer.go",
         "sketch_buffer.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer",
+    importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",
@@ -17,13 +16,14 @@ go_library(
     ],
 )
 
-dd_agent_go_test(
+go_test(
     name = "ringbuffer_test",
     srcs = [
         "buffer_test.go",
         "sketch_buffer_test.go",
     ],
     embed = [":ringbuffer"],
+    gotags = ["test"],
     deps = [
         "//pkg/metrics",
         "//pkg/tagset",

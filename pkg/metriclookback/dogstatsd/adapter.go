@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metriclookback
+package dogstatsd
 
 import (
 	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -31,7 +32,7 @@ type DogStatsDOptions struct {
 
 	// EgressController is stopped with the adapter when the owning demultiplexer
 	// shuts down. It is nil when monitor egress is disabled.
-	EgressController *EgressController
+	EgressController *metriclookback.EgressController
 }
 
 // DogStatsDAdapter admits selected DogStatsD observations into a shared
@@ -39,17 +40,17 @@ type DogStatsDOptions struct {
 // stream. Normal DogStatsD samples flow through a bucket materializer before
 // retention; no-aggregation series are already final and are retained directly.
 type DogStatsDAdapter struct {
-	retention        *Retention
+	retention        *metriclookback.Retention
 	materializer     *DogStatsDBucketMaterializer
 	single           string
 	names            map[string]struct{}
 	monitor          *monitor.Watcher
-	egressController *EgressController
+	egressController *metriclookback.EgressController
 }
 
 // NewDogStatsDAdapter creates an exact-name DogStatsD lookback adapter. It
 // returns nil when retention is nil or no names are selected.
-func NewDogStatsDAdapter(retention *Retention, opts DogStatsDOptions) *DogStatsDAdapter {
+func NewDogStatsDAdapter(retention *metriclookback.Retention, opts DogStatsDOptions) *DogStatsDAdapter {
 	if retention == nil {
 		return nil
 	}

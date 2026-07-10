@@ -11,8 +11,8 @@ import (
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 

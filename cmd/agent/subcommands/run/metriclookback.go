@@ -13,9 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback"
+	metriclookbackdogstatsd "github.com/DataDog/datadog-agent/pkg/metriclookback/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -67,11 +68,11 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			return nil
 		}
 		retention.SetMonitor(watcher)
-		materializer := metriclookback.NewDogStatsDBucketMaterializer(retention, metriclookback.DogStatsDBucketMaterializerOptions{
+		materializer := metriclookbackdogstatsd.NewDogStatsDBucketMaterializer(retention, metriclookbackdogstatsd.DogStatsDBucketMaterializerOptions{
 			Monitor: watcher,
 		})
 
-		adapter := metriclookback.NewDogStatsDAdapter(retention, metriclookback.DogStatsDOptions{
+		adapter := metriclookbackdogstatsd.NewDogStatsDAdapter(retention, metriclookbackdogstatsd.DogStatsDOptions{
 			MetricNames:        metricNames,
 			Monitor:            watcher,
 			BucketMaterializer: materializer,

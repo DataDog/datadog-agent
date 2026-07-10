@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
 )
 
 func TestEgressPolicyStartsSuppressed(t *testing.T) {

@@ -20,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
+	collectormetriclookback "github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback"
+	metriclookbackdogstatsd "github.com/DataDog/datadog-agent/pkg/metriclookback/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermocks "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -222,7 +224,7 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 	require.NotNil(t, lookback)
 	stopLookbackOnCleanup(t, lookback)
 
-	manager := retention.NewSenderManager(context.Background(), "default-host")
+	manager := collectormetriclookback.NewSenderManager(context.Background(), "default-host", retention)
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
 	for second := 0; second <= 30; second++ {
@@ -371,7 +373,7 @@ func appendFactoryBucketedTestWindow(lookback aggregator.DogStatsDLookback, star
 			Mtype:      metrics.GaugeType,
 			SampleRate: 1,
 		}, ts, ctx)
-		lookback.FlushDogStatsDBuckets(ts+metriclookback.DefaultDogStatsDSealDelay.Seconds()+1, false)
+		lookback.FlushDogStatsDBuckets(ts+metriclookbackdogstatsd.DefaultDogStatsDSealDelay.Seconds()+1, false)
 	}
 }
 
@@ -393,6 +395,6 @@ func appendFactoryDistributionTestWindow(lookback aggregator.DogStatsDLookback, 
 			Mtype:      metrics.DistributionType,
 			SampleRate: 1,
 		}, ts, ctx)
-		lookback.FlushDogStatsDBuckets(ts+metriclookback.DefaultDogStatsDSealDelay.Seconds()+1, false)
+		lookback.FlushDogStatsDBuckets(ts+metriclookbackdogstatsd.DefaultDogStatsDSealDelay.Seconds()+1, false)
 	}
 }

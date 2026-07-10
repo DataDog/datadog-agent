@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
 )
 
 const (

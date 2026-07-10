@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metriclookback
+package dogstatsd
 
 import (
 	"context"
@@ -15,9 +15,10 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -72,7 +73,7 @@ type DogStatsDBucketMaterializerOptions struct {
 // of normal DogStatsD samples. Open buckets are mutable aggregation/sketch state;
 // only sealed series and sketch series are appended to the shared retention ring.
 type DogStatsDBucketMaterializer struct {
-	retention *Retention
+	retention *metriclookback.Retention
 	monitor   *monitor.Watcher
 
 	bucketWidth        time.Duration
@@ -106,7 +107,7 @@ type dogStatsDDescriptor struct {
 
 // NewDogStatsDBucketMaterializer creates a selected normal-DogStatsD bucket
 // materializer. It returns nil when retention is nil.
-func NewDogStatsDBucketMaterializer(retention *Retention, opts DogStatsDBucketMaterializerOptions) *DogStatsDBucketMaterializer {
+func NewDogStatsDBucketMaterializer(retention *metriclookback.Retention, opts DogStatsDBucketMaterializerOptions) *DogStatsDBucketMaterializer {
 	if retention == nil {
 		return nil
 	}

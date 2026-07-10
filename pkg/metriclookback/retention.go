@@ -15,11 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -94,34 +91,17 @@ func (r *Retention) getMonitor() *monitor.Watcher {
 	return r.monitor
 }
 
-// NewSenderManager returns a shadow-check sender manager backed by the shared
-// retention ring. It is the integration point for checks that should populate
-// metric lookback without emitting their samples through the normal check
-// sender path.
-func (r *Retention) NewSenderManager(ctx context.Context, defaultHostname string) sender.SenderManager {
-	if r == nil {
-		return nil
-	}
-	return lookbacksender.NewSenderManager(ctx, defaultHostname, r, nil)
-}
-
-// Append stores scalar samples emitted by a lookback shadow check. It satisfies
-// lookbacksender.Writer and records the shadow check ID as retention source
-// provenance without adding tags or changing the metric identity that egress
-// forwards later.
-func (r *Retention) Append(ctx context.Context, checkID checkid.ID, samples []metrics.MetricSample) error {
-	err := r.AppendSamples(ctx, ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: string(checkID)}, samples)
-	if err != nil {
-		return err
-	}
+// ObserveSamples notifies the optional monitor that retained samples were
+// admitted. Source-specific integrations call this after successful AppendSamples
+// writes so retention itself can stay independent of producer APIs.
+func (r *Retention) ObserveSamples(samples []metrics.MetricSample) {
 	watcher := r.getMonitor()
 	if watcher == nil {
-		return nil
+		return
 	}
 	for i := range samples {
 		watcher.Observe(samples[i].Name, sampleObservedAt(samples[i]))
 	}
-	return nil
 }
 
 func sampleObservedAt(sample metrics.MetricSample) time.Time {

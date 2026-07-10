@@ -13,11 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermocks "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -157,90 +153,6 @@ func TestRetentionAppendSketchSeriesAndForwardRange(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
-func TestRetentionDoesNotAllocateScalarRingUntilFirstScalarMatch(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{MetricNames: []string{"target.metric"}})
-	require.NotNil(t, adapter)
-	require.Nil(t, retention.buffer)
-
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("other.metric", 1, 10, nil))
-	require.Nil(t, retention.buffer)
-	require.Zero(t, retention.Stats().Records)
-
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("target.metric", 2, 11, nil))
-	require.NotNil(t, retention.buffer)
-	require.Equal(t, 1, retention.Stats().Records)
-}
-
-func TestRetentionNewSenderManagerWritesShadowCheckSamples(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	manager := retention.NewSenderManager(context.Background(), "default-host")
-	require.NotNil(t, manager)
-
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
-	require.NoError(t, err)
-	sender.Gauge("shadow.metric", 42, "", []string{"env:staging"})
-	sender.Commit()
-
-	points := retention.PointsBetween(
-		ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "cpu:shadow"},
-		"shadow.metric",
-		time.Unix(0, 0),
-		time.Now().Add(time.Minute),
-	)
-	require.Len(t, points, 1)
-	require.Equal(t, float64(42), points[0].Value)
-
-	series := retention.Series()
-	require.Len(t, series, 1)
-	require.Equal(t, "shadow.metric", series[0].Name)
-	require.Equal(t, "default-host", series[0].Host)
-	require.Equal(t, []string{"env:staging"}, series[0].Tags.UnsafeToReadOnlySliceString())
-	require.Equal(t, metrics.CheckNameToMetricSource("cpu"), series[0].Source)
-	require.Equal(t, "System", series[0].SourceTypeName)
-}
-
-func TestRetentionShadowSenderSamplesNotifyMonitor(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	decisions := make(chan monitor.Decision, 1)
-	watcher, err := monitor.New(monitor.Config{
-		MetricName:         "shadow.metric",
-		RangeEpsilon:       0.05,
-		EvaluationInterval: 2 * time.Second,
-		MinPoints:          2,
-	}, monitor.PointReaderFunc(func(metricName string, from, to time.Time) []monitor.Point {
-		points := retention.PointsBetweenSources([]ringbuffer.Source{{Kind: ringbuffer.SourceCheckShadow}}, metricName, from, to)
-		out := make([]monitor.Point, 0, len(points))
-		for _, point := range points {
-			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value})
-		}
-		return out
-	}), monitor.DecisionSinkFunc(func(decision monitor.Decision) {
-		decisions <- decision
-	}))
-	require.NoError(t, err)
-	retention.SetMonitor(watcher)
-
-	manager := retention.NewSenderManager(context.Background(), "default-host")
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
-	require.NoError(t, err)
-	require.NoError(t, sender.GaugeWithTimestamp("shadow.metric", 40, "", nil, 10))
-	sender.Commit()
-	require.NoError(t, sender.GaugeWithTimestamp("shadow.metric", 40.1, "", nil, 12))
-	sender.Commit()
-
-	select {
-	case decision := <-decisions:
-		require.Equal(t, monitor.Breach, decision.State)
-		require.Equal(t, "shadow.metric", decision.MetricName)
-		require.Equal(t, float64(40), decision.Min)
-		require.Equal(t, 40.1, decision.Max)
-		require.InDelta(t, 0.1, decision.Range, 1e-12)
-	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for monitor decision")
-	}
-}
-
 func TestRetentionForwardRangeSketchOnlyDoesNotRequireScalarRing(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	require.Nil(t, retention.buffer)
@@ -282,113 +194,6 @@ func TestRetentionProjectsSketchPointsWithPlaceholderAverage(t *testing.T) {
 		PlaceholderAverageSketchProjection{},
 	)
 	require.Equal(t, []ringbuffer.Point{{Ts: time.Unix(20, 0), Value: 4}}, points)
-}
-
-func TestDogStatsDAdapterAdmitsOnlySelectedNames(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{MetricNames: []string{"target.metric"}})
-	require.NotNil(t, adapter)
-
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("other.metric", 1, 10, nil))
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("target.metric", 2, 11, []string{"client:tag", "origin:tag"}))
-
-	series := retention.Series()
-	require.Len(t, series, 1)
-	require.Equal(t, "target.metric", series[0].Name)
-	require.Equal(t, float64(2), series[0].Points[0].Value)
-	require.Equal(t, int64(10), series[0].Interval)
-	require.Equal(t, metrics.APIGaugeType, series[0].MType)
-	require.Equal(t, []string{"client:tag", "origin:tag"}, series[0].Tags.UnsafeToReadOnlySliceString())
-
-	stats := retention.Stats()
-	require.Equal(t, 1, stats.Records)
-	require.Equal(t, uint64(1), stats.AppendedSamples)
-}
-
-func TestDogStatsDAdapterUsesMonitorMetricAsAdmissionName(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	watcher := newNoopWatcher(t, "monitor.metric")
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{Monitor: watcher})
-	require.NotNil(t, adapter)
-
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("monitor.metric", 11, 11, nil))
-
-	series := retention.Series()
-	require.Len(t, series, 1)
-	require.Equal(t, "monitor.metric", series[0].Name)
-	require.Equal(t, uint64(0), watcher.Breaches())
-}
-
-func TestDogStatsDAdapterDoesNotMonitorNonAdmittedSamples(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	watcher := newNoopWatcher(t, "monitor.metric")
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{MetricNames: []string{"stored.metric"}, Monitor: watcher})
-	require.NotNil(t, adapter)
-
-	adapter.AppendDogStatsDNoAggSerie(noAggSerie("other.metric", 100, 11, nil))
-
-	require.Empty(t, retention.Series())
-	require.Equal(t, uint64(0), watcher.Breaches())
-}
-
-func TestDogStatsDAdapterIgnoresNilAndEmptySeries(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{MetricNames: []string{"target.metric"}})
-	require.NotNil(t, adapter)
-
-	adapter.AppendDogStatsDNoAggSerie(nil)
-	adapter.AppendDogStatsDNoAggSerie(&metrics.Serie{Name: "target.metric"})
-
-	require.Empty(t, retention.Series())
-}
-
-func TestDogStatsDAdapterRoutesSelectedNormalSamplesToBucketMaterializer(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{SealDelay: -1, ShardCount: 1})
-	adapter := NewDogStatsDAdapter(retention, DogStatsDOptions{
-		MetricNames:        []string{"target.metric"},
-		BucketMaterializer: materializer,
-	})
-	require.NotNil(t, adapter)
-	require.True(t, adapter.WantsDogStatsDMetric("target.metric"))
-	require.False(t, adapter.WantsDogStatsDMetric("other.metric"))
-
-	adapter.ObserveDogStatsDSample(&metrics.MetricSample{Name: "other.metric", Value: 10, Mtype: metrics.GaugeType, SampleRate: 1}, 10.1, aggregator.DogStatsDLookbackContext{ContextKey: ckey.ContextKey(1), Name: "other.metric"})
-	adapter.ObserveDogStatsDSample(&metrics.MetricSample{Name: "target.metric", Value: 2, Mtype: metrics.GaugeType, SampleRate: 1}, 10.1, aggregator.DogStatsDLookbackContext{
-		ContextKey: ckey.ContextKey(2),
-		Name:       "target.metric",
-		Host:       "host",
-		Tags:       []string{"env:test"},
-	})
-	adapter.FlushDogStatsDBuckets(11, false)
-
-	series := retention.Series()
-	require.Len(t, series, 1)
-	require.Equal(t, "target.metric", series[0].Name)
-	require.Equal(t, []metrics.Point{{Ts: 10, Value: 2}}, series[0].Points)
-	require.Equal(t, []string{"env:test"}, series[0].Tags.UnsafeToReadOnlySliceString())
-}
-
-func newNoopWatcher(t *testing.T, metricName string) *monitor.Watcher {
-	t.Helper()
-	watcher, err := monitor.New(monitor.Config{MetricName: metricName}, monitor.PointReaderFunc(func(_ string, _, _ time.Time) []monitor.Point {
-		return nil
-	}), monitor.DecisionSinkFunc(func(monitor.Decision) {
-		require.FailNow(t, "decision should not be emitted")
-	}))
-	require.NoError(t, err)
-	return watcher
-}
-
-func noAggSerie(name string, value float64, ts float64, tags []string) *metrics.Serie {
-	return &metrics.Serie{
-		Name:     name,
-		Points:   []metrics.Point{{Ts: ts, Value: value}},
-		Tags:     tagset.CompositeTagsFromSlice(tags),
-		Host:     "host",
-		MType:    metrics.APIGaugeType,
-		Interval: 10,
-	}
 }
 
 func testSketchData(values ...float64) *quantile.Sketch {

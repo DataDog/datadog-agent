@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metriclookback
+package dogstatsd
 
 import (
 	"testing"
@@ -13,14 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
+	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestDogStatsDBucketMaterializerSealsGaugeWithResolvedContext(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: time.Second,
 		SealDelay:   -1,
@@ -52,7 +53,7 @@ func TestDogStatsDBucketMaterializerSealsGaugeWithResolvedContext(t *testing.T) 
 }
 
 func TestDogStatsDBucketMaterializerSealsCounterUsingDogStatsDSemantics(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth:   time.Second,
 		SealDelay:     -1,
@@ -74,7 +75,7 @@ func TestDogStatsDBucketMaterializerSealsCounterUsingDogStatsDSemantics(t *testi
 }
 
 func TestDogStatsDBucketMaterializerSealsDistributionSketch(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: time.Second,
 		SealDelay:   -1,
@@ -117,13 +118,13 @@ func TestDogStatsDBucketMaterializerSealsDistributionSketch(t *testing.T) {
 		"dist.metric",
 		time.Unix(9, 0),
 		time.Unix(11, 0),
-		PlaceholderAverageSketchProjection{},
+		metriclookback.PlaceholderAverageSketchProjection{},
 	)
 	require.Equal(t, []ringbuffer.Point{{Ts: time.Unix(10, 0), Value: 3.5, Tags: []string{"env:test", "role:web"}}}, points)
 }
 
 func TestDogStatsDBucketMaterializerFlushAllFlushesDistributionOnlyBuckets(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: time.Second,
 		SealDelay:   30 * time.Second,
@@ -142,7 +143,7 @@ func TestDogStatsDBucketMaterializerFlushAllFlushesDistributionOnlyBuckets(t *te
 }
 
 func TestDogStatsDBucketMaterializerZeroFillsActiveCounters(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth:   time.Second,
 		SealDelay:     -1,
@@ -161,7 +162,7 @@ func TestDogStatsDBucketMaterializerZeroFillsActiveCounters(t *testing.T) {
 }
 
 func TestDogStatsDBucketMaterializerDropsUnsupportedAndLateSamples(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: time.Second,
 		SealDelay:   -1,
@@ -181,7 +182,7 @@ func TestDogStatsDBucketMaterializerDropsUnsupportedAndLateSamples(t *testing.T)
 }
 
 func TestDogStatsDBucketMaterializerHonorsWiderBucketWidth(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: 5 * time.Second,
 		SealDelay:   -1,
@@ -200,7 +201,7 @@ func TestDogStatsDBucketMaterializerHonorsWiderBucketWidth(t *testing.T) {
 }
 
 func TestDogStatsDBucketMaterializerFlushAllIgnoresSealDelay(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth: time.Second,
 		SealDelay:   30 * time.Second,
@@ -219,7 +220,7 @@ func TestDogStatsDBucketMaterializerFlushAllIgnoresSealDelay(t *testing.T) {
 }
 
 func TestDogStatsDBucketMaterializerExpiresDescriptors(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 	materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 		BucketWidth:   time.Second,
 		SealDelay:     -1,
@@ -262,7 +263,7 @@ func TestDogStatsDBucketMaterializerMatchesContextMetricsForSupportedTypes(t *te
 		t.Run(tt.name, func(t *testing.T) {
 			contextKey := ckey.ContextKey(99)
 			expectedMetrics := metrics.MakeContextMetrics()
-			retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
+			retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 1})
 			materializer := NewDogStatsDBucketMaterializer(retention, DogStatsDBucketMaterializerOptions{
 				BucketWidth:   time.Second,
 				SealDelay:     -1,
@@ -291,7 +292,7 @@ func TestDogStatsDBucketMaterializerMatchesContextMetricsForSupportedTypes(t *te
 }
 
 func TestDogStatsDBucketMaterializerObservesMonitorAfterAppendingAllShards(t *testing.T) {
-	retention := NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 2})
+	retention := metriclookback.NewRetention(ringbuffer.Options{Capacity: 16, ShardCount: 2})
 	reader := monitor.PointReaderFunc(func(metricName string, from, to time.Time) []monitor.Point {
 		points := retention.PointsBetweenSources([]ringbuffer.Source{{Kind: ringbuffer.SourceDogStatsDBucketed}}, metricName, from, to)
 		out := make([]monitor.Point, 0, len(points))
