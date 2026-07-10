@@ -17,7 +17,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
-        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/util/kubernetes",
@@ -45,7 +45,7 @@ dd_agent_go_test(
         "fips",
     ],
     deps = [
-        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/util/pointer",

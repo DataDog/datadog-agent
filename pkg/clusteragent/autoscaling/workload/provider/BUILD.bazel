@@ -17,6 +17,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/clusteragent/autoscaling",
         "//pkg/clusteragent/autoscaling/autoscalinggate",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/external",
         "//pkg/clusteragent/autoscaling/workload/local",

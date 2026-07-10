@@ -18,6 +18,7 @@ go_library(
         "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/loadstore",
         "//pkg/clusteragent/autoscaling/workload/model",
@@ -47,7 +48,7 @@ dd_agent_go_test(
     ],
     deps = [
         "//comp/core/workloadmeta/def",
-        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/loadstore",
         "//pkg/clusteragent/autoscaling/workload/model",
