@@ -56,7 +56,7 @@ pub(crate) fn spawn_child(
             })?;
             match spawn_as_primary_token(process_name, &request, &account) {
                 Ok(handle) => return Ok(handle),
-                Err(e) if matches!(account, AgentAccount::LocalSystem) => {
+                Err(e) if account.inherits_supervisor_token() => {
                     log::warn!(
                         "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
                     );

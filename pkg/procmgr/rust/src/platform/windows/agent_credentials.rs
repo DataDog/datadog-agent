@@ -15,7 +15,9 @@ use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
-use windows_sys::Win32::Security::{IsWellKnownSid, LookupAccountNameW, WinLocalSystemSid};
+use windows_sys::Win32::Security::{
+    IsWellKnownSid, LookupAccountNameW, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
+};
 
 use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
@@ -28,6 +30,10 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 pub(crate) enum AgentAccount {
     /// Well-known LocalSystem account (spawn inherits supervisor when procmgr runs as SYSTEM).
     LocalSystem,
+    /// Well-known LocalService account (empty-password service logon).
+    LocalService,
+    /// Well-known NetworkService account (empty-password service logon).
+    NetworkService,
     /// Interactive/service logon with a stored password (typical `ddagentuser`).
     PasswordLogon {
         domain: String,
@@ -36,6 +42,13 @@ pub(crate) enum AgentAccount {
     },
     /// gMSA or other service account logon without a stored password.
     ServiceAccountLogon { domain: String, user: String },
+}
+
+impl AgentAccount {
+    /// True when agent-profile children may inherit the LocalSystem procmgr supervisor token.
+    pub(crate) fn inherits_supervisor_token(&self) -> bool {
+        matches!(self, AgentAccount::LocalSystem)
+    }
 }
 
 /// Resolve the agent service account from registry + LSA private data.
@@ -49,14 +62,14 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
         .trim()
         .to_string();
 
-    if is_local_system_name(&domain, &user) {
-        return Ok(AgentAccount::LocalSystem);
+    if let Some(account) = well_known_from_names(&domain, &user) {
+        return Ok(account);
     }
 
     let sid = lookup_account_sid(&domain, &user)
         .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
-    if is_local_system_sid(&sid) {
-        return Ok(AgentAccount::LocalSystem);
+    if let Some(account) = well_known_from_sid(&sid) {
+        return Ok(account);
     }
 
     match read_agent_password_from_lsa()? {
@@ -69,13 +82,64 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     }
 }
 
+fn well_known_from_names(domain: &str, user: &str) -> Option<AgentAccount> {
+    if is_local_system_name(domain, user) {
+        Some(AgentAccount::LocalSystem)
+    } else if is_local_service_name(domain, user) {
+        Some(AgentAccount::LocalService)
+    } else if is_network_service_name(domain, user) {
+        Some(AgentAccount::NetworkService)
+    } else {
+        None
+    }
+}
+
+fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
+    if is_local_system_sid(sid) {
+        Some(AgentAccount::LocalSystem)
+    } else if is_local_service_sid(sid) {
+        Some(AgentAccount::LocalService)
+    } else if is_network_service_sid(sid) {
+        Some(AgentAccount::NetworkService)
+    } else {
+        None
+    }
+}
+
 fn is_local_system_name(domain: &str, user: &str) -> bool {
     user.eq_ignore_ascii_case("LocalSystem")
         || (domain.eq_ignore_ascii_case("NT AUTHORITY") && user.eq_ignore_ascii_case("SYSTEM"))
 }
 
+fn is_local_service_name(domain: &str, user: &str) -> bool {
+    user.eq_ignore_ascii_case("LocalService")
+        || (domain.eq_ignore_ascii_case("NT AUTHORITY")
+            && user.eq_ignore_ascii_case("LOCAL SERVICE"))
+}
+
+fn is_network_service_name(domain: &str, user: &str) -> bool {
+    user.eq_ignore_ascii_case("NetworkService")
+        || (domain.eq_ignore_ascii_case("NT AUTHORITY")
+            && user.eq_ignore_ascii_case("NETWORK SERVICE"))
+}
+
 fn is_local_system_sid(sid: &[u8]) -> bool {
-    unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, WinLocalSystemSid) != 0 }
+    is_well_known_sid(sid, WinLocalSystemSid)
+}
+
+fn is_local_service_sid(sid: &[u8]) -> bool {
+    is_well_known_sid(sid, WinLocalServiceSid)
+}
+
+fn is_network_service_sid(sid: &[u8]) -> bool {
+    is_well_known_sid(sid, WinNetworkServiceSid)
+}
+
+fn is_well_known_sid(
+    sid: &[u8],
+    well_known: windows_sys::Win32::Security::WELL_KNOWN_SID_TYPE,
+) -> bool {
+    unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
 }
 
 fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
@@ -196,5 +260,27 @@ mod tests {
         assert!(is_local_system_name("", "LocalSystem"));
         assert!(is_local_system_name("NT AUTHORITY", "SYSTEM"));
         assert!(!is_local_system_name("WIN-HOST", "ddagentuser"));
+    }
+
+    #[test]
+    fn builtin_service_name_detection() {
+        assert!(is_local_service_name("", "LocalService"));
+        assert!(is_local_service_name("NT AUTHORITY", "LOCAL SERVICE"));
+        assert!(is_network_service_name("", "NetworkService"));
+        assert!(is_network_service_name("NT AUTHORITY", "NETWORK SERVICE"));
+        assert!(!is_local_service_name("WIN-HOST", "ddagentuser"));
+    }
+
+    #[test]
+    fn well_known_from_names_maps_builtin_accounts() {
+        assert_eq!(
+            well_known_from_names("", "LocalService"),
+            Some(AgentAccount::LocalService)
+        );
+        assert_eq!(
+            well_known_from_names("", "NetworkService"),
+            Some(AgentAccount::NetworkService)
+        );
+        assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
     }
 }

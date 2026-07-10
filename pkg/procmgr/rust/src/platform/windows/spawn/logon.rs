@@ -31,6 +31,16 @@ pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
             // Builtin account: pass an empty password (L""), not NULL (gMSA-style).
             password: Some(""),
         },
+        AgentAccount::LocalService => LogonUserCredentials {
+            domain: "NT AUTHORITY",
+            username: "LocalService",
+            password: Some(""),
+        },
+        AgentAccount::NetworkService => LogonUserCredentials {
+            domain: "NT AUTHORITY",
+            username: "NetworkService",
+            password: Some(""),
+        },
         AgentAccount::PasswordLogon {
             domain,
             user,
@@ -165,6 +175,17 @@ mod tests {
 
         let ls = AgentAccount::LocalSystem;
         let creds = logon_user_credentials(&ls);
+        assert_eq!(creds.password, Some(""));
+
+        let local_service = AgentAccount::LocalService;
+        let creds = logon_user_credentials(&local_service);
+        assert_eq!(creds.domain, "NT AUTHORITY");
+        assert_eq!(creds.username, "LocalService");
+        assert_eq!(creds.password, Some(""));
+
+        let network_service = AgentAccount::NetworkService;
+        let creds = logon_user_credentials(&network_service);
+        assert_eq!(creds.username, "NetworkService");
         assert_eq!(creds.password, Some(""));
     }
 }

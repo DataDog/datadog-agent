@@ -143,7 +143,7 @@ fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
 }
 
 fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Result<HANDLE> {
-    if matches!(account, AgentAccount::LocalSystem) {
+    if account.inherits_supervisor_token() {
         bail!("[{process_name}] internal error: LocalSystem uses supervisor token duplication")
     }
     let creds = logon_user_credentials(account);
