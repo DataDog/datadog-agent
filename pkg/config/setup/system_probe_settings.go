@@ -638,7 +638,7 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http_idle_connection_ttl_in_s", 30)
 	cfg.BindEnvAndSetDefault("system_probe_config.http_idle_connection_ttl_in_s", 30)
 
-	cfg.BindEnvAndSetDefault("service_monitoring_config.http.use_direct_consumer", false)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.http.use_direct_consumer", true)
 
 	// HTTP replace rules configuration
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http.replace_rules", []map[string]string{})
