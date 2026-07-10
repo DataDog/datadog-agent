@@ -160,8 +160,8 @@ type TagsConsumer interface {
 // TagSetConsumer is a multi-tag source consumer.
 // It is an optional interface that can be implemented by a Consumer.
 // Use it for any source that needs one or more tags on its own dedicated
-// running metric (e.g. Fargate, Azure Container Apps). Consumers that only
-// implement TagsConsumer receive a fallback single-tag call instead.
+// running metric (e.g. Fargate, Azure Container Apps). Sources that require
+// multiple dimensions (e.g. Azure Container Apps) should not rely on TagsConsumer.
 type TagSetConsumer interface {
 	// ConsumeTagSet consumes a multi-tag source for running metric emission.
 	// metricSuffix names the workload-specific metric: the resulting metric

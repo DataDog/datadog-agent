@@ -760,19 +760,19 @@ type azureResourceID struct {
 	ResourceName   string
 }
 
-// parseAzureResourceID parses the cloud.resource_id string for Azure Container Apps,
-// Azure App Services, and Azure Functions.
-// It expects the format: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+// parseAzureResourceID parses the cloud.resource_id string for Azure resources
+// that match: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+// (e.g. Azure Container Apps: .../containerApps/{name}).
 func parseAzureResourceID(resourceID string) (azureResourceID, error) {
 	if resourceID == "" {
 		return azureResourceID{}, errors.New("empty resource ID")
 	}
 
 	parts := strings.Split(resourceID, "/")
-	// Example: /subscriptions/1dd25961.../resourceGroups/rg-name/providers/Microsoft.Web/sites/site-name
+	// Example: /subscriptions/11111111.../resourceGroups/rg-name/providers/Microsoft.Web/sites/site-name
 	// parts[0] = ""
 	// parts[1] = "subscriptions"
-	// parts[2] = "1dd25961..."
+	// parts[2] = "11111111..."
 	// parts[3] = "resourceGroups"
 	// parts[4] = "rg-name"
 	// parts[5] = "providers"
