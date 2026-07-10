@@ -20,6 +20,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -120,7 +121,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	}
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
-		missing, err := ddebpf.VerifyKernelFuncs("sockfd_lookup_light")
+		missing, err := ksyms.VerifyKernelFuncs("sockfd_lookup_light")
 		if err == nil && len(missing) == 0 {
 			mgr.Probes = append(mgr.Probes, []*manager.Probe{
 				{
