@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "invalidsysprobeconfig",
+    srcs = [
+        "check.go",
+        "issue.go",
+        "module.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/healthplatform/issues",
+        "//comp/healthplatform/runner/def",
+        "//pkg/config/model",
+        "//pkg/config/schema",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+dd_agent_go_test(
+    name = "invalidsysprobeconfig_test",
+    srcs = ["invalidsysprobeconfig_test.go"],
+    embed = [":invalidsysprobeconfig"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/sysprobeconfig/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

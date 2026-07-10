@@ -172,8 +172,8 @@ func TestWindowExpiry(t *testing.T) {
 
 	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
 	// Series fires once at t=1000; last seen = 1000.
-	// Window at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
-	// Window at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
+	// WindowSecs at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
+	// WindowSecs at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
 	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
 	s.Advance(1014)
 
@@ -543,7 +543,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s.Advance(1001) // EWMA≈0.632 → High
 
 	// Advance with no anomalies: EWMA decays near 0 quickly (alpha=0.99).
-	// Cooldown=60 should block de-escalation for 60 seconds after the escalation.
+	// CooldownSecs=60 should block de-escalation for 60 seconds after the escalation.
 	s.Advance(1002) // EWMA=0 → raw Low, but cooldown blocks it
 
 	escalations, deescalations := 0, 0

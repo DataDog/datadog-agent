@@ -5838,10 +5838,14 @@ properties:
             default: 0.014
             tags:
             - golang_type:float64
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
+          dry_run:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           high_threshold:
             node_type: setting
             type: number
@@ -5864,10 +5868,13 @@ properties:
             node_type: section
             type: object
             properties:
-              cooldown_secs:
+              cooldown:
                 node_type: setting
-                type: integer
-                default: 300
+                type: string
+                default: 5m0s
+                format: duration
+                tags:
+                - golang_type:duration
               correlation_events:
                 node_type: setting
                 type: boolean
@@ -5886,10 +5893,13 @@ properties:
             default: 5
             tags:
             - golang_type:float64
-          window_secs:
+          window:
             node_type: setting
-            type: integer
-            default: 15
+            type: string
+            default: 15s
+            format: duration
+            tags:
+            - golang_type:duration
       baseline_analysis:
         node_type: section
         type: object
@@ -6041,12 +6051,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        comment: Master switch. When false the entire anomaly detection subsystem
-          is a no-op.
       logs:
         node_type: section
         type: object
@@ -6256,10 +6260,13 @@ properties:
             type: integer
             default: 50000
             comment: Storage tuning. See storageConfig in the observer component.
-          point_retention_secs:
+          point_retention:
             node_type: setting
-            type: integer
-            default: 120
+            type: string
+            default: 2m0s
+            format: duration
+            tags:
+            - golang_type:duration
   appsec:
     node_type: section
     type: object
@@ -8414,6 +8421,14 @@ properties:
             tags:
             - golang_type:duration
       invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+      invalidsysprobeconfig_check:
         node_type: section
         type: object
         properties:

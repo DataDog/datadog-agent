@@ -22,6 +22,7 @@ go_library(
         "//pkg/collector/aggregator",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
         "//pkg/collector/loaders",
         "//pkg/collector/metriclookback",
         "//pkg/collector/metriclookback/lookbacksender",

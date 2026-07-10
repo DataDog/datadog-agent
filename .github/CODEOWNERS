@@ -39,6 +39,7 @@
 /.claude/skills/review-pr-comments/              @DataDog/agent-devx
 /.claude/skills/run-e2e/                         @DataDog/agent-devx
 /.claude/skills/run-jira/                        @DataDog/agent-devx
+/.claude/skills/run-windows-e2e/                 @DataDog/windows-products
 /.claude/skills/update-3rd-party-libs            @DataDog/agent-build
 /.claude/skills/update-otel-deps/                @DataDog/opentelemetry-agent
 /.claude/skills/write-e2e/                       @DataDog/agent-devx
