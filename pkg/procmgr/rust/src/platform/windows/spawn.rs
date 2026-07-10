@@ -77,20 +77,26 @@ pub(crate) fn spawn_child(
             let account = resolve_agent_account().with_context(|| {
                 format!("[{process_name}] resolve agent service account for spawn")
             })?;
-            match spawn_as_primary_token(process_name, &request, &account) {
-                Ok(handle) => return Ok(handle),
-                Err(e) if matches!(account, AgentAccount::LocalSystem) => {
-                    log::warn!(
-                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
-                    );
+            if supports_primary_token_stdio(&request) {
+                match spawn_as_primary_token(process_name, &request, &account) {
+                    Ok(handle) => return Ok(handle),
+                    Err(e) if matches!(account, AgentAccount::LocalSystem) => {
+                        log::warn!(
+                            "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
+                        );
+                    }
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!(
+                                "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
+                            )
+                        });
+                    }
                 }
-                Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!(
-                            "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
-                        )
-                    });
-                }
+            } else {
+                log::info!(
+                    "[{process_name}] file-backed stdio; falling back to impersonation Command spawn"
+                );
             }
         }
     }
@@ -122,11 +128,7 @@ fn validate_privileged_process_request(process_name: &str, request: &SpawnReques
 }
 
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    // Privileged spawn only allows inherit/null stdio.
-    let allow = |s: &std::process::Stdio| {
-        matches!(s, std::process::Stdio::Inherit | std::process::Stdio::Null)
-    };
-    if !allow(&request.stdout) || !allow(&request.stderr) {
+    if !supports_primary_token_stdio(request) {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())
@@ -674,6 +676,14 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
     Ok(h)
 }
 
+fn supports_primary_token_stdio(request: &SpawnRequest) -> bool {
+    is_inherit_or_null_stdio(&request.stdout) && is_inherit_or_null_stdio(&request.stderr)
+}
+
+fn is_inherit_or_null_stdio(stdio: &Stdio) -> bool {
+    matches!(stdio, Stdio::Inherit | Stdio::Null)
+}
+
 fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<MappedStdioHandle> {
     match stdio {
         Stdio::Inherit => {
@@ -762,6 +772,39 @@ impl Drop for ImpersonationGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn spawn_request(stdout: Stdio, stderr: Stdio) -> SpawnRequest {
+        SpawnRequest {
+            command: "cmd.exe".into(),
+            args: vec![],
+            env: vec![],
+            working_dir: None,
+            stdout,
+            stderr,
+        }
+    }
+
+    #[test]
+    fn supports_primary_token_stdio_accepts_inherit_and_null() {
+        assert!(supports_primary_token_stdio(&spawn_request(
+            Stdio::inherit(),
+            Stdio::inherit()
+        )));
+        assert!(supports_primary_token_stdio(&spawn_request(
+            Stdio::null(),
+            Stdio::null()
+        )));
+    }
+
+    #[test]
+    fn supports_primary_token_stdio_rejects_file_backed() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = std::fs::File::create(dir.path().join("out.log")).unwrap();
+        assert!(!supports_primary_token_stdio(&spawn_request(
+            f.into(),
+            Stdio::inherit()
+        )));
+    }
 
     #[test]
     fn logon_domain_uses_dot_for_local_accounts() {
