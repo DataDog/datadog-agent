@@ -229,7 +229,7 @@ pyproject_wheel(
 {configuration_targets}
 """.format(
         configuration_targets = _render_configuration_targets(package.configuration_targets),
-        wheel_excludes = json.encode(INTEGRATION_CONFIGURATION_WHEEL_EXCLUDES),
+        wheel_excludes = repr(INTEGRATION_CONFIGURATION_WHEEL_EXCLUDES),
     )
 
 def _render_configuration_targets(configuration_targets):
@@ -246,7 +246,7 @@ pkg_filegroup(
     srcs = {srcs},
 )
 """.format(
-        srcs = json.encode([":{}".format(target.name) for target in configuration_targets]),
+        srcs = repr([":{}".format(target.name) for target in configuration_targets]),
     ))
     return "".join(rendered_targets)
 
@@ -260,10 +260,10 @@ pkg_files(
     strip_prefix = strip_prefix.from_pkg({strip_prefix}),
 )
 """.format(
-        name = json.encode(target.name),
-        prefix = json.encode(target.prefix),
-        srcs = json.encode(target.srcs),
-        strip_prefix = json.encode(target.strip_prefix),
+        name = repr(target.name),
+        prefix = repr(target.prefix),
+        srcs = repr(target.srcs),
+        strip_prefix = repr(target.strip_prefix),
     )
 
 def _root_build_file(base_packages, integrations, commit):
@@ -320,14 +320,14 @@ pkg_filegroup(
     srcs = {integrations_configuration_select},
 )
 """.format(
-        base_wheel_srcs = json.encode(base_wheel_srcs),
+        base_wheel_srcs = repr(base_wheel_srcs),
         commit = commit,
         integrations_configuration_select = integrations_configuration_select,
         integrations_select = integrations_select,
     )
 
 def _render_platform_select(integrations, label_format):
-    return "select({})".format(json.encode({
+    return "select({})".format(repr({
         platform: [
             label_format.format(integration.name)
             for integration in integrations
