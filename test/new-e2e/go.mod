@@ -263,6 +263,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
