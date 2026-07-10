@@ -144,6 +144,10 @@ func (l *Loop) handleTask(
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
 	defer timeoutCancel()
 
+	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
+	defer heartbeatCancel()
+	go l.runner.startHeartbeat(heartbeatCtx, task, logger)
+
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
 
 	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
