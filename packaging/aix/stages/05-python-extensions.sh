@@ -302,9 +302,12 @@ log "pymqi==$PYMQI_VERSION installed successfully"
 # Without this patch MQMD.Encoding=0x222 on every PCF PUT, which tells the AIX
 # command server the message is little-endian while the data is actually big-endian
 # (Python struct uses native byte order) → MQRCCF_CFH_LENGTH_ERROR (reason 3002).
-PYMQI_CMQC=$($PYTHON_BIN -c "import pymqi.CMQC as m; print(m.__file__.replace('.pyc', '.py'))")
-sed 's/MQENC_NATIVE = 0x00000222/MQENC_NATIVE = 0x00000111/' "$PYMQI_CMQC" > "${PYMQI_CMQC}.tmp" \
-    && mv "${PYMQI_CMQC}.tmp" "$PYMQI_CMQC"
+PYMQI_CMQC="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/site-packages/pymqi/CMQC.py"
+if [ ! -f "$PYMQI_CMQC" ]; then
+    log "ERROR: pymqi CMQC.py not found at expected path: $PYMQI_CMQC"
+    exit 1
+fi
+patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
 find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
 log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
 
