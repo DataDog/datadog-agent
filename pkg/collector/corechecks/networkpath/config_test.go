@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -613,7 +614,7 @@ tags:
 			},
 		}},
 	}
-	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, rawInstance, rawInitConfig, "network-path-remote-config:scheduled[0]", "network-path-remote-config")
+	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, rawInstance, rawInitConfig, "network-path-remote-config:scheduled[0]", names.NetworkPathRemoteConfig)
 	assert.NoError(t, err)
 
 	err = check.Run()
@@ -634,6 +635,18 @@ tags:
 			path.Destination.Service == "api" &&
 			assert.ObjectsAreEqual([]string{"env:prod"}, path.Tags)
 	}), eventplatform.EventTypeNetworkPath)
+}
+
+func TestConfigureIgnoresTestConfigIDFromNonRCProvider(t *testing.T) {
+	rawInstance := integration.Data(`
+test_config_id: test-config-a
+hostname: api.example.com
+`)
+	check := &Check{CheckBase: core.NewCheckBase(CheckName)}
+
+	err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "file:network_path.yaml", names.File)
+	assert.NoError(t, err)
+	assert.Empty(t, check.config.TestConfigID)
 }
 
 func TestFirstNonZero(t *testing.T) {
