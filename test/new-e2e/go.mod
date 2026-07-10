@@ -263,7 +263,6 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
@@ -360,6 +359,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/comp/anomalydetection/config => ../../comp/anomalydetection/config
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../comp/anomalydetection/severityevents/def

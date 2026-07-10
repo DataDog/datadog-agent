@@ -20,7 +20,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(smartadaptivesamplingimpl.NewComponent),
-		fxutil.ProvideOptional[smartadaptivesampling.Component](),
 		fx.Invoke(func(_ smartadaptivesampling.Component) {}),
 	)
 }

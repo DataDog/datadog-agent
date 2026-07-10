@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
-    srcs = ["smartadaptivesampling.go"],
+    srcs = [
+        "smartadaptivesampling.go",
+        "smartadaptivesampling_noop.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/impl",
     visibility = ["//visibility:public"],
     deps = [

@@ -11,10 +11,15 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	smartadaptivesampling "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def"
+	smartadaptivesamplingimpl "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the no-op FX options for smart adaptive sampling.
+// Module defines the unavailable smart adaptive sampling component for builds without Python.
 func Module() fxutil.Module {
-	return fxutil.Module{Option: fx.Options()}
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(smartadaptivesamplingimpl.NewComponent),
+		fx.Invoke(func(_ smartadaptivesampling.Component) {}),
+	)
 }
