@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"

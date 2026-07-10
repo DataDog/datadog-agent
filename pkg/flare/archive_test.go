@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
