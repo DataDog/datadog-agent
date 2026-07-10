@@ -84,10 +84,10 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 	return db.RemovePackage(pkg, isExperiment)
 }
 
-// InstalledExtensions returns the names of the extensions currently installed (stable) for pkg.
+// InstalledExtensions returns the names of the extensions installed for pkg (stable or experiment).
 // It returns a nil slice, no error, if the extensions database doesn't exist yet or has no entry
 // for pkg (no extensions have ever been installed for it on this host).
-func InstalledExtensions(pkg string) ([]string, error) {
+func InstalledExtensions(pkg string, isExperiment bool) ([]string, error) {
 	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, nil
@@ -100,7 +100,7 @@ func InstalledExtensions(pkg string) ([]string, error) {
 	}
 	defer db.Close()
 
-	dbPkg, err := db.GetPackage(pkg, false)
+	dbPkg, err := db.GetPackage(pkg, isExperiment)
 	if err != nil {
 		if errors.Is(err, errPackageNotFound) {
 			return nil, nil

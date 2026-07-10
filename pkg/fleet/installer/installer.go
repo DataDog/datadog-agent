@@ -46,7 +46,7 @@ type Installer interface {
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error)
+	ConfigAndPackageStates(ctx context.Context) (*repository.ConfigAndPackageStates, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -159,7 +159,7 @@ func (i *installerImpl) configStates(_ context.Context) (map[string]repository.S
 }
 
 // ConfigAndPackageStates returns the states of all packages' configurations and packages.
-func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.ConfigAndPackageStates, error) {
 	configStates, err := i.configStates(ctx)
 	if err != nil {
 		return nil, err
@@ -168,19 +168,31 @@ func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository
 	if err != nil {
 		return nil, err
 	}
-	var pkgExtensions map[string][]string
-	agentExtensions, err := extensions.InstalledExtensions(packageDatadogAgent)
-	if err != nil {
-		return nil, fmt.Errorf("could not get installed extensions for %s: %w", packageDatadogAgent, err)
+	result := &repository.ConfigAndPackageStates{
+		ConfigStates:  configStates,
+		PackageStates: make(map[string]repository.PackageState),
 	}
-	if len(agentExtensions) > 0 {
-		pkgExtensions = map[string][]string{packageDatadogAgent: agentExtensions}
+	for pkg, s := range packageStates {
+		stableExtensions, err := extensions.InstalledExtensions(pkg, false)
+		if err != nil {
+			return nil, fmt.Errorf("could not get installed stable extensions for %s: %w", pkg, err)
+		}
+		experimentExtensions, err := extensions.InstalledExtensions(pkg, true)
+		if err != nil {
+			return nil, fmt.Errorf("could not get installed experiment extensions for %s: %w", pkg, err)
+		}
+		result.PackageStates[pkg] = repository.PackageState{
+			Stable: repository.VersionState{
+				Version:    s.Stable,
+				Extensions: stableExtensions,
+			},
+			Experiment: repository.VersionState{
+				Version:    s.Experiment,
+				Extensions: experimentExtensions,
+			},
+		}
 	}
-	return &repository.PackageStates{
-		ConfigStates: configStates,
-		States:       packageStates,
-		Extensions:   pkgExtensions,
-	}, nil
+	return result, nil
 }
 
 // IsInstalled checks if a package is installed.

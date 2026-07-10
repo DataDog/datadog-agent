@@ -109,17 +109,17 @@ func TestConfigAndPackageStates(t *testing.T) {
 	res, err := installer.ConfigAndPackageStates(context.TODO())
 	assert.NoError(t, err)
 
-	expected := &repository.PackageStates{
+	expected := &repository.ConfigAndPackageStates{
 		ConfigStates: map[string]repository.State{
 			"datadog-agent": {
 				Stable:     "abc-def-hij",
 				Experiment: "",
 			},
 		},
-		States: map[string]repository.State{
+		PackageStates: map[string]repository.PackageState{
 			"datadog-agent": {
-				Stable:     "7.31.0",
-				Experiment: "7.32.0",
+				Stable:     repository.VersionState{Version: "7.31.0"},
+				Experiment: repository.VersionState{Version: "7.32.0"},
 			},
 		},
 	}

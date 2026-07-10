@@ -342,7 +342,11 @@ func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State
 	if err != nil {
 		return repository.State{}, err
 	}
-	return allStates.States[pkg], nil
+	pkgState := allStates.PackageStates[pkg]
+	return repository.State{
+		Stable:     pkgState.Stable.Version,
+		Experiment: pkgState.Experiment.Version,
+	}, nil
 }
 
 // ConfigState returns the state of a package's configuration.
@@ -355,7 +359,7 @@ func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository
 }
 
 // ConfigAndPackageStates returns the states of all packages' configurations and packages.
-func (i *InstallerExec) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+func (i *InstallerExec) ConfigAndPackageStates(ctx context.Context) (*repository.ConfigAndPackageStates, error) {
 	allStates, err := i.getStates(ctx)
 	if err != nil {
 		return nil, err

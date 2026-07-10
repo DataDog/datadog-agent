@@ -53,18 +53,18 @@ func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.S
 	return repository.State{}, nil
 }
 
-func (m *installerMock) ConfigAndPackageStates(_ context.Context) (*repository.PackageStates, error) {
-	return &repository.PackageStates{
+func (m *installerMock) ConfigAndPackageStates(_ context.Context) (*repository.ConfigAndPackageStates, error) {
+	return &repository.ConfigAndPackageStates{
 		ConfigStates: map[string]repository.State{
 			"datadog-agent": {
 				Stable:     "abc-def-hij",
 				Experiment: "",
 			},
 		},
-		States: map[string]repository.State{
+		PackageStates: map[string]repository.PackageState{
 			"datadog-agent": {
-				Stable:     "7.31.0",
-				Experiment: "7.32.0",
+				Stable:     repository.VersionState{Version: "7.31.0"},
+				Experiment: repository.VersionState{Version: "7.32.0"},
 			},
 		},
 	}, nil

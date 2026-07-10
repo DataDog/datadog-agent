@@ -58,17 +58,28 @@ type Repository struct {
 	preRemoveHooks map[string]PreRemoveHook
 }
 
-// PackageStates contains the state all installed packages
-type PackageStates struct {
-	States       map[string]State    `json:"states"`
-	ConfigStates map[string]State    `json:"config_states"`
-	Extensions   map[string][]string `json:"extensions,omitempty"` // pkg name -> installed extension names (stable)
-}
-
 // State is the state of the repository.
 type State struct {
 	Stable     string `json:"stable"`
 	Experiment string `json:"experiment"`
+}
+
+// ConfigAndPackageStates contains the states of all packages' configurations and packages.
+type ConfigAndPackageStates struct {
+	ConfigStates  map[string]State        `json:"config_states"`
+	PackageStates map[string]PackageState `json:"package_states"`
+}
+
+// PackageState is the stable/experiment version state of a package.
+type PackageState struct {
+	Stable     VersionState `json:"stable"`
+	Experiment VersionState `json:"experiment"`
+}
+
+// VersionState is the version and extensions of an installed package.
+type VersionState struct {
+	Version    string   `json:"version"`
+	Extensions []string `json:"extensions,omitempty"`
 }
 
 // HasStable returns true if the repository has a stable package.

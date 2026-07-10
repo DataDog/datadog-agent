@@ -7,8 +7,8 @@ Secrets Public Key: {{ htmlSafe .SecretsPubKey }}
 
 
 Packages installed:
-{{- range $name, $version := .Packages.States }}
-  {{ if $version.Experiment }}{{ yellowText "●" }}{{- else if $version.Stable}}{{ greenText "●" }}{{- else -}}{{ redText "●" }}{{- end }} {{ boldText $name }} {{ if $version.Stable -}}{{ if $version.Experiment -}}v{{ htmlSafe $version.Experiment}} (stable is v{{ htmlSafe $version.Stable }}){{- else -}}v{{ htmlSafe $version.Stable }}{{- end -}}{{- else  -}}{{ redText "No version" }}{{- end }}
+{{- range $name, $version := .Packages.PackageStates }}
+  {{ if $version.Experiment.Version }}{{ yellowText "●" }}{{- else if $version.Stable.Version}}{{ greenText "●" }}{{- else -}}{{ redText "●" }}{{- end }} {{ boldText $name }} {{ if $version.Stable.Version -}}{{ if $version.Experiment.Version -}}v{{ htmlSafe $version.Experiment.Version}} (stable is v{{ htmlSafe $version.Stable.Version }}){{- else -}}v{{ htmlSafe $version.Stable.Version }}{{- end -}}{{- else  -}}{{ redText "No version" }}{{- end }}
   {{- range $remoteConfig := $.RemoteConfigState }}
     {{- if eq $remoteConfig.Package $name }}
     Remote configuration client state:
@@ -30,8 +30,8 @@ Packages installed:
   {{- end -}}
 {{- end }}
 
-{{ with index .Packages.States "datadog-apm-inject" -}}
-{{- if ne .Stable "" -}}
+{{ with index .Packages.PackageStates "datadog-apm-inject" -}}
+{{- if ne .Stable.Version "" -}}
 APM SSI is installed. Instrumentation status:
 {{- if eq $.ApmInjectionStatus.HostInstrumented true }}
     {{ greenText "●" }} Host: Instrumented

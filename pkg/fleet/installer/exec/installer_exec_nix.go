@@ -31,7 +31,7 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 
 // getStates retrieves the state of all packages & their configuration from disk.
 // On Linux/macOS this spawns a subprocess for privilege escalation.
-func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
+func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.ConfigAndPackageStates, err error) {
 	cmd := i.newInstallerCmd(ctx, "get-states")
 	defer func() { cmd.span.Finish(err) }()
 	var stdout bytes.Buffer
@@ -42,7 +42,7 @@ func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.Package
 	if err != nil {
 		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
 	}
-	var pkgStates *repository.PackageStates
+	var pkgStates *repository.ConfigAndPackageStates
 	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())

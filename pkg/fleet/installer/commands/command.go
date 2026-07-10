@@ -591,7 +591,7 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
-func getState(opts ...cmdOption) (*repository.PackageStates, error) {
+func getState(opts ...cmdOption) (*repository.ConfigAndPackageStates, error) {
 	i, err := newInstallerCmd("get_states", opts...)
 	if err != nil {
 		return nil, err

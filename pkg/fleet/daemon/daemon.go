@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -43,14 +43,6 @@ import (
 const (
 	// disableClientIDCheck is the magic string to disable the client ID check.
 	disableClientIDCheck = "disable-client-id-check"
-
-	// packageDatadogAgentDDOT is the package name reported for the Datadog Distribution of
-	// OpenTelemetry Collector (DDOT), which ships as an extension of the datadog-agent package.
-	packageDatadogAgentDDOT = "datadog-agent-ddot"
-
-	// ddotExtensionName is the name under which DDOT is registered in the extensions database
-	// when it ships as an extension of datadog-agent, see packages/datadog_agent_extensions.go.
-	ddotExtensionName = "ddot"
 )
 
 var (
@@ -60,12 +52,6 @@ var (
 	// installExperimentFunc is the method to install an experiment. Overridden in tests.
 	installExperimentFunc = bootstrap.InstallExperiment
 )
-
-// PackageState represents a package state.
-type PackageState struct {
-	Version repository.State
-	Config  repository.State
-}
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
 type Daemon interface {
@@ -84,7 +70,7 @@ type Daemon interface {
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
-	GetState(ctx context.Context) (map[string]PackageState, error)
+	GetState(ctx context.Context) (*repository.ConfigAndPackageStates, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
@@ -197,7 +183,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 }
 
 // GetState returns the state.
-func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, error) {
+func (d *daemonImpl) GetState(ctx context.Context) (*repository.ConfigAndPackageStates, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -205,15 +191,7 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 	if err != nil {
 		return nil, err
 	}
-
-	res := make(map[string]PackageState)
-	for pkg := range configAndPackageStates.States {
-		res[pkg] = PackageState{
-			Version: configAndPackageStates.States[pkg],
-			Config:  configAndPackageStates.ConfigStates[pkg],
-		}
-	}
-	return res, nil
+	return configAndPackageStates, nil
 }
 
 // GetRemoteConfigState returns the remote config state.
@@ -815,28 +793,19 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningConfigVersions := map[string]string{
 		"datadog-agent": d.env.ConfigID,
 	}
-	// DDOT (the otel-agent) shares the datadog-agent config — otel-config.yaml lives in the
-	// same config dir and is patched by the same config experiment — but ships as an extension of
-	// datadog-agent rather than its own package, so it has no package state of its own. Report a
-	// synthetic datadog-agent-ddot package state so the fleet backend can gate config promotes on
-	// DDOT. Hosts without DDOT (and agents predating this change) report nothing here, so the
-	// backend must treat a missing datadog-agent-ddot state as "no signal / do not block".
-	ddotExtension := slices.Contains(configAndPackageStates.Extensions["datadog-agent"], ddotExtensionName)
-	if ddotExtension {
-		runningVersions[packageDatadogAgentDDOT] = version.AgentPackageVersion
-		runningConfigVersions[packageDatadogAgentDDOT] = d.env.ConfigID
-	}
 	var packages []*pbgo.PackageState
-	for pkg, s := range configAndPackageStates.States {
+	for pkg, s := range configAndPackageStates.PackageStates {
 		p := &pbgo.PackageState{
 			Package:                 pkg,
-			StableVersion:           s.Stable,
-			ExperimentVersion:       s.Experiment,
+			StableVersion:           s.Stable.Version,
+			ExperimentVersion:       s.Experiment.Version,
 			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
+			StableExtensions:        s.Stable.Extensions,
+			ExperimentExtensions:    s.Experiment.Extensions,
 		}
 
 		requestState, ok := tasksState[pkg]
@@ -856,23 +825,25 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	// DDOT is absent from the states above since it's not its own package; add a synthetic
-	// datadog-agent-ddot entry mirroring the shared datadog-agent config so the backend sees the
-	// same experiment/stable config version for DDOT.
-	if ddotExtension {
-		agentConfig := configAndPackageStates.ConfigStates["datadog-agent"]
-		packages = append(packages, &pbgo.PackageState{
-			Package:                 packageDatadogAgentDDOT,
-			StableConfigVersion:     agentConfig.Stable,
-			ExperimentConfigVersion: agentConfig.Experiment,
-			RunningVersion:          runningVersions[packageDatadogAgentDDOT],
-			RunningConfigVersion:    runningConfigVersions[packageDatadogAgentDDOT],
-			HeartbeatTimestamp:      uint64(time.Now().Unix()),
-		})
-	}
 	d.rc.SetState(&pbgo.ClientUpdater{
 		SecretsPubKey:      base64.StdEncoding.EncodeToString(d.secretsPubKey[:]),
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
+}
+
+// extensionNamesByChannel splits a package's per-extension states into the names installed on
+// the stable channel and those installed on the experiment channel, sorted for stable ordering.
+func extensionNamesByChannel(states map[string]repository.State) (stable, experiment []string) {
+	for name, s := range states {
+		if s.HasStable() {
+			stable = append(stable, name)
+		}
+		if s.HasExperiment() {
+			experiment = append(experiment, name)
+		}
+	}
+	sort.Strings(stable)
+	sort.Strings(experiment)
+	return stable, experiment
 }

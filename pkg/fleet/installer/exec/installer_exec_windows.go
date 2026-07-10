@@ -36,7 +36,7 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 // On Windows there is no privilege boundary between the daemon and the installer
 // binary, so we read the package & config states in-process instead of spawning
 // a subprocess (which is the main source of OOM errors on Windows).
-func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageStates, err error) {
+func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.ConfigAndPackageStates, err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "installer.get-states")
 	defer func() { span.Finish(err) }()
 
@@ -68,18 +68,30 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 		},
 	}
 
-	var pkgExtensions map[string][]string
-	agentExtensions, err := extensions.InstalledExtensions(packageDatadogAgent)
-	if err != nil {
-		return nil, fmt.Errorf("error getting installed extensions for %s: %w", packageDatadogAgent, err)
+	result := &repository.ConfigAndPackageStates{
+		ConfigStates:  configStates,
+		PackageStates: make(map[string]repository.PackageState),
 	}
-	if len(agentExtensions) > 0 {
-		pkgExtensions = map[string][]string{packageDatadogAgent: agentExtensions}
+	for pkg, s := range packageStates {
+		stableExtensions, err := extensions.InstalledExtensions(pkg, false)
+		if err != nil {
+			return nil, fmt.Errorf("error getting installed stable extensions for %s: %w", pkg, err)
+		}
+		experimentExtensions, err := extensions.InstalledExtensions(pkg, true)
+		if err != nil {
+			return nil, fmt.Errorf("error getting installed experiment extensions for %s: %w", pkg, err)
+		}
+		result.PackageStates[pkg] = repository.PackageState{
+			Stable: repository.VersionState{
+				Version:    s.Stable,
+				Extensions: stableExtensions,
+			},
+			Experiment: repository.VersionState{
+				Version:    s.Experiment,
+				Extensions: experimentExtensions,
+			},
+		}
 	}
 
-	return &repository.PackageStates{
-		States:       packageStates,
-		ConfigStates: configStates,
-		Extensions:   pkgExtensions,
-	}, nil
+	return result, nil
 }

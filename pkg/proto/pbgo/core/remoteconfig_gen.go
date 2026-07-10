@@ -3874,9 +3874,9 @@ func (z OrgStatusResponse) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 10
+	// map header, size 12
 	// string "Package"
-	o = append(o, 0x8a, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
+	o = append(o, 0x8c, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
 	o = msgp.AppendString(o, z.Package)
 	// string "StableVersion"
 	o = append(o, 0xad, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
@@ -3913,6 +3913,18 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Completion"
 	o = append(o, 0xaa, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendFloat32(o, z.Completion)
+	// string "StableExtensions"
+	o = append(o, 0xb0, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.StableExtensions)))
+	for za0001 := range z.StableExtensions {
+		o = msgp.AppendString(o, z.StableExtensions[za0001])
+	}
+	// string "ExperimentExtensions"
+	o = append(o, 0xb4, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.ExperimentExtensions)))
+	for za0002 := range z.ExperimentExtensions {
+		o = msgp.AppendString(o, z.ExperimentExtensions[za0002])
+	}
 	return
 }
 
@@ -4005,6 +4017,44 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Completion")
 				return
 			}
+		case "StableExtensions":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "StableExtensions")
+				return
+			}
+			if cap(z.StableExtensions) >= int(zb0002) {
+				z.StableExtensions = (z.StableExtensions)[:zb0002]
+			} else {
+				z.StableExtensions = make([]string, zb0002)
+			}
+			for za0001 := range z.StableExtensions {
+				z.StableExtensions[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "StableExtensions", za0001)
+					return
+				}
+			}
+		case "ExperimentExtensions":
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ExperimentExtensions")
+				return
+			}
+			if cap(z.ExperimentExtensions) >= int(zb0003) {
+				z.ExperimentExtensions = (z.ExperimentExtensions)[:zb0003]
+			} else {
+				z.ExperimentExtensions = make([]string, zb0003)
+			}
+			for za0002 := range z.ExperimentExtensions {
+				z.ExperimentExtensions[za0002], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ExperimentExtensions", za0002)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -4025,7 +4075,14 @@ func (z *PackageState) Msgsize() (s int) {
 	} else {
 		s += z.Task.Msgsize()
 	}
-	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion) + 19 + msgp.Uint64Size + 11 + msgp.Float32Size
+	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion) + 19 + msgp.Uint64Size + 11 + msgp.Float32Size + 17 + msgp.ArrayHeaderSize
+	for za0001 := range z.StableExtensions {
+		s += msgp.StringPrefixSize + len(z.StableExtensions[za0001])
+	}
+	s += 21 + msgp.ArrayHeaderSize
+	for za0002 := range z.ExperimentExtensions {
+		s += msgp.StringPrefixSize + len(z.ExperimentExtensions[za0002])
+	}
 	return
 }
 
