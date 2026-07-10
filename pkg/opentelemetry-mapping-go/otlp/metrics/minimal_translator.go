@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"slices"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -152,21 +153,22 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 			case source.AWSECSFargateKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					c.ConsumeTagSet("fargate", src.Tag(), []string{src.Tag()})
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				} else if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					var tags []string
-					for key, val := range src.Identifier.Dimensions {
-						tags = append(tags, key+":"+val)
+					dimKeys := make([]string, 0, len(src.Identifier.Dimensions))
+					for key := range src.Identifier.Dimensions {
+						dimKeys = append(dimKeys, key)
 					}
-					key := src.Identifier.Dimensions["subscription_id"] + "/" +
-						src.Identifier.Dimensions["resource_group"] + "/" +
-						src.Identifier.Dimensions["name"] + "/" +
-						src.Identifier.Primary
-					c.ConsumeTagSet("azurecontainerapps", key, tags)
+					slices.Sort(dimKeys)
+					tags := make([]string, 0, len(dimKeys))
+					for _, key := range dimKeys {
+						tags = append(tags, key+":"+src.Identifier.Dimensions[key])
+					}
+					c.ConsumeTagSet("azurecontainerapps", tags)
 				} else if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}

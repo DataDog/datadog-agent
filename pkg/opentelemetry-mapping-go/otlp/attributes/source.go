@@ -42,6 +42,8 @@ const (
 	// (azure.resource_group.name), not yet available as a Go constant.
 	// Replace with the real semconv constant once
 	// go.opentelemetry.io/otel/semconv/v1.43.0 ships.
+	// Not the same attribute as azure/azure.go's AttributeResourceGroupName
+	// (azure.resourcegroup.name) — this is the newer semconv key
 	AttributeAzureResourceGroupName = "azure.resource_group.name"
 )
 

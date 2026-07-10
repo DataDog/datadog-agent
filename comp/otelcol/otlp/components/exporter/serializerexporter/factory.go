@@ -172,7 +172,7 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 			return &collectorConsumer{
 				serializerConsumer: s,
 				seenHosts:          make(map[string]struct{}),
-				seenTagSets:        make(map[string]tagSetEntry),
+				seenTagSets:        make(map[tagSetKey][]string),
 				buildInfo:          buildInfo,
 				getPushTime:        func() uint64 { return uint64(time.Now().Unix()) },
 			}

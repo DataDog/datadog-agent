@@ -167,7 +167,6 @@ type TagSetConsumer interface {
 	// metricSuffix names the workload-specific metric: the resulting metric
 	// is "otel.datadog_exporter.metrics.running.<metricSuffix>" (e.g. "fargate",
 	// "azurecontainerapps").
-	// key serves as a unique identifier for deduplication.
 	// tags is the full slice of "key:value" strings to attach to the metric.
-	ConsumeTagSet(metricSuffix string, key string, tags []string)
+	ConsumeTagSet(metricSuffix string, tags []string)
 }
