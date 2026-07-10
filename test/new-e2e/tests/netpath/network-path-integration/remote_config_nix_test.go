@@ -14,6 +14,10 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
+type linuxRemoteConfigTestSuite struct {
+	remoteConfigTestSuite
+}
+
 func TestLinuxRemoteConfigSuite(t *testing.T) {
 	t.Parallel()
 
@@ -23,22 +27,24 @@ func TestLinuxRemoteConfigSuite(t *testing.T) {
 		agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
 	)
 
-	e2e.Run(t, &remoteConfigTestSuite{
-		platform:         remoteConfigPlatformLinux,
-		scheduledConfig:  linuxScheduledNetworkPathRCConfig,
-		localConfigCount: 2,
-		expectedPaths: []remoteConfigPathExpectation{
-			{
-				hostname:         "198.51.100.2",
-				protocol:         "UDP",
-				port:             0,
-				configSubstrings: []string{"hostname: 198.51.100.2", "protocol: UDP", "test_config_id: aaa-bbb-ccc"},
-			},
-			{
-				hostname:         "198.51.100.2",
-				protocol:         "TCP",
-				port:             443,
-				configSubstrings: []string{"hostname: 198.51.100.2", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+	e2e.Run(t, &linuxRemoteConfigTestSuite{
+		remoteConfigTestSuite: remoteConfigTestSuite{
+			platform:         remoteConfigPlatformLinux,
+			scheduledConfig:  linuxScheduledNetworkPathRCConfig,
+			localConfigCount: 2,
+			expectedPaths: []remoteConfigPathExpectation{
+				{
+					hostname:         "198.51.100.2",
+					protocol:         "UDP",
+					port:             0,
+					configSubstrings: []string{"hostname: 198.51.100.2", "protocol: UDP", "test_config_id: aaa-bbb-ccc"},
+				},
+				{
+					hostname:         "198.51.100.2",
+					protocol:         "TCP",
+					port:             443,
+					configSubstrings: []string{"hostname: 198.51.100.2", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+				},
 			},
 		},
 	}, e2e.WithProvisioner(awshost.Provisioner(

@@ -14,18 +14,24 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
+type windowsRemoteConfigTestSuite struct {
+	remoteConfigTestSuite
+}
+
 func TestWindowsRemoteConfigSuite(t *testing.T) {
 	t.Parallel()
 
-	e2e.Run(t, &remoteConfigTestSuite{
-		platform:        remoteConfigPlatformWindows,
-		scheduledConfig: crossPlatformScheduledNetworkPathRCConfig,
-		expectedPaths: []remoteConfigPathExpectation{
-			{
-				hostname:         "api.datadoghq.eu",
-				protocol:         "TCP",
-				port:             443,
-				configSubstrings: []string{"hostname: api.datadoghq.eu", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+	e2e.Run(t, &windowsRemoteConfigTestSuite{
+		remoteConfigTestSuite: remoteConfigTestSuite{
+			platform:        remoteConfigPlatformWindows,
+			scheduledConfig: crossPlatformScheduledNetworkPathRCConfig,
+			expectedPaths: []remoteConfigPathExpectation{
+				{
+					hostname:         "api.datadoghq.eu",
+					protocol:         "TCP",
+					port:             443,
+					configSubstrings: []string{"hostname: api.datadoghq.eu", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+				},
 			},
 		},
 	}, e2e.WithProvisioner(awshost.Provisioner(
