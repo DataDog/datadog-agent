@@ -32,8 +32,8 @@ jobs:
 
       - name: Tidy and generate licenses
         run: |
-          go mod tidy
-          dda inv -- -e tidy
+          GOPROXY=https://proxy.golang.org,direct go mod tidy
+          GOPROXY=https://proxy.golang.org,direct dda inv -- -e tidy
           dda inv -- -e install-tools
           dda inv -- -e generate-licenses
 

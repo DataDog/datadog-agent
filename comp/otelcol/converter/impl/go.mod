@@ -11,11 +11,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/confmap v1.62.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.61.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.61.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.61.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.61.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.61.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.62.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.62.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.62.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.62.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.62.0
 	go.uber.org/zap v1.28.0
 )
 

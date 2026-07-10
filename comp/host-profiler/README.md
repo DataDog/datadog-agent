@@ -94,3 +94,34 @@ Files:
 - **[`factory.go`](collector/impl/receiver/factory.go)** - Creates the factory for the custom `profiling` receiver, which builds the eBPF-based profiles receiver.
 - **[`config.go`](collector/impl/receiver/config.go)** - Defines configuration structures for the receiver including eBPF collector settings, symbol uploader options, and validation logic.
 - **[`executable_reporter.go`](collector/impl/receiver/executable_reporter.go)** - Implements the executable reporter that uploads debug symbols to Datadog for native code symbolization.
+
+## Upgrading the eBPF profiler fork
+
+The agent depends on a Datadog fork via a `replace` in the root `go.mod`:
+
+```go
+go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-...
+```
+
+### Steps
+
+1. **Bump the replace** to the target commit pseudo-version (not a branch name). Resolve it with:
+   ```bash
+   go get github.com/DataDog/opentelemetry-ebpf-profiler@<branch-or-commit>
+   ```
+2. **Tidy modules**. If a new transitive test dependency (e.g. `profcheck`) hits the internal Go proxy cooldown (`403 Forbidden`, `within cooldown window`), bypass the depot mirror:
+   ```bash
+   GOPROXY=https://proxy.golang.org,direct go mod tidy
+   GOPROXY=https://proxy.golang.org,direct dda inv tidy
+   ```
+   This is safe: `profcheck` is only used by profiler unit tests and is not linked into the host-profiler binary.
+3. **Migrate agent code** when the fork API changes. On `rebase-on-upstream`, interpreter selection moved from `Tracers string` / `tracer/types` to `Interpreters interpreterconfig.Config` (see `collector/impl/receiver/config.go`).
+4. **Resolve OTel version skew**: the fork may pull `pprofile v0.156.0` while collector-contrib stays on `v0.155.0`. If `host-profiler.build` fails in `pkg/ottl/.../ctxprofilecommon` (`FromAttributeIndices` signature mismatch), bump `pkg/ottl` via the `replace` in root `go.mod` to `v0.156.0`.
+5. **Validate**:
+   ```bash
+   dda inv host-profiler.validate-deps
+   dda inv linter.go --only-modified-packages
+   go test ./comp/host-profiler/collector/impl/receiver/...
+   ```
+
+Reach out to `#profiling-full-host-project` before bumping shared deps such as `cilium/ebpf` or `pdata/pprofile`.
