@@ -9,6 +9,7 @@ package issueregistryimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -16,8 +17,9 @@ import (
 
 // Requires defines the dependencies for the registry component.
 type Requires struct {
-	Config   config.Component
-	Hostname hostnameinterface.Component
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component `optional:"true"`
+	Hostname       hostnameinterface.Component
 }
 
 type registryImpl struct {
@@ -27,7 +29,12 @@ type registryImpl struct {
 // New creates the issue registry, instantiating all self-registered modules.
 func New(reqs Requires) registrydef.Component {
 	r := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules(reqs.Config, reqs.Hostname) {
+	deps := issuesmod.ModuleDeps{
+		Config:         reqs.Config,
+		SysProbeConfig: reqs.SysProbeConfig,
+		Hostname:       reqs.Hostname,
+	}
+	for _, module := range issuesmod.GetAllModules(deps) {
 		r.RegisterModule(module)
 	}
 	return &registryImpl{inner: r}

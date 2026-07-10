@@ -294,25 +294,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v123467524-627631bf
+  CI_IMAGE_BTF_GEN: v123723142-c6f300a6
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v123467524-627631bf
+  CI_IMAGE_DOCKER_X64: v123723142-c6f300a6
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v123467524-627631bf
+  CI_IMAGE_DOCKER_ARM64: v123723142-c6f300a6
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v123467524-627631bf
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v123723142-c6f300a6
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v123467524-627631bf
+  CI_IMAGE_LINUX: v123723142-c6f300a6
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v123467524-627631bf
+  CI_IMAGE_RPM_X64: v123723142-c6f300a6
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v123467524-627631bf
+  CI_IMAGE_RPM_ARM64: v123723142-c6f300a6
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v123467524-627631bf
+  CI_IMAGE_RPM_ARMHF: v123723142-c6f300a6
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
+  CI_IMAGE_WIN_LTSC2022_X64: v123723142-c6f300a6
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v120143276-cb5277fb
+  CI_IMAGE_WIN_LTSC2025_X64: v123723142-c6f300a6
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1480,6 +1480,14 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_fakeintake_changes_with_image_override:
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+
 .on_fakeintake_changes_on_main:
   - changes:
       <<: *fakeintake_paths
@@ -1573,6 +1581,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_rtloader_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

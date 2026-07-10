@@ -12,7 +12,6 @@ package rofspermissions
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -39,10 +38,10 @@ type rofsPermissionsModule struct {
 }
 
 // NewModule creates a new ROFS permissions issue module
-func NewModule(conf config.Component, _ hostnameinterface.Component) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
 		template: NewRofsPermissionIssue(),
-		conf:     conf,
+		conf:     deps.Config,
 	}
 }
 

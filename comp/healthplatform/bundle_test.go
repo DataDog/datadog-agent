@@ -288,7 +288,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	cfg := config.NewMock(t)
 	hn, _ := hostnameinterface.NewMock("test-host")
-	mods := issues.GetAllModules(cfg, hn)
+	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})
