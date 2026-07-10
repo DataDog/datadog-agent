@@ -16,7 +16,8 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x18
+// 0x19: HTTP transaction carries a raw response fragment + parseInAgent toggle (agent-side parsing experiment)
+#define DD_NPMDRIVER_VERSION       0x19
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -420,12 +421,15 @@ typedef struct _HttpTransactionType {
     uint64_t         requestStarted;      // in ns
     uint64_t         responseLastSeen;    // in ns
     CONN_TUPLE_TYPE  tup;
-    HTTP_METHOD_TYPE requestMethod;
-    uint16_t         responseStatusCode;
+    HTTP_METHOD_TYPE requestMethod;       // only populated when parseInAgent == 0 (driver parses)
+    uint16_t         responseStatusCode;  // only populated when parseInAgent == 0 (driver parses)
     uint16_t         maxRequestFragment;
     uint16_t         szRequestFragment;
+    uint16_t         maxResponseFragment;     // capacity of the trailing response fragment buffer
+    uint16_t         szResponseFragment;      // bytes actually captured into the response fragment
     uint8_t          pad[6];                  // make struct 64 bit byte aligned
-    unsigned char* requestFragment;
+    unsigned char* requestFragment;       // trailing buffer: [requestFragment][responseFragment]
+    unsigned char* responseFragment;
 
 } HTTP_TRANSACTION_TYPE, * PHTTP_TRANSACTION_TYPE;
 
@@ -435,6 +439,8 @@ typedef struct _HttpConfigurationSettings {
     uint64_t    notificationThreshold; // when to signal to retrieve transactions
     uint16_t    maxRequestFragment;     // max length of request fragment
     uint16_t    enableAutoETWExclusion; // turns on automatic ETW exclusion if enabled.
+    uint16_t    maxResponseFragment;    // max length of response fragment captured for agent-side parsing
+    uint16_t    parseInAgent;           // 0 = driver extracts method/status (legacy), 1 = ship raw fragments only
 } HTTP_CONFIGURATION_SETTINGS;
 
 typedef struct _ClassificationConfigurationSettings {
