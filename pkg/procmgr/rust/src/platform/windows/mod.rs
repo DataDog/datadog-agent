@@ -442,6 +442,17 @@ pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<Stri
     Ok(vars)
 }
 
+/// Merge config overrides into a baseline env map using Windows case-insensitive names.
+pub(crate) fn merge_env_overrides(
+    vars: &mut HashMap<String, String>,
+    overrides: &[(String, String)],
+) {
+    for (key, value) in overrides {
+        vars.retain(|existing, _| !existing.eq_ignore_ascii_case(key));
+        vars.insert(key.clone(), value.clone());
+    }
+}
+
 fn wide_env_block_to_map(block: *const u16) -> HashMap<String, String> {
     if block.is_null() {
         return HashMap::new();
@@ -496,4 +507,18 @@ fn fallback_process_env_vars() -> HashMap<String, String> {
         }
     }
     vars
+}
+
+#[cfg(test)]
+mod env_override_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn merge_env_overrides_replaces_case_insensitive_baseline_key() {
+        let mut vars = HashMap::from([("Path".to_string(), "baseline".to_string())]);
+        merge_env_overrides(&mut vars, &[("PATH".to_string(), "override".to_string())]);
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars.get("PATH").unwrap(), "override");
+    }
 }

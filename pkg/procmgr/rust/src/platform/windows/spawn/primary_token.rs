@@ -205,9 +205,7 @@ fn env_block_from_baseline_plus_overrides(
 ) -> Result<Vec<u16>> {
     let mut vars = super::super::baseline_env_vars_from_token(token)
         .context("build child environment from spawn token")?;
-    for (k, v) in overrides {
-        vars.insert(k.clone(), v.clone());
-    }
+    super::super::merge_env_overrides(&mut vars, overrides);
     Ok(env_vars_to_wide_block(&vars))
 }
 

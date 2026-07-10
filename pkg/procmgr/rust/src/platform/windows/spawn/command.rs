@@ -14,7 +14,7 @@ use crate::spawn::SpawnRequest;
 use crate::spawn_context;
 
 use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
-use super::super::{apply_child_baseline_env, setup_process_group};
+use super::super::{child_baseline_env_vars, merge_env_overrides, setup_process_group};
 use super::logon::{
     ImpersonationGuard, LogonUserCredentials, TokenHandle, logon_user_credentials, logon_user_token,
 };
@@ -37,8 +37,9 @@ pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> 
     cmd.args(&args);
     // Ensure children don't see fleet installer environment.
     cmd.env_clear();
-    apply_child_baseline_env(&mut cmd);
-    for (k, v) in env {
+    let mut env_vars = child_baseline_env_vars();
+    merge_env_overrides(&mut env_vars, &env);
+    for (k, v) in env_vars {
         cmd.env(k, v);
     }
     if let Some(dir) = working_dir {
