@@ -126,13 +126,13 @@ var winPlatform = platformConfig{
 	checkBinCmd: func(path string) string {
 		return psRemote(`if (Test-Path -LiteralPath '%s') { exit 0 } else { exit 1 }`, path)
 	},
-	checkSvcRunning:  `powershell -Command "(Get-Service dd-procmgr-service).Status"`,
+	checkSvcRunning:  `(Get-Service dd-procmgr-service).Status`,
 	svcRunningOutput: "Running",
 	cliCmd: func(args string) string {
 		return fmt.Sprintf(`& "%s" %s`, winCLIBin, args)
 	},
 	killPIDCmd: func(pid uint32) string {
-		return fmt.Sprintf(`powershell -NoProfile -Command "Stop-Process -Id %d -Force"`, pid)
+		return fmt.Sprintf(`Stop-Process -Id %d -Force`, pid)
 	},
 }
 
@@ -499,8 +499,8 @@ func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
 }
 
 func windowsProcessOwnerByImage(host *e2ecomponents.RemoteHost, imageName string) (string, error) {
-	script := fmt.Sprintf(
-		`powershell -NoProfile -Command '$p = Get-CimInstance Win32_Process -Filter "Name=''%s''" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"'`,
+	script := psRemote(
+		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
 		imageName,
 	)
 	out, err := host.Execute(script)
@@ -508,8 +508,8 @@ func windowsProcessOwnerByImage(host *e2ecomponents.RemoteHost, imageName string
 }
 
 func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
-	script := fmt.Sprintf(
-		`powershell -NoProfile -Command '$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"'`,
+	script := psRemote(
+		`$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
 		pid,
 	)
 	out, err := host.Execute(script)
