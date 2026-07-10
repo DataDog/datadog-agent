@@ -45,6 +45,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/remoteaction",
         "//pkg/privateactionrunner/bundles/remoteaction/internalactions",
         "//pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
+        "//pkg/privateactionrunner/bundles/remoteaction/networkdevices",
         "//pkg/privateactionrunner/bundles/remoteaction/networks",
         "//pkg/privateactionrunner/bundles/remoteaction/rshell",
         "//pkg/privateactionrunner/bundles/script",
