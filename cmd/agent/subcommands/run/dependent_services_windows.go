@@ -182,12 +182,21 @@ func (s *Servicedef) Stop() error {
 
 // start various subservices (apm, logs, process, system-probe) based on the config file settings
 
-// IsEnabled checks to see if a given service should be started
-func (s *Servicedef) IsEnabled() bool {
+// IsEnabled checks whether a dependent service should be started. When install policy
+// would suppress a legacy SCM service in favor of procmgr, suppression applies only if
+// dd-procmgr-service started successfully; otherwise the legacy service is used.
+func (s *Servicedef) IsEnabled(procmgrStartedSuccessfully bool) bool {
 	if s.suppressIf != nil && s.suppressIf() {
-		log.Infof("Service %s suppressed (install policy)", s.name)
-		return false
+		if procmgrStartedSuccessfully {
+			log.Infof("Service %s suppressed (install policy)", s.name)
+			return false
+		}
+		log.Warnf("Service %s not suppressed: dd-procmgr-service unavailable, using legacy Windows service", s.name)
 	}
+	return s.isEnabledByConfig()
+}
+
+func (s *Servicedef) isEnabledByConfig() bool {
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true
@@ -208,19 +217,45 @@ func (s *Servicedef) ShouldStop() bool {
 }
 
 func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
-	for _, svc := range subservices(coreConf, sysprobeConf) {
-		if svc.IsEnabled() {
-			log.Debugf("Attempting to start service: %s", svc.name)
-			err := svc.Start()
-			if err != nil {
-				log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
-			} else {
-				log.Debugf("Started service %s", svc.name)
-			}
-		} else {
+	svcs := subservices(coreConf, sysprobeConf)
+	procmgrStarted := tryStartProcmgrService(svcs)
+
+	for _, svc := range svcs {
+		if svc.name == "procmgr" {
+			continue
+		}
+		if !svc.IsEnabled(procmgrStarted) {
 			log.Infof("Service %s is disabled, not starting", svc.name)
+			continue
+		}
+		log.Debugf("Attempting to start service: %s", svc.name)
+		err := svc.Start()
+		if err != nil {
+			log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+		} else {
+			log.Debugf("Started service %s", svc.name)
 		}
 	}
+}
+
+func tryStartProcmgrService(svcs []Servicedef) bool {
+	for _, svc := range svcs {
+		if svc.name != "procmgr" {
+			continue
+		}
+		if !svc.isEnabledByConfig() {
+			log.Infof("Service %s is disabled, not starting", svc.name)
+			return false
+		}
+		log.Debugf("Attempting to start service: %s", svc.name)
+		if err := svc.Start(); err != nil {
+			log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+			return false
+		}
+		log.Debugf("Started service %s", svc.name)
+		return true
+	}
+	return false
 }
 
 func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
