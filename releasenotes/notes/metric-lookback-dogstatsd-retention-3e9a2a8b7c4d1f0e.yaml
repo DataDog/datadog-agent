@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added default-disabled metric lookback retention for selected DogStatsD metrics, including monitor-based egress, dry-run monitor mode, and tag-partitioned monitor evaluation.
