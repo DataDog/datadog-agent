@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "appsec",
+    srcs = [
+        "mutator_filter.go",
+        "telemetry.go",
+        "webhook.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/appsec",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/mutate/config",
+        "//pkg/clusteragent/admission/mutate/tagsfromlabels",
+        "//pkg/clusteragent/appsec",
+        "//pkg/clusteragent/appsec/config",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/log",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "appsec_test",
+    srcs = [
+        "webhook_integration_test.go",
+        "webhook_test.go",
+    ],
+    embed = [":appsec"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/telemetry/impl",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/appsec/config",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+    ],
+)

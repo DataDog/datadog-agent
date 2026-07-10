@@ -152,10 +152,10 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `anomaly_detection.enabled` | `false` | Master analysis gate |
+| `anomaly_detection.reporting.events.enabled` | `false` | Active gate for Datadog event reporting |
+| `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-| `anomaly_detection.reporting.enabled` | `false` | Event reporter (change events) |
 | `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
@@ -164,7 +164,7 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
-| `anomaly_detection.storage.point_retention_secs` | `120` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.
