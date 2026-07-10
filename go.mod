@@ -200,7 +200,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/DataDog/datadog-go/v5 v5.9.0
 	github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597
 	github.com/DataDog/datadog-traceroute v1.0.18
