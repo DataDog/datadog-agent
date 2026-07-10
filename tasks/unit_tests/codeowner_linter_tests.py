@@ -72,7 +72,7 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         return ctx
 
     def test_no_ai_artefacts(self):
-        # No AGENTS.md or .claude/ — nothing to check
+        # No AGENTS.md, .claude/ or .agents/ — nothing to check
         codeowner = CodeOwners("")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -87,13 +87,13 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         codeowner = CodeOwners("/pkg/bar/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_has_owner(self):
-        self._create(".claude/skills/my-skill.md")
-        codeowner = CodeOwners("/.claude/ @DataDog/devx\n")
+    def test_agents_file_has_owner(self):
+        self._create(".agents/skills/my-skill.md")
+        codeowner = CodeOwners("/.agents/ @DataDog/devx\n")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_missing_owner(self):
-        self._create(".claude/skills/my-skill.md")
+    def test_agents_file_missing_owner(self):
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/pkg/foo/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -109,8 +109,8 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_catch_all_dot_files_is_not_explicit(self):
-        # /.*  matches .claude/ files but is not considered explicit ownership
-        self._create(".claude/skills/my-skill.md")
+        # /.*  matches .agents/ files but is not considered explicit ownership
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/.*  @DataDog/agent-devx\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 

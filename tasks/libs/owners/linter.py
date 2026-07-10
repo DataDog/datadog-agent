@@ -71,7 +71,7 @@ def ai_artefacts_have_owner(ctx, owners):
     """Check that every AI artefact file has an explicit owner in CODEOWNERS — i.e. is not
     solely covered by a broad catch-all rule like /.*  or /*.md, and has a non-empty owner list.
 
-    AI artefacts are: AGENTS.md, CLAUDE.md, GEMINI.md (any depth), and everything under .claude/.
+    AI artefacts are: AGENTS.md, CLAUDE.md, GEMINI.md (any depth), and everything under .agents/ (the provider-agnostic skills home) or .claude/.
     """
 
     # Collect all AI artefact paths from tracked files only (respects .gitignore).
@@ -80,7 +80,8 @@ def ai_artefacts_have_owner(ctx, owners):
     ai_files = [
         p
         for p in tracked
-        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith(".claude/")) and not os.path.islink(p)
+        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith((".claude/", ".agents/")))
+        and not os.path.islink(p)
     ]
 
     unowned = []
