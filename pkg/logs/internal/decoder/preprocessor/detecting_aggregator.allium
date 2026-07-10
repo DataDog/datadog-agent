@@ -108,13 +108,6 @@ surface DetectingAggregation {
 
     context agg: DetectingAggregator
 
-    exposes:
-        agg.line_limit
-        agg.tag_truncated_logs
-        agg.pending_message_present
-        agg.pending_was_start_group
-        agg.should_truncate
-
     contracts:
         fulfils Aggregator
         fulfils Truncatable

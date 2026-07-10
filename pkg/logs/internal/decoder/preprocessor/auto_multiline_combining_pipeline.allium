@@ -86,9 +86,6 @@ surface AutoMultilineCombiningPreprocessing {
 
     context pipeline: AutoMultilineCombiningPreprocessor
 
-    exposes:
-        pipeline.source_id
-
     contracts:
         fulfils Preprocessor
         demands JSONAggregator

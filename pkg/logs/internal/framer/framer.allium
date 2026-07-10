@@ -121,11 +121,6 @@ surface FramerTruncation {
 
     context fr: Framer
 
-    exposes:
-        fr.content_len_limit
-        fr.framing
-        fr.flush_after_process
-
     @guarantee EmissionFromMatcherTruncated
         -- When the FrameMatcher's FindFrame returns a non-nil
         -- content with wasTruncated=true, the framer emits that

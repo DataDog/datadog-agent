@@ -53,9 +53,6 @@ surface JSONDetection {
 
     context detector: JSONDetector
 
-    exposes:
-        detector.assigner_id
-
     contracts:
         fulfils Heuristic
 
