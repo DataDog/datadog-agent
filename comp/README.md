@@ -414,7 +414,7 @@ Package kubehealth provides a dependency-injectible health object for kubernetes
 
 ### [comp/logs/smartadaptivesampling](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-log-pipelines q-branch
 
 Package smartadaptivesampling defines the smart adaptive sampling component.
 

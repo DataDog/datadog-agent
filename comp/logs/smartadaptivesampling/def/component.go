@@ -8,7 +8,7 @@ package smartadaptivesampling
 
 import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 
-// team: q-branch
+// team: agent-log-pipelines q-branch
 
 // Component exposes the current anomaly-detection severity to log samplers.
 type Component interface {
