@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def
 
 go 1.26.0
 
-require github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
+require github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.82.0-rc.1
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
