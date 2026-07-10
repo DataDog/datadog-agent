@@ -175,31 +175,6 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 		log.Warnf("failed to remove extensions: %s", err)
 	}
 
-	packagePath := ctx.PackagePath
-	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
-		packagePath = resolved
-	}
-	// Fleet processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
-	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
-	if !ctx.Upgrade {
-		installRoot, err := resolveDatadogProgramFilesInstallRoot()
-		if err != nil {
-			installRoot = packagePath
-		}
-		if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
-			log.Warnf("failed to remove ADP process manager config: %v", err)
-		}
-		if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
-			log.Warnf("failed to remove PAR process manager config: %v", err)
-		}
-		if err := processmanager.RemoveProcessProcmgrConfig(installRoot); err != nil {
-			log.Warnf("failed to remove process-agent process manager config: %v", err)
-		}
-		if env.FromEnv().ProcessManagerEnabled {
-			processmanager.ReloadOrRestartProcmgr()
-		}
-	}
-
 	if ctx.PackageType == PackageTypeMSI {
 		// MSI custom action calling hook - done.
 		// Note: the save file written above lives in ProtectedDir which intentionally persists
