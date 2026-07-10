@@ -16,18 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestWriteDDOTProcmgrConfig verifies that the DDOT dd-procmgr config is written to two separate
-// directories: the stable config (processes.d) points the collector at the stable config tree, and
-// the experiment config (processes.d.experiment) points it at the experiment config tree. Keeping
-// them separate guarantees an experiment never mutates the stable collector config.
+// TestWriteDDOTProcmgrConfig verifies the DDOT dd-procmgr config is written to the package
+// processes.d with a version-specific binary path (rewritten to installRoot) and config paths left
+// as the ${DD_CONF_DIR} placeholder, which the supervising dd-procmgr substitutes at launch with
+// its stable or experiment config directory. It must be a no-op when DDOT is not installed.
 func TestWriteDDOTProcmgrConfig(t *testing.T) {
 	installRoot := t.TempDir()
-	stablePath := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
-	experimentPath := filepath.Join(installRoot, ddotProcmgrExperimentDirName, ddotProcmgrConfigName)
+	configPath := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
 
 	// No-op when DDOT is not installed (the otel-agent binary is absent).
 	require.NoError(t, writeDDOTProcmgrConfig(installRoot))
-	_, err := os.Stat(stablePath)
+	_, err := os.Stat(configPath)
 	assert.True(t, os.IsNotExist(err), "must not write a procmgr config when DDOT is not installed")
 
 	// Simulate an installed DDOT extension so the writer runs.
@@ -36,25 +35,18 @@ func TestWriteDDOTProcmgrConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(otelAgentDir, "otel-agent"), []byte("#!/bin/true\n"), 0755))
 
 	require.NoError(t, writeDDOTProcmgrConfig(installRoot))
-
-	stable, err := os.ReadFile(stablePath)
+	content, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(stable), "/etc/datadog-agent/otel-config.yaml")
-	assert.NotContains(t, string(stable), "/etc/datadog-agent-exp")
-	assert.Contains(t, string(stable), filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent"))
-	assert.NotContains(t, string(stable), "/opt/datadog-agent/")
 
-	experiment, err := os.ReadFile(experimentPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(experiment), "/etc/datadog-agent-exp/otel-config.yaml")
-	assert.Contains(t, string(experiment), "/etc/datadog-agent-exp/datadog.yaml")
-	assert.Contains(t, string(experiment), filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent"))
-	assert.NotContains(t, string(experiment), "/opt/datadog-agent/")
+	// Config paths stay as the placeholder (resolved by dd-procmgr per stable/experiment).
+	assert.Contains(t, string(content), "${DD_CONF_DIR}/otel-config.yaml")
+	assert.Contains(t, string(content), "${DD_CONF_DIR}/datadog.yaml")
+	// The binary path is version-specific: rewritten to this installRoot, never left at /opt/datadog-agent.
+	assert.Contains(t, string(content), filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent"))
+	assert.NotContains(t, string(content), "/opt/datadog-agent/")
 
-	// Removal clears both.
+	// Removal clears the file.
 	require.NoError(t, removeDDOTProcmgrConfig(installRoot))
-	_, err = os.Stat(stablePath)
-	assert.True(t, os.IsNotExist(err))
-	_, err = os.Stat(experimentPath)
+	_, err = os.Stat(configPath)
 	assert.True(t, os.IsNotExist(err))
 }
