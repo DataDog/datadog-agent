@@ -625,7 +625,9 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", src.Tag(), []string{src.Tag()})
+				} else if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
 			case source.AzureContainerAppsKind:
@@ -638,7 +640,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						src.Identifier.Dimensions["resource_group"] + "/" +
 						src.Identifier.Dimensions["name"] + "/" +
 						src.Identifier.Primary
-					c.ConsumeTagSet(key, tags)
+					c.ConsumeTagSet("azurecontainerapps", key, tags)
 				} else if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}

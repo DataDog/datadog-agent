@@ -148,6 +148,10 @@ type HostConsumer interface {
 // It is an optional interface that can be implemented by a Consumer.
 // Consumed tags are used for running metrics, and should represent
 // some resource running a Collector (e.g. Fargate task).
+//
+// Legacy: Fargate itself now goes through TagSetConsumer. This interface
+// remains only for consumers that haven't migrated yet. Removing it is a
+// breaking change until all known implementors migrate.
 type TagsConsumer interface {
 	// ConsumeTag consumes a tag
 	ConsumeTag(tag string)
