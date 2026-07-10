@@ -673,8 +673,7 @@ namespace WixSetup.Datadog_Agent
                     "Datadog Private Action Runner",
                     "Execute private actions for Datadog",
                     "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                    "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                    "run --cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+                    "[DDAGENTUSER_PROCESSED_PASSWORD]");
                 agentBinDir.AddFile(new WixSharp.File(_agentBinaries.PrivateActionRunner, privateActionRunnerService));
                 agentBinDir.Add(new EventSource
                 {
