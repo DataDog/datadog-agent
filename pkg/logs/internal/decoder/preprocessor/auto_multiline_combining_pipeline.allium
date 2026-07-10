@@ -227,7 +227,15 @@ surface AutoMultilineCombiningPreprocessing {
         --   brace arrives. Invalid or oversize buffered JSON
         --   flushes as-is in arrival order.
         --
-        -- - At step 2b (Labeler), the AutoMultilineLabeler's
+        -- - At step 2 (StackTraceAggregator), a stack-trace
+        --   aggregator (real or noop, per log-source config)
+        --   receives the messages yielded by step 1 and combines
+        --   any Go-stack-trace sequences into a single emission.
+        --   This spec does not constrain which fulfiller occupies
+        --   the slot; both the real and noop variants pass
+        --   non-stack-trace messages through unchanged.
+        --
+        -- - At step 3b (Labeler), the AutoMultilineLabeler's
         --   labelling chain runs in this order:
         --     1. UserSamples — UNCONDITIONALLY prepended as the
         --        first heuristic. On a regex or token match
@@ -253,7 +261,7 @@ surface AutoMultilineCombiningPreprocessing {
         --   runs after the labelling chain and does not influence
         --   the chosen label.
         --
-        -- - At step 2c (Aggregator), the CombiningAggregator
+        -- - At step 3c (Aggregator), the CombiningAggregator
         --   uses the label to drive its 5 dispatch cases (see
         --   combining_aggregator.allium @guidance). The label
         --   from the previous step controls whether the line
@@ -261,7 +269,7 @@ surface AutoMultilineCombiningPreprocessing {
         --   bucket), starts a new group (start_group), or
         --   passes through (no_aggregate or aggregate-on-empty).
         --
-        -- - At step 2d (Sampler), the AdaptiveSampler decides
+        -- - At step 3d (Sampler), the AdaptiveSampler decides
         --   drop-or-keep based on the pattern table state and
         --   the tokens of the message's first line. With
         --   protect_important_logs enabled, severity-critical
