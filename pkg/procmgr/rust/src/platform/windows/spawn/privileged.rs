@@ -10,10 +10,7 @@ use crate::spawn::SpawnRequest;
 use super::super::{install_root, program_data_root};
 
 /// Reject privileged spawn requests that don't exactly match our embedded catalog spec.
-pub(super) fn validate_process_request(
-    process_name: &str,
-    request: &SpawnRequest,
-) -> Result<()> {
+pub(super) fn validate_process_request(process_name: &str, request: &SpawnRequest) -> Result<()> {
     let install_root = install_root();
     let etc_root = program_data_root();
 
@@ -28,7 +25,8 @@ pub(super) fn validate_process_request(
 }
 
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !request.stdout_setting.is_inherit_or_null() || !request.stderr_setting.is_inherit_or_null() {
+    if !request.stdout_setting.is_inherit_or_null() || !request.stderr_setting.is_inherit_or_null()
+    {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())
