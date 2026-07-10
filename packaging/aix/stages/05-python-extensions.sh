@@ -302,8 +302,6 @@ log "pymqi==$PYMQI_VERSION installed successfully"
 # Without this patch MQMD.Encoding=0x222 on every PCF PUT, which tells the AIX
 # command server the message is little-endian while the data is actually big-endian
 # (Python struct uses native byte order) → MQRCCF_CFH_LENGTH_ERROR (reason 3002).
-# Reference: ibm-messaging/mq-mqi-python _CMQC_aix.py vs _CMQC_linux_x64.py —
-# MQENC_NATIVE is the only constant that differs between the two platforms.
 PYMQI_CMQC=$($PYTHON_BIN -c "import pymqi.CMQC as m; print(m.__file__.replace('.pyc', '.py'))")
 sed 's/MQENC_NATIVE = 0x00000222/MQENC_NATIVE = 0x00000111/' "$PYMQI_CMQC" > "${PYMQI_CMQC}.tmp" \
     && mv "${PYMQI_CMQC}.tmp" "$PYMQI_CMQC"
