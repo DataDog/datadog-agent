@@ -56,7 +56,7 @@ func TestDriftBuildIssue(t *testing.T) {
 			assert.Equal(t, "integration", issue.Category)
 			assert.Equal(t, "system", issue.Location)
 			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
-			assert.Equal(t, "ntp-drift", issue.Source)
+			assert.Equal(t, "ntp", issue.Source)
 
 			require.NotNil(t, issue.Remediation)
 			assert.NotEmpty(t, issue.Remediation.Summary)

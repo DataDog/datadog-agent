@@ -82,7 +82,7 @@ func (t *DriftIssue) BuildIssue(context map[string]string) (*healthplatform.Issu
 		Location:   "system",
 		Severity:   healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		DetectedAt: "", // Filled by the health platform
-		Source:     "ntp-drift",
+		Source:     "ntp",
 		Extra:      extra,
 		Remediation: &healthplatform.Remediation{
 			Summary: "Synchronise the system clock with an NTP server",
