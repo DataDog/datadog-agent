@@ -142,6 +142,9 @@ func remoteConfigAgentOptions() []agentparams.Option {
 
 func (s *remoteConfigTestSuite) TestScheduledNetworkPathRemoteConfig() {
 	t := s.T()
+	if s.Env().Agent.FIPSEnabled {
+		t.Skip("Remote Config is not supported by the FIPS Agent")
+	}
 
 	s.preparePlatform()
 
