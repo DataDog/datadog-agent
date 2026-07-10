@@ -166,7 +166,7 @@ func TestExpvarsReset(t *testing.T) {
 	numCheckRuns := 7
 
 	// Create a single shared mock health platform for the entire test
-	mockHealthPlatform := healthplatformmock.Mock(t)
+	mockHealthPlatform := healthplatformmock.New(t)
 
 	// Add some data to the check stats
 	for checkNameIdx := 0; checkNameIdx < numCheckNames; checkNameIdx++ {
@@ -215,7 +215,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 
 	// Create a single shared mock health platform for the entire test
 	// to avoid race conditions when multiple goroutines create stats
-	mockHealthPlatform := healthplatformmock.Mock(t)
+	mockHealthPlatform := healthplatformmock.New(t)
 
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -334,7 +334,7 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 	numCheckRuns := 7
 
 	// Create a single shared mock health platform for the entire test
-	mockHealthPlatform := healthplatformmock.Mock(t)
+	mockHealthPlatform := healthplatformmock.New(t)
 
 	// Add some data to the check stats
 	for checkNameIdx := 0; checkNameIdx < numCheckNames; checkNameIdx++ {
@@ -435,7 +435,7 @@ func TestGetCheckStatsRace(t *testing.T) {
 	numCheckRuns := 7
 
 	// Create a single shared mock health platform for the entire test
-	mockHealthPlatform := healthplatformmock.Mock(t)
+	mockHealthPlatform := healthplatformmock.New(t)
 
 	var wg sync.WaitGroup
 

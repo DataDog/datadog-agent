@@ -46,6 +46,14 @@ const (
 	KueueClusterQueueResourceName = "clusterqueues"
 	// KueueResourceFlavorResourceName is the plural resource name for Kueue ResourceFlavor objects
 	KueueResourceFlavorResourceName = "resourceflavors"
+	// KueueWorkloadResourceName is the plural resource name for Kueue Workload objects
+	KueueWorkloadResourceName = "workloads"
+	// KueueWorkloadAnnotationKey is the pod annotation key set by Kueue with the admitted Workload name
+	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
+	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
+	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
+	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
+	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -106,6 +114,8 @@ const (
 	KueueClusterQueueKind = "ClusterQueue"
 	// KueueResourceFlavorKind represents the Kueue ResourceFlavor object kind
 	KueueResourceFlavorKind = "ResourceFlavor"
+	// KueueWorkloadKind represents the Kueue Workload object kind
+	KueueWorkloadKind = "Workload"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind

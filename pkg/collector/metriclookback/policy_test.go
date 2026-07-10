@@ -7,6 +7,7 @@ package metriclookback
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,11 +22,20 @@ func TestShadowPolicyOptionsFromConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu", "disk"})
+	cfg.SetInTest("metric_lookback.collection_interval", 3*time.Second)
 
 	assert.Equal(t, ShadowPolicyOptions{
 		ShadowChecksEnabled: true,
 		ChecksToShadow:      []string{"cpu", "disk"},
+		ShadowInterval:      3 * time.Second,
 	}, ShadowPolicyOptionsFromConfig(cfg))
+}
+
+func TestShadowPolicyOptionsFromConfigDefaultsInvalidShadowInterval(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.collection_interval", defaultShadowCheckInterval-time.Millisecond)
+
+	assert.Equal(t, defaultShadowCheckInterval, ShadowPolicyOptionsFromConfig(cfg).ShadowInterval)
 }
 
 func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
@@ -48,6 +58,7 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{
 		ShadowChecksEnabled: true,
 		ChecksToShadow:      []string{"cpu"},
+		ShadowInterval:      2 * time.Second,
 	})
 
 	require.Len(t, candidates, 1)
@@ -55,6 +66,7 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	assert.Equal(t, "cpu", candidate.SourceConfig.Name)
 	assert.Equal(t, 0, candidate.InstanceIndex)
 	assert.Equal(t, configs[0].Digest(), candidate.SourceConfigDigest)
+	assert.Equal(t, 2*time.Second, candidate.ShadowInterval)
 
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(candidate.Instance, &raw))
@@ -74,10 +86,11 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 		},
 	}
 
-	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{})
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowInterval: defaultShadowCheckInterval})
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, 1, candidates[0].InstanceIndex)
+	assert.Equal(t, defaultShadowCheckInterval, candidates[0].ShadowInterval)
 }
 
 func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.T) {
@@ -156,7 +169,9 @@ func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, original, source)
-	assert.Equal(t, original, candidates[0].SourceConfig)
+	expectedShadowConfig := original
+	expectedShadowConfig.LogsConfig = nil
+	assert.Equal(t, expectedShadowConfig, candidates[0].SourceConfig)
 	assert.NotEqual(t, source.Instances[0], candidates[0].Instance)
 
 	candidates[0].SourceConfig.Instances[0][0] = 'X'

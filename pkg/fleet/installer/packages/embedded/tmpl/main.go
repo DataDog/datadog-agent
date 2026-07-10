@@ -191,9 +191,17 @@ var (
 		FleetPoliciesDir: "__ADP_FLEET_POLICIES_DIR__",
 		Stable:           true,
 	}
+	windowsPARCodegenData = installerTemplateData{
+		InstallDir:       "__PAR_INSTALL_ROOT__",
+		EtcDir:           "__PAR_ETC_ROOT__",
+		FleetPoliciesDir: "__PAR_FLEET_POLICIES_DIR__",
+		PIDDir:           "",
+		Stable:           true,
+	}
 	windowsProcmgrLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
 	}
 	linuxProcmgrYAMLLayouts = []embeddedLayout{
 		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},

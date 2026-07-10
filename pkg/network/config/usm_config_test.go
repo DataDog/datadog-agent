@@ -1763,22 +1763,22 @@ func TestHTTPUseDirectConsumer(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.False(t, cfg.HTTPUseDirectConsumer)
+		assert.True(t, cfg.HTTPUseDirectConsumer)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetInTest("service_monitoring_config.http.use_direct_consumer", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.use_direct_consumer", false)
 		cfg := New()
 
-		assert.True(t, cfg.HTTPUseDirectConsumer)
+		assert.False(t, cfg.HTTPUseDirectConsumer)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "false")
 		cfg := New()
 
-		assert.True(t, cfg.HTTPUseDirectConsumer)
+		assert.False(t, cfg.HTTPUseDirectConsumer)
 	})
 }

@@ -9,34 +9,45 @@
 package mock
 
 import (
+	"testing"
+
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockRegistry struct {
+	t         testing.TB
 	templates map[string]issuesmod.Template
+	periodic  []*runnerdef.BuiltInPeriodicHealthCheck
+	startup   []*runnerdef.BuiltInHealthCheck
 }
 
-// New returns an empty mock registry. Call RegisterTemplate to add templates.
-func New() registrydef.Component {
-	return &mockRegistry{templates: make(map[string]issuesmod.Template)}
+// Option configures the mock registry returned by New.
+type Option func(*mockRegistry)
+
+// WithTemplate registers a template so that GetTemplate(issueName) succeeds.
+func WithTemplate(issueName string, tmpl issuesmod.Template) Option {
+	return func(m *mockRegistry) { m.templates[issueName] = tmpl }
 }
 
-// MockModule provides the mock registry via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
+// WithPeriodicCheck appends a check returned by GetBuiltInPeriodicHealthChecks.
+func WithPeriodicCheck(check *runnerdef.BuiltInPeriodicHealthCheck) Option {
+	return func(m *mockRegistry) { m.periodic = append(m.periodic, check) }
 }
 
-// RegisterTemplate adds a template under issueName so that GetTemplate succeeds.
-// Panics if r was not created by New() — intentional, test-only helper.
-func RegisterTemplate(r registrydef.Component, issueName string, tmpl issuesmod.Template) {
-	m, ok := r.(*mockRegistry)
-	if !ok {
-		panic("RegisterTemplate: r was not created by mock.New()")
+// WithStartupCheck appends a check returned by GetBuiltInStartupHealthChecks.
+func WithStartupCheck(check *runnerdef.BuiltInHealthCheck) Option {
+	return func(m *mockRegistry) { m.startup = append(m.startup, check) }
+}
+
+// New returns a mock registry pre-populated with the given options.
+func New(t testing.TB, opts ...Option) registrydef.Component {
+	m := &mockRegistry{t: t, templates: make(map[string]issuesmod.Template)}
+	for _, o := range opts {
+		o(m)
 	}
-	m.templates[issueName] = tmpl
+	return m
 }
 
 func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) {
@@ -45,9 +56,9 @@ func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) 
 }
 
 func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
-	return nil
+	return m.periodic
 }
 
 func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
-	return nil
+	return m.startup
 }
