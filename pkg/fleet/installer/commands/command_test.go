@@ -118,8 +118,8 @@ func TestConfigAndPackageStates(t *testing.T) {
 		},
 		PackageStates: map[string]repository.PackageState{
 			"datadog-agent": {
-				Stable:     repository.VersionState{Version: "7.31.0"},
-				Experiment: repository.VersionState{Version: "7.32.0"},
+				Stable:     repository.VersionState{Version: "7.31.0", Extensions: []string{"python"}},
+				Experiment: repository.VersionState{Version: "7.32.0", Extensions: []string{"python", "ruby"}},
 			},
 		},
 	}

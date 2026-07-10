@@ -8,7 +8,7 @@ Secrets Public Key: {{ htmlSafe .SecretsPubKey }}
 
 Packages installed:
 {{- range $name, $version := .Packages.PackageStates }}
-  {{ if $version.Experiment.Version }}{{ yellowText "●" }}{{- else if $version.Stable.Version}}{{ greenText "●" }}{{- else -}}{{ redText "●" }}{{- end }} {{ boldText $name }} {{ if $version.Stable.Version -}}{{ if $version.Experiment.Version -}}v{{ htmlSafe $version.Experiment.Version}} (stable is v{{ htmlSafe $version.Stable.Version }}){{- else -}}v{{ htmlSafe $version.Stable.Version }}{{- end -}}{{- else  -}}{{ redText "No version" }}{{- end }}
+  {{ if $version.Experiment.Version }}{{ yellowText "●" }}{{- else if $version.Stable.Version}}{{ greenText "●" }}{{- else -}}{{ redText "●" }}{{- end }} {{ boldText $name }} {{ if $version.Stable.Version -}}{{ if $version.Experiment.Version -}}v{{ htmlSafe $version.Experiment.Version}}{{ if $version.Experiment.Extensions }} (extensions: {{ joinStrings $version.Experiment.Extensions ", " }}){{- end }} (stable is v{{ htmlSafe $version.Stable.Version }}{{ if $version.Stable.Extensions }}, extensions: {{ joinStrings $version.Stable.Extensions ", " }}{{- end }}){{- else -}}v{{ htmlSafe $version.Stable.Version }}{{ if $version.Stable.Extensions }} (extensions: {{ joinStrings $version.Stable.Extensions ", " }}){{- end }}{{- end -}}{{- else  -}}{{ redText "No version" }}{{- end }}
   {{- range $remoteConfig := $.RemoteConfigState }}
     {{- if eq $remoteConfig.Package $name }}
     Remote configuration client state:

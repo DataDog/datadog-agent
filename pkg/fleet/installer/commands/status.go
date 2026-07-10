@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -53,6 +54,7 @@ var functions = template.FuncMap{
 	"htmlSafe": func(html string) template.HTML {
 		return template.HTML(html)
 	},
+	"joinStrings": strings.Join,
 }
 
 type statusResponse struct {
