@@ -1,0 +1,96 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+  ## The check runs only cmdlets that an administrator has approved in the
+  ## allowlist file. That file is read from a FIXED, non-configurable location:
+  ##
+  ##     C:\ProgramData\Datadog\protected\powershell_allowlist.yaml
+  ##
+  ## The `protected` directory is created by the Agent installer and is writable
+  ## only by Administrators and SYSTEM (the Agent user can only read it). If the
+  ## file is missing, malformed, or not owned by an administrator, the check runs
+  ## nothing and logs an error (fail closed).
+  ##
+  ## Example allowlist contents:
+  ##
+  ##   version: 1
+  ##   allowed_cmdlets:
+  ##     Get-ClusterNode:
+  ##       module: FailoverClusters
+  ##       parameters:
+  ##         Cluster: { required: false, allowed_values: [PROD-CL01, PROD-CL02] }
+  ##     Get-ClusterGroup:
+  ##       module: FailoverClusters
+
+  ## @param service - string - optional
+  ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+  #
+  # service: <SERVICE>
+
+instances:
+
+  - ## @param cmdlet - string - required
+    ## The read-only Get-* cmdlet to run. Must be present in the admin allowlist.
+    #
+    # cmdlet: Get-ClusterNode
+
+    ## @param name - string - optional
+    ## Optional prefix for emitted metric names: `<name>.<metric_name>`. When
+    ## omitted, the metric name is used as-is (no prefix).
+    #
+    # name: <name>
+
+    ## @param filters - list - optional
+    ## Named cmdlet parameters, bound as data (never interpolated). Each entry is
+    ## either a [Name, Value] tuple or a {name: ..., value: ...} mapping. Every
+    ## parameter and value must be permitted by the allowlist.
+    #
+    # filters:
+    #   - [<NAME>, <VALUE>]
+
+    ## @param metrics - list - required
+    ## How to map cmdlet output properties to metrics. Each entry is either a
+    ## [property, metric_name, metric_type] tuple or a mapping
+    ## {property: ..., name: ..., type: ...}. `type` defaults to gauge and may be
+    ## gauge, rate, count, monotonic_count, histogram, or distribution.
+    ##
+    ## Use the literal 1 as the property for a metric that emits a constant 1 whose
+    ## tags carry the signal — useful when all the interesting columns are strings.
+    #
+    metrics:
+      - [<PROPERTY>, <METRIC_NAME>, <METRIC_TYPE>]
+
+    ## @param tag_by - list of strings - optional
+    ## Add per-row tags from output properties. Each entry is "Property" or
+    ## "Property AS alias".
+    #
+    # tag_by:
+    #   - Name AS node
+    #   - State
+
+    ## @param tag_queries - list - optional
+    ## Join to another allowlisted Get-* cmdlet to add a tag. Each entry is
+    ## [LinkSourceProperty, TargetCmdlet, LinkTargetProperty, "TargetProperty AS alias"].
+    #
+    # tag_queries:
+    #   - [Id, Get-ClusterGroup, OwnerNode, Name AS owner_group]
+
+    ## @param timeout - integer - optional - default: 30
+    ## Maximum seconds to wait for the cmdlet before killing it.
+    #
+    # timeout: 30
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
