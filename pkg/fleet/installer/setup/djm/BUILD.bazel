@@ -62,6 +62,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -1,7 +1,8 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 # gazelle:go_test file
-# gazelle:exclude apm_inject_test.go
+
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "apminject",
@@ -210,7 +211,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "apm_inject_linux_test",
     # keep
     srcs = [
@@ -218,7 +219,6 @@ go_test(
         "apm_inject_test.go",
     ],
     embed = [":apminject"],
-    gotags = ["test"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -233,11 +233,10 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "apm_sockets_test",
     srcs = ["apm_sockets_test.go"],
     embed = [":apminject"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
@@ -288,11 +287,10 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "app_armor_test",
     srcs = ["app_armor_test.go"],
     embed = [":apminject"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
@@ -358,11 +356,10 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "docker_test",
     srcs = ["docker_test.go"],
     embed = [":apminject"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
@@ -413,11 +410,10 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "file_test",
     srcs = ["file_test.go"],
     embed = [":apminject"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
@@ -483,11 +479,10 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "systemd_test",
     srcs = ["systemd_test.go"],
     embed = [":apminject"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/packages/service/systemd",
@@ -496,6 +491,90 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/packages/service/systemd",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "apm_inject_test",
+    srcs = ["apm_inject_test.go"],
+    embed = [":apminject"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
