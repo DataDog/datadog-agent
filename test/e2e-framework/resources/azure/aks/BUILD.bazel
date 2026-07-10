@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aks",
+    srcs = ["cluster.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure/aks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/azure",
+        "@com_github_pulumi_pulumi_azure_native_sdk_authorization_v2//:authorization",
+        "@com_github_pulumi_pulumi_azure_native_sdk_containerservice_v2//:containerservice",
+        "@com_github_pulumi_pulumi_azure_native_sdk_managedidentity_v2//:managedidentity",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

@@ -76,6 +76,7 @@ const (
 	processesEndpoint            = "/api/v1/collector"
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
+	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
 	containerImageEndpoint       = "/api/v2/contimage"
 	containerLifecycleEndpoint   = "/api/v2/contlcycle"
 	sbomEndpoint                 = "/api/v2/sbom"
@@ -141,6 +142,7 @@ type Client struct {
 	processAggregator              aggregator.ProcessAggregator
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
+	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
 	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
 	sbomAggregator                 aggregator.SBOMAggregator
@@ -177,6 +179,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		processAggregator:              aggregator.NewProcessAggregator(),
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
+		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:                 aggregator.NewSBOMAggregator(),
@@ -268,6 +271,14 @@ func (c *Client) getProcessDiscoveries() error {
 		return err
 	}
 	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAgentDiscoveryPayloads() error {
+	payloads, err := c.getFakePayloads(agentDiscoveryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getContainerImages() error {
@@ -801,6 +812,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
+	c.agentDiscoveryAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
@@ -925,6 +937,21 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	}
 
 	return discs, nil
+}
+
+// GetAgentDiscoveryPayloads fetches fakeintake on `/api/v2/agentdiscovery` endpoint and returns
+// all received Agent Discovery payloads.
+func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayload, error) {
+	if err := c.getAgentDiscoveryPayloads(); err != nil {
+		return nil, err
+	}
+
+	var payloads []*aggregator.AgentDiscoveryPayload
+	for _, name := range c.agentDiscoveryAggregator.GetNames() {
+		payloads = append(payloads, c.agentDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return payloads, nil
 }
 
 func (c *Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
