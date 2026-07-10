@@ -11,7 +11,6 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_omnibus_recipe_selects_darwin_artifacts_and_supports_url_base_override(self):
         recipe = (REPO_ROOT / "omnibus/config/software/datadog-agent-data-plane.rb").read_text()
 
-<<<<<<< HEAD
         self.assertIn('ADP_DEFAULT_HASHES', recipe)
         self.assertIn('"darwin-amd64"', recipe)
         self.assertIn('"darwin-arm64"', recipe)
@@ -19,7 +18,6 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn('package_target = "darwin-#{target_arch}"', recipe)
         self.assertIn("Agent Data Plane FIPS artifacts are not available for macOS", recipe)
         self.assertIn('package_target = "fips-#{package_target}" if fips_mode?', recipe)
-<<<<<<< HEAD
         self.assertIn('"windows-amd64"', recipe)
         self.assertIn('"fips-windows-amd64"', recipe)
         self.assertIn('adp_hash_key = "fips-#{package_target}"', recipe)
