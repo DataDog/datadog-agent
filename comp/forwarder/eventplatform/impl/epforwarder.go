@@ -79,6 +79,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataStreamsPipelines,
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
+		getAgentDiscoveryPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
