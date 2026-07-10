@@ -21,8 +21,10 @@ type serviceInitFunc func() (err error)
 type Servicedef struct {
 	name           string
 	configKeys     map[string]model.Reader
-	suppressIf     func() bool
-	shouldShutdown bool
+	// When set, skip starting the legacy SCM service if this processes.d file exists
+	// and process_manager.enabled is true.
+	procmgrDefinitionFile string
+	shouldShutdown        bool
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -49,10 +51,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"network_config.enabled":                      sysprobeConf,
 				"system_probe_config.enabled":                 sysprobeConf,
 			},
-			suppressIf: func() bool {
-				return processProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
-			},
-			serviceName:    "datadog-process-agent",
+			procmgrDefinitionFile: "datadog-agent-process.yaml",
+			serviceName:           "datadog-process-agent",
 			serviceInit:    processInit,
 			shouldShutdown: false,
 		},
@@ -93,10 +93,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"private_action_runner.enabled": coreConf,
 			},
-			suppressIf: func() bool {
-				return parProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
-			},
-			serviceName:    "datadog-agent-action",
+			procmgrDefinitionFile: "datadog-agent-action.yaml",
+			serviceName:           "datadog-agent-action",
 			serviceInit:    parInit,
 			shouldShutdown: true,
 		},
@@ -105,10 +103,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
-			suppressIf: func() bool {
-				return ddotProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
-			},
-			serviceName:    "datadog-otel-agent",
+			procmgrDefinitionFile: "datadog-agent-ddot.yaml",
+			serviceName:           "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
 		},
@@ -185,8 +181,10 @@ func (s *Servicedef) Stop() error {
 // IsEnabled checks whether a dependent service should be started. When install policy
 // would suppress a legacy SCM service in favor of procmgr, suppression applies only if
 // dd-procmgr-service started successfully; otherwise the legacy service is used.
-func (s *Servicedef) IsEnabled(procmgrStartedSuccessfully bool) bool {
-	if s.suppressIf != nil && s.suppressIf() {
+func (s *Servicedef) IsEnabled(procmgrStartedSuccessfully bool, coreConf model.Reader) bool {
+	if s.procmgrDefinitionFile != "" &&
+		coreConf.GetBool("process_manager.enabled") &&
+		procmgrProcessDefinitionExists(s.procmgrDefinitionFile) {
 		if procmgrStartedSuccessfully {
 			log.Infof("Service %s suppressed (install policy)", s.name)
 			return false
@@ -224,7 +222,7 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 		if svc.name == "procmgr" {
 			continue
 		}
-		if !svc.IsEnabled(procmgrStarted) {
+		if !svc.IsEnabled(procmgrStarted, coreConf) {
 			log.Infof("Service %s is disabled, not starting", svc.name)
 			continue
 		}
@@ -272,31 +270,6 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
 		}
 	}
-}
-
-const (
-	ddotProcmgrProcessDefinitionFile    = "datadog-agent-ddot.yaml"
-	parProcmgrProcessDefinitionFile     = "datadog-agent-action.yaml"
-	processProcmgrProcessDefinitionFile = "datadog-agent-process.yaml"
-)
-
-// True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
-// process_manager.enabled, the Agent skips starting the datadog-otel-agent Windows service.
-func ddotProcmgrProcessDefinitionExists() bool {
-	return procmgrProcessDefinitionExists(ddotProcmgrProcessDefinitionFile)
-}
-
-// True if the fleet PAR processes.d definition exists (dd-procmgr supervises PAR). With
-// process_manager.enabled, the Agent skips starting the datadog-agent-action Windows service.
-func parProcmgrProcessDefinitionExists() bool {
-	return procmgrProcessDefinitionExists(parProcmgrProcessDefinitionFile)
-}
-
-// True if the fleet process-agent processes.d definition exists (dd-procmgr supervises
-// process-agent). With process_manager.enabled, the Agent skips starting the
-// datadog-process-agent Windows service.
-func processProcmgrProcessDefinitionExists() bool {
-	return procmgrProcessDefinitionExists(processProcmgrProcessDefinitionFile)
 }
 
 func procmgrProcessDefinitionExists(fileName string) bool {

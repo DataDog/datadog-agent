@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func TestServicedefIsEnabledProcmgrFallback(t *testing.T) {
+func TestServicedefIsEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.enabled", true)
 
@@ -25,9 +25,21 @@ func TestServicedefIsEnabledProcmgrFallback(t *testing.T) {
 		configKeys: map[string]model.Reader{
 			"process_config.enabled": cfg,
 		},
-		suppressIf: func() bool { return true },
 	}
 
-	assert.False(t, svc.IsEnabled(true), "suppress legacy service when procmgr started")
-	assert.True(t, svc.IsEnabled(false), "fall back to legacy service when procmgr unavailable")
+	t.Run("enabled by config", func(t *testing.T) {
+		assert.True(t, svc.IsEnabled(false, cfg))
+		assert.True(t, svc.IsEnabled(true, cfg))
+	})
+
+	t.Run("not suppressed without definition file", func(t *testing.T) {
+		cfg.SetWithoutSource("process_manager.enabled", true)
+		assert.True(t, svc.IsEnabled(true, cfg))
+	})
+
+	t.Run("not suppressed when process manager disabled", func(t *testing.T) {
+		svc.procmgrDefinitionFile = "datadog-agent-process.yaml"
+		cfg.SetWithoutSource("process_manager.enabled", false)
+		assert.True(t, svc.IsEnabled(true, cfg))
+	})
 }
