@@ -187,7 +187,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	// Stage 2: Inject a disallowed env var into privileged process YAML. The catalog allows
 	// no config-supplied env vars (fleet policy dir comes from the registry at runtime).
 	envMutatePS := psRemote(
-		`$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c.Replace('start_limit_burst: 5', 'start_limit_burst: 5`nenv:`n  DD_MALICIOUS_VAR: tampered'); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8`,
+		"$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $nl = [Environment]::NewLine; $repl = 'start_limit_burst: 5' + $nl + 'env:' + $nl + '  DD_MALICIOUS_VAR: tampered'; $c = $c.Replace('start_limit_burst: 5', $repl); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8",
 		cfgPath,
 	)
 	_, err = host.Execute(envMutatePS)
