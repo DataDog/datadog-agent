@@ -249,11 +249,9 @@ func main() {
 	//
 	// Caveat: because this early load uses noop secrets, ENC[...] secret
 	// references inside yaml-configured `tags` / `extra_tags` are NOT
-	// resolved here. The second LoadDatadog in setup() resolves them, but
-	// metricTags below is already snapshotted from this pre-secrets view.
-	// Not addressed here; would require either deferring tag snapshotting
-	// until after the second load or wiring a real secret resolver into
-	// this early load.
+	// resolved here, so metricTags below is snapshotted from this pre-secrets
+	// view. The second LoadDatadog in setup() resolves them for the config,
+	// but the already-snapshotted metricTags keep the raw values.
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
@@ -286,23 +284,12 @@ func main() {
 	// (matching Core Agent behavior) but stay quiet because nothing produces
 	// samples.
 	//
-	// Why this is safe today: serverless-init only runs on Cloud Run, Cloud
-	// Run Jobs, Container Apps, and App Service (see
-	// cmd/serverless-init/cloudservice/service.go). The only implemented
-	// delegated-auth provider is AWS (ProviderAWS in
-	// comp/core/delegatedauth/api/cloudauth/config/config.go), which none of
-	// those platforms reach, so api_key cannot be resolved later via
-	// delegated-auth on the surfaces we ship.
-	//
-	// What this gate does NOT handle — revisit if any becomes important
-	// (e.g. when bringing serverless-init to AWS):
-	//   - late api_key resolution via the delegated-auth periodic refresh
-	//     (comp/core/delegatedauth/impl/delegatedauth.go),
-	//   - secret-resolver refresh on a 403 from the intake
-	//     (comp/forwarder/defaultforwarder/transaction/transaction.go),
-	//   - runtime config sets that change api_key after Fx start.
-	// A correct fix for any of those would require a reconciler that watches
-	// api_key and bounces dogstatsd — out of scope for this surface today.
+	// This gate reads api_key once, here. That is sufficient on the platforms
+	// serverless-init ships to — Cloud Run, Cloud Run Jobs, Container Apps and
+	// App Service (see cmd/serverless-init/cloudservice/service.go) — because
+	// none of them use delegated auth (the only provider is AWS, ProviderAWS in
+	// comp/core/delegatedauth/api/cloudauth/config/config.go), so api_key cannot
+	// appear or change after this point.
 	//
 	// We only check the top-level api_key here. apm_config.api_key is
 	// checked separately inside setup() and is unaffected.
