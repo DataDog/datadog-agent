@@ -29,44 +29,69 @@ _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 _DD_AGENT_GO_TEST_TAG = "dd_agent_go_test"
 
 
+# cmd.exe on Windows caps command lines at 8191 chars; stay safely under that
+# per 'go list' invocation so the command line doesn't grow unbounded with
+# the tracked package set.
+_MAX_CMDLINE_CHARS = 6000
+
+
+def _chunk_import_paths(import_paths: list[str]) -> list[list[str]]:
+    """Split import paths into batches that keep each 'go list' command line
+    under the Windows cmd.exe length limit."""
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    current_len = 0
+    for path in import_paths:
+        if current and current_len + len(path) + 1 > _MAX_CMDLINE_CHARS:
+            chunks.append(current)
+            current, current_len = [], 0
+        current.append(path)
+        current_len += len(path) + 1
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
     """Return {import_path: {Test* func names}} for the given import paths
     compiled under the given build tags."""
     if not import_paths:
         return {}
-    # Query the whole module and filter below rather than passing import_paths on
-    # the command line, which can exceed the OS command-line length limit.
-    result = subprocess.run(
-        ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", "./..."],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    if result.returncode != 0:
-        # -e reports per-package errors inside the JSON output without failing the
-        # command; a non-zero exit means `go list` itself failed to run at all.
-        raise ChildProcessError(f"go list failed with exit code {result.returncode}: {result.stderr}")
     pkgs: dict[str, set[str]] = {}
     decoder = json.JSONDecoder()
-    text, pos = result.stdout, 0
-    while pos < len(text):
-        pos = _JSON_WHITESPACE_RE.match(text, pos).end()
-        if pos >= len(text):
-            break
-        obj, pos = decoder.raw_decode(text, pos)
-        import_path = obj["ImportPath"]
-        if import_path not in import_paths:
-            continue
-        pkg_dir = Path(obj["Dir"])
-        test_files = obj.get("TestGoFiles", []) + obj.get("XTestGoFiles", [])
-        funcs: set[str] = set()
-        for f in test_files:
-            funcs.update(_TEST_FUNC_RE.findall((pkg_dir / f).read_text()))
-        # TestMain is Go's test harness entry point, never dispatched as a test case.
-        funcs.discard("TestMain")
-        if funcs:
-            pkgs[import_path] = funcs
+    for chunk in _chunk_import_paths(sorted(import_paths)):
+        # shell=False (the default value, which we still pass explicitly) is
+        # required: cmd.exe on Windows has an 8191-char command-line limit.
+        result = subprocess.run(
+            ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *chunk],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            shell=False,
+        )
+        if result.returncode != 0:
+            # -e reports per-package errors inside the JSON output without failing the
+            # command; a non-zero exit means `go list` itself failed to run at all.
+            raise ChildProcessError(f"go list failed with exit code {result.returncode}: {result.stderr}")
+        text, pos = result.stdout, 0
+        while pos < len(text):
+            pos = _JSON_WHITESPACE_RE.match(text, pos).end()
+            if pos >= len(text):
+                break
+            obj, pos = decoder.raw_decode(text, pos)
+            import_path = obj["ImportPath"]
+            if import_path not in import_paths:
+                continue
+            pkg_dir = Path(obj["Dir"])
+            test_files = obj.get("TestGoFiles", []) + obj.get("XTestGoFiles", [])
+            funcs: set[str] = set()
+            for f in test_files:
+                funcs.update(_TEST_FUNC_RE.findall((pkg_dir / f).read_text()))
+            # TestMain is Go's test harness entry point, never dispatched as a test case.
+            funcs.discard("TestMain")
+            if funcs:
+                pkgs[import_path] = funcs
     return pkgs
 
 
