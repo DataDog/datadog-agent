@@ -60,6 +60,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult ConfigureAiUsageMonitorDesktopMonitor(Session session)
+        {
+            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Configure(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAiUsageMonitorDesktopMonitor(Session session)
+        {
+            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Remove(session);
+        }
+
+        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
@@ -81,6 +93,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult CleanupFiles(Session session)
         {
             return Datadog.CustomActions.CleanUpFilesCustomAction.CleanupFiles(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
         }
 
         [CustomAction]

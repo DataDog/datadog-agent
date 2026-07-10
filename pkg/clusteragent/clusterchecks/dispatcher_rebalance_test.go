@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -1569,6 +1571,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the configsDistribution struct that test more
 	//   complex scenarios.
 
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1665,6 +1668,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 // configs are stacked on node1 alongside a lightweight config on node2, the
 // utilization rebalancer moves one heavy config to node2, spreading the load.
 func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1865,6 +1869,7 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 // first while both runners still look empty, which anchors it to its current
 // (overloaded) runner.
 func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -2028,26 +2033,88 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	// The proposed solution is worth it if it leaves less unused runners
 
-	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 
-	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
-	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 	currentDistribution.addConfig("check3", "check3", 1, "runner1", false)
 
-	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 	proposedDistribution.addConfig("check3", "check3", 1, "runner3", false)
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
+}
+
+// TestRebalanceUsingBusyness_BreaksOnMoveConfigFailure verifies that the inner
+// rebalancing loop exits (break) when moveConfig fails, rather than retrying
+// the same failing move indefinitely (continue). The latter would spike the
+// rebalancing_decisions telemetry counter and potentially hang the process.
+func TestRebalanceUsingBusyness_BreaksOnMoveConfigFailure(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{
+		testStats: make(map[string]types.CLCRunnersStats),
+	}
+	dispatcher.clcRunnersClient = mockClient
+	dispatcher.store.active = true
+
+	// Deliberately leave digestToConfig empty for "digestA1".
+	// This causes moveConfig to return "no config registered" without moving
+	// anything, while pickConfigToMove still selects "digestA1" (it only needs
+	// idToDigest, not digestToConfig).
+	dispatcher.store.idToDigest[checkid.ID("checkA0")] = "digestA0"
+	dispatcher.store.idToDigest[checkid.ID("checkA1")] = "digestA1"
+	dispatcher.store.digestToConfig["digestA0"] = integration.Config{Name: "checkA0"}
+	// digestToConfig["digestA1"] intentionally absent to force moveConfig failure
+	dispatcher.store.digestToNode["digestA0"] = "A"
+	dispatcher.store.digestToNode["digestA1"] = "A"
+
+	// Node A: two cluster checks; checkA1 is heavier and will be picked first.
+	// With default weights (checkMetricSamplesWeight=1), busyness(A) = 100.
+	nodeAStats := types.CLCRunnersStats{
+		"checkA0": {MetricSamples: 30},
+		"checkA1": {MetricSamples: 70},
+	}
+	dispatcher.store.nodes["A"] = newNodeStore("A", "10.0.0.1")
+	mockClient.testStats["10.0.0.1"] = nodeAStats
+
+	// Node B: empty, busyness 0. avg = 50, diffMap[A]=+50, diffMap[B]=-50.
+	dispatcher.store.nodes["B"] = newNodeStore("B", "10.0.0.2")
+	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
+
+	// The algorithm will:
+	//   1. pickConfigToMove("A") → "digestA1"
+	//   2. moveConfig("A", "B", "digestA1") → error (no digestToConfig entry)
+	//   3. With the fix (break): loop exits; node A is unchanged
+	//      Without the fix (continue): loop spins indefinitely
+	done := make(chan struct{})
+	go func() {
+		dispatcher.rebalanceUsingBusyness()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Algorithm terminated as expected.
+	case <-time.After(5 * time.Second):
+		t.Fatal("rebalanceUsingBusyness did not terminate: possible infinite loop on moveConfig failure (continue vs break bug)")
+	}
+
+	// No move should have occurred: digestA1 still belongs to A and A's stats are intact.
+	assert.Equal(t, "A", dispatcher.store.digestToNode["digestA1"])
+	assert.Contains(t, dispatcher.store.nodes["A"].clcRunnerStats, "checkA1")
+	assert.Empty(t, dispatcher.store.nodes["B"].clcRunnerStats)
 }

@@ -13,8 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -35,7 +38,9 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Config        config.Component
 	Autodiscovery autodiscovery.Component
+	Hostname      hostname.Component
 	WorkloadMeta  workloadmeta.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the optional output of the config files discovery fx module.
@@ -53,7 +58,17 @@ func newOptionalComponent(reqs Requires) Provides {
 	provides := configfilesdiscoveryimpl.NewComponent(configfilesdiscoveryimpl.Requires{
 		Lifecycle:     reqs.Lifecycle,
 		Autodiscovery: reqs.Autodiscovery,
+		Hostname:      reqs.Hostname,
 		WorkloadMeta:  reqs.WorkloadMeta,
+		EventPlatform: reqs.EventPlatform,
+		Collectors:    defaultCollectors(),
 	})
 	return Provides{Comp: option.New(provides.Comp)}
+}
+
+func defaultCollectors() map[string]configfilesdiscoveryimpl.ConfigCollector {
+	return map[string]configfilesdiscoveryimpl.ConfigCollector{
+		collectors.KafkaIntegrationName: collectors.NewKafka(),
+		collectors.RedisIntegrationName: collectors.NewRedis(),
+	}
 }

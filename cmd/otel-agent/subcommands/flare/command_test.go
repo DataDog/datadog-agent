@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -221,6 +222,42 @@ func TestExtractExtensionType(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// TestCreateOTelFlareUsesUnpredictableDir ensures each flare gets its own unpredictable
+// directory, not a predictable path in the shared (world-writable) temp dir.
+func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+
+	p1, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(p1))
+
+	p2, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(p2))
+
+	assert.NotEqual(t, filepath.Dir(p1), filepath.Dir(p2),
+		"each flare must use a unique directory (os.MkdirTemp), not a predictable shared path")
+}
+
+// TestCreateOTelFlareDirectoryIsPrivate checks the flare dir is private (0700 on Unix) so others can't
+// read the archive or pre-seed a symlink. Bit check is Unix-only; Windows inherits the per-user temp ACL.
+func TestCreateOTelFlareDirectoryIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are not meaningful on Windows; the directory inherits the caller's private per-user temp ACL")
+	}
+
+	globalParams := newGlobalParamsTest(t)
+
+	flarePath, err := createOTelFlare(globalParams)
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+
+	dirInfo, err := os.Stat(filepath.Dir(flarePath))
+	require.NoError(t, err)
+	assert.Zerof(t, dirInfo.Mode().Perm()&0o077,
+		"flare directory must not be accessible by group/other, got %o", dirInfo.Mode().Perm())
 }
 
 func TestFlareCommand(t *testing.T) {

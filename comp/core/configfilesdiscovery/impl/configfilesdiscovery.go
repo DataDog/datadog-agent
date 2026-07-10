@@ -12,8 +12,10 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Requires defines the dependencies for the config files discovery component.
@@ -22,7 +24,10 @@ type Requires struct {
 
 	Lifecycle     compdef.Lifecycle
 	Autodiscovery autodiscovery.Component
+	Hostname      hostname.Component
 	WorkloadMeta  workloadmeta.Component
+	EventPlatform eventplatform.Component
+	Collectors    map[string]ConfigCollector
 }
 
 // Provides defines the output of the config files discovery component.
@@ -40,16 +45,19 @@ type component struct {
 func newComponent(
 	ad autodiscovery.Component,
 	resolver targetResolver,
+	sender collectedConfigSender,
+	configCollectors map[string]ConfigCollector,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker: newDockerConfigReader,
+		RuntimeDocker:     newDockerConfigReader,
+		RuntimeKubernetes: newKubernetesConfigReader,
 	}
-	collectors := map[string]configCollector{
-		redisIntegrationName: newRedisConfigCollector(),
+	if configCollectors == nil {
+		configCollectors = map[string]ConfigCollector{}
 	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver, readers, collectors, noopConfigFileReporter{}),
+		scheduler: newADScheduler(resolver, readers, configCollectors, sender),
 	}
 }
 
@@ -58,6 +66,8 @@ func NewComponent(reqs Requires) Provides {
 	c := newComponent(
 		reqs.Autodiscovery,
 		targetResolver{store: reqs.WorkloadMeta},
+		newEventPlatformCollectedConfigSender(reqs.EventPlatform, reqs.Hostname.GetSafe(context.Background())),
+		reqs.Collectors,
 	)
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: c.start, OnStop: c.stop})
 	return Provides{Comp: c}

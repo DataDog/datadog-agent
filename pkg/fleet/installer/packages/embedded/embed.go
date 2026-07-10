@@ -41,6 +41,18 @@ var DDOTProcessConfig string
 //go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
 var DDOTWindowsProcmgrConfig string
 
+// ADPWindowsProcmgrConfig is the codegen-rendered process manager config for ADP on Windows
+// (see embedded/tmpl/main.go). Install time replaces __ADP_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-data-plane.yaml
+var ADPWindowsProcmgrConfig string
+
+// PARWindowsProcmgrConfig is the codegen-rendered process manager config for PAR on Windows
+// (see embedded/tmpl/main.go). Install time replaces __PAR_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-action.yaml
+var PARWindowsProcmgrConfig string
+
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
 

@@ -191,6 +191,7 @@ linters:
             - "!**/comp/otelcol/otlp/configcheck/configcheck_test.go"
             - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
             - "!**/comp/otelcol/otlp/testutil/testutil.go"
+            - "!**/comp/process/agent/agent_aix.go"
             - "!**/comp/process/agent/agent_linux.go"
             - "!**/comp/process/agent/impl/agent_linux.go"
             - "!**/comp/process/agent/impl/status.go"
@@ -363,9 +364,6 @@ linters:
         - pattern: ^setup.SetSystemProbe.*$
           pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
           msg: use pkg/config/mock instead for tests or the config component
-        - pattern: ^.*\.SetKnown$
-          pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
-          msg: usage of SetKnown is discouraged
         - pattern: RevertFinishedBackToBuilder
           msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
       analyze-types: true

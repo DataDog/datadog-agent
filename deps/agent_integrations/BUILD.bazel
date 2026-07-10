@@ -2,7 +2,11 @@ load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//deps/agent_integrations:defs.bzl", "install_wheels")
+load("//compliance:package_licenses.bzl", "package_licenses")
+load(":defs.bzl", "install_wheels")
+load(":source_packages_test.bzl", "source_packages_test_suite")
+
+source_packages_test_suite(name = "source_packages_tests")
 
 py_binary(
     name = "install_wheels_tool",
@@ -16,7 +20,6 @@ py_binary(
     srcs = ["build_wheel.py"],
     main = "build_wheel.py",
     deps = [
-        requirement("build"),
         requirement("hatchling"),
     ],
 )
@@ -33,7 +36,10 @@ entrypoints_dirname = select({
 
 install_wheels(
     name = "integrations",
-    srcs = ["@integration_source_packages//:base_wheels"] + select(
+    srcs = [
+        "@integration_source_packages//:all_wheels",
+        "@pip//file",
+    ] + select(
         {
             "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
             "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
@@ -87,11 +93,28 @@ pkg_files(
     tags = ["manual"],
 )
 
+# Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
+# Used by the `datadog-agent integration` command to prevent downgrading a check to a version
+# older than the one shipped in the agent
+pkg_files(
+    name = "requirements_agent_release_file",
+    srcs = ["@integration_source_packages//:requirements-agent-release.txt"],
+    prefix = "",
+    tags = ["manual"],
+)
+
+package_licenses(
+    name = "license_files",
+    src = "@integration_source_packages//:all_wheels",
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":integrations_bin_files",
         ":integrations_runtime_files",
+        ":license_files",
+        ":requirements_agent_release_file",
     ],
     tags = ["manual"],
 )

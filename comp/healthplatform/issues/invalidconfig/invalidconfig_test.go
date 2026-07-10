@@ -14,29 +14,43 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
+// requireSchema skips the test when the compressed schema files haven't been
+// generated yet (run `dda inv schema.generate`). CI always has them; local
+// dev builds do not unless explicitly generated.
+func requireSchema(t *testing.T) {
+	t.Helper()
+	if _, err := schema.GetCoreSchema(); err != nil {
+		t.Skipf("embedded schema not available (%v); run `dda inv schema.generate`", err)
+	}
+}
+
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+	ctx := map[string]string{
 		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount: "3",
-		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
-	})
+		contextKeyErrorCount: "2",
+	}
+	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
+	ctx[contextErrorKey(1)] = "at '/tags': got object, want array"
+	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
-	assert.Equal(t, "Datadog Agent Configuration Has 3 Schema Violations", issue.GetTitle())
-	assert.Equal(t, float64(3),
+	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations in datadog.yaml", issue.GetTitle())
+	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
 	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
-	errorsBlob := issue.GetExtra().GetFields()[contextKeyErrors].GetStringValue()
-	assert.Contains(t, errorsBlob, "agent_ipc/port")
-	assert.Contains(t, errorsBlob, "/tags")
-	assert.Contains(t, errorsBlob, " • ", "extra.errors must use a visible delimiter so the UI renders multi-violation blobs legibly")
+	errorsStruct := issue.GetExtra().GetFields()[contextKeyErrors].GetStructValue()
+	require.NotNil(t, errorsStruct, "extra.errors must be a struct with one entry per violation")
+	assert.Len(t, errorsStruct.GetFields(), 2, "each violation must get its own key")
+	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
+	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -67,6 +81,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 // Inject a string into an integer-typed field. Confirms the validator surfaces
 // the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
+	requireSchema(t)
 	cfg := config.NewMock(t)
 	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
@@ -77,5 +92,5 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.Equal(t, IssueID, reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextKeyErrors], "agent_ipc/port")
+	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
 }
