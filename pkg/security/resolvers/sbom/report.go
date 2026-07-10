@@ -25,12 +25,12 @@ const (
 
 // PackagesReport wraps package data and implements the sbom.Report interface
 type PackagesReport struct {
-	packages    []sbomtypes.PackageWithInstalledFiles
+	packages    []sbomtypes.Package
 	containerID containerutils.ContainerID
 }
 
 // NewPackagesReport creates a new PackagesReport from a slice of packages
-func NewPackagesReport(packages []sbomtypes.PackageWithInstalledFiles, containerID containerutils.ContainerID) *PackagesReport {
+func NewPackagesReport(packages []sbomtypes.Package, containerID containerutils.ContainerID) *PackagesReport {
 	return &PackagesReport{
 		packages:    packages,
 		containerID: containerID,

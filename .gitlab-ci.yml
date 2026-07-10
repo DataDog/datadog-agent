@@ -1480,12 +1480,20 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_fakeintake_changes_with_image_override:
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+
 .on_fakeintake_changes_on_main:
   - changes:
       <<: *fakeintake_paths
     <<: *if_main_branch
 
-.fast_on_dev_branch_only:
+.fast_tests_variables_named_branches:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
@@ -1507,10 +1515,28 @@ workflow:
     variables:
       FAST_TESTS: "false"
       COVERAGE_CACHE_FLAG: ""
+
+.fast_on_dev_branch_only:
+  - !reference [.fast_tests_variables_named_branches]
   - variables:
       FAST_TESTS: "true"
       # Pull coverage cache on dev branches
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+
+# macOS runners are scarce and queue for tens of minutes under load. These jobs stay
+# mandatory wherever they gate a merge (main/release/mergequeue/forced runs), but on
+# regular dev branches they become manual so they don't contend for runners on every push.
+.fast_tests_mergequeue_mandatory_manual_on_dev_branch:
+  - !reference [.fast_tests_variables_named_branches]
+  - <<: *if_mergequeue
+    variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+  - variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+    when: manual
+    allow_failure: true
 
 .on_gitlab_changes:
   changes:
@@ -1573,6 +1599,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_rtloader_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
