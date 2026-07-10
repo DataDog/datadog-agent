@@ -10,22 +10,34 @@
 --   declares the typed operations and end-to-end invariants but
 --   does NOT pick fulfillers for each component slot.
 --
+--   An additional pre-labeling stage, the StackTraceAggregator,
+--   runs between JSONAggregator and Tokenization. It combines
+--   consecutive lines forming a single Go stack trace into one
+--   emission and is governed by its own interface at
+--   pkg/logs/internal/decoder/preprocessor/stack_trace_aggregator.go.
+--   It has no Allium contract yet; the pipeline @guidance below
+--   describes its position and per-call role, but the formal
+--   @invariants only compose from the five contracts listed above.
+--
 --   The pipeline is the abstract shape every preprocessor
 --   configuration shares:
 --
 --     PreprocessorInput
 --        ↓
---     JSONAggregator    (combines multi-line JSON into one line)
+--     JSONAggregator        (combines multi-line JSON into one line)
 --        ↓
---     Tokenization      (produces tokens + indices for the line)
+--     StackTraceAggregator  (combines Go stack traces into one line;
+--                            interface only, no Allium contract yet)
 --        ↓
---     Labeler           (classifies the line as start_group /
---                        aggregate / no_aggregate)
+--     Tokenization          (produces tokens + indices for the line)
 --        ↓
---     Aggregator        (combines lines per the label into
---                        completed messages)
+--     Labeler               (classifies the line as start_group /
+--                            aggregate / no_aggregate)
 --        ↓
---     Sampler           (drops or keeps each completed message)
+--     Aggregator            (combines lines per the label into
+--                            completed messages)
+--        ↓
+--     Sampler               (drops or keeps each completed message)
 --        ↓
 --     PreprocessorOutput
 --
@@ -170,11 +182,14 @@ contract Preprocessor {
         -- After flush returns, every stateful component reports
         -- its is_empty observable as true. The pipeline's flush
         -- procedure calls each buffering component's flush in
-        -- pipeline order (JSONAggregator, then Aggregator) and
-        -- pumps the emissions through the downstream stages.
-        -- Composes from JSONAggregator.FlushDrainsBuffer and
-        -- Aggregator.FlushDrainsBuffer. Tokenization and Labeler
-        -- are stateless; Sampler's flush returns null for the
+        -- pipeline order (JSONAggregator, then StackTraceAggregator,
+        -- then Aggregator) and pumps the emissions through the
+        -- downstream stages. Composes from
+        -- JSONAggregator.FlushDrainsBuffer and
+        -- Aggregator.FlushDrainsBuffer; the StackTraceAggregator
+        -- stage is expected to drain analogously (interface contract,
+        -- no Allium spec yet). Tokenization and Labeler are
+        -- stateless; Sampler's flush returns null for the
         -- non-buffering Sampler implementations.
 
     @invariant ResultLifetime
@@ -198,6 +213,18 @@ contract Preprocessor {
         --    due to size limit or invalid JSON).
         --
         -- 2. For each intermediate message yielded by step 1:
+        --    StackTraceAggregator.Process(msg) — yields zero or
+        --    more messages. The stack-trace aggregator combines
+        --    consecutive lines forming a single Go stack trace
+        --    into one emission; non-stack-trace messages pass
+        --    through unchanged. The stage sits between the
+        --    JSONAggregator and Tokenization so downstream
+        --    stages see stack-trace-joined content when
+        --    applicable. This stage has no Allium contract yet;
+        --    its behaviour is defined by the Go interface at
+        --    pkg/logs/internal/decoder/preprocessor/stack_trace_aggregator.go.
+        --
+        -- 3. For each message yielded by step 2:
         --    a. Tokenization.tokenize(content) — yields tokens
         --       and token_indices. Tokenization is stateless;
         --       this is a pure function of the content bytes.
@@ -208,7 +235,7 @@ contract Preprocessor {
         --    b. Labeler.label(content, label_tokens,
         --       label_indices) — yields one of {start_group,
         --       aggregate, no_aggregate}. label_tokens /
-        --       label_indices are the PREFIX of the step-2a
+        --       label_indices are the PREFIX of the step-3a
         --       tokens whose start byte offset is less than
         --       labeler_max_bytes (a Preprocessor construction
         --       parameter; 0 means no limit). This allows the
@@ -220,32 +247,37 @@ contract Preprocessor {
         --       resets per call).
         --    c. Aggregator.process(msg, label, tokens) — yields
         --       zero or more AggregatedMessageWithTokens. The
-        --       full step-2a tokens are passed (NOT the
+        --       full step-3a tokens are passed (NOT the
         --       labeler-trimmed prefix). Most calls yield 0 or
         --       1; the explosion path (when supported) can
         --       yield many.
         --    d. For each AggregatedMessageWithTokens yielded by
-        --       step 2c: Sampler.process(msg, tokens) — yields
+        --       step 3c: Sampler.process(msg, tokens) — yields
         --       the message or null. tokens here are the full
-        --       step-2a tokens carried through by the aggregator
+        --       step-3a tokens carried through by the aggregator
         --       (not the labeler-trimmed prefix). Each non-null
         --       becomes a PreprocessorOutput.
         --
-        -- 3. Return the accumulated PreprocessorOutputs.
+        -- 4. Return the accumulated PreprocessorOutputs.
         --
         -- Flush flow:
         --
         -- 1. JSONAggregator.flush — yields zero or more
         --    intermediate messages.
-        -- 2. For each yielded message: run steps 2a-d above.
-        -- 3. Aggregator.flush — yields zero or more
+        -- 2. For each yielded message: run steps 2 and 3a-d
+        --    above (pumping through StackTraceAggregator, then
+        --    Tokenization / Labeler / Aggregator / Sampler).
+        -- 3. StackTraceAggregator.Flush — yields any buffered
+        --    stack trace still being accumulated. For each
+        --    yielded message: run steps 3a-d above.
+        -- 4. Aggregator.flush — yields zero or more
         --    AggregatedMessageWithTokens. (Tokenization /
         --    Labeler are NOT re-run; the aggregator's buffered
         --    fragments already carry their tokens.)
-        -- 4. For each yielded AggregatedMessageWithTokens: run
-        --    step 2d (Sampler).
-        -- 5. Sampler.flush — yields zero or one Message.
-        -- 6. Return all accumulated PreprocessorOutputs.
+        -- 5. For each yielded AggregatedMessageWithTokens: run
+        --    step 3d (Sampler).
+        -- 6. Sampler.flush — yields zero or one Message.
+        -- 7. Return all accumulated PreprocessorOutputs.
         --
         -- The pipeline is sequential per-source: a single
         -- Preprocessor instance serves one log source's
