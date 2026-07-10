@@ -955,9 +955,15 @@ func (s *CoreAgentService) flushCacheResponseLocked() (*pbgo.ClientGetConfigsRes
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
-func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// The caller may have already given up waiting for a response,
+	// we should early return if the ctx has an error.
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 
 	err := validateRequest(request)
 	if err != nil {
