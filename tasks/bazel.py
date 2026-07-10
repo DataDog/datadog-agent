@@ -34,15 +34,14 @@ def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[
     compiled under the given build tags."""
     if not import_paths:
         return {}
-    # shell=False (the default value, which we still pass explicitly) is
-    # required: cmd.exe on Windows has an 8191-char command-line limit.
+    # Query the whole module and filter below rather than passing import_paths on
+    # the command line, which can exceed the OS command-line length limit.
     result = subprocess.run(
-        ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *sorted(import_paths)],
+        ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", "./..."],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         encoding="utf-8",
-        shell=False,
     )
     if result.returncode != 0:
         # -e reports per-package errors inside the JSON output without failing the
