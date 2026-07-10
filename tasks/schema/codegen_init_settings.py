@@ -356,8 +356,6 @@ def retrieve_method_to_declare(keypath, schema):
     if tags:
         if 'no-env' in tags:
             return 'SetDefault'
-        if 'TODO:fix-no-default' in tags:
-            return 'BindEnv'
     return 'BindEnvAndSetDefault'
 
 
@@ -433,8 +431,6 @@ def output_single_setting(name, kind, internal_comment, schema, target):
     method_name = retrieve_method_to_declare(name.split('.'), schema)
     if method_name == 'BindEnvAndSetDefault':
         line = f"\tconfig.BindEnvAndSetDefault({settingname}, {defaultval}{envsuffix})"
-    elif method_name == 'BindEnv':
-        line = f"\tconfig.BindEnv({settingname}{envsuffix})"
     elif method_name == 'SetDefault':
         line = f"\tconfig.SetDefault({settingname}, {defaultval})"
     else:
@@ -473,7 +469,6 @@ config_setup_func_names = [
     'setupMultiRegionFailover',
     'OTLP',
     'setupProcesses',
-    'platformCWSConfig',
     'initCWSSystemProbeConfig',
     'initUSMSystemProbeConfig',
     'InitSystemProbeConfig',

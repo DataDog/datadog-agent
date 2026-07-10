@@ -175,7 +175,7 @@ func (ia *inventoryagent) initData() {
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// agent-configuration: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "none"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}
@@ -200,8 +200,8 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
-		// Build a config object from the fetched YAML only. No env var is bound on this config
-		// (we never call BindEnv), so the current process's environment variables are not applied
+		// Build a config object from the fetched YAML only. No env var is bound on this config,
+		// so the current process's environment variables are not applied
 		// and the values reflect the remote process's YAML exactly. A dynamic schema is used since
 		// the remote config's keys are not part of this freshly created config's schema.
 		cfg := create.NewConfig(name)

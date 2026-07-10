@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "profile",
@@ -14,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/util/log",
         "//pkg/util/pointer",
@@ -35,7 +37,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "profile_test",
     srcs = [
         "autoscaler_syncer_test.go",
@@ -44,9 +46,13 @@ go_test(
         "workload_watcher_test.go",
     ],
     embed = [":profile"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/util/pointer",
         "@com_github_datadog_datadog_operator_api//datadoghq/common",

@@ -3,7 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "processmanager",
     srcs = [
+        "adp_procmgr_config_windows.go",
         "ddot_procmgr_config_windows.go",
+        "install_root_procmgr_config_windows.go",
+        "par_procmgr_config_windows.go",
         "reload_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",

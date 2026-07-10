@@ -341,6 +341,7 @@ if windows_target?
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe"
 
   if windows_signing_enabled?
@@ -368,6 +369,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
+      "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
       "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe",
     ]
 
