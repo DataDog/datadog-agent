@@ -396,22 +396,7 @@ pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
 
 /// Baseline environment for managed children after clearing inherited procmgr variables.
 pub(crate) fn child_baseline_env_vars() -> HashMap<String, String> {
-    match try_create_environment_block_vars() {
-        Ok(vars) => vars,
-        Err(e) => {
-            log::warn!(
-                "CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback"
-            );
-            fallback_process_env_vars()
-        }
-    }
-}
-
-fn try_create_environment_block_vars() -> Result<HashMap<String, String>> {
     use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
-    use windows_sys::Win32::System::Environment::{
-        CreateEnvironmentBlock, DestroyEnvironmentBlock,
-    };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     let mut token: HANDLE = std::ptr::null_mut();
@@ -423,15 +408,42 @@ fn try_create_environment_block_vars() -> Result<HashMap<String, String>> {
         )
     };
     if ok == 0 {
-        anyhow::bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
+        log::warn!(
+            "OpenProcessToken(GetCurrentProcess) failed ({}); using process-env fallback",
+            std::io::Error::last_os_error()
+        );
+        return fallback_process_env_vars();
     }
+
+    let vars = match baseline_env_vars_from_token(token) {
+        Ok(vars) => vars,
+        Err(e) => {
+            log::warn!(
+                "CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback"
+            );
+            fallback_process_env_vars()
+        }
+    };
+
+    unsafe {
+        CloseHandle(token);
+    }
+    vars
+}
+
+/// Baseline environment for a specific logon/primary token (used by `CreateProcessAsUserW`).
+pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
+    if token.is_null() {
+        anyhow::bail!("baseline_env_vars_from_token: null token handle");
+    }
+
+    use windows_sys::Win32::System::Environment::{
+        CreateEnvironmentBlock, DestroyEnvironmentBlock,
+    };
 
     let mut env_block: *mut c_void = std::ptr::null_mut();
     let ok = unsafe { CreateEnvironmentBlock(&mut env_block, token, 0) };
     if ok == 0 {
-        unsafe {
-            CloseHandle(token);
-        }
         anyhow::bail!(
             "CreateEnvironmentBlock: {}",
             std::io::Error::last_os_error()
@@ -442,7 +454,6 @@ fn try_create_environment_block_vars() -> Result<HashMap<String, String>> {
 
     unsafe {
         let _ = DestroyEnvironmentBlock(env_block as *const c_void);
-        CloseHandle(token);
     }
     Ok(vars)
 }

@@ -74,9 +74,22 @@ pub(crate) fn spawn_child(
         }
         SpawnProfile::Agent => {
             // Primary-token spawn as the resolved agent account (passwordless supported).
-            if let Ok(account) = resolve_agent_account() {
-                if let Ok(handle) = spawn_as_primary_token(process_name, &request, &account) {
-                    return Ok(handle);
+            let account = resolve_agent_account().with_context(|| {
+                format!("[{process_name}] resolve agent service account for spawn")
+            })?;
+            match spawn_as_primary_token(process_name, &request, &account) {
+                Ok(handle) => return Ok(handle),
+                Err(e) if matches!(account, AgentAccount::LocalSystem) => {
+                    log::warn!(
+                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
+                    );
+                }
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!(
+                            "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
+                        )
+                    });
                 }
             }
         }
@@ -376,9 +389,6 @@ fn spawn_as_primary_token(
         .chain([0])
         .collect();
 
-    let env_block = env_block_from_baseline_plus_overrides(&request.env)?;
-    let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
-
     let current_dir_w = request
         .working_dir
         .as_ref()
@@ -389,6 +399,10 @@ fn spawn_as_primary_token(
         AgentAccount::LocalSystem => local_system_primary_token(process_name)?,
         _ => primary_token_from_logon(process_name, account)?,
     });
+
+    let env_block =
+        env_block_from_baseline_plus_overrides(primary_token_guard.0, &request.env)?;
+    let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
     si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
@@ -556,8 +570,12 @@ fn windows_crt_escape_arg(s: &str) -> String {
     out
 }
 
-fn env_block_from_baseline_plus_overrides(overrides: &[(String, String)]) -> Result<Vec<u16>> {
-    let mut vars = super::child_baseline_env_vars();
+fn env_block_from_baseline_plus_overrides(
+    token: HANDLE,
+    overrides: &[(String, String)],
+) -> Result<Vec<u16>> {
+    let mut vars = super::baseline_env_vars_from_token(token)
+        .context("build child environment from spawn token")?;
     for (k, v) in overrides {
         vars.insert(k.clone(), v.clone());
     }
