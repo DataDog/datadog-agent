@@ -306,13 +306,6 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", Expect(`Junos:`)),
 			GetRunning: MkCommand("show configuration | display omit", Expect(`version \d+\.\d+[^;]*;`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
-					RemoteCommand: "scp",
-					Filepath:      "/tmp/dd-rollback-config",
-				},
-				MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", Expect(`commit complete`)),
-			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(\s*community) (\S+) (\{)`, WithReplacement("$1 <secret hidden> {")),
