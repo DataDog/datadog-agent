@@ -56,7 +56,6 @@ pub(super) fn spawn_as_primary_token(
         cmdline
     };
 
-    let application_name_w = wide::null_terminated(&request.command);
     let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
         .encode_wide()
         .chain([0])
@@ -93,7 +92,9 @@ pub(super) fn spawn_as_primary_token(
     let ok = unsafe {
         CreateProcessAsUserW(
             primary_token_guard.raw(),
-            application_name_w.as_ptr(),
+            // Null application name: resolve the image from the command line (including PATH),
+            // matching `Command::new` / legacy spawn behavior for bare names like powershell.exe.
+            std::ptr::null(),
             command_line_w.as_mut_ptr(),
             std::ptr::null(),
             std::ptr::null(),
