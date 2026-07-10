@@ -18,7 +18,8 @@ import (
 
 // TestPayloadChunking creates a payload that is several times writer.MaxPayloadSize
 // (measured in the legacy wire format) and asserts that the trace-agent forwards
-// every trace chunk without dropping any.
+// every trace chunk without dropping any, while never emitting an individual
+// output payload larger than writer.MaxPayloadSize.
 //
 // With the convert-traces feature (enabled by default) the agent re-encodes
 // traces in the string-indexed idx format before writing them. That format
@@ -26,7 +27,8 @@ import (
 // far smaller than its legacy size and may be emitted as a single payload rather
 // than the N+1 the legacy writer produced. The exact number of output payloads is
 // therefore encoding-dependent; we drain every payload that arrives and assert on
-// the total chunk count instead of a fixed payload count.
+// the total chunk count and the per-payload size bound rather than a fixed payload
+// count.
 func TestPayloadChunking(t *testing.T) {
 	r := test.Runner{}
 	if err := r.Start(); err != nil {
@@ -67,6 +69,12 @@ func TestPayloadChunking(t *testing.T) {
 				t.Fatalf("invalid payload type: %T", p)
 			}
 			payloads++
+			// The trace-agent must never emit a single payload larger than the
+			// API's maximum, regardless of how large the incoming chunk was.
+			// v.SizeVT() is the uncompressed serialized size, matching what the
+			// writer measures before compression.
+			assert.LessOrEqualf(t, v.SizeVT(), writer.MaxPayloadSize,
+				"payload %d exceeds MaxPayloadSize (%d > %d bytes)", payloads, v.SizeVT(), writer.MaxPayloadSize)
 			for _, tracerPayload := range v.IdxTracerPayloads {
 				got += len(tracerPayload.Chunks)
 			}
