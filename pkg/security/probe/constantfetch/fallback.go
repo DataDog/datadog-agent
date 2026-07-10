@@ -77,15 +77,23 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameQstrName:                        8,
+		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameModuleName:                      24,
+		OffsetNameKernfsOpenFileFile:              8,
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
 		OffsetNameNsproxyMntNs:                    24,
 		OffsetNameNsproxyNetNs:                    40,
+		OffsetNameIoSocketStructDomain:            8,
+		OffsetNameIoSocketStructType:              12,
+		OffsetNameIoSocketStructProtocol:          16,
+		OffsetNameSocketType:                      4,
 	}
 }
 
@@ -126,6 +134,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameLinuxBinprmStructFilename:   getLinuxBinprmFilenameOffset,
 		OffsetNameLinuxBinprmStructInterp:     getLinuxBinprmInterpOffset,
 		OffsetNameIoKiocbStructCtx:            getIoKcbCtxOffset,
+		OffsetNameIoKiocbStructOpcode:         getIoKcbOpcodeOffset,
 		OffsetNameLinuxBinprmP:                getLinuxBinPrmPOffset,
 		OffsetNameLinuxBinprmArgc:             getLinuxBinPrmArgcOffset,
 		OffsetNameLinuxBinprmEnvc:             getLinuxBinPrmEnvcOffset,
@@ -925,6 +934,23 @@ func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 		return 88
 	default:
 		return 80
+	}
+}
+
+func getIoKcbOpcodeOffset(kv *kernel.Version) uint64 {
+	switch {
+	// opcode became the first field right after the io_kiocb union (the
+	// preceding async_data/io pointer moved elsewhere in the struct)
+	case kv.Code >= kernel.Kernel5_16:
+		return 64
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7):
+		return 82
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_8):
+		return 77
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
+		return 76
+	default:
+		return 72
 	}
 }
 

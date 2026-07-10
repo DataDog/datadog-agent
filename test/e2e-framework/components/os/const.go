@@ -61,6 +61,11 @@ const (
 
 	// MacOS
 	MacosOS Flavor = (1000 + iota)
+
+	// AlmaLinux is in the Red Hat family. It is given an explicit value, outside the
+	// iota run above, so that adding it does not shift the iota-derived Windows and
+	// MacOS values, which are persisted as integers in Pulumi state.
+	AlmaLinux Flavor = 110
 )
 
 func FlavorFromString(flavorStr string) Flavor {
@@ -84,6 +89,8 @@ func FlavorFromString(flavorStr string) Flavor {
 		return CentOS
 	case "rocky-linux", "rockylinux":
 		return RockyLinux
+	case "alma-linux", "almalinux":
+		return AlmaLinux
 	case "windows", "windows-server":
 		return WindowsServer
 	case "windows-client":
@@ -128,6 +135,8 @@ func (f Flavor) String() string {
 		return "centos"
 	case RockyLinux:
 		return "rocky-linux"
+	case AlmaLinux:
+		return "alma-linux"
 	case WindowsServer:
 		return "windows-server"
 	case WindowsClient:

@@ -15,8 +15,6 @@ properties:
     default: false
     visibility: public
     description: set to true to enable Cloud Security Management Vulnerability Management
-    tags:
-    - template_section:CoreAgent
     comment: SBOM configuration
   host:
     node_type: section
@@ -32,8 +30,6 @@ properties:
         default: false
         visibility: public
         description: set to true to enable Infrastructure Vulnerabiltilies
-        tags:
-        - template_section:CoreAgent
         comment: Host SBOM configuration
       additional_directories:
         node_type: setting
@@ -63,8 +59,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable container image vulnerability scanning.
-        tags:
-        - template_section:CoreAgent
         comment: Container image SBOM configuration
       additional_directories:
         node_type: setting
@@ -106,7 +100,7 @@ properties:
       min_available_disk:
         node_type: setting
         type: string
-        default: 1Gb
+        default: 10Mb
       overlayfs_direct_scan:
         node_type: setting
         type: boolean

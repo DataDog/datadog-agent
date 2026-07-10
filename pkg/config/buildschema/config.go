@@ -70,10 +70,6 @@ func (b *builder) ParseEnvJSON(key string, _ any) {
 	b.setEnvParser(key, "json")
 }
 
-func (b *builder) SetKnown(key string) {
-	b.addToSchema(key, nil, nil, true)
-}
-
 func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
 	b.addToSchema(key, val, env, false)
 }

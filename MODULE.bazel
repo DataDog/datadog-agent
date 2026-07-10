@@ -56,14 +56,14 @@ bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
-bazel_dep(name = "rules_cc", version = "0.2.20")
+bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_python", version = "2.1.0")
+bazel_dep(name = "rules_python", version = "2.2.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.71.3")
 bazel_dep(name = "rules_rust_prost", version = "0.71.3")
@@ -171,6 +171,12 @@ register_toolchains(
 register_toolchains(
     "//bazel/toolchains/patchelf:patchelf_built_toolchain",
     dev_dependency = True,
+)
+
+register_toolchains(
+    "//bazel/toolchains/rpath_rewriter:install_name_tool_toolchain",
+    "//bazel/toolchains/rpath_rewriter:noop_windows_toolchain",
+    "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
 )
 
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
@@ -320,7 +326,7 @@ PYTHON_VERSION = "3.12"
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
-    configure_coverage_tool = True,
+    configure_coverage_tool = False,  # when enabling, please find a way to turn off warnings for unsupported platforms
     is_default = True,
     python_version = PYTHON_VERSION,
 )
