@@ -16,6 +16,10 @@ pub struct SpawnRequest {
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
     pub working_dir: Option<PathBuf>,
+    /// Raw stdout value from process config (inherit, null, or file path).
+    pub stdout_config: String,
+    /// Raw stderr value from process config (inherit, null, or file path).
+    pub stderr_config: String,
     pub stdout: Stdio,
     pub stderr: Stdio,
 }

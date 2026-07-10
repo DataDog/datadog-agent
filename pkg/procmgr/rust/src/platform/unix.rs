@@ -35,6 +35,8 @@ pub(crate) fn spawn_child(
         args,
         env,
         working_dir,
+        stdout_config: _,
+        stderr_config: _,
         stdout,
         stderr,
     } = request;

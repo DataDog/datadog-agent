@@ -303,8 +303,10 @@ impl ManagedProcess {
             env.push((k.clone(), expand_env_vars(v)));
         }
 
-        let stdout = stdio_from_config(&self.config.stdout, platform::stdout_inheritable());
-        let stderr = stdio_from_config(&self.config.stderr, platform::stderr_inheritable());
+        let stdout_config = self.config.stdout.clone();
+        let stderr_config = self.config.stderr.clone();
+        let stdout = stdio_from_config(&stdout_config, platform::stdout_inheritable());
+        let stderr = stdio_from_config(&stderr_config, platform::stderr_inheritable());
 
         let working_dir = self
             .config
@@ -322,6 +324,8 @@ impl ManagedProcess {
                 .collect(),
             env,
             working_dir,
+            stdout_config,
+            stderr_config,
             stdout,
             stderr,
         })

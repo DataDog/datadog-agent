@@ -21,8 +21,8 @@ use windows_sys::Win32::Security::{
     LogonUserW, RevertToSelf, SecurityDelegation, TOKEN_DUPLICATE, TOKEN_QUERY, TokenPrimary,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, OPEN_EXISTING,
+    CreateFileW, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+    FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_ALWAYS, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Console::{
     GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
@@ -77,26 +77,20 @@ pub(crate) fn spawn_child(
             let account = resolve_agent_account().with_context(|| {
                 format!("[{process_name}] resolve agent service account for spawn")
             })?;
-            if supports_primary_token_stdio(&request) {
-                match spawn_as_primary_token(process_name, &request, &account) {
-                    Ok(handle) => return Ok(handle),
-                    Err(e) if matches!(account, AgentAccount::LocalSystem) => {
-                        log::warn!(
-                            "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
-                        );
-                    }
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!(
-                                "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
-                            )
-                        });
-                    }
+            match spawn_as_primary_token(process_name, &request, &account) {
+                Ok(handle) => return Ok(handle),
+                Err(e) if matches!(account, AgentAccount::LocalSystem) => {
+                    log::warn!(
+                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
+                    );
                 }
-            } else {
-                log::info!(
-                    "[{process_name}] file-backed stdio; falling back to impersonation Command spawn"
-                );
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!(
+                            "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
+                        )
+                    });
+                }
             }
         }
     }
@@ -128,7 +122,9 @@ fn validate_privileged_process_request(process_name: &str, request: &SpawnReques
 }
 
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !supports_primary_token_stdio(request) {
+    if !is_stdio_config_inherit_or_null(&request.stdout_config)
+        || !is_stdio_config_inherit_or_null(&request.stderr_config)
+    {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())
@@ -282,6 +278,68 @@ fn spawn_as_local_system(
     exec_spawn(process_name, command, cmd)
 }
 
+/// `LogonUserW` inputs derived from the installer-configured agent service account.
+struct LogonUserCredentials<'a> {
+    /// Registry `installedDomain` (empty for local accounts; normalize with [`logon_domain`]).
+    domain: &'a str,
+    /// Registry `installedUser` (e.g. `ddagentuser`).
+    username: &'a str,
+    /// LSA password for interactive logon, or `None` for gMSA / passwordless accounts.
+    password: Option<&'a str>,
+}
+
+fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredentials<'_> {
+    match account {
+        AgentAccount::LocalSystem => LogonUserCredentials {
+            domain: "NT AUTHORITY",
+            username: "SYSTEM",
+            // Builtin account: pass an empty password (L""), not NULL (gMSA-style).
+            password: Some(""),
+        },
+        AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password,
+        } => LogonUserCredentials {
+            domain: domain.as_str(),
+            username: user.as_str(),
+            password: Some(password.as_str()),
+        },
+        AgentAccount::ServiceAccountLogon { domain, user } => LogonUserCredentials {
+            domain: domain.as_str(),
+            username: user.as_str(),
+            password: None,
+        },
+    }
+}
+
+fn logon_user_token(process_name: &str, creds: &LogonUserCredentials<'_>) -> Result<TokenHandle> {
+    let domain_w = wide::null_terminated(logon_domain(creds.domain));
+    let user_w = wide::null_terminated(creds.username);
+    let password_w = creds.password.map(wide::null_terminated);
+
+    let mut logon_token: HANDLE = ptr::null_mut();
+    let ok = unsafe {
+        LogonUserW(
+            user_w.as_ptr(),
+            domain_w.as_ptr(),
+            password_w.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+            LOGON32_LOGON_SERVICE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut logon_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] LogonUserW({}\\{}) failed: {}",
+            logon_domain(creds.domain),
+            creds.username,
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(TokenHandle(logon_token))
+}
+
 fn spawn_as_agent_user(
     process_name: &str,
     command: &str,
@@ -295,20 +353,9 @@ fn spawn_as_agent_user(
             info!("[{process_name}] agent account is LocalSystem; inheriting supervisor token");
             exec_spawn(process_name, command, cmd)
         }
-        AgentAccount::PasswordLogon {
-            domain,
-            user,
-            password,
-        } => spawn_with_impersonation(
-            process_name,
-            command,
-            cmd,
-            &domain,
-            &user,
-            Some(password.as_str()),
-        ),
-        AgentAccount::ServiceAccountLogon { domain, user } => {
-            spawn_with_impersonation(process_name, command, cmd, &domain, &user, None)
+        _ => {
+            let creds = logon_user_credentials(&account);
+            spawn_with_impersonation(process_name, command, cmd, &creds)
         }
     }
 }
@@ -336,43 +383,10 @@ fn spawn_with_impersonation(
     process_name: &str,
     command: &str,
     cmd: &mut Command,
-    domain: &str,
-    user: &str,
-    password: Option<&str>,
+    creds: &LogonUserCredentials<'_>,
 ) -> Result<ProcessHandle> {
-    let logon_token = logon_user_token(process_name, domain, user, password)?;
+    let logon_token = logon_user_token(process_name, creds)?;
     spawn_with_token_impersonation(process_name, command, cmd, logon_token)
-}
-
-fn logon_user_token(
-    process_name: &str,
-    domain: &str,
-    user: &str,
-    password: Option<&str>,
-) -> Result<TokenHandle> {
-    let domain_w = wide::null_terminated(logon_domain(domain));
-    let user_w = wide::null_terminated(user);
-    let password_w = password.map(wide::null_terminated);
-
-    let mut logon_token: HANDLE = ptr::null_mut();
-    let ok = unsafe {
-        LogonUserW(
-            user_w.as_ptr(),
-            domain_w.as_ptr(),
-            password_w.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
-            LOGON32_LOGON_SERVICE,
-            LOGON32_PROVIDER_DEFAULT,
-            &mut logon_token,
-        )
-    };
-    if ok == 0 {
-        bail!(
-            "[{process_name}] LogonUserW({}\\{user}) failed: {}",
-            logon_domain(domain),
-            std::io::Error::last_os_error()
-        );
-    }
-    Ok(TokenHandle(logon_token))
 }
 
 fn spawn_as_primary_token(
@@ -382,8 +396,18 @@ fn spawn_as_primary_token(
 ) -> Result<ProcessHandle> {
     // Only support stdio shapes that can be mapped to explicit Win32 handles.
     // For anything else, fall back to impersonation + tokio::Command.
-    let stdout_handle = map_stdio_handle(&request.stdout, STD_OUTPUT_HANDLE)?;
-    let stderr_handle = map_stdio_handle(&request.stderr, STD_ERROR_HANDLE)?;
+    let stdout_handle = map_stdio_config(
+        process_name,
+        &request.stdout_config,
+        STD_OUTPUT_HANDLE,
+        account,
+    )?;
+    let stderr_handle = map_stdio_config(
+        process_name,
+        &request.stderr_config,
+        STD_ERROR_HANDLE,
+        account,
+    )?;
     let stdin_handle = map_stdio_handle_nul()?;
 
     let command_line = {
@@ -484,8 +508,8 @@ fn primary_token_from_logon(process_name: &str, account: &AgentAccount) -> Resul
     if matches!(account, AgentAccount::LocalSystem) {
         bail!("[{process_name}] internal error: LocalSystem uses supervisor token duplication")
     }
-    let (domain, user, password) = primary_token_logon_credentials(account);
-    let logon_token = logon_user_token(process_name, domain, user, password)?;
+    let creds = logon_user_credentials(account);
+    let logon_token = logon_user_token(process_name, &creds)?;
     duplicate_primary_token(process_name, logon_token.0)
 }
 
@@ -508,20 +532,6 @@ fn duplicate_primary_token(process_name: &str, token: HANDLE) -> Result<HANDLE> 
         );
     }
     Ok(primary_token)
-}
-
-fn primary_token_logon_credentials(account: &AgentAccount) -> (&str, &str, Option<&str>) {
-    match account {
-        AgentAccount::LocalSystem => ("NT AUTHORITY", "SYSTEM", Some("")),
-        AgentAccount::PasswordLogon {
-            domain,
-            user,
-            password,
-        } => (domain.as_str(), user.as_str(), Some(password.as_str())),
-        AgentAccount::ServiceAccountLogon { domain, user } => {
-            (domain.as_str(), user.as_str(), None)
-        }
-    }
 }
 
 fn windows_crt_escape_arg(s: &str) -> String {
@@ -655,17 +665,27 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
     Ok(h)
 }
 
-fn supports_primary_token_stdio(request: &SpawnRequest) -> bool {
-    is_inherit_or_null_stdio(&request.stdout) && is_inherit_or_null_stdio(&request.stderr)
+fn is_stdio_config_inherit_or_null(config: &str) -> bool {
+    matches!(config, "inherit" | "" | "null")
 }
 
-fn is_inherit_or_null_stdio(stdio: &Stdio) -> bool {
-    matches!(stdio, Stdio::Inherit | Stdio::Null)
-}
-
-fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<MappedStdioHandle> {
-    match stdio {
-        Stdio::Inherit => {
+fn map_stdio_config(
+    process_name: &str,
+    config: &str,
+    kind: u32,
+    account: &AgentAccount,
+) -> Result<MappedStdioHandle> {
+    match config {
+        "null" => MappedStdioHandle::nul(),
+        "inherit" | "" => {
+            let inheritable = match kind {
+                STD_OUTPUT_HANDLE => super::stdout_inheritable(),
+                STD_ERROR_HANDLE => super::stderr_inheritable(),
+                _ => false,
+            };
+            if !inheritable {
+                return MappedStdioHandle::nul();
+            }
             let source = unsafe {
                 let h = GetStdHandle(kind);
                 if h == INVALID_HANDLE_VALUE || h.is_null() {
@@ -675,9 +695,53 @@ fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<MappedStdioHandle> {
             };
             Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
         }
-        Stdio::Null => MappedStdioHandle::nul(),
-        other => bail!("primary-token spawn only supports inherit/null stdio, got {other:?}"),
+        path => open_stdio_file_as_account(process_name, path, account),
     }
+}
+
+fn open_stdio_file_as_account(
+    process_name: &str,
+    path: &str,
+    account: &AgentAccount,
+) -> Result<MappedStdioHandle> {
+    if matches!(account, AgentAccount::LocalSystem) {
+        return Ok(MappedStdioHandle(open_append_file(path)?));
+    }
+    let creds = logon_user_credentials(account);
+    let token = logon_user_token(process_name, &creds)?;
+    unsafe {
+        if ImpersonateLoggedOnUser(token.0) == 0 {
+            bail!(
+                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        let _impersonation = ImpersonationGuard { _token: token };
+        Ok(MappedStdioHandle(open_append_file(path)?))
+    }
+}
+
+fn open_append_file(path: &str) -> Result<HANDLE> {
+    let path_w = wide::null_terminated(path);
+    let h = unsafe {
+        CreateFileW(
+            path_w.as_ptr(),
+            FILE_GENERIC_WRITE | FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            ptr::null(),
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            0,
+        )
+    };
+    if h == INVALID_HANDLE_VALUE || h.is_null() {
+        bail!(
+            "CreateFileW({path}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    set_handle_inheritable(h)?;
+    Ok(h)
 }
 
 fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
@@ -690,6 +754,8 @@ fn build_command(request: SpawnRequest) -> Result<(String, Command)> {
         args,
         env,
         working_dir,
+        stdout_config: _,
+        stderr_config: _,
         stdout,
         stderr,
     } = request;
@@ -752,37 +818,43 @@ impl Drop for ImpersonationGuard {
 mod tests {
     use super::*;
 
-    fn spawn_request(stdout: Stdio, stderr: Stdio) -> SpawnRequest {
+    fn spawn_request(stdout_config: &str, stderr_config: &str) -> SpawnRequest {
+        let stdout = if stdout_config == "null" {
+            Stdio::null()
+        } else if matches!(stdout_config, "inherit" | "") {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        };
+        let stderr = if stderr_config == "null" {
+            Stdio::null()
+        } else if matches!(stderr_config, "inherit" | "") {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        };
         SpawnRequest {
             command: "cmd.exe".into(),
             args: vec![],
             env: vec![],
             working_dir: None,
+            stdout_config: stdout_config.to_string(),
+            stderr_config: stderr_config.to_string(),
             stdout,
             stderr,
         }
     }
 
     #[test]
-    fn supports_primary_token_stdio_accepts_inherit_and_null() {
-        assert!(supports_primary_token_stdio(&spawn_request(
-            Stdio::inherit(),
-            Stdio::inherit()
-        )));
-        assert!(supports_primary_token_stdio(&spawn_request(
-            Stdio::null(),
-            Stdio::null()
-        )));
+    fn is_stdio_config_inherit_or_null_accepts_inherit_and_null() {
+        assert!(is_stdio_config_inherit_or_null("inherit"));
+        assert!(is_stdio_config_inherit_or_null(""));
+        assert!(is_stdio_config_inherit_or_null("null"));
     }
 
     #[test]
-    fn supports_primary_token_stdio_rejects_file_backed() {
-        let dir = tempfile::tempdir().unwrap();
-        let f = std::fs::File::create(dir.path().join("out.log")).unwrap();
-        assert!(!supports_primary_token_stdio(&spawn_request(
-            f.into(),
-            Stdio::inherit()
-        )));
+    fn is_stdio_config_inherit_or_null_rejects_file_paths() {
+        assert!(!is_stdio_config_inherit_or_null(r"C:\logs\trace.log"));
     }
 
     #[test]
@@ -792,31 +864,31 @@ mod tests {
     }
 
     #[test]
-    fn primary_token_logon_credentials_normalize_empty_domain_for_logon() {
+    fn logon_user_credentials_normalize_empty_domain_for_logon() {
         let acct = AgentAccount::PasswordLogon {
             domain: String::new(),
             user: "ddagentuser".to_string(),
             password: "secret".to_string(),
         };
-        let (domain, user, password) = primary_token_logon_credentials(&acct);
-        assert_eq!(logon_domain(domain), ".");
-        assert_eq!(user, "ddagentuser");
-        assert_eq!(password, Some("secret"));
+        let creds = logon_user_credentials(&acct);
+        assert_eq!(logon_domain(creds.domain), ".");
+        assert_eq!(creds.username, "ddagentuser");
+        assert_eq!(creds.password, Some("secret"));
     }
 
     #[test]
-    fn primary_token_logon_credentials_handle_passwordless_accounts() {
+    fn logon_user_credentials_handle_passwordless_accounts() {
         let svc = AgentAccount::ServiceAccountLogon {
             domain: "CORP".to_string(),
             user: "gmsa$".to_string(),
         };
-        let (domain, user, password) = primary_token_logon_credentials(&svc);
-        assert_eq!(domain, "CORP");
-        assert_eq!(user, "gmsa$");
-        assert!(password.is_none());
+        let creds = logon_user_credentials(&svc);
+        assert_eq!(creds.domain, "CORP");
+        assert_eq!(creds.username, "gmsa$");
+        assert!(creds.password.is_none());
 
         let ls = AgentAccount::LocalSystem;
-        let (_domain, _user, password) = primary_token_logon_credentials(&ls);
-        assert_eq!(password, Some(""));
+        let creds = logon_user_credentials(&ls);
+        assert_eq!(creds.password, Some(""));
     }
 }
