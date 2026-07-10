@@ -10,7 +10,6 @@ package admissionprobe
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -33,7 +32,7 @@ type admissionProbeModule struct {
 }
 
 // NewModule creates a new admission probe issue module.
-func NewModule(config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &admissionProbeModule{
 		template: &AdmissionProbeIssue{},
 	}

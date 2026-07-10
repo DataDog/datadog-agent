@@ -322,10 +322,19 @@ func OtelSpanToDDSpan(
 	}
 
 	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
+		}
+		// otel.library.name is a deprecated alias of otel.scope.name but MUST still be
+		// reported with the same value for backward compatibility.
 		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 	}
 	if lib.Version() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeVersionKey)] = lib.Version()
+		}
 		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
 	}
 	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,7 +56,8 @@ func (avp *autoscalingValuesProcessor) processValues(values model.ClusterAutosca
 
 	id := npi.Name()
 	avp.processed[id] = struct{}{}
-	avp.store.Set(id, npi, configRetrieverStoreID)
+	item, _ := avp.store.Get(id)
+	item.Upsert(npi, configRetrieverStoreID)
 }
 
 func (avp *autoscalingValuesProcessor) postProcess() {
@@ -65,15 +67,14 @@ func (avp *autoscalingValuesProcessor) postProcess() {
 		return
 	}
 
-	storeObjects := avp.store.GetAll()
-
 	// Clear values for all configs that are no longer received from Remote Config
-	for _, s := range storeObjects {
-		if _, found := avp.processed[s.Name()]; !found {
-			avp.store.Delete(s.Name(), configRetrieverStoreID)
-			log.Debugf("Deleting object from store: %s", s.Name())
+	avp.store.ProcessAll(configRetrieverStoreID, func(_ string, npi model.NodePoolInternal) (model.NodePoolInternal, autoscalingstore.ItemAction) {
+		if _, found := avp.processed[npi.Name()]; found {
+			return npi, autoscalingstore.KeepItem
 		}
-	}
+		log.Debugf("Deleting object from store: %s", npi.Name())
+		return npi, autoscalingstore.DeleteItem
+	})
 
 	*avp.storeUpdated = true
 }

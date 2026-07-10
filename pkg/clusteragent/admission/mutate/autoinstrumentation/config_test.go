@@ -457,7 +457,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"php":    "v1",
@@ -482,7 +482,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"c":      "v0",
@@ -541,7 +541,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"php":    "v1",

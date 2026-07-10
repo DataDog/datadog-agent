@@ -47,7 +47,7 @@ func newSyslogStreamDecoder(source *sources.ReplaceableSource, tailerInfo *statu
 	detectedPattern := &DetectedPattern{}
 
 	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsSIEMParsingEnabled()))
+	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsDebugAttrParsingEnabled()))
 	f := framer.NewSyslogFramer(lineParser.process, maxMessageSize, tailerInfo)
 
 	formatInfo := status.NewMappedInfo("Format")

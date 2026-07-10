@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	workloadWatcherStoreID autoscaling.SenderID = "prof-w"
+	workloadWatcherStoreID autoscalingstore.SenderID = "prof-w"
 
 	refreshPeriod = 30 * time.Second
 	noResync      = 0
@@ -58,7 +58,7 @@ type workloadInformer struct {
 // take precedence over namespace-level labels. The ProfileController reacts to
 // those updates and manages the DPA store entries.
 type WorkloadWatcher struct {
-	profileStore      *autoscaling.Store[model.PodAutoscalerProfileInternal]
+	profileStore      *autoscalingstore.Store[model.PodAutoscalerProfileInternal]
 	isLeader          func() bool
 	workloadResources []GroupVersionKindResource
 
@@ -83,7 +83,7 @@ type WorkloadWatcher struct {
 // namespaces in the cluster. profileControllerSynced is waited on before the
 // first reconcile to ensure the profile store is populated.
 func NewWorkloadWatcher(
-	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
+	profileStore *autoscalingstore.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
 	metadataClient metadata.Interface,
 	workloadResources []GroupVersionKindResource,
@@ -175,10 +175,13 @@ func (w *WorkloadWatcher) reconcile() {
 		workloadRefs.Add(w.scanWorkloads(inf.gvkr, inf.lister, labeledNamespaces))
 	}
 
-	w.profileStore.Update(func(pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, bool) {
+	w.profileStore.ProcessAll(workloadWatcherStoreID, func(_ string, pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, autoscalingstore.ItemAction) {
 		changed := pi.UpdateWorkloads(workloadRefs[pi.Name()])
-		return pi, changed
-	}, workloadWatcherStoreID)
+		if changed {
+			return pi, autoscalingstore.SetItem
+		}
+		return pi, autoscalingstore.KeepItem
+	})
 }
 
 // buildLabeledNamespaces returns a map of namespace name → profile name for
@@ -202,7 +205,7 @@ func (w *WorkloadWatcher) buildLabeledNamespaces() map[string]string {
 		if profileName == "" {
 			continue
 		}
-		if _, ok := w.profileStore.Get(profileName); !ok {
+		if _, ok := w.profileStore.Peek(profileName); !ok {
 			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsMeta.Name)
 			continue
 		}
@@ -267,7 +270,7 @@ func (w *WorkloadWatcher) resolveProfile(
 		if profileName == model.ProfileExcludedValue {
 			return "", false
 		}
-		if _, ok := w.profileStore.Get(profileName); !ok {
+		if _, ok := w.profileStore.Peek(profileName); !ok {
 			log.Debugf("Profile %s referenced by workload %s/%s/%s not found, skipping", profileName, gvkr.GroupVersionResource.Resource, obj.Namespace, obj.Name)
 			return "", false
 		}
