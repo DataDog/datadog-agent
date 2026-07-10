@@ -8,7 +8,6 @@
 package external
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,11 +20,12 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
@@ -157,7 +157,7 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClock := clock.NewFakeClock(time.Now())
-			client, err := newRecommenderClient(context.Background(), fakeClock, workload.NewPodWatcher(nil, nil), nil)
+			client, err := newRecommenderClient(t.Context(), fakeClock, workload.NewPodWatcher(nil, nil), nil, nil)
 			assert.NoError(t, err)
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)

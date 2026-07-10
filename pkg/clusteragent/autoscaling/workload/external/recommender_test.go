@@ -128,7 +128,7 @@ func TestProcess(t *testing.T) {
 
 	// test
 	fakeClock := clock.NewFakeClock(time.Now())
-	recommender, err := NewRecommender(ctx, fakeClock, pw, store, "test-cluster", nil)
+	recommender, err := NewRecommender(ctx, fakeClock, pw, store, "test-cluster", nil, []string{server.URL})
 	assert.NoError(t, err)
 	recommender.process(ctx)
 

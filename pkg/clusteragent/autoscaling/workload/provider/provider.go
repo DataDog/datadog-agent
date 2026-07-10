@@ -160,7 +160,8 @@ func StartWorkloadAutoscaling(
 	}
 
 	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
-	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
+	externalRecommenderAllowedEndpoints := pkgconfigsetup.Datadog().GetStringSlice("autoscaling.workload.external_recommender.allowed_endpoints")
+	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig, externalRecommenderAllowedEndpoints)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
 	}

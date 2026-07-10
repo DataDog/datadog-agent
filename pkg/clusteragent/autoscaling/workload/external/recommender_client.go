@@ -36,19 +36,26 @@ const (
 )
 
 type recommenderClient struct {
-	podWatcher workload.PodWatcher
-	client     *http.Client
+	podWatcher       workload.PodWatcher
+	client           *http.Client
+	allowedEndpoints map[string]struct{}
 }
 
-func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSFilesConfig) (*recommenderClient, error) {
+func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSFilesConfig, allowedEndpoints []string) (*recommenderClient, error) {
 	client, err := createHTTPClient(ctx, tlsConfig, clock)
 	if err != nil {
 		return nil, fmt.Errorf("error creating HTTP client: %w", err)
 	}
 
+	allowedEndpointsSet := make(map[string]struct{}, len(allowedEndpoints))
+	for _, endpoint := range allowedEndpoints {
+		allowedEndpointsSet[endpoint] = struct{}{}
+	}
+
 	return &recommenderClient{
-		podWatcher: podWatcher,
-		client:     client,
+		podWatcher:       podWatcher,
+		client:           client,
+		allowedEndpoints: allowedEndpointsSet,
 	}, nil
 }
 
@@ -56,6 +63,14 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	recommenderConfig := dpa.CustomRecommenderConfiguration()
 	if recommenderConfig == nil { // should not happen; we should not process autoscalers without recommender config
 		return nil, errors.New("external recommender spec is required")
+	}
+
+	if len(r.allowedEndpoints) == 0 {
+		return nil, errors.New("external recommender feature is disabled: no allowed endpoints configured")
+	}
+
+	if _, allowed := r.allowedEndpoints[recommenderConfig.Endpoint]; !allowed {
+		return nil, errors.New("endpoint is not in the allowed list of external recommender endpoints")
 	}
 
 	u, err := url.Parse(recommenderConfig.Endpoint)
@@ -81,7 +96,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	ctx, cancel := context.WithTimeout(ctx, apiTimeoutSeconds*time.Second)
 	defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(payload))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, recommenderConfig.Endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}

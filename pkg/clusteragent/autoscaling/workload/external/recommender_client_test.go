@@ -8,7 +8,6 @@
 package external
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -22,10 +21,12 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,12 +51,15 @@ import (
 )
 
 func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
+	const externalRecommenderTestEndpoint = "http://external-recommender.test"
+
 	tests := []struct {
-		name            string
-		dpa             model.FakePodAutoscalerInternal
-		expectedRequest *kubeAutoscaling.WorkloadRecommendationRequest
-		serverResponse  *kubeAutoscaling.WorkloadRecommendationReply
-		expectedError   string
+		name             string
+		dpa              model.FakePodAutoscalerInternal
+		allowedEndpoints []string
+		expectedRequest  *kubeAutoscaling.WorkloadRecommendationRequest
+		serverResponse   *kubeAutoscaling.WorkloadRecommendationReply
+		expectedError    string
 	}{
 		{
 			name: "successful recommendation with CPU objective and watermarks",
@@ -86,7 +90,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				},
 				CurrentReplicas: pointer.Ptr[int32](3),
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
+					Endpoint: externalRecommenderTestEndpoint,
 					Settings: map[string]interface{}{
 						"custom_setting": "value",
 					},
@@ -97,6 +101,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 				},
 			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
 			expectedRequest: &kubeAutoscaling.WorkloadRecommendationRequest{
 				State: &kubeAutoscaling.WorkloadState{
 					CurrentReplicas: pointer.Ptr[int32](3),
@@ -145,9 +150,10 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
+					Endpoint: externalRecommenderTestEndpoint,
 				},
 			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
 			expectedRequest: &kubeAutoscaling.WorkloadRecommendationRequest{
 				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
 					{
@@ -193,9 +199,10 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
+					Endpoint: externalRecommenderTestEndpoint,
 				},
 			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
 			expectedRequest: &kubeAutoscaling.WorkloadRecommendationRequest{
 				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
 					{
@@ -210,6 +217,46 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			},
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				TargetReplicas: 5,
+			},
+		},
+		{
+			name: "successful recommendation with allowed endpoint containing a path",
+			dpa: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "test-dpa",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "Deployment",
+						Name:       "test-deployment",
+						APIVersion: "apps/v1",
+					},
+					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+						{
+							Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+							PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+								Name: corev1.ResourceCPU,
+								Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+									Utilization: pointer.Ptr[int32](80),
+								},
+							},
+						},
+					},
+				},
+				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
+					Endpoint: externalRecommenderTestEndpoint + "/v1/recommend",
+				},
+			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint + "/v1/recommend"},
+			expectedRequest: &kubeAutoscaling.WorkloadRecommendationRequest{
+				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
+					{
+						Type:        "cpu",
+						TargetValue: 0.80,
+					},
+				},
+			},
+			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
+				TargetReplicas: 4,
 			},
 		},
 		{
@@ -273,7 +320,8 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					Endpoint: "http://in%val%%d",
 				},
 			},
-			expectedError: "error parsing url: parse \"http://in%val%%d\": invalid URL escape \"%va\"",
+			allowedEndpoints: []string{"http://in%val%%d"},
+			expectedError:    "error parsing url: parse \"http://in%val%%d\": invalid URL escape \"%va\"",
 		},
 		{
 			name: "invalid URL scheme",
@@ -306,7 +354,65 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					Endpoint: "ftp://invalid-scheme",
 				},
 			},
-			expectedError: "only http and https schemes are supported",
+			allowedEndpoints: []string{"ftp://invalid-scheme"},
+			expectedError:    "only http and https schemes are supported",
+		},
+		{
+			name: "external recommender disabled when no endpoints are allowed",
+			dpa: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "test-dpa",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "Deployment",
+						Name:       "test-deployment",
+						APIVersion: "apps/v1",
+					},
+				},
+				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
+					Endpoint: "",
+				},
+			},
+			allowedEndpoints: []string{},
+			expectedError:    "external recommender feature is disabled: no allowed endpoints configured",
+		},
+		{
+			name: "endpoint not in the allowed list is refused",
+			dpa: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "test-dpa",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "Deployment",
+						Name:       "test-deployment",
+						APIVersion: "apps/v1",
+					},
+				},
+				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
+					Endpoint: "http://rejected-recommender.test",
+				},
+			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
+			expectedError:    `endpoint is not in the allowed list of external recommender endpoints`,
+		},
+		{
+			name: "endpoint with a path not matching the allowed list is refused",
+			dpa: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "test-dpa",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "Deployment",
+						Name:       "test-deployment",
+						APIVersion: "apps/v1",
+					},
+				},
+				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
+					Endpoint: externalRecommenderTestEndpoint + "/v2/recommend",
+				},
+			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint + "/v1/recommend"},
+			expectedError:    `endpoint is not in the allowed list of external recommender endpoints`,
 		},
 		{
 			name: "http call returns unexpected response code",
@@ -332,12 +438,13 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
+					Endpoint: externalRecommenderTestEndpoint,
 					Settings: map[string]interface{}{
 						"custom_setting": "value",
 					},
 				},
 			},
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				Error: &kubeAutoscaling.Error{
 					Code:    pointer.Ptr[int32](404),
@@ -370,13 +477,14 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
+					Endpoint: externalRecommenderTestEndpoint,
 					Settings: map[string]interface{}{
 						"custom_setting": "value",
 					},
 				},
 			},
-			expectedError: "error from recommender: 200 Some random error",
+			allowedEndpoints: []string{externalRecommenderTestEndpoint},
+			expectedError:    "error from recommender: 200 Some random error",
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				Error: &kubeAutoscaling.Error{
 					Code:    pointer.Ptr[int32](200),
@@ -398,6 +506,15 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				assert.Equal(t, http.MethodPost, r.Method)
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				assert.Equal(t, "datadog-cluster-agent", r.Header.Get("User-Agent"))
+
+				// Verify the request was sent to the endpoint's path
+				endpointURL, err := url.Parse(tt.dpa.CustomRecommenderConfiguration.Endpoint)
+				assert.NoError(t, err)
+				expectedPath := endpointURL.Path
+				if expectedPath == "" {
+					expectedPath = "/"
+				}
+				assert.Equal(t, expectedPath, r.URL.Path)
 
 				// If we expect a specific request, verify it
 				if tt.expectedRequest != nil {
@@ -448,19 +565,28 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				w.Write(payload)
 			}))
 
-			// The endpoint is only set for test cases that expect an error
-			if tt.dpa.CustomRecommenderConfiguration != nil && tt.dpa.CustomRecommenderConfiguration.Endpoint == "" {
-				tt.dpa.CustomRecommenderConfiguration.Endpoint = server.URL
+			if tt.dpa.CustomRecommenderConfiguration != nil {
+				if trimmed := strings.TrimPrefix(tt.dpa.CustomRecommenderConfiguration.Endpoint, externalRecommenderTestEndpoint); trimmed != tt.dpa.CustomRecommenderConfiguration.Endpoint {
+					tt.dpa.CustomRecommenderConfiguration.Endpoint = server.URL + trimmed
+				}
+			}
+
+			allowedEndpoints := make([]string, len(tt.allowedEndpoints))
+			for i, endpoint := range tt.allowedEndpoints {
+				if trimmed := strings.TrimPrefix(endpoint, externalRecommenderTestEndpoint); trimmed != endpoint {
+					endpoint = server.URL + trimmed
+				}
+				allowedEndpoints[i] = endpoint
 			}
 
 			pw := workload.NewPodWatcher(nil, nil)
 			pw.HandleEvent(newFakeWLMPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
 
-			client, err := newRecommenderClient(context.Background(), fakeClock, pw, nil)
+			client, err := newRecommenderClient(t.Context(), fakeClock, pw, nil, allowedEndpoints)
 			require.NoError(t, err)
 			client.client = server.Client()
 
-			result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", tt.dpa.Build())
+			result, err := client.GetReplicaRecommendation(t.Context(), "test-cluster", tt.dpa.Build())
 
 			if tt.expectedError != "" {
 				assert.EqualError(t, err, tt.expectedError)
@@ -576,14 +702,14 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	pw := workload.NewPodWatcher(nil, nil)
 	pw.HandleEvent(newFakeWLMPodEvent(dpa.Namespace, dpa.Spec.TargetRef.Name, "pod1", []string{"container"}))
 
-	client, err := newRecommenderClient(context.Background(), fakeClock, pw, &TLSFilesConfig{
+	client, err := newRecommenderClient(t.Context(), fakeClock, pw, &TLSFilesConfig{
 		CAFile:   caPath,
 		CertFile: clientCertPath,
 		KeyFile:  clientKeyPath,
-	})
+	}, []string{server.URL})
 	require.NoError(t, err)
 
-	result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", dpa.Build())
+	result, err := client.GetReplicaRecommendation(t.Context(), "test-cluster", dpa.Build())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

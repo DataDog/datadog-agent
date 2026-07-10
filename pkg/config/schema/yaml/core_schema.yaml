@@ -6396,6 +6396,13 @@ properties:
             node_type: section
             type: object
             properties:
+              allowed_endpoints:
+                node_type: setting
+                type: array
+                default: []
+                items:
+                  type: string
+                comment: Empty list disables the external recommender feature.
               tls:
                 node_type: section
                 type: object

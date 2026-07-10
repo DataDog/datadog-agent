@@ -34,8 +34,8 @@ type Recommender struct {
 }
 
 // NewRecommender creates a new Recommender to start fetching external recommendations
-func NewRecommender(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, store *autoscalingstore.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSFilesConfig) (*Recommender, error) {
-	recommenderClient, err := newRecommenderClient(ctx, clock, podWatcher, tlsConfig)
+func NewRecommender(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, store *autoscalingstore.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSFilesConfig, allowedEndpoints []string) (*Recommender, error) {
+	recommenderClient, err := newRecommenderClient(ctx, clock, podWatcher, tlsConfig, allowedEndpoints)
 	if err != nil {
 		return nil, fmt.Errorf("error creating recommender client: %w", err)
 	}
