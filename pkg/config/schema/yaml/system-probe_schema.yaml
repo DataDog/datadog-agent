@@ -867,7 +867,7 @@ properties:
           use_direct_consumer:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       http2:
         node_type: section
         type: object
