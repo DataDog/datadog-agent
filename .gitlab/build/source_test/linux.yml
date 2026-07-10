@@ -7,10 +7,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e rtloader.format --raise-if-changed
-    - dda inv -- -e rtloader.test
+    - bazel test //rtloader/...
 
 .linux_tests:
   stage: source_test
