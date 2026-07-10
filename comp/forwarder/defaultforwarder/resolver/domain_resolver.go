@@ -64,6 +64,13 @@ type domainResolver struct {
 
 	isMRF            bool
 	isMetricToVector bool
+
+	// hasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
+	// be waiting on one from the delegatedauth component (a DELA(...) directive in
+	// additional_endpoints). It keeps IsUsable() true for such domains so the forwarder still
+	// builds a live domainForwarder for them - one that starts sending as soon as delegated auth
+	// calls UpdateAPIKeys, instead of dropping the domain permanently until an agent restart.
+	hasPendingDelegatedAuth bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -169,13 +176,14 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
 	return &domainResolver{
-		configName:     descriptor.BaseURL,
-		domain:         descriptor.BaseURL,
-		apiKeys:        descriptor.APIKeySet,
-		keyVersion:     0,
-		dedupedAPIKeys: deduped,
-		mu:             sync.Mutex{},
-		isMRF:          descriptor.IsMRF,
+		configName:              descriptor.BaseURL,
+		domain:                  descriptor.BaseURL,
+		apiKeys:                 descriptor.APIKeySet,
+		keyVersion:              0,
+		dedupedAPIKeys:          deduped,
+		mu:                      sync.Mutex{},
+		isMRF:                   descriptor.IsMRF,
+		hasPendingDelegatedAuth: descriptor.HasPendingDelegatedAuth,
 	}, nil
 }
 
@@ -395,7 +403,7 @@ func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 
 // IsUsable returns true if the resolver has valid configuration.
 func (r *domainResolver) IsUsable() bool {
-	return r.IsLocal() || len(r.dedupedAPIKeys) > 0
+	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
 // IsLocal returns true if the domain corresponds to another agent.

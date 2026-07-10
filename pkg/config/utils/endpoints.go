@@ -149,6 +149,13 @@ type EndpointDescriptor struct {
 	BaseURL   string
 	APIKeySet []APIKeys
 	IsMRF     bool
+
+	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
+	// be waiting on one from the delegatedauth component (a DELA(...) directive in
+	// additional_endpoints). Consumers (e.g. the forwarder's resolver.IsUsable()) should treat
+	// such a domain as usable so it isn't dropped before delegated auth has a chance to deliver
+	// a real key.
+	HasPendingDelegatedAuth bool
 }
 
 func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
@@ -171,6 +178,22 @@ func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) 
 	return eds
 }
 
+// domainsPendingDelegatedAuth returns the set of domains in an `additional_endpoints`-style
+// config value that have at least one DELA(...) directive - i.e. domains with no real API key
+// yet, but that are expected to get one shortly from the delegatedauth component.
+func domainsPendingDelegatedAuth(endpoints map[string][]string) map[string]bool {
+	pending := map[string]bool{}
+	for domain, keys := range endpoints {
+		for _, key := range keys {
+			if IsDelaDirective(key) {
+				pending[domain] = true
+				break
+			}
+		}
+	}
+	return pending
+}
+
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
 	ddURL := GetInfraEndpoint(c)
@@ -183,7 +206,9 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
 	}
 
-	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+	rawAdditionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
+	additionalEndpoints := MakeEndpoints(rawAdditionalEndpoints, "additional_endpoints")
+	pendingDelegatedAuthDomains := domainsPendingDelegatedAuth(rawAdditionalEndpoints)
 
 	for domain, apiKeys := range additionalEndpoints {
 		// Validating domain
@@ -200,6 +225,12 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	}
 
 	eds := EndpointDescriptorSetFromKeysPerDomain(keysPerDomain)
+	for domain := range pendingDelegatedAuthDomains {
+		if ed, ok := eds[domain]; ok {
+			ed.HasPendingDelegatedAuth = true
+			eds[domain] = ed
+		}
+	}
 
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {

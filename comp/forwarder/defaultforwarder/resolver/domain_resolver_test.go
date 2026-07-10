@@ -161,6 +161,38 @@ func TestMetricToVectorResolvesSeriesEndpoints(t *testing.T) {
 	assert.Equal(t, mainEndpoint, vec.Resolve(endpoints.EventsEndpoint))
 }
 
+func TestIsUsableWithNoKeysAndNoPendingDelegatedAuth(t *testing.T) {
+	// Baseline: a domain with no real keys and no pending delegated auth directive is not
+	// usable, same as before HasPendingDelegatedAuth existed.
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL:   "https://example.com",
+		APIKeySet: []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
+	})
+	require.NoError(t, err)
+
+	assert.False(t, resolver.IsUsable())
+}
+
+func TestIsUsableWithPendingDelegatedAuth(t *testing.T) {
+	// A domain with no real keys yet, but flagged as waiting on a delegatedauth-managed key
+	// (a DELA(...) directive in additional_endpoints), must still be usable so the forwarder
+	// builds a live domainForwarder for it instead of dropping it until an agent restart.
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL:                 "https://example.com",
+		APIKeySet:                []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
+		HasPendingDelegatedAuth: true,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, resolver.IsUsable())
+
+	// Once delegated auth delivers a real key, the domain remains usable through the normal
+	// UpdateAPIKeys path (unrelated to hasPendingDelegatedAuth, which is only a startup fallback).
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "real-key")})
+	assert.True(t, resolver.IsUsable())
+	assertKeys(t, []string{"real-key"}, resolver)
+}
+
 func TestScrubKeys(t *testing.T) {
 	keys := []string{
 		"abcdefghijklmnopqrstuvwxyzkey001",

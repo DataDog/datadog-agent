@@ -200,16 +200,23 @@ additional_endpoints:
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
+	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
+	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
+	// auth has a chance to deliver a real key.
+	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{}},
+	})
+	secondOrg.HasPendingDelegatedAuth = true
+
+	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+	// real-key list until delegated auth resolves it, but the domain is still marked pending.
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key"))
+	thirdOrg.HasPendingDelegatedAuth = true
+
 	expectedMultipleEndpoints := EndpointDescriptorSet{
-		"https://app.datadoghq.com": newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
-		// A domain whose only entry is a pending DELA(...) directive still gets a resolver
-		// (with zero real keys) so delegated auth has somewhere to write the fetched key later.
-		"https://second-org.datadoghq.com": newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
-			{ConfigSettingPath: "additional_endpoints", Keys: []string{}},
-		}),
-		// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
-		// real-key list until delegated auth resolves it.
-		"https://third-org.datadoghq.com": newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key")),
+		"https://app.datadoghq.com":        newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
+		"https://second-org.datadoghq.com": secondOrg,
+		"https://third-org.datadoghq.com":  thirdOrg,
 	}
 
 	assert.NoError(t, err)
