@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "imageresolver",
+    srcs = [
+        "cache.go",
+        "config.go",
+        "digest_fetcher.go",
+        "image.go",
+        "resolver.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/util/log",
+        "@com_github_opencontainers_go_digest//:go-digest",
+    ],
+)
+
+dd_agent_go_test(
+    name = "imageresolver_test",
+    srcs = [
+        "cache_test.go",
+        "config_test.go",
+        "digest_fetcher_test.go",
+        "resolver_test.go",
+    ],
+    embed = [":imageresolver"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

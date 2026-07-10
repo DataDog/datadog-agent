@@ -17,9 +17,12 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 type HTTP2Suite struct {
@@ -28,6 +31,11 @@ type HTTP2Suite struct {
 
 func TestHTTP2Stats(t *testing.T) {
 	suite.Run(t, &HTTP2Suite{})
+}
+
+// SetupTest pins discovery mode off so non-discovery tests have a known baseline.
+func (s *HTTP2Suite) SetupTest() {
+	mock.NewSystemProbe(s.T()).SetInTest("discovery.service_map.enabled", false)
 }
 
 func (s *HTTP2Suite) TestFormatHTTP2Stats() {
@@ -111,6 +119,106 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations.EndpointAggregations)
 
 	assert.Equal(t, uint64((1<<len(statusCodes))-1), tags)
+}
+
+func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
+	t := s.T()
+
+	mock.NewSystemProbe(t).SetInTest("discovery.service_map.enabled", true)
+
+	const (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		latencyNs  = 1_000_000.0 // 1ms
+	)
+	localhost := util.AddressFromString("127.0.0.1")
+
+	key := http.Key{
+		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
+		Path:          http.Path{Content: http.Interner.GetString("")},
+	}
+	// One success + one error bucket. Status collapse itself is covered by the
+	// statkeeper discovery tests; here we only assert the encoder serialization.
+	stats := http.NewRequestStats()
+	stats.AddDiscoveryRequest(200, latencyNs, 0, nil)
+	stats.AddDiscoveryRequest(500, latencyNs, 0, nil)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: localhost, Dest: localhost,
+					SPort: clientPort, DPort: serverPort,
+				}},
+			},
+		},
+		USMData: network.USMProtocolsData{HTTP2: map[http.Key]*http.RequestStats{key: stats}},
+	}
+
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
+	require.True(t, http2Encoder.discoveryMode, "encoder should be in discovery mode")
+
+	aggregations, _, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
+	require.NotNil(t, aggregations)
+	require.Len(t, aggregations.EndpointAggregations, 1)
+
+	endpoint := aggregations.EndpointAggregations[0]
+	// Path/method/fullPath must not be serialized in discovery mode.
+	assert.Empty(t, endpoint.Path)
+	assert.False(t, endpoint.FullPath)
+	assert.Equal(t, model.HTTPMethod(0), endpoint.Method)
+
+	// The encoder serializes every bucket it is given (success + error).
+	require.Len(t, endpoint.StatsByStatusCode, 2)
+	for code, bucket := range endpoint.StatsByStatusCode {
+		assert.Equal(t, uint32(1), bucket.Count, "bucket %d", code)
+		// LatencySum is serialized; FirstLatencySample / DDSketch are not.
+		assert.Equal(t, latencyNs, bucket.LatencySum, "bucket %d", code)
+		assert.Zero(t, bucket.FirstLatencySample, "bucket %d", code)
+		assert.Empty(t, bucket.Latencies, "bucket %d", code)
+	}
+}
+
+func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryModeTags() {
+	t := s.T()
+	mock.NewSystemProbe(t).SetInTest("discovery.service_map.enabled", true)
+
+	const (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+	)
+	localhost := util.AddressFromString("127.0.0.1")
+
+	key := http.Key{
+		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
+		Path:          http.Path{Content: http.Interner.GetString("")},
+	}
+	stats := http.NewRequestStats()
+	stats.AddDiscoveryRequest(200, 1_000_000.0, tagGnuTLS, common.NewStringSet("env:test"))
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: localhost, Dest: localhost,
+					SPort: clientPort, DPort: serverPort,
+				}},
+			},
+		},
+		USMData: network.USMProtocolsData{HTTP2: map[http.Key]*http.RequestStats{key: stats}},
+	}
+
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
+	require.True(t, http2Encoder.discoveryMode)
+
+	aggregations, staticTags, dynamicTags := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
+	require.NotNil(t, aggregations)
+
+	// Tags must still propagate even though path/method are dropped.
+	assert.Equal(t, uint64(tagGnuTLS), staticTags)
+	_, hasDynamic := dynamicTags["env:test"]
+	assert.True(t, hasDynamic, "dynamic tags should propagate in discovery mode")
+	assert.Empty(t, aggregations.EndpointAggregations[0].Path, "path still dropped in discovery mode")
 }
 
 func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
