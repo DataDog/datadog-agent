@@ -344,8 +344,7 @@ func TestToEnv(t *testing.T) {
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	if thisBinaryIsFips {
+	if pkgfips.BuiltForFIPS() {
 		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
 	}
 	tests := []struct {
