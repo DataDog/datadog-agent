@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "postgres",
+    srcs = ["docker.go"],
+    embedsrcs = [
+        "docker-compose.yaml",
+        "postgres-init.sql",
+        "postgres-workload.sh",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/postgres",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/remote",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
