@@ -7,7 +7,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
-use crate::spawn::spawn_managed_child;
+use crate::spawn;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -225,7 +225,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let handle = spawn_managed_child(&self.name, &self.config)?;
+        let handle = spawn::spawn_managed_child(&self.name, &self.config)?;
 
         self.pid = handle.id();
         info!(
