@@ -75,9 +75,14 @@ surface WindowsEventTruncation {
     @guarantee PassThroughUnderLimit
         -- When the input message's byte length is at or under
         -- op.max_message_bytes, the message field is stored
-        -- byte-for-byte unchanged. No marker is appended; the
-        -- IsTruncated flag derived from a later read-side scan
-        -- is false (no marker to find).
+        -- byte-for-byte unchanged: the write side neither cuts
+        -- the content nor appends the marker. Whether the
+        -- resulting message.Message has IsTruncated=true is
+        -- determined solely by the read-side scan
+        -- (RetroactiveDetection + MarkerScanAtBothBoundaries) —
+        -- an under-limit input whose content already contains
+        -- the marker at either boundary WILL surface
+        -- IsTruncated=true via the retroactive scan.
 
     @guarantee UTF8AwareCutAtLimit
         -- When the input message's byte length exceeds
