@@ -1,0 +1,64 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "patch",
+    srcs = [
+        "file_provider.go",
+        "patch_request.go",
+        "patcher.go",
+        "provider.go",
+        "rc_provider.go",
+        "start.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/mutate/autoinstrumentation/annotation",
+        "//pkg/clusteragent/patcher",
+        "//pkg/clusteragent/telemetry",
+        "//pkg/config/remote/client",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "patch_test",
+    srcs = [
+        "file_provider_test.go",
+        "patch_request_test.go",
+        "patcher_test.go",
+        "rc_provider_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":patch"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/patcher",
+        "//pkg/clusteragent/telemetry",
+        "//pkg/config/remote/client",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//kubernetes/fake",
+    ],
+)

@@ -190,8 +190,8 @@
     id: 'C02HVGRLQ8Z'
 '@datadog/cloud-network-monitoring':
   notification:
-    name: '#cloud-network-monitoring'
-    id: 'CFB4213BJ'
+    name: '#cnm-agent'
+    id: 'C07FNUP1M3N'
   review:
     name: '#cnm-agent'
     id: 'C07FNUP1M3N'

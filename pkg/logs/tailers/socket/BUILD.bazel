@@ -26,7 +26,6 @@ go_test(
         "datagram_tailer_test.go",
         "stream_tailer_test.go",
         "syslog_bench_test.go",
-        "syslog_builder_test.go",
     ],
     embed = [":socket"],
     gotags = ["test"],

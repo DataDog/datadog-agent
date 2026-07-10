@@ -52,6 +52,7 @@ agents:
   containers:
     privateActionRunner:
       envDict:
+        DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
 `
 

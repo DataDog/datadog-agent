@@ -28,7 +28,7 @@ const (
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
 	// info for Dynamic Instrumentation. This is the directory where the DWARF
 	// data from analyzed binaries is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	defaultDynamicInstrumentationDebugInfoDir = "${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
