@@ -115,6 +115,7 @@ use (
 	pkg/fleet/installer
 	pkg/gohai
 	pkg/logs/message
+	pkg/logs/smartadaptivesampling
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils

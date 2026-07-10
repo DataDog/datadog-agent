@@ -186,6 +186,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/logs/smartadaptivesampling"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
@@ -519,6 +520,7 @@ func getSharedFxOption() fx.Option {
 		logssourcefx.Module(),
 		recordernoopfx.Module(),
 		reporterfx.Module(),
+		smartadaptivesampling.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
