@@ -60,7 +60,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 			comp.reader.Store(&readerState{reader: subscription.Reader})
 			unsubscribe = subscription.Unsubscribe
-			reqs.Log.Infof("registered smart adaptive-sampling severity reader")
+			reqs.Log.Debugf("registered smart adaptive-sampling severity reader")
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
