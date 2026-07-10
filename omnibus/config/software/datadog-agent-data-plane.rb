@@ -28,7 +28,6 @@ ADP_DEFAULT_HASHES.each_key do |platform|
 end
 
 default_version adp_version
-# Note: ADP_DEFAULT_HASHES must be defined before this line since we use it above
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
