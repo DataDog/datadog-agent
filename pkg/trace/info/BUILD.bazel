@@ -15,6 +15,7 @@ go_library(
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
         "//pkg/trace/watchdog",
         "//pkg/util/scrubber",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -27,6 +28,7 @@ go_test(
     srcs = [
         "helper_test.go",
         "info_test.go",
+        "semantic_core_test.go",
         "stats_test.go",
         "writer_test.go",
     ],
@@ -37,6 +39,7 @@ go_test(
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
         "//pkg/trace/teststatsd",
         "//pkg/trace/watchdog",
         "@com_github_stretchr_testify//assert",
