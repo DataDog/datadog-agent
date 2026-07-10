@@ -265,8 +265,8 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     Code generator for config schema
 
     keep_orig_order: If true, extract order from *_settings.go files, keep it the same
-    check:           If true, validate whether codegen matches SCHEMA_DIR
-    fix:             If true, copy the codegen files into SCHEMA_DIR
+    check:           If true, validate whether codegen matches SETUP_INIT_DIR
+    fix:             If true, copy the codegen files into SETUP_INIT_DIR
     keeptmp:         If true, don't delete the temporary folder
     """
 
