@@ -734,6 +734,35 @@ func TestSetServerlessInitTagCache_ResetCausesRederive(t *testing.T) {
 	assert.Equal(t, "new:tag", p2.Tags, "post-reset message must re-derive tags from the message")
 }
 
+// TestJSONServerlessInitEncoder_ColdPathPrimeNeverClobbersConcurrentUpdate pins
+// the ordering guarantee that Encode's cold-path CAS depends on: a stale
+// prime — computed from a pre-launch message before a concurrent
+// SetServerlessInitTagCache update, but landing after it — must never
+// overwrite the authoritative value. Real goroutines aren't needed since the
+// two writes are sequenced explicitly here in the exact order the race would
+// produce; this exercises the same primeTagsFromMessage method Encode's cold
+// path calls, so it would fail if that method were changed back to a plain
+// Store (as the reviewed-then-reverted change in PR #53030 did).
+func TestJSONServerlessInitEncoder_ColdPathPrimeNeverClobbersConcurrentUpdate(t *testing.T) {
+	enc := &jsonServerlessInitEncoder{}
+
+	// t1: SetServerlessInitTagCache lands first with the authoritative,
+	// updated tags (e.g. from a /run hook).
+	authoritative := "env:prod,account_id:123,lambda_microvm_id:vm-xyz"
+	enc.cachedTags.Store(&authoritative)
+
+	// t2: a slow cold-path Encode call, which computed its (now stale) tags
+	// from a pre-launch message before the update landed, finally attempts
+	// to prime the cache.
+	enc.primeTagsFromMessage("env:prod,account_id:123")
+
+	got := enc.cachedTags.Load()
+	if assert.NotNil(t, got) {
+		assert.Equal(t, authoritative, *got,
+			"a stale cold-path prime must not clobber a concurrent SetServerlessInitTagCache update")
+	}
+}
+
 // TestJSONServerlessInitEncoder_ConcurrentSafety verifies that concurrent calls
 // to Encode and SetServerlessInitTagCache do not race. Run with -race to
 // exercise the atomic guarantees; the assertions confirm no crashes and
