@@ -33,10 +33,22 @@ type jsonServerlessInitEncoder struct {
 	cachedTags atomic.Pointer[string]
 }
 
+// primeTagsFromMessage atomically primes the cache from a message's computed
+// tags, but only if the cache is currently nil. This must be a CAS rather
+// than a plain Store: it can race with a concurrent SetServerlessInitTagCache
+// call (e.g. from a MicroVM /run hook), and a plain Store could overwrite that
+// authoritative, possibly newer, value with this message's stale snapshot.
+// The CAS only ever transitions nil -> primed, so it can never clobber a
+// value SetServerlessInitTagCache already wrote.
+func (j *jsonServerlessInitEncoder) primeTagsFromMessage(tagsStr string) {
+	s := tagsStr
+	j.cachedTags.CompareAndSwap(nil, &s)
+}
+
 // SetServerlessInitTagCache pre-populates the JSONServerlessInitEncoder's cache
 // with the provided tags. This must be called (instead of clearing the cache)
-// whenever the log tag set changes at runtime (e.g. after /launch appends
-// lambda_microvm_id). Setting the cache directly prevents in-flight pre-launch
+// whenever the log tag set changes at runtime (e.g. after /run appends
+// lambda_microvm_id). Setting the cache directly prevents in-flight pre-run
 // messages — whose origin.tags were snapshotted before the update — from being
 // encoded first and re-priming the cache with stale tags.
 //
@@ -82,11 +94,9 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		tagsStr = *p
 	} else {
 		// Cache uninitialised (startup or post-reset): derive from the message
-		// and prime it for subsequent calls. All callers compute the same
-		// static tags in a serverless-init environment, so a plain Store is
-		// fine even if multiple goroutines race here.
+		// and prime it for subsequent calls.
 		tagsStr = msg.TagsToString()
-		j.cachedTags.Store(&tagsStr)
+		j.primeTagsFromMessage(tagsStr)
 	}
 
 	encoded, err := json.Marshal(jsonServerlessInitPayload{
