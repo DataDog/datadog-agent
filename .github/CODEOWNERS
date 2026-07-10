@@ -268,6 +268,7 @@
 /cmd/agent/dist/conf.d/network_path.d/              @DataDog/network-path
 /cmd/agent/dist/conf.d/network_config_management.d/ @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/          @DataDog/ecs-experiences
+/cmd/agent/dist/conf.d/powershell.d/                @DataDog/windows-products
 /cmd/agent/dist/conf.d/sbom.d/                      @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                      @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/win32_event_log.d/           @DataDog/windows-products
@@ -605,6 +606,7 @@
 /pkg/collector/corechecks/system/                                     @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go                     @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/collector/corechecks/system/battery/                             @DataDog/windows-products
+/pkg/collector/corechecks/system/powershell/                          @DataDog/windows-products
 /pkg/collector/corechecks/system/thermal/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/                      @DataDog/windows-products
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
