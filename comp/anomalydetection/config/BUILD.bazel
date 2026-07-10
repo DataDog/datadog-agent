@@ -3,9 +3,9 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "config",
     srcs = ["config.go"],
-    deps = ["//pkg/config/model"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/config",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/config/model"],
 )
 
 go_test(
