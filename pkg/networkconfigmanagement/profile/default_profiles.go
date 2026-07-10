@@ -167,13 +167,13 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-config", Expect(`Building configuration...`), Expect(`Current configuration :`)),
 			GetStartup: MkCommand("show startup-config", Expect(`Using (.*?) out of (.*?) bytes`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
+			PushConfig: &PushConfig{
+				Copy: &SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "flash:/dd-rollback-config",
 				},
-				MkCommand("configure replace flash:/dd-rollback-config force", Expect("Rollback Done")),
-				MkCommand("write", Expect("[OK]")),
+				SetRunning: MkCommand("configure replace flash:/dd-rollback-config force", Expect("Rollback Done")),
+				SetStartup: MkCommand("write", Expect("[OK]")),
 			},
 		},
 		Preprocessing: []RedactionRule{
@@ -256,13 +256,13 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", Expect(`Arista .*`)),
 			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", Expect(`! Command: show running-config`)),
 			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", Expect(`! Command: show startup-config`)),
-			PushConfig: []Command{
-				&SCPCommand{
+			PushConfig: &PushConfig{
+				Copy: &SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand("configure replace file:/tmp/dd-rollback-config", ExpectNot("%")),
-				MkCommand("write", Expect(`Copy completed successfully`)),
+				SetRunning: MkCommand("configure replace file:/tmp/dd-rollback-config", ExpectNot("%")),
+				SetStartup: MkCommand("write", Expect(`Copy completed successfully`)),
 				// TODO should we be deleting the file after?
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
@@ -321,6 +321,14 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", Expect(`Junos:`)),
 			GetRunning: MkCommand("show configuration | display omit", Expect(`version \d+\.\d+[^;]*;`)),
 			GetVersion: MkCommand("show version"),
+			// untested
+			// PushConfig: &PushConfig{
+			// 	Copy: &SCPCommand{
+			// 		RemoteCommand: "scp",
+			// 		Filepath:      "/tmp/dd-rollback-config",
+			// 	},
+			// 	SetRunning: MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", Expect(`commit complete`)),
+			// },
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(\s*community) (\S+) (\{)`, WithReplacement("$1 <secret hidden> {")),
