@@ -18,7 +18,7 @@ import (
 
 func TestServicedefIsEnabled(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.enabled", true)
+	cfg.Set("process_config.enabled", true, model.SourceDefault)
 
 	svc := Servicedef{
 		name: "process",
@@ -33,13 +33,13 @@ func TestServicedefIsEnabled(t *testing.T) {
 	})
 
 	t.Run("not suppressed without definition file", func(t *testing.T) {
-		cfg.SetWithoutSource("process_manager.enabled", true)
+		cfg.Set("process_manager.enabled", true, model.SourceDefault)
 		assert.True(t, svc.IsEnabled(true, cfg))
 	})
 
 	t.Run("not suppressed when process manager disabled", func(t *testing.T) {
 		svc.procmgrDefinitionFile = "datadog-agent-process.yaml"
-		cfg.SetWithoutSource("process_manager.enabled", false)
+		cfg.Set("process_manager.enabled", false, model.SourceDefault)
 		assert.True(t, svc.IsEnabled(true, cfg))
 	})
 }
