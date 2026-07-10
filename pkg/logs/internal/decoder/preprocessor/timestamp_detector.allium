@@ -64,10 +64,6 @@ surface TimestampDetection {
 
     context detector: TimestampDetector
 
-    exposes:
-        detector.assigner_id
-        detector.match_threshold
-
     contracts:
         fulfils Heuristic
 

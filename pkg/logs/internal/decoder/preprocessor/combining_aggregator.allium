@@ -131,15 +131,6 @@ surface CombiningAggregation {
 
     context agg: CombiningAggregator
 
-    exposes:
-        agg.line_limit
-        agg.tag_truncated_logs
-        agg.tag_multi_line_logs
-        agg.bucket_empty
-        agg.bucket_lines_count
-        agg.bucket_content_len
-        agg.should_truncate
-
     contracts:
         fulfils Aggregator
 

@@ -417,9 +417,6 @@ surface AdaptiveSampling {
 
     context sampler: AdaptiveSampler
 
-    exposes:
-        sampler.source
-
     provides:
         ProcessLog(message, incoming)
 

@@ -127,12 +127,6 @@ surface MultiLineParserTruncation {
 
     context p: MultiLineParser
 
-    exposes:
-        p.line_limit
-        p.buffered_content_len
-        p.is_buffer_truncated
-        p.last_input_upstream_truncated
-
     @guarantee NoMarkerByteDecoration
         -- The MultiLineParser adds no `...TRUNCATED...`
         -- marker bytes to any emission. Its observable

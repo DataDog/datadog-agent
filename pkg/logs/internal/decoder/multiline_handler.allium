@@ -161,15 +161,6 @@ surface MultiLineHandling {
 
     context h: MultiLineHandler
 
-    exposes:
-        h.line_limit
-        h.should_truncate
-        h.is_buffer_truncated
-        h.buffered_content_len
-        h.lines_combined
-        h.multi_line_tag_value
-        h.pattern_matched_once
-
     @guarantee PatternMatchTriggersEmission
         -- A process call whose input content matches
         -- newContentRe triggers a sendBuffer at the start

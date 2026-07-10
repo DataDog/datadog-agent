@@ -101,10 +101,6 @@ surface SingleLineHandling {
 
     context h: SingleLineHandler
 
-    exposes:
-        h.line_limit
-        h.should_truncate
-
     contracts:
         fulfils Truncatable
 
