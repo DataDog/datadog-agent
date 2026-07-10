@@ -70,6 +70,12 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 	}
 }
 
+func TestBTFPlatform(t *testing.T) {
+	platform, err := getBTFPlatform()
+	require.NoError(t, err)
+	require.NotEmpty(t, platform)
+}
+
 func TestBTFTelemetry(t *testing.T) {
 	loader, err := initBTFLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
 	require.NoError(t, err)
