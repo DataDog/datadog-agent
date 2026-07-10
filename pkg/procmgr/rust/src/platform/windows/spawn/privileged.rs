@@ -7,7 +7,7 @@ use anyhow::{Result, bail};
 
 use crate::spawn::{SpawnRequest, is_inherit_or_null};
 
-use super::super::{fleet_policies_dir_for_managed_process, install_root, program_data_root};
+use super::super::{install_root, program_data_root};
 
 /// Reject privileged spawn requests that don't exactly match our embedded catalog spec.
 pub(super) fn validate_privileged_process_request(
@@ -22,7 +22,7 @@ pub(super) fn validate_privileged_process_request(
     validate_privileged_stdio(process_name, request)?;
     validate_privileged_working_dir(process_name, &spec, request)?;
     validate_privileged_command_args(process_name, &spec, request)?;
-    validate_privileged_env(process_name, &spec, request)?;
+    validate_privileged_env(process_name, request)?;
 
     Ok(())
 }
@@ -77,41 +77,24 @@ fn validate_privileged_command_args(
     Ok(())
 }
 
-fn validate_privileged_env(
-    process_name: &str,
-    spec: &PrivilegedProcessSpec,
-    request: &SpawnRequest,
-) -> Result<()> {
-    for (key, expected) in &spec.required_env {
-        match request.env.iter().find(|(k, _)| k == key) {
-            None => {
-                bail!("[{process_name}] refusing privileged spawn: missing required env var {key}");
-            }
-            Some((_, actual)) if normalize_win_path(actual) != normalize_win_path(expected) => {
-                bail!(
-                    "[{process_name}] refusing privileged spawn: unexpected value for {key} (got {actual}, expected {expected})"
-                );
-            }
-            _ => {}
-        }
+/// Privileged managed children on Windows do not take fleet policy paths from processes.d.
+///
+/// Fleet policy location is machine state in the registry (`fleet_policies_dir`); children load
+/// it via `FleetConfigOverride` like the main agent service. Reject any config-supplied env vars.
+fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result<()> {
+    if request.env.is_empty() {
+        return Ok(());
     }
 
-    for (k, _) in &request.env {
-        if !spec.allowed_env.contains(&k.as_str()) {
-            bail!(
-                "[{process_name}] refusing privileged spawn: disallowed env var for privileged process: {k}"
-            );
-        }
-    }
-
-    Ok(())
+    let keys: Vec<&str> = request.env.iter().map(|(k, _)| k.as_str()).collect();
+    bail!(
+        "[{process_name}] refusing privileged spawn: disallowed env vars for privileged process: {keys:?}"
+    );
 }
 
 struct PrivilegedProcessSpec {
     expected_command: String,
     expected_args: Vec<String>,
-    allowed_env: &'static [&'static str],
-    required_env: Vec<(String, String)>,
     disallow_working_dir: bool,
 }
 
@@ -123,34 +106,27 @@ fn privileged_process_spec(
     use crate::spawn::DATADOG_AGENT_PROCESS;
 
     match process_name {
-        DATADOG_AGENT_PROCESS => {
-            let fleet_policies_dir = fleet_policies_dir_for_managed_process()
+        DATADOG_AGENT_PROCESS => Ok(PrivilegedProcessSpec {
+            expected_command: install_root
+                .join(r"bin\agent\process-agent.exe")
                 .to_string_lossy()
-                .into_owned();
-            Ok(PrivilegedProcessSpec {
-                expected_command: install_root
-                    .join(r"bin\agent\process-agent.exe")
+                .into_owned(),
+            expected_args: vec![
+                "--cfgpath".to_string(),
+                etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
+                "--sysprobe-config".to_string(),
+                etc_root
+                    .join("system-probe.yaml")
                     .to_string_lossy()
                     .into_owned(),
-                expected_args: vec![
-                    "--cfgpath".to_string(),
-                    etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
-                    "--sysprobe-config".to_string(),
-                    etc_root
-                        .join("system-probe.yaml")
-                        .to_string_lossy()
-                        .into_owned(),
-                    "--pid".to_string(),
-                    install_root
-                        .join(r"run\process-agent.pid")
-                        .to_string_lossy()
-                        .into_owned(),
-                ],
-                allowed_env: &["DD_FLEET_POLICIES_DIR"],
-                required_env: vec![("DD_FLEET_POLICIES_DIR".to_string(), fleet_policies_dir)],
-                disallow_working_dir: true,
-            })
-        }
+                "--pid".to_string(),
+                install_root
+                    .join(r"run\process-agent.pid")
+                    .to_string_lossy()
+                    .into_owned(),
+            ],
+            disallow_working_dir: true,
+        }),
         other => bail!(
             "[{other}] refusing privileged spawn: no privileged catalog template (internal error?)"
         ),

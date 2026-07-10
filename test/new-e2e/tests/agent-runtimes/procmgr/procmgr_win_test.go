@@ -262,7 +262,7 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	))
 
 	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-ddot.yaml")
-	yamlBody := windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
+	yamlBody := windowsDDOTProcmgrYAMLContent(installPath, configRoot)
 	b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
 	if _, err := host.Execute(psRemote(
 		`$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)`,
@@ -280,14 +280,13 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	s.hasDDOT = true
 }
 
-func windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies string) string {
+func windowsDDOTProcmgrYAMLContent(installPath, configRoot string) string {
 	toSlash := func(p string) string {
 		return filepath.ToSlash(p)
 	}
 	exe := toSlash(filepath.Join(installPath, "ext", "ddot", "embedded", "bin", "otel-agent.exe"))
 	otelCfg := toSlash(filepath.Join(configRoot, "otel-config.yaml"))
 	ddCfg := toSlash(filepath.Join(configRoot, "datadog.yaml"))
-	fleet := toSlash(fleetPolicies)
 	return fmt.Sprintf(`%s
 command: %s
 args:
@@ -306,11 +305,10 @@ start_limit_interval_sec: 10
 start_limit_burst: 5
 env:
   DD_OTELCOLLECTOR_ENABLED: "true"
-  DD_FLEET_POLICIES_DIR: %s
   DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
 stdout: inherit
 stderr: inherit
-`, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe, fleet)
+`, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe)
 }
 
 func (s *procmgrWindowsSuite) requireDDOTWindows() {

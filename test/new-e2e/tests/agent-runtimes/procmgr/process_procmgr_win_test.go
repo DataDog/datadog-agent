@@ -182,9 +182,9 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 		assert.NoError(ct, err)
 	}, 120*time.Second, 3*time.Second)
 
-	// Stage 2: Mutate privileged *env* (DD_FLEET_POLICIES_DIR) so it no longer matches the
-	// catalog-pinned fleet policies path. This should make dd-procmgr refuse the privileged spawn request.
-	envMutatePS := fmt.Sprintf(`powershell -NoProfile -Command "$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c -replace '(?m)^(\s*DD_FLEET_POLICIES_DIR:\s*).*$','$1""'; if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8"`,
+	// Stage 2: Inject a disallowed env var into privileged process YAML. The catalog allows
+	// no config-supplied env vars (fleet policy dir comes from the registry at runtime).
+	envMutatePS := fmt.Sprintf(`powershell -NoProfile -Command "$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c.Replace('start_limit_burst: 5', 'start_limit_burst: 5`nenv:`n  DD_MALICIOUS_VAR: tampered'); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8"`,
 		escapePSSingleQuotedLiteral(cfgPath))
 	_, err = host.Execute(envMutatePS)
 	require.NoError(s.T(), err)
