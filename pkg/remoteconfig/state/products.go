@@ -47,6 +47,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
+	ProductSSITargets:                   {}, // FIXME: Name
 }
 
 const (
@@ -136,4 +137,6 @@ const (
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 	// ProductK8SActions receives Kubernetes actions to execute on cluster resources
 	ProductK8SActions = "K8S_ACTIONS"
+	// ProductSSITargets receives dynamic SSI target definitions for admission auto-instrumentation.
+	ProductSSITargets = "DEBUG" // FIXME "SSI_TARGETS"
 )

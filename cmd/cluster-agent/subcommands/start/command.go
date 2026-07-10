@@ -495,7 +495,7 @@ func start(log log.Component,
 			products = append(products, state.ProductK8SActions)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
-			products = append(products, state.ProductGradualRollout)
+			products = append(products, state.ProductGradualRollout, state.ProductSSITargets) // FIXME: use debug product for tests
 		}
 
 		var err error
@@ -676,6 +676,7 @@ func start(log log.Component,
 			MutatingInformers:            apiCl.WebhookConfigInformerFactory,
 			DynamicInformer:              apiCl.DynamicInformerFactory,
 			Client:                       apiCl.Cl,
+			RcClient:                     rcClient,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,

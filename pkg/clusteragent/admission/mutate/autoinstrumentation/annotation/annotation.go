@@ -62,9 +62,16 @@ const (
 
 // Annotations written by the webhook.
 const (
-	// AppliedTarget is the JSON of the target that was applied to the pod.
+	// AppliedTarget is the JSON of the target that was applied to the pod. It is
+	// only set when injection is driven by a configuration target.
 	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python ":"3"}}
 	AppliedTarget = "internal.apm.datadoghq.com/applied-target"
+	// AppliedPolicy is a compact identity of the policy that was applied to the
+	// pod. It is only set when injection is driven by a remote-config policy. To
+	// keep it small, it carries the policy name, id, version and the injected
+	// tracer versions rather than the full rule tree.
+	// Example value: {"name":"payments java","id":"0000000a-0000-0000-0000-00000000000b","version":3,"ddTraceVersions":{"java":"latest"}}
+	AppliedPolicy = "internal.apm.datadoghq.com/applied-policy"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"
