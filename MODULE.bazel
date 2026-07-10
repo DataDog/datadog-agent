@@ -173,6 +173,12 @@ register_toolchains(
     dev_dependency = True,
 )
 
+register_toolchains(
+    "//bazel/toolchains/rpath_rewriter:install_name_tool_toolchain",
+    "//bazel/toolchains/rpath_rewriter:noop_windows_toolchain",
+    "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
+)
+
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
 use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
 
