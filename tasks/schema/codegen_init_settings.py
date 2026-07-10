@@ -430,16 +430,8 @@ def output_single_setting(name, kind, internal_comment, schema, target):
         envvars = ['"%s"' % ev for ev in envvars]
         envsuffix = ', ' + ', '.join(envvars)
 
-    # env parser function
+    # get env parser function, don't output yet
     env_parser = retrieve_env_parser(name.split('.'), schema)
-    if env_parser:
-
-        def get_vartype():
-            node = get_node(name.split('.'), schema)
-            return to_vartype(node, '{}')
-
-        line = env_parser_to_func_call(name, env_parser, get_vartype)
-        sourcecode.append(line)
 
     # internal-only comments for the setting
     if internal_comment:
@@ -457,6 +449,17 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
     # the line of code that defines the setting
     sourcecode.append(line)
+
+    # only after the setting is defined should the env parser appear
+    if env_parser:
+
+        def get_vartype():
+            node = get_node(name.split('.'), schema)
+            return to_vartype(node, '{}')
+
+        line = env_parser_to_func_call(name, env_parser, get_vartype)
+        sourcecode.append(line)
+
     # write to our target
     target.add(name, schema, sourcecode)
 
