@@ -52,6 +52,8 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
+	// TODO: defaultMaxConcurrentClientGetConfigs is an untuned placeholder
+	defaultMaxConcurrentClientGetConfigs = 200
 	// Number of /configurations where we get 503 or 504 errors until the log level is increased to ERROR
 	maxFetchConfigsUntilLogLevelErrors = 5
 	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
@@ -162,6 +164,12 @@ type CoreAgentService struct {
 	// The maximum number of runtime IDs that may be tracked per subscription.
 	maxTrackedRuntimeIDsPerSubscription int
 
+	// Bounds concurrent ClientGetConfigs calls
+	maxConcurrentClientGetConfigs int
+	clientGetConfigsSem           chan struct{}
+	// Tracks in-flight client IDs to reject duplicates
+	inFlightClientIDs sync.Map
+
 	mu struct {
 		sync.Mutex
 
@@ -223,6 +231,8 @@ type RcTelemetryReporter interface {
 	IncRateLimit()
 	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
 	IncTimeout()
+	// IncClientGetConfigsShed is invoked when a ClientGetConfigs call is shed.
+	IncClientGetConfigsShed()
 
 	// IncConfigSubscriptionsConnectedCounter increments the
 	// DdRcTelemetryReporter ConfigSubscriptionsConnectedCounter counter.
@@ -379,6 +389,8 @@ type options struct {
 	maxTrackedRuntimeIDsPerSubscription int
 	// The maximum number of responses that can be queued per subscription.
 	maxSubscriptionQueueSize int
+	// The maximum number of ClientGetConfigs calls that may be in flight at once.
+	maxConcurrentClientGetConfigs int
 }
 
 var defaultSubscriptionProductMappings = productsMappings{
@@ -408,6 +420,7 @@ var defaultOptions = options{
 	maxConcurrentSubscriptions:          defaultMaxConcurrentSubscriptions,
 	maxTrackedRuntimeIDsPerSubscription: defaultMaxTrackedRuntimeIDsPerSubscription,
 	maxSubscriptionQueueSize:            defaultMaxSubscriptionQueueSize,
+	maxConcurrentClientGetConfigs:       defaultMaxConcurrentClientGetConfigs,
 }
 
 // Option is a service option
@@ -521,6 +534,16 @@ func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
 	}
 	return func(s *options) {
 		s.clientCacheBypassLimit = limit
+	}
+}
+
+// WithMaxConcurrentClientGetConfigs bounds concurrent ClientGetConfigs calls
+func WithMaxConcurrentClientGetConfigs(limit int) func(s *options) {
+	return func(s *options) {
+		if limit <= 0 {
+			limit = defaultMaxConcurrentClientGetConfigs
+		}
+		s.maxConcurrentClientGetConfigs = limit
 	}
 }
 
@@ -658,6 +681,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		maxConcurrentClientGetConfigs:       options.maxConcurrentClientGetConfigs,
+		clientGetConfigsSem:                 make(chan struct{}, options.maxConcurrentClientGetConfigs),
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -956,6 +981,36 @@ func (s *CoreAgentService) flushCacheResponseLocked() (*pbgo.ClientGetConfigsRes
 //
 //nolint:revive // TODO(RC) Fix revive linter
 func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	// Shed early if the caller already gave up
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+
+	// Reject a duplicate in-flight request for the same client ID
+	if request.Client != nil && request.Client.Id != "" {
+		if _, alreadyInFlight := s.inFlightClientIDs.LoadOrStore(request.Client.Id, struct{}{}); alreadyInFlight {
+			s.telemetryReporter.IncClientGetConfigsShed()
+			return nil, status.Errorf(
+				codes.ResourceExhausted,
+				"a ClientGetConfigs request for client %q is already in flight",
+				request.Client.Id,
+			)
+		}
+		defer s.inFlightClientIDs.Delete(request.Client.Id)
+	}
+
+	select {
+	case s.clientGetConfigsSem <- struct{}{}:
+		defer func() { <-s.clientGetConfigsSem }()
+	default:
+		s.telemetryReporter.IncClientGetConfigsShed()
+		return nil, status.Errorf(
+			codes.ResourceExhausted,
+			"too many concurrent RemoteConfig client requests (limit %d)",
+			s.maxConcurrentClientGetConfigs,
+		)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

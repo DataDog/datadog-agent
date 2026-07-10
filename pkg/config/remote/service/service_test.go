@@ -159,6 +159,7 @@ func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
 type telemetryReporter struct {
 	timeouts   atomic.Int64
 	rateLimits atomic.Int64
+	shed       atomic.Int64
 
 	subscriptionsActiveGauge        atomic.Int64
 	subscriptionClientsTrackedGauge atomic.Int64
@@ -177,6 +178,9 @@ func (t *telemetryReporter) IncRateLimit() {
 }
 func (t *telemetryReporter) IncTimeout() {
 	t.timeouts.Add(1)
+}
+func (t *telemetryReporter) IncClientGetConfigsShed() {
+	t.shed.Add(1)
 }
 func (t *telemetryReporter) SetConfigSubscriptionClientsTracked(value int) {
 	t.subscriptionClientsTrackedGauge.Store(int64(value))

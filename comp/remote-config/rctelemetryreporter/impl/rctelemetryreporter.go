@@ -21,8 +21,9 @@ type Dependencies struct {
 
 // DdRcTelemetryReporter is a datadog-agent telemetry counter for RC cache bypass metrics. It implements the RcTelemetryReporter interface.
 type DdRcTelemetryReporter struct {
-	BypassRateLimitCounter telemetry.Counter
-	BypassTimeoutCounter   telemetry.Counter
+	BypassRateLimitCounter      telemetry.Counter
+	BypassTimeoutCounter        telemetry.Counter
+	ClientGetConfigsShedCounter telemetry.Counter
 
 	ConfigSubscriptionsActive              telemetry.Gauge
 	ConfigSubscriptionClientsTracked       telemetry.Gauge
@@ -41,6 +42,13 @@ func (r *DdRcTelemetryReporter) IncRateLimit() {
 func (r *DdRcTelemetryReporter) IncTimeout() {
 	if r.BypassTimeoutCounter != nil {
 		r.BypassTimeoutCounter.Inc()
+	}
+}
+
+// IncClientGetConfigsShed increments the ClientGetConfigsShedCounter counter.
+func (r *DdRcTelemetryReporter) IncClientGetConfigsShed() {
+	if r.ClientGetConfigsShedCounter != nil {
+		r.ClientGetConfigsShedCounter.Inc()
 	}
 }
 
@@ -92,6 +100,13 @@ func NewComponent(deps Dependencies) rctelemetryreporter.Component {
 			"cache_bypass_timeout",
 			[]string{},
 			"Number of Remote Configuration cache bypass requests that timeout.",
+			commonOpts,
+		),
+		ClientGetConfigsShedCounter: deps.Telemetry.NewCounterWithOpts(
+			"remoteconfig",
+			"client_get_configs_shed",
+			[]string{},
+			"Number of ClientGetConfigs requests rejected because too many were already in flight.",
 			commonOpts,
 		),
 		ConfigSubscriptionsActive: deps.Telemetry.NewGaugeWithOpts(
