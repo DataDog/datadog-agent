@@ -8,22 +8,27 @@ name "datadog-agent-data-plane"
 # We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
-adp_version = ENV['AGENT_DATA_PLANE_VERSION']
-adp_hashes = {}
-adp_hashes["linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_AMD64']
-adp_hashes["linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_ARM64']
-adp_hashes["fips-linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64']
-adp_hashes["fips-linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64']
-adp_hashes["darwin-amd64"] = ENV['AGENT_DATA_PLANE_HASH_DARWIN_AMD64']
-adp_hashes["darwin-arm64"] = ENV['AGENT_DATA_PLANE_HASH_DARWIN_ARM64']
-adp_hashes["windows-amd64"] = ENV['AGENT_DATA_PLANE_HASH_WINDOWS_AMD64']
-adp_hashes["fips-windows-amd64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64']
+ADP_DEFAULT_VERSION = "1.3.0"
+ADP_DEFAULT_HASHES = {
+  "linux-amd64"        => "52b98149e3a5877309ba877332a3a9bd9b360cca2500de8bb406428491249470",
+  "linux-arm64"        => "b552daa11401a2eef6e0b7b081b8a8daa115af98194049e9a427c305bb6a61a7",
+  "fips-linux-amd64"   => "e74092b24c0bfc3d5b46ae919d20405ad6ab9acdb26efcafec7e40d2ba32cb0d",
+  "fips-linux-arm64"   => "feb7dcbf13c53a7018171773c0750ddbe394ea4a21e0bf93e55b391e2a0fbc71",
+  "darwin-amd64"       => "c46f14cb5818a570e61489b33b9c5e74d00b646fe4ab5f35b6f283499859c17b",
+  "darwin-arm64"       => "e1ceb847f924501c5310aa24c28ff5b1a2f732a987113d2c082c1c50548cca30",
+  "windows-amd64"      => "a1c1a148f75c76a418054dd52a78483d2b8e42f1bf91bc81b8b2aef3f6fbd69d",
+  "fips-windows-amd64" => "f37b40496555b6dae391705a9a89a3807f297ff613a466138bd85ede7bcb0e52",
+}.freeze
 
-if adp_version.nil? || adp_version.empty?
-  raise "Please specify AGENT_DATA_PLANE_VERSION to build Agent Data Plane."
+adp_version = ENV['AGENT_DATA_PLANE_VERSION'] || ADP_DEFAULT_VERSION
+adp_hashes  = ADP_DEFAULT_HASHES.transform_values { |v| v }
+ADP_DEFAULT_HASHES.each_key do |platform|
+  env_key = "AGENT_DATA_PLANE_HASH_#{platform.upcase.tr('-', '_')}"
+  adp_hashes[platform] = ENV[env_key] if ENV[env_key]
 end
 
 default_version adp_version
+# Note: ADP_DEFAULT_HASHES must be defined before this line since we use it above
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
@@ -72,7 +77,7 @@ end
 adp_hash_key ||= package_target
 adp_hash = adp_hashes[adp_hash_key]
 if adp_hash.nil? || adp_hash.empty?
-  raise "Please specify AGENT_DATA_PLANE_HASH_#{adp_hash_key.upcase.tr('-', '_')} to build Agent Data Plane #{package_target}."
+  raise "Missing Agent Data Plane hash for #{package_target}. Please update the hashes in datadog-agent-data-plane.rb."
 end
 
 source sha256: adp_hash
