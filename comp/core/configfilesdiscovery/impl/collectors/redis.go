@@ -11,11 +11,15 @@ import (
 	"path"
 	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const RedisIntegrationName = "redisdb"
+const (
+	RedisIntegrationName     = "redisdb"
+	redisConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF
+)
 
 type redisConfigCollector struct{}
 
@@ -39,6 +43,7 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 	if err != nil {
 		return nil, fmt.Errorf("read redis config file %q: %w", configPath, err)
 	}
+	file.PayloadFormat = redisConfigPayloadFormat
 
 	return []configfilesdiscoveryimpl.ConfigFile{file}, nil
 }

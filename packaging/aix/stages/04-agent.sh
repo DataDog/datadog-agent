@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="04-agent"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,10 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No completion sentinel: this stage always runs so the agent binaries stay in
+# sync with their inputs (notably the rtloader archives they link against). Go
+# caches compiled packages, so a rebuild with no changes is mostly a relink and
+# stays reasonably fast.
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -172,7 +170,4 @@ if [ "$MAGIC" != "01f7" ]; then
 fi
 log "XCOFF64 magic verified for trace-agent binary (magic: $MAGIC)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

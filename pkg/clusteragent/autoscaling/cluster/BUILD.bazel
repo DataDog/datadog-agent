@@ -17,6 +17,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/clusteragent/autoscaling",
         "//pkg/clusteragent/autoscaling/cluster/model",
+        "//pkg/clusteragent/autoscaling/store",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/kubernetes",
