@@ -34,14 +34,20 @@ def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[
     compiled under the given build tags."""
     if not import_paths:
         return {}
-    # shell=False is required: cmd.exe on Windows has an 8191-char command-line limit.
+    # shell=False (the default value, which we still pass explicitly) is
+    # required: cmd.exe on Windows has an 8191-char command-line limit.
     result = subprocess.run(
         ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *sorted(import_paths)],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         encoding="utf-8",
+        shell=False,
     )
+    if result.returncode != 0:
+        # -e reports per-package errors inside the JSON output without failing the
+        # command; a non-zero exit means `go list` itself failed to run at all.
+        raise ChildProcessError(f"go list failed with exit code {result.returncode}: {result.stderr}")
     pkgs: dict[str, set[str]] = {}
     decoder = json.JSONDecoder()
     text, pos = result.stdout, 0
