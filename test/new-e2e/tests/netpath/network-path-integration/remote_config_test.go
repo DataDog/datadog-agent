@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package netpath contains e2e tests for Network Path Integration feature
+// Package networkpathintegration contains e2e tests for the Network Path Integration feature.
 package networkpathintegration
 
 import (
@@ -114,7 +114,6 @@ type remoteConfigTestPlatform string
 const (
 	remoteConfigPlatformLinux   remoteConfigTestPlatform = "linux"
 	remoteConfigPlatformWindows remoteConfigTestPlatform = "windows"
-	remoteConfigPlatformMacOS   remoteConfigTestPlatform = "macos"
 )
 
 type remoteConfigPathExpectation struct {
@@ -233,7 +232,6 @@ func (s *remoteConfigTestSuite) preparePlatform() {
 	case remoteConfigPlatformWindows:
 		_, err := s.Env().RemoteHost.Host.Execute("Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False")
 		s.Require().NoError(err)
-	case remoteConfigPlatformMacOS:
 	default:
 		s.Require().Failf("unsupported platform", "platform=%q", s.platform)
 	}

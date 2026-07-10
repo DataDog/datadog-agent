@@ -1008,7 +1008,7 @@ new-e2e-netpath:
   variables:
     TARGETS: ./tests/netpath
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --skip "Windows|MacOS"
+    EXTRA_PARAMS: --skip "Windows"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-otel-eks-init:
