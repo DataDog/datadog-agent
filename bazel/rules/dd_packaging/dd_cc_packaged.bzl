@@ -7,13 +7,12 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "otool_dir_action", "patchelf_dir_action", "rewrite_rpath", "rewrite_rpaths_for_files")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "otool_dir_action", "rewrite_rpath", "rewrite_rpaths_for_files", "rewrite_rpaths_for_trees")
 
 def _is_os(ctx, constraint):
     return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
 
 def _dd_packaged_files_impl(ctx):
-    is_linux = _is_os(ctx, ctx.attr._linux_constraint)
     is_macos = _is_os(ctx, ctx.attr._macos_constraint)
 
     rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
@@ -22,14 +21,11 @@ def _dd_packaged_files_impl(ctx):
     for src, prefix in ctx.attr.srcs.items():
         for f in src.files.to_list():
             if f.is_directory:
-                if is_linux:
-                    out = ctx.actions.declare_directory("patched_dirs/" + f.basename)
-                    patchelf_dir_action(ctx, f, out, rpath)
-                elif is_macos:
+                if is_macos:
                     out = ctx.actions.declare_directory("patched_dirs/" + f.basename)
                     otool_dir_action(ctx, f, out, rpath)
                 else:
-                    out = f
+                    out = rewrite_rpaths_for_trees(ctx, inputs = [f], rpath = rpath)[0]
                 dest = prefix
             else:
                 out = rewrite_rpaths_for_files(ctx, inputs = [f], rpath = rpath)[0]
@@ -51,7 +47,6 @@ _dd_packaged_files_rule = rule(
         "rpath": attr.string(
             default = "{install_dir}/embedded/lib",
         ),
-        "_linux_constraint": attr.label(default = "@platforms//os:linux"),
         "_macos_constraint": attr.label(default = "@platforms//os:macos"),
         "_script": attr.label(
             default = "@@//bazel/rules/rewrite_rpath:macos.sh",
@@ -72,7 +67,6 @@ _dd_packaged_files_rule = rule(
     },
     toolchains = [
         "//bazel/toolchains/rpath_rewriter",
-        "@@//bazel/toolchains/patchelf:patchelf_toolchain_type",
         "@@//bazel/toolchains/otool:otool_toolchain_type",
     ],
 )

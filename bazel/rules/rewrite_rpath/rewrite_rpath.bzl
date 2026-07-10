@@ -2,37 +2,6 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
-def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers a patchelf action to rewrite the rpath of all shared libraries inside a directory.
-
-    Args:
-      ctx: the rule context.
-      input_dir: the source directory artifact to patch.
-      output_dir: the output directory artifact to write.
-      rpath: the rpath string to set.
-    """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-    patchelf = toolchain.label[DefaultInfo].files_to_run
-    ctx.actions.run_shell(
-        inputs = [input_dir],
-        tools = [patchelf],
-        outputs = [output_dir],
-        # /. copies the contents of input rather than nesting it under output
-        # (Bazel pre-creates output via declare_directory). chmod restores
-        # owner-write so patchelf can rewrite files installed as 0555.
-        command = (
-            "cp -rL '{input}/.' '{output}' && " +
-            "chmod -R u+w '{output}' && " +
-            "find '{output}' -type f \\( -name '*.so' -o -name '*.so.*' \\) " +
-            "-exec '{patchelf}' --set-rpath '{rpath}' --force-rpath {{}} \\;"
-        ).format(
-            input = input_dir.path,
-            output = output_dir.path,
-            patchelf = patchelf.executable.path,
-            rpath = rpath,
-        ),
-    )
-
 def otool_dir_action(ctx, input_dir, output_dir, rpath):
     """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory.
 
@@ -87,6 +56,33 @@ def rewrite_rpaths_for_files(ctx, inputs, rpath):
             outputs = [output],
             arguments = [args],
             executable = toolchain.rewriter_tool,
+            toolchain = "//bazel/toolchains/rpath_rewriter",
+        )
+        outputs.append(output)
+
+    return outputs
+
+def rewrite_rpaths_for_trees(ctx, inputs, rpath):
+    """Creates actions to apply an rpath rewriter to TreeArtifact (directory) inputs.
+    """
+    toolchain = ctx.toolchains["//bazel/toolchains/rpath_rewriter"]
+
+    # No-op: just pass the inputs through.
+    if toolchain.tree_rewriter_tool == None:
+        return inputs
+
+    outputs = []
+    for input in inputs:
+        output = ctx.actions.declare_directory("patched_dirs/" + input.basename)
+        args = ctx.actions.args()
+        args.add(input.path)
+        args.add(rpath)
+        args.add(output.path)
+        ctx.actions.run(
+            inputs = [input],
+            outputs = [output],
+            arguments = [args],
+            executable = toolchain.tree_rewriter_tool,
             toolchain = "//bazel/toolchains/rpath_rewriter",
         )
         outputs.append(output)

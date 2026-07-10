@@ -1,7 +1,7 @@
 """toolchains for rpath-patching"""
 
 load(":install_name_tool.bzl", "macos_rpath_rewriter")
-load(":patchelf.bzl", "patchelf_rpath_rewriter")
+load(":patchelf.bzl", "patchelf_rpath_rewriter", "patchelf_tree_rpath_rewriter")
 load(":toolchain.bzl", "noop_toolchain", "rpath_rewriter_toolchain")
 
 # Provides rpath rewriting toolchains. Rewriters either expose a `rewriter_tool`
@@ -17,9 +17,15 @@ patchelf_rpath_rewriter(
     patchelf = "@patchelf//:patchelf",
 )
 
+patchelf_tree_rpath_rewriter(
+    name = "patchelf_tree_rpath_rewriter",
+    patchelf = "@patchelf//:patchelf",
+)
+
 rpath_rewriter_toolchain(
     name = "patchelf_rpath_rewriter_toolchain",
     rewriter_tool = ":patchelf_rpath_rewriter",
+    tree_rewriter_tool = ":patchelf_tree_rpath_rewriter",
 )
 
 macos_rpath_rewriter(
@@ -30,6 +36,8 @@ macos_rpath_rewriter(
 rpath_rewriter_toolchain(
     name = "install_name_tool_rpath_rewriter_toolchain",
     rewriter_tool = ":install_name_tool_rpath_rewriter",
+    # XXX: Placeholder during development
+    tree_rewriter_tool = ":patchelf_tree_rpath_rewriter",
 )
 
 noop_toolchain(
