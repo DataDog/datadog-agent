@@ -97,10 +97,10 @@ func aiUsageExtensionPath(ctx HookContext) string {
 	return filepath.Join(packagePath, "ext", ctx.Extension)
 }
 
-// preInstallEUDMExtension quiesces the AI Usage host before the extension files are laid down: it
-// clears the machine-wide Chrome registration (so Chrome does not spawn the old host while
-// postInstallEUDMExtension replaces the binary) and removes the stale scheduled task. installSingle
-// always runs this immediately before postInstallEUDMExtension.
+// preInstallEUDMExtension quiesces the AI Usage host before the extension layer is extracted: it
+// clears the machine-wide Chrome registration (so Chrome does not spawn the old host while the new
+// layer is being laid down), removes the stale scheduled task, and stops any running host
+// processes. installSingle always runs this immediately before postInstallEUDMExtension.
 func preInstallEUDMExtension(ctx HookContext) error {
 	deleteAIUsageChromeRegistry()
 	removeAIUsageScheduledTask(ctx.Context)

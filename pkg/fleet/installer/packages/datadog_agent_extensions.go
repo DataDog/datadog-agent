@@ -150,11 +150,6 @@ func readInfrastructureModeFromConfig() string {
 // loadDatadogAgentConfig reads and parses the subset of the installed datadog.yaml that the
 // installer cares about. It returns ok=false (best effort) if the file cannot be read or parsed.
 //
-// The fleet installer is a lightweight, separately-built binary that intentionally does not import
-// the full agent config machinery (pkg/config/setup), so — like setRegistryConfig, the ddot hooks,
-// and apm_inject — it reads the config into a local subset struct rather than through the agent
-// config API.
-//
 //nolint:unused // Used in platform-specific files
 func loadDatadogAgentConfig() (datadogAgentConfig, bool) {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
