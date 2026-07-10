@@ -408,7 +408,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/bbolt v1.5.0
-	go.etcd.io/etcd/client/v2 v2.305.31
+	go.etcd.io/etcd/client/v2 v2.305.32
 	go.mongodb.org/mongo-driver v1.17.9
 	go.mongodb.org/mongo-driver/v2 v2.7.0
 	go.opentelemetry.io/collector/component v1.61.0
