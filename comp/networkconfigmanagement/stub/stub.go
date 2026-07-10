@@ -17,6 +17,7 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 )
 
 var errNoNCM = errors.New("NCM not available")
@@ -50,8 +51,10 @@ func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error { return s.GetE
 func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) error {
 	return s.GetError()
 }
-func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) error { return s.GetError() }
-func (s *NCMStub) SetMaxReportInterval(_ time.Duration)                   {}
+func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*remote.PushResult, error) {
+	return nil, s.GetError()
+}
+func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
 
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
 func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 )
 
 // Component is the component type.
@@ -27,7 +28,7 @@ type Component interface {
 	ReportConfig(ctx context.Context, deviceID string, sender sender.Sender) error
 	// RollbackConfig rolls back a device to a previous configuration that's
 	// saved locally on this agent.
-	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error
+	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (*remote.PushResult, error)
 	// SetMaxReportInterval sets a maximum time to wait between sending
 	// inventory reports.
 	SetMaxReportInterval(interval time.Duration)

@@ -195,54 +195,6 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	return entries, nil
 }
 
-// RollbackConfig rolls back a device to a previous configuration that's
-// saved locally on this agent.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error {
-	if n.store == nil {
-		return errors.New("rollback is disabled")
-	}
-	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
-	ctx = WithLogger(ctx, log)
-	dc, err := n.devices.GetAndLock(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-	defer dc.UnlockOrLog(log)
-
-	rawConfig, metadata, err := n.store.GetConfig(configVersion)
-	if err != nil {
-		return err
-	}
-	if metadata.DeviceID != deviceID {
-		return fmt.Errorf("input mismatch: config %q is not for device %q", configVersion, deviceID)
-	}
-
-	expectedHash := ncmstore.HashConfig(rawConfig)
-	if expectedHash != hash {
-		return fmt.Errorf("hash mismatch for config %q", configVersion)
-	}
-
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return fmt.Errorf("%v: %w", deviceID, err)
-	}
-	defer conn.Close()
-
-	_, err = conn.PushConfig(ctx, rawConfig)
-	if err != nil {
-		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
-	}
-
-	// TODO if this fails we should still return success so that the user knows
-	// the rollback itself happened.
-	reportErr := n.reportConfig(ctx, dc, n.sender)
-	if reportErr != nil {
-		log.Errorf("Rollback succeeded, but reportConfig failed: %v", reportErr)
-	}
-	return nil
-}
-
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
 func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
 	log := LoggerFromContext(ctx)
