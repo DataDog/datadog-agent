@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,14 +11,13 @@ from tasks.libs.code_review.prompt import (
     CodeReviewError,
     Guideline,
     build_review_prompt,
-    get_prompt_files,
     load_guidelines,
     render_prompt,
-    select_guideline_paths,
 )
 from tasks.libs.code_review.providers import (
     ProviderInvocation,
     build_provider_invocation,
+    collect_review_diff,
     expand_providers,
     run_provider,
 )
@@ -36,36 +37,89 @@ class FakeContext:
         return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
 
 
+class FakeGuidelineContext:
+    def __init__(self, *, exited=0, stdout=None, stderr=""):
+        self.commands = []
+        self.stdin = None
+        self.exited = exited
+        self.stdout = stdout or json.dumps(
+            {
+                "error": None,
+                "guidelines": [
+                    {"path": "codereview_guideline.md", "content": "root rules"},
+                    {"path": "bazel/codereview_guideline.md", "content": "bazel rules"},
+                ],
+            }
+        )
+        self.stderr = stderr
+
+    def run(self, command, **kwargs):
+        self.commands.append((command, kwargs))
+        self.stdin = kwargs["in_stream"].read()
+        return type("Result", (), {"exited": self.exited, "stdout": self.stdout, "stderr": self.stderr})()
+
+
+class FakePromptContext:
+    def __init__(self, *, changed_files="", deleted_prompt_files=""):
+        self.changed_files = changed_files
+        self.deleted_prompt_files = deleted_prompt_files
+        self.commands = []
+
+    def run(self, command, **_kwargs):
+        self.commands.append(command)
+        if "--diff-filter=D" in command:
+            stdout = self.deleted_prompt_files
+        else:
+            stdout = self.changed_files
+        return type("Result", (), {"stdout": stdout})()
+
+
+class FakeDiffContext:
+    def __init__(self):
+        self.commands = []
+
+    def run(self, command, **_kwargs):
+        self.commands.append(command)
+        stdout = {
+            "--stat": " tasks/foo.py | 2 ++\n",
+            "--name-only": "tasks/foo.py\n",
+        }
+        for marker, output in stdout.items():
+            if marker in command:
+                return type("Result", (), {"exited": 0, "stdout": output, "stderr": ""})()
+        return type("Result", (), {"exited": 0, "stdout": "diff --git a/tasks/foo.py b/tasks/foo.py\n", "stderr": ""})()
+
+
+def write_code_review_workflow(
+    repo_root: Path,
+    ref: str = "test-action-ref",
+    prompt_file_pattern: str = "**/codereview_guideline.md",
+) -> None:
+    workflow_dir = repo_root / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "code-review.yml").write_text(
+        f"""
+jobs:
+  review:
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@{ref} # v1.1.0
+    with:
+      prompt_file_pattern: "{prompt_file_pattern}"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+
 class TestCodeReviewPrompt(unittest.TestCase):
-    def test_select_guideline_paths_includes_root_for_any_change(self):
-        self.assertEqual(
-            select_guideline_paths(("pkg/foo.go",)),
-            ("codereview_guideline.md",),
-        )
+    def test_load_guidelines_uses_code_review_action_helper(self):
+        ctx = FakeGuidelineContext()
 
-    def test_select_guideline_paths_includes_matching_scoped_guidelines(self):
-        self.assertEqual(
-            select_guideline_paths(("bazel/rules/foo.bzl", ".claude/skills/my-skill/SKILL.md")),
-            (
-                "codereview_guideline.md",
-                "bazel/codereview_guideline.md",
-                ".claude/skills/codereview_guideline.md",
-            ),
-        )
-
-    def test_load_guidelines_reads_selected_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+        ):
             repo_root = Path(tmp)
-            (repo_root / "codereview_guideline.md").write_text("root rules\n", encoding="utf-8")
-            (repo_root / "bazel").mkdir()
-            (repo_root / "bazel" / "codereview_guideline.md").write_text("bazel rules\n", encoding="utf-8")
-            (repo_root / ".claude" / "skills").mkdir(parents=True)
-            (repo_root / ".claude" / "skills" / "codereview_guideline.md").write_text(
-                "skill rules\n",
-                encoding="utf-8",
-            )
-
-            guidelines = load_guidelines(repo_root, ("bazel/BUILD.bazel",))
+            write_code_review_workflow(repo_root, prompt_file_pattern="**/custom_guideline.md")
+            guidelines = load_guidelines(ctx, repo_root, ("bazel/BUILD.bazel", "pkg/foo.go"))
 
         self.assertEqual(
             guidelines,
@@ -74,28 +128,75 @@ class TestCodeReviewPrompt(unittest.TestCase):
                 Guideline(path="bazel/codereview_guideline.md", content="bazel rules"),
             ),
         )
+        self.assertIn("npm exec --yes --package", ctx.commands[0][0])
+        self.assertIn("github:DataDog/code-review-action#test-action-ref", ctx.commands[0][0])
+        self.assertIn("-- find-guidelines ", ctx.commands[0][0])
+        self.assertIn("--pattern '**/custom_guideline.md'", ctx.commands[0][0])
+        self.assertIn("--changed-files -", ctx.commands[0][0])
+        self.assertEqual(ctx.stdin, "bazel/BUILD.bazel\npkg/foo.go")
 
-    def test_get_prompt_files_reads_workflow_prompt_file_block(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_load_guidelines_reports_missing_npm(self):
+        with (
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=False),
+            self.assertRaisesRegex(CodeReviewError, "`npm` is not installed or is not on PATH"),
+        ):
+            load_guidelines(NoopContext(), Path("."), ("pkg/foo.go",))
+
+    def test_load_guidelines_reports_action_error(self):
+        ctx = FakeGuidelineContext(
+            exited=1,
+            stdout=json.dumps({"error": "prompt_file and prompt_file_pattern are mutually exclusive"}),
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            self.assertRaisesRegex(CodeReviewError, "mutually exclusive"),
+        ):
             repo_root = Path(tmp)
-            (repo_root / ".github" / "workflows").mkdir(parents=True)
-            (repo_root / ".github" / "workflows" / "code-review.yml").write_text(
-                """
-name: Code review
-jobs:
-  review:
-    with:
-      prompt_file: |
-        codereview_guideline.md
-        bazel/codereview_guideline.md
-""".lstrip(),
-                encoding="utf-8",
-            )
+            write_code_review_workflow(repo_root)
+            load_guidelines(ctx, repo_root, ("pkg/foo.go",))
 
-            self.assertEqual(
-                get_prompt_files(repo_root),
-                ("codereview_guideline.md", "bazel/codereview_guideline.md"),
-            )
+    def test_load_guidelines_reports_unstructured_action_failure(self):
+        ctx = FakeGuidelineContext(
+            exited=1,
+            stdout=json.dumps({"guidelines": []}),
+            stderr="find-guidelines failed",
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            self.assertRaisesRegex(CodeReviewError, "find-guidelines failed"),
+        ):
+            repo_root = Path(tmp)
+            write_code_review_workflow(repo_root)
+            load_guidelines(ctx, repo_root, ("pkg/foo.go",))
+
+    def test_build_review_prompt_warns_when_prompt_file_is_deleted(self):
+        ctx = FakePromptContext(
+            changed_files="pkg/foo.go\nbazel/custom_guideline.md\n",
+            deleted_prompt_files="bazel/custom_guideline.md\n",
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch(
+                "tasks.libs.code_review.prompt.load_guidelines",
+                return_value=(Guideline(path="codereview_guideline.md", content="root rules"),),
+            ),
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
+            repo_root = Path(tmp)
+            write_code_review_workflow(repo_root, prompt_file_pattern="**/custom_guideline.md")
+            build_review_prompt(ctx=ctx, repo_root=repo_root, base="origin/main")
+
+        self.assertIn("Warning: deleted code review prompt file(s)", stderr.getvalue())
+        self.assertIn("**/custom_guideline.md", stderr.getvalue())
+        self.assertIn("bazel/custom_guideline.md", stderr.getvalue())
+        deleted_file_commands = [command for command in ctx.commands if "--diff-filter=D" in command]
+        self.assertEqual(len(deleted_file_commands), 1)
+        self.assertIn(":(glob)**/custom_guideline.md", deleted_file_commands[0])
 
     def test_render_prompt_appends_extra_prompt(self):
         prompt = render_prompt(
@@ -148,13 +249,26 @@ class TestCodeReviewProviders(unittest.TestCase):
             review_prompt=review_prompt,
             prompt_path=Path(".tmp/code-review/prompt.md"),
             artifact_dir=Path(".tmp/code-review"),
+            review_diff="--- DIFF STAT ---\ntasks/foo.py | 2 ++\n\n--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py\n",
         )
 
         self.assertEqual(invocation.executable, "codex")
         self.assertEqual(invocation.command, "codex exec --sandbox read-only -")
-        self.assertIn("git diff --find-renames origin/main...HEAD", invocation.stdin or "")
+        self.assertIn("--- DIFF STAT ---", invocation.stdin or "")
+        self.assertIn("diff --git a/tasks/foo.py b/tasks/foo.py", invocation.stdin or "")
         self.assertIn("custom review instructions", invocation.stdin or "")
         self.assertEqual(invocation.output_path, Path(".tmp/code-review/codex.md"))
+
+    def test_collect_review_diff(self):
+        ctx = FakeDiffContext()
+
+        review_diff = collect_review_diff(ctx, Path("/repo"), "origin/main")
+
+        self.assertIn("--- DIFF STAT ---\ntasks/foo.py | 2 ++", review_diff)
+        self.assertNotIn("--- CHANGED FILES ---", review_diff)
+        self.assertIn("--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py", review_diff)
+        self.assertEqual(len(ctx.commands), 2)
+        self.assertTrue(all("origin/main...HEAD" in command for command in ctx.commands))
 
     def test_build_claude_invocation_references_prompt_file(self):
         review_prompt = build_review_prompt(
