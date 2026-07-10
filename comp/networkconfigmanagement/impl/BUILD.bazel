@@ -12,6 +12,7 @@ go_library(
         "networkdeviceconfig.go",
         "newcomponent.go",
         "newcomponent_stub.go",
+        "rollback.go",
         "rollback_endpoint.go",
         "store_endpoint.go",
         "types.go",

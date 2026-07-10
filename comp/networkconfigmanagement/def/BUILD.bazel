@@ -8,5 +8,6 @@ go_library(
     deps = [
         "//pkg/aggregator/sender",
         "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/remote",
     ],
 )
