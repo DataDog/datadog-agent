@@ -100,7 +100,7 @@ func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks)
+	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks, packages.PreActivateHooks())
 	i := &installerImpl{
 		env:        env,
 		db:         db,
@@ -313,7 +313,8 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	installed := !errors.Is(err, db.ErrPackageNotFound)
+	upgrade := installed && dbPkg.Version != pkg.Version
 	if upgrade {
 		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
 		if err != nil {
@@ -336,10 +337,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = i.db.DeletePackage(pkg.Name)
-	if err != nil {
-		return fmt.Errorf("could not remove package installation in db: %w", err)
-	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
@@ -349,8 +346,19 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
+	err = i.db.DeletePackage(pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not clear package installation from db: %w", err)
+	}
 	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
+		if installed && errors.Is(err, repository.ErrPreActivateFailed) {
+			// A pre-activate failure preserves the old stable link, so keep the
+			// database aligned with that preserved repository state.
+			if restoreErr := i.db.SetPackage(dbPkg); restoreErr != nil {
+				return fmt.Errorf("could not create repository: %w (also could not restore package installation in db: %v)", err, restoreErr)
+			}
+		}
 		return fmt.Errorf("could not create repository: %w", err)
 	}
 	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
