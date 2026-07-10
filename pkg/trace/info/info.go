@@ -207,26 +207,20 @@ func publishUptime() interface{} {
 	return int(time.Since(ift.start) / time.Second)
 }
 
-// SemanticCoreInfo is the operator-facing snapshot of the live semantic-core registry,
-// rendered in the APM Agent status section.
-type SemanticCoreInfo struct {
+// TraceSemanticsInfo is the operator-facing snapshot of the live trace-semantics
+// registry, rendered in the APM Agent status section.
+type TraceSemanticsInfo struct {
 	ContentHash string
 	Version     string
 	Source      string
 }
 
-func publishSemanticCoreInfo() interface{} {
+func publishTraceSemanticsInfo() interface{} {
 	live := semantics.DefaultRegistry()
-	source := "remote-config"
-	// Status is rendered rarely (operator runs `agent status`), so rebuilding the
-	// embedded registry per call is fine and avoids caching any state.
-	if e, err := semantics.NewEmbeddedRegistry(); err == nil && semantics.RegistryEqual(live, e) {
-		source = "embedded"
-	}
-	return SemanticCoreInfo{
+	return TraceSemanticsInfo{
 		ContentHash: live.ContentHash(),
 		Version:     live.Version(),
-		Source:      source,
+		Source:      live.Source(),
 	}
 }
 
@@ -385,7 +379,7 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
-	expvar.Publish("semantic_core", expvar.Func(publishSemanticCoreInfo))
+	expvar.Publish("trace_semantics", expvar.Func(publishTraceSemanticsInfo))
 
 	// copy the config to ensure we don't expose sensitive data such as API keys
 	c := *conf

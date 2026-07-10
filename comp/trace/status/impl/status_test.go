@@ -73,7 +73,7 @@ func TestSemanticCoreRendered(t *testing.T) {
 			"ratebyservice_filtered": map[string]interface{}{},
 			"trace_writer":           map[string]interface{}{"Payloads": float64(0), "Traces": float64(0), "Events": float64(0), "Bytes": float64(0), "Errors": float64(0)},
 			"stats_writer":           map[string]interface{}{"Payloads": float64(0), "StatsBuckets": float64(0), "Bytes": float64(0), "Errors": float64(0)},
-			"semantic_core": map[string]interface{}{
+			"trace_semantics": map[string]interface{}{
 				"Source":      "remote-config",
 				"ContentHash": "hash-rc",
 				"Version":     "rc-1.0",

@@ -54,7 +54,7 @@
     {{- if gt .stats_writer.Errors 0.0}}
     WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}
     {{- end}}
-    {{- with .semantic_core }}
+    {{- with .trace_semantics }}
 
   Trace Semantics
   ===============
