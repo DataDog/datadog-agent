@@ -400,8 +400,7 @@ fn spawn_as_primary_token(
         _ => primary_token_from_logon(process_name, account)?,
     });
 
-    let env_block =
-        env_block_from_baseline_plus_overrides(primary_token_guard.0, &request.env)?;
+    let env_block = env_block_from_baseline_plus_overrides(primary_token_guard.0, &request.env)?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
