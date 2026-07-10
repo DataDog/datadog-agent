@@ -569,7 +569,9 @@ fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Str
                 match lookup(name) {
                     Some(val) => out.push_str(&val),
                     None => {
-                        warn!("process config references unset variable ${{{name}}}, leaving it literal");
+                        warn!(
+                            "process config references unset variable ${{{name}}}, leaving it literal"
+                        );
                         out.push_str(&rest[start..start + 2 + end + 1]);
                     }
                 }
@@ -651,12 +653,12 @@ pub mod tests {
             _ => None,
         };
         assert_eq!(
-            expand_vars_with("${DD_CONF_DIR}/otel-config.yaml", &lookup),
+            expand_vars_with("${DD_CONF_DIR}/otel-config.yaml", lookup),
             "/etc/datadog-agent-exp/otel-config.yaml"
         );
         // Multiple references and a leading dash (optional environment_file form) are preserved.
         assert_eq!(
-            expand_vars_with("-${DD_CONF_DIR}/environment", &lookup),
+            expand_vars_with("-${DD_CONF_DIR}/environment", lookup),
             "-/etc/datadog-agent-exp/environment"
         );
     }
@@ -665,7 +667,7 @@ pub mod tests {
     fn test_expand_vars_leaves_unknown_literal() {
         let lookup = |_: &str| None;
         assert_eq!(
-            expand_vars_with("${MISSING}/x", &lookup),
+            expand_vars_with("${MISSING}/x", lookup),
             "${MISSING}/x",
             "unset variables must be left literal so misconfiguration fails loudly"
         );
@@ -674,12 +676,10 @@ pub mod tests {
     #[test]
     fn test_expand_vars_no_placeholder_untouched() {
         let lookup = |_: &str| Some("should-not-be-used".to_string());
-        assert_eq!(
-            expand_vars_with("/opt/datadog-packages/datadog-agent/stable/embedded/bin/otel-agent", &lookup),
-            "/opt/datadog-packages/datadog-agent/stable/embedded/bin/otel-agent"
-        );
+        let path = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/otel-agent";
+        assert_eq!(expand_vars_with(path, lookup), path);
         // A dangling `${` with no closing brace is emitted verbatim.
-        assert_eq!(expand_vars_with("a ${ b", &lookup), "a ${ b");
+        assert_eq!(expand_vars_with("a ${ b", lookup), "a ${ b");
     }
 
     // -- state lifecycle tests --

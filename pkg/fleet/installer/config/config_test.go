@@ -694,22 +694,13 @@ func TestConfig_OTelConfigStartPromote(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// During the experiment the stable config is untouched.
-	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
-	assert.NoError(t, err)
-	assert.Contains(t, string(stableContent), "cardinality: 2")
-	assert.Contains(t, string(stableContent), "verbosity: detailed")
-
-	// The experiment config carries both edits, with sibling keys preserved.
-	expContent, err := os.ReadFile(filepath.Join(experimentDir, "otel-config.yaml"))
-	assert.NoError(t, err)
-	assertOTelExperimentConfig(t, string(expContent))
-
 	err = dirs.PromoteExperiment(context.Background())
 	assert.NoError(t, err)
 
-	// After promote the stable config reflects the merged + transformed values.
-	stableContent, err = os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	// After promote the stable config reflects the merge-patch + jq transform with sibling keys preserved.
+	// (Asserted on the stable dir so the test is OS-agnostic: nix applies the ops in the experiment
+	// dir and swaps on promote, Windows applies them in place to the stable dir.)
+	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
 	assert.NoError(t, err)
 	assertOTelExperimentConfig(t, string(stableContent))
 }
@@ -719,10 +710,12 @@ func TestConfig_OTelConfigStartStop(t *testing.T) {
 	experimentDir := t.TempDir()
 
 	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
+	original, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
 
 	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
 
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(context.Background(), Operations{
 		DeploymentID: "otel-exp-002",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
@@ -730,18 +723,13 @@ func TestConfig_OTelConfigStartStop(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	expContent, err := os.ReadFile(filepath.Join(experimentDir, "otel-config.yaml"))
-	assert.NoError(t, err)
-	assert.Contains(t, string(expContent), "cardinality: 1")
-
-	// Rollback discards the experiment; stable is unchanged.
+	// Rolling back restores the stable config to its original content (OS-agnostic).
 	err = dirs.RemoveExperiment(context.Background())
 	assert.NoError(t, err)
 
 	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
 	assert.NoError(t, err)
-	assert.Contains(t, string(stableContent), "cardinality: 2")
-	assert.NotContains(t, string(stableContent), "cardinality: 1")
+	assert.Equal(t, string(original), string(stableContent))
 }
 
 // assertOTelExperimentConfig checks that both the merge-patch (cardinality 2 -> 1) and the jq
