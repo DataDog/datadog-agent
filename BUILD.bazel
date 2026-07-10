@@ -63,11 +63,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/process/agent/fx
-# gazelle:exclude comp/process/agent/impl
-# gazelle:exclude comp/process/runner/fx
-# gazelle:exclude comp/process/runner/impl
-# gazelle:exclude comp/process/submitter
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
