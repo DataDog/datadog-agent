@@ -6,6 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "corechecks",
     srcs = [
+        "catalog_test_util.go",
         "checkbase.go",
         "loader.go",
         "longrunning.go",
