@@ -20,10 +20,10 @@ type Connector interface {
 // PushResult captures the possible outcomes of executing a PushConfig. We need
 // a more complex structure than just a simple error because we want to track
 // what commands were executed and which ones completed successfully - if, for
-// example, a config push succesfully copies the configuration to the device and
-// sets the running config but fails to set the startup config, it's important
-// that the calling code know that the running configuration has been changed
-// even though the full config replace operation failed.
+// example, a config push successfully copies the configuration to the device
+// and sets the running config but fails to set the startup config, it's
+// important that the calling code know that the running configuration has been
+// changed even though the full config replace operation failed.
 type PushResult struct {
 	// CopyConfig holds the CommandResults of copying the configuration to the
 	// device (generally via SCP)
