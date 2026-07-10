@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "epforwarder.go",
         "epforwarder_mockgen.go",
+        "pipelines_agentdiscovery.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
         "pipelines_datastreams.go",

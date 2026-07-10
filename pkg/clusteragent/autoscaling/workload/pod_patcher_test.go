@@ -32,16 +32,17 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 )
 
 func patcherTestStoreWithData() *store {
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	// ns1/autoscaler1 targets "test-deployment" and has vertical recommendations for 2 containers and from automatic source
-	store.Set("ns1/autoscaler1", model.FakePodAutoscalerInternal{
+	item, _ := store.Get("ns1/autoscaler1")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -64,7 +65,8 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 	// ns1/autoscaler2 has a custom owner reference and no vertical recommendations
-	store.Set("ns1/autoscaler2", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler2")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -77,7 +79,8 @@ func patcherTestStoreWithData() *store {
 	}.Build(), "")
 
 	// ns1/autoscaler3 targets "test-sidecar-deployment" and has vertical recommendations for init sidecar container
-	store.Set("ns1/autoscaler3", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler3")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler3",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -99,7 +102,8 @@ func patcherTestStoreWithData() *store {
 	}.Build(), "")
 
 	// ns1/autoscaler4 targets "test-mixed-deployment" and has vertical recommendations for both sidecar and main containers
-	store.Set("ns1/autoscaler4", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler4")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler4",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -122,7 +126,8 @@ func patcherTestStoreWithData() *store {
 	}.Build(), "")
 
 	// In ns2, autoscaler1 and autoscaler2 target the same RS "duplicate-target"
-	store.Set("ns2/autoscaler1", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns2/autoscaler1")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns2",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -133,7 +138,8 @@ func patcherTestStoreWithData() *store {
 			},
 		},
 	}.Build(), "")
-	store.Set("ns2/autoscaler2", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns2/autoscaler2")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns2",
 		Name:      "autoscaler2",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -146,7 +152,8 @@ func patcherTestStoreWithData() *store {
 	}.Build(), "")
 
 	// In ns3, autoscaler1 targets the rollout "my-rollout"
-	store.Set("ns3/autoscaler1", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns3/autoscaler1")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns3",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -159,7 +166,8 @@ func patcherTestStoreWithData() *store {
 	}.Build(), "")
 
 	// In ns4, autoscaler1 targets the statefulset "my-statefulset"
-	store.Set("ns4/autoscaler1", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns4/autoscaler1")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns4",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -174,7 +182,8 @@ func patcherTestStoreWithData() *store {
 	// ns1/autoscaler-burstable targets "burstable-deployment" in burstable mode.
 	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on CPU limit in the
 	// stored ScalingValues (so patchContainerResources will remove the CPU limit).
-	store.Set("ns1/autoscaler-burstable", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler-burstable")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler-burstable",
 		UpstreamCR: &datadoghq.DatadogPodAutoscaler{
@@ -206,7 +215,8 @@ func patcherTestStoreWithData() *store {
 	// ns1/autoscaler-burstable-follower simulates a FOLLOWER replica: the stored recommendation has
 	// NO removeLimitSentinel (it never ran the leader sync and the status strips negatives), yet
 	// ApplyRecommendations must still remove the CPU limit by re-deriving burstable from the spec.
-	store.Set("ns1/autoscaler-burstable-follower", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler-burstable-follower")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace:            "ns1",
 		Name:                 "autoscaler-burstable-follower",
 		PreviewAnnotationKey: `{"burstable":true}`,

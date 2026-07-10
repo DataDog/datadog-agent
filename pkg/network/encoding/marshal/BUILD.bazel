@@ -112,6 +112,7 @@ go_test(
             "//pkg/network/protocols/postgres",
             "//pkg/network/protocols/redis",
             "//pkg/network/protocols/tls",
+            "//pkg/util/common",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
@@ -119,6 +120,7 @@ go_test(
             "//pkg/network/protocols/postgres",
             "//pkg/network/protocols/redis",
             "//pkg/network/protocols/tls",
+            "//pkg/util/common",
             "@com_github_stretchr_testify//suite",
         ],
         "//conditions:default": [],

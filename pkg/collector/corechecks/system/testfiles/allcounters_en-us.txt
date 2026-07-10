@@ -488,6 +488,7 @@ Event Tracing for Windows ! ! Total Number of Distinct Enabled Providers
 Thermal Zone Information ! ! Throttle Reasons
 Thermal Zone Information ! ! % Passive Limit
 Thermal Zone Information ! ! Temperature
+Thermal Zone Information ! ! High Precision Temperature
 Processor Information ! _Total ! Performance Limit Flags
 Processor Information ! 0,_Total ! Performance Limit Flags
 Processor Information ! 0,1 ! Performance Limit Flags

@@ -20,6 +20,7 @@ go_library(
         "//pkg/trace/log",
         "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
         "//pkg/trace/version",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",

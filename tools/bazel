@@ -29,7 +29,7 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
   fi
   export GOCACHE="$XDG_CACHE_HOME/go-build"
   export GOMODCACHE="$XDG_CACHE_HOME/go/mod"
-  extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
+  [ -z "${CI-}" ] && extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
   if [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ]; then

@@ -717,13 +717,6 @@ namespace WixSetup.Datadog_Agent
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
-            if (_agentFlavor.FlavorName == Constants.FipsFlavor)
-            {
-                foreach (var fipsDll in Directory.EnumerateFiles(BinSource, "aws_lc_fips_*_crypto.dll"))
-                {
-                    agentBinDir.AddFile(new WixSharp.File(fipsDll));
-                }
-            }
 
             // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
             // Explicit Id only on the .exe so future custom actions can reference it via [#ai_usage_agent_native_host].

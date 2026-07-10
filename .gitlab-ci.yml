@@ -294,25 +294,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v120029388-43933fee
+  CI_IMAGE_BTF_GEN: v123723142-c6f300a6
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v120029388-43933fee
+  CI_IMAGE_DOCKER_X64: v123723142-c6f300a6
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v120029388-43933fee
+  CI_IMAGE_DOCKER_ARM64: v123723142-c6f300a6
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v120029388-43933fee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v123723142-c6f300a6
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v120029388-43933fee
+  CI_IMAGE_LINUX: v123723142-c6f300a6
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v120029388-43933fee
+  CI_IMAGE_RPM_X64: v123723142-c6f300a6
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v120029388-43933fee
+  CI_IMAGE_RPM_ARM64: v123723142-c6f300a6
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v120029388-43933fee
+  CI_IMAGE_RPM_ARMHF: v123723142-c6f300a6
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
+  CI_IMAGE_WIN_LTSC2022_X64: v123723142-c6f300a6
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v120143276-cb5277fb
+  CI_IMAGE_WIN_LTSC2025_X64: v123723142-c6f300a6
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1340,7 +1340,12 @@ workflow:
   - changes:
       paths:
         - pkg/security/**/*
-        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+        - pkg/compliance/**/*
+        - test/new-e2e/tests/cspm/**/*
+        # The host-benchmark suite validates the bundled benchmark content, whose
+        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
+        # policy bump must run the suite before it can break the main pipeline.
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1568,6 +1573,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_rtloader_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

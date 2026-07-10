@@ -7,35 +7,10 @@
 package privateactionrunner
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"testing"
-
-	"github.com/go-jose/go-jose/v4"
-	"github.com/stretchr/testify/require"
 )
 
-const testRunnerURN = "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
-
-// generateTestRunnerIdentity generates a fresh ECDSA key pair and returns the
-// runner URN and base64-encoded private JWK, suitable for use in both agent
-// config and provisioner Helm values.
+// generateTestRunnerIdentity is a test-local alias for GenerateTestRunnerIdentity.
 func generateTestRunnerIdentity(t *testing.T) (urn string, privateKeyB64 string) {
-	t.Helper()
-
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "failed to generate ECDSA key")
-
-	privateJwk := jose.JSONWebKey{
-		Algorithm: "ES256",
-		Key:       privateKey,
-		Use:       "sig",
-	}
-	jwkJSON, err := json.Marshal(privateJwk)
-	require.NoError(t, err, "failed to marshal JWK")
-
-	return testRunnerURN, base64.RawURLEncoding.EncodeToString(jwkJSON)
+	return GenerateTestRunnerIdentity(t)
 }

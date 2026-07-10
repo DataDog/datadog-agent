@@ -243,6 +243,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
+		// TODO: (OTEL-3079) Set disable_otel_scope_convention
+		// Agent feature based on feature gate after upgrading to Collector 0.155.0
+
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}

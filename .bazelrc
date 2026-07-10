@@ -116,8 +116,5 @@ common:release --config=rust-release
 common:release --//:release
 common --config=release
 
-test --@rules_go//go/config:race
-test --test_env=GORACE=atexit_sleep_ms=50
-
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

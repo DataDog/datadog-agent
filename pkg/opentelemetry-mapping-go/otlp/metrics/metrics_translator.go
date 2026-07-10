@@ -572,7 +572,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
-				} else {
+				}
+				if !isRuntimeMetric(md.Name()) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					seenNonAPMMetrics = true

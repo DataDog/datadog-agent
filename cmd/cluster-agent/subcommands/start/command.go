@@ -481,7 +481,7 @@ func start(log log.Component,
 		// We explicitly don't add the `ProductActionPlatformRunnerKeys` here as it will be added automatically from the subscribe call.
 		// Adding it here will create a race condition where the notification can be fired before the subscription
 		// preventing the PAR component to finish its startup.
-		var products []string
+		products := []string{state.ProductAgentConfig}
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
@@ -503,6 +503,7 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {

@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="03-rtloader"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -54,6 +47,7 @@ trap cleanup EXIT
 # ─── Step 1: Clean and create rtloader build directory ────────────────────────
 
 log "Cleaning rtloader build directory"
+# The build directory is wiped to avoid stale cache entries mtime-based make decisions.
 rm -rf "$AGENT_SRC/rtloader/build"
 mkdir -p "$AGENT_SRC/rtloader/build"
 
@@ -259,7 +253,4 @@ if [ "$MAGIC" != "01f7" ]; then
 fi
 log "XCOFF64 magic verified for libdatadog-agent-rtloader.so (magic: $MAGIC)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

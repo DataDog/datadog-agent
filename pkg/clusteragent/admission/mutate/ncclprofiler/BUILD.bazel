@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ncclprofiler",
+    srcs = [
+        "mutator.go",
+        "webhook.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/ncclprofiler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/util/log",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ncclprofiler_test",
+    srcs = [
+        "mutator_test.go",
+        "webhook_test.go",
+    ],
+    embed = [":ncclprofiler"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

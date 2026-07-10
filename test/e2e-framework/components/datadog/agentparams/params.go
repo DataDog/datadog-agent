@@ -302,6 +302,8 @@ sbom.logs_dd_url: %[1]s:%[2]d
 sbom.logs_no_ssl: true
 service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
 service_discovery.forwarder.logs_no_ssl: true
+config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+config_files_discovery.forwarder.logs_no_ssl: true
 software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
 software_inventory.forwarder.logs_no_ssl: true
 data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
@@ -311,6 +313,9 @@ event_management.forwarder.logs_no_ssl: true
 agent_telemetry.logs_dd_url: %[1]s:%[2]d
 agent_telemetry.logs_no_ssl: true
 agent_telemetry.use_compression: false
+compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
+compliance_config.endpoints.logs_no_ssl: true
+compliance_config.endpoints.force_use_http: true
 `, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
 		return nil

@@ -178,6 +178,8 @@ namespace Datadog.AgentCustomActions
             {
                 "bin\\agent",
                 "embedded3",
+                // Fleet postinst writes processes.d/*.yaml (untracked by MSI)
+                "processes.d",
                 // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
                 "embedded2",
             };

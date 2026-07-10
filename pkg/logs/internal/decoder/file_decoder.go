@@ -89,7 +89,7 @@ func newSyslogFileDecoder(source *sources.ReplaceableSource, tailerInfo *status.
 	detectedPattern := &DetectedPattern{}
 
 	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsSIEMParsingEnabled()))
+	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsDebugAttrParsingEnabled()))
 	f := framer.NewFramer(lineParser.process, framer.UTF8Newline, maxMessageSize)
 
 	encodingInfo := status.NewMappedInfo("Encoding")

@@ -43,7 +43,7 @@ func newSyslogDatagramDecoder(source *sources.ReplaceableSource, tailerInfo *sta
 	detectedPattern := &DetectedPattern{}
 
 	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsSIEMParsingEnabled()))
+	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsDebugAttrParsingEnabled()))
 	f := framer.NewFramer(lineParser.process, framer.NoFraming, maxMessageSize)
 
 	formatInfo := status.NewMappedInfo("Format")

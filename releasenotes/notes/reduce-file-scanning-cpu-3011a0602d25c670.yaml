@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Reduced the CPU usage of log file scanning when tailing container logs.

@@ -138,7 +138,7 @@ log "Installing cffi==$CFFI_VERSION (C extension, bundled libffi)"
 log "  Downloading cffi source and patching for AIX TLS compatibility"
 
 # Download cffi source via pip (handles URL resolution, caching, etc.)
-CFFI_SRCDIR="/tmp/cffi-${CFFI_VERSION}-aix-src"
+CFFI_SRCDIR="$TMPDIR/cffi-${CFFI_VERSION}-aix-src"
 rm -rf "$CFFI_SRCDIR"
 mkdir -p "$CFFI_SRCDIR"
 $PIP download --no-deps --no-binary cffi "cffi==$CFFI_VERSION" -d "$CFFI_SRCDIR"
@@ -148,12 +148,12 @@ if [ -z "$CFFI_TARBALL" ]; then
     exit 1
 fi
 log "  cffi source: $CFFI_TARBALL"
-CFFI_BUILDDIR="/tmp/cffi-${CFFI_VERSION}-build"
+CFFI_BUILDDIR="$TMPDIR/cffi-${CFFI_VERSION}-build"
 rm -rf "$CFFI_BUILDDIR"
 # Use Python tarfile module for extraction: AIX native tar rejects modern
 # tar formats (pax headers) used by cffi's PyPI distribution.
-$PYTHON_BIN -c "import tarfile, os; tarfile.open('$CFFI_TARBALL').extractall('/tmp')"
-mv "/tmp/cffi-${CFFI_VERSION}" "$CFFI_BUILDDIR"
+$PYTHON_BIN -c "import tarfile, os; tarfile.open('$CFFI_TARBALL').extractall('$TMPDIR')"
+mv "$TMPDIR/cffi-${CFFI_VERSION}" "$CFFI_BUILDDIR"
 
 # Patch setup.py: add sys.platform != 'aix' check to ask_supports_thread()
 # so that __thread is not used in the shared library (causes 0509-187 on AIX).

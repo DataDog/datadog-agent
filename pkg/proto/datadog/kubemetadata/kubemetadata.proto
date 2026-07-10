@@ -52,10 +52,28 @@ message KueueResourceFlavor {
   KubeMetadataEventType type = 6;
 }
 
+message KueuePodSetAssignment {
+  string name = 1;
+  map<string, string> flavors = 2;
+}
+
+message KueueWorkload {
+  string namespace = 1;
+  string name = 2;
+  string queue = 3;
+  string cluster_queue = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+  string uid = 7;
+  repeated KueuePodSetAssignment pod_set_assignments = 8;
+  KubeMetadataEventType type = 9;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
+  repeated KueueWorkload kueue_workloads = 6;
 }

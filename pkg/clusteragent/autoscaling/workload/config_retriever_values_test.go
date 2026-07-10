@@ -20,7 +20,7 @@ import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -29,7 +29,7 @@ import (
 
 func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	testTime := time.Now()
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	_, mockRCClient := newMockConfigRetriever(t, func() bool { return false }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
@@ -41,8 +41,10 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		Namespace: "ns",
 		Name:      "name3",
 	}
-	store.Set("ns/name2", dummy2.Build(), "unittest")
-	store.Set("ns/name3", dummy3.Build(), "unittest")
+	item2, _ := store.Get("ns/name2")
+	item2.Upsert(dummy2.Build(), "unittest")
+	item3, _ := store.Get("ns/name3")
+	item3.Upsert(dummy3.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -72,38 +74,43 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	testTime := time.Now()
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	store.Set("ns/name1", model.FakePodAutoscalerInternal{
+	item1, _ := store.Get("ns/name1")
+	item1.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name1",
 	}.Build(), "unittest")
-	store.Set("ns/name2", model.FakePodAutoscalerInternal{
+	item2, _ := store.Get("ns/name2")
+	item2.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
 	}.Build(), "unittest")
-	store.Set("ns/name3", model.FakePodAutoscalerInternal{
+	item3, _ := store.Get("ns/name3")
+	item3.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
 	}.Build(), "unittest")
 	// Custom recommender PodAutoscalers: backend vertical values should be partially merged,
 	// but backend horizontal values should be ignored (horizontal comes from the external recommender).
-	store.Set("ns/name4", model.FakePodAutoscalerInternal{
+	item4, _ := store.Get("ns/name4")
+	item4.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name4",
 		CustomRecommenderConfiguration: &model.RecommenderConfiguration{
 			Endpoint: "http://recommender:8080",
 		},
 	}.Build(), "unittest")
-	store.Set("ns/name5", model.FakePodAutoscalerInternal{
+	item5, _ := store.Get("ns/name5")
+	item5.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name5",
 		CustomRecommenderConfiguration: &model.RecommenderConfiguration{
@@ -263,7 +270,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
@@ -412,7 +419,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 2, stateCallbackCalled)
 
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:                "ns",
@@ -527,7 +534,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 1, stateCallbackCalled)
 
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:                "ns",
@@ -641,7 +648,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 1, stateCallbackCalled)
 
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
@@ -700,7 +707,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	isLeader := false
 	isLeaderFunc := func() bool {
 		return isLeader
@@ -709,7 +716,8 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 	_, mockRCClient := newMockConfigRetriever(t, isLeaderFunc, store, testClock)
 
 	// Add a PodAutoscaler to the store
-	store.Set("ns/name1", model.FakePodAutoscalerInternal{
+	item1, _ := store.Get("ns/name1")
+	item1.Upsert(model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name1",
 	}.Build(), "unittest")
@@ -743,7 +751,7 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 
 	// Nothing changed in the store as we are not the leader
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 	assert.Equal(t, 1, len(podAutoscalers))
 	// Verify the PodAutoscaler doesn't have values
 	podAutoscaler := podAutoscalers[0]
@@ -768,7 +776,7 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:                "ns",

@@ -200,6 +200,7 @@ full_agent_only_paths = [
     "metric_filterlist",
     "metric_filterlist_match_prefix",
     "metric_lookback",
+    "metric_lookback.collection_interval",
     "metric_lookback.enabled",
     "metric_lookback.enabled_checks",
     "metric_tag_filterlist",

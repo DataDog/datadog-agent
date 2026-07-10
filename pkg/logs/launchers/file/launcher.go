@@ -403,12 +403,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		return
 	}
 
+	// Reuse a single resolver so the /var/log/containers scan happens at most once
+	// across all files for this source rather than once per file.
+	symlinkResolver := fileprovider.NewContainerLogSymlinkResolver()
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
 
-		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file, symlinkResolver) {
 			continue
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {

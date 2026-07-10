@@ -27,7 +27,7 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 	switch cloudProvider {
 	case components.CloudProviderAWS:
 		switch osFlavor {
-		case oscomp.Debian, oscomp.Ubuntu, oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora, oscomp.Suse:
+		case oscomp.Debian, oscomp.Ubuntu, oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora, oscomp.Suse, oscomp.AlmaLinux:
 			return &hostArtifactsClient{
 				cli: &unixAWSCLI{sshExecutor: sshExecutor},
 			}

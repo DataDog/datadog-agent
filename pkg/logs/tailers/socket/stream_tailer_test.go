@@ -173,11 +173,11 @@ func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
 
 	msg := recvMsg(t, outputChan)
 	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "Hello world", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello world", string(msg.GetContent()))
 	assert.Equal(t, message.StatusInfo, msg.Status)
 
 	msg = recvMsg(t, outputChan)
-	assert.Equal(t, "Error occurred", string(msg.GetContent()))
+	assert.Equal(t, "<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Error occurred", string(msg.GetContent()))
 	assert.Equal(t, message.StatusError, msg.Status)
 
 	clientConn.Close()
@@ -200,7 +200,7 @@ func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
 
 	msg := recvMsg(t, outputChan)
 	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "Hi", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z h app - - - Hi", string(msg.GetContent()))
 
 	clientConn.Close()
 	tailer.Stop()
@@ -221,11 +221,11 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 
 	msg := recvMsg(t, outputChan)
 	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "NUL hello", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - NUL hello", string(msg.GetContent()))
 	assert.Equal(t, message.StatusInfo, msg.Status)
 
 	msg = recvMsg(t, outputChan)
-	assert.Equal(t, "NUL world", string(msg.GetContent()))
+	assert.Equal(t, "<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - NUL world", string(msg.GetContent()))
 	assert.Equal(t, message.StatusError, msg.Status)
 
 	clientConn.Close()
@@ -279,7 +279,7 @@ func TestStreamTailer_Syslog_NonTransparent_NoTrailerOnClose(t *testing.T) {
 
 	msg := recvMsg(t, outputChan)
 	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "one-shot message", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - one-shot message", string(msg.GetContent()))
 
 	tailer.Stop()
 }

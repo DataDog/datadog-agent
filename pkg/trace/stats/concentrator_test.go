@@ -169,7 +169,7 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 		Hostname:       "hostname",
 	}
 	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Unix(0, 0), &statsd.NoOpClient{})
-	c.spanConcentrator.additionalTagsCardinalityLimit = 1
+	c.spanConcentrator.cardinalityLimits.AdditionalTags = 1
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
 
 	admitted := newAdditionalMetricTagStatSpan("admitted")
@@ -181,7 +181,7 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
 
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:agent_blocked_value"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 

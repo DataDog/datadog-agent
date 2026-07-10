@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -23,6 +24,7 @@ type http2Encoder struct {
 	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
 	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
 	sketchBuilder            *ddsketch.DDSketchCollectionBuilder
+	discoveryMode            bool
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -36,6 +38,7 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 		}),
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 		sketchBuilder:            ddsketch.NewDDSketchCollectionBuilder(nil),
+		discoveryMode:            pkgconfigsetup.SystemProbe().GetBool("discovery.service_map.enabled"),
 	}
 }
 
@@ -62,34 +65,7 @@ func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint6
 
 	for _, kvPair := range connectionData.Data {
 		e.http2AggregationsBuilder.AddEndpointAggregations(func(http2StatsBuilder *model.HTTPStatsBuilder) {
-			key := kvPair.Key
-			stats := kvPair.Value
-
-			http2StatsBuilder.SetPath(key.Path.Content.Get())
-			http2StatsBuilder.SetFullPath(key.Path.FullPath)
-			http2StatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
-
-			for code, stats := range stats.Data {
-				http2StatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
-					w.SetKey(int32(code))
-					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
-						w.SetCount(uint32(stats.Count))
-						if latencies := stats.Latencies; latencies != nil {
-							w.SetLatencies(func(b *bytes.Buffer) {
-								e.sketchBuilder.Reset(b)
-								e.sketchBuilder.AddSketch(latencies)
-							})
-						} else {
-							w.SetFirstLatencySample(stats.FirstLatencySample)
-						}
-					})
-				})
-
-				staticTags |= stats.StaticTags
-				for dynamicTag := range stats.DynamicTags {
-					dynamicTags[dynamicTag] = struct{}{}
-				}
-			}
+			encodeUSMEndpoint(http2StatsBuilder, kvPair.Key, kvPair.Value, e.discoveryMode, e.sketchBuilder, &staticTags, dynamicTags)
 		})
 	}
 

@@ -90,6 +90,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"private_action_runner.enabled": coreConf,
 			},
+			suppressIf: func() bool {
+				return parProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
+			},
 			serviceName:    "datadog-agent-action",
 			serviceInit:    parInit,
 			shouldShutdown: true,
@@ -233,16 +236,29 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 	}
 }
 
-const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
+const (
+	ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
+	parProcmgrProcessDefinitionFile  = "datadog-agent-action.yaml"
+)
 
 // True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
 // process_manager.enabled, the Agent skips starting the datadog-otel-agent Windows service.
 func ddotProcmgrProcessDefinitionExists() bool {
+	return procmgrProcessDefinitionExists(ddotProcmgrProcessDefinitionFile)
+}
+
+// True if the fleet PAR processes.d definition exists (dd-procmgr supervises PAR). With
+// process_manager.enabled, the Agent skips starting the datadog-agent-action Windows service.
+func parProcmgrProcessDefinitionExists() bool {
+	return procmgrProcessDefinitionExists(parProcmgrProcessDefinitionFile)
+}
+
+func procmgrProcessDefinitionExists(fileName string) bool {
 	installPath, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
 	if err != nil || installPath == "" {
 		return false
 	}
-	p := filepath.Join(installPath, "processes.d", ddotProcmgrProcessDefinitionFile)
+	p := filepath.Join(installPath, "processes.d", fileName)
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
 }

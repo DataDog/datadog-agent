@@ -13,6 +13,10 @@ func TestSubmitMetric(t *testing.T) {
 	testSubmitMetric(t)
 }
 
+func TestSubmitMetricUsesRegisteredSenderManager(t *testing.T) {
+	testSubmitMetricUsesRegisteredSenderManager(t)
+}
+
 func TestSubmitMetricEmptyTags(t *testing.T) {
 	testSubmitMetricEmptyTags(t)
 }

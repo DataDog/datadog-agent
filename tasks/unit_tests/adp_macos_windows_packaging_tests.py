@@ -19,7 +19,10 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn('package_target = "fips-#{package_target}" if fips_mode?', recipe)
         self.assertIn("AGENT_DATA_PLANE_HASH_WINDOWS_AMD64", recipe)
         self.assertIn("AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64", recipe)
+        self.assertIn('adp_hash_key = "fips-#{package_target}"', recipe)
+        self.assertIn('package_target = "#{package_target}-fips"', recipe)
         self.assertIn('package_extension = "zip"', recipe)
+        self.assertNotIn("aws_lc_fips", recipe)
 
     def test_adp_dependency_is_included_on_linux_macos_and_windows(self):
         dependencies = (REPO_ROOT / "omnibus/config/software/datadog-agent-dependencies.rb").read_text()
@@ -85,6 +88,15 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertIn(f"launchctl bootstrap system {plist}", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", uninstall)
                 self.assertIn(plist, uninstall)
+
+    def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
+        agent_installer = (
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
+        ).read_text()
+        omnibus_project = (REPO_ROOT / "omnibus/config/projects/agent.rb").read_text()
+
+        self.assertNotIn("aws_lc_fips", agent_installer)
+        self.assertNotIn("aws_lc_fips", omnibus_project)
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
         generated_path = (

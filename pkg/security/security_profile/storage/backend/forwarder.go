@@ -19,6 +19,7 @@ import (
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -140,7 +141,18 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		return fmt.Errorf("couldn't build request: %w", err)
 	}
 
+	// The Multi-Region Failover (MRF) endpoint must only receive dumps while a failover is
+	// actually active. Activity dumps are shipped over the EvP (logs) intake, so they honor the
+	// `multi_region_failover.failover_logs` switch that Remote Configuration toggles during a
+	// failover. Outside of a failover there is no secdump MRF intake, so posting to it fails with
+	// a 404 on every dump; skip it unless the failover is on.
+	mrfActive := mrfFailoverActive(pkgconfigsetup.Datadog())
+
 	for _, endpoint := range backend.endpoints.Endpoints {
+		if endpoint.IsMRF && !mrfActive {
+			continue
+		}
+
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 
 		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), writer, body); err != nil {
@@ -151,6 +163,14 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 	}
 
 	return nil
+}
+
+// mrfFailoverActive reports whether a Multi-Region Failover is currently active for the EvP/logs
+// intake. Activity dumps ride the EvP (logs) intake track, so they follow the
+// `multi_region_failover.failover_logs` switch toggled by Remote Configuration — mirroring
+// comp/logs-library/sender.(*DestinationSender).canSend.
+func mrfFailoverActive(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool("multi_region_failover.enabled") && cfg.GetBool("multi_region_failover.failover_logs")
 }
 
 // SendTelemetry sends telemetry for the current storage

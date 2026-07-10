@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agentperformance",
+    srcs = ["telemetry.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/tags",
+        "//comp/core/telemetry/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agentperformance_test",
+    srcs = ["telemetry_test.go"],
+    embed = [":agentperformance"],
+    deps = [
+        "//comp/core/tagger/tags",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/kubernetes",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

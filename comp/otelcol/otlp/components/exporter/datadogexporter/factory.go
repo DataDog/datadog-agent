@@ -216,22 +216,12 @@ func (f *factory) createMetricsExporter(
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
 	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
-	ex := &serializerexporter.ExporterConfig{
-		Metrics: serializerexporter.MetricsConfig{
-			Metrics: cfg.Metrics,
-		},
-		TimeoutConfig: exporterhelper.TimeoutConfig{
-			Timeout: cfg.Timeout,
-		},
-		HostMetadata:     cfg.HostMetadata,
-		QueueBatchConfig: cfg.QueueSettings,
-		ShutdownFunc: func(context.Context) error {
-			cancel()  // first cancel context
-			wg.Wait() // then wait for shutdown
-			close(statsIn)
-			return nil
-		},
-	}
+	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
+		cancel()  // first cancel context
+		wg.Wait() // then wait for shutdown
+		close(statsIn)
+		return nil
+	})
 	return sf.CreateMetrics(ctx, set, ex)
 }
 
@@ -264,6 +254,64 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 			}
 		}()
 	}
+}
+
+// buildMetricsExporterConfig translates a datadogconfig.Config into the
+// serializerexporter.ExporterConfig used to drive metrics export. Extracted
+// as a pure function so it can be unit-tested independently of the factory.
+func buildMetricsExporterConfig(cfg *datadogconfig.Config, shutdownFunc component.ShutdownFunc) *serializerexporter.ExporterConfig {
+	// Carry user-configured HTTP settings (proxy, TLS, headers, timeout …)
+	// into the serializer exporter. Apply a 20 s default when the user hasn't
+	// set an explicit timeout so the HTTP client stays bounded even without
+	// context propagation inside OTelSyncForwarder.
+	httpCfg := cfg.ClientConfig
+	if httpCfg.Timeout == 0 {
+		httpCfg.Timeout = 20 * time.Second
+	}
+	return &serializerexporter.ExporterConfig{
+		Metrics:       serializerexporter.MetricsConfig{Metrics: cfg.Metrics},
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: httpCfg.Timeout},
+		HTTPConfig:    httpCfg,
+		// Start from the legacy forwarder retry budget (2-64s / 15 min) so DDOT
+		// retries for as long as the async forwarder used to. Fields that differ
+		// from the OTel default are treated as explicit user overrides and take
+		// precedence; fields equal to the OTel default are assumed unconfigured.
+		RetryConfig: mergeRetryConfig(serializerexporter.DefaultAgentRetryConfig(), cfg.BackOffConfig),
+		// API carries the key and site so that when UseSyncForwarder is enabled
+		// the DDOT path can create its own serializer/forwarder rather than reusing
+		// the agent's shared serializer (which has an async forwarder).
+		API:              cfg.API,
+		HostMetadata:     cfg.HostMetadata,
+		QueueBatchConfig: cfg.QueueSettings,
+		ShutdownFunc:     shutdownFunc,
+	}
+}
+
+// mergeRetryConfig blends user-provided OTel retry settings onto legacy agent
+// defaults. Fields equal to the OTel defaults are treated as "not explicitly
+// configured" and the agent default is preserved; fields that differ from the
+// OTel default are treated as explicit user overrides.
+func mergeRetryConfig(base configretry.BackOffConfig, user configretry.BackOffConfig) configretry.BackOffConfig {
+	otel := configretry.NewDefaultBackOffConfig()
+	if user.Enabled != otel.Enabled {
+		base.Enabled = user.Enabled
+	}
+	if user.InitialInterval != otel.InitialInterval {
+		base.InitialInterval = user.InitialInterval
+	}
+	if user.RandomizationFactor != otel.RandomizationFactor {
+		base.RandomizationFactor = user.RandomizationFactor
+	}
+	if user.Multiplier != otel.Multiplier {
+		base.Multiplier = user.Multiplier
+	}
+	if user.MaxInterval != otel.MaxInterval {
+		base.MaxInterval = user.MaxInterval
+	}
+	if user.MaxElapsedTime != otel.MaxElapsedTime {
+		base.MaxElapsedTime = user.MaxElapsedTime
+	}
+	return base
 }
 
 // createLogsExporter creates a logs exporter based on the config.

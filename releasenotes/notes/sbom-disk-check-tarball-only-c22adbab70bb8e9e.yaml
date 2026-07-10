@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The image-size portion of the available-disk check performed before a
+    container image SBOM scan now runs only for scans that export the image to a
+    tarball on disk (the containerd default mode and the Docker collector), and
+    is skipped for scans that read the image layers in place (CRI-O, and
+    containerd with ``sbom.container_image.overlayfs_direct_scan`` or
+    ``sbom.container_image.use_mount``). The flat
+    ``sbom.container_image.min_available_disk`` floor still applies to every
+    scan, and its default is lowered from 1GB to 10MB.

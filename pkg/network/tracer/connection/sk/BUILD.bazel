@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sk",
+    srcs = [
+        "manager.go",
+        "probes.go",
+        "tracer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/features",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/telemetry",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/tracer/connection/util",
+        "//pkg/util/funcs",
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_sys//unix",
+    ],
+)

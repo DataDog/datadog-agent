@@ -28,12 +28,14 @@ test/fakeintake/
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
+| `/api/v2/compliance` | (raw store) | `GetComplianceFindings()` |
 | `/intake/` | EventAggregator | `FilterEvents()` |
 | `/api/v0.2/traces` | TraceAggregator | `GetTraces()` |
 | `/api/v0.2/stats` | APMStatsAggregator | `GetAPMStats()` |
 | `/api/v1/collector` | ProcessAggregator | `GetProcesses()` |
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
+| `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |

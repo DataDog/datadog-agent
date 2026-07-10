@@ -11,6 +11,7 @@ package scanner
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -77,6 +79,43 @@ func (m mockReport) Tags() []string {
 }
 
 var _ sbom.Report = mockReport{}
+
+// Test that the flat min_available_disk floor applies to every scan, while the
+// image-size headroom check runs only for scans that may store a tarball.
+func TestEnoughDiskSpaceImageSizeOnlyForTarballScans(t *testing.T) {
+	s := &Scanner{disk: filesystem.NewDisk()}
+	// A huge image makes the 1.2x-size check fail whenever it runs; leaving
+	// MinAvailableDisk at 0 lets the flat floor pass, isolating the two checks.
+	imgMeta := &workloadmeta.ContainerImageMetadata{SizeBytes: 1 << 60}
+
+	// In-place scans (CRI-O, containerd with overlayfs/mount) never store a
+	// tarball, so the image-size check is skipped.
+	for _, tc := range []struct {
+		collector string
+		opts      sbom.ScanOptions
+	}{
+		{collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, UseMount: true}},
+	} {
+		assert.NoError(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
+	}
+
+	// Tarball scans (containerd default, and Docker, which may fall back to the
+	// tarball export) run the image-size check, which fails for this huge image.
+	for _, tc := range []struct {
+		collector string
+		opts      sbom.ScanOptions
+	}{
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true}},
+		{collectors.DockerCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+	} {
+		assert.Error(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
+	}
+
+	// The flat floor still applies to every scan, including in-place ones.
+	assert.Error(t, s.enoughDiskSpace(collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, MinAvailableDisk: math.MaxUint64, OverlayFsScan: true}, imgMeta))
+}
 
 // Test retry handling in case of an error
 func TestRetryLogic_Error(t *testing.T) {

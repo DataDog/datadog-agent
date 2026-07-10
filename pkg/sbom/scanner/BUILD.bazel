@@ -36,6 +36,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
+        "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",

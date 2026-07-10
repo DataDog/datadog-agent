@@ -38,10 +38,10 @@ type rofsPermissionsModule struct {
 }
 
 // NewModule creates a new ROFS permissions issue module
-func NewModule(conf config.Component) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
 		template: NewRofsPermissionIssue(),
-		conf:     conf,
+		conf:     deps.Config,
 	}
 }
 

@@ -748,32 +748,3 @@ func SeverityToStatus(pri int) string {
 	}
 	return message.StatusInfo // unreachable: pri%8 covers 0-7
 }
-
-// BuildSyslogFields returns the syslog metadata map for a parsed message.
-// Used by both the TCP tailer's builder and the file parser to construct
-// the "syslog" sub-map in the structured content.
-//
-// Fields that are absent or empty are omitted:
-//   - Pri < 0: severity and facility are omitted
-//   - Version == "": version is omitted (BSD messages)
-//   - StructuredData == nil: structured_data is omitted (BSD messages)
-func BuildSyslogFields(parsed *SyslogMessage) map[string]interface{} {
-	fields := map[string]interface{}{
-		"timestamp": parsed.Timestamp,
-		"hostname":  parsed.Hostname,
-		"appname":   parsed.AppName,
-		"procid":    parsed.ProcID,
-		"msgid":     parsed.MsgID,
-	}
-	if parsed.Pri >= 0 {
-		fields["severity"] = parsed.Pri % 8
-		fields["facility"] = parsed.Pri / 8
-	}
-	if parsed.Version != "" {
-		fields["version"] = parsed.Version
-	}
-	if parsed.StructuredData != nil {
-		fields["structured_data"] = parsed.StructuredData
-	}
-	return fields
-}

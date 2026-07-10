@@ -36,8 +36,8 @@ func TestSyslogParser_NetworkFormat_RFC5424(t *testing.T) {
 	// StateStructured
 	assert.Equal(t, message.StateStructured, result.State)
 
-	// Content is the MSG body
-	assert.Equal(t, "An application event log entry", string(result.GetContent()))
+	// Content is the full original log line (transmitted verbatim)
+	assert.Equal(t, `<165>1 2003-10-11T22:14:15.003Z mymachine evntslog - ID47 [exampleSDID@32473 iut="3"] An application event log entry`, string(result.GetContent()))
 
 	// Status from severity
 	assert.Equal(t, message.StatusNotice, result.Status)
@@ -76,7 +76,7 @@ func TestSyslogParser_AutoDetect_MixedFormats(t *testing.T) {
 	priResult, err := parser.Parse(priInput)
 	require.NoError(t, err)
 	assert.Equal(t, message.StateStructured, priResult.State)
-	assert.Equal(t, "PRI message", string(priResult.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - PRI message", string(priResult.GetContent()))
 	assert.Equal(t, message.StatusInfo, priResult.Status) // 14%8=6 -> info
 
 	// Line without PRI (BSD on-disk format)
@@ -84,14 +84,14 @@ func TestSyslogParser_AutoDetect_MixedFormats(t *testing.T) {
 	bsdResult, err := parser.Parse(bsdInput)
 	require.NoError(t, err)
 	assert.Equal(t, message.StateStructured, bsdResult.State)
-	assert.Equal(t, "BSD message", string(bsdResult.GetContent()))
+	assert.Equal(t, "Oct 11 22:14:15 myhost su: BSD message", string(bsdResult.GetContent()))
 	assert.Equal(t, message.StatusInfo, bsdResult.Status) // no PRI -> -1 -> info
 
 	// Another PRI line to confirm no state lock-in
 	pri2Input := newTestMessage([]byte(`<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Second PRI`))
 	pri2Result, err := parser.Parse(pri2Input)
 	require.NoError(t, err)
-	assert.Equal(t, "Second PRI", string(pri2Result.GetContent()))
+	assert.Equal(t, "<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Second PRI", string(pri2Result.GetContent()))
 	assert.Equal(t, message.StatusError, pri2Result.Status) // 11%8=3 -> error
 }
 
@@ -141,7 +141,7 @@ func TestSyslogParser_RenderedContent_RFC5424(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(rendered), `"message"`)
 	assert.Contains(t, string(rendered), `"syslog"`)
-	assert.Contains(t, string(rendered), `"An application event log entry"`)
+	assert.Contains(t, string(rendered), `An application event log entry`)
 }
 
 func TestSyslogParser_IngestionTimestampPreserved(t *testing.T) {
@@ -172,8 +172,9 @@ func TestSyslogParser_CEF_RFC5424(t *testing.T) {
 
 	assert.Equal(t, message.StateStructured, result.State)
 
-	// CEF/LEEF messages have an empty message body; all data is in "siem"
-	assert.Equal(t, "", string(result.GetContent()))
+	// The full original line is always the content; CEF data is exposed
+	// alongside it in the "siem" object.
+	assert.Equal(t, `<14>1 2026-03-30T12:00:00Z firewall01 CEF - - - CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232`, string(result.GetContent()))
 
 	// Render and verify JSON structure
 	rendered, err := result.Render()
@@ -216,7 +217,7 @@ func TestSyslogParser_CEF_BSD(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	assert.Equal(t, "", string(result.GetContent()))
+	assert.Equal(t, "<34>Oct 11 22:14:15 myhost CEF: CEF:0|Vendor|Product|1.0|200|Attack|8|src=1.2.3.4", string(result.GetContent()))
 
 	rendered, err := result.Render()
 	require.NoError(t, err)
@@ -312,7 +313,7 @@ func TestSyslogParser_NonCEFLEEF_Unchanged(t *testing.T) {
 
 	_, hasSiem := data["siem"]
 	assert.False(t, hasSiem, "siem key should not be present for non-CEF/LEEF messages")
-	assert.Equal(t, "Just a regular message", data["message"])
+	assert.Equal(t, "<165>1 2003-10-11T22:14:15.003Z mymachine evntslog - ID47 - Just a regular message", data["message"])
 }
 
 func TestSyslogParser_CEF_EscapedPipesInHeader(t *testing.T) {
@@ -355,6 +356,9 @@ func TestSyslogParser_CEF_ExtensionWithSpacesInValue(t *testing.T) {
 }
 
 func TestSyslogParser_SIEMParsingDisabled(t *testing.T) {
+	// debug_attr_parsing defaults to off, so NewParser(false) renders the raw
+	// message verbatim: no JSON envelope and therefore no extracted "siem"
+	// object. The CEF payload is preserved in the body untouched.
 	parser := NewParser(false)
 
 	input := newTestMessage([]byte(
@@ -366,13 +370,10 @@ func TestSyslogParser_SIEMParsingDisabled(t *testing.T) {
 	rendered, err := result.Render()
 	require.NoError(t, err)
 
-	var data map[string]interface{}
-	require.NoError(t, json.Unmarshal(rendered, &data))
-
-	// With SIEM parsing disabled, the message body should be preserved as-is
-	// and no "siem" key should be present.
-	assert.Contains(t, data["message"], "CEF:0|Security|FW|")
-	assert.NotContains(t, data, "siem")
+	// Raw passthrough: the full original line is emitted verbatim with no
+	// structured envelope (and hence no "siem" object).
+	assert.Equal(t, "<14>1 2026-03-30T12:00:00Z host app - - - CEF:0|Security|FW|1.0|100|Blocked|5|src=10.0.0.1 dst=10.0.0.2", string(rendered))
+	assert.NotContains(t, string(rendered), `"siem"`)
 }
 
 func TestSyslogParser_MalformedSyslogDoesNotExtractSIEM(t *testing.T) {

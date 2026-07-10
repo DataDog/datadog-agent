@@ -24,6 +24,7 @@ go_library(
         "//comp/core/status",
         "//comp/def",
         "//comp/metadata/host/def",
+        "//comp/metadata/host/impl/utils",
         "//comp/metadata/resources/def",
         "//comp/metadata/runner/def",
         "//pkg/config/env",
@@ -33,7 +34,6 @@ go_library(
         "//pkg/util/hostinfo",
         "//pkg/util/http",
         "//pkg/util/scrubber",
-        "@//comp/metadata/host/impl/utils",
         "@com_github_cenkalti_backoff_v6//:backoff",
     ] + select({
         "@rules_go//go/platform:dragonfly": [

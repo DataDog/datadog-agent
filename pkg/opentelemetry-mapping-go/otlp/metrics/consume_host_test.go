@@ -50,6 +50,16 @@ func TestHostsConsumed(t *testing.T) {
 			ddogfile: "test/datadog/hosts/runtime_other.json",
 		},
 		{
+			name:     "runtime metrics; not mapped",
+			otlpfile: "test/otlp/hosts/runtime_new.json",
+			ddogfile: "test/datadog/hosts/runtime_new.json",
+		},
+		{
+			name:     "not mapped runtime metrics and other metrics",
+			otlpfile: "test/otlp/hosts/runtime_new_other.json",
+			ddogfile: "test/datadog/hosts/runtime_new_other.json",
+		},
+		{
 			name:     "only stats and runtime metrics",
 			otlpfile: "test/otlp/hosts/stats_and_runtime.json",
 			ddogfile: "test/datadog/hosts/stats_and_runtime.json",

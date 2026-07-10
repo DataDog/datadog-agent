@@ -17,6 +17,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -67,10 +68,19 @@ func (p *protocolMock) PostStart() error {
 
 func (p *protocolMock) Stop() {
 	if p.spec.stopFn != nil {
-		p.Stop()
+		p.spec.stopFn()
 	} else {
 		p.inner.Stop()
 	}
+}
+
+// Modifiers forwards the inner protocol's modifiers (e.g. the direct consumer's
+// perf.EventHandler), which the manager needs to load the eBPF programs correctly.
+func (p *protocolMock) Modifiers() []ddebpf.Modifier {
+	if mp, ok := p.inner.(protocols.ModifierProvider); ok {
+		return mp.Modifiers()
+	}
+	return nil
 }
 
 func (p *protocolMock) DumpMaps(io.Writer, string, *ebpf.Map)        {}

@@ -24,6 +24,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/parversion",
         "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
@@ -31,7 +32,6 @@ go_library(
         "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/util",
         "//pkg/util/http",
-        "@//pkg/privateactionrunner/autoconnections",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

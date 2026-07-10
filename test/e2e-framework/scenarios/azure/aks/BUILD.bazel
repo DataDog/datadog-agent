@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aks",
+    srcs = [
+        "aks.go",
+        "run.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/datadog/agent/helm",
+        "//test/e2e-framework/components/datadog/apps/cpustress",
+        "//test/e2e-framework/components/datadog/apps/dogstatsd",
+        "//test/e2e-framework/components/datadog/apps/etcd",
+        "//test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller",
+        "//test/e2e-framework/components/datadog/apps/nginx",
+        "//test/e2e-framework/components/datadog/apps/prometheus",
+        "//test/e2e-framework/components/datadog/apps/redis",
+        "//test/e2e-framework/components/datadog/dogstatsd-standalone",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/azure",
+        "//test/e2e-framework/resources/azure/aks",
+        "//test/e2e-framework/scenarios/azure/fakeintake",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

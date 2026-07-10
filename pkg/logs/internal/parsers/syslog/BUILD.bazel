@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cef_leef.go",
         "parser.go",
+        "structured_content.go",
         "syslog.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog",
@@ -22,6 +23,7 @@ go_library(
     deps = [
         "//pkg/logs/internal/parsers",
         "//pkg/logs/message",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -30,6 +32,7 @@ go_test(
     srcs = [
         "cef_leef_test.go",
         "parser_test.go",
+        "structured_content_test.go",
         "syslog_fuzz_test.go",
         "syslog_test.go",
     ],

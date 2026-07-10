@@ -1,8 +1,31 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "integrationtests",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/integrationtests",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "integrationtests_test",
+    srcs = [
+        "gpu_test.go",
+        "mig_test.go",
+    ],
+    embed = [":integrationtests"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -1267,8 +1267,8 @@ api_key:
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
 
-#   # @param auto_multi_line_detection - boolean - optional - default: false
-#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+#   # @param auto_multi_line_detection - boolean - optional - default: true
+#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: true
 #   # Enable automatic aggregation of multi-line logs for common log patterns.
 #   # More information can be found in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile

@@ -111,10 +111,10 @@ func instrumentJava() {
 }
 
 func instrumentDotnet() {
-	os.Setenv("CORECLR_ENABLE_PROFILING", "1")
-	os.Setenv("CORECLR_PROFILER", "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}")
-	os.Setenv("CORECLR_PROFILER_PATH", "/dd_tracer/dotnet/Datadog.Trace.ClrProfiler.Native.so")
-	os.Setenv("DD_DOTNET_TRACER_HOME", "/dd_tracer/dotnet/")
+	setEnvNoOverride("CORECLR_ENABLE_PROFILING", "1")
+	setEnvNoOverride("CORECLR_PROFILER", "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}")
+	setEnvNoOverride("CORECLR_PROFILER_PATH", "/dd_tracer/dotnet/Datadog.Trace.ClrProfiler.Native.so")
+	setEnvNoOverride("DD_DOTNET_TRACER_HOME", "/dd_tracer/dotnet/")
 }
 
 func instrumentPython() {
@@ -134,7 +134,6 @@ func autoInstrumentTracer(fs afero.Fs) {
 	for _, tracer := range tracers {
 		if ok, err := dirExists(fs, tracer.FsPath); ok {
 			log.Debugf("Found %v, automatically instrumenting tracer", tracer.FsPath)
-			os.Setenv("DD_TRACE_PROPAGATION_STYLE", "datadog")
 			tracer.InitFn()
 			return
 		} else if err != nil {
@@ -152,6 +151,16 @@ func dirExists(fs afero.Fs, path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+// setEnvNoOverride sets key to val only when the customer has not already
+// provided a value, so explicit customer configuration always wins.
+func setEnvNoOverride(key, val string) {
+	if existing, ok := os.LookupEnv(key); ok {
+		log.Debugf("%s already set to %q; keeping customer value instead of %q", key, existing, val)
+		return
+	}
+	os.Setenv(key, val)
 }
 
 func addToString(path string, separator string, token string) string {

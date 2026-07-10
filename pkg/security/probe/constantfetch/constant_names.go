@@ -52,6 +52,7 @@ const (
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
 	OffsetNameQstrName                  = "qstr_name_offset"
+	OffsetNameDentryDParent             = "dentry_d_parent_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"

@@ -279,10 +279,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
     },
-    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
-    strip_prefix = "libgcrypt-1.11.2",
+    sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e",
+    strip_prefix = "libgcrypt-1.12.2",
     urls = [
-        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2",
     ],
 )
 

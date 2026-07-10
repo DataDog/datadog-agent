@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_agent_go_test on
 
@@ -17,6 +18,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/metadata/host/impl/hosttags",
         "//comp/otelcol/otlp/configcheck",
+        "//pkg/collector/python",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/fips",
@@ -36,7 +38,6 @@ go_library(
         "//pkg/util/net",
         "//pkg/util/uuid",
         "//pkg/version",
-        "@//pkg/collector/python",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -90,7 +91,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "utils_test",
     srcs = [
         "common_test.go",
@@ -100,10 +101,10 @@ go_test(
         "meta_test.go",
     ],
     embed = [":utils"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//pkg/collector/python",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/logs/status",
@@ -114,69 +115,68 @@ go_test(
         "//pkg/util/installinfo",
         "//pkg/util/uuid",
         "//pkg/version",
-        "@//pkg/collector/python",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:aix": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:android": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:darwin": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:illumos": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:js": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:netbsd": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:openbsd": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:osx": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:qnx": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:solaris": [
+            "//pkg/util/hostinfo",
             "@com_github_shirou_gopsutil_v4//cpu",
-            "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/gohai/cpu",
