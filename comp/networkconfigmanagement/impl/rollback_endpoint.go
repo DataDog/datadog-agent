@@ -7,6 +7,7 @@ package networkconfigmanagementimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -19,6 +20,9 @@ type RollbackRequest struct {
 	Hash          string `json:"hash"`
 }
 
+type RollbackResponse struct {
+}
+
 // RollbackEndpointHandler returns an http.HandlerFunc for POST /agent/ncm/rollback
 func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +31,28 @@ func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 			httputils.SetJSONError(w, err, http.StatusBadRequest)
 			return
 		}
-		if _, err := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash); err != nil {
+		result, err := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash)
+		if result == nil && err == nil {
+			// this shouldn't be possible.
+			httputils.SetJSONError(w, errors.New("no response from RollbackConfig; this should be impossible"), http.StatusInternalServerError)
+			return
+		}
+		if result == nil {
+			// we failed before sending anything to the device (bad arguments, or couldn't connect, etc.)
+			if errors.Is(err, &ArgumentError{}) {
+				httputils.SetJSONError(w, err, http.StatusBadRequest)
+			} else {
+				httputils.SetJSONError(w, err, http.StatusInternalServerError)
+			}
+			return
+		}
+		// result is not nil -> we sent commands to the device, so we need to
+		// return information about what we did and what happened.
+		if err := result.CopyConfig.AnyError(); err != nil {
+
+		}
+
+		if err != nil {
 			// TODO set error code to distinguish between bad requests (e.g.
 			// unrecognized device id or hash mismatch) and actual internal
 			// errors
