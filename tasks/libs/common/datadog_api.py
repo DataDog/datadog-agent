@@ -51,12 +51,9 @@ def create_gauge(metric_name, timestamp, value, tags, unit=None, metric_origin=N
     return create_metric(MetricIntakeType.GAUGE, metric_name, timestamp, value, tags, unit, metric_origin)
 
 
-def send_metrics(series, warn=False):
+def send_metrics(series):
     """
     Send series of metrics to Datadog
-    Args:
-        series: The metrics to send
-        warn: If true, failures will be logged but the process will continue
     """
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.metrics_api import MetricsApi
@@ -64,20 +61,13 @@ def send_metrics(series, warn=False):
 
     with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
-        try:
-            response = api_instance.submit_metrics(body=MetricPayload(series=series))
-        except Exception as e:
-            print(f"Error while sending pipeline metrics to the Datadog backend: {e}", file=sys.stderr)
-            if not warn:
-                raise Exit(code=1) from e
-            return None
+        response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
         if response["errors"]:
             print(
                 f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}", file=sys.stderr
             )
-            if not warn:
-                raise Exit(code=1)
+            raise Exit(code=1)
 
         return response
 

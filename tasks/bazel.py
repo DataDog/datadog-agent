@@ -20,6 +20,8 @@ from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 REPO_ROOT = Path(__file__).parent.parent
 # Top-level Test* declarations in Go source files — Go side of the parity comparison.
 _TEST_FUNC_RE = re.compile(r'^func (Test\w*)\(', re.MULTILINE)
+# Matches json.decoder.WHITESPACE, an undocumented/unstubbed cpython internal.
+_JSON_WHITESPACE_RE = re.compile(r"[ \t\n\r]*")
 _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 # Tag the dd_agent_go_test macro stamps on every variant it emits
 # (bazel/rules/go/dd_agent_go_test.bzl). Used to distinguish its generated
@@ -44,24 +46,18 @@ def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[
     decoder = json.JSONDecoder()
     text, pos = result.stdout, 0
     while pos < len(text):
-        try:
-            obj, end = decoder.raw_decode(text, pos)
-        except json.JSONDecodeError:
+        pos = _JSON_WHITESPACE_RE.match(text, pos).end()
+        if pos >= len(text):
             break
-        pos = end
-        while pos < len(text) and text[pos].isspace():
-            pos += 1
-        import_path = obj.get("ImportPath", "")
+        obj, pos = decoder.raw_decode(text, pos)
+        import_path = obj["ImportPath"]
         if import_path not in import_paths:
             continue
-        pkg_dir = Path(obj.get("Dir", ""))
+        pkg_dir = Path(obj["Dir"])
         test_files = obj.get("TestGoFiles", []) + obj.get("XTestGoFiles", [])
         funcs: set[str] = set()
         for f in test_files:
-            try:
-                funcs.update(_TEST_FUNC_RE.findall((pkg_dir / f).read_text()))
-            except OSError:
-                continue
+            funcs.update(_TEST_FUNC_RE.findall((pkg_dir / f).read_text()))
         # TestMain is Go's test harness entry point, never dispatched as a test case.
         funcs.discard("TestMain")
         if funcs:
@@ -114,17 +110,13 @@ def _test_xml_funcs(paths: list[Path]) -> set[str]:
             continue
         if not content.strip():
             continue
-        try:
-            root = ET.fromstring(content)
-        except ET.ParseError:
-            continue
-        funcs = {
-            tc.get("name", "")
+        root = ET.fromstring(content)
+        return {
+            tc.attrib["name"]
             for tc in root.iter("testcase")
-            if tc.get("name", "").startswith("Test") and "/" not in tc.get("name", "")
+            if tc.attrib["name"].startswith("Test") and "/" not in tc.attrib["name"]
         }
-        return funcs
-    return set()
+    raise FileNotFoundError(f"no readable test.xml found among candidates: {paths}")
 
 
 def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
@@ -178,10 +170,9 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
 
     covered: dict[str, set[str]] = {}
     for label in dd_agent_labels:
-        action = test_action.get(label)
-        if action is None:
+        if label not in test_action:
             continue
-        uri, cfg_id = action
+        uri, cfg_id = test_action[label]
         funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, local_exec_root, config_testlogs))
         covered.setdefault(_label_to_import_path(label), set()).update(funcs)
 
@@ -204,7 +195,11 @@ def _emit_test_count_metric(flavor: str, count: int) -> None:
         "repository:datadog-agent",
     ]
     timestamp = int(datetime.now().timestamp())
-    _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)], warn=True)
+    try:
+        _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)])
+    except Exception as e:
+        print(f"Failed to send test count metric: {e}", file=sys.stderr)
+        return
     print(f"Sent metric: datadog.agent.bazel_tests.executed={count} (flavor={flavor})")
 
 
