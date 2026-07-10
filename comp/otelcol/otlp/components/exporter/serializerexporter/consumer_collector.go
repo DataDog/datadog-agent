@@ -50,7 +50,8 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 	}
 
 	for k, tags := range c.seenTagSets {
-		series = append(series, exporterWorkloadMetrics(k.metricSuffix, timestamp, append(buildTags, tags...)))
+		allTags := append(slices.Clone(buildTags), tags...)
+		series = append(series, exporterWorkloadMetrics(k.metricSuffix, timestamp, allTags))
 	}
 
 	// Suppress the hostless fallback emission of "metrics.running" (no Host set)
@@ -82,7 +83,7 @@ func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 	sorted := slices.Clone(tags)
 	slices.Sort(sorted)
 	key := tagSetKey{metricSuffix: metricSuffix, key: strings.Join(sorted, ",")}
-	c.seenTagSets[key] = tags
+	c.seenTagSets[key] = slices.Clone(tags)
 }
 
 // exporterDefaultMetrics creates built-in metrics to report that an exporter is running
