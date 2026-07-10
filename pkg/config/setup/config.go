@@ -13,6 +13,7 @@ import (
 	"maps"
 	"net"
 	"os"
+	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -748,7 +749,117 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
+	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig)
+
 	return nil
+}
+
+// delaDirectiveRe matches a delegated-auth directive embedded as a value in `additional_endpoints`,
+// e.g. "DELA(<org_uuid>, aws)" or "DELA(<org_uuid>, aws, region=us-east-1)".
+var delaDirectiveRe = regexp.MustCompile(`^DELA\(\s*([^,]+?)\s*,\s*([^,)]+?)\s*(?:,\s*(.*))?\)$`)
+
+// delaDirective is a parsed DELA(...) directive found in an `additional_endpoints` value.
+type delaDirective struct {
+	orgUUID  string
+	provider string
+	params   map[string]string
+}
+
+// parseDelaDirective parses a DELA(<org_uuid>, <provider>[, key=value, ...]) directive.
+// Returns ok=false for anything that isn't a well-formed directive, rather than erroring, since
+// callers only care whether a given additional_endpoints value should be treated as one.
+func parseDelaDirective(value string) (delaDirective, bool) {
+	matches := delaDirectiveRe.FindStringSubmatch(strings.TrimSpace(value))
+	if matches == nil {
+		return delaDirective{}, false
+	}
+
+	orgUUID := strings.TrimSpace(matches[1])
+	provider := strings.TrimSpace(matches[2])
+	if orgUUID == "" || provider == "" {
+		return delaDirective{}, false
+	}
+
+	params := map[string]string{}
+	if matches[3] != "" {
+		for _, pair := range strings.Split(matches[3], ",") {
+			kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+			if len(kv) != 2 || kv[0] == "" {
+				return delaDirective{}, false
+			}
+			params[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		}
+	}
+
+	return delaDirective{orgUUID: orgUUID, provider: provider, params: params}, true
+}
+
+// providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
+// the process-wide default when the directive omits provider-specific overrides. Note that only
+// the very first AddInstance call on the component actually applies its ProviderConfig
+// (comp/core/delegatedauth/impl's initializeIfNeeded ignores it on subsequent calls) - so a
+// directive's provider/params only take effect if no other instance initialized the component
+// first. Independent per-domain providers (e.g. true multi-cloud dual-shipping) are not supported.
+func providerConfigForDirective(directive delaDirective, defaultProviderConfig common.ProviderConfig) (common.ProviderConfig, error) {
+	switch directive.provider {
+	case cloudauthconfig.ProviderAWS:
+		region := directive.params["region"]
+		if region == "" {
+			if awsConfig, ok := defaultProviderConfig.(*cloudauthconfig.AWSProviderConfig); ok {
+				region = awsConfig.Region
+			}
+		}
+		return &cloudauthconfig.AWSProviderConfig{Region: region}, nil
+	default:
+		return nil, fmt.Errorf("unsupported provider %q in DELA(...) directive", directive.provider)
+	}
+}
+
+// configureAdditionalEndpointsDelegatedAuth scans `additional_endpoints` for DELA(...) directives
+// and configures a delegated auth instance per match, letting a second (or later) Datadog org
+// receive a WIF-managed API key alongside (or instead of) a statically-configured one - i.e.
+// dual/multi-org "dual shipping" via delegated auth.
+func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
+	for domain, keys := range config.GetStringMapStringSlice("additional_endpoints") {
+		for _, key := range keys {
+			// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated here rather than
+			// imported to avoid a setup<->utils import cycle - pkg/config/utils already imports
+			// pkg/config/setup). Keep both checks in sync if the directive prefix ever changes.
+			if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
+				continue
+			}
+
+			directive, ok := parseDelaDirective(key)
+			if !ok {
+				log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s'; leaving it as-is (it will not be sent as an API key)", key, domain)
+				continue
+			}
+
+			instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
+			if err != nil {
+				log.Errorf("Failed to configure delegated auth for additional endpoint '%s': %v", domain, err)
+				continue
+			}
+
+			log.Infof("Configuring delegated authentication for additional endpoint '%s'", domain)
+
+			// APIKeyConfigKey must be unique per directive, not just per domain: a single domain
+			// can carry multiple DELA(...) entries (one per org), and the component's instances
+			// map is keyed by this string - colliding keys would silently drop all but one org.
+			err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+				Config:                      config,
+				ProviderConfig:              instanceProviderConfig,
+				OrgUUID:                     directive.orgUUID,
+				RefreshInterval:             config.GetInt("delegated_auth.refresh_interval_mins"),
+				APIKeyConfigKey:             fmt.Sprintf("additional_endpoints[%s][%s]", domain, directive.orgUUID),
+				AdditionalEndpointDomain:    domain,
+				AdditionalEndpointDirective: key,
+			})
+			if err != nil {
+				log.Errorf("Failed to configure delegated auth for additional endpoint '%s': %v", domain, err)
+			}
+		}
+	}
 }
 
 // bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.

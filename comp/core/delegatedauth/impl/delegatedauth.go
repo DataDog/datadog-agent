@@ -48,6 +48,16 @@ type authInstance struct {
 	refreshInterval time.Duration
 	apiKeyConfigKey string // Configuration key where the API key should be written
 
+	// additionalEndpointDomain, if set, means the API key should be merged into the
+	// `additional_endpoints` config map under this domain instead of being written to
+	// apiKeyConfigKey as a flat value.
+	additionalEndpointDomain string
+	// lastWrittenValue is the value this instance most recently wrote into that domain's key
+	// list in `additional_endpoints` (starting with the literal DELA(...) directive text that
+	// requested this instance). Used to find-and-replace only this instance's own entry on each
+	// refresh, without disturbing any other entry (static or otherwise) for that domain.
+	lastWrittenValue string
+
 	// Exponential backoff for retry intervals
 	backoff *backoff.ExponentialBackOff
 
@@ -74,6 +84,13 @@ type delegatedAuthComponent struct {
 	initialized      bool                     // Whether Initialize() has been called
 	providerConfig   common.ProviderConfig    // Resolved provider configuration
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
+
+	// additionalEndpointsMu serializes read-modify-write access to the `additional_endpoints`
+	// config value across concurrent instances (e.g. two DELA(...) entries refreshing at once).
+	// Deliberately separate from mu: config writes happen outside mu to avoid deadlocking with
+	// OnUpdate callbacks (see startBackgroundRefresh), but concurrent additional_endpoints merges
+	// still need to be serialized against each other.
+	additionalEndpointsMu sync.Mutex
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -193,6 +210,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	if params.APIKeyConfigKey == "" {
 		return errors.New("api_key_config_key is required")
 	}
+	if params.AdditionalEndpointDomain != "" && params.AdditionalEndpointDirective == "" {
+		return errors.New("additional_endpoint_directive is required when additional_endpoint_domain is set")
+	}
 
 	// Check for context cancellation early
 	if err := ctx.Err(); err != nil {
@@ -240,14 +260,16 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 
 	// Create new auth instance with backoff configured
 	instance := &authInstance{
-		provider:        tokenProvider,
-		authConfig:      authConfig,
-		refreshInterval: refreshInterval,
-		apiKeyConfigKey: apiKeyConfigKey,
-		backoff:         newBackoff(refreshInterval),
-		refreshCtx:      refreshCtx,
-		refreshCancel:   refreshCancel,
-		done:            make(chan struct{}),
+		provider:                 tokenProvider,
+		authConfig:               authConfig,
+		refreshInterval:          refreshInterval,
+		apiKeyConfigKey:          apiKeyConfigKey,
+		additionalEndpointDomain: params.AdditionalEndpointDomain,
+		lastWrittenValue:         params.AdditionalEndpointDirective,
+		backoff:                  newBackoff(refreshInterval),
+		refreshCtx:               refreshCtx,
+		refreshCancel:            refreshCancel,
+		done:                     make(chan struct{}),
 	}
 
 	// Check if we're replacing an existing instance.
@@ -431,10 +453,51 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 
 // updateConfigWithAPIKey updates the config with the new API key
 func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
+	if instance.additionalEndpointDomain != "" {
+		d.mergeIntoAdditionalEndpoints(instance, apiKey)
+		return
+	}
+
 	// Update the config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
 	log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
+}
+
+// mergeIntoAdditionalEndpoints writes apiKey into the `additional_endpoints` config map under
+// instance.additionalEndpointDomain, replacing the value this instance previously wrote there
+// (starting with the original DELA(...) directive text) without disturbing any other entry for
+// that domain, static or otherwise. Serialized via additionalEndpointsMu since multiple instances
+// (one per DELA(...) entry) can refresh concurrently and would otherwise race on the same map.
+func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string) {
+	d.additionalEndpointsMu.Lock()
+	defer d.additionalEndpointsMu.Unlock()
+
+	domain := instance.additionalEndpointDomain
+	endpoints := d.config.GetStringMapStringSlice("additional_endpoints")
+	merged := make(map[string][]string, len(endpoints))
+	for k, v := range endpoints {
+		merged[k] = append([]string{}, v...)
+	}
+
+	keys := merged[domain]
+	replaced := false
+	for i, key := range keys {
+		if key == instance.lastWrittenValue {
+			keys[i] = apiKey
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		log.Warnf("Could not find previous delegated auth value for additional endpoint '%s'; appending new key instead", domain)
+		keys = append(keys, apiKey)
+	}
+	merged[domain] = keys
+
+	d.config.Set("additional_endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
+	instance.lastWrittenValue = apiKey
+	log.Infof("Updated additional endpoint '%s' with new delegated API key ending with: %s", domain, scrubber.HideKeyExceptLastChars(apiKey))
 }
 
 // Status Provider implementation for delegated auth
@@ -504,6 +567,11 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 
 		// Refresh interval
 		instanceInfo["RefreshInterval"] = instance.refreshInterval.String()
+
+		// Additional endpoint domain, if this instance manages a dual-shipping key
+		if instance.additionalEndpointDomain != "" {
+			instanceInfo["AdditionalEndpointDomain"] = instance.additionalEndpointDomain
+		}
 
 		// Add error info if there are consecutive failures
 		if instance.consecutiveFailures > 0 {

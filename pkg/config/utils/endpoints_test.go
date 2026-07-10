@@ -183,6 +183,39 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestGetMultipleEndpointsPendingDelegatedAuthDirective(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://second-org.datadoghq.com":
+  - 'DELA(some-org-uuid, aws)'
+  "https://third-org.datadoghq.com":
+  - "some-static-key"
+  - 'DELA(some-other-org-uuid, aws, region=us-east-1)'
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := EndpointDescriptorSet{
+		"https://app.datadoghq.com": newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
+		// A domain whose only entry is a pending DELA(...) directive still gets a resolver
+		// (with zero real keys) so delegated auth has somewhere to write the fetched key later.
+		"https://second-org.datadoghq.com": newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
+			{ConfigSettingPath: "additional_endpoints", Keys: []string{}},
+		}),
+		// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+		// real-key list until delegated auth resolves it.
+		"https://third-org.datadoghq.com": newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key")),
+	}
+
+	assert.NoError(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
 func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.com"

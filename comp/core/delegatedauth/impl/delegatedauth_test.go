@@ -631,3 +631,71 @@ func TestRefreshIntervalValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeIntoAdditionalEndpointsReplacesDirectiveOnFirstWrite(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain: "https://second-org.datadoghq.com",
+		lastWrittenValue:         "DELA(second-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "real-api-key-1")
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"real-api-key-1"}, got["https://second-org.datadoghq.com"])
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticKeys(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://third-org.datadoghq.com": {"some-static-key", "DELA(third-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain: "https://third-org.datadoghq.com",
+		lastWrittenValue:         "DELA(third-org-uuid, aws)",
+	}
+
+	// First fetch resolves the directive.
+	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v1")
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v1"}, got["https://third-org.datadoghq.com"])
+
+	// Refresh rotates the key: only this instance's previous value is replaced, no duplicates,
+	// and the coexisting static key is untouched.
+	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v2")
+	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v2"}, got["https://third-org.datadoghq.com"])
+}
+
+func TestMergeIntoAdditionalEndpointsDoesNotClobberOtherDomains(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+		"https://third-org.datadoghq.com":  {"DELA(third-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	secondInstance := &authInstance{
+		additionalEndpointDomain: "https://second-org.datadoghq.com",
+		lastWrittenValue:         "DELA(second-org-uuid, aws)",
+	}
+	thirdInstance := &authInstance{
+		additionalEndpointDomain: "https://third-org.datadoghq.com",
+		lastWrittenValue:         "DELA(third-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(secondInstance, "second-org-key")
+	comp.mergeIntoAdditionalEndpoints(thirdInstance, "third-org-key")
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"second-org-key"}, got["https://second-org.datadoghq.com"])
+	assert.Equal(t, []string{"third-org-key"}, got["https://third-org.datadoghq.com"])
+}

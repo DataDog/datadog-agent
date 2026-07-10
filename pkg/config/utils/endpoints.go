@@ -75,6 +75,18 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	return prefix + pkgconfigsetup.DefaultSite
 }
 
+// delaDirectivePrefix marks a value in an `additional_endpoints`-style config list as a
+// delegated-auth directive (e.g. "DELA(<org_uuid>, aws)") rather than a literal API key. Such
+// entries are resolved asynchronously by the delegatedauth component, which writes the real key
+// back into the same config slot once fetched; until then they must not be treated as real keys.
+const delaDirectivePrefix = "DELA("
+
+// IsDelaDirective reports whether a value from an `additional_endpoints`-style config list is a
+// delegated-auth directive rather than a literal API key.
+func IsDelaDirective(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+}
+
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
 // a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
@@ -84,14 +96,22 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
 		trimmed := []string{}
+		hasPendingDelegatedAuth := false
 		for _, key := range keys {
 			trimmedAPIKey := strings.TrimSpace(key)
-			if trimmedAPIKey != "" {
-				trimmed = append(trimmed, trimmedAPIKey)
+			if trimmedAPIKey == "" {
+				continue
 			}
+			if IsDelaDirective(trimmedAPIKey) {
+				// Not a real API key (yet) - the delegatedauth component resolves this
+				// asynchronously and writes the real key into this same config slot.
+				hasPendingDelegatedAuth = true
+				continue
+			}
+			trimmed = append(trimmed, trimmedAPIKey)
 		}
 
-		if len(trimmed) > 0 {
+		if len(trimmed) > 0 || hasPendingDelegatedAuth {
 			result[url] = []APIKeys{{
 				ConfigSettingPath: root,
 				Keys:              trimmed,

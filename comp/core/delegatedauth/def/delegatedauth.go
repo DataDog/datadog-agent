@@ -33,8 +33,23 @@ type InstanceParams struct {
 	RefreshInterval int
 
 	// APIKeyConfigKey is where to write the API key (e.g., "api_key", "logs_config.api_key").
-	// Required.
+	// Required, even when AdditionalEndpointDomain is set: it is used as an internal
+	// bookkeeping/status-display key in that mode (e.g. "additional_endpoints[<domain>]"),
+	// since the API key itself is not written to this config key in that case.
 	APIKeyConfigKey string
+
+	// AdditionalEndpointDomain, if set, causes the fetched API key to be merged into the
+	// `additional_endpoints` config map under this domain (replacing the DELA(...) directive
+	// that requested it) instead of being written to APIKeyConfigKey as a flat value. This
+	// supports dual/multi-org shipping via `additional_endpoints`. Requires
+	// AdditionalEndpointDirective to also be set.
+	AdditionalEndpointDomain string
+
+	// AdditionalEndpointDirective is the literal DELA(...) directive text that appears in
+	// `additional_endpoints[AdditionalEndpointDomain]` and requested this instance. It is
+	// replaced in place with the real API key once fetched, and only used when
+	// AdditionalEndpointDomain is set.
+	AdditionalEndpointDirective string
 
 	// ProviderConfig contains provider-specific configuration.
 	// Use cloudauth.AWSProviderConfig for AWS, etc.
