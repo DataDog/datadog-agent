@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package smartadaptivesampling is used to make the bridge between anomaly detection
-// pipeline and adaptive sampling, it provides severity change events.
+// Package smartadaptivesampling bridges anomaly-detection severity to log sampling.
 package smartadaptivesampling
 
 import (
@@ -19,8 +18,7 @@ type readerState struct {
 
 var activeReader atomic.Pointer[readerState]
 
-// SetReader registers the active reader. Called once at startup by the
-// wiring layer; nil until then (or in builds where the feature is disabled).
+// SetReader registers the active severity reader.
 func SetReader(r severityeventsdef.Reader) {
 	if r == nil {
 		activeReader.Store(nil)
@@ -30,8 +28,7 @@ func SetReader(r severityeventsdef.Reader) {
 	activeReader.Store(&readerState{reader: r})
 }
 
-// Current returns the active reader's current severity level, or false when no
-// reader is registered yet.
+// Current returns the active severity level, if any.
 func Current() (severityeventsdef.SeverityLevel, bool) {
 	if state := activeReader.Load(); state != nil {
 		return state.reader.GetSeverity(), true

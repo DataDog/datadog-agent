@@ -20,8 +20,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// noopLogComponent is a minimal logcomp.Component for tests that don't
-// assert on log output.
+// noopLogComponent satisfies logcomp.Component in tests.
 type noopLogComponent struct{}
 
 func (noopLogComponent) Trace(...interface{})                   {}
@@ -40,9 +39,7 @@ func (noopLogComponent) Flush()                                 {}
 
 var _ logcomp.Component = noopLogComponent{}
 
-// fakeObserverComponent implements observerdef.Component, returning a
-// pre-configured subscription/error from SubscribeSeverityEventsReader and
-// tracking whether Unsubscribe was called.
+// fakeObserverComponent returns a configured reader subscription.
 type fakeObserverComponent struct {
 	sub               severityeventsdef.SeverityEventsReaderSubscription
 	err               error

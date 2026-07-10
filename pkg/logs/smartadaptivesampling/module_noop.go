@@ -9,8 +9,7 @@ package smartadaptivesampling
 
 import "go.uber.org/fx"
 
-// Module is a no-op for builds without Python support (e.g. the IoT agent).
-// See module.go for the reason.
+// Module is a no-op without Python support.
 func Module() fx.Option {
 	return fx.Options()
 }
