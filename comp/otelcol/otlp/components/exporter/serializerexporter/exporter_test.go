@@ -501,7 +501,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 				return &collectorConsumer{
 					serializerConsumer: &serializerConsumer{},
 					seenHosts:          make(map[string]struct{}),
-					seenTags:           make(map[string]struct{}),
+					seenTagSets:        make(map[tagSetKey][]string),
 					getPushTime:        func() uint64 { return 0 },
 				}
 			}
@@ -1185,7 +1185,7 @@ func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterCo
 			if err != nil {
 				return ""
 			}
-			return s.Identifier
+			return s.Identifier.Primary
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Provide(serializer.NewSerializer),

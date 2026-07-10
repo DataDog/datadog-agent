@@ -18,7 +18,7 @@ func newTestCollectorConsumer(buildInfo component.BuildInfo) *collectorConsumer 
 	return &collectorConsumer{
 		serializerConsumer: s,
 		seenHosts:          make(map[string]struct{}),
-		seenTagSets:        make(map[string]tagSetEntry),
+		seenTagSets:        make(map[tagSetKey][]string),
 		buildInfo:          buildInfo,
 		getPushTime:        func() uint64 { return uint64(2e9) },
 	}
@@ -89,7 +89,7 @@ func TestAddRuntimeTelemetryMetric_FargateTags(t *testing.T) {
 	buildInfo := component.BuildInfo{Version: "1.0", Command: "otelcontribcol"}
 	c := newTestCollectorConsumer(buildInfo)
 	tag := "task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"
-	c.ConsumeTagSet("fargate", tag, []string{tag})
+	c.ConsumeTagSet("fargate", []string{tag})
 
 	c.addRuntimeTelemetryMetric("", nil)
 
@@ -105,7 +105,7 @@ func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {
 	c := newTestCollectorConsumer(buildInfo)
 	c.ConsumeHost("my-hostname")
 	tag := "task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"
-	c.ConsumeTagSet("fargate", tag, []string{tag})
+	c.ConsumeTagSet("fargate", []string{tag})
 
 	c.addRuntimeTelemetryMetric("", nil)
 
@@ -121,23 +121,24 @@ func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {
 func TestAzureContainerAppsMetric(t *testing.T) {
 	buildInfo := component.BuildInfo{}
 	c := newTestCollectorConsumer(buildInfo)
-	key := "sub-123/my-rg/my-app/replica-1"
 	tags := []string{
 		"replica_name:replica-1",
 		"name:my-app",
 		"subscription_id:sub-123",
 		"resource_group:my-rg",
 	}
-	c.ConsumeTagSet("azurecontainerapps", key, tags)
-	// Same key — should not duplicate
-	c.ConsumeTagSet("azurecontainerapps", key, tags)
+	reordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:my-app",
+		"replica_name:replica-1",
+	}
+	c.ConsumeTagSet("azurecontainerapps", tags)
+	// Same tags, different order should dedup
+	c.ConsumeTagSet("azurecontainerapps", reordered)
 	c.addRuntimeTelemetryMetric("", nil)
 
-	// Exactly one series total: the ACA metric only. The hostless fallback
-	// emission of "otel.datadog_exporter.metrics.running" must be suppressed
-	// here, the same way it is for Fargate-only sources, to avoid
-	// double-counting a single ACA workload for billing.
-	require.Len(t, c.series, 1, "expected exactly one series (ACA only, no stray hostless fallback metric)")
+	require.Len(t, c.series, 1, "expected exactly one series (ACA only)")
 	found := c.series[0]
 	assert.Equal(t, "otel.datadog_exporter.metrics.running.azurecontainerapps", found.Name)
 	tagStrs := found.Tags.UnsafeToReadOnlySliceString()

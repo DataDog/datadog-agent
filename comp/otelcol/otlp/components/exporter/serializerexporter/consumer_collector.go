@@ -7,29 +7,30 @@ package serializerexporter
 
 import (
 	"fmt"
+	"slices"
 	"strings"
+
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 )
 
-// tagSetEntry holds a workload-specific tag set awaiting emission as a
-// dedicated running metric. metricSuffix names the workload type (e.g.
-// "fargate", "azurecontainerapps"); tags is the full set of "key:value"
-// strings to attach.
-type tagSetEntry struct {
+// tagSetKey namespaces a ConsumeTagSet dedup key by metricSuffix, so that two
+// different workload types can never collide in seenTagSets even if their
+// tag content happens to coincide. key is derived from tags themselves
+// (sorted and joined) so that two calls with identical tags always dedup
+type tagSetKey struct {
 	metricSuffix string
-	tags         []string
+	key          string
 }
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
 type collectorConsumer struct {
 	*serializerConsumer
 	seenHosts   map[string]struct{}
-	seenTagSets map[string]tagSetEntry // key: composite dedup string, value: workload tag set
+	seenTagSets map[tagSetKey][]string // value: full "key:value" tag slice for the metric
 	buildInfo   component.BuildInfo
 	// getPushTime returns a Unix time in nanoseconds, representing the time pushing metrics.
 	// It will be overwritten in tests.
@@ -48,15 +49,15 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 		series = append(series, runningMetric)
 	}
 
-	for _, entry := range c.seenTagSets {
-		series = append(series, exporterWorkloadMetrics(entry.metricSuffix, timestamp, append(buildTags, entry.tags...)))
+	for k, tags := range c.seenTagSets {
+		series = append(series, exporterWorkloadMetrics(k.metricSuffix, timestamp, append(buildTags, tags...)))
 	}
 
 	// Suppress the hostless fallback emission of "metrics.running" (no Host set)
 	// when every signal seen was already attributed to a specific workload
 	// type via seenTagSets, to avoid double-counting a single workload for
 	// billing.
-	if (len(c.seenHosts) > 0 && len(c.seenTagSets) == 0) {
+	if len(c.seenHosts) > 0 && len(c.seenTagSets) == 0 {
 		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, buildTags))
 	}
 
@@ -77,8 +78,11 @@ func (c *collectorConsumer) ConsumeHost(host string) {
 }
 
 // ConsumeTagSet implements the metrics.TagSetConsumer interface.
-func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, key string, tags []string) {
-	c.seenTagSets[key] = tagSetEntry{metricSuffix: metricSuffix, tags: tags}
+func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+	key := tagSetKey{metricSuffix: metricSuffix, key: strings.Join(sorted, ",")}
+	c.seenTagSets[key] = tags
 }
 
 // exporterDefaultMetrics creates built-in metrics to report that an exporter is running
