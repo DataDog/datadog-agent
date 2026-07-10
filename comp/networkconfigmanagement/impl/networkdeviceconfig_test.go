@@ -111,7 +111,7 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) ([]*ncmremote.CommandResult, error) {
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*ncmremote.PushResult, error) {
 	return nil, errors.New("not implemented")
 }
 

@@ -27,7 +27,7 @@ func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 			httputils.SetJSONError(w, err, http.StatusBadRequest)
 			return
 		}
-		if err := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash); err != nil {
+		if _, err := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash); err != nil {
 			// TODO set error code to distinguish between bad requests (e.g.
 			// unrecognized device id or hash mismatch) and actual internal
 			// errors
