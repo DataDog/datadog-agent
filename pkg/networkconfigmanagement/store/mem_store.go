@@ -7,7 +7,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 
@@ -123,7 +122,7 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
-		return "", nil, fmt.Errorf("raw config not found for UUID: %s", configUUID)
+		return "", nil, &UnknownUUIDError{configUUID}
 	}
 
 	meta := m.metadata[configUUID]

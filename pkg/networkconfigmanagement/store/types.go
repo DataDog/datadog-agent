@@ -13,12 +13,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
+// UnknownUUIDError indicates that the given UUID wasn't present in the store.
+type UnknownUUIDError struct {
+	UUID string
+}
+
+func (u *UnknownUUIDError) Error() string {
+	return "raw config not found for UUID: " + u.UUID
+}
+
 // ConfigStore implements persistent KV store for configurations for rollbacks
 // whenever a config is retrieved, we will store agent-side along with the payload sent
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
 	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (configUUID string, configHash string, stored bool, err error)
+	// GetConfig fetches data for a given UUID. It should return an
+	// UnknownUUIDError if the UUID isn't present in the store (any other error
+	// type indicates a problem with the store itself, such as data corruption)
 	GetConfig(configUUID string) (string, *types.ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error)
 	GetAllConfigMetadata() ([]*types.ConfigMetadata, error)

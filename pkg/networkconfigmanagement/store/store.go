@@ -215,7 +215,9 @@ func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigTy
 	return configID, err
 }
 
-// GetConfig retrieves all the data associated with a config given its UUID
+// GetConfig retrieves the data for a config by UUID. It will return an
+// UnknownUUIDError if the UUID isn't recognized; any other returned error
+// indicates a problem with the database.
 func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
 	var rawConfig string
 	var metadata types.ConfigMetadata
@@ -226,7 +228,7 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 		// Unmarshal raw config
 		rawConfigBytes := tx.Bucket([]byte(rawConfigBucket)).Get(key)
 		if rawConfigBytes == nil {
-			return fmt.Errorf("raw config not found for UUID: %s", configUUID)
+			return &UnknownUUIDError{configUUID}
 		}
 		decompressedRawConfig, err := cs.compressor.Decompress(rawConfigBytes)
 		if err != nil {
