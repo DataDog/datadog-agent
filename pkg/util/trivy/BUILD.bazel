@@ -94,7 +94,7 @@ dd_agent_go_test(
         "base",
         "fips",
     ],
-    # This tests is meaningless except on linux.
+    # These tests are meaningless except on linux.
     # - the library is only functional with the gotag 'trivy'
     # - test rule strips 'trivy' because it is a LINUX_ONLY_FLAG
     target_compatible_with = ["@platforms//os:linux"],  # keep
