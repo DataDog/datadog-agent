@@ -12,6 +12,7 @@ option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr";
 service ProcessManager {
   rpc List (ListRequest) returns (ListResponse);
   rpc Describe (DescribeRequest) returns (DescribeResponse);
+  rpc GetMetrics (GetMetricsRequest) returns (GetMetricsResponse);
   rpc GetStatus (GetStatusRequest) returns (GetStatusResponse);
   rpc Create (CreateRequest) returns (CreateResponse);
   rpc Start (StartRequest) returns (StartResponse);
@@ -78,6 +79,28 @@ message ProcessDetail {
 
 message DescribeResponse {
   ProcessDetail detail = 1;
+}
+
+// Metrics snapshot for one supervised process (same name / UUID resolution as Describe).
+message GetMetricsRequest {
+  string name_or_uuid = 1;
+}
+
+// Per-process metrics and supervision counters. Resource fields are unset until sampled.
+message ProcessMetrics {
+  string name = 1;
+  string uuid = 2;
+  uint32 pid = 3;
+  ProcessState state = 4;
+  uint32 restart_count = 5;
+  optional int32 last_exit_code = 6;
+  optional int32 last_signal = 7;
+  optional uint64 rss_bytes = 8;
+  optional double cpu_percent = 9;
+}
+
+message GetMetricsResponse {
+  ProcessMetrics metrics = 1;
 }
 
 message CreateRequest {
