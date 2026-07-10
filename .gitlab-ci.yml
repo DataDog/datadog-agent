@@ -1524,18 +1524,6 @@ workflow:
     when: manual
     allow_failure: true
 
-# Same "mandatory on merge/mergequeue, manual on dev branches" policy for jobs that
-# don't use the FAST_TESTS/coverage-cache mechanism above.
-.on_mergequeue_mandatory_manual_on_dev_branches:
-  - !reference [.on_mergequeue]
-  - <<: *if_main_branch
-  - <<: *if_release_branch
-  - <<: *if_tagged_commit
-  - <<: *if_triggered_pipeline
-  - <<: *if_run_all_unit_tests
-  - when: manual
-    allow_failure: true
-
 .on_gitlab_changes:
   changes:
     paths:
