@@ -1480,6 +1480,14 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_fakeintake_changes_with_image_override:
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+
 .on_fakeintake_changes_on_main:
   - changes:
       <<: *fakeintake_paths
