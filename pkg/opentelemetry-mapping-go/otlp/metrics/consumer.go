@@ -161,8 +161,10 @@ type TagsConsumer interface {
 // It is an optional interface implemented by consumers that emit dedicated
 // running metrics for workloads requiring multiple identity dimensions.
 type TagSetConsumer interface {
-	// ConsumeTagSet consumes a workload-specific tag set. metricSuffix is
-	// appended to "otel.datadog_exporter.metrics.running." by the Datadog
-	// exporter consumer.
+	// ConsumeTagSet consumes a multi-tag source for running metric emission.
+	// metricSuffix names the workload-specific metric: the resulting metric
+	// is "otel.datadog_exporter.metrics.running.<metricSuffix>" (e.g. "fargate",
+	// "azurecontainerapps").
+	// tags is the full slice of "key:value" strings to attach to the metric.
 	ConsumeTagSet(metricSuffix string, tags []string)
 }

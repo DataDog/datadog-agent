@@ -502,7 +502,6 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 				return &collectorConsumer{
 					serializerConsumer: &serializerConsumer{},
 					seenHosts:          make(map[string]struct{}),
-					seenTags:           make(map[string]struct{}),
 					seenTagSets:        make(map[tagSetKey][]string),
 					getPushTime:        func() uint64 { return 0 },
 				}
