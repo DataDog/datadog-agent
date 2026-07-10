@@ -72,7 +72,7 @@ build do
               # Rust checks are built under install_dir; Linux packages ship config from output_config_dir.
               move "#{install_dir}/etc/datadog-agent/checks.d", "#{output_config_dir}/etc/datadog-agent", :force => true
               # Owner-only perms on shipped shared-library checks (see agent-dmg/postinst).
-              command "find #{output_config_dir}/etc/datadog-agent/checks.d -maxdepth 1 -type f \\( -name 'libdatadog-agent-*.dylib' -o -name 'libdatadog-agent-*.so' \\) -exec chmod 0500 {} \\; 2>/dev/null || true"
+              command "find #{output_config_dir}/etc/datadog-agent/checks.d -maxdepth 1 -type f -name 'libdatadog-agent-*.so' -exec chmod 0500 {} \\; 2>/dev/null || true"
             end
             move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             unless heroku_target?

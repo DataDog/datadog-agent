@@ -186,8 +186,7 @@ find $CONF_DIR -type f -exec chmod 660 {} \;
 # - owner must be trusted (handled by chown above)
 # - group/others must have no access (mode bits)
 if [ -d "$CONF_DIR/checks.d" ]; then
-  find "$CONF_DIR/checks.d" -maxdepth 1 -type f \
-    \( -name 'libdatadog-agent-*.dylib' -o -name 'libdatadog-agent-*.so' \) \
+  find "$CONF_DIR/checks.d" -maxdepth 1 -type f -name 'libdatadog-agent-*.dylib' \
     -exec chmod 0500 {} \; 2>/dev/null || true
 fi
 
