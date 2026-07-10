@@ -70,10 +70,6 @@ surface PassThroughAggregation {
 
     context agg: PassThroughAggregator
 
-    exposes:
-        agg.line_limit
-        agg.should_truncate
-
     contracts:
         fulfils Aggregator
         fulfils Truncatable

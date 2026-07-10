@@ -134,17 +134,6 @@ surface RegexAggregation {
 
     context agg: RegexAggregator
 
-    exposes:
-        agg.pattern
-        agg.line_limit
-        agg.multi_line_tag_value
-        agg.telemetry_enabled
-        agg.pattern_matched_once
-        agg.buffer_empty
-        agg.lines_combined
-        agg.is_buffer_truncated
-        agg.should_truncate
-
     contracts:
         fulfils Aggregator
 

@@ -56,9 +56,6 @@ surface AutoMultilineLabeling {
 
     context labeller: AutoMultilineLabeler
 
-    exposes:
-        labeller.source_id
-
     contracts:
         fulfils Labeler
 

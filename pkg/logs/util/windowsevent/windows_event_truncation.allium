@@ -72,9 +72,6 @@ surface WindowsEventTruncation {
 
     context op: WindowsEventTruncator
 
-    exposes:
-        op.max_message_bytes
-
     @guarantee PassThroughUnderLimit
         -- When the input message's byte length is at or under
         -- op.max_message_bytes, the message field is stored
