@@ -123,16 +123,28 @@ func setRegistryConfig(env *env.Env) map[string]extensionsPkg.ExtensionRegistry 
 	return overrides
 }
 
-// isEndUserDeviceMode reports whether End User Device Monitoring (EUDM) is enabled,
-// either via DD_INFRASTRUCTURE_MODE passed at install time or via
-// infrastructure_mode: end_user_device already configured in datadog.yaml.
+// isEndUserDeviceMode reports whether End User Device Monitoring (EUDM) is enabled.
+//
+// DD_INFRASTRUCTURE_MODE is authoritative when set: any explicit value that is not
+// end_user_device disables EUDM, even if datadog.yaml still says otherwise. The
+// infrastructure_mode value from datadog.yaml is only used as a fallback when the env var is
+// blank (e.g. upgrades that do not re-supply DD_INFRASTRUCTURE_MODE).
 //
 //nolint:unused // Used in platform-specific files
 func isEndUserDeviceMode(env *env.Env) bool {
-	if strings.EqualFold(env.InfrastructureMode, infrastructureModeEndUserDevice) {
-		return true
+	return endUserDeviceModeEnabled(env.InfrastructureMode, readInfrastructureModeFromConfig)
+}
+
+// endUserDeviceModeEnabled applies the EUDM gating precedence. envMode (DD_INFRASTRUCTURE_MODE) is
+// authoritative when non-empty; configModeFn (the datadog.yaml value) is consulted only as a
+// fallback when envMode is blank, and is not called otherwise.
+//
+//nolint:unused // Used in platform-specific files
+func endUserDeviceModeEnabled(envMode string, configModeFn func() string) bool {
+	if envMode != "" {
+		return strings.EqualFold(envMode, infrastructureModeEndUserDevice)
 	}
-	return strings.EqualFold(readInfrastructureModeFromConfig(), infrastructureModeEndUserDevice)
+	return strings.EqualFold(configModeFn(), infrastructureModeEndUserDevice)
 }
 
 // readInfrastructureModeFromConfig returns the infrastructure_mode value from datadog.yaml,
@@ -204,16 +216,10 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 
-	// Honor End User Device Monitoring being disabled: the eudm extension is EUDM-gated in
-	// installAgentExtensions, but restore replays whatever was previously saved. If a host had
-	// the eudm extension installed and then switched infrastructure_mode away from end_user_device
-	// (or reinstalled with EUDM off), exclude eudm from restore so it is not silently brought back.
-	var exclude []string
-	if runtime.GOOS == "windows" && !isEndUserDeviceMode(env) {
-		exclude = append(exclude, "eudm")
-	}
-
-	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks, overrides, exclude...)
+	// Restore replays whatever extensions were previously installed. Once an extension is
+	// installed it stays installed across upgrades; enabling conditions (e.g. EUDM) only gate the
+	// initial install in installAgentExtensions, not restore.
+	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks, overrides)
 }
 
 // installAgentExtensions installs the given extensions for the agent package.
@@ -230,9 +236,9 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	}
 	// The eudm extension (currently the AI Usage Chrome Native Messaging host + desktop monitor;
 	// a container for End User Device Monitoring features) is Windows-only and gated on EUDM. It
-	// is enabled when DD_INFRASTRUCTURE_MODE=end_user_device is passed at install time, or when
-	// the Agent is already configured with infrastructure_mode: end_user_device in datadog.yaml
-	// (covers upgrades that do not re-supply the env var).
+	// is enabled when DD_INFRASTRUCTURE_MODE=end_user_device is passed at install time; when that
+	// env var is blank it falls back to infrastructure_mode: end_user_device in datadog.yaml
+	// (covers upgrades that do not re-supply the env var). See isEndUserDeviceMode.
 	if runtime.GOOS == "windows" && isEndUserDeviceMode(env) {
 		extensions = append(extensions, "eudm")
 	}
