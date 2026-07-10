@@ -21,7 +21,6 @@ use super::agent_credentials::{AgentAccount, resolve_agent_account};
 
 use command::{spawn_as_agent_user, spawn_as_local_system};
 use primary_token::spawn_as_primary_token;
-use privileged::validate_privileged_process_request;
 
 /// Spawn a managed child using the platform spawn profile for `process_name`.
 ///
@@ -34,7 +33,7 @@ pub(crate) fn spawn_child(
     info!("[{process_name}] spawn profile: {profile}");
 
     if matches!(profile, SpawnProfile::Privileged) {
-        validate_privileged_process_request(process_name, &request)?;
+        privileged::validate_process_request(process_name, &request)?;
     }
 
     // Prefer primary-token spawning (explicit stdio handles). Privileged fallbacks inherit
