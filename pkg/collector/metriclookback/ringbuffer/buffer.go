@@ -241,11 +241,11 @@ func (b *Buffer) AppendSerie(ctx context.Context, source Source, serie *metrics.
 		return err
 	}
 
-	contextID, shardID := b.contexts.retainSerie(source, serie)
 	for i := range serie.Points {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		contextID, shardID := b.contexts.retainSerie(source, serie)
 		point := serie.Points[i]
 		timestampUnixMicro := sampleTimestampUnixMicro(point.Ts)
 		if timestampUnixMicro == 0 {

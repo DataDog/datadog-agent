@@ -117,6 +117,35 @@ func TestAppendSeriePreservesNormalizedSeriesFields(t *testing.T) {
 	require.Equal(t, serie.Interval, series[0].Interval)
 }
 
+func TestAppendSerieRetainsContextPerPoint(t *testing.T) {
+	buf := New(Options{Capacity: 2, ShardCount: 1})
+	serie := &metrics.Serie{
+		Name:     "dog.metric",
+		Points:   []metrics.Point{{Ts: 10, Value: 2}, {Ts: 11, Value: 3}},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"client:tag"}),
+		Host:     "host",
+		MType:    metrics.APIGaugeType,
+		Interval: 10,
+	}
+
+	require.NoError(t, buf.AppendSerie(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, serie))
+	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
+		Name:      "check.metric",
+		Value:     4,
+		Mtype:     metrics.GaugeType,
+		Timestamp: 12,
+	}}))
+
+	series := buf.Series()
+	require.Len(t, series, 2)
+	require.Equal(t, "dog.metric", series[0].Name)
+	require.Equal(t, []metrics.Point{{Ts: 11, Value: 3}}, series[0].Points)
+	require.Equal(t, "check.metric", series[1].Name)
+	stats := buf.Stats()
+	require.Equal(t, 2, stats.Records)
+	require.Equal(t, 2, stats.ActiveContexts)
+}
+
 func TestSeriesBetweenFiltersByTimestamp(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
 	err := buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
