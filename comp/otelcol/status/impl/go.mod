@@ -86,7 +86,6 @@ require (
 	github.com/prometheus/common v0.69.0 // indirect
 	github.com/prometheus/prometheus v0.312.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
-	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect

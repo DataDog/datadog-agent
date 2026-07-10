@@ -9,14 +9,11 @@ require (
 	github.com/charlievieth/strcase v0.0.5
 	github.com/cilium/ebpf v0.21.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
-	github.com/google/go-cmp v0.7.0
-	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/skydive-project/go-debouncer v1.0.1
-	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 	github.com/weppos/publicsuffix-go v0.50.3
 	github.com/xeipuuv/gojsonschema v1.2.0
