@@ -95,7 +95,7 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandR
 			r.ValidationError = cmd.Validator.Validate(r.Output)
 		}
 	}
-	return r, r.AnyError()
+	return r, r.FormattedError()
 }
 
 func (m *MockConnection) RetrieveRunningConfig(_ context.Context) (*result, error) {
