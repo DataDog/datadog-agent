@@ -22,7 +22,7 @@ type Option = func(*Params) error
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
 		LoadBalancerEnabled: false,
-		ImageURL:            "public.ecr.aws/datadog/fakeintake:latest",
+		ImageURL:            "public.ecr.aws/datadog/fakeintake:va7c9c7f2",
 		CPU:                 512,
 		Memory:              1024,
 		DDDevForwarding:     true,
