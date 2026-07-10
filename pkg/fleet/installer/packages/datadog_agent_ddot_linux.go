@@ -32,6 +32,15 @@ const (
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 
 	ddotProcmgrConfigName = "datadog-agent-ddot.yaml"
+	// ddotProcmgrExperimentDirName is the dd-procmgr config directory read by the experiment
+	// process manager (datadog-agent-procmgr-exp). It is separate from the stable "processes.d" so
+	// the stable dd-procmgr config is never mutated by an experiment: promote, rollback and the
+	// systemd timeout/OnFailure revert all restart the stable collector on the untouched stable
+	// config, exactly like every other experiment component. The experiment render it holds points
+	// at /etc/datadog-agent-exp, which is a symlink to the stable config dir when no config
+	// experiment is active (so it is also correct for version experiments) and the real experiment
+	// config during a config experiment.
+	ddotProcmgrExperimentDirName = "processes.d.experiment"
 )
 
 var (
@@ -307,24 +316,36 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
+// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT. It writes two files: the stable
+// config under processes.d (read by the stable dd-procmgr, pointing at /etc/datadog-agent) and the
+// experiment config under processes.d.experiment (read by the experiment dd-procmgr, pointing at
+// /etc/datadog-agent-exp). Keeping them in separate directories means an experiment never mutates
+// the stable collector config.
 func writeDDOTProcmgrConfig(installRoot string) error {
 	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
 	if _, err := os.Stat(otelAgentPath); err != nil {
 		return nil
 	}
-	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
-	if err := os.MkdirAll(processesDir, 0755); err != nil {
-		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
+	if err := writeDDOTProcmgrConfigFile(filepath.Join(installRoot, "processes.d"), embedded.DDOTProcessConfig, installRoot); err != nil {
+		return err
 	}
-	path := filepath.Join(processesDir, ddotProcmgrConfigName)
-	return os.WriteFile(path, []byte(config), 0644)
+	return writeDDOTProcmgrConfigFile(filepath.Join(installRoot, ddotProcmgrExperimentDirName), embedded.DDOTProcessConfigExperiment, installRoot)
+}
+
+func writeDDOTProcmgrConfigFile(processesDir, render, installRoot string) error {
+	config := strings.ReplaceAll(render, "/opt/datadog-agent", installRoot)
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create DDOT procmgr config dir %s: %w", processesDir, err)
+	}
+	return os.WriteFile(filepath.Join(processesDir, ddotProcmgrConfigName), []byte(config), 0644)
 }
 
 func removeDDOTProcmgrConfig(installRoot string) error {
-	path := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
+	for _, dir := range []string{"processes.d", ddotProcmgrExperimentDirName} {
+		path := filepath.Join(installRoot, dir, ddotProcmgrConfigName)
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }

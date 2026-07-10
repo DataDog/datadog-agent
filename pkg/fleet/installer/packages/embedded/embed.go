@@ -35,6 +35,14 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
+// DDOTProcessConfigExperiment is the rendered process manager config for DDOT during a config
+// experiment (deb/rpm layout): its --config/--core-config point at the experiment config tree
+// (/etc/datadog-agent-exp) instead of the stable one. Used to make the experiment collector read
+// the experiment otel-config.yaml, the same way datadog-agent-ddot-exp.service does under systemd.
+//
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+var DDOTProcessConfigExperiment string
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
