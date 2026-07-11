@@ -238,7 +238,7 @@ mod tests {
             "inherit" | "" => StdioSetting::Inherit,
             path => StdioSetting::File(path.into()),
         };
-        to_command_stdio(&setting, super::super::stdout_inheritable())
+        to_command_stdio(&setting, crate::platform::stdout_inheritable())
     }
 
     #[test]

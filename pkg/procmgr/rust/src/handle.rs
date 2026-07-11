@@ -117,7 +117,7 @@ impl ProcessHandle {
             match &mut self.inner {
                 ProcessHandleInner::Tokio(child) => Ok(child.wait().await?),
                 ProcessHandleInner::Raw { process_handle, .. } => {
-                    raw_wait_exit_code(process_handle.get()).await
+                    raw_wait_exit_code(process_handle.get() as usize).await
                 }
             }
         }
@@ -145,83 +145,37 @@ impl ProcessHandle {
 }
 
 #[cfg(windows)]
-async fn raw_wait_exit_code(process_handle: HANDLE) -> Result<ExitStatus> {
-    use std::ffi::c_void;
-
-    use tokio::sync::oneshot;
-    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
-    use windows_sys::Win32::System::Threading::GetExitCodeProcess;
-    use windows_sys::Win32::System::Threading::{
-        INFINITE, RegisterWaitForSingleObject, UnregisterWaitEx, WT_EXECUTEINWAITTHREAD,
-        WT_EXECUTEONLYONCE,
-    };
-
+async fn raw_wait_exit_code(process_handle: usize) -> Result<ExitStatus> {
     use std::os::windows::process::ExitStatusExt;
+    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE};
 
-    struct WaitData {
-        tx: Option<oneshot::Sender<u32>>,
-        process_handle: HANDLE,
-    }
+    const WAIT_OBJECT_0: u32 = 0;
+    const WAIT_FAILED: u32 = 0xFFFF_FFFF;
 
-    unsafe extern "system" fn callback(ptr: *mut c_void, _timed_out: bool) {
-        let data = &mut *(ptr as *mut WaitData);
-        if let Some(tx) = data.tx.take() {
-            let mut exit_code: u32 = 0;
-            let ok = GetExitCodeProcess(data.process_handle, &mut exit_code);
-            // Even if GetExitCodeProcess fails, propagate a sentinel code.
-            let _ = tx.send(if ok != 0 { exit_code } else { u32::MAX });
+    // Wait synchronously on the blocking pool so the future stays Send (required by
+    // supervisor tasks spawned via tokio::spawn). The process HANDLE remains owned by
+    // ProcessHandleInner::Raw for the duration of this wait.
+    let exit_code = tokio::task::spawn_blocking(move || -> Result<u32> {
+        let process_handle = process_handle as HANDLE;
+        let wait_result = unsafe { WaitForSingleObject(process_handle, INFINITE) };
+        if wait_result == WAIT_FAILED {
+            return Err(std::io::Error::last_os_error().into());
         }
-    }
-
-    let (tx, rx) = oneshot::channel::<u32>();
-    let mut wait_object: HANDLE = std::ptr::null_mut();
-    let boxed = Box::new(WaitData {
-        tx: Some(tx),
-        process_handle,
-    });
-    let wait_data_ptr = Box::into_raw(boxed);
-
-    let ok = unsafe {
-        RegisterWaitForSingleObject(
-            &mut wait_object,
-            process_handle,
-            Some(callback),
-            wait_data_ptr as *mut c_void,
-            INFINITE,
-            WT_EXECUTEINWAITTHREAD | WT_EXECUTEONLYONCE,
-        )
-    };
-    if ok == 0 {
-        unsafe {
-            drop(Box::from_raw(wait_data_ptr));
+        if wait_result != WAIT_OBJECT_0 {
+            return Err(std::io::Error::other(format!(
+                "WaitForSingleObject returned unexpected status: {wait_result}"
+            ))
+            .into());
         }
-        return Err(std::io::Error::last_os_error().into());
-    }
-
-    struct Guard {
-        wait_object: HANDLE,
-        ptr: *mut WaitData,
-    }
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            unsafe {
-                // Best-effort: prevent callback from running after cancellation.
-                if !self.wait_object.is_null() {
-                    let _ = UnregisterWaitEx(self.wait_object, INVALID_HANDLE_VALUE);
-                }
-                drop(Box::from_raw(self.ptr));
-            }
+        let mut exit_code: u32 = 0;
+        let ok = unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
+        if ok == 0 {
+            return Err(std::io::Error::last_os_error().into());
         }
-    }
-    let mut guard = Guard {
-        wait_object,
-        ptr: wait_data_ptr as *mut WaitData,
-    };
+        Ok(exit_code)
+    })
+    .await??;
 
-    let exit_code = rx
-        .await
-        .map_err(|e| anyhow::anyhow!("wait cancelled: {e}"))?;
-    drop(guard);
     Ok(ExitStatus::from_raw(exit_code))
 }
 
