@@ -40,7 +40,6 @@ fn file_to_stdio(path: &Path) -> Stdio {
 mod tests {
     use super::*;
     use crate::test_helpers;
-    use std::path::PathBuf;
 
     fn command_stdio(yaml: &str) -> Stdio {
         let setting = match yaml {
