@@ -15,11 +15,11 @@ use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
-use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{
-    IsWellKnownSid, LookupAccountNameW, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
+    IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
 };
 
+use super::sid::lookup_account_sid;
 use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
@@ -91,40 +91,6 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     }
 }
 
-/// SID string (`S-1-5-...`) for the installed agent service account (pipe ACLs).
-pub(crate) fn installed_agent_account_sid_string() -> Result<String> {
-    let Some(key) = open_datadog_agent_key() else {
-        bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
-    };
-    let user = registry_nonempty_string(&key, "installedUser")
-        .context("read installedUser from registry")?;
-    let domain = key
-        .get_string("installedDomain")
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let sid = lookup_account_sid(&domain, &user)
-        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
-    sid_to_string(&sid)
-}
-
-fn sid_to_string(sid: &[u8]) -> Result<String> {
-    unsafe {
-        let mut sid_string: *mut u16 = ptr::null_mut();
-        if ConvertSidToStringSidW(sid.as_ptr() as *mut _, &mut sid_string) == 0 {
-            bail!(
-                "ConvertSidToStringSidW: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        let len = (0..).take_while(|&i| *sid_string.add(i) != 0).count();
-        let slice = std::slice::from_raw_parts(sid_string, len);
-        let sid = String::from_utf16_lossy(slice);
-        windows_sys::Win32::Foundation::LocalFree(sid_string as _);
-        Ok(sid)
-    }
-}
-
 fn well_known_from_names(domain: &str, user: &str) -> Option<AgentAccount> {
     if is_local_system_name(domain, user) {
         Some(AgentAccount::LocalSystem)
@@ -183,52 +149,6 @@ fn is_well_known_sid(
     well_known: windows_sys::Win32::Security::WELL_KNOWN_SID_TYPE,
 ) -> bool {
     unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
-}
-
-fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
-    let account = if domain.is_empty() {
-        user.to_string()
-    } else {
-        format!("{domain}\\{user}")
-    };
-    let system_w = wide::null_terminated("");
-    let account_w = wide::null_terminated(&account);
-
-    unsafe {
-        let mut sid_size = 0u32;
-        let mut domain_size = 0u32;
-        let mut sid_type = 0i32;
-
-        let _ = LookupAccountNameW(
-            system_w.as_ptr(),
-            account_w.as_ptr(),
-            ptr::null_mut(),
-            &mut sid_size,
-            ptr::null_mut(),
-            &mut domain_size,
-            &mut sid_type,
-        );
-
-        let mut sid = vec![0u8; sid_size as usize];
-        let mut _domain_buf = vec![0u16; domain_size as usize];
-        let ok = LookupAccountNameW(
-            system_w.as_ptr(),
-            account_w.as_ptr(),
-            sid.as_mut_ptr() as *mut _,
-            &mut sid_size,
-            _domain_buf.as_mut_ptr(),
-            &mut domain_size,
-            &mut sid_type,
-        );
-        if ok == 0 {
-            bail!(
-                "LookupAccountNameW({account}): {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        sid.truncate(sid_size as usize);
-        Ok(sid)
-    }
 }
 
 fn read_agent_password_from_lsa() -> Result<Option<String>> {

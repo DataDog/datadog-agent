@@ -4,7 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod agent_credentials;
+mod agent_service_sid;
 mod pipe_security;
+mod sid;
 mod spawn;
 mod wide;
 
