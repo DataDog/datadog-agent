@@ -34,12 +34,13 @@ pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         AgentAccount::LocalService => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "LocalService",
-            password: Some(""),
+            // Built-in service account: NULL password for LogonUserW (not L"" from ChangeServiceConfig).
+            password: None,
         },
         AgentAccount::NetworkService => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "NetworkService",
-            password: Some(""),
+            password: None,
         },
         AgentAccount::PasswordLogon {
             domain,
@@ -181,11 +182,11 @@ mod tests {
         let creds = logon_user_credentials(&local_service);
         assert_eq!(creds.domain, "NT AUTHORITY");
         assert_eq!(creds.username, "LocalService");
-        assert_eq!(creds.password, Some(""));
+        assert!(creds.password.is_none());
 
         let network_service = AgentAccount::NetworkService;
         let creds = logon_user_credentials(&network_service);
         assert_eq!(creds.username, "NetworkService");
-        assert_eq!(creds.password, Some(""));
+        assert!(creds.password.is_none());
     }
 }

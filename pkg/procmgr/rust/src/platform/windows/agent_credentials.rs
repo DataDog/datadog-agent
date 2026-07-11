@@ -31,9 +31,9 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 pub(crate) enum AgentAccount {
     /// Well-known LocalSystem account (spawn inherits supervisor when procmgr runs as SYSTEM).
     LocalSystem,
-    /// Well-known LocalService account (empty-password service logon).
+    /// Well-known LocalService account (`LogonUserW` expects a NULL password).
     LocalService,
-    /// Well-known NetworkService account (empty-password service logon).
+    /// Well-known NetworkService account (`LogonUserW` expects a NULL password).
     NetworkService,
     /// Interactive/service logon with a stored password (typical `ddagentuser`).
     PasswordLogon {
