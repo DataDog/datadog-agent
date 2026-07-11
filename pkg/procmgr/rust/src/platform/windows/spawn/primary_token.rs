@@ -209,6 +209,28 @@ fn windows_command_line_arg(s: &str) -> String {
     out
 }
 
+fn env_block_from_baseline_plus_overrides(
+    token: HANDLE,
+    overrides: &[(String, String)],
+) -> Result<Vec<u16>> {
+    let mut vars = super::super::baseline_env_vars_from_token(token)
+        .context("build child environment from spawn token")?;
+    super::super::merge_env_overrides(&mut vars, overrides);
+    Ok(env_vars_to_wide_block(&vars))
+}
+
+fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {
+    let mut block: Vec<u16> = Vec::new();
+    for (k, v) in vars {
+        let kv = format!("{k}={v}");
+        block.extend(std::ffi::OsStr::new(&kv).encode_wide());
+        block.push(0);
+    }
+    // Double NUL terminator.
+    block.push(0);
+    block
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,26 +255,4 @@ mod tests {
         let line = build_windows_command_line(r"C:\Program Files\app.exe", &["--flag".to_string()]);
         assert_eq!(line, r#""C:\Program Files\app.exe" --flag"#);
     }
-}
-
-fn env_block_from_baseline_plus_overrides(
-    token: HANDLE,
-    overrides: &[(String, String)],
-) -> Result<Vec<u16>> {
-    let mut vars = super::super::baseline_env_vars_from_token(token)
-        .context("build child environment from spawn token")?;
-    super::super::merge_env_overrides(&mut vars, overrides);
-    Ok(env_vars_to_wide_block(&vars))
-}
-
-fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {
-    let mut block: Vec<u16> = Vec::new();
-    for (k, v) in vars {
-        let kv = format!("{k}={v}");
-        block.extend(std::ffi::OsStr::new(&kv).encode_wide());
-        block.push(0);
-    }
-    // Double NUL terminator.
-    block.push(0);
-    block
 }
