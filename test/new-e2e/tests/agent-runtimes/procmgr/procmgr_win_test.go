@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	e2ecomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -66,46 +65,6 @@ description: should not start
 
 	adpProcessName = "datadog-agent-data-plane"
 )
-
-// psRemote builds a PowerShell script for RemoteHost.Execute; string args are escaped for single-quoted literals.
-func psRemote(format string, args ...any) string {
-	for i, a := range args {
-		if s, ok := a.(string); ok {
-			args[i] = escapePSSingleQuotedLiteral(s)
-		}
-	}
-	if len(args) == 0 {
-		return format
-	}
-	return fmt.Sprintf(format, args...)
-}
-
-func escapePSSingleQuotedLiteral(s string) string {
-	s = strings.ReplaceAll(s, `%`, `%%`)
-	s = strings.ReplaceAll(s, `'`, `''`)
-	return s
-}
-
-// Path helpers for remote PowerShell: the e2e runner is Linux/macOS, so registry paths
-// need explicit slash normalization instead of filepath.Join.
-func toWindowsSlashPath(p string) string {
-	p = strings.ReplaceAll(strings.TrimSpace(p), `\`, `/`)
-	for strings.Contains(p, "//") {
-		p = strings.ReplaceAll(p, "//", "/")
-	}
-	return p
-}
-
-func joinWindowsPath(base string, elems ...string) string {
-	parts := make([]string, 0, len(elems)+1)
-	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
-	parts = append(parts, elems...)
-	return strings.Join(parts, "/")
-}
-
-func ensureWindowsDirPS(dir string) string {
-	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
-}
 
 // withADPEnabled enables ADP via datadog.yaml during provisioning; the provisioner restarts
 // DatadogAgent afterward, which also starts dd-procmgr-service when process_manager is enabled.
@@ -182,7 +141,7 @@ func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
 	host := s.Env().RemoteHost
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		owner, err := windowsProcessOwnerByImage(host, "dd-procmgrd.exe")
+		owner, err := windowsProcessOwnerByName(host, "dd-procmgrd.exe")
 		assert.NoError(ct, err)
 		assert.Contains(ct, owner, "NT AUTHORITY/SYSTEM")
 	}, 60*time.Second, 2*time.Second)
@@ -310,20 +269,10 @@ func (s *procmgrWindowsSuite) requireDDOTWindows() {
 
 func (s *procmgrWindowsSuite) waitWindowsDDOTRunning(timeout time.Duration) string {
 	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		cmd := fieldValue(out, "Command")
-		assert.Contains(ct, strings.ToLower(cmd), "otel-agent.exe")
-		assert.Contains(ct, strings.ToLower(cmd), "ddot")
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
+	return waitProcmgrDescribeRunning(
+		s.T(), s.Env().RemoteHost, s.platform.cliCmd("describe datadog-agent-ddot"),
+		timeout, "otel-agent.exe", "ddot",
+	)
 }
 
 func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
@@ -335,35 +284,11 @@ func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
 
 	originalPID := s.waitWindowsDDOTRunning(90 * time.Second)
 
-	s.T().Cleanup(func() {
-		_, _ = s.Env().RemoteHost.Execute(psRemote(
-			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-			yamlPath, windowsDDOTDescE2ELine, windowsDDOTDescOriginalLine,
-		))
-		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
-	})
-
-	s.Env().RemoteHost.MustExecute(psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-		yamlPath, windowsDDOTDescOriginalLine, windowsDDOTDescE2ELine,
-	))
-
-	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
-	assert.Contains(s.T(), reloadOut, "datadog-agent-ddot", "reload output: %s", reloadOut)
-	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		assert.NotEqual(ct, originalPID, p, "DDOT should respawn with a new PID after reload")
-	}, 90*time.Second, 2*time.Second)
-
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
-	assertField(s.T(), out, "Description", "E2E-reload-after-yaml")
+	assertReloadAfterDescriptionChange(
+		s.T(), s.Env().RemoteHost, yamlPath, "datadog-agent-ddot",
+		s.platform.cliCmd("reload"), s.platform.cliCmd("describe datadog-agent-ddot"),
+		windowsDDOTDescOriginalLine, windowsDDOTDescE2ELine, originalPID,
+	)
 }
 
 // ---------------------------------------------------------------------------
@@ -372,19 +297,10 @@ func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
 	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		cmd := fieldValue(out, "Command")
-		assert.Contains(ct, strings.ToLower(cmd), "agent-data-plane.exe")
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
+	return waitProcmgrDescribeRunning(
+		s.T(), s.Env().RemoteHost, s.platform.cliCmd("describe "+adpProcessName),
+		timeout, "agent-data-plane.exe",
+	)
 }
 
 func (s *procmgrWindowsSuite) getWindowsRestartCount(name string) int {
@@ -454,53 +370,9 @@ func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
 	require.NoError(s.T(), err)
 	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
 
-	s.T().Cleanup(func() {
-		_, _ = s.Env().RemoteHost.Execute(psRemote(
-			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-			yamlPath, windowsADPDescE2ELine, windowsADPDescOriginalLine,
-		))
-		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
-	})
-
-	s.Env().RemoteHost.MustExecute(psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-		yamlPath, windowsADPDescOriginalLine, windowsADPDescE2ELine,
-	))
-
-	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
-	assert.Contains(s.T(), reloadOut, adpProcessName, "reload output: %s", reloadOut)
-	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		assert.NotEqual(ct, originalPID, p, "ADP should respawn with a new PID after reload")
-	}, 90*time.Second, 2*time.Second)
-
-	assertField(s.T(),
-		s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe "+adpProcessName)),
-		"Description", "E2E-reload-after-yaml",
+	assertReloadAfterDescriptionChange(
+		s.T(), s.Env().RemoteHost, yamlPath, adpProcessName,
+		s.platform.cliCmd("reload"), s.platform.cliCmd("describe "+adpProcessName),
+		windowsADPDescOriginalLine, windowsADPDescE2ELine, originalPID,
 	)
-}
-
-func windowsProcessOwnerByImage(host *e2ecomponents.RemoteHost, imageName string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		imageName,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
-}
-
-func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		pid,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
 }

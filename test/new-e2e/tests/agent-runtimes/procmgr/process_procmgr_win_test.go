@@ -54,11 +54,11 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 	require.NoError(s.T(), err)
 
 	processBin := filepath.Join(installRoot, "bin", "agent", "process-agent.exe")
-	_, err = host.Execute(psRemote(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, processBin))
+	_, err = host.Execute(psLiteralPathExists(processBin))
 	require.NoError(s.T(), err, "process-agent.exe should be installed at %s", processBin)
 
 	cfg := filepath.Join(installRoot, "processes.d", processAgentProcmgrConfigFile)
-	_, err = host.Execute(psRemote(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, cfg))
+	_, err = host.Execute(psLiteralPathExists(cfg))
 	require.NoError(s.T(), err, "fleet process-agent processes.d config should exist at %s", cfg)
 
 	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
@@ -72,7 +72,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		// Verify privilege level: legacy `datadog-process-agent` runs as LocalSystem.
 		// When `process-agent` is started by dd-procmgr, it must preserve that behavior.
-		ownerOut, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`))
+		ownerOut, err := windowsProcessOwnerByName(host, "process-agent.exe")
 		assert.NoError(ct, err)
 		assert.Contains(ct, ownerOut, "NT AUTHORITY/SYSTEM")
 	}, 120*time.Second, 3*time.Second)
@@ -99,10 +99,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 		assert.Less(ct, idxCfgFlag, idxCfgVal)
 	}, 120*time.Second, 3*time.Second)
 
-	_, err = host.Execute(psRemote(
-		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0`,
-		processAgentLegacySCMServiceName,
-	))
+	_, err = host.Execute(psLegacySCMServiceMustNotBeRunning(processAgentLegacySCMServiceName))
 	require.NoError(s.T(), err, "%s Windows service must not be Running when process-agent is managed by dd-procmgr", processAgentLegacySCMServiceName)
 }
 
@@ -150,7 +147,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	// the privileged process with the mutated args, so process-agent should not come back.
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 0 } else { exit 1 }`))
+		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
 		assert.NoError(ct, err)
 
 		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
@@ -161,7 +158,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	// Restore original YAML and ensure dd-procmgr can spawn the process-agent again.
 	restore()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 1 } else { exit 0 }`))
+		_, err := host.Execute(psProcessExistsByName("process-agent.exe"))
 		assert.NoError(ct, err)
 	}, 120*time.Second, 3*time.Second)
 
@@ -177,7 +174,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 0 } else { exit 1 }`))
+		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
 		assert.NoError(ct, err)
 
 		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
@@ -187,7 +184,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 
 	restore()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 1 } else { exit 0 }`))
+		_, err := host.Execute(psProcessExistsByName("process-agent.exe"))
 		assert.NoError(ct, err)
 	}, 120*time.Second, 3*time.Second)
 
@@ -204,7 +201,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 0 } else { exit 1 }`))
+		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
 		assert.NoError(ct, err)
 
 		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
@@ -214,7 +211,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 
 	restore()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'"; if ($null -eq $p) { exit 1 } else { exit 0 }`))
+		_, err := host.Execute(psProcessExistsByName("process-agent.exe"))
 		assert.NoError(ct, err)
 	}, 120*time.Second, 3*time.Second)
 }
