@@ -23,8 +23,8 @@ type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name           string
-	configKeys     map[string]model.Reader
+	name       string
+	configKeys map[string]model.Reader
 	// When set, skip starting the legacy SCM service if this processes.d file exists
 	// and process_manager.enabled is true.
 	procmgrDefinitionFile string
@@ -57,8 +57,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: "datadog-agent-process.yaml",
 			serviceName:           "datadog-process-agent",
-			serviceInit:    processInit,
-			shouldShutdown: false,
+			serviceInit:           processInit,
+			shouldShutdown:        false,
 		},
 		{
 			name: "sysprobe",
@@ -99,8 +99,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: "datadog-agent-action.yaml",
 			serviceName:           "datadog-agent-action",
-			serviceInit:    parInit,
-			shouldShutdown: true,
+			serviceInit:           parInit,
+			shouldShutdown:        true,
 		},
 		{
 			name: "otel",
@@ -109,8 +109,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: "datadog-agent-ddot.yaml",
 			serviceName:           "datadog-otel-agent",
-			serviceInit:    otelInit,
-			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
+			serviceInit:           otelInit,
+			shouldShutdown:        true, // NOTE: not really ncessary with SCM dependency in place
 		},
 		{
 			name: "procmgr",
