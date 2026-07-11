@@ -1267,6 +1267,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
