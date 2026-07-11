@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use std::path::Path;
+
 use anyhow::{Result, bail};
 
 use crate::spawn::SpawnRequest;
@@ -92,8 +94,8 @@ struct PrivilegedProcessSpec {
 
 fn privileged_process_spec(
     process_name: &str,
-    install_root: &std::path::PathBuf,
-    etc_root: &std::path::PathBuf,
+    install_root: &Path,
+    etc_root: &Path,
 ) -> Result<PrivilegedProcessSpec> {
     use crate::spawn::DATADOG_AGENT_PROCESS;
 

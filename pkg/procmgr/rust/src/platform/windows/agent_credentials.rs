@@ -191,19 +191,19 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
 fn read_agent_password_from_lsa() -> Result<Option<String>> {
     let mut key_w = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
     let key_len = key_w.len().saturating_sub(1);
-    let mut key_name = LSA_UNICODE_STRING {
+    let key_name = LSA_UNICODE_STRING {
         Length: (key_len * 2) as u16,
         MaximumLength: (key_w.len() * 2) as u16,
         Buffer: key_w.as_mut_ptr(),
     };
 
     unsafe {
-        let mut object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
+        let object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
         let mut policy_handle: LSA_HANDLE = 0;
 
         let status = LsaOpenPolicy(
             ptr::null(),
-            &mut object_attributes,
+            &object_attributes,
             POLICY_GET_PRIVATE_INFORMATION as u32,
             &mut policy_handle,
         );
@@ -213,7 +213,7 @@ fn read_agent_password_from_lsa() -> Result<Option<String>> {
 
         let policy = PolicyHandle(policy_handle);
         let mut secret: *mut LSA_UNICODE_STRING = ptr::null_mut();
-        let status = LsaRetrievePrivateData(policy.0, &mut key_name, &mut secret);
+        let status = LsaRetrievePrivateData(policy.0, &key_name, &mut secret);
 
         if status == STATUS_OBJECT_NAME_NOT_FOUND {
             return Ok(None);

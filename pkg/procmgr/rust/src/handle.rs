@@ -63,7 +63,7 @@ pub struct ProcessHandle {
 
 #[cfg(windows)]
 enum ProcessHandleInner {
-    Tokio(TokioChild),
+    Tokio(Box<TokioChild>),
     Raw {
         pid: u32,
         process_handle: OwnedProcessHandle,
@@ -79,7 +79,7 @@ impl ProcessHandle {
     #[cfg(windows)]
     pub fn from_child(child: TokioChild) -> Self {
         Self {
-            inner: ProcessHandleInner::Tokio(child),
+            inner: ProcessHandleInner::Tokio(Box::new(child)),
         }
     }
 
