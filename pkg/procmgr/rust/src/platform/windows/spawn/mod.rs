@@ -57,7 +57,7 @@ pub(crate) fn spawn_child(
                 Ok(handle) => return Ok(handle),
                 Err(e) if account.inherits_supervisor_token() => {
                     log::warn!(
-                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
+                        "[{process_name}] primary-token agent spawn failed (agent account is LocalSystem; trying inherited supervisor token): {e:#}"
                     );
                 }
                 Err(e) => {
