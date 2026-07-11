@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.etcd.io/etcd/client/v2"
+	"go.etcd.io/etcd/client/v3"
 )
 
 type etcdTest struct {
