@@ -143,7 +143,10 @@ go_library(
 
 dd_agent_go_test(
     name = "run_test",
-    srcs = ["command_test.go"],
+    srcs = [
+        "command_test.go",
+        "fleet_policies_dir_test.go",
+    ],
     data = [
         "test_config.yaml",
         "test_config_no_dd.yaml",

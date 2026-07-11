@@ -18,6 +18,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func fleetPoliciesDirFromPlatform() string {
+	return winutil.ReadFleetPoliciesDirFromRegistry()
+}
+
 // TryToGetDefaultParamsIfMissing fills missing config paths with ProgramData defaults on Windows.
 // It does not override values already provided via flags or environment.
 func TryToGetDefaultParamsIfMissing(p *cliParams) {
