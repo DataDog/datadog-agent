@@ -17,13 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/viper"
 	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
@@ -175,7 +175,7 @@ func (ia *inventoryagent) initData() {
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// agent-configuration: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "none"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}
@@ -200,10 +200,16 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
-		cfg := viper.New()
+		// Build a config object from the fetched YAML only. No env var is bound on this config,
+		// so the current process's environment variables are not applied
+		// and the values reflect the remote process's YAML exactly. A dynamic schema is used since
+		// the remote config's keys are not part of this freshly created config's schema.
+		cfg := create.NewConfig(name)
+		cfg.SetTestOnlyDynamicSchema(true)
 		cfg.SetConfigType("yaml")
-		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
+		cfg.BuildSchema()
+		if perr := cfg.ReadConfig(strings.NewReader(remoteConfig)); perr != nil {
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, perr)
 		} else {
 			return cfg
 		}
@@ -213,7 +219,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 
 func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	cfgSlice := func(name string) []string {
-		if ia.conf.IsSet(name) {
+		if ia.conf.IsConfigured(name) {
 			ss := ia.conf.GetStringSlice(name)
 			rv := make([]string, len(ss))
 			for i, s := range ss {

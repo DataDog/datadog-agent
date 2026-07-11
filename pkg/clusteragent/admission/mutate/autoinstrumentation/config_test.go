@@ -453,6 +453,54 @@ func TestGetPinnedLibraries(t *testing.T) {
 			},
 		},
 		{
+			name: "default libs with explicit c lib",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v4",
+				"js":     "v6",
+				"dotnet": "v3",
+				"ruby":   "v2",
+				"php":    "v1",
+				"c":      "v0",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
+					defaultLibInfoWithVersion(c, "v0"),
+				},
+				areSetToDefaults: false,
+			},
+		},
+		{
+			name: "explicit c lib cannot substitute for missing default lib",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v4",
+				"js":     "v6",
+				"dotnet": "v3",
+				"ruby":   "v2",
+				"c":      "v0",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfoWithVersion(c, "v0"),
+				},
+				areSetToDefaults: false,
+			},
+		},
+		{
 			name:          "default libs, one missing",
 			libVersions:   defaultLibrariesFor("java", "python", "js", "dotnet"),
 			checkDefaults: true,
@@ -493,7 +541,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"php":    "v1",

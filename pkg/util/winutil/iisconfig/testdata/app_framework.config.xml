@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <appSettings>
+    <add key="DD_SERVICE" value="appsettings-service" />
+    <add key="DD_VERSION" value="appsettings-version" />
+    <add key="DD_TRACE_CONFIG_FILE" value="testdata/app_framework.datadog.json" />
+  </appSettings>
+</configuration>

@@ -31,6 +31,7 @@ def _impl(name, importpath, out, prefix, src, visibility):
         source = src,
         source_importpath = importpath,
         mockgen_tool = "@org_uber_go_mock//mockgen",
+        mockgen_args = ["-build_constraint=test"],
     )
     stripped = "{}_stripped".format(name)
     _strip_sandbox_path(

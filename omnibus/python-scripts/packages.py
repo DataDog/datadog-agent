@@ -7,11 +7,29 @@ else:
 import importlib.metadata
 import packaging
 import subprocess
+import time
 
 import packaging.requirements
 import packaging.version
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
+
+
+class IntegrationInstallError(Exception):
+    """Raised when a single package install fails after all retries."""
+    def __init__(self, package, returncode, stderr):
+        self.package = package
+        self.returncode = returncode
+        self.stderr = stderr
+        super().__init__(f"failed to install '{package}' (exit {returncode}): {stderr.strip()}")
+
+
+class IntegrationsRestoreError(Exception):
+    """Raised when one or more packages could not be restored during an upgrade."""
+    def __init__(self, failures):
+        self.failures = failures  # list[IntegrationInstallError]
+        names = ", ".join(e.package for e in failures)
+        super().__init__(f"failed to restore {len(failures)} package(s): {names}")
 
 # List of PyPi package that start with datadog- prefix but that are datadog integrations
 DEPS_STARTING_WITH_DATADOG = [
@@ -52,16 +70,19 @@ DEPS_STARTING_WITH_DATADOG = [
 
 def run_command(args):
     """
-    Execute a shell command and return its output and errors.
+    Execute a shell command and return its output, errors, and return code.
+
+    Returns a (stdout, stderr, returncode) tuple.  A non-zero returncode means
+    the command failed; callers must check it rather than assuming success.
     """
+    print(f"Running command: '{' '.join(args)}'")
     try:
-        print(f"Running command: '{' '.join(args)}'")
         result = subprocess.run(args, text=True, capture_output=True, check=True)
-        return result.stdout, result.stderr
+        return result.stdout, result.stderr, 0
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' failed with return code: {e.returncode}")
         print(f"Error: {e.stderr}")
-        return e.stdout, e.stderr
+        return e.stdout, e.stderr, e.returncode
 
 def extract_version(req):
     """
@@ -163,10 +184,12 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
     """
     Create a file listing the new or upgraded Python dependencies.
     """
+    print(f"Computing diff: baseline='{old_file}', current='{new_file}'")
     old_packages = load_requirements(old_file)
     new_packages = load_requirements(new_file)
     diff_file = diff_python_installed_packages_file(directory)
     print(f"Creating file: '{diff_file}'")
+    diff_entries = []
     with open(diff_file, 'w', encoding='utf-8') as f:
         f.write(DO_NOT_REMOVE_WARNING_HEADER)
         for package_name, (_, new_req_value) in new_packages.items():
@@ -179,16 +202,24 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
                 if old_version_str and new_version_str:
                     if packaging.version.parse(new_version_str) > packaging.version.parse(old_version_str):
                         f.write(f"{new_req_value}\n")
+                        diff_entries.append(f"{new_req_value} (upgraded from {old_version_str})")
             else:
                 # Package is new in the new file; include it
                 f.write(f"{new_req_value}\n")
+                diff_entries.append(f"{new_req_value} (new)")
+    if diff_entries:
+        print(f"Diff contains {len(diff_entries)} package(s) to restore: {', '.join(diff_entries)}")
+    else:
+        print("Diff is empty: no packages to restore")
     if not os.name == 'nt':
         os.chmod(diff_file, 0o644)
         os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def install_datadog_package(package, install_directory):
     """
-    Install Datadog integrations running datadog-agent command
+    Install a Datadog integration via the datadog-agent integration command.
+
+    Retries once on failure.  Raises IntegrationInstallError if both attempts fail.
     """
     if os.name == 'nt':
         agent_cmd = os.path.join(install_directory, 'bin', 'agent.exe')
@@ -196,20 +227,47 @@ def install_datadog_package(package, install_directory):
     else:
         args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
 
-    run_command(args)
+    for attempt in range(1, 3):
+        print(f"Installing Datadog integration '{package}' (attempt {attempt}/2)")
+        _, stderr, rc = run_command(args)
+        if rc == 0:
+            print(f"Successfully installed Datadog integration '{package}'")
+            return
+        print(f"Failed to install '{package}' on attempt {attempt}/2 (exit {rc})")
+        if attempt < 2:
+            time.sleep(1)
+            print(f"Retrying '{package}'...")
+    raise IntegrationInstallError(package, rc, stderr)
 
 def install_dependency_package(pip, package):
     """
-    Install python dependency running pip install command
+    Install a Python dependency via pip.
+
+    Retries once on failure.  Raises IntegrationInstallError if both attempts fail.
     """
     print(f"Installing python dependency: '{package}'")
     command = pip.copy()
     command.extend(['install', package])
-    run_command(command)
+
+    for attempt in range(1, 3):
+        print(f"Installing python dependency '{package}' (attempt {attempt}/2)")
+        _, stderr, rc = run_command(command)
+        if rc == 0:
+            print(f"Successfully installed python dependency '{package}'")
+            return
+        print(f"Failed to install '{package}' on attempt {attempt}/2 (exit {rc})")
+        if attempt < 2:
+            time.sleep(1)
+            print(f"Retrying '{package}'...")
+    raise IntegrationInstallError(package, rc, stderr)
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
-    Install all Datadog integrations and python dependencies from a file
+    Install all Datadog integrations and python dependencies from a file.
+
+    Every package is attempted regardless of earlier failures.  If any packages
+    could not be installed after retries, raises IntegrationsRestoreError with
+    the full list of failures so the caller can surface them.
     """
     if os.name == 'nt':
         python_path = os.path.join(install_directory, "embedded3", "python.exe")
@@ -219,16 +277,30 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)
+    attempted = 0
+    skipped = 0
+    failures = []
     for install_package_name, (install_package_line, _) in install_packages.items():
         if install_package_name in exclude_packages:
+            skipped += 1
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
+            attempted += 1
             dep_name = packaging.requirements.Requirement(install_package_line).name
-
-            if install_package_line.startswith('datadog-') and dep_name not in DEPS_STARTING_WITH_DATADOG:
-                install_datadog_package(install_package_line, install_directory)
-            else:
-                install_dependency_package(pip, install_package_line)
+            try:
+                if install_package_line.startswith('datadog-') and dep_name not in DEPS_STARTING_WITH_DATADOG:
+                    install_datadog_package(install_package_line, install_directory)
+                else:
+                    install_dependency_package(pip, install_package_line)
+            except IntegrationInstallError as e:
+                print(f"ERROR: {e}")
+                failures.append(e)
+    restored = attempted - len(failures)
+    print(f"Restore summary: {restored}/{attempted} package(s) restored successfully ({skipped} skipped)")
+    if failures:
+        names = ", ".join(e.package for e in failures)
+        print(f"ERROR: failed to restore {len(failures)} package(s): {names}")
+        raise IntegrationsRestoreError(failures)
 
 def load_requirements(filename):
     """

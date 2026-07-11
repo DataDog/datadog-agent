@@ -6,6 +6,7 @@
 package remoteconfighandler
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                1,
@@ -65,7 +66,7 @@ func TestStart(t *testing.T) {
 
 func TestStart_AllFlagsEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
@@ -90,7 +91,7 @@ func TestStart_AllFlagsEnabled(t *testing.T) {
 
 func TestStart_OnlySemanticsEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
@@ -112,7 +113,7 @@ func TestStart_OnlySemanticsEnabled(t *testing.T) {
 
 func TestStart_OnlyAgentConfigEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                1,
@@ -141,7 +142,7 @@ func TestStartNoRemoteClient(t *testing.T) {
 // requested — semantics RC does not depend on the debug server.
 func TestNew_NoDebugServerWithSemanticsOnly(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 0,
@@ -162,7 +163,7 @@ func TestNew_NoDebugServerWithSemanticsOnly(t *testing.T) {
 // requested — there is nothing useful for the handler to do.
 func TestNew_NoDebugServerNoOtherProducts(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                0,
@@ -180,7 +181,7 @@ func TestNew_NoDebugServerNoOtherProducts(t *testing.T) {
 // subscription is skipped with a warning.
 func TestStart_AgentConfigSkippedWithoutDebugServer(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                0,
@@ -200,7 +201,7 @@ func TestStart_AgentConfigSkippedWithoutDebugServer(t *testing.T) {
 
 func TestPrioritySampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -229,7 +230,7 @@ func TestPrioritySampler(t *testing.T) {
 
 func TestErrorsSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -258,7 +259,7 @@ func TestErrorsSampler(t *testing.T) {
 
 func TestRareSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -287,7 +288,7 @@ func TestRareSampler(t *testing.T) {
 
 func TestEnvPrecedence(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -326,13 +327,13 @@ func TestEnvPrecedence(t *testing.T) {
 
 func TestLogLevel(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	pkglog.SetupLogger(pkglog.Default(), "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
 	}))
@@ -344,6 +345,7 @@ func TestLogLevel(t *testing.T) {
 		DefaultEnv:         "agent-env",
 		DebugServerPort:    port,
 		AuthToken:          "fakeToken",
+		IPCTLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -367,8 +369,8 @@ func TestLogLevel(t *testing.T) {
 
 func TestStartWithMRF(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		MRFRemoteConfigClient:          mrfClient,
@@ -394,8 +396,8 @@ func TestStartWithMRF(t *testing.T) {
 
 func TestMRFUpdateCallback(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -451,8 +453,8 @@ func TestMRFUpdateCallback(t *testing.T) {
 
 func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -488,7 +490,7 @@ func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 
 // --- onSemanticCoreUpdate tests ---
 
-const semanticTestJSON = `{"version":"test-1.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+const semanticTestJSON = `{"version":"test-1.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 
 // newSemanticTestHandler returns a handler with minimal sampler mocks for
 // exercising onSemanticCoreUpdate. Tests that mutate the global registry must
@@ -496,7 +498,7 @@ const semanticTestJSON = `{"version":"test-1.0","concepts":{"db.statement":{"can
 func newSemanticTestHandler(t *testing.T) *RemoteConfigHandler {
 	t.Helper()
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
@@ -548,7 +550,7 @@ func TestOnSemanticCoreUpdate_EmptyConcepts(t *testing.T) {
 
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_SEMANTIC_CORE_DD/empty/config": {Config: []byte(`{"version":"x","concepts":{}}`)},
+		"datadog/2/APM_SEMANTIC_CORE_DD/empty/config": {Config: []byte(`{"version":"x","metadata":{"content_hash":"hash-a"},"concepts":{}}`)},
 	}, cb)
 
 	assert.Equal(t, beforeVersion, semantics.DefaultRegistry().Version(), "registry must not change on empty concepts")
@@ -575,8 +577,8 @@ func TestOnSemanticCoreUpdate_MultipleValidConfigs_LastWins(t *testing.T) {
 	h := newSemanticTestHandler(t)
 
 	// Two valid configs with different version strings + content. lex-last wins.
-	cfgEarly := `{"version":"early","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
-	cfgLate := `{"version":"late","concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`
+	cfgEarly := `{"version":"early","metadata":{"content_hash":"hash-early"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	cfgLate := `{"version":"late","metadata":{"content_hash":"hash-late"},"concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`
 
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
@@ -601,7 +603,7 @@ func TestOnSemanticCoreUpdate_AllErrors(t *testing.T) {
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_SEMANTIC_CORE_DD/a/config": {Config: []byte("not json")},
-		"datadog/2/APM_SEMANTIC_CORE_DD/b/config": {Config: []byte(`{"version":"x","concepts":{}}`)},
+		"datadog/2/APM_SEMANTIC_CORE_DD/b/config": {Config: []byte(`{"version":"x","metadata":{"content_hash":"hash-a"},"concepts":{}}`)},
 	}, cb)
 
 	assert.Equal(t, beforeVersion, semantics.DefaultRegistry().Version())
@@ -609,29 +611,30 @@ func TestOnSemanticCoreUpdate_AllErrors(t *testing.T) {
 	assert.Equal(t, state.ApplyStateError, statuses["datadog/2/APM_SEMANTIC_CORE_DD/b/config"].State)
 }
 
-// TestOnSemanticCoreUpdate_SameVersionNoOp verifies that a second push with
-// the same Version() as the live registry is detected as a no-op (skips the
-// UpdateRegistry call) but is still acknowledged. The publisher is expected
-// to bump Version() when content changes.
-func TestOnSemanticCoreUpdate_SameVersionNoOp(t *testing.T) {
+// TestOnSemanticCoreUpdate_SameHashNoOp verifies that a second push with the
+// same metadata.content_hash as the live registry is detected as a no-op
+// (skips the UpdateRegistry call) but is still acknowledged, even when
+// Version() differs — content_hash is content-bound and version is not.
+func TestOnSemanticCoreUpdate_SameHashNoOp(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
 
 	// Use a custom marker as the live registry so we can observe whether the
 	// second push replaced it. UpdateRegistry replaces the live one with this
 	// one carrying a sentinel concept (peer.service mapped to x.sentinel).
-	const liveJSON = `{"version":"sentinel-1.0","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
+	const liveJSON = `{"version":"sentinel-1.0","metadata":{"content_hash":"hash-sentinel"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
 	liveReg, err := semantics.NewRegistryFromJSON([]byte(liveJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(liveReg)
 
-	// Push a payload with the SAME version="sentinel-1.0" but DIFFERENT content
-	// (no sentinel concept). The handler must NOT swap the registry — the
-	// sentinel concept must still be reachable after the push.
-	const sameVersionDifferentContent = `{"version":"sentinel-1.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	// Push a payload with a DIFFERENT version but the SAME content_hash. The
+	// handler must NOT swap the registry — the sentinel concept must still be
+	// reachable after the push, even though the concepts in this payload
+	// differ (the hash is trusted, not recomputed).
+	const sameHashDifferentVersion = `{"version":"sentinel-1.1","metadata":{"content_hash":"hash-sentinel"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_SEMANTIC_CORE_DD/cfg/config": {Config: []byte(sameVersionDifferentContent)},
+		"datadog/2/APM_SEMANTIC_CORE_DD/cfg/config": {Config: []byte(sameHashDifferentVersion)},
 	}, cb)
 
 	// Sentinel concept survived: the swap was skipped.

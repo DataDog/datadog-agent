@@ -34,6 +34,7 @@ import (
 //	 - [WithFakeintake]
 //	 - [WithLogs]
 //   - [WithExtraComposeManifest]
+//   - [WithV3MetricsDisabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -53,6 +54,8 @@ type Params struct {
 	AgentServiceEnvironment pulumi.Map
 	// ExtraComposeManifests is a list of extra docker compose manifests to add beside the agent service.
 	ExtraComposeManifests []docker.ComposeInlineManifest
+	// ExtraAgentVolumes are extra bind-mount volumes (host:container[:opts]) added to the agent service.
+	ExtraAgentVolumes []string
 	// EnvironmentVariables is a map of environment variables to set with the docker-compose context
 	EnvironmentVariables pulumi.StringMap
 	// PulumiDependsOn is a list of resources to depend on.
@@ -148,6 +151,14 @@ func WithAgentServiceEnvVariable(key string, value pulumi.Input) func(*Params) e
 	}
 }
 
+// WithExtraVolumes adds extra bind-mount volumes (host:container[:opts]) to the agent container.
+func WithExtraVolumes(volumes ...string) func(*Params) error {
+	return func(p *Params) error {
+		p.ExtraAgentVolumes = append(p.ExtraAgentVolumes, volumes...)
+		return nil
+	}
+}
+
 // WithIntake configures the agent to use the given url as intake.
 // The url must be a valid Datadog intake, with a SSL valid certificate
 //
@@ -158,29 +169,64 @@ func WithIntake(url string) func(*Params) error {
 	return withIntakeHostname(pulumi.String(url), pulumi.Bool(false))
 }
 
-// WithFakeintake installs the fake intake and configures the Agent to use it.
+// WithFakeintake installs the fake intake and configures the Agent to use it,
+// including Remote Config. The agent is pointed at fakeintake's RC endpoint and
+// given the TUF root JSON derived from fakeintake's global signing key so it can
+// verify signed payloads without any extra provisioner options.
 //
 // This option is overwritten by `WithIntakeHostname`.
-func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
-	shouldSkipSSLValidation := fakeintake.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
+func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
+	shouldSkipSSLValidation := fi.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
 	return func(p *Params) error {
-		p.PulumiDependsOn = append(p.PulumiDependsOn, utils.PulumiDependsOn(fakeintake))
-		return withIntakeHostname(fakeintake.URL, shouldSkipSSLValidation)(p)
+		p.PulumiDependsOn = append(p.PulumiDependsOn, utils.PulumiDependsOn(fi))
+		if err := withIntakeHostname(fi.URL, shouldSkipSSLValidation)(p); err != nil {
+			return err
+		}
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("build fakeintake rc root json: %w", err)
+		}
+		rcEnvVars := pulumi.Map{
+			"DD_REMOTE_CONFIGURATION_ENABLED":          pulumi.String("true"),
+			"DD_REMOTE_CONFIGURATION_RC_DD_URL":        pulumi.Sprintf("%s", fi.URL),
+			"DD_REMOTE_CONFIGURATION_NO_TLS":           pulumi.String("true"),
+			"DD_REMOTE_CONFIGURATION_CONFIG_ROOT":      pulumi.String(rootJSON),
+			"DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT":    pulumi.String(rootJSON),
+			"DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL": pulumi.String("5s"),
+		}
+		for key, value := range rcEnvVars {
+			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
 		envVars := pulumi.Map{
-			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
-			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
-			"DD_APM_DD_URL":                              pulumi.Sprintf("%s", url),
-			"DD_SKIP_SSL_VALIDATION":                     shouldSkipSSLValidation,
-			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":  shouldSkipSSLValidation,
-			"DD_LOGS_CONFIG_FORCE_USE_HTTP":              pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
-			"DD_LOGS_CONFIG_LOGS_DD_URL":                 pulumi.Sprintf("%s", url),
-			"DD_LOGS_CONFIG_LOGS_NO_SSL":                 shouldSkipSSLValidation,
-			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_DD_URL":                                       pulumi.Sprintf("%s", url),
+			"DD_PROCESS_CONFIG_PROCESS_DD_URL":                pulumi.Sprintf("%s", url),
+			"DD_APM_DD_URL":                                   pulumi.Sprintf("%s", url),
+			"DD_SKIP_SSL_VALIDATION":                          shouldSkipSSLValidation,
+			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":       shouldSkipSSLValidation,
+			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
+			"DD_LOGS_CONFIG_LOGS_DD_URL":                      pulumi.Sprintf("%s", url),
+			"DD_LOGS_CONFIG_LOGS_NO_SSL":                      shouldSkipSSLValidation,
+			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL":      pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_NO_SSL": shouldSkipSSLValidation,
+			// Host and container image SBOMs ship through the event platform
+			// forwarder; redirect those endpoints to the fakeintake as well.
+			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),
+			"DD_CONTAINER_IMAGE_DD_URL": pulumi.Sprintf("%s", url),
+			// Compliance findings ride the logs pipeline through a dedicated endpoint.
+			// Redirect it too so a containerized agent's findings reach the fakeintake,
+			// mirroring the host provisioner (agentparams withIntakeHostname).
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL":    pulumi.Sprintf("%s", url),
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_NO_SSL":    shouldSkipSSLValidation,
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_FORCE_USE_HTTP": pulumi.Bool(true),
 		}
 		for key, value := range envVars {
 			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
@@ -188,6 +234,16 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			}
 		}
 		return nil
+	}
+}
+
+// WithV3MetricsDisabled forces the Agent onto the V2 series intake API by setting
+// DD_USE_V3_API_SERIES_ENABLED=false.
+func WithV3MetricsDisabled() func(*Params) error {
+	return func(p *Params) error {
+		return WithAgentServiceEnvVariable(
+			"DD_USE_V3_API_SERIES_ENABLED", pulumi.StringPtr("false"),
+		)(p)
 	}
 }
 

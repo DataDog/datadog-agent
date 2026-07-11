@@ -64,10 +64,8 @@ var (
 	errSDParamUnclosed = errors.New("SD-PARAM: unclosed '\"'")
 
 	// BSD-specific errors
-	errBSDTimestamp  = errors.New("BSD: invalid timestamp format")
-	errBSDMonth      = errors.New("BSD: unrecognized month abbreviation")
-	errBSDHostname   = errors.New("BSD: missing hostname")
-	errUnknownFormat = errors.New("unknown format: expected digit (RFC 5424) or letter (BSD) after PRI")
+	errBSDTimestamp = errors.New("BSD: invalid timestamp format")
+	errBSDHostname  = errors.New("BSD: missing hostname")
 )
 
 const nilvalue = "-"
@@ -178,11 +176,24 @@ func Parse(line []byte) (SyslogMessage, error) {
 	b := line[pos]
 	switch {
 	case b >= '0' && b <= '9':
-		msg, err = parseRFC5424(line, pri, pos)
+		// A digit after PRI *may* be an RFC 5424 VERSION, but many network
+		// appliances (PAN-OS, Cisco) emit no-timestamp BSD messages whose
+		// CONTENT starts with a digit (e.g. "<134>1,2026/06/23,...,TRAFFIC,...").
+		// Only dispatch to the RFC 5424 parser when the bytes actually form a
+		// VERSION token (1-3 digits) followed by SP; otherwise treat the
+		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
+		if isRFC5424Header(line, pos) {
+			msg, err = parseRFC5424(line, pri, pos)
+		} else {
+			msg = parseBSDNoTimestamp(line, pri, pos)
+		}
 	case (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'):
 		msg, err = parseBSD(line, pri, pos)
 	default:
-		return SyslogMessage{Pri: pri, Msg: line, Partial: true}, errUnknownFormat
+		// RFC 3164 §4.3.2: valid PRI, but what follows is neither a digit
+		// (RFC 5424 VERSION) nor a letter (BSD TIMESTAMP month). Treat the
+		// remainder as MSG CONTENT with no TIMESTAMP, HOSTNAME, or TAG.
+		msg = parseBSDNoTimestamp(line, pri, pos)
 	}
 
 	// Apply PRI range warning — join with any downstream error so neither is lost.
@@ -209,6 +220,28 @@ func ParseBSDLine(line []byte) (SyslogMessage, error) {
 // ---------------------------------------------------------------------------
 // RFC 5424 parsing
 // ---------------------------------------------------------------------------
+
+// isRFC5424Header reports whether the bytes starting at line[pos] look like an
+// RFC 5424 VERSION field immediately followed by SP. The VERSION token is a run
+// of digits; a genuine RFC 5424 line is "VERSION SP TIMESTAMP SP ...". We only
+// require that the leading digit run is terminated by a space here — the strict
+// VERSION validation (nonzero first digit, max 3 digits) is left to
+// parseRFC5424, which reports a precise error for malformed-but-5424-shaped
+// lines (e.g. "<14>0 ..." or "<14>1234 ...").
+//
+// This distinguishes those from no-timestamp BSD content that merely begins
+// with a digit but is NOT followed by a space ("<134>1,2026/06/23,...", the
+// PAN-OS/Cisco CSV dialect), which must be handled as RFC 3164 §4.3.2 MSG
+// CONTENT instead of being forced through the RFC 5424 parser.
+func isRFC5424Header(line []byte, pos int) bool {
+	i := pos
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	// The digit run must be immediately followed by SP. A non-digit delimiter
+	// (',', '/', ...) or end-of-line means this is not an RFC 5424 header.
+	return i > pos && i < len(line) && line[i] == ' '
+}
 
 // parseRFC5424 parses an RFC 5424 message starting at line[pos] (the VERSION
 // field). PRI has already been extracted.
@@ -349,6 +382,23 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 // BSD (RFC 3164) parsing
 // ---------------------------------------------------------------------------
 
+// parseBSDNoTimestamp implements RFC 3164 Section 4.3.2: a message with a valid
+// PRI but no valid TIMESTAMP. Per the RFC, the receiver treats the remainder
+// after PRI as the CONTENT field of the MSG. TAG "cannot be determined and will
+// not be included." TIMESTAMP and HOSTNAME are left as nilvalue for the caller
+// to fill from receiver-local context (current time, sender address).
+func parseBSDNoTimestamp(line []byte, pri int, pos int) SyslogMessage {
+	return SyslogMessage{
+		Pri:       pri,
+		Timestamp: nilvalue,
+		Hostname:  nilvalue,
+		AppName:   nilvalue,
+		ProcID:    nilvalue,
+		MsgID:     nilvalue,
+		Msg:       line[pos:],
+	}
+}
+
 // parseBSD parses a BSD syslog message starting at line[pos]. PRI has already
 // been extracted (pri=-1 for file input where PRI is absent).
 //
@@ -365,25 +415,31 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 		MsgID:     nilvalue,
 	}
 
-	// --- TIMESTAMP: exactly 15 bytes ---
-	// Format: Mmm dd hh:mm:ss  (or Mmm  d hh:mm:ss for single-digit day)
-	if pos+15 > len(line) {
+	// --- TIMESTAMP ---
+	// Try standard 15-byte BSD format first: "Mmm dd hh:mm:ss"
+	// Then try 20-byte variant with year: "Mmm DD YYYY HH:MM:SS"
+	// (used by some network appliances that deviate from RFC 3164).
+	tsLen := 0
+	if pos+15 <= len(line) && isValidBSDTimestamp(line[pos:pos+15]) {
+		tsLen = 15
+	} else if pos+20 <= len(line) && isValidBSDTimestampWithYear(line[pos:pos+20]) {
+		tsLen = 20
+	}
+
+	if tsLen == 0 {
+		if pos < len(line) && pri >= 0 {
+			// RFC 3164 §4.3.2: valid PRI, content present but no valid
+			// timestamp. Treat remainder as MSG CONTENT.
+			return parseBSDNoTimestamp(line, pri, pos), nil
+		}
 		if pos < len(line) {
 			msg.Msg = line[pos:]
 		}
 		msg.Partial = true
 		return msg, errBSDTimestamp
 	}
-
-	tsRaw := line[pos : pos+15]
-	if !isValidBSDTimestamp(tsRaw) {
-		// Invalid month — stuff everything into MSG.
-		msg.Msg = line[pos:]
-		msg.Partial = true
-		return msg, errBSDMonth
-	}
-	msg.Timestamp = string(tsRaw)
-	pos += 15
+	msg.Timestamp = string(line[pos : pos+tsLen])
+	pos += tsLen
 
 	// --- SP + HOSTNAME ---
 	if pos >= len(line) || line[pos] != ' ' {
@@ -413,6 +469,15 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	// --- TAG + CONTENT ---
 	rest := line[pos:]
+
+	// Detect "double-header" formats where an ISO 8601 timestamp appears in
+	// the TAG position (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname ...").
+	// No real TAG is present; treat the entire remainder as MSG.
+	if looksLikeISOTimestamp(rest) {
+		msg.Msg = rest
+		return msg, nil
+	}
+
 	parseBSDTag(&msg, rest)
 	return msg, nil
 }
@@ -456,14 +521,29 @@ func parseBSDTag(msg *SyslogMessage, rest []byte) {
 
 	if delimIdx < 0 {
 		// No delimiter — entire rest is APP-NAME with no MSG.
-		msg.AppName = string(rest)
+		candidate := string(rest)
+		if !isPlausibleAppName(candidate) {
+			msg.Msg = rest
+			return
+		}
+		msg.AppName = candidate
+		return
+	}
+
+	// Validate the candidate TAG before committing. Many network appliances
+	// omit a TAG entirely, causing the parser to latch onto the first data
+	// token (a CSV field, a year, etc.). When the candidate fails the
+	// plausibility check, treat the full remainder as MSG with no TAG.
+	candidate := string(rest[:delimIdx])
+	if !isPlausibleAppName(candidate) {
+		msg.Msg = rest
 		return
 	}
 
 	switch delimChar {
 	case '[':
 		// appname[pid]: content
-		msg.AppName = string(rest[:delimIdx])
+		msg.AppName = candidate
 
 		// Find closing ']'.
 		closePos := delimIdx + 1
@@ -492,8 +572,19 @@ func parseBSDTag(msg *SyslogMessage, rest []byte) {
 		}
 
 	case ':':
+		// Before committing TAG, check if rest is actually the start of a
+		// CEF or LEEF header (e.g. "CEF:0|Vendor|..." or "LEEF:1.0|...").
+		// Per the CEF spec, the syslog prefix is just "Mmm dd HH:MM:SS host"
+		// and the body starts immediately with "CEF:Version|...". There is no
+		// syslog TAG. If we consumed "CEF:" as TAG, the MSG would lose its
+		// prefix and CEF detection downstream would fail.
+		if isCEFLEEFStart(rest, delimIdx) {
+			msg.Msg = rest
+			return
+		}
+
 		// appname: content
-		msg.AppName = string(rest[:delimIdx])
+		msg.AppName = candidate
 
 		contentStart := delimIdx + 1
 		if contentStart < len(rest) && rest[contentStart] == ' ' {
@@ -505,13 +596,33 @@ func parseBSDTag(msg *SyslogMessage, rest []byte) {
 
 	case ' ':
 		// appname content (no colon or bracket delimiter)
-		msg.AppName = string(rest[:delimIdx])
+		msg.AppName = candidate
 
 		contentStart := delimIdx + 1
 		if contentStart < len(rest) {
 			msg.Msg = rest[contentStart:]
 		}
 	}
+}
+
+// isCEFLEEFStart returns true when the TAG candidate + delimiter is actually
+// the opening of a CEF or LEEF header. The CEF spec defines the syslog format
+// as "<syslog prefix> CEF:Version|…" with no syslog TAG — the "CEF:" is part
+// of the body. We detect this by checking that the candidate equals "CEF" or
+// "LEEF" (case-sensitive per spec), the delimiter is ':', and the byte
+// immediately after ':' is a digit (the version number).
+func isCEFLEEFStart(rest []byte, colonIdx int) bool {
+	candidate := rest[:colonIdx]
+	if len(candidate) != 3 && len(candidate) != 4 {
+		return false
+	}
+	isCEF := len(candidate) == 3 && candidate[0] == 'C' && candidate[1] == 'E' && candidate[2] == 'F'
+	isLEEF := len(candidate) == 4 && candidate[0] == 'L' && candidate[1] == 'E' && candidate[2] == 'E' && candidate[3] == 'F'
+	if !isCEF && !isLEEF {
+		return false
+	}
+	afterColon := colonIdx + 1
+	return afterColon < len(rest) && rest[afterColon] >= '0' && rest[afterColon] <= '9'
 }
 
 // isValidBSDTimestamp checks the 15-byte BSD timestamp "Mmm dd hh:mm:ss" for
@@ -525,6 +636,36 @@ func isValidBSDTimestamp(b []byte) bool {
 	if b[3] != ' ' || b[6] != ' ' || b[9] != ':' || b[12] != ':' {
 		return false
 	}
+	return isValidMonthAbbrev(b)
+}
+
+// isValidBSDTimestampWithYear checks for the 20-byte variant "Mmm DD YYYY HH:MM:SS"
+// used by some network appliances. This is a well-documented deviation from
+// RFC 3164 that inserts a 4-digit year between the day and time fields:
+//
+//	Standard:  "May  4 21:09:42"      (15 bytes)
+//	With year: "May 04 2026 21:09:42" (20 bytes)
+//
+// Structural checks: valid month at [0:3], spaces at [3], [6], [11],
+// colons at [14] and [17], and digits for the year at [7:11].
+func isValidBSDTimestampWithYear(b []byte) bool {
+	if len(b) < 20 {
+		return false
+	}
+	if b[3] != ' ' || b[6] != ' ' || b[11] != ' ' || b[14] != ':' || b[17] != ':' {
+		return false
+	}
+	for _, i := range []int{7, 8, 9, 10} {
+		if b[i] < '0' || b[i] > '9' {
+			return false
+		}
+	}
+	return isValidMonthAbbrev(b)
+}
+
+// isValidMonthAbbrev returns true if b[0:3] is a valid three-letter English
+// month abbreviation (Jan, Feb, Mar, ..., Dec).
+func isValidMonthAbbrev(b []byte) bool {
 	switch b[0] {
 	case 'J':
 		return (b[1] == 'a' && b[2] == 'n') || // Jan
@@ -551,6 +692,71 @@ func isValidBSDTimestamp(b []byte) bool {
 // isAlphaNumeric returns true for ASCII letters and digits.
 func isAlphaNumeric(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+}
+
+// isPlausibleAppName returns true if s looks like a real program/process name
+// rather than a data fragment that happened to start in the TAG position.
+//
+// Many network appliances (PAN-OS, Cisco FTD) emit BSD syslog without a
+// traditional TAG field. The alphanumeric scan in parseBSDTag then picks up
+// whatever data follows the hostname—typically a CSV version number ("1") or
+// the year portion of an inline ISO timestamp ("2026"). These are not program
+// names and should not be promoted to appname/source/service.
+//
+// Rejected patterns:
+//   - Single non-letter character (e.g. the digit "1" from a PAN-OS FUTURE_USE
+//     field); a single letter is accepted as a short program name (e.g. "q")
+//   - Purely numeric (e.g. "2026" from an ISO 8601 timestamp prefix)
+//   - Contains characters outside the set [a-zA-Z0-9._/@-] that are valid
+//     in Unix process names (e.g. commas from CSV data, "=" from key=value)
+func isPlausibleAppName(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	// A single character is only a plausible program name when it is a letter
+	// (e.g. a short daemon tag "q:"). A lone digit or punctuation char is a
+	// CSV/FUTURE_USE data fragment (e.g. PAN-OS "1"), not a real TAG.
+	if len(s) == 1 {
+		c := s[0]
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+	}
+	allDigit := true
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' {
+			allDigit = false
+			continue
+		}
+		if c >= '0' && c <= '9' {
+			continue
+		}
+		switch c {
+		case '.', '_', '-', '/', '@':
+			allDigit = false
+			continue
+		}
+		return false
+	}
+	return !allDigit
+}
+
+// looksLikeISOTimestamp returns true if b starts with an ISO 8601 date prefix
+// (YYYY-MM or YYYY-). This detects the "double-header" pattern used by devices
+// like Cisco FTD, which embed a second timestamp after the BSD hostname:
+//
+//	<PRI>Mmm dd hh:mm:ss MGMT_IP YYYY-MM-DDThh:mm:ssZ hostname (tag) %ID: ...
+//
+// When this pattern appears in the TAG position, no real TAG is present and the
+// entire remainder should be treated as MSG.
+func looksLikeISOTimestamp(b []byte) bool {
+	if len(b) < 5 {
+		return false
+	}
+	return b[0] >= '0' && b[0] <= '9' &&
+		b[1] >= '0' && b[1] <= '9' &&
+		b[2] >= '0' && b[2] <= '9' &&
+		b[3] >= '0' && b[3] <= '9' &&
+		b[4] == '-'
 }
 
 // ---------------------------------------------------------------------------
@@ -747,33 +953,4 @@ func SeverityToStatus(pri int) string {
 		return message.StatusDebug
 	}
 	return message.StatusInfo // unreachable: pri%8 covers 0-7
-}
-
-// BuildSyslogFields returns the syslog metadata map for a parsed message.
-// Used by both the TCP tailer's builder and the file parser to construct
-// the "syslog" sub-map in the structured content.
-//
-// Fields that are absent or empty are omitted:
-//   - Pri < 0: severity and facility are omitted
-//   - Version == "": version is omitted (BSD messages)
-//   - StructuredData == nil: structured_data is omitted (BSD messages)
-func BuildSyslogFields(parsed *SyslogMessage) map[string]interface{} {
-	fields := map[string]interface{}{
-		"timestamp": parsed.Timestamp,
-		"hostname":  parsed.Hostname,
-		"appname":   parsed.AppName,
-		"procid":    parsed.ProcID,
-		"msgid":     parsed.MsgID,
-	}
-	if parsed.Pri >= 0 {
-		fields["severity"] = parsed.Pri % 8
-		fields["facility"] = parsed.Pri / 8
-	}
-	if parsed.Version != "" {
-		fields["version"] = parsed.Version
-	}
-	if parsed.StructuredData != nil {
-		fields["structured_data"] = parsed.StructuredData
-	}
-	return fields
 }

@@ -7,6 +7,7 @@
 package collector
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"slices"
@@ -23,10 +24,15 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -45,6 +51,12 @@ type commonInstanceConfig struct {
 	LoaderName string `yaml:"loader"`
 }
 
+type loadInstanceResult struct {
+	check        check.Check
+	loader       check.Loader
+	loaderErrors map[string]error
+}
+
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
@@ -57,11 +69,16 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders        []check.Loader
-	collector      option.Option[collectorcomp.Component]
-	senderManager  sender.SenderManager
-	m              sync.RWMutex
+	configToChecks      map[string][]checkid.ID // cache the ID of checks we load for each config
+	loaders             []check.Loader
+	collector           option.Option[collectorcomp.Component]
+	senderManager       sender.SenderManager
+	shadowSenderManager sender.SenderManager
+	shadowSenderContext context.Context
+	shadowSenderCancel  context.CancelFunc
+	shadowCoreLoader    check.Loader
+	infraTagger         *infratags.Tagger // nil = no infra mode tagging
+	m                   sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -71,6 +88,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:    infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -150,8 +168,17 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop is a stub to satisfy the scheduler interface
-func (s *CheckScheduler) Stop() {}
+// Stop releases scheduler-owned resources.
+func (s *CheckScheduler) Stop() {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	if s.shadowSenderCancel != nil {
+		s.shadowSenderCancel()
+		s.shadowSenderCancel = nil
+		s.shadowSenderContext = nil
+	}
+}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
@@ -164,9 +191,13 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
-func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
+func (s *CheckScheduler) getChecks(config integration.Config, includeShadowChecks bool) ([]check.Check, error) {
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
+	var shadowCandidates map[int]metriclookback.ShadowCandidate
+	if includeShadowChecks {
+		shadowCandidates = shadowCandidatesByInstance(config)
+	}
 
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
@@ -199,25 +230,32 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		loaderErrors := make(map[string]error, len(s.loaders))
-		for _, loader := range s.loaders {
-			// the loader is skipped if the loader name is set and does not match
-			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
-				continue
+		result := s.loadCheckInstance(s.senderManager, config, instance, instanceIndex, selectedInstanceLoader)
+
+		if result.check != nil {
+			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
+			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
+			checks = append(checks, result.check)
+			if includeShadowChecks {
+				if candidate, found := shadowCandidates[instanceIndex]; found {
+					sourceCheckID := result.check.ID()
+					shadowLoader, ok := s.shadowLoaderFor(result.loader)
+					if !ok {
+						log.Debugf("Skipping metric lookback shadow check %s: loader %s does not support shadow execution", check.ShadowID(sourceCheckID), result.loader.Name())
+						continue
+					}
+					if shadowCheck, err := s.loadShadowCheck(candidate, shadowLoader, sourceCheckID); err != nil {
+						log.Warnf("Unable to load metric lookback shadow check %s: %v", check.ShadowID(sourceCheckID), err)
+					} else {
+						checks = append(checks, shadowCheck)
+					}
+				}
 			}
-			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
-			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				checks = append(checks, c)
-				break
-			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
 		}
 
-		if len(loaderErrors) == numLoaders {
+		if len(result.loaderErrors) == numLoaders {
 			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
+			for loaderName, err := range result.loaderErrors {
 				errMsg := err.Error()
 				errorStats.setLoaderError(config.Name, loaderName, errMsg)
 
@@ -233,6 +271,130 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	}
 
 	return checks, nil
+}
+
+func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
+	switch loader.Name() {
+	case corecheckLoader.GoCheckLoaderName:
+		if s.shadowCoreLoader != nil {
+			return s.shadowCoreLoader, true
+		}
+		shadowLoader, err := corecheckLoader.NewGoCheckLoader(corecheckLoader.WithLoadMode(corecheckLoader.ShadowLoadMode))
+		if err != nil {
+			log.Debugf("Unable to create metric lookback shadow loader for %s: %v", loader.Name(), err)
+			return nil, false
+		}
+		s.shadowCoreLoader = shadowLoader
+		return shadowLoader, true
+	case "python":
+		return loader, true
+	default:
+		return nil, false
+	}
+}
+
+func shadowCandidatesByInstance(config integration.Config) map[int]metriclookback.ShadowCandidate {
+	candidates := metriclookback.SelectShadowCandidates([]integration.Config{config}, metriclookback.ShadowPolicyOptionsFromConfig(setup.Datadog()))
+	if len(candidates) == 0 {
+		return nil
+	}
+	byInstance := make(map[int]metriclookback.ShadowCandidate, len(candidates))
+	for _, candidate := range candidates {
+		byInstance[candidate.InstanceIndex] = candidate
+	}
+	return byInstance
+}
+
+func (s *CheckScheduler) loadCheckInstance(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int, selectedInstanceLoader string) loadInstanceResult {
+	result := loadInstanceResult{loaderErrors: make(map[string]error, len(s.loaders))}
+	for _, loader := range s.loaders {
+		// the loader is skipped if the loader name is set and does not match
+		if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
+			log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+			continue
+		}
+		c, err := loader.Load(senderManager, config, instance, instanceIndex)
+		if err == nil {
+			result.check = c
+			result.loader = loader
+			return result
+		}
+		result.loaderErrors[fmt.Sprintf("%v", loader)] = err
+	}
+	return result
+}
+
+func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, checkName string, checkID checkid.ID) {
+	if s.infraTagger == nil || !s.infraTagger.IsCheckEligible(checkName) {
+		return
+	}
+	chkSender, err := senderManager.GetSender(checkID)
+	if err != nil {
+		log.Debugf("infra mode tags: skipping %s (%s): %v", checkName, checkID, err)
+		return
+	}
+	chkSender.SetInfraTagger(s.infraTagger)
+}
+
+func (s *CheckScheduler) ensureShadowSenderContext() context.Context {
+	if s.shadowSenderContext == nil {
+		s.shadowSenderContext, s.shadowSenderCancel = context.WithCancel(context.Background())
+	}
+	return s.shadowSenderContext
+}
+
+func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
+	shadowSenderManager := s.shadowSenderManager
+	if shadowSenderManager == nil {
+		shadowSenderManager = lookbacksender.NewSenderManager(s.ensureShadowSenderContext(), "", nil, nil)
+		s.shadowSenderManager = shadowSenderManager
+	}
+	shadowCheckID := check.ShadowID(sourceCheckID)
+	checkSenderManager := &shadowCheckSenderManager{
+		SenderManager: shadowSenderManager,
+		shadowCheckID: shadowCheckID,
+	}
+	loadedCheck, err := loader.Load(checkSenderManager, candidate.SourceConfig, candidate.Instance, candidate.InstanceIndex)
+	if err != nil {
+		checkSenderManager.DestroySender(shadowCheckID)
+		return nil, err
+	}
+	if !checkSenderManager.RegisterCallbackID(loadedCheck.ID()) {
+		log.Warnf("Unable to register metric lookback rtloader callback route for shadow check %s loaded as %s", shadowCheckID, loadedCheck.ID())
+	}
+	s.applyInfraTagger(checkSenderManager, candidate.SourceConfig.Name, shadowCheckID)
+	return check.NewShadowCheckForSource(loadedCheck, sourceCheckID, candidate.ShadowInterval, checkSenderManager), nil
+}
+
+type shadowCheckSenderManager struct {
+	sender.SenderManager
+	shadowCheckID       checkid.ID
+	unregisterCallbacks []func()
+}
+
+func (m shadowCheckSenderManager) GetSender(checkid.ID) (sender.Sender, error) {
+	return m.SenderManager.GetSender(m.shadowCheckID)
+}
+
+func (m shadowCheckSenderManager) SetSender(s sender.Sender, _ checkid.ID) error {
+	return m.SenderManager.SetSender(s, m.shadowCheckID)
+}
+
+func (m *shadowCheckSenderManager) DestroySender(checkid.ID) {
+	for _, unregister := range m.unregisterCallbacks {
+		unregister()
+	}
+	m.unregisterCallbacks = nil
+	m.SenderManager.DestroySender(m.shadowCheckID)
+}
+
+func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) bool {
+	unregister, ok := collectoraggregator.RegisterCheckSenderManager(id, m)
+	if !ok {
+		return false
+	}
+	m.unregisterCallbacks = append(m.unregisterCallbacks, unregister)
+	return true
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
@@ -253,8 +415,9 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 	return checks
 }
 
-// GetChecksFromConfigs gets all the check instances for given configurations
-// optionally can populate the configToChecks cache
+// GetChecksFromConfigs gets all the check instances for given configurations.
+// When populateCache is true, the call is part of scheduling and includes
+// selected metric lookback shadow checks in the scheduler cache.
 func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -270,7 +433,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		configDigest := config.Digest()
-		checks, err := s.getChecks(config)
+		checks, err := s.getChecks(config, populateCache)
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue

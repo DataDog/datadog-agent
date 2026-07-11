@@ -19,13 +19,7 @@
           "location": {
             "method": "main.anyAllPtrSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it.S == \"x\"})",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
@@ -54,13 +48,7 @@
           "location": {
             "method": "main.anyAllPtrSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it.S == \"x\"})",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
@@ -89,13 +77,7 @@
           "location": {
             "method": "main.anyAllPtrSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it.S == \"x\"})",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

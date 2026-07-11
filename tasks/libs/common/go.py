@@ -15,6 +15,7 @@ from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
 
@@ -97,6 +98,27 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+    """
+    Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
+    build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
+    build image's default mingw is ld 2.43, whose `--pdb` output those tools
+    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+
+    TODO: remove once migrated fully to the Bazel MinGW toolchain.
+    """
+    # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
+    if not (
+        gcc := bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True, ignore_errors=True)
+    ):
+        return env
+    if not (output_base := bazel(ctx, "info", "output_base", capture_output=True, ignore_errors=True)):
+        return env
+    mingw_bin = Path(output_base.strip(), gcc.strip()).parent
+    path = (env or {}).get("PATH") or os.environ.get("PATH", "")
+    return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
+
+
 def go_build(
     ctx: Context,
     entrypoint: str | Path,
@@ -126,6 +148,8 @@ def go_build(
         os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
+            if sys.platform == "win32":
+                env = _with_hermetic_mingw_path(ctx, env)
 
     cmd = "go build"
     if coverage:
@@ -202,10 +226,8 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
         Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
     if whydeadcoderes.stdout:
-        arch = platform.machine()
-        osname = sys.platform
         print(
-            f"dead code elimination is disabled for {name} on {osname} {arch} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
         )
 
     return result

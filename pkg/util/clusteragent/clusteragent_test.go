@@ -314,21 +314,21 @@ const (
 
 func (suite *clusterAgentSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	suite.config.SetWithoutSource("cluster_agent.auth_token", clusterAgentTokenValue)
-	suite.config.SetWithoutSource("cluster_agent.url", "")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
-	suite.config.SetWithoutSource("clc_runner_host", clcRunnerIP)
+	suite.config.SetInTest("cluster_agent.auth_token", clusterAgentTokenValue)
+	suite.config.SetInTest("cluster_agent.url", "")
+	suite.config.SetInTest("cluster_agent.kubernetes_service_name", "")
+	suite.config.SetInTest("clc_runner_host", clcRunnerIP)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
-	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	suite.config.SetInTest("cluster_agent.auth_token", "")
 
 	_, err := security.CreateOrGetClusterAgentAuthToken(context.Background(), suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
-	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	suite.config.SetInTest("cluster_agent.auth_token", "")
 	err := os.WriteFile(suite.authTokenPath, []byte(""), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	_, err = security.GetClusterAgentAuthToken(suite.config)
@@ -336,7 +336,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenFileInvalid() {
-	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	suite.config.SetInTest("cluster_agent.auth_token", "")
 	err := os.WriteFile(suite.authTokenPath, []byte("tooshort"), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -346,7 +346,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenFileInvalid() {
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
 	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
-	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	suite.config.SetInTest("cluster_agent.auth_token", "")
 	err := os.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -357,7 +357,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenConfigPriority() {
 	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
-	suite.config.SetWithoutSource("cluster_agent.auth_token", clusterAgentTokenValue)
+	suite.config.SetInTest("cluster_agent.auth_token", clusterAgentTokenValue)
 	err := os.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -369,7 +369,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenConfigPriority() {
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 	const tokenValue = "tooshort"
-	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	suite.config.SetInTest("cluster_agent.auth_token", "")
 	err := os.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -385,7 +385,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -441,7 +441,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -489,7 +489,7 @@ func (suite *clusterAgentSuite) TestGetNodeUID() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -533,7 +533,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -606,7 +606,7 @@ func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -651,7 +651,7 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -723,7 +723,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	// IPC component is responsible for initializing TLS configurations globally
 	ipcmock.New(suite.T())
@@ -880,7 +880,7 @@ func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
 			}
 
 			// Configure the cluster agent URL
-			suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+			suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 			// Try to connect to the cluster agent - should fail due to certificate verification
 			ca, err := GetClusterAgentClient()

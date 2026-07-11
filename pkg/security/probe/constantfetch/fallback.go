@@ -45,6 +45,8 @@ func (f *FallbackConstantFetcher) String() string {
 func computeRawsTable() map[string]uint64 {
 	return map[string]uint64{
 		OffsetInodeIno:                            64,
+		OffsetInodeMode:                           0,
+		OffsetInodeUID:                            4,
 		OffsetInodeGid:                            8,
 		OffsetInodeNlink:                          72,
 		OffsetInodeMtime:                          104,
@@ -59,6 +61,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCFamily:       16,
 		OffsetNameDentryDSb:                       104,
 		OffsetNameNetDeviceStructName:             0,
+		OffsetNameVMAreaStructVMStart:             0,
+		OffsetNameVMAreaStructVMEnd:               8,
 		OffsetNameRenameStructOldDentry:           16,
 		OffsetNameRenameStructNewDentry:           40,
 		OffsetNameSbDev:                           16,
@@ -73,13 +77,23 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameQstrName:                        8,
+		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameModuleName:                      24,
+		OffsetNameKernfsOpenFileFile:              8,
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
+		OffsetNameNsproxyMntNs:                    24,
+		OffsetNameNsproxyNetNs:                    40,
+		OffsetNameIoSocketStructDomain:            8,
+		OffsetNameIoSocketStructType:              12,
+		OffsetNameIoSocketStructProtocol:          16,
+		OffsetNameSocketType:                      4,
 	}
 }
 
@@ -111,12 +125,16 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameNetStructNS:                 getNetNSOffset,
 		OffsetNameSocketStructSK:              getSocketSockOffset,
 		OffsetNameNFConnStructCTNet:           getNFConnCTNetOffset,
+		OffsetNameNFConnStructTuplehash:       getNFConnTuplehashOffset,
 		OffsetNameFlowI4StructSADDR:           getFlowi4SAddrOffset,
 		OffsetNameFlowI6StructSADDR:           getFlowi6SAddrOffset,
 		OffsetNameFlowI4StructULI:             getFlowi4ULIOffset,
 		OffsetNameFlowI6StructULI:             getFlowi6ULIOffset,
 		OffsetNameLinuxBinprmStructFile:       getBinPrmFileFieldOffset,
+		OffsetNameLinuxBinprmStructFilename:   getLinuxBinprmFilenameOffset,
+		OffsetNameLinuxBinprmStructInterp:     getLinuxBinprmInterpOffset,
 		OffsetNameIoKiocbStructCtx:            getIoKcbCtxOffset,
+		OffsetNameIoKiocbStructOpcode:         getIoKcbOpcodeOffset,
 		OffsetNameLinuxBinprmP:                getLinuxBinPrmPOffset,
 		OffsetNameLinuxBinprmArgc:             getLinuxBinPrmArgcOffset,
 		OffsetNameLinuxBinprmEnvc:             getLinuxBinPrmEnvcOffset,
@@ -131,8 +149,6 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
 		OffsetNameMountMountpoint:             getMountMountpointOffset,
-		OffsetNameTaskStructRealParent:        getTaskStructRealParentOffset,
-		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 	}
 }
 
@@ -777,6 +793,15 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getNFConnTuplehashOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsCOSKernel():
+		return 40
+	default:
+		return 16
+	}
+}
+
 func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 	offset := uint64(40)
 
@@ -851,6 +876,52 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 	return 64
 }
 
+func getLinuxBinprmFilenameOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 328
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 200
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 208
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 80
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 96
+}
+
+func getLinuxBinprmInterpOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 336
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 208
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 216
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 88
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 104
+}
+
 func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
@@ -863,6 +934,23 @@ func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 		return 88
 	default:
 		return 80
+	}
+}
+
+func getIoKcbOpcodeOffset(kv *kernel.Version) uint64 {
+	switch {
+	// opcode became the first field right after the io_kiocb union (the
+	// preceding async_data/io pointer moved elsewhere in the struct)
+	case kv.Code >= kernel.Kernel5_16:
+		return 64
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7):
+		return 82
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_8):
+		return 77
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
+		return 76
+	default:
+		return 72
 	}
 }
 
@@ -1043,75 +1131,5 @@ func getMountMountpointOffset(kv *kernel.Version) uint64 {
 		return 240
 	default:
 		return 232
-	}
-}
-
-func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
-	switch {
-	case kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_9:
-		return 1208
-	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 1336
-	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 2240
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		return 2240
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10):
-		return 1152
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
-		return 2232
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 2256
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
-		return 2288
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12):
-		return 2344
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 1248
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		return 2248
-	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
-		return 2232
-	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
-		return 2208
-	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
-		return 2248
-	default:
-		return ErrorSentinel
-	}
-}
-
-func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
-	switch {
-	case kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_9:
-		return 1192
-	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 1324
-	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 2228
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		return 2228
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10):
-		return 1140
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
-		return 2220
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 2244
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
-		return 2276
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12):
-		return 2332
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 1236
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		return 2236
-	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
-		return 2220
-	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
-		return 2196
-	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
-		return 2236
-	default:
-		return ErrorSentinel
 	}
 }

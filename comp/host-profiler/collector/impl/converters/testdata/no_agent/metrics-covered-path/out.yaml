@@ -1,0 +1,69 @@
+exporters:
+    otlp_http:
+        compression: zstd
+        headers:
+            dd-api-key: test-api-key
+            dd-evp-origin: host-profiler-standalone
+            dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+        metrics_endpoint: https://custom.metrics.example.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+processors:
+    ddhostname/dd-autoconfigured: {}
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: telemetry.distro.name
+              value: host-profiler-standalone
+            - action: upsert
+              key: telemetry.distro.version
+              value: 7.0.0-test
+    resourcedetection/dd-autoconfigured:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: false
+                os.type:
+                    enabled: false
+receivers:
+    profiling:
+        symbol_uploader:
+            enabled: false
+    prometheus/user-defined:
+        config:
+            scrape_configs:
+                - job_name: collector-internal
+                  metrics_path: /foo/../metrics
+                  scheme: http
+                  static_configs:
+                    - targets:
+                        - 127.0.0.1:9999
+service:
+    pipelines:
+        metrics:
+            exporters:
+                - otlp_http
+            processors: []
+            receivers:
+                - prometheus/user-defined
+        profiles:
+            exporters:
+                - otlp_http
+            processors:
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - profiling
+    telemetry:
+        metrics:
+            readers:
+                - pull:
+                    exporter:
+                        prometheus:
+                            host: 127.0.0.1
+                            port: 9999

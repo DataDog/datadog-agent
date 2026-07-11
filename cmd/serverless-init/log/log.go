@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	defaultFlushTimeout   = 5 * time.Second
 	defaultTailingPath    = "/home/LogFiles/*$COMPUTERNAME*.log"
 	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*%s.log"
 	logEnabledEnvVar      = "DD_LOGS_ENABLED"
@@ -47,14 +46,15 @@ type Config struct {
 	IsEnabled    bool
 }
 
-// CreateConfig builds and returns a log config
-func CreateConfig(defaultSource string) *Config {
+// CreateConfig builds and returns a log config. flushTimeout bounds the
+// flush duration when stopping the logs agent at shutdown.
+func CreateConfig(defaultSource string, flushTimeout time.Duration) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
 		source = defaultSource
 	}
 	return &Config{
-		FlushTimeout: defaultFlushTimeout,
+		FlushTimeout: flushTimeout,
 		// Use a buffered channel with size 10000
 		Channel:   make(chan *logConfig.ChannelMessage, 10000),
 		source:    source,

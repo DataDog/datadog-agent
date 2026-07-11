@@ -71,6 +71,30 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal(100, genresourcesDesc.defaultInputChanSize)
 }
 
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesAgentDiscovery() {
+	var agentDiscoveryDesc passthroughPipelineDesc
+	found := false
+	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventplatform.EventTypeAgentDiscovery {
+			agentDiscoveryDesc = desc
+			found = true
+			break
+		}
+	}
+
+	suite.Require().True(found)
+	suite.Equal("Agent Discovery", agentDiscoveryDesc.category)
+	suite.Equal(logshttp.ProtobufContentType, agentDiscoveryDesc.contentType)
+	suite.Equal("config_files_discovery.forwarder.", agentDiscoveryDesc.endpointsConfigPrefix)
+	suite.Equal("agentdiscovery-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
+	suite.Equal(laconfig.IntakeTrackType("agentdiscovery"), agentDiscoveryDesc.intakeTrackType)
+	suite.Equal(0, agentDiscoveryDesc.defaultBatchMaxConcurrentSend)
+	suite.Equal(5000000, agentDiscoveryDesc.defaultBatchMaxContentSize)
+	suite.Equal(1000, agentDiscoveryDesc.defaultBatchMaxSize)
+	suite.Equal(100, agentDiscoveryDesc.defaultInputChanSize)
+	suite.False(agentDiscoveryDesc.useStreamStrategy)
+}
+
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {
 
 	tests := []struct {
@@ -83,7 +107,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "additional endpoints",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+				c.SetInTest("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  defaultGzipCompressionLevel,
@@ -92,7 +116,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "no compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.use_compression", false)
+				c.SetInTest("database_monitoring.metrics.use_compression", false)
 			},
 			expectedKind:   "none",
 			expectedLevel:  0,
@@ -108,8 +132,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "zstd custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
-				c.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", 3)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "zstd")
+				c.SetInTest("database_monitoring.metrics.zstd_compression_level", 3)
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  3,
@@ -118,7 +142,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gzip")
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  defaultGzipCompressionLevel,
@@ -127,8 +151,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
-				c.SetWithoutSource("database_monitoring.metrics.compression_level", 8)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gzip")
+				c.SetInTest("database_monitoring.metrics.compression_level", 8)
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  8,
@@ -137,8 +161,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "invalid compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.use_compression", true)
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gipz")
+				c.SetInTest("database_monitoring.metrics.use_compression", true)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gipz")
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  defaultZstdCompressionLevel,
@@ -206,10 +230,10 @@ func (suite *EventPlatformForwarderTestSuite) TestGetECSFargateTaskARN() {
 
 func (suite *EventPlatformForwarderTestSuite) resetCompression() {
 	// Reset compression settings to default state
-	suite.config.SetWithoutSource("database_monitoring.metrics.use_compression", true)
-	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
-	suite.config.SetWithoutSource("database_monitoring.metrics.compression_level", 6)
-	suite.config.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", defaultZstdCompressionLevel)
-	suite.config.SetWithoutSource("database_monitoring.metrics.additional_endpoints", "{}")
+	suite.config.SetInTest("database_monitoring.metrics.use_compression", true)
+	suite.config.SetInTest("database_monitoring.metrics.compression_kind", "zstd")
+	suite.config.SetInTest("database_monitoring.metrics.compression_level", 6)
+	suite.config.SetInTest("database_monitoring.metrics.zstd_compression_level", defaultZstdCompressionLevel)
+	suite.config.SetInTest("database_monitoring.metrics.additional_endpoints", "{}")
 
 }

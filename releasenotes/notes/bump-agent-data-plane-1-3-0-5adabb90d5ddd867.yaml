@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Agent Data Plane has been bumped to version 1.3.0. See the `Agent Data Plane 1.3.0 release notes <https://github.com/DataDog/saluki/releases/tag/1.3.0>`_.

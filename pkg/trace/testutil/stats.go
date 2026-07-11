@@ -19,7 +19,7 @@ const (
 // BucketWithSpans returns a stats bucket populated with spans stats
 func BucketWithSpans(spans []*pb.Span) *pb.ClientStatsBucket {
 	sc := &stats.SpanConcentrator{}
-	srb := stats.NewRawBucket(0, 1e9)
+	srb := stats.NewRawBucket(0, 1e9, stats.BucketCardinalityLimits{})
 	aggKey := stats.PayloadAggregationKey{
 		Env:         defaultEnv,
 		Hostname:    defaultHostname,

@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "uploader",
+    srcs = [
+        "stream.go",
+        "symdb.go",
+        "upload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/symdb",
+        "@com_github_go_json_experiment_json//:json",
+        "@com_github_go_json_experiment_json//jsontext",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_test(
+    name = "uploader_test",
+    srcs = [
+        "stream_test.go",
+        "upload_test.go",
+        "uploader_test.go",
+    ],
+    embed = [":uploader"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/symdb",
+        "@com_github_go_json_experiment_json//:json",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

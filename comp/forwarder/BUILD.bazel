@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/fx",
         "//pkg/util/fxutil",
     ],
 )
@@ -20,7 +21,7 @@ go_test(
         "//comp/core",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/def",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

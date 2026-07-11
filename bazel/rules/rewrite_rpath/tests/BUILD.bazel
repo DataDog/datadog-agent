@@ -31,12 +31,14 @@ genrule(
 sh_test(
     name = "macos_dir_test",
     srcs = ["macos_dir_test.sh"],
+    args = ["$(location @llvm_toolchain_llvm//:install-name-tool)"],
     data = [
         ":bar",
         ":baz_so",
         ":foo",
         "//bazel/rules/rewrite_rpath:macos.sh",
         "//bazel/rules/rewrite_rpath:macos_dir.sh",
+        "@llvm_toolchain_llvm//:install-name-tool",
     ],
     target_compatible_with = ["@platforms//os:macos"],
 )

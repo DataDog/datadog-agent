@@ -43,6 +43,8 @@ const (
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
+var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
+
 type npCollectorImpl struct {
 	// config related
 	collectorConfigs *collectorConfigs
@@ -81,6 +83,7 @@ type npCollectorImpl struct {
 
 	networkDevicesNamespace string
 	filter                  *connfilter.ConnFilter
+	localIPs                *localIPCache
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -115,6 +118,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
 
 		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
+		localIPs:                newLocalIPCache(discoverLocalInterfaceIPs),
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -132,7 +136,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) common.Pathtest {
 	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -149,15 +153,18 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		hostname = conn.Domain
 	}
 
-	return common.Pathtest{
+	pathtest := common.Pathtest{
 		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: conn.SourceContainerID,
+		Namespace:         conn.Namespace,
+		Origin:            origin,
 		Metadata: common.PathtestMetadata{
 			ReverseDNSHostname: conn.Domain,
 		},
 	}
+	return pathtest
 }
 
 func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
@@ -197,7 +204,7 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 	return true
 }
 
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) bool {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return false
@@ -217,6 +224,10 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
+	if s.shouldSkipNetflowAgentSource(conn, origin) {
+		return false
+	}
+
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1)
 		return false
@@ -230,6 +241,24 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 	return true
 }
 
+func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
+	if origin != payload.PathOriginNetflow || !conn.Source.IsValid() {
+		return false
+	}
+
+	isLocal, err := s.localIPs.contains(conn.Source.Addr())
+	if err != nil {
+		s.logger.Warnf("failed to discover local interface IPs for NetFlow source filtering: %s", err)
+	}
+	if !isLocal {
+		return false
+	}
+
+	_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_netflow_agent_source"}, 1)
+	s.logger.Tracef("Skipping NetFlow connection from local Agent source: source=%s, dest=%s", conn.Source, conn.Dest)
+	return true
+}
+
 func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	if !s.collectorConfigs.disableIntraVPCCollection {
 		return nil, nil
@@ -237,7 +266,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	vpcSubnets, err := network.GetVPCSubnetsForHost(ctx)
+	vpcSubnets, err := getVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
@@ -249,21 +278,36 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
-	vpcSubnets, err := s.getVPCSubnets()
-	if err != nil {
-		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+}
+
+func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
+	}
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+}
+
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
+	var vpcSubnets []netip.Prefix
+	if origin == payload.PathOriginNetworkTraffic {
+		var err error
+		vpcSubnets, err = s.getVPCSubnets()
+		if err != nil {
+			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+			return
+		}
 	}
 
 	startTime := s.TimeNowFn()
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+		if !s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets) {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
-		pathtest := s.makePathtest(conn)
+		pathtest := s.makePathtest(conn, origin)
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -341,18 +385,24 @@ func (s *npCollectorImpl) listenPathtests() {
 func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
+	if ptest.Pathtest.Origin == "" {
+		s.logger.Errorf("pathtest missing origin: %+v", ptest.Pathtest)
+		return
+	}
+
 	cfg := config.Config{
-		DestHostname:              ptest.Pathtest.Hostname,
-		DestPort:                  ptest.Pathtest.Port,
-		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
-		Timeout:                   s.collectorConfigs.timeout,
-		Protocol:                  ptest.Pathtest.Protocol,
-		TCPMethod:                 s.collectorConfigs.tcpMethod,
-		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
-		DisableWindowsDriver:      s.collectorConfigs.disableWindowsDriver,
-		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
-		TracerouteQueries:         s.collectorConfigs.tracerouteQueries,
-		E2eQueries:                s.collectorConfigs.e2eQueries,
+		DestHostname:                    ptest.Pathtest.Hostname,
+		DestPort:                        ptest.Pathtest.Port,
+		MaxTTL:                          uint8(s.collectorConfigs.maxTTL),
+		Timeout:                         s.collectorConfigs.timeout,
+		Protocol:                        ptest.Pathtest.Protocol,
+		TCPMethod:                       s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode:       s.collectorConfigs.tcpSynParisTracerouteMode,
+		DisableWindowsDriver:            s.collectorConfigs.disableWindowsDriver,
+		DisableSourcePublicIPCollection: s.collectorConfigs.disableSourcePublicIPCollection,
+		ReverseDNS:                      false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
+		TracerouteQueries:               s.collectorConfigs.tracerouteQueries,
+		E2eQueries:                      s.collectorConfigs.e2eQueries,
 	}
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)
@@ -371,9 +421,15 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
-	path.Origin = payload.PathOriginNetworkTraffic
+	if ptest.Pathtest.Namespace != "" {
+		path.Namespace = ptest.Pathtest.Namespace
+	}
+	path.Origin = ptest.Pathtest.Origin
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
+	if path.Origin == payload.PathOriginNetflow {
+		path.SourceProduct = payload.SourceProductNetflow
+	}
 	path.CollectorType = payload.CollectorTypeAgent
 
 	// Perform reverse DNS lookup on destination and hop IPs

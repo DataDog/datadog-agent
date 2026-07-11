@@ -32,11 +32,19 @@ func (v *Validator) Validate(text string) error {
 	return nil
 }
 
-// Command represents a single command plus zero or more regexes to run against
+type Command interface {
+	CommandType() string
+}
+
+// PlainCommand represents a single command plus zero or more regexes to run against
 // the combined stdout/stderr of that command.
-type Command struct {
+type PlainCommand struct {
 	Command   string    `json:"command"`
 	Validator Validator `json:"validator"`
+}
+
+func (c *PlainCommand) CommandType() string {
+	return "plain"
 }
 
 // SCPCommand represents a command that expects to receive valid scp input via
@@ -46,4 +54,8 @@ type SCPCommand struct {
 	Filepath      string `json:"filepath"`
 	// usually this should be empty - scp does not print output on most systems.
 	Validator Validator `json:"validator"`
+}
+
+func (c *SCPCommand) CommandType() string {
+	return "scp"
 }

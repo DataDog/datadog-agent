@@ -12,7 +12,6 @@ import "testing"
 // CleanOverride registers a function to clean the overrides vars and func from the configuration at the end of a test.
 func CleanOverride(t *testing.T) {
 	t.Cleanup(func() {
-		overrideVars = make(map[string]interface{})
 		overrideFuncs = make([]func(Config), 0)
 	})
 }

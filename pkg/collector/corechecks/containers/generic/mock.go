@@ -8,6 +8,8 @@
 package generic
 
 import (
+	"fmt"
+	"testing"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -20,6 +22,7 @@ import (
 // MockContainerAccessor is a dummy ContainerLister for tests
 type MockContainerAccessor struct {
 	containers []*workloadmeta.Container
+	pods       map[string]*workloadmeta.KubernetesPod
 }
 
 // ListRunning returns the mocked containers
@@ -27,14 +30,24 @@ func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 	return l.containers
 }
 
+// GetPodOfContainer returns the mocked pod owning a container.
+func (l *MockContainerAccessor) GetPodOfContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
+	pod, ok := l.pods[containerID]
+	if !ok {
+		return nil, fmt.Errorf("pod for container %s not found", containerID)
+	}
+	return pod, nil
+}
+
 // CreateTestProcessor returns a ready-to-use Processor
-func CreateTestProcessor(listerContainers []*workloadmeta.Container,
+func CreateTestProcessor(t testing.TB,
+	listerContainers []*workloadmeta.Container,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter,
 	tagger tagger.Component,
 	extendedMetrics bool,
-) (*mocksender.MockSender, *Processor, ContainerAccessor) {
+) (*mocksender.MockSender, *Processor, *MockContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
@@ -46,12 +59,13 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 
 	mockAccessor := MockContainerAccessor{
 		containers: listerContainers,
+		pods:       make(map[string]*workloadmeta.KubernetesPod),
 	}
 
-	mockedSender := mocksender.NewMockSender("generic-container")
+	mockedSender := mocksender.NewMockSender(t, "generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, extendedMetrics)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, nil, extendedMetrics)
 
 	return mockedSender, &p, &mockAccessor
 }

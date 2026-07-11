@@ -46,6 +46,11 @@ lint_components:
   script:
     - dda inv -- -e lint-components lint-fxutil-oneshot-test
 
+lint_gopls_plugin:
+  extends: .lint
+  script:
+    - dda inv -- -e claude.set-buildtags --check
+
 lint_python:
   extends: .lint
   script:
@@ -81,3 +86,18 @@ lint_releasenotes_rst:
   rules: !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.rst-releasenotes --only-changed
+
+lint_releasenotes_unique_ids:
+  extends: .lint
+  rules:
+    - !reference [.on_mergequeue]
+    - !reference [.on_releasenotes_changes]
+  script:
+    - dda inv -- -e linter.releasenote-unique-ids
+
+lint_rtloader:
+  extends: .lint
+  rules: !reference [.on_rtloader_changes]
+  script:
+    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
+    - dda inv -- -e rtloader.format --raise-if-changed

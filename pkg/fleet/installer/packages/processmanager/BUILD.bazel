@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processmanager",
+    srcs = [
+        "adp_procmgr_config_windows.go",
+        "ddot_procmgr_config_windows.go",
+        "install_root_procmgr_config_windows.go",
+        "par_procmgr_config_windows.go",
+        "reload_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/paths",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

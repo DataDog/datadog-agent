@@ -74,7 +74,7 @@ func TestGetHostAliases(t *testing.T) {
 				m.PutEmptySlice(hostAliasAttribute)
 				return m
 			},
-			expected: uninitializedSlice,
+			expected: []string{},
 		},
 		{
 			name: "non initialized slice",

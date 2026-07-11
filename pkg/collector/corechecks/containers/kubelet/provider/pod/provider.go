@@ -25,6 +25,7 @@ import (
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,25 +49,27 @@ const kubePodConditionResizePending = "PodResizePending"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	store           workloadmeta.Component
-	containerFilter workloadfilter.FilterBundle
-	config          *common.KubeletConfig
-	podUtils        *common.PodUtils
-	tagger          tagger.Component
+	store            workloadmeta.Component
+	containerFilter  workloadfilter.FilterBundle
+	config           *common.KubeletConfig
+	podUtils         *common.PodUtils
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 	// now timer func is used to mock time in tests
 	now func() time.Time
 }
 
 // NewProvider returns a new Provider
 func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
-	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+	podUtils *common.PodUtils, tagger tagger.Component, agentPerformance *agentperformance.Recorder) *Provider {
 	return &Provider{
-		containerFilter: filterStore.GetContainerSharedMetricFilters(),
-		store:           store,
-		config:          config,
-		podUtils:        podUtils,
-		tagger:          tagger,
-		now:             time.Now,
+		containerFilter:  filterStore.GetContainerSharedMetricFilters(),
+		store:            store,
+		config:           config,
+		podUtils:         podUtils,
+		tagger:           tagger,
+		agentPerformance: agentPerformance,
+		now:              time.Now,
 	}
 }
 
@@ -176,7 +179,7 @@ func (p *Provider) generatePodSpecMetrics(sender sender.Sender, pod *workloadmet
 			continue
 		}
 
-		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".request", quantity.AsApproximateFloat64(), "", tagList)
+		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".requests", quantity.AsApproximateFloat64(), "", tagList)
 	}
 
 	for r, value := range pod.Resources.RawLimits {
@@ -190,7 +193,7 @@ func (p *Provider) generatePodSpecMetrics(sender sender.Sender, pod *workloadmet
 			continue
 		}
 
-		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".limit", quantity.AsApproximateFloat64(), "", tagList)
+		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".limits", quantity.AsApproximateFloat64(), "", tagList)
 	}
 }
 
@@ -250,12 +253,21 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *wor
 	}
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
-	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", float64(cStatus.RestartCount), "", tagList)
+	restartCount := float64(cStatus.RestartCount)
+	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", restartCount, "", tagList)
+	if p.agentPerformance != nil {
+		p.agentPerformance.RecordMetric(agentperformance.ContainerRestarts, &restartCount, pod, "")
+	}
 
 	for key, state := range map[string]workloadmeta.KubernetesContainerState{"state": cStatus.State, "last_state": cStatus.LastTerminationState} {
 		if state.Terminated != nil && slices.Contains(includeContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
-			termTags := utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(state.Terminated.Reason))
+			reason := strings.ToLower(state.Terminated.Reason)
+			termTags := utils.ConcatenateStringTags(tagList, "reason:"+reason)
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".terminated", 1, "", termTags)
+			terminated := 1.0
+			if p.agentPerformance != nil {
+				p.agentPerformance.RecordMetric(agentperformance.ContainerTerminated, &terminated, pod, reason)
+			}
 		}
 		if state.Waiting != nil && slices.Contains(includeContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {
 			waitTags := utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(state.Waiting.Reason))
