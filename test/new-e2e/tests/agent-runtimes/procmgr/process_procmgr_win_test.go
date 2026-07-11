@@ -7,7 +7,6 @@ package procmgr
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -53,15 +52,15 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	processBin := filepath.Join(installRoot, "bin", "agent", "process-agent.exe")
+	processBin := joinWindowsPath(installRoot, "bin", "agent", "process-agent.exe")
 	_, err = host.Execute(psLiteralPathExists(processBin))
 	require.NoError(s.T(), err, "process-agent.exe should be installed at %s", processBin)
 
-	cfg := filepath.Join(installRoot, "processes.d", processAgentProcmgrConfigFile)
+	cfg := joinWindowsPath(installRoot, "processes.d", processAgentProcmgrConfigFile)
 	_, err = host.Execute(psLiteralPathExists(cfg))
 	require.NoError(s.T(), err, "fleet process-agent processes.d config should exist at %s", cfg)
 
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
+	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
 		assert.NoError(ct, err)
@@ -77,16 +76,15 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 		assert.Contains(ct, ownerOut, "NT AUTHORITY/SYSTEM")
 	}, 120*time.Second, 3*time.Second)
 
-	expectedCfg := filepath.Join(configRoot, "datadog.yaml")
+	expectedCfg := joinWindowsPath(configRoot, "datadog.yaml")
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		cmdLine, err := host.Execute(psRemote(`$p = Get-CimInstance Win32_Process -Filter "Name='process-agent.exe'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $p.CommandLine`))
 		assert.NoError(ct, err)
 
-		// Normalize slashes and casing to avoid false negatives due to path formatting differences.
-		cmdNorm := strings.ToLower(strings.ReplaceAll(cmdLine, "/", "\\"))
-		processBinNorm := strings.ToLower(strings.ReplaceAll(processBin, "/", "\\"))
-		expectedCfgNorm := strings.ToLower(strings.ReplaceAll(expectedCfg, "/", "\\"))
+		cmdNorm := normalizeWindowsPathForCompare(cmdLine)
+		processBinNorm := normalizeWindowsPathForCompare(processBin)
+		expectedCfgNorm := normalizeWindowsPathForCompare(expectedCfg)
 
 		// Assert the command line matches legacy SCM registration and the embedded privileged catalog.
 		assert.Contains(ct, cmdNorm, processBinNorm)
@@ -110,11 +108,10 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
-	cfgPath := filepath.Join(installRoot, "processes.d", processAgentProcmgrConfigFile)
+	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
+	cfgPath := joinWindowsPath(installRoot, "processes.d", processAgentProcmgrConfigFile)
 
-	expectedCfg := filepath.Join(configRoot, "datadog.yaml")
-	expectedCfgSlash := strings.ReplaceAll(expectedCfg, `\`, `/`)
+	expectedCfgSlash := joinWindowsPath(configRoot, "datadog.yaml")
 	tamperedCfgSlash := expectedCfgSlash + ".tampered"
 
 	// Backup the original YAML so we can restore it at the end of the test.

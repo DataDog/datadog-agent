@@ -53,6 +53,18 @@ func joinWindowsPath(base string, elems ...string) string {
 	return strings.Join(parts, "/")
 }
 
+// normalizeWindowsPathForCompare lowercases and canonicalizes Windows paths/command lines
+// read from WMI so comparisons are stable across slash styles and registry trailing slashes.
+func normalizeWindowsPathForCompare(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.Trim(s, `"`)
+	s = strings.ReplaceAll(s, "/", `\`)
+	for strings.Contains(s, `\\`) {
+		s = strings.ReplaceAll(s, `\\`, `\`)
+	}
+	return s
+}
+
 func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }
