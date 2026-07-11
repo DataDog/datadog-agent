@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "scanner",
+    srcs = ["scanner.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/scanner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/sbom/telemetry",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+dd_agent_go_test(
+    name = "scanner_test",
+    srcs = ["scanner_test.go"],
+    embed = [":scanner"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/filesystem",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_fx//:fx",
+    ],
+)

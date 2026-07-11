@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
@@ -33,12 +34,12 @@ const instructionTemplate = `{{define "loginInstruction" }}
 <p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
 {{end}}`
 
-func restartEnabled() bool {
+func restartEnabled(_ sysprobeconfig.Component) bool {
 	return true
 }
 
 // restarts the agent using the windows service manager
-func restart() error {
+func restart(_ func() string, _ string) error {
 	here, _ := executable.Folder()
 	cmd := exec.Command(filepath.Join(here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin

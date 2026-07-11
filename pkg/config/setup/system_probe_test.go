@@ -53,6 +53,9 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "system_probe_config.closed_channel_size", defaultValue: 0},
 		{key: "network_config.closed_channel_size", defaultValue: 500},
 		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
+		{key: "discovery.service_collection_batch_size", defaultValue: 500},
+		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
+		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -101,7 +104,7 @@ func TestDiscoveryUseSystemProbeLite(t *testing.T) {
 	t.Run("enabled from config", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		cfg.SetWithoutSource("discovery.use_system_probe_lite", true)
+		cfg.SetInTest("discovery.use_system_probe_lite", true)
 		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 }

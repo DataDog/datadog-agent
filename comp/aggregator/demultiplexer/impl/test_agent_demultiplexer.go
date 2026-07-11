@@ -16,7 +16,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -53,9 +54,7 @@ func NewTestAgentDemultiplexer(demultiplexer *aggregator.AgentDemultiplexer) *Te
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (a *TestAgentDemultiplexer) AggregateSamples(shard aggregator.TimeSamplerID, samples metrics.MetricSampleBatch) {
+func (a *TestAgentDemultiplexer) AggregateSamples(_ aggregator.TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
 	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
 	a.Unlock()
@@ -181,11 +180,11 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
-	opts.EnableNoAggregationPipeline = true
+	opts.NoAggregationPipelineWorkersCount = 1
 
-	sharedForwarder := defaultforwarder.NoopForwarder{}
+	sharedForwarder := defaultforwardernoop.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
-	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	orchestratorForwarder := option.New[defaultforwarderdef.Forwarder](defaultforwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressor, noopimpl.NewComponent(), filterList, "hostname")
 	return NewTestAgentDemultiplexer(demux)

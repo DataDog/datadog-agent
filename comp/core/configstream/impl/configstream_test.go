@@ -103,6 +103,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		updates := make([]*pb.ConfigUpdate, 0)
 		timeout := time.After(2 * time.Second)
 
+	loop:
 		for i := 0; i < 3; i++ {
 			select {
 			case event := <-eventChan:
@@ -111,7 +112,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					updates = append(updates, update)
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -146,6 +147,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
+	loop:
 		for len(typedValues) < 4 {
 			select {
 			case event := <-eventChan:
@@ -165,7 +167,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					}
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -281,6 +283,24 @@ done:
 	}
 }
 
+// TestSubscribeBlocksUntilSnapshotReady guards against Subscribe() returning before
+// the initial snapshot is buffered in the channel.
+func TestSubscribeBlocksUntilSnapshotReady(t *testing.T) {
+	cfg := configmock.New(t)
+	mockLog := logmock.New(t)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
+
+	eventChan, unsubscribe := cs.Subscribe(&pb.ConfigStreamRequest{Name: "test-client"})
+	defer unsubscribe()
+
+	select {
+	case event := <-eventChan:
+		require.NotNil(t, event.GetSnapshot(), "first event after Subscribe() must be a snapshot")
+	default:
+		t.Fatal("snapshot not in channel immediately after Subscribe() returned")
+	}
+}
+
 func TestNewComponentNoError(t *testing.T) {
 	mockLog := logmock.New(t)
 	telemetryComp := telemetrynoops.GetCompatComponent()
@@ -309,6 +329,7 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 
 	cs := provides.Comp.(*configStream)
 	go cs.run()
+	t.Cleanup(func() { close(cs.stopChan) })
 
 	return cs
 }

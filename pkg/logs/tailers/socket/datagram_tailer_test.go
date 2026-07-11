@@ -34,7 +34,8 @@ func TestDatagramTailer_Syslog_EndToEnd(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
@@ -55,7 +56,7 @@ func TestDatagramTailer_Syslog_EndToEnd(t *testing.T) {
 	}
 
 	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "Hello UDP", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello UDP", string(msg.GetContent()))
 	assert.Equal(t, message.StatusInfo, msg.Status)
 
 	_, err = clientConn.Write([]byte("<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Error UDP"))
@@ -67,7 +68,7 @@ func TestDatagramTailer_Syslog_EndToEnd(t *testing.T) {
 		t.Fatal("timeout waiting for second UDP message")
 	}
 
-	assert.Equal(t, "Error UDP", string(msg.GetContent()))
+	assert.Equal(t, "<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Error UDP", string(msg.GetContent()))
 	assert.Equal(t, message.StatusError, msg.Status)
 
 	tailer.Stop()
@@ -80,7 +81,8 @@ func TestDatagramTailer_Syslog_SourceHostTag(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
@@ -100,7 +102,7 @@ func TestDatagramTailer_Syslog_SourceHostTag(t *testing.T) {
 		t.Fatal("timeout waiting for message")
 	}
 
-	assert.Equal(t, "Tagged", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z h app - - - Tagged", string(msg.GetContent()))
 
 	tags := msg.Origin.Tags()
 	found := false
@@ -122,7 +124,8 @@ func TestDatagramTailer_Syslog_SourceHostTagDisabled(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
@@ -142,7 +145,7 @@ func TestDatagramTailer_Syslog_SourceHostTagDisabled(t *testing.T) {
 		t.Fatal("timeout waiting for message")
 	}
 
-	assert.Equal(t, "NoTag", string(msg.GetContent()))
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z h app - - - NoTag", string(msg.GetContent()))
 
 	tags := msg.Origin.Tags()
 	for _, tag := range tags {

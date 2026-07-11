@@ -110,6 +110,9 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 			return
 		}
 	}
+
+	runtimeSource := string(c.Runtime)
+
 	sp.mu.Lock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
 		sp.mu.Unlock()
@@ -121,6 +124,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
+		Source:     runtimeSource, // enables msg.Origin.Source() for log filter matching
 		Identifier: c.EntityID.ID,
 	})
 	sp.activeSources[c.EntityID.ID] = src

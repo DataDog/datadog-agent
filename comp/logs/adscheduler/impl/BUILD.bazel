@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["adscheduler.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/adscheduler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/def",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/schedulers/ad",
+    ],
+)

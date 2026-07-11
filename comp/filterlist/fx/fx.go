@@ -14,7 +14,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			filterlistimpl.NewFilterListReq,
+			filterlistimpl.NewComponent,
 		),
 	)
 

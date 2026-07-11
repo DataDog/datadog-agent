@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "autoscalinggate",
+    srcs = ["gate.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "autoscalinggate_test",
+    srcs = ["gate_test.go"],
+    embed = [":autoscalinggate"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

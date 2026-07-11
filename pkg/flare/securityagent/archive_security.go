@@ -47,7 +47,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 		}
 	}
 
-	common.GetLogFiles(fb, logFilePath)
+	common.GetDefaultLogFiles(fb, logFilePath)
 	common.GetConfigFiles(fb, map[string]string{})
 	getComplianceFiles(ctx, fb)                          //nolint:errcheck
 	getRuntimeFiles(ctx, fb)                             //nolint:errcheck

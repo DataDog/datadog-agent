@@ -13,6 +13,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/otelcol/ddflareextension/types",
+        "//pkg/config/schema",
         "//pkg/config/settings",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",

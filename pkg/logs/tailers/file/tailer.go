@@ -411,9 +411,11 @@ func (t *Tailer) forwardMessages() {
 		origin.FilePath = t.file.Path
 		origin.Fingerprint = t.fingerprint
 
+		providerTags := t.tagProvider.GetTags()
+
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
-		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, providerTags...)
 		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
 		if !output.HasContent() {

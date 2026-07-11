@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/otelcol/converter/def",
         "//pkg/util/hostport",
@@ -32,7 +32,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_confmap//:confmap",

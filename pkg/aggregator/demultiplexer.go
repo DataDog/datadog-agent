@@ -126,7 +126,7 @@ func createIterableMetrics(
 			if hostTags != nil {
 				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
-			tagsetTlm.updateHugeSketchesTelemetry(sketch)
+			tagsetTlm.updateHugeSketchesTelemetry(&sketch.DistributionMetadata)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	return series, sketches

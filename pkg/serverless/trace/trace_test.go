@@ -14,9 +14,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -24,9 +26,11 @@ import (
 
 func setupTraceAgentTest(t *testing.T) {
 	// ensure a free port is used for starting the trace agent
-	if port, err := testutil.FindTCPPort(); err == nil {
-		t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
-	}
+	port, err := testutil.FindTCPPort()
+	require.NoError(t, err)
+	t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
+	configmock.New(t) // fresh config so BuildSchema picks it up
+	require.Equal(t, port, pkgconfigsetup.Datadog().GetInt("apm_config.receiver_port"))
 }
 
 type LoadConfigMocked struct {

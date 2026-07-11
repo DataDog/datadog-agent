@@ -1,0 +1,52 @@
+[
+  {
+    "service": "panic_recover",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.d",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.d",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 129
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 34
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "d",
+          "location": {
+            "method": "main.d"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -1,0 +1,103 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "configfilesdiscovery.go",
+        "docker_reader.go",
+        "docker_reader_nodocker.go",
+        "evp_reporter.go",
+        "kubernetes_reader.go",
+        "kubernetes_reader_noop.go",
+        "reader_helpers.go",
+        "scheduler.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/configfilesdiscovery/def",
+        "//comp/core/hostname",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/logs/message",
+        "//pkg/util/containerd",
+        "//pkg/util/containers/cri",
+        "//pkg/util/docker",
+        "//pkg/util/log",
+        "@com_github_containerd_containerd_v2//pkg/oci",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "docker_reader_test",
+    srcs = ["docker_reader_test.go"],
+    embed = [":impl"],
+    gotags = [
+        "docker",
+        "test",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "configfilesdiscovery_test.go",
+        "docker_reader_test.go",
+        "kubernetes_reader_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/impl",
+        "//comp/core/workloadmeta/mock",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/logs/message",
+        "@com_github_containerd_containerd_v2//pkg/oci",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
+        "@com_github_opencontainers_runtime_spec//specs-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "kubernetes_reader_test",
+    srcs = ["kubernetes_reader_test.go"],
+    embed = [":impl"],
+    gotags = [
+        "containerd",
+        "cri",
+        "test",
+    ],
+    deps = [
+        "@com_github_containerd_containerd_v2//pkg/oci",
+        "@com_github_opencontainers_runtime_spec//specs-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

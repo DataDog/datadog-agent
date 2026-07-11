@@ -114,6 +114,11 @@ const (
 	//revive:enable:var-naming
 )
 
+// dotNetRuntimeKeywords is the set of Microsoft-Windows-DotNETRuntime keywords we
+// enable and forward: GCKeyword (0x1) | ContentionKeyword (0x4000) | StackKeyword
+// (0x40000000). These match the keywords the dd-trace-dotnet profiler consumes.
+const dotNetRuntimeKeywords uint64 = 0x40004001
+
 type win32MessageBytePipe interface {
 	CloseWrite() error
 }
@@ -355,6 +360,14 @@ func (a *etwtracerimpl) doTrace() {
 			return
 		}
 
+		// ETW delivers events whose keyword is 0 even when a MatchAnyKeyword mask
+		// is set, so the realtime session receives some events outside the
+		// keywords we requested. The profiler only consumes events matching those
+		// keywords, so forward only matching events.
+		if e.EventHeader.EventDescriptor.Keyword&dotNetRuntimeKeywords == 0 {
+			return
+		}
+
 		payloadBuffer.Reset()
 
 		/*
@@ -487,7 +500,7 @@ func (a *etwtracerimpl) reconfigureProvider() error {
 
 	a.session.ConfigureProvider(a.dotNetRuntimeProviderGUID, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
-		cfg.MatchAnyKeyword = 0x40004001
+		cfg.MatchAnyKeyword = dotNetRuntimeKeywords
 		cfg.PIDs = pidsList
 	})
 

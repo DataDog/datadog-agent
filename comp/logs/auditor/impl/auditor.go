@@ -111,8 +111,8 @@ func newAuditor(deps Dependencies) *registryAuditor {
 	return registryAuditor
 }
 
-// NewProvides creates a new auditor component
-func NewProvides(deps Dependencies) Provides {
+// NewComponent creates a new auditor component
+func NewComponent(deps Dependencies) Provides {
 	auditorImpl := newAuditor(deps)
 	return Provides{
 		Comp: auditorImpl,

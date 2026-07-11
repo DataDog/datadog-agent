@@ -23,13 +23,30 @@ func HasAWSCredentialsInEnvironment() bool {
 	return accessKeyID != "" && secretAccessKey != ""
 }
 
-// IsRunningOnAWS returns true if the code is running on an AWS EC2 instance.
-// This attempts to detect AWS using both IMDSv2 (preferred) and IMDSv1 (fallback).
-// It also checks for AWS credentials in environment variables as an additional signal.
+// HasAWSWorkloadIdentityInEnvironment returns true if IRSA (EKS web identity) env vars are present.
+func HasAWSWorkloadIdentityInEnvironment() bool {
+	return os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") != "" && os.Getenv("AWS_ROLE_ARN") != ""
+}
+
+// HasAWSContainerCredentialsInEnvironment returns true if ECS/EKS Pod Identity container credential env vars are present.
+func HasAWSContainerCredentialsInEnvironment() bool {
+	return os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
+		os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI") != ""
+}
+
+// IsRunningOnAWS returns true if the code is likely running on AWS infrastructure.
+// Checks static credentials, IRSA, container credentials, and IMDS in order.
 func IsRunningOnAWS(ctx context.Context) bool {
-	// First, check if AWS credentials are explicitly set in environment
-	// This is a strong signal that the user intends to use AWS
+	// Static credentials in environment
 	if HasAWSCredentialsInEnvironment() {
+		return true
+	}
+	// IRSA / EKS web identity
+	if HasAWSWorkloadIdentityInEnvironment() {
+		return true
+	}
+	// ECS task role or EKS Pod Identity container credentials
+	if HasAWSContainerCredentialsInEnvironment() {
 		return true
 	}
 

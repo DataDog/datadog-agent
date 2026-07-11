@@ -6,6 +6,7 @@ go_library(
         "cidr.go",
         "direction.go",
         "doc.go",
+        "dscp.go",
         "ether_type.go",
         "ip_addr.go",
         "ip_protocol.go",
@@ -22,6 +23,7 @@ go_test(
     srcs = [
         "cidr_test.go",
         "direction_test.go",
+        "dscp_test.go",
         "ether_type_test.go",
         "ip_addr_test.go",
         "ip_protocol_test.go",

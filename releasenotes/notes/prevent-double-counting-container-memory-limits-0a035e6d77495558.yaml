@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Prevent double counting container memory limits when no limit is set
+    on the container level and the limit is only set on the pod level.
+    Use the metric ``kubernetes.memory.limits`` to only expose memory limits
+    set explicitly at the container level.

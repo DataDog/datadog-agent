@@ -26,9 +26,9 @@ Make sure `$GOPATH/bin` (or `$HOME/go/bin`) is in your `PATH`.
 
 The plugin is enabled for all contributors via `.claude/settings.json`, which references the local marketplace in `.claude-plugins/`.
 
-A `SessionStart` hook automatically runs `dda inv claude.set-buildtags` at the beginning of each Claude Code session to keep the build tags up to date.
+The build tags live in this plugin's committed `plugin.json`. There is no automatic regeneration at runtime: the file is checked in, and a CI lint (`dda inv claude.set-buildtags --check`) fails if it drifts out of sync with the repository's build tags.
 
-You can also refresh the tags manually:
+When you change the set of build tags, regenerate the file and commit the result:
 
 ```bash
 # All targets (default)

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Bumped the Security Agent policies to `v0.82.0 <https://github.com/DataDog/security-agent-policies/compare/v0.81.0...v0.82.0>`_

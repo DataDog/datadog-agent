@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "model",
@@ -25,7 +26,6 @@ go_library(
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@com_github_google_go_cmp//cmp",
         "@com_github_stretchr_testify//assert",
-        "@com_github_twmb_murmur3//:murmur3",
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
@@ -34,7 +34,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "model_test",
     srcs = [
         "pod_autoscaler_profile_test.go",
@@ -43,7 +43,10 @@ go_test(
         "pod_autoscaler_validation_test.go",
     ],
     embed = [":model"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//pkg/clusteragent/autoscaling",
         "//pkg/util/pointer",

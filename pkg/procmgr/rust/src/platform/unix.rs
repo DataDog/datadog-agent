@@ -46,6 +46,14 @@ pub fn default_config_dir() -> PathBuf {
     PathBuf::from("/opt/datadog-agent/processes.d")
 }
 
+pub fn stdout_inheritable() -> bool {
+    true
+}
+
+pub fn stderr_inheritable() -> bool {
+    true
+}
+
 /// Wait for a shutdown trigger (SIGTERM or SIGINT).
 pub async fn shutdown_signal() {
     use tokio::signal::unix::{SignalKind, signal};

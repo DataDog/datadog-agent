@@ -5,7 +5,6 @@ go_msgp(
     name = "key_gen",
     src = "key.go",
     out = "key_gen.go",
-    io = True,
     out_test = "key_gen_test.go",
 )
 

@@ -45,7 +45,7 @@ func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, c
 	if !ok {
 		return nil, errors.New("invalid ddprofiling extension config")
 	}
-	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log)
+	return NewComponent(config, set.BuildInfo, f.traceAgent, f.log)
 }
 
 // Stability returns the stability level of the component

@@ -192,6 +192,7 @@ type mockCorrelator struct {
 func (c *mockCorrelator) Name() string                                        { return c.name }
 func (c *mockCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
 func (c *mockCorrelator) Advance(_ int64)                                     {}
+func (c *mockCorrelator) PendingEvents() []observerdef.CorrelatorEvent        { return nil }
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }
 func (c *mockCorrelator) Reset()                                              {}
 

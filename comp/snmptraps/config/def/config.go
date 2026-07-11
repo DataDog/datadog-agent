@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -48,6 +49,7 @@ type TrapsConfig struct {
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
+	Tags                  []string `mapstructure:"tags" yaml:"tags"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
 }
 
@@ -99,6 +101,15 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+
+	cleaned := c.Tags[:0]
+	for _, t := range c.Tags {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	c.Tags = cleaned
 
 	return nil
 }

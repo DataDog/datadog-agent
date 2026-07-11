@@ -3,6 +3,7 @@ name: create-go-module
 description: Create a new Go module in the agent repository
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[module-path]"
+model: sonnet
 ---
 
 Create a new Go module in the datadog-agent multi-module repository. This repo has 100+ Go modules managed via `modules.yml` and inter-module `replace` directives.

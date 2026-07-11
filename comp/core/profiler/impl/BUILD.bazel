@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["profiler.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/profiler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/profiler/def",
+        "//comp/core/settings/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/def",
+        "//pkg/config/model",
+        "//pkg/process/util/coreagent",
+        "//pkg/system-probe/api/client",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["profiler_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/profiler/def",
+        "//comp/core/profiler/mock",
+        "//comp/core/settings/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["clusterchecks.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/metadata/clusterchecks/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/def",
+        "//pkg/clusteragent/clusterchecks",
+        "//pkg/collector/check/id",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/scrubber",
+        "//pkg/util/uuid",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["clusterchecks_test.go"],
+    embed = [":impl"],
+    flavors = ["base"],
+    deps = [
+        "//pkg/clusteragent/clusterchecks/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

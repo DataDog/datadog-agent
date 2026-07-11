@@ -3,13 +3,112 @@ kind: WorkloadAllowlist
 metadata:
   annotations:
     autopilot.gke.io/no-connect: "true"
-  name: datadog-datadog-daemonset-exemption-v1.0.1
+  name: datadog-datadog-daemonset-exemption-v1.0.5
 exemptions:
   - autogke-no-write-mode-hostpath
   - autogke-no-host-port
   - autogke-default-linux-capabilities
+  - autogke-disallow-hostnamespaces
 matchingCriteria:
+  hostPID: true
   containers:
+    - command:
+        - otel-agent
+        - --core-config=/etc/datadog-agent/datadog.yaml
+        - --sync-delay=30s
+      args:
+        # there can be any number of config as long as they match this pattern.
+        - ^--config=/etc/otel-agent/.*.yaml$
+        # OTAGENT-980: allow the optional --feature-gates argument added by the helm
+        # chart when datadog.otelCollector.featureGates is configured. The value is a
+        # user-supplied comma-separated list of OTel collector feature gates.
+        - ^--feature-gates=.*$
+      env:
+        - name: ^DD_.*$
+        - name: ^OTEL_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      envFrom:
+        - secretRef:
+            name: datadog-agent-secrets
+      image: ^.*$
+      name: otel-agent
+      volumeMounts:
+        - mountPath: /etc/otel-agent
+          name: otelconfig
+          readOnly: true
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /host/sys/fs/cgroup
+          name: cgroups
+          readOnly: true
+        - mountPath: /etc/datadog-agent/datadog.yaml
+          name: datadog-yaml
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
     - command:
         - process-agent
         - -config=/etc/datadog-agent/datadog.yaml
@@ -72,7 +171,7 @@ matchingCriteria:
         - name: CURL_CA_BUNDLE
       envFrom:
         - secretRef:
-            name: ^datadog-.*
+            name: datadog-agent-secrets
       image: ^.*$
       name: process-agent
       volumeMounts:
@@ -170,7 +269,7 @@ matchingCriteria:
         - name: CURL_CA_BUNDLE
       envFrom:
         - secretRef:
-            name: ^datadog-.*
+            name: datadog-agent-secrets
       image: ^.*$
       name: agent
       volumeMounts:
@@ -195,7 +294,7 @@ matchingCriteria:
           name: cgroups
           readOnly: true
         - mountPath: /opt/datadog-agent/run
-          name: pointerdir
+          name: datadogrun
         - mountPath: /var/log/pods
           name: logpodpath
           readOnly: true
@@ -281,7 +380,7 @@ matchingCriteria:
         - name: CURL_CA_BUNDLE
       envFrom:
         - secretRef:
-            name: ^datadog-.*
+            name: datadog-agent-secrets
       image: ^.*$
       name: trace-agent
       volumeMounts:
@@ -363,12 +462,12 @@ matchingCriteria:
         - name: CURL_CA_BUNDLE
       envFrom:
         - secretRef:
-            name: ^datadog-.*$
+            name: datadog-agent-secrets
       image: ^.*$
       name: system-probe
       securityContext:
         appArmorProfile:
-          type: "Unconfined"
+          type: "Unconfined" # needed to allow read-access to /host/proc/ symlinks
         capabilities:
           add:
             - BPF # eBPF monitoring
@@ -397,6 +496,9 @@ matchingCriteria:
         - mountPath: /etc/passwd
           name: passwd
           readOnly: true
+        - mountPath: /opt/datadog-agent/run
+          name: datadogrun
+          readOnly: false
         - mountPath: /host/proc
           name: procdir
           readOnly: true
@@ -452,6 +554,86 @@ matchingCriteria:
           readOnly: true
         - name: bpffs
           mountPath: /sys/fs/bpf
+          readOnly: true
+    - command:
+        - agent-data-plane
+        - --config
+        - /etc/datadog-agent/datadog.yaml
+        - run
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      image: ^.*$
+      name: agent-data-plane
+      volumeMounts:
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /host/sys/fs/cgroup
+          name: cgroups
           readOnly: true
   initContainers:
     - args:
@@ -563,8 +745,8 @@ matchingCriteria:
           readOnly: false
   volumes:
     - name: config
+    - name: otelconfig
     - name: logdatadog
-    - name: dsdsocket
     - name: tmpdir
     - name: s6-run
     - name: sysprobe-config
@@ -581,6 +763,9 @@ matchingCriteria:
     - configMap:
         name: datadog-monitoring-installinfo
       name: installinfo
+    - hostPath:
+        path: /var/run/datadog # Datadog agent creates a UDS socket in this path to listen for APM traces and custom metrics
+      name: dsdsocket
     - hostPath:
         path: /var/lib/docker/containers # for monitoring container logs
       name: logdockercontainerpath
@@ -601,7 +786,7 @@ matchingCriteria:
       name: passwd
     - hostPath:
         path: /var/autopilot/addon/datadog/logs # store logs tailing metadata, needed for logs collection
-      name: pointerdir
+      name: datadogrun
     - hostPath:
         path: /var/log/pods # Containers logs retrieval (https://docs.datadoghq.com/agent/kubernetes/log/)
       name: logpodpath

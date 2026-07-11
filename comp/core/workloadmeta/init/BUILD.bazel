@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "init",
+    srcs = ["init.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom/scanner",
+        "//pkg/util/option",
+    ],
+)

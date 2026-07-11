@@ -123,14 +123,15 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	}
 
 	ss := &metrics.SketchSeries{
-		Name:       ctx.Name,
-		Tags:       ctx.Tags(),
-		Host:       ctx.Host,
-		Interval:   s.interval,
-		Points:     points,
-		ContextKey: ck,
-		Source:     ctx.source,
-		NoIndex:    ctx.noIndex,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     ctx.Name,
+			Tags:     ctx.Tags(),
+			Host:     ctx.Host,
+			Interval: s.interval,
+			Source:   ctx.source,
+			NoIndex:  ctx.noIndex,
+		},
+		Points: points,
 	}
 
 	return ss

@@ -322,12 +322,13 @@ func (m *Mount) GetFSType() string {
 }
 
 const (
-	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
-	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknown       = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromPlaceholder          // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromEvent                // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap            // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS               // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromSnapshot             // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknownLoader        // ProcessCacheEntryFromUnknownLoader defines a synthetic process cache entry attached to a snapshot event whose real loader could not be identified
 )
 
 // ProcessSources defines process sources
@@ -338,6 +339,7 @@ var ProcessSources = [...]string{
 	"map",
 	"procfs_fallback",
 	"procfs_snapshot",
+	"unknown_loader",
 }
 
 // ProcessSourceToString returns the string corresponding to a process source

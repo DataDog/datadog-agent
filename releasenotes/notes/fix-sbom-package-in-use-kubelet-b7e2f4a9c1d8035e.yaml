@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the SBOM runtime usage enrichment (the "package in use"
+    indicators such as ``LastSeenRunning``) was never reported for containers
+    managed by the kubelet. The enriched SBOM was keyed by the container image's
+    manifest digest instead of its config digest, so it landed on a separate
+    image entity that was never shipped to the backend.

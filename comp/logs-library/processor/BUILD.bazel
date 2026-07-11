@@ -14,11 +14,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/processor",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/model",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//pb",
@@ -34,7 +34,7 @@ go_test(
     embed = [":processor"],
     gotags = ["test"],
     deps = [
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",

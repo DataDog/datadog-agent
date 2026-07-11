@@ -36,10 +36,10 @@ func NewIngressHandlers(tagger tagger.Component) *IngressHandlers {
 	return &IngressHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *IngressHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *IngressHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*netv1.Ingress)
 	m := resourceModel.(*model.Ingress)
 
@@ -114,10 +114,24 @@ func (h *IngressHandlers) ResourceList(ctx processors.ProcessorContext, list int
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *IngressHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*netv1.Ingress).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *IngressHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*netv1.Ingress).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

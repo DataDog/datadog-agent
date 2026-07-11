@@ -126,9 +126,14 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling)
+	var sourceCategory []string
+	if sc := source.Config().SourceCategory; sc != "" {
+		sourceCategory = []string{"sourcecategory:" + sc}
+	}
+	baseBytes := message.TagMetadataBytes(source.Config().Tags, sourceCategory)
+	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling, source.Config().ExperimentalNoisyLogDetection)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes, baseBytes)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -144,16 +149,16 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 
 // resolveTokenizerAndLabelerMaxInputBytes computes the tokenizer and labeler byte windows.
 // The labeler uses the effective auto-multiline tokenizer window (global, optionally overridden per source).
-// The tokenizer can be widened beyond that when adaptive sampling is enabled, so the sampler
-// can observe more context without changing labeler behavior.
-func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
+// The tokenizer can be widened beyond that when adaptive sampling or noisy log detection is enabled,
+// so the sampler can observe more context without changing labeler behavior.
+func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceNoisyLogDetection *bool) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
 	labelerMaxBytes = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	if sourceAutoMLSettings != nil && sourceAutoMLSettings.TokenizerMaxInputBytes != nil {
 		labelerMaxBytes = *sourceAutoMLSettings.TokenizerMaxInputBytes
 	}
 
 	tokenizerMaxInputBytes = labelerMaxBytes
-	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
+	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) || resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection) {
 		samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes")
 		if sourceAdaptiveSampling != nil && sourceAdaptiveSampling.TokenizerMaxInputBytes != nil {
 			samplerMin = *sourceAdaptiveSampling.TokenizerMaxInputBytes
@@ -174,6 +179,59 @@ func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptive
 	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled")
 }
 
+func resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection *bool) bool {
+	if sourceNoisyLogDetection != nil {
+		return *sourceNoisyLogDetection
+	}
+
+	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_noisy_log_detection")
+}
+
+const disabledSourcesConfigKey = "logs_config.experimental_adaptive_sampling.disabled_sources"
+
+func newDisabledSet() map[string]struct{} {
+	entries := pkgconfigsetup.Datadog().GetStringSlice(disabledSourcesConfigKey)
+	m := make(map[string]struct{}, len(entries))
+	for _, s := range entries {
+		m[s] = struct{}{}
+	}
+	return m
+}
+
+// buildIsSourceDisabled builds a closure that checks whether the current source
+// is in the disabled_sources set. The set is built once at init; the source name
+// is read per-message through ReplaceableSource to track source swaps.
+// When Remote Config support is added, the set can be rebuilt via a callback
+// (e.g. using atomic.Pointer for lock-free reads) without changing the caller.
+func buildIsSourceDisabled(source *sources.ReplaceableSource) func() bool {
+	disabledSet := newDisabledSet()
+	if len(disabledSet) == 0 {
+		return nil
+	}
+	return func() bool {
+		_, disabled := disabledSet[source.Config().Source]
+		return disabled
+	}
+}
+
+type samplerMode int
+
+const (
+	samplerDisabled samplerMode = iota
+	samplerAdaptiveSampling
+	samplerNoisyLogDetection
+)
+
+func resolveSamplerMode(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceNoisyLogDetection *bool) samplerMode {
+	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
+		return samplerAdaptiveSampling
+	}
+	if resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection) {
+		return samplerNoisyLogDetection
+	}
+	return samplerDisabled
+}
+
 func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
 	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
 	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
@@ -184,6 +242,7 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
 		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+		TagPatternHash:       pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.tag_pattern_hash"),
 		Include:              includeFilters,
 		IncludeConfigured:    includeConfigured,
 		Exclude:              excludeFilters,
@@ -205,6 +264,9 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
 		}
+		if sourceAdaptiveSampling.TagPatternHash != nil {
+			c.TagPatternHash = *sourceAdaptiveSampling.TagPatternHash
+		}
 		if sourceAdaptiveSampling.Include != nil {
 			c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
 			c.IncludeConfigured = true
@@ -215,6 +277,12 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	}
 
 	return validateAdaptiveSamplerConfig(c)
+}
+
+func resolveNoisyLogDetectionConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+	c := resolveAdaptiveSamplerConfig(sourceAdaptiveSampling, tok)
+	c.DetectionOnly = true
+	return c
 }
 
 func resolveGlobalAdaptiveSamplerFilters(key string, tok *preprocessor.Tokenizer) ([]preprocessor.AdaptiveSamplerFilter, bool) {
@@ -268,14 +336,22 @@ func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *pr
 	return filters
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int, baseBytesEstimate int) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
 	var sampler preprocessor.Sampler
-	if resolveAdaptiveSamplerEnabled(source.Config().ExperimentalAdaptiveSampling) {
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
-	} else {
+	sourceConfig := source.Config()
+	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
+	case samplerAdaptiveSampling:
+		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+	case samplerNoisyLogDetection:
+		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+	default:
 		sampler = preprocessor.NewNoopSampler()
 	}
 
@@ -289,7 +365,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if rule.Type == config.MultiLine {
 			regexAggregator := preprocessor.NewRegexAggregator(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfo(source, regexAggregator)
-			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, labelerMaxBytes)
+			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, labelerMaxBytes)
 		}
 	}
 
@@ -318,7 +394,10 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if enableJSON {
 			jsonAgg = preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
 		}
-		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout, labelerMaxBytes)
+		stackTraceParsers := resolveStackTraceParsers(source)
+		stackTraceAgg := preprocessor.NewStackTraceAggregatorFromNames(stackTraceParsers, maxContentSize,
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"))
+		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, stackTraceAgg, flushTimeout, labelerMaxBytes)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
 		cfg := pkgconfigsetup.Datadog()
@@ -326,9 +405,19 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
 		// while only tagging everything else.
 		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo, maxContentSize, pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"), isDefaultPath)
-		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, labelerMaxBytes)
+		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, labelerMaxBytes)
 	}
-	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, 0)
+	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, 0)
+}
+
+// resolveStackTraceParsers returns the list of enabled stack trace parser
+// names for the given source, respecting per-source overrides.
+func resolveStackTraceParsers(source *sources.ReplaceableSource) []string {
+	opts := source.Config().AutoMultiLineOptions
+	if opts != nil && opts.StackTraceParsers != nil {
+		return *opts.StackTraceParsers
+	}
+	return pkgconfigsetup.Datadog().GetStringSlice("logs_config.auto_multi_line.stack_trace_parsers")
 }
 
 func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preprocessor.AdaptiveSamplerConfig {

@@ -45,6 +45,13 @@ const (
 	EventPairingExpectationNoneInlined           EventPairingExpectation = 6
 	EventPairingExpectationNoneNoBody            EventPairingExpectation = 7
 	EventPairingExpectationConditionFailed       EventPairingExpectation = 8
+	// EventPairingExpectationReturnPanicUnwound stamps a synthetic return
+	// event emitted by the runtime.recovery uprobe when a probed frame is
+	// unwound by panic+recover and would otherwise leak its in-progress
+	// pairing state (BPF in_progress_calls slot and userspace
+	// bufferedEvent). The synthetic event carries the panic value in place
+	// of return captures.
+	EventPairingExpectationReturnPanicUnwound EventPairingExpectation = 9
 )
 
 const (

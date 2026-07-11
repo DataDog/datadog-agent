@@ -1,0 +1,73 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agent_sidecar",
+    srcs = [
+        "agent_sidecar.go",
+        "cert_utils.go",
+        "constants.go",
+        "errors.go",
+        "helpers.go",
+        "overrides.go",
+        "profiles.go",
+        "providers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/mutate/config",
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agent_sidecar_test",
+    srcs = [
+        "agent_sidecar_test.go",
+        "cert_utils_test.go",
+        "helpers_test.go",
+        "overrides_test.go",
+        "profiles_test.go",
+        "providers_test.go",
+    ],
+    embed = [":agent_sidecar"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/pointer",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

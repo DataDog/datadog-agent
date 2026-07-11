@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "csi_driver",
+    srcs = [
+        "check.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/csi_driver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/prometheus",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "csi_driver_test",
+    srcs = ["check_test.go"],
+    embed = [":csi_driver"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

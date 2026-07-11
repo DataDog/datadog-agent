@@ -144,7 +144,7 @@ func TestUDSConn(t *testing.T) {
 	runConnTest(t, conn, deps)
 
 	s := deps.Server.(*dsdServer)
-	s.Stop()
+	require.NoError(t, s.stop(context.Background()))
 	_, err = net.Dial("unixgram", socketPath)
 	require.Error(t, err, "UDS listener should be closed")
 }

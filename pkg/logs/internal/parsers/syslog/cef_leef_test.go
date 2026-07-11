@@ -475,55 +475,6 @@ func TestUnescapeCEFValue(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildSIEMFields
-// ---------------------------------------------------------------------------
-
-func TestBuildSIEMFields_CEF(t *testing.T) {
-	header := SIEMHeader{
-		Format:        "CEF",
-		Version:       "0",
-		DeviceVendor:  "Security",
-		DeviceProduct: "Firewall",
-		DeviceVersion: "1.0",
-		EventID:       "100",
-		Name:          "Attack",
-		Severity:      "10",
-	}
-	ext := map[string]string{"src": "1.2.3.4"}
-	fields := BuildSIEMFields(header, ext)
-
-	assert.Equal(t, "CEF", fields["format"])
-	assert.Equal(t, "0", fields["version"])
-	assert.Equal(t, "Security", fields["device_vendor"])
-	assert.Equal(t, "Firewall", fields["device_product"])
-	assert.Equal(t, "1.0", fields["device_version"])
-	assert.Equal(t, "100", fields["event_id"])
-	assert.Equal(t, "Attack", fields["name"])
-	assert.Equal(t, "10", fields["severity"])
-	assert.Equal(t, map[string]string{"src": "1.2.3.4"}, fields["extension"])
-}
-
-func TestBuildSIEMFields_LEEF(t *testing.T) {
-	header := SIEMHeader{
-		Format:        "LEEF",
-		Version:       "1.0",
-		DeviceVendor:  "Microsoft",
-		DeviceProduct: "MSExchange",
-		DeviceVersion: "2013 SP1",
-		EventID:       "15345",
-	}
-	fields := BuildSIEMFields(header, nil)
-
-	assert.Equal(t, "LEEF", fields["format"])
-	_, hasName := fields["name"]
-	assert.False(t, hasName)
-	_, hasSev := fields["severity"]
-	assert.False(t, hasSev)
-	_, hasExt := fields["extension"]
-	assert.False(t, hasExt)
-}
-
-// ---------------------------------------------------------------------------
 // Benchmarks
 // ---------------------------------------------------------------------------
 

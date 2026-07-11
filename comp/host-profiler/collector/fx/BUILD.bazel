@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/fx",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/collector/def",
+            "//comp/host-profiler/collector/impl",
+            "//pkg/util/fxutil",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/collector/def",
+            "//comp/host-profiler/collector/impl",
+            "//pkg/util/fxutil",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

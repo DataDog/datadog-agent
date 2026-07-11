@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "instrumentation",
@@ -28,7 +29,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "instrumentation_test",
     srcs = [
         "controller_test.go",
@@ -37,9 +38,9 @@ go_test(
         "status_test.go",
     ],
     embed = [":instrumentation"],
-    gotags = [
-        "kubeapiserver",
-        "test",
+    flavors = [
+        "base",
+        "fips",
     ],
     deps = [
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",

@@ -6,41 +6,36 @@
 package com_datadoghq_remoteaction_networkconfigmanagement
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
+	"net"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
-	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
-	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// storedConfigResponse mirrors the GetConfigResponse struct returned by the agent's
-// /agent/ncm/config IPC endpoint.
-type storedConfigResponse struct {
-	ConfigUUID string              `json:"config_uuid"`
-	DeviceID   string              `json:"device_id"`
-	ConfigType ncmtypes.ConfigType `json:"config_type"`
-	CapturedAt int64               `json:"captured_at"`
-	RawConfig  string              `json:"raw_config"`
-}
-
 // RollbackConfigHandler handles the rollbackConfig action for network config management
 type RollbackConfigHandler struct {
 	ipcClient ipc.HTTPClient
+	clock     clock.Clock
 }
 
 // NewRollbackConfigHandler creates a new RollbackConfigHandler
 func NewRollbackConfigHandler(client ipc.HTTPClient) *RollbackConfigHandler {
-	return &RollbackConfigHandler{ipcClient: client}
+	return &RollbackConfigHandler{
+		ipcClient: client,
+		clock:     clock.New(),
+	}
 }
 
 // RollbackConfigInputs defines the inputs for the rollbackConfig action
@@ -56,8 +51,9 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success bool   `json:"success,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Success    bool       `json:"success,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
@@ -78,59 +74,31 @@ func (h *RollbackConfigHandler) Run(
 		return nil, errors.New("rollbackConfig: ConfigVersion input is required")
 	}
 
-	endpoint, err := h.ipcClient.NewIPCEndpoint("/agent/ncm/config")
+	body, err := json.Marshal(map[string]string{
+		"device_id":      inputs.DeviceID,
+		"config_version": inputs.ConfigVersion,
+		"hash":           inputs.ConfigHash,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create NCM config IPC endpoint: %w", err)
+		return nil, fmt.Errorf("rollbackConfig: failed to marshal request: %w", err)
 	}
 
-	res, err := endpoint.DoGet(ipchttp.WithContext(ctx), ipchttp.WithValues(url.Values{
-		"uuid": {inputs.ConfigVersion},
-	}))
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve stored config %q from agent: %w", inputs.ConfigVersion, err)
+		return nil, fmt.Errorf("rollbackConfig: failed to get IPC address: %w", err)
 	}
+	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
+	url := fmt.Sprintf("https://%s/agent/ncm/rollback", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 
-	var storedConfig storedConfigResponse
-	if err := json.Unmarshal(res, &storedConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse stored config response: %w", err)
-	}
-
-	if storedConfig.DeviceID != inputs.DeviceID {
-		return nil, fmt.Errorf("input mismatch: config %q is not for device %q", inputs.ConfigVersion, inputs.DeviceID)
-	}
-
-	expectedHash := ncmstore.HashConfig(storedConfig.RawConfig)
-	if expectedHash != inputs.ConfigHash {
-		return nil, fmt.Errorf("hash mismatch for config %q", inputs.ConfigVersion)
-	}
-
-	ncmConf, err := ncmconfig.GetNCMContextFromCoreCheck(ctx, h.ipcClient)
+	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve NCM config from agent: %w", err)
-	}
-	_, ipAddress, ok := strings.Cut(inputs.DeviceID, ":")
-	if !ok {
-		return nil, fmt.Errorf("malformed device ID %q: expected namespace:ip_address", inputs.DeviceID)
-	}
-
-	device, ok := ncmConf.Devices[ipAddress]
-	if !ok {
-		return nil, fmt.Errorf("no NCM configuration for device: %q", inputs.DeviceID)
+		errMsg := strings.TrimSpace(string(resp))
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		return RollbackConfigOutputs{Error: errMsg}, err
 	}
 
-	client, err := ncmremote.NewSSHClient(&device)
-	if err != nil {
-		return nil, fmt.Errorf("%v: %w", inputs.DeviceID, err)
-	}
-	defer client.Close()
-
-	err = client.PushConfig(ctx, storedConfig.RawConfig)
-	if err != nil {
-		return nil, fmt.Errorf("cannot push config to device %q: %w", inputs.DeviceID, err)
-	}
-
-	return RollbackConfigOutputs{
-		Success: false,
-		Error:   "not implemented",
-	}, nil
+	t := h.clock.Now()
+	return RollbackConfigOutputs{Success: true, FinishedAt: &t}, nil
 }

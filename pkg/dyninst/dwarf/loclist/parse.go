@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -191,6 +192,10 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 }
 
 func readFixedSize(reader *bytes.Buffer, size uint8) (uint64, error) {
+	if reader.Len() < int(size) {
+		return 0, io.ErrUnexpectedEOF
+	}
+
 	switch size {
 	case 1:
 		val, err := reader.ReadByte()

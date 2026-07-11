@@ -48,8 +48,8 @@ func createAccessibleTestFile(t *testing.T, dir, filename, content string) strin
 
 func setupSystemProbeConfig(t *testing.T, socketPath string, enabled bool) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
-	systemProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", socketPath)
-	systemProbeConfig.SetWithoutSource("privileged_logs.enabled", enabled)
+	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
+	systemProbeConfig.SetInTest("privileged_logs.enabled", enabled)
 }
 
 func assertOpenPrivilegedContent(t *testing.T, socketPath, filePath, expectedContent string) {

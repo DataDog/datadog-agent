@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = [
+        "subcommands.go",
+        "subcommands_unix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/security-agent/command",
+        "//cmd/security-agent/subcommands/config",
+        "//cmd/security-agent/subcommands/coverage",
+        "//cmd/security-agent/subcommands/flare",
+        "//cmd/security-agent/subcommands/start",
+        "//cmd/security-agent/subcommands/status",
+        "//cmd/security-agent/subcommands/version",
+        "//cmd/security-agent/subcommands/workloadlist",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/security-agent/subcommands/compliance",
+        ],
+        "//conditions:default": [],
+    }),
+)

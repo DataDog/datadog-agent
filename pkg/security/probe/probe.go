@@ -52,6 +52,7 @@ type PlatformProbe interface {
 	ShouldEvaluateDiscarders(_ *model.Event) bool
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
+	EnrichRuleEvent(_ *model.Event)
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
@@ -284,6 +285,19 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	ctx := eval.NewContext(event.(*model.Event))
 
 	p.PlatformProbe.HandleActions(ctx, rule)
+}
+
+// EnrichRuleEvent gives the platform probe an opportunity to enrich an event
+// just before it is serialized and sent as a security signal. It is only
+// called for non-silent rule matches, so any work done here pays a cost
+// proportional to alert volume rather than total event volume.
+//
+// Today this is used to backfill the untruncated argv/envp of the matched
+// process from procfs (Linux/eBPF), so that investigators see the full
+// command line in the alert payload even though the on-stream values are
+// length-capped for performance reasons.
+func (p *Probe) EnrichRuleEvent(event *model.Event) {
+	p.PlatformProbe.EnrichRuleEvent(event)
 }
 
 // AddEventConsumer sets a probe event consumer

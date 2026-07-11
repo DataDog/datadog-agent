@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
 func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{

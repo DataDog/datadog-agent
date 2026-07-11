@@ -375,6 +375,51 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFormatPacketIncludesCustomTagsInDDTags(t *testing.T) {
+	var mockSender *mocksender.MockSender
+	f := fxutil.Test[formatter.Component](t, testOptions, fx.Populate(&mockSender))
+
+	pkt := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
+	pkt.Tags = []string{"application:my-app", "team:netops"}
+
+	formattedPacket, err := f.FormatPacket(pkt)
+	require.NoError(t, err)
+	data := make(map[string]interface{})
+	err = json.Unmarshal(formattedPacket, &data)
+	require.NoError(t, err)
+	trapContent := data["trap"].(map[string]interface{})
+	assert.Equal(t,
+		"snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1,application:my-app,team:netops",
+		trapContent["ddtags"])
+
+	unknownTrap := gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.99.99.99.99"},
+		},
+	}
+	expectedTags := []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:127.0.0.1",
+		"application:my-app",
+		"team:netops",
+	}
+	pktUnknown := packet.CreateTestPacket(unknownTrap)
+	pktUnknown.Tags = []string{"application:my-app", "team:netops"}
+	_, err = f.FormatPacket(pktUnknown)
+	require.NoError(t, err)
+	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.traps_not_enriched", 1, "", expectedTags)
+
+	pktBad := packet.CreateTestPacket(unknownTrap)
+	pktBad.Tags = []string{"application:my-app", "team:netops"}
+	pktBad.Content.Variables = []gosnmp.SnmpPDU{}
+	_, err = f.FormatPacket(pktBad)
+	require.Error(t, err)
+	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.incorrect_format", 1, "",
+		append(append([]string{}, expectedTags...), "error:invalid_variables"))
+}
+
 func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 	data := []struct {
 		description     string

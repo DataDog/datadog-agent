@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "json",
@@ -12,7 +13,7 @@ go_library(
     deps = ["@com_github_json_iterator_go//:go"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "json_test",
     srcs = [
         "nested_json_test.go",
@@ -20,7 +21,6 @@ go_test(
         "raw_object_writer_test.go",
     ],
     embed = [":json"],
-    gotags = ["test"],
     deps = [
         "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",

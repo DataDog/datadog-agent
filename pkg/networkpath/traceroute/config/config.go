@@ -45,4 +45,6 @@ type Config struct {
 	E2eQueries int
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool
+	// DisableSourcePublicIPCollection disables collection of the source public IP address
+	DisableSourcePublicIPCollection bool
 }

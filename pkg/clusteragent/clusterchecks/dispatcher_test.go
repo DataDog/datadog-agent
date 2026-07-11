@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -420,8 +421,8 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 
 func TestDanglingConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_checks.unscheduled_check_threshold", 1)
-	mockConfig.SetWithoutSource("cluster_checks.node_expiration_timeout", 1)
+	mockConfig.SetInTest("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetInTest("cluster_checks.node_expiration_timeout", 1)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
@@ -511,6 +512,38 @@ func TestReset(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestResetClearsUnscheduledCheckGauge(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetInTest("cluster_checks.node_expiration_timeout", 1)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	config := integration.Config{
+		Name:         "reset-gauge-check",
+		Source:       "reset-gauge-source",
+		ClusterCheck: true,
+	}
+
+	// No node available: the config lands in danglingConfigs.
+	dispatcher.Schedule([]integration.Config{config})
+	require.Len(t, dispatcher.store.danglingConfigs, 1)
+
+	// Let it dangle long enough to be flagged as unscheduled, which increments the gauge.
+	require.Eventually(t, func() bool {
+		dispatcher.scanUnscheduledChecks()
+		return dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck
+	}, 2*time.Second, 250*time.Millisecond)
+	require.Equal(t, 1.0, unscheduledCheck.WithValues(le.JoinLeaderValue, config.Name, config.Source).Get())
+
+	// reset() must clear the gauge series, not just the dangling map.
+	dispatcher.reset()
+	assert.Empty(t, dispatcher.store.danglingConfigs)
+	assert.Equal(t, 0.0, unscheduledCheck.WithValues(le.JoinLeaderValue, config.Name, config.Source).Get())
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestPatchConfiguration(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
@@ -527,7 +560,7 @@ func TestPatchConfiguration(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_name", "testing")
+	mockConfig.SetInTest("cluster_name", "testing")
 	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
@@ -566,7 +599,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_name", "testing")
+	mockConfig.SetInTest("cluster_name", "testing")
 	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
@@ -606,8 +639,8 @@ func TestExtraTags(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			mockConfig := configmock.New(t)
 			fakeTagger.SetGlobalTags(tc.extraTagsConfig, []string{}, []string{}, []string{})
-			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
-			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
+			mockConfig.SetInTest("cluster_name", tc.clusterNameConfig)
+			mockConfig.SetInTest("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
 			clustername.ResetClusterName()
 			dispatcher := newDispatcher(fakeTagger)
@@ -694,7 +727,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 func TestUpdateRunnersStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
+	mockConfig.SetInTest("cluster_checks.rebalance_with_utilization", true)
 
 	dispatcher := newDispatcher(fakeTagger)
 	status := types.NodeStatus{LastChange: 10}

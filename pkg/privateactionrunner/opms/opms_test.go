@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // newTestKey generates a throwaway ECDSA key for unit tests.
 func newTestKey(t *testing.T) *ecdsa.PrivateKey {
@@ -253,4 +259,59 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, 3000*time.Millisecond, data.RetryAfter)
+}
+
+// ---------- proxy transport wiring ----------
+
+func TestNewClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+	parCfg := &config.Config{OpmsRequestTimeout: 5000}
+
+	c := NewClient(cfg, parCfg).(*client)
+
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+
+	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
+
+	transport, ok := pc.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/unstable/on_prem_runners", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
+	var transportCalled bool
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				transportCalled = true
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			}),
+		},
+	}
+
+	_, _, err := p.doEnrollRequest(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
+
+	require.NoError(t, err)
+	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
 }

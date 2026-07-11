@@ -1,0 +1,20 @@
+network_devices:
+  namespace: e2e-netflow
+  netflow:
+    enabled: true
+    forwarder:
+      logs_dd_url: FAKEINTAKE_URL
+    listeners:
+      - flow_type: netflow5
+        port: 2056
+
+network_path:
+  netflow_monitoring:
+    enabled: false
+  collector:
+    flush_interval: 2s
+    monitor_ip_without_domain: true
+    pathtest_interval: 10s
+    pathtest_ttl: 1m
+  forwarder:
+    logs_dd_url: FAKEINTAKE_URL

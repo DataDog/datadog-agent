@@ -1,2 +1,66 @@
-# gazelle:ignore
-# Not yet migrated to Bazel. Only pkg/collector/check/defaults is migrated.
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "collector",
+    srcs = [
+        "infra_mode.go",
+        "scheduler.go",
+        "stats.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/collector/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/aggregator",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/loaders",
+        "//pkg/collector/metriclookback",
+        "//pkg/collector/metriclookback/lookbacksender",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/infratags",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+    ],
+)
+
+dd_agent_go_test(
+    name = "collector_test",
+    srcs = [
+        "infra_mode_test.go",
+        "scheduler_test.go",
+        "stats_test.go",
+    ],
+    embed = [":collector"],
+    deps = [
+        "//comp/collector/collector/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/aggregator",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/infratags",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -61,7 +61,7 @@ message ContainerImage {
 
 message ContainerImageLayer {
   string mediaType = 1;
-  string digest = 2;
+  string diffID = 2;
   int64 sizeBytes = 3;
   repeated string urls = 4;
 }

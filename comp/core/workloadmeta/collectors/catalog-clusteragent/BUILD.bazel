@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "catalog-clusteragent",
+    srcs = [
+        "catalog.go",
+        "options.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/collectors/internal/kubeapiserver",
+        "@org_uber_go_fx//:fx",
+    ],
+)

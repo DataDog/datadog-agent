@@ -29,7 +29,7 @@ var mockTimeNow = func() time.Time {
 func TestSendMetadata(t *testing.T) {
 	TimeNow = mockTimeNow
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := NewSDWanSender(sender, "my-ns")
 

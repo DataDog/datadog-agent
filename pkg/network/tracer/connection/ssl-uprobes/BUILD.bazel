@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ssl-uprobes",
+    srcs = [
+        "constants.go",
+        "ebpf_ssl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//pkg/ebpf",
+        "//pkg/ebpf/kernelbugs",
+        "//pkg/ebpf/uprobes",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/ebpf/probes",
+        "//pkg/network/usm/sharedlibraries",
+        "//pkg/process/monitor",
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)

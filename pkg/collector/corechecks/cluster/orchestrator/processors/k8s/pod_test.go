@@ -100,16 +100,16 @@ func TestPodHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*corev1.Pod)
 	assert.True(t, ok)
 	assert.Equal(t, "pod-1", resource1.Name)
-	assert.NotSame(t, pod1, resource1) // Should be a copy
+	assert.Same(t, pod1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*corev1.Pod)
 	assert.True(t, ok)
 	assert.Equal(t, "pod-2", resource2.Name)
-	assert.NotSame(t, pod2, resource2) // Should be a copy
+	assert.Same(t, pod2, resource2) // ResourceList returns raw informer references
 }
 
 func TestPodHandlers_ResourceUID(t *testing.T) {
@@ -476,4 +476,14 @@ func createTestPod(name, namespace string) *corev1.Pod {
 			},
 		},
 	}
+}
+
+func TestPodHandlers_CloneResource(t *testing.T) {
+	handlers := &PodHandlers{}
+	original := createTestPod("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*corev1.Pod)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

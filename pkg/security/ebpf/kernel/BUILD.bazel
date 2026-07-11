@@ -20,6 +20,7 @@ go_library(
             "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/env",
@@ -31,6 +32,7 @@ go_library(
             "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

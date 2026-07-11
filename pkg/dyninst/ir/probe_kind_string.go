@@ -13,11 +13,12 @@ func _() {
 	_ = x[ProbeKindMetric-3]
 	_ = x[ProbeKindSnapshot-4]
 	_ = x[ProbeKindCaptureExpression-5]
+	_ = x[ProbeKindRuntimeRecovery-6]
 }
 
-const _ProbeKind_name = "ProbeKindLogProbeKindSpanProbeKindMetricProbeKindSnapshotProbeKindCaptureExpression"
+const _ProbeKind_name = "ProbeKindLogProbeKindSpanProbeKindMetricProbeKindSnapshotProbeKindCaptureExpressionProbeKindRuntimeRecovery"
 
-var _ProbeKind_index = [...]uint8{0, 12, 25, 40, 57, 83}
+var _ProbeKind_index = [...]uint8{0, 12, 25, 40, 57, 83, 107}
 
 func (i ProbeKind) String() string {
 	idx := int(i) - 1

@@ -18,6 +18,8 @@ type EventHeader struct {
 	Stack_hash                uint64
 	Ktime_ns                  uint64
 	Entry_ktime_ns            uint64
+	Panic_lo_depth            uint32
+	Panic_hi_depth            uint32
 }
 type DataItemHeader struct {
 	Type    uint32
@@ -33,4 +35,6 @@ type DropNotification struct {
 	X__padding       [1]uint8
 	Last_seq         uint16
 	Entry_ktime_ns   uint64
+	Panic_lo_depth   uint32
+	Panic_hi_depth   uint32
 }

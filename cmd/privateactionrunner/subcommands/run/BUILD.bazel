@@ -1,0 +1,73 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "run",
+    srcs = [
+        "command.go",
+        "service_windows.go",
+        "tagger.go",
+        "tagger_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname/remotehostnameimpl",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/settings/def",
+        "//comp/core/settings/fx",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/dogstatsd/statsd/fx",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/forwarder/eventplatform/fx",
+        "//comp/forwarder/eventplatformreceiver/impl",
+        "//comp/networkpath/traceroute/fx-remote",
+        "//comp/privateactionrunner/def",
+        "//comp/privateactionrunner/fx",
+        "//comp/remote-config/rcclient/def",
+        "//comp/remote-config/rcclient/fx",
+        "//comp/remote-config/rcservice/fx",
+        "//comp/serializer/logscompression/fx",
+        "//pkg/config/settings",
+        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "run_test",
+    srcs = [
+        "command_test.go",
+        "service_windows_test.go",
+    ],
+    embed = [":run"],
+    gotags = ["test"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -299,6 +299,23 @@ func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJo
 	a.accumulator = make(map[cronJob]cronJobState)
 }
 
+// clusterAggregateSourceMetrics lists the KSM source metrics that feed the
+// cluster-aggregate `.total` family with a reduced tag set (no host/pod/node).
+// These must be accumulated only by the single authoritative instance
+// (cluster_aggregates_only mode); any other instance emitting them causes
+// gauge collapse at ingestion.
+var clusterAggregateSourceMetrics = map[string]struct{}{
+	"kube_pod_container_resource_with_owner_tag_requests":      {},
+	"kube_pod_container_resource_with_owner_tag_limits":        {},
+	"kube_pod_init_container_resource_with_owner_tag_requests": {},
+	"kube_pod_init_container_resource_with_owner_tag_limits":   {},
+}
+
+func isClusterAggregateSourceMetric(name string) bool {
+	_, ok := clusterAggregateSourceMetrics[name]
+	return ok
+}
+
 func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 

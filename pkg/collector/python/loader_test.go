@@ -7,9 +7,7 @@
 
 package python
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestLoadWheelCheck(t *testing.T) {
 	testLoadWheelCheck(t)

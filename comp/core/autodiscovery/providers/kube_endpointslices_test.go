@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	provTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
@@ -378,6 +379,17 @@ func TestEndpointSlice_InvalidateOnServiceDelete(t *testing.T) {
 		},
 	}
 
+	serviceWithAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-2",
+			Namespace: "default",
+			UID:       types.UID("service-2-uid"),
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.checks": `{"http_check": {"instances": [{"url": "http://%%host%%"}]}}`,
+			},
+		},
+	}
+
 	tests := []struct {
 		name              string
 		monitoredServices map[string]bool
@@ -397,6 +409,12 @@ func TestEndpointSlice_InvalidateOnServiceDelete(t *testing.T) {
 			monitoredServices: map[string]bool{},
 			deletedService:    service,
 			expectedUpToDate:  true,
+		},
+		{
+			name:              "Delete unmonitored service with endpoint annotations invalidates",
+			monitoredServices: map[string]bool{},
+			deletedService:    serviceWithAnnotations,
+			expectedUpToDate:  false,
 		},
 	}
 
@@ -763,4 +781,40 @@ func TestHasEndpointSliceAnnotations(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
+	configmock.New(t)
+	hp := healthplatformmock.New(t)
+
+	provider := kubeEndpointSlicesConfigProvider{
+		configErrors:   map[string]provTypes.ErrorMsgSet{},
+		healthPlatform: hp,
+	}
+
+	const issueID = "ad-annotation:default/withErrors"
+
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.checks": `{"some_check": {"instances": [{"url" "%%host%%"}]}}`, // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	// A malformed annotation is reported as a health-platform issue.
+	provider.parseServiceAnnotationsForEndpointSlices([]*v1.Service{svc})
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Contains(t, issue.Description, "endpoint annotation")
+
+	// Fixing the annotation resolves the issue.
+	fixed := svc.DeepCopy()
+	fixed.Annotations["ad.datadoghq.com/endpoints.checks"] = `{"some_check": {"instances": [{"url": "%%host%%"}]}}`
+	provider.parseServiceAnnotationsForEndpointSlices([]*v1.Service{fixed})
+	assert.Nil(t, hp.GetIssue(issueID))
 }

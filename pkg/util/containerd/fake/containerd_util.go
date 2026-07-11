@@ -12,11 +12,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/mount"
-	"github.com/containerd/containerd/oci"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/mount"
+	"github.com/containerd/containerd/v2/pkg/oci"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -49,6 +49,7 @@ type MockedContainerdClient struct {
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
 	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 	MockMounts                func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
+	MockMountsWithSnapshotter func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error)
 }
 
 // Close is a mock method
@@ -174,4 +175,9 @@ func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration
 // Mounts is a mock method
 func (client *MockedContainerdClient) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
 	return client.MockMounts(ctx, expiration, namespace, img)
+}
+
+// MountsWithSnapshotter is a mock method
+func (client *MockedContainerdClient) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
+	return client.MockMountsWithSnapshotter(ctx, expiration, namespace, img)
 }

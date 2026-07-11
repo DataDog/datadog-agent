@@ -41,12 +41,12 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
@@ -151,7 +151,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsfx.Module(),
-		orchestratorForwarderImpl.Module(orchestratordef.NewDisabledParams()),
+		orchestratorForwarderFx.Module(orchestratordef.NewDisabledParams()),
 		eventplatformfx.Module(eventplatform.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
@@ -222,7 +222,7 @@ func start(
 }
 
 // RunDogstatsd starts the dogstatsd server
-func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
+func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Component, log log.Component, _ *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}

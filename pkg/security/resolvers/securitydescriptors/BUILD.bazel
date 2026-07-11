@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "securitydescriptors",
+    srcs = ["resolver_windows.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/securitydescriptors",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/resolvers/usergroup",
+        ],
+        "//conditions:default": [],
+    }),
+)

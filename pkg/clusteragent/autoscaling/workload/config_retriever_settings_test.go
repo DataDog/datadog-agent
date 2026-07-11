@@ -22,7 +22,7 @@ import (
 	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -31,15 +31,17 @@ import (
 
 func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 	testTime := time.Now()
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	_, mockRCClient := newMockConfigRetriever(t, func() bool { return false }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
 	dummy2 := model.NewFakePodAutoscalerInternal("ns", "name2", nil)
 	dummy3 := model.NewFakePodAutoscalerInternal("ns", "name3", nil)
 
-	store.Set("ns/name2", dummy2, "unittest")
-	store.Set("ns/name3", dummy3, "unittest")
+	item2, _ := store.Get("ns/name2")
+	item2.Upsert(dummy2, "unittest")
+	item3, _ := store.Get("ns/name3")
+	item3.Upsert(dummy3, "unittest")
 
 	// Object specs
 	object1Spec := &datadoghq.DatadogPodAutoscalerSpec{
@@ -79,13 +81,13 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	testTime := time.Now()
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
 
 	// Object specs
@@ -170,7 +172,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 
 	// Set expected versions
 	object1Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
@@ -231,7 +233,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 
 	// Set expected versions: only one change for for foo2
 	object3Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 11)
@@ -273,7 +275,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 
 	// No changes in expected versions
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
@@ -300,7 +302,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 
 func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 	testTime := time.Now()
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
 
 	// Object specs from different versions
@@ -366,7 +368,7 @@ func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 
 	// Expected v1alpha2 version output
 	objectv1alpha2Spec := &datadoghq.DatadogPodAutoscalerSpec{
@@ -455,7 +457,7 @@ func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 
 	// Copy with RemoteVersion set
 	expected = objectv1alpha2Spec.DeepCopy()
@@ -478,7 +480,7 @@ func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 
 func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	isLeader := false
 	isLeaderFunc := func() bool {
 		return isLeader
@@ -526,7 +528,7 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 
 	// Nothing in the store as we are not the leader
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := store.GetAll()
+	podAutoscalers := store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{}, podAutoscalers)
 
 	// Become leader, should reconcile. Unfortunately, as it's another goroutine running the reconcile,
@@ -541,7 +543,7 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 
 	// Copy with RemoteVersion set
 	object1Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
-	podAutoscalers = store.GetAll()
+	podAutoscalers = store.List(nil)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",

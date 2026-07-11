@@ -219,3 +219,44 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "ap-northeast-1", region)
 }
+
+func TestIsRunningOnAWSWithIRSAEnvVars(t *testing.T) {
+	// IRSA env vars should signal AWS even without IMDS
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
+	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/test-role")
+
+	result := IsRunningOnAWS(context.Background())
+	assert.True(t, result)
+}
+
+func TestIsRunningOnAWSWithContainerRelativeURI(t *testing.T) {
+	// ECS task role / EKS Pod Identity relative URI
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc123def456")
+
+	result := IsRunningOnAWS(context.Background())
+	assert.True(t, result)
+}
+
+func TestIsRunningOnAWSWithContainerFullURI(t *testing.T) {
+	// EKS Pod Identity full URI variant
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
+
+	result := IsRunningOnAWS(context.Background())
+	assert.True(t, result)
+}
+
+func TestHasAWSWorkloadIdentityInEnvironment_Ec2(t *testing.T) {
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/token")
+	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/r")
+	assert.True(t, HasAWSWorkloadIdentityInEnvironment())
+}
+
+func TestHasAWSWorkloadIdentityInEnvironment_Ec2_OnlyToken(t *testing.T) {
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/token")
+	assert.False(t, HasAWSWorkloadIdentityInEnvironment())
+}
+
+func TestHasAWSContainerCredentialsInEnvironment_Ec2(t *testing.T) {
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/creds")
+	assert.True(t, HasAWSContainerCredentialsInEnvironment())
+}

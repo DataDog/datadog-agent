@@ -215,8 +215,8 @@ func TestEnabled(t *testing.T) {
 			setFlavor(t, tc.flavor)
 
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
-			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
+			cfg.SetInTest("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			cfg.SetInTest("language_detection.enabled", tc.remoteProcessCollectorEnabled)
 
 			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})

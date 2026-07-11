@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ecs",
+    srcs = ["task.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//pkg/orchestrator",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ecs_test",
+    srcs = ["task_test.go"],
+    embed = [":ecs"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//require",
+    ],
+)

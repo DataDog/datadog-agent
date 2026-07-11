@@ -5,7 +5,6 @@ Datadog offers two tools with the Agent that can help you identify memory issues
 
 - Python memory telemetry (Python 3 only)
 - Tracemalloc
-- Pympler
 
 ### Python memory telemetry
 

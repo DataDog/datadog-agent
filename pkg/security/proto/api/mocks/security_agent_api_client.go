@@ -43,11 +43,11 @@ func (_m *SecurityAgentAPIClient) EXPECT() *SecurityAgentAPIClient_Expecter {
 // SendActivityDumpStream provides a mock function for the type SecurityAgentAPIClient
 func (_mock *SecurityAgentAPIClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, emptypb.Empty], error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -84,9 +84,9 @@ type SecurityAgentAPIClient_SendActivityDumpStream_Call struct {
 // SendActivityDumpStream is a helper method to define mock.On call
 //   - ctx context.Context
 //   - opts ...grpc.CallOption
-func (_e *SecurityAgentAPIClient_Expecter) SendActivityDumpStream(ctx interface{}, opts ...interface{}) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
+func (_e *SecurityAgentAPIClient_Expecter) SendActivityDumpStream(ctx any, opts ...any) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
 	return &SecurityAgentAPIClient_SendActivityDumpStream_Call{Call: _e.mock.On("SendActivityDumpStream",
-		append([]interface{}{ctx}, opts...)...)}
+		append([]any{ctx}, opts...)...)}
 }
 
 func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) Run(run func(ctx context.Context, opts ...grpc.CallOption)) *SecurityAgentAPIClient_SendActivityDumpStream_Call {
@@ -124,11 +124,11 @@ func (_c *SecurityAgentAPIClient_SendActivityDumpStream_Call) RunAndReturn(run f
 // SendEvent provides a mock function for the type SecurityAgentAPIClient
 func (_mock *SecurityAgentAPIClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, emptypb.Empty], error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -165,9 +165,9 @@ type SecurityAgentAPIClient_SendEvent_Call struct {
 // SendEvent is a helper method to define mock.On call
 //   - ctx context.Context
 //   - opts ...grpc.CallOption
-func (_e *SecurityAgentAPIClient_Expecter) SendEvent(ctx interface{}, opts ...interface{}) *SecurityAgentAPIClient_SendEvent_Call {
+func (_e *SecurityAgentAPIClient_Expecter) SendEvent(ctx any, opts ...any) *SecurityAgentAPIClient_SendEvent_Call {
 	return &SecurityAgentAPIClient_SendEvent_Call{Call: _e.mock.On("SendEvent",
-		append([]interface{}{ctx}, opts...)...)}
+		append([]any{ctx}, opts...)...)}
 }
 
 func (_c *SecurityAgentAPIClient_SendEvent_Call) Run(run func(ctx context.Context, opts ...grpc.CallOption)) *SecurityAgentAPIClient_SendEvent_Call {

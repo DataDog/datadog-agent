@@ -11,6 +11,8 @@ import (
 	"container/heap"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 )
 
 // TimestampKey is a struct that holds a timestamp and key for a `DatadogPodAutoscaler` object
@@ -80,23 +82,23 @@ type HashHeap[T any] struct {
 	Keys              map[string]bool
 	maxSize           int
 	mu                sync.RWMutex
-	store             *Store[T]
+	store             *store.Store[T]
 	creationTimestamp func(*T) time.Time
 }
 
 // NewHashHeap returns a new MaxHeap with the given max size.
 // creationTimestamp is used to extract the creation timestamp from stored objects.
-func NewHashHeap[T any](maxSize int, store *Store[T], creationTimestamp func(*T) time.Time) *HashHeap[T] {
+func NewHashHeap[T any](maxSize int, backingStore *store.Store[T], creationTimestamp func(*T) time.Time) *HashHeap[T] {
 	h := &HashHeap[T]{
 		MaxHeap:           *NewMaxHeap(),
 		Keys:              make(map[string]bool),
 		maxSize:           maxSize,
 		mu:                sync.RWMutex{},
-		store:             store,
+		store:             backingStore,
 		creationTimestamp: creationTimestamp,
 	}
 
-	store.RegisterObserver(Observer{
+	backingStore.RegisterObserver(store.Observer{
 		SetFunc:    h.InsertIntoHeap,
 		DeleteFunc: h.DeleteFromHeap,
 	})
@@ -105,9 +107,9 @@ func NewHashHeap[T any](maxSize int, store *Store[T], creationTimestamp func(*T)
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-// Used as an ObserverFunc; retrieves the object from the store directly via store.Get.
-func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID) {
-	obj, found := h.store.Get(key)
+// Used as an ObserverFunc; retrieves the object from the store directly via store.Peek.
+func (h *HashHeap[T]) InsertIntoHeap(key string, _ store.SenderID) {
+	obj, found := h.store.Peek(key)
 	if !found {
 		return
 	}
@@ -146,7 +148,7 @@ func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID) {
 
 // DeleteFromHeap removes the given key from the max heap
 // Used as an ObserverFunc.
-func (h *HashHeap[T]) DeleteFromHeap(key string, _ SenderID) {
+func (h *HashHeap[T]) DeleteFromHeap(key string, _ store.SenderID) {
 	// Key did not exist in heap, return early
 	if !h.Exists(key) {
 		return

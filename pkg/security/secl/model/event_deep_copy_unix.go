@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
+	"net"
 )
 
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
@@ -191,7 +192,6 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
-	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -252,6 +252,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
+	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -496,6 +497,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
+	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -601,6 +603,7 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 	copied.Addr = deepCopyIPPortContext(fieldToCopy.Addr)
 	copied.AddrFamily = fieldToCopy.AddrFamily
 	copied.Protocol = fieldToCopy.Protocol
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
@@ -692,6 +695,7 @@ func deepCopyConnectEvent(fieldToCopy ConnectEvent) ConnectEvent {
 	copied.AddrFamily = fieldToCopy.AddrFamily
 	copied.Hostnames = deepCopystringArr(fieldToCopy.Hostnames)
 	copied.Protocol = fieldToCopy.Protocol
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
@@ -716,7 +720,21 @@ func deepCopyDNSResponsePtr(fieldToCopy *DNSResponse) *DNSResponse {
 		return nil
 	}
 	copied := &DNSResponse{}
+	copied.CNames = deepCopystringArr(fieldToCopy.CNames)
+	copied.IPs = deepCopyIPNetArr(fieldToCopy.IPs)
 	copied.ResponseCode = fieldToCopy.ResponseCode
+	return copied
+}
+func deepCopyIPNetArr(fieldToCopy []net.IPNet) []net.IPNet {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]net.IPNet, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
+		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
+	}
 	return copied
 }
 func deepCopyExecEvent(fieldToCopy ExecEvent) ExecEvent {
@@ -973,6 +991,7 @@ func deepCopyOpenEvent(fieldToCopy OpenEvent) OpenEvent {
 	copied.File = deepCopyFileEvent(fieldToCopy.File)
 	copied.Flags = fieldToCopy.Flags
 	copied.Mode = fieldToCopy.Mode
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallContext = deepCopySyscallContext(fieldToCopy.SyscallContext)
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.SyscallFlags = fieldToCopy.SyscallFlags

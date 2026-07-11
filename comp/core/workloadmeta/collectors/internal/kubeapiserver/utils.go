@@ -149,7 +149,8 @@ func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, 
 
 // discoverGroupResourceVersions discovers groups, resources, and versions in the kubernetes api server and returns a mapping
 // from GroupResource to Version.
-// A group resource is mapped to the version that is considered the preferred version by the API Server.
+// A group resource is mapped to the preferred version of its group when the resource is served on that version.
+// Otherwise, it falls back to a non-preferred version, so that resources served only on a non-preferred version remain discoverable.
 func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface) (map[schema.GroupResource]string, error) {
 	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
@@ -167,20 +168,27 @@ func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface)
 		preferredGroupVersions[group.PreferredVersion.GroupVersion] = struct{}{}
 	}
 
-	// groupResourceToVersion maps a group resource to discovered preferred group version
+	// groupResourceToVersion maps a group resource to a discovered version.
+	// The preferred version of the group always wins out over others.
 	groupResourceToVersion := map[schema.GroupResource]string{}
 	for _, resourceList := range apiResourceLists {
-		_, found := preferredGroupVersions[resourceList.GroupVersion]
-		if found {
-			for _, resource := range resourceList.APIResources {
-				// No need to handle error because we are sure it is correctly formatted
-				gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+		_, isPreferred := preferredGroupVersions[resourceList.GroupVersion]
 
-				groupResourceToVersion[schema.GroupResource{
-					Resource: resource.Name,
-					Group:    gv.Group,
-				}] = gv.Version
+		// No need to handle error because we are sure it is correctly formatted
+		gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+
+		for _, resource := range resourceList.APIResources {
+			groupResource := schema.GroupResource{
+				Resource: resource.Name,
+				Group:    gv.Group,
 			}
+
+			// Keep the already-recorded version unless the current one is preferred.
+			if _, found := groupResourceToVersion[groupResource]; found && !isPreferred {
+				continue
+			}
+
+			groupResourceToVersion[groupResource] = gv.Version
 		}
 	}
 

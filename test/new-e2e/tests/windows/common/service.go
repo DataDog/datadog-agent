@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -33,6 +34,12 @@ const (
 	SERVICE_DISABLED     = 4
 
 	//revive:enable:var-naming
+)
+
+// Windows SCM can transiently fail stop/restart while child processes or tooling delay shutdown.
+const (
+	windowsServiceOpMaxAttempts   = 8
+	windowsServiceOpRetryInterval = 2 * time.Second
 )
 
 // ServiceConfig contains information about a Windows service
@@ -103,25 +110,70 @@ func GetServiceStatus(host *components.RemoteHost, service string) (string, erro
 	return strings.TrimSpace(out), err
 }
 
-// StopService stops the service
+// StopService stops the service.
+// It retries on failure because Windows SCM can transiently return CouldNotStopService
+// while child processes or tooling (e.g. debuggers) delay shutdown.
 func StopService(host *components.RemoteHost, service string) error {
-	cmd := fmt.Sprintf("Stop-Service -Force -Name '%s'", service)
-	_, err := host.Execute(cmd)
-	return err
+	var lastErr error
+	for attempt := 1; attempt <= windowsServiceOpMaxAttempts; attempt++ {
+		if status, statusErr := GetServiceStatus(host, service); statusErr == nil && strings.EqualFold(strings.TrimSpace(status), "Stopped") {
+			return nil
+		}
+		cmd := fmt.Sprintf("Stop-Service -Force -Name '%s'", service)
+		_, err := host.Execute(cmd)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if status, statusErr := GetServiceStatus(host, service); statusErr == nil && strings.EqualFold(strings.TrimSpace(status), "Stopped") {
+			return nil
+		}
+		if attempt < windowsServiceOpMaxAttempts {
+			time.Sleep(windowsServiceOpRetryInterval)
+		}
+	}
+	return fmt.Errorf("failed to stop service %s after %d attempts: %w", service, windowsServiceOpMaxAttempts, lastErr)
 }
 
-// StartService starts the service
+// StartService starts the service.
+// It retries on failure because Windows SCM can transiently refuse start while the service
+// is still stopping or dependencies are settling.
 func StartService(host *components.RemoteHost, service string) error {
-	cmd := fmt.Sprintf("Start-Service -Name '%s'", service)
-	_, err := host.Execute(cmd)
-	return err
+	var lastErr error
+	for attempt := 1; attempt <= windowsServiceOpMaxAttempts; attempt++ {
+		if status, statusErr := GetServiceStatus(host, service); statusErr == nil && strings.EqualFold(strings.TrimSpace(status), "Running") {
+			return nil
+		}
+		cmd := fmt.Sprintf("Start-Service -Name '%s'", service)
+		_, err := host.Execute(cmd)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if status, statusErr := GetServiceStatus(host, service); statusErr == nil && strings.EqualFold(strings.TrimSpace(status), "Running") {
+			return nil
+		}
+		if attempt < windowsServiceOpMaxAttempts {
+			time.Sleep(windowsServiceOpRetryInterval)
+		}
+	}
+	return fmt.Errorf("failed to start service %s after %d attempts: %w", service, windowsServiceOpMaxAttempts, lastErr)
 }
 
-// RestartService restarts the service
+// RestartService restarts the service by stopping then starting it.
+//
+// We do not use Restart-Service and treat "still Running" after a failure as success: SCM can
+// return errors such as CouldNotStopService while the previous service instance remains running,
+// so callers that change config and then restart could continue without an actual recycle.
+// StopService and StartService each apply retries for transient SCM failures.
 func RestartService(host *components.RemoteHost, service string) error {
-	cmd := fmt.Sprintf("Restart-Service -Force -Name '%s'", service)
-	_, err := host.Execute(cmd)
-	return err
+	if err := StopService(host, service); err != nil {
+		return fmt.Errorf("restart %s (stop phase): %w", service, err)
+	}
+	if err := StartService(host, service); err != nil {
+		return fmt.Errorf("restart %s (start phase): %w", service, err)
+	}
+	return nil
 }
 
 // GetServiceConfig returns the configuration of the service

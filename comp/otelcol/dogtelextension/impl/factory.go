@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -107,8 +107,8 @@ type Requires struct {
 	Secrets      secrets.Component
 }
 
-// NewExtension creates a new dogtelextension instance for use with FX.
-func NewExtension(reqs Requires) (dogtelextension.Component, error) {
+// NewComponent creates a new dogtelextension instance for use with FX.
+func NewComponent(reqs Requires) (dogtelextension.Component, error) {
 	cfg := createDefaultConfig().(*Config)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)

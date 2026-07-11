@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "object",
+    srcs = [
+        "debug_sections.go",
+        "decompression.go",
+        "disk_cache.go",
+        "elf_constants.go",
+        "elf_file_with_dwarf.go",
+        "gomoduledata.go",
+        "gosym.go",
+        "goversion.go",
+        "in_memory_elf_file.go",
+        "mmapping_elf_file.go",
+        "object.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/object",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/dwarf/dwarfutil",
+        "//pkg/dyninst/dwarf/loclist",
+        "//pkg/dyninst/gosym",
+        "//pkg/dyninst/htlhash",
+        "//pkg/network/go/bininspect",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+        "//pkg/util/safeelf",
+        "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_go_delve_delve//pkg/dwarf",
+        "@com_github_klauspost_compress//zlib",
+    ],
+)
+
+go_test(
+    name = "object_test",
+    srcs = [
+        "disk_cache_helpers_test.go",
+        "disk_cache_test.go",
+        "elf_test.go",
+        "fuzz_test.go",
+    ],
+    embed = [":object"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/testprogs",
+        "//pkg/util/filesystem",
+        "@com_github_prometheus_procfs//:procfs",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

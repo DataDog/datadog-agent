@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+INSTALL_NAME_TOOL=""
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix | -p)
@@ -11,6 +13,10 @@ while [ "$#" -gt 0 ]; do
         --patchelf)
             shift
             PATCHELF="$1"
+            ;;
+        --install-name-tool)
+            shift
+            INSTALL_NAME_TOOL="$1"
             ;;
         *)
             break
@@ -47,22 +53,29 @@ for f in "$@"; do
             if file "$f" | grep -q ELF; then
                 ${PATCHELF} --force-rpath --set-rpath "$PREFIX"/lib "$f"
             elif file "$f" | grep -q "Mach-O"; then
+                if [ -z "$INSTALL_NAME_TOOL" ]; then
+                    echo "replace_prefix.sh: --install-name-tool is required for Mach-O files" >&2
+                    exit 1
+                fi
+
                 # Handle macOS binaries (executables and other Mach-O files)
-                install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
+                # Match the Linux patchelf --set-rpath behavior: replace existing paths
+                # instead of just appending them.
+                new_rpath="$PREFIX/lib"
+                "$INSTALL_NAME_TOOL" -delete_all_rpaths -add_rpath "$new_rpath" "$f"
                 # Get the old install name/ID
                 dylib_name=$(basename "$f")
                 new_id="$PREFIX/lib/$dylib_name"
 
                 # Change the dylib's own ID
-                install_name_tool -id "$new_id" "$f"
+                "$INSTALL_NAME_TOOL" -id "$new_id" "$f"
 
                 # Update all dependency paths that point to sandbox locations
                 otool -L "$f" | tail -n +2 | awk '{print $1}' | while read -r dep; do
                     if [[ "$dep" == *"sandbox"* ]] || [[ "$dep" == *"bazel-out"* ]]; then
                         dep_name=$(basename "$dep")
                         new_dep="$PREFIX/lib/$dep_name"
-                        install_name_tool -change "$dep" "$new_dep" "$f" 2>/dev/null || true
-                        install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
+                        "$INSTALL_NAME_TOOL" -change "$dep" "$new_dep" "$f" 2>/dev/null || true
                     fi
                 done
                 # Re-sign with an ad-hoc signature after modification as install_name_tool invalidates

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "event-viewer_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil/event-viewer",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/gpu/testutil"],
+)
+
+go_binary(
+    name = "event-viewer",
+    embed = [":event-viewer_lib"],
+    gotags = [
+        "linux_bpf",
+        "test",
+    ],
+    visibility = ["//visibility:public"],
+)

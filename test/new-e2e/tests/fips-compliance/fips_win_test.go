@@ -77,7 +77,7 @@ func (s *windowsVMSuite) SetupSuite() {
 }
 
 // TestVersionCommands tests that the version command for each of the Agent binaries
-// works when FIPS mode is enabled and panics when GOFIPS=1 AND the system is not in FIPS mode.
+// works when FIPS mode is enabled.
 func (s *windowsVMSuite) TestVersionCommands() {
 	host := s.Env().RemoteHost
 
@@ -85,19 +85,6 @@ func (s *windowsVMSuite) TestVersionCommands() {
 	s.Run("System FIPS Enabled", func() {
 		s.testAgentBinaries(func(executable string) {
 			var err error
-			_, err = s.execAgentCommandWithFIPS(executable, "version")
-			s.Assert().NoError(err)
-			_, err = s.execAgentCommand(executable, "version")
-			s.Assert().NoError(err)
-		})
-	})
-
-	windowsCommon.DisableFIPSMode(host)
-	s.Run("System FIPS Disabled", func() {
-		s.testAgentBinaries(func(executable string) {
-			var err error
-			_, err = s.execAgentCommandWithFIPS(executable, "version")
-			assertErrorContainsFIPSPanic(s.T(), err, "agent should panic when GOFIPS=1 but system FIPS is disabled")
 			_, err = s.execAgentCommand(executable, "version")
 			s.Assert().NoError(err)
 		})
@@ -110,31 +97,21 @@ func (s *windowsVMSuite) TestAgentStatusOutput() {
 
 	windowsCommon.EnableFIPSMode(host)
 	s.Run("status command", func() {
-		s.Run("gofips enabled", func() {
-			status, err := s.execAgentCommandWithFIPS("agent.exe", "status")
-			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS Mode: enabled")
-		})
-
-		s.Run("gofips disabled", func() {
-			status, err := s.execAgentCommand("agent.exe", "status")
-			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS Mode: enabled", "FIPS Mode should not depend on GOFIPS")
-		})
+		status, err := s.execAgentCommand("agent.exe", "status")
+		require.NoError(s.T(), err)
+		assert.Contains(s.T(), status, "FIPS Mode: enabled")
 	})
 
 	windowsCommon.DisableFIPSMode(host)
 	s.Run("status command", func() {
-		s.Run("gofips disabled", func() {
-			// FIPS Mode is determined on init so have to restart the agent for the System FIPS status to reflect correctly
-			err := windowsCommon.StopService(host, "datadogagent")
-			require.NoError(s.T(), err)
-			err = windowsCommon.StartService(host, "datadogagent")
-			require.NoError(s.T(), err)
-			status, err := s.execAgentCommand("agent.exe", "status")
-			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS Mode: disabled")
-		})
+		// FIPS Mode is determined on init so have to restart the agent for the System FIPS status to reflect correctly
+		err := windowsCommon.StopService(host, "datadogagent")
+		require.NoError(s.T(), err)
+		err = windowsCommon.StartService(host, "datadogagent")
+		require.NoError(s.T(), err)
+		status, err := s.execAgentCommand("agent.exe", "status")
+		require.NoError(s.T(), err)
+		assert.Contains(s.T(), status, "FIPS Mode: disabled")
 	})
 
 }
@@ -192,23 +169,4 @@ func (s *windowsVMSuite) execAgentCommand(executable, command string, options ..
 	agentPath := filepath.Join(s.installPath, "bin", executable)
 	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
 	return host.Execute(cmd, options...)
-}
-
-func (s *windowsVMSuite) execAgentCommandWithFIPS(executable, command string) (string, error) {
-	// There isn't support for appending env vars to client.ExecuteOption, so
-	// this function doesn't accept any other options.
-
-	// Setting GOFIPS=1 causes the Windows FIPS Agent to panic if the system is not in FIPS mode.
-	// This setting does NOT control whether the FIPS Agent uses FIPS-compliant crypto libraries,
-	// the System-level setting determines that.
-	// https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#windows-fips-mode-cng
-	vars := client.EnvVar{
-		"GOFIPS": "1",
-	}
-
-	return s.execAgentCommand(executable, command, client.WithEnvVariables(vars))
-}
-
-func assertErrorContainsFIPSPanic(t *testing.T, err error, args ...interface{}) bool {
-	return assert.ErrorContains(t, err, "panic: cngcrypto: FIPS mode requested (environment variable GOFIPS) but not available", args...)
 }

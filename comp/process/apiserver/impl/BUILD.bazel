@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["apiserver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/apiserver/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/api",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/secrets/def",
+        "//comp/core/settings/def",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//comp/process/apiserver/def",
+        "//pkg/util/system",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["apiserver_test.go"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/settings/mock",
+        "//comp/core/status",
+        "//comp/core/status/statusimpl",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/process/apiserver/def",
+        "//comp/process/apiserver/fx",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

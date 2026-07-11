@@ -11,23 +11,26 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	flowpb "github.com/netsampler/goflow2/pb"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
 type AggregatorFormatDriver struct {
-	namespace         string
-	flowAggIn         chan *common.Flow
-	listenerFlowCount *atomic.Int64
+	namespace           string
+	flowAggIn           chan *common.Flow
+	listenerFlowCount   *atomic.Int64
+	enableBiflowParsing bool
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver
-func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64) *AggregatorFormatDriver {
+func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64, enableBiflowParsing bool) *AggregatorFormatDriver {
 	return &AggregatorFormatDriver{
-		namespace:         namespace,
-		flowAggIn:         flowAgg,
-		listenerFlowCount: listenerFlowCount,
+		namespace:           namespace,
+		flowAggIn:           flowAgg,
+		listenerFlowCount:   listenerFlowCount,
+		enableBiflowParsing: enableBiflowParsing,
 	}
 }
 
@@ -48,8 +51,13 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlow(flow, d.namespace)
 	case *common.FlowMessageWithAdditionalFields:
+		fwd, rev := ConvertFlowWithAdditionalFields(flow, d.namespace, d.enableBiflowParsing)
 		d.listenerFlowCount.Add(1)
-		d.flowAggIn <- ConvertFlowWithAdditionalFields(flow, d.namespace)
+		d.flowAggIn <- fwd
+		if rev != nil {
+			d.listenerFlowCount.Add(1)
+			d.flowAggIn <- rev
+		}
 	default:
 		return nil, nil, errors.New("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")
 	}

@@ -39,6 +39,7 @@ import (
 //   - [WithLogs]
 //   - [WithAdditionalInstallParameters]
 //   - [WithSkipAPIKeyInConfig]
+//   - [WithV3MetricsDisabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -301,12 +302,20 @@ sbom.logs_dd_url: %[1]s:%[2]d
 sbom.logs_no_ssl: true
 service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
 service_discovery.forwarder.logs_no_ssl: true
+config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+config_files_discovery.forwarder.logs_no_ssl: true
 software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
 software_inventory.forwarder.logs_no_ssl: true
 data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
 data_streams.forwarder.logs_no_ssl: true
 event_management.forwarder.logs_dd_url: %[1]s:%[2]d
 event_management.forwarder.logs_no_ssl: true
+agent_telemetry.logs_dd_url: %[1]s:%[2]d
+agent_telemetry.logs_no_ssl: true
+agent_telemetry.use_compression: false
+compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
+compliance_config.endpoints.logs_no_ssl: true
+compliance_config.endpoints.force_use_http: true
 `, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
 		return nil
@@ -329,13 +338,33 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 	return withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port))
 }
 
-// WithFakeintake installs the fake intake and configures the Agent to use it.
+// WithFakeintake installs the fake intake and configures the Agent to use it,
+// including Remote Config. The agent is pointed at fakeintake's RC endpoint and
+// given the TUF root JSON derived from fakeintake's global signing key so it can
+// verify signed payloads without any extra provisioner options.
 //
 // This option is overwritten by `WithIntakeHostname`.
-func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
+func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
-		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fakeintake}))
-		return withIntakeHostname(fakeintake.Scheme, fakeintake.Host, fakeintake.Port)(p)
+		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fi}))
+		if err := withIntakeHostname(fi.Scheme, fi.Host, fi.Port)(p); err != nil {
+			return err
+		}
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("build fakeintake rc root json: %w", err)
+		}
+		rcConfig := fi.URL.ApplyT(func(fiURL string) (string, error) {
+			return fmt.Sprintf(`remote_configuration.enabled: true
+remote_configuration.rc_dd_url: %s
+remote_configuration.no_tls: true
+remote_configuration.refresh_interval: 5s
+remote_configuration.config_root: '%s'
+remote_configuration.director_root: '%s'
+`, fiURL, rootJSON, rootJSON), nil
+		}).(pulumi.StringOutput)
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, rcConfig)
+		return nil
 	}
 }
 
@@ -375,6 +404,16 @@ func WithTags(tags []string) func(*Params) error {
 func WithHostname(hostname string) func(*Params) error {
 	return func(p *Params) error {
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.Sprintf("hostname: %s", hostname))
+		return nil
+	}
+}
+
+// WithV3MetricsDisabled forces the agent onto the V2 series intake API by setting
+// use_v3_api.series.enabled=false.
+func WithV3MetricsDisabled() func(*Params) error {
+	return func(p *Params) error {
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig,
+			pulumi.String("use_v3_api:\n  series:\n    enabled: \"false\"\n"))
 		return nil
 	}
 }

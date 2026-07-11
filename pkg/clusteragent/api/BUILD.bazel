@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "api",
@@ -21,7 +22,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "api_test",
     srcs = [
         "handler_telemetry_test.go",
@@ -31,7 +32,6 @@ go_test(
         "leader_handler_tracing_test.go",
     ],
     embed = [":api"],
-    gotags = ["test"],
     deps = [
         "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
         "@com_github_stretchr_testify//assert",

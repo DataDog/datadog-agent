@@ -292,9 +292,20 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				// Allow additional logsource tags (e.g. logsource:stdout, logsource:stderr) without failing the test.
+				// Allow additional tags that the Agent may legitimately attach but that
+				// are not deterministic per log line, so they must not fail the assertion:
+				//   - logsource:*            e.g. logsource:stdout, logsource:stderr
+				//   - multiline:*            added by auto multi-line detection when lines are
+				//                            combined (e.g. multiline:auto_multiline, multiline:go_stack).
+				//                            auto_multi_line_detection defaults to true, so any log
+				//                            line may carry this tag depending on its content.
+				//   - auto_multiline_detected:*  added when a multi-line group start is detected.
+				//   - truncated:*            added when a log line is truncated.
 				optionalTags := []*regexp.Regexp{
 					regexp.MustCompile("logsource:.*"),
+					regexp.MustCompile("multiline:.*"),
+					regexp.MustCompile("auto_multiline_detected:.*"),
+					regexp.MustCompile("truncated:.*"),
 				}
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)

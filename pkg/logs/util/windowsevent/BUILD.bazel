@@ -14,7 +14,7 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/util/log",
         "//pkg/util/strings",
-        "@com_github_clbanning_mxj//:mxj",
+        "@com_github_clbanning_mxj_v2//:mxj",
         "@org_golang_x_text//encoding/unicode",
     ] + select({
         "@rules_go//go/platform:windows": [
@@ -38,5 +38,6 @@ go_test(
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

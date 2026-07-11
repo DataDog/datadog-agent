@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -233,6 +234,7 @@ func getHTTPUnixClientArray(size int, unixPath string) []*http.Client {
 }
 
 func TestGoTLSMapCleanup(t *testing.T) {
+	flake.MarkOnJobName(t, "amazon_6.12")
 	// This test reproduces the Go-TLS map leak by:
 	// 1. Creating proxy processes that make HTTPS requests (populates conn_tup_by_go_tls_conn map)
 	// 2. Abruptly terminating each proxy with cancel() (simulates SIGKILL)
@@ -309,15 +311,29 @@ func (s *usmHTTPSuite) TestDirectConsumerFunctionality() {
 
 	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
 		t.Run(name, func(t *testing.T) {
-			s.testDirectConsumerFunctionality(t, isIPv6)
+			s.testHTTPConsumerFunctionality(t, isIPv6, true)
 		})
 	}
 }
 
-func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool) {
-	// Create configuration with direct consumer enabled
+// TestBatchConsumerFunctionality exercises the batch consumer path, which remains
+// the fallback when direct consumer is disabled (or unsupported by the kernel).
+// Unlike the direct consumer, the batch consumer works on all supported kernels,
+// so this test is not gated on the kernel version.
+func (s *usmHTTPSuite) TestBatchConsumerFunctionality() {
+	t := s.T()
+
+	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
+		t.Run(name, func(t *testing.T) {
+			s.testHTTPConsumerFunctionality(t, isIPv6, false)
+		})
+	}
+}
+
+func (s *usmHTTPSuite) testHTTPConsumerFunctionality(t *testing.T, isIPv6 bool, useDirectConsumer bool) {
+	// Create configuration with the requested consumer mode
 	cfg := s.getCfg()
-	cfg.HTTPUseDirectConsumer = true
+	cfg.HTTPUseDirectConsumer = useDirectConsumer
 
 	srvDoneFn := testutil.HTTPServer(t, getServerAddress(isIPv6), testutil.Options{
 		EnableTLS:       s.isTLS,
@@ -337,11 +353,17 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 
 	t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
 
+	consumerName := "batch_consumer"
+	if useDirectConsumer {
+		consumerName = "direct_consumer"
+	}
+	reqPath := "/200/" + consumerName + "_test"
+
 	// Make HTTP requests
 	clients := getHTTPUnixClientArray(2, unixPath)
 	for i := 0; i < 5; i++ {
 		client := clients[getClientsIndex(i, len(clients))]
-		req, err := client.Get(s.getSchemeURL(getServerAddress(isIPv6) + "/200/direct_consumer_test"))
+		req, err := client.Get(s.getSchemeURL(getServerAddress(isIPv6) + reqPath))
 		require.NoError(t, err, "could not make request")
 		_ = req.Body.Close()
 	}
@@ -350,10 +372,10 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 		client.CloseIdleConnections()
 	}
 
-	// Verify HTTP stats are captured via direct consumer
+	// Verify HTTP stats are captured via the configured consumer
 	expectedEndpoints := map[usmhttp.Key]int{
 		{
-			Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/200/direct_consumer_test")},
+			Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(reqPath)},
 			Method: usmhttp.MethodGet,
 		}: 5,
 	}
@@ -382,7 +404,7 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 			require.True(collect, ok, "expected endpoint mismatch")
 			require.Equal(collect, value, count, "expected endpoint count mismatch")
 		}
-	}, time.Second*5, time.Millisecond*100, "HTTP stats should be captured via direct consumer")
+	}, time.Second*5, time.Millisecond*100, "HTTP stats should be captured via %s", consumerName)
 
 	if t.Failed() {
 		for key := range expectedEndpoints {

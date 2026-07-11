@@ -3,10 +3,11 @@
 set -euo pipefail
 
 MACOS_SH=$1
-OTOOL=$2
-PREFIX=$3
-INPUT_DIR=$4
-OUTPUT_DIR=$5
+INSTALL_NAME_TOOL=$2
+OTOOL=$3
+PREFIX=$4
+INPUT_DIR=$5
+OUTPUT_DIR=$6
 
 # Walk the input tree once: route Mach-O libraries through macos.sh (which writes
 # a fresh output file with rewritten install names, rpaths, and ad-hoc signature)
@@ -17,7 +18,7 @@ find -L "$INPUT_DIR" -type f | while read -r input_f; do
     mkdir -p "$(dirname "$output_f")"
     case "$input_f" in
         *.dylib | *.so)
-            "$MACOS_SH" "$OTOOL" "$PREFIX" "$input_f" "$output_f"
+            "$MACOS_SH" "$INSTALL_NAME_TOOL" "$OTOOL" "$PREFIX" "$input_f" "$output_f"
             ;;
         *)
             cp -p "$input_f" "$output_f"

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.applicationHost>
+    <applicationPools>
+      <applicationPoolDefaults>
+        <environmentVariables>
+          <add name="DD_ENV" value="default-env" />
+        </environmentVariables>
+      </applicationPoolDefaults>
+      <add name="poolA">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolA-service" />
+          <add name="DD_VERSION" value="1.0.0" />
+        </environmentVariables>
+      </add>
+      <add name="poolB">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolB-service" />
+          <add name="DD_ENV" value="poolB-env" />
+        </environmentVariables>
+      </add>
+      <add name="poolMixedCase">
+        <environmentVariables>
+          <add name="Dd_Service" value="mixed-case-service" />
+          <add name="dd_version" value="lower-version" />
+        </environmentVariables>
+      </add>
+      <add name="poolWithRemove">
+        <environmentVariables>
+          <remove name="DD_ENV" />
+          <add name="DD_SERVICE" value="remove-pool-service" />
+        </environmentVariables>
+      </add>
+      <add name="poolWithClear">
+        <environmentVariables>
+          <clear />
+          <add name="DD_SERVICE" value="clear-pool-service" />
+        </environmentVariables>
+      </add>
+      <add name="poolEmpty">
+        <environmentVariables>
+          <clear />
+        </environmentVariables>
+      </add>
+      <add name="poolNoEnv" />
+    </applicationPools>
+    <sites>
+      <applicationDefaults applicationPool="poolB" />
+      <site name="envsite" id="10">
+        <application path="/" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/b" applicationPool="poolB">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/e" applicationPool="POOLA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/f" applicationPool="DefaultAppPool">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/g" applicationPool="poolMixedCase">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/h">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/i" applicationPool="poolWithRemove">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/j" applicationPool="poolWithClear">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/locsingular" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/locremove" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascade" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascade/child" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascadeclear" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascadeclear/child" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/emptychild" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/emptychild/child" applicationPool="poolEmpty">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/noenv" applicationPool="poolNoEnv">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+      </site>
+      <site name="sitedefaults" id="11">
+        <applicationDefaults applicationPool="poolA" />
+        <application path="/">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+      </site>
+    </sites>
+  </system.applicationHost>
+  <location path="envsite/locsingular">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <environmentVariable name="DD_SERVICE" value="singular-service" />
+          <environmentVariable name="DD_ENV" value="singular-env" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/locremove">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <remove name="DD_ENV" />
+          <add name="DD_VERSION" value="3.0.0" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascade">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_ENV" value="cascade-parent-env" />
+          <add name="DD_SERVICE" value="cascade-parent-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascade/child">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="cascade-child-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascadeclear">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="parent-clear-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascadeclear/child">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <clear />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+</configuration>

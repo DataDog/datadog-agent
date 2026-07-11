@@ -75,7 +75,7 @@ func TestMemoryCheckWindowsMocked(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	memCheck := new(Check)
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 	memCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.mem.cached", 3456789000.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -117,7 +117,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 	instanceConfig := []byte(``)
 
 	memCheck := new(Check)
-	m := mocksender.NewMockSender(memCheck.ID())
+	m := mocksender.NewMockSender(t, memCheck.ID())
 	memCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	// PDH counters may not be available in all environments (e.g., Windows containers)

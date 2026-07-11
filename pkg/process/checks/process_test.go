@@ -588,7 +588,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe, wmeta := processCheckWithMocks(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
-	cfg.SetWithoutSource("process_config.ignore_zombie_processes", false)
+	cfg.SetInTest("process_config.ignore_zombie_processes", false)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()
@@ -659,7 +659,7 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, CombinedRunResult{}, first)
 
-	cfg.SetWithoutSource("process_config.ignore_zombie_processes", "true")
+	cfg.SetInTest("process_config.ignore_zombie_processes", "true")
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 	expected := []model.MessageBody{
 		&model.CollectorProc{

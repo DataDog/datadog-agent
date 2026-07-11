@@ -254,6 +254,9 @@ def _license_csv_impl(ctx):
     inputs.append(kinds_map_file)
     args.add("--kinds", kinds_map_file.path)
 
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("flag_per_line")
+
     ctx.actions.run(
         mnemonic = "GatherLicenseMetadata",
         progress_message = "Writing license info for: %s" % str(ctx.attr.target.label),

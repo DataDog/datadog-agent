@@ -1,0 +1,118 @@
+"""Linux-specific DogStatsD content: init scripts, systemd unit, and install-dir layout."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# ---------------------------------------------------------------------------
+# Systemd (shared by all Linux distros)
+# ---------------------------------------------------------------------------
+
+dd_agent_expand_template(
+    name = "systemd_service_gen",
+    out = "lib/systemd/system/datadog-dogstatsd.service",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "systemd.dogstatsd.service.in",
+)
+
+# ---------------------------------------------------------------------------
+# Upstart — Debian vs RHEL variants
+#
+# Both need to land at etc/init/datadog-dogstatsd.conf but are generated from
+# different templates. Give each a unique out name then use pkg_files(renames)
+# to map them to the shared destination path — the same pattern used for
+# README_deb / README_rpm in packages/installer/linux/BUILD.bazel.
+# ---------------------------------------------------------------------------
+
+dd_agent_expand_template(
+    name = "upstart_debian_gen",
+    out = "upstart_debian_dogstatsd.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.dogstatsd.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_gen",
+    out = "upstart_redhat_dogstatsd.conf",
+    # Ship a different upstart job on RHEL to accommodate upstart 0.6.5 on RHEL 6.
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.dogstatsd.conf.in",
+)
+
+pkg_files(
+    name = "upstart_debian_files",
+    srcs = [":upstart_debian_gen"],
+    attributes = pkg_attributes(mode = "0644"),
+    renames = {":upstart_debian_gen": "etc/init/datadog-dogstatsd.conf"},
+)
+
+pkg_files(
+    name = "upstart_redhat_files",
+    srcs = [":upstart_redhat_gen"],
+    attributes = pkg_attributes(mode = "0644"),
+    renames = {":upstart_redhat_gen": "etc/init/datadog-dogstatsd.conf"},
+)
+
+# ---------------------------------------------------------------------------
+# Config example (placed outside install_dir, as extra_package_file)
+# ---------------------------------------------------------------------------
+
+pkg_files(
+    name = "config_example_files",
+    srcs = ["//pkg/config:dogstatsd_config"],
+    attributes = pkg_attributes(mode = "0644"),
+    renames = {"//pkg/config:dogstatsd_config": "etc/datadog-dogstatsd/dogstatsd.yaml.example"},
+)
+
+# ---------------------------------------------------------------------------
+# Install-dir directories
+# ---------------------------------------------------------------------------
+
+# System directories required by dogstatsd but outside the install prefix.
+pkg_mkdirs(
+    name = "system_dirs",
+    attributes = pkg_attributes(mode = "0755"),
+    dirs = ["var/log/datadog"],
+)
+
+# ---------------------------------------------------------------------------
+# Per-distro aggregation and install targets
+# ---------------------------------------------------------------------------
+
+pkg_filegroup(
+    name = "debian_files",
+    srcs = [
+        ":config_example_files",
+        ":system_dirs",
+        ":systemd_service_gen",
+        ":upstart_debian_files",
+    ],
+)
+
+pkg_install(
+    name = "install_debian",
+    srcs = [":debian_files"],
+)
+
+pkg_filegroup(
+    name = "redhat_files",
+    srcs = [
+        ":config_example_files",
+        ":system_dirs",
+        ":systemd_service_gen",
+        ":upstart_redhat_files",
+    ],
+)
+
+pkg_install(
+    name = "install_redhat",
+    srcs = [":redhat_files"],
+)

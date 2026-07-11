@@ -7,12 +7,15 @@ package serializerexporter
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
@@ -38,13 +41,18 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 		series = append(series, runningMetric)
 	}
 
-	var tags []string
-	tags = append(tags, buildTags...)
+	var nonFargateTags []string
 	for tag := range c.seenTags {
-		tags = append(tags, tag)
+		if strings.HasPrefix(tag, string(source.AWSECSFargateKind)+":") {
+			series = append(series, exporterFargateMetrics(timestamp, append(buildTags, tag)))
+		} else {
+			nonFargateTags = append(nonFargateTags, tag)
+		}
 	}
-	runningMetrics := exporterDefaultMetrics("metrics", "", timestamp, tags)
-	series = append(series, runningMetrics)
+	if (len(c.seenHosts) > 0 && len(c.seenTags) == 0) || len(nonFargateTags) > 0 {
+		tags := append(buildTags, nonFargateTags...)
+		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, tags))
+	}
 
 	for _, lang := range languageTags {
 		tags := append(buildTags, "language:"+lang) //nolint:gocritic
@@ -83,6 +91,23 @@ func exporterDefaultMetrics(exporterType string, hostname string, timestamp uint
 		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
 	}
 	return metrics
+}
+
+// exporterFargateMetrics creates a built-in metric to report that a Fargate exporter is running.
+func exporterFargateMetrics(timestamp uint64, tags []string) *metrics.Serie {
+	return &metrics.Serie{
+		Name: "otel.datadog_exporter.metrics.running.fargate",
+		Points: []metrics.Point{
+			{
+				Ts:    float64(timestamp),
+				Value: 1.0,
+			},
+		},
+		Host:   "",
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
 }
 
 // tagsFromBuildInfo returns a list of tags derived from buildInfo to be used when creating metrics

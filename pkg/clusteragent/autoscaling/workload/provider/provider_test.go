@@ -8,13 +8,17 @@
 package provider
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 )
 
 func TestIsArgoRolloutsAvailable(t *testing.T) {
@@ -71,4 +75,35 @@ func TestIsArgoRolloutsAvailable(t *testing.T) {
 
 		assert.False(t, isArgoRolloutsAvailable(fakeDiscovery))
 	})
+}
+
+func TestRunPodWatcherWhenReady(t *testing.T) {
+	gate := autoscalinggate.New()
+	ran := make(chan struct{})
+
+	go runPodWatcherWhenReady(context.TODO(), gate, func(context.Context) {
+		close(ran)
+	})
+
+	select {
+	case <-ran:
+		t.Fatal("run called before gate enabled")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	gate.Enable()
+
+	select {
+	case <-ran:
+		t.Fatal("run called before pod collection synced")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	gate.MarkPodCollectionSynced()
+
+	select {
+	case <-ran:
+	case <-time.After(time.Second):
+		t.Fatal("run not called after gate enabled and synced")
+	}
 }

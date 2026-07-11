@@ -22,12 +22,12 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -109,7 +109,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+	cfg.SetInTest("orchestrator_explorer.enabled", true)
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
@@ -215,7 +215,7 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// auto-adjust
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", true)
 
 	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
@@ -235,8 +235,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	cfg.SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetInTest("dogstatsd_pipeline_count", pc) // default value
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
@@ -256,8 +256,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust + pipeline count
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	cfg.SetWithoutSource("dogstatsd_pipeline_count", 4)
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetInTest("dogstatsd_pipeline_count", 4)
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)
@@ -292,10 +292,10 @@ func createDemuxDepsWithOrchestratorFwd(
 	eventPlatformParams eventplatform.Params) aggregatorDeps {
 	modules := fx.Options(
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratorForwarderImpl.Module(orchestratorParams),
+		orchestratorForwarderFx.Module(orchestratorParams),
 		eventplatformfx.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		logscompressionmock.MockModule(),

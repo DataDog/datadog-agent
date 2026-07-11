@@ -10,7 +10,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
     | tar -xzf - -C /usr/local/bin && \
     chmod +x /usr/local/bin/dda
 
-FROM golang:1.25.10-trixie
+FROM golang:1.26.4-trixie
 
 RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64/'); \
     cross_pkg_arch=$(uname -m | sed -e 's/aarch64/x86-64/' -e 's/x86_64/aarch64/'); \

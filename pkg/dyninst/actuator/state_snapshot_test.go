@@ -211,7 +211,11 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 // during checkCosts / tripProbe resolve correctly. Production code
 // derives this list from the IR program returned by the loader; in
 // the snapshot test there is no real loader, so we mirror the actuator
-// state.
+// state. If the fake declared includeRecoveryProbe (modeling the
+// production behavior where irgen appends the synthetic runtime.
+// recovery probe to any function-probe program), a recovery stub is
+// appended to the tail — the same slot the actuator would see at
+// probeID = NumProbes()-1.
 func populateFakeLoadedProgramProbes(s *state, progID ir.ProgramID) {
 	prog, ok := s.programs[progID]
 	if !ok || prog.loaded == nil {
@@ -222,6 +226,9 @@ func populateFakeLoadedProgramProbes(s *state, progID ir.ProgramID) {
 		return
 	}
 	flp.probes = append(flp.probes[:0], prog.config...)
+	if flp.includeRecoveryProbe {
+		flp.probes = append(flp.probes, recoveryProbeStub{})
+	}
 }
 
 func handleRuntimeStatsUpdatedForTest(

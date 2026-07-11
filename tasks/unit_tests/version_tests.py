@@ -3,7 +3,7 @@ import random
 import unittest
 from unittest.mock import MagicMock, patch
 
-from invoke import MockContext, Result
+from invoke import MockContext, Result, UnexpectedExit
 
 from tasks.libs.releasing.version import (
     current_version_for_release_branch,
@@ -312,6 +312,38 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(p, "devel")
         self.assertEqual(c, 543)
         self.assertEqual(g, "315e3a2")
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("tasks.libs.releasing.version.GithubAPI")
+    def test_no_tag_local_falls_back_to_latest_release(self, mock_github_api):
+        mock_github_api.return_value.latest_release.return_value = "7.79.1"
+        ctx = MagicMock()
+        ctx.run.side_effect = [
+            UnexpectedExit(Result(exited=128)),  # git describe fails
+            Result("abc1234"),  # git rev-parse --short HEAD
+        ]
+        v, p, commits, g, pipeline_id = query_version(ctx, "7")
+        self.assertEqual(v, "7.79.1")
+        self.assertEqual(p, "devel")
+        self.assertEqual(commits, 0)
+        self.assertEqual(g, "abc1234")
+        self.assertIsNone(pipeline_id)
+        mock_github_api.assert_called_once_with(public_repo=True)
+        mock_github_api.return_value.latest_release.assert_called_once_with(7)
+
+    @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345"}, clear=True)
+    def test_no_tag_in_ci_reraises(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(exited=128))
+        with self.assertRaises(UnexpectedExit):
+            query_version(ctx, "7")
+
+    @patch.dict(os.environ, {"CI": "true"}, clear=True)
+    def test_no_tag_in_generic_ci_reraises(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(exited=128))
+        with self.assertRaises(UnexpectedExit):
+            query_version(ctx, "7")
 
 
 @patch("os.environ", {"BUCKET_BRANCH": "dev"})

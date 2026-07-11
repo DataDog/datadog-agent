@@ -7,7 +7,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
 use crate::state::ProcessState;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
 use std::process::Stdio;
@@ -206,6 +206,11 @@ impl ManagedProcess {
     }
 
     pub fn spawn(&mut self) -> Result<()> {
+        if !self.state.can_transition_to(ProcessState::Starting) {
+            bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
+        }
+        self.stop_requested = false;
+        self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
         if result.is_err() {
             self.transition_to(ProcessState::Failed);
@@ -214,6 +219,11 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<()> {
+        // Through CreateProcess: std-handle reads for inherit and handle inheritance
+        // must not race with AttachConsole/FreeConsole on another thread.
+        #[cfg(windows)]
+        let _console_guard = platform::console_lock();
+
         let mut cmd = self.build_command()?;
 
         let child = cmd
@@ -263,37 +273,13 @@ impl ManagedProcess {
         let mut cmd = Command::new(&self.config.command);
         cmd.args(&self.config.args);
 
-        cmd.env_clear();
-        if let Some(ref raw_path) = self.config.environment_file {
-            let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
-                (true, stripped)
-            } else {
-                (false, raw_path.as_str())
-            };
-            if optional && !std::path::Path::new(path).exists() {
-                info!(
-                    "[{}] optional environment file not found, skipping: {path}",
-                    self.name
-                );
-            } else {
-                let vars = parse_environment_file(path).with_context(|| {
-                    format!("[{}] failed to read environment file: {path}", self.name)
-                })?;
-                for (k, v) in &vars {
-                    cmd.env(k, v);
-                }
-            }
-        }
-        for (k, v) in &self.config.env {
-            cmd.env(k, v);
-        }
+        apply_child_environment(&mut cmd, self.name(), &self.config)?;
 
         if let Some(ref dir) = self.config.working_dir {
             cmd.current_dir(dir);
         }
 
-        cmd.stdout(stdio_from_str(&self.config.stdout));
-        cmd.stderr(stdio_from_str(&self.config.stderr));
+        apply_child_stdio(&mut cmd, &self.config);
 
         platform::setup_process_group(&mut cmd);
 
@@ -456,6 +442,7 @@ impl ManagedProcess {
     }
 
     fn mark_stopped(&mut self) {
+        self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
@@ -526,18 +513,79 @@ impl ManagedProcess {
     }
 }
 
+fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
+    cmd.env_clear();
+    #[cfg(windows)]
+    platform::apply_child_baseline_env(cmd);
+
+    if let Some(ref raw_path) = config.environment_file {
+        let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
+            (true, stripped)
+        } else {
+            (false, raw_path.as_str())
+        };
+        if optional && !std::path::Path::new(path).exists() {
+            info!("[{name}] optional environment file not found, skipping: {path}");
+        } else {
+            let vars = parse_environment_file(path)
+                .with_context(|| format!("[{name}] failed to read environment file: {path}"))?;
+            for (k, v) in &vars {
+                cmd.env(k, v);
+            }
+        }
+    }
+    for (k, v) in &config.env {
+        cmd.env(k, v);
+    }
+    Ok(())
+}
+
+fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
+    #[cfg(windows)]
+    {
+        // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
+        cmd.stdin(Stdio::null());
+    }
+    cmd.stdout(stdio_from_config(
+        &config.stdout,
+        platform::stdout_inheritable(),
+    ));
+    cmd.stderr(stdio_from_config(
+        &config.stderr,
+        platform::stderr_inheritable(),
+    ));
+}
+
+fn stdio_from_path(path: &str) -> Stdio {
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        Ok(f) => f.into(),
+        Err(e) => {
+            warn!("failed to open stdio file {path}: {e}, falling back to inherit");
+            Stdio::inherit()
+        }
+    }
+}
+
 fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
         "inherit" | "" => Stdio::inherit(),
-        path => match std::fs::File::create(path) {
-            Ok(f) => f.into(),
-            Err(e) => {
-                warn!("failed to open stdio file {path}: {e}, falling back to inherit");
-                Stdio::inherit()
-            }
-        },
+        path => stdio_from_path(path),
     }
+}
+
+fn stdio_from_config(yaml_value: &str, inheritable: bool) -> Stdio {
+    #[cfg(not(windows))]
+    let _ = inheritable;
+    #[cfg(windows)]
+    if !inheritable && (yaml_value == "inherit" || yaml_value.is_empty()) {
+        return Stdio::null();
+    }
+    stdio_from_str(yaml_value)
 }
 
 #[cfg(test)]
@@ -705,7 +753,8 @@ pub mod tests {
 
         proc.request_stop();
         let status = proc.wait().await.unwrap();
-        assert!(!status.success());
+        proc.set_last_status(status);
+        assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
     #[tokio::test]
@@ -715,6 +764,32 @@ pub mod tests {
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
         assert_eq!(proc.state(), ProcessState::Failed);
+    }
+
+    #[tokio::test]
+    async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+        assert_eq!(proc.state(), ProcessState::Stopped);
+
+        let mut bad_cfg = proc.config().clone();
+        bad_cfg.command = "/nonexistent/binary".to_string();
+        proc.set_config(bad_cfg);
+        assert!(proc.spawn().is_err());
+        assert_eq!(
+            proc.state(),
+            ProcessState::Failed,
+            "Stopped -> Starting -> Failed is the spawn-failure path"
+        );
     }
 
     #[tokio::test]
@@ -1070,6 +1145,33 @@ runtime_success_sec: 5
     }
 
     #[tokio::test]
+    async fn test_stop_start_then_crash_restarts_on_failure() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::OnFailure;
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+
+        proc.request_stop();
+        let _ = proc.take_child();
+        // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
+        // watcher runs set_last_status, leaving stop_requested set without this clear.
+        proc.mark_stopped();
+
+        proc.spawn().unwrap();
+        let mut child = proc.take_child().unwrap();
+        child.kill().await.expect("kill child");
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        assert_eq!(proc.state(), ProcessState::Failed);
+        assert!(
+            proc.handle_restart().is_some(),
+            "on-failure should restart after stop -> start -> external kill"
+        );
+    }
+
+    #[tokio::test]
     async fn test_stop_requested_skips_restart() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut cfg = test_helpers::make_config(cmd, args);
@@ -1108,5 +1210,106 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "without stop_requested, non-zero exit should be Failed"
         );
+    }
+
+    // -- stdio_from_str (YAML stdout/stderr: inherit, "", null, file path, unopenable path) --
+
+    #[test]
+    fn test_stdio_from_str_inherit_spawns() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let status = std::process::Command::new(cmd)
+            .args(&args)
+            .stdout(super::stdio_from_str("inherit"))
+            .stderr(super::stdio_from_str("inherit"))
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[test]
+    fn test_stdio_from_str_empty_string_matches_inherit() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let status = std::process::Command::new(cmd)
+            .args(&args)
+            .stdout(super::stdio_from_str(""))
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[test]
+    fn test_stdio_from_str_null_discards_child_stdout() {
+        let (sh, flag) = test_helpers::shell_cmd();
+        let out = std::process::Command::new(sh)
+            .arg(flag)
+            .arg("echo hello")
+            .stdout(super::stdio_from_str("null"))
+            .output()
+            .unwrap();
+        assert!(
+            out.stdout.is_empty(),
+            "stdout should be discarded, got {:?}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+    }
+
+    #[test]
+    fn test_stdio_from_str_writable_path_redirect() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pmgr_stdio_redirect.log");
+        let path_str = path.to_str().unwrap();
+        let (sh, flag) = test_helpers::shell_cmd();
+        let status = std::process::Command::new(sh)
+            .arg(flag)
+            .arg("echo fileline")
+            .stdout(super::stdio_from_str(path_str))
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            contents.contains("fileline"),
+            "expected fileline in log, got {contents:?}"
+        );
+    }
+
+    #[test]
+    fn test_stdio_from_str_path_appends_on_respawn() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pmgr_stdio_append.log");
+        let path_str = path.to_str().unwrap();
+        let (sh, flag) = test_helpers::shell_cmd();
+        for msg in ["first", "second"] {
+            let status = std::process::Command::new(sh)
+                .arg(flag)
+                .arg(format!("echo {msg}"))
+                .stdout(super::stdio_from_str(path_str))
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("first"), "got {contents:?}");
+        assert!(contents.contains("second"), "got {contents:?}");
+    }
+
+    #[test]
+    fn test_stdio_from_str_unopenable_path_falls_back_to_inherit() {
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let bad_path = "/nonexistent_dir_pmgr_stdio/out.log";
+        #[cfg(windows)]
+        let bad_path = r"C:\nonexistent_dir_pmgr_stdio\out.log";
+        let out = std::process::Command::new(sh)
+            .arg(flag)
+            .arg("echo fallback_ok")
+            .stdout(super::stdio_from_str(bad_path))
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "spawn with unopenable stdout path should still succeed (falls back to inherit)"
+        );
+        // Child stdout is inherited (not piped), so `out.stdout` is empty; success is the signal.
     }
 }

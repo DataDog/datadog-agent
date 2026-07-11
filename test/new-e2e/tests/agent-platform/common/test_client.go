@@ -391,6 +391,11 @@ func (c *MacOSTestClient) Execute(command string) (output string, err error) {
 	return c.host.Execute(command)
 }
 
+// MustExecuteOn runs Execute on the underlying host and requires no error on tb (e.g. *assert.CollectT).
+func (c *MacOSTestClient) MustExecuteOn(tb require.TestingT, command string, options ...client.ExecuteOption) string {
+	return c.host.MustExecuteOn(tb, command, options...)
+}
+
 // ExecuteWithRetry execute the command with retry
 func (c *MacOSTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
 	return execWithRetry(c.Execute, cmd)

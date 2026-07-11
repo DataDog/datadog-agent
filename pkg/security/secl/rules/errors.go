@@ -120,17 +120,23 @@ const (
 
 // Type return the type of the error
 func (e *ErrRuleLoad) Type() RuleLoadErrType {
-	switch e.Err {
-	case ErrRuleAgentVersion:
+	// use errors.Is/errors.As so that the type is correctly resolved even when
+	// the underlying error is wrapped (e.g. errors raised during the
+	// AST-to-evaluator conversion are returned wrapped by fmt.Errorf).
+	switch {
+	case errors.Is(e.Err, ErrRuleAgentVersion), errors.Is(e.Err, ErrRuleAgentFilter):
 		return AgentVersionErrType
-	case ErrRuleAgentFilter:
-		return AgentVersionErrType
-	case ErrEventTypeNotEnabled:
+	case errors.Is(e.Err, ErrEventTypeNotEnabled):
 		return EventTypeNotEnabledErrType
 	}
 
-	switch e.Err.(type) {
-	case *ErrRuleSyntax, *ErrFieldNotAvailable:
+	var (
+		errRuleSyntax        *ErrRuleSyntax
+		errFieldNotAvailable *ErrFieldNotAvailable
+		errRuleParse         *eval.ErrRuleParse
+	)
+	switch {
+	case errors.As(e.Err, &errRuleSyntax), errors.As(e.Err, &errFieldNotAvailable), errors.As(e.Err, &errRuleParse):
 		return SyntaxErrType
 	}
 

@@ -24,7 +24,7 @@ import (
 
 func TestPull(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("container_image.enabled", false)
+	config.SetInTest("container_image.enabled", false)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
@@ -437,7 +437,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 				Type:   workloadmeta.EventTypeSet,
 				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:   "myrepo/myimage:latest",
 						Labels: map[string]string{"label1": "value1", "label2": "value2"},
@@ -449,12 +449,12 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 					Variant:      "v8",
 					Layers: []workloadmeta.ContainerImageLayer{
 						{
-							Digest:    "sha256:layer1digest",
+							DiffID:    "sha256:layer1digest",
 							History:   &imgspecs.History{Created: &time1, CreatedBy: "command1", Author: "author1", Comment: "Layer 1 comment"},
 							SizeBytes: 0,
 						},
 						{
-							Digest:    "sha256:layer2digest",
+							DiffID:    "sha256:layer2digest",
 							History:   &imgspecs.History{Created: &time2, CreatedBy: "command2", Author: "author2", Comment: "Layer 2 comment"},
 							SizeBytes: 0,
 						},
@@ -481,7 +481,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 				Type:   workloadmeta.EventTypeSet,
 				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image123"},
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "",
 					},
@@ -532,7 +532,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 
 func TestOptimizedImageCollection(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("container_image.enabled", true)
+	config.SetInTest("container_image.enabled", true)
 
 	tests := []struct {
 		name                     string
@@ -569,8 +569,8 @@ func TestOptimizedImageCollection(t *testing.T) {
 				}, nil
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:hash1": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:hash1"},
+				"sha256:image1": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image1"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "repo/image1:latest",
 					},
@@ -670,7 +670,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 func TestPullWithImageCollectionEnabled(t *testing.T) {
 	config := configmock.New(t)
 	// Enable image collection to test the optimized image collection path
-	config.SetWithoutSource("container_image.enabled", true)
+	config.SetInTest("container_image.enabled", true)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
@@ -792,8 +792,8 @@ func TestPullWithImageCollectionEnabled(t *testing.T) {
 				return nil, errors.New("unexpected call")
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:123abc": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+				"sha256:image123": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "myrepo/myimage:latest",
 					},

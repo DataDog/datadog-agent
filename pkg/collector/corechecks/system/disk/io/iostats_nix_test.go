@@ -84,7 +84,7 @@ func TestIncrementWithOverflow(t *testing.T) {
 
 func TestIoStatsOverflow(t *testing.T) {
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	ioCheck.stats = lastStats
 	ioCheck.ts = 1000

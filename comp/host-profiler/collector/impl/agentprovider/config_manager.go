@@ -21,6 +21,9 @@ type healthMetricsConfig struct {
 type ddProfilingConfig struct {
 	Enabled bool
 	Period  int
+	// Port is the local port the ddprofiling HTTP server listens on. 0 means the
+	// extension applies its own default.
+	Port int
 }
 
 // hpFlareConfig holds configuration for the hpflare diagnostics extension.
@@ -99,6 +102,7 @@ func newConfigManager(config config.Component) configManager {
 		DDProfiling: ddProfilingConfig{
 			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),
 			Period:  config.GetInt("hostprofiler.ddprofiling.period"),
+			Port:    config.GetInt("hostprofiler.ddprofiling.port"),
 		},
 		HealthMetrics: healthMetricsConfig{
 			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),

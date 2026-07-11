@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "transformers",
+    srcs = ["resourcetags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "transformers_test",
+    srcs = ["resourcetags_test.go"],
+    embed = [":transformers"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/util/kubernetes",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

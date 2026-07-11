@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "docker",
+    srcs = ["host.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/utils/optional",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

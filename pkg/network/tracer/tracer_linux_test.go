@@ -717,8 +717,8 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 
 		mockConfig := configmock.New(t)
 		clouds := mockConfig.Get("cloud_provider_metadata")
-		mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer mockConfig.SetWithoutSource("cloud_provider_metadata", clouds)
+		mockConfig.SetInTest("cloud_provider_metadata", []string{})
+		defer mockConfig.SetInTest("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -2514,9 +2514,6 @@ func testConfig() *config.Config {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		cfg.ProtocolClassificationEnabled = false
-	}
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		cfg.ProtocolClassificationEnabled = false
 	}
@@ -2659,6 +2656,7 @@ LOOP:
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 	ebpftest.CORE:            {},
+	ebpftest.Fentry:          {},
 	ebpftest.RuntimeCompiled: {},
 	ebpftest.SK:              {},
 }
@@ -2995,9 +2993,6 @@ func (s *TracerSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() {
 				tr.RemoveClient(clientID)
 				_ = tr.Pause()
@@ -3209,10 +3204,6 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	tr := setupTracer(t, cfg)
 
-	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("failed connections not (yet) supported on fentry")
-	}
-
 	// create a linux socket which will reserve a port for us
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 	require.NoError(t, err)
@@ -3289,9 +3280,6 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 	}
 
 	tr := setupTracer(t, cfg)
-	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("tls certs not (yet) supported on fentry")
-	}
 
 	serverAddr := "127.0.0.1:8002"
 

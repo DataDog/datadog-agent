@@ -25,7 +25,7 @@ func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
+// 1) have a default, 2) have an environment variable binded
 // Note that it returns the keys lowercased.
 //
 // TODO: remove once viper is no longer used. This is only used to detect unknown configuration from YAML which we do

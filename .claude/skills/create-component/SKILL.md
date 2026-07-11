@@ -3,6 +3,7 @@ name: create-component
 description: Create a new Fx component using the modern def/fx/impl pattern (NOT legacy)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 argument-hint: "<bundle>/<component-name> [--team team-name] [--with-params] [--with-lifecycle] [--with-mock]"
+model: sonnet
 ---
 
 Create a new Fx component following the **modern** (new-style) pattern with separate `def/`, `fx/`, and `impl/` sub-packages.

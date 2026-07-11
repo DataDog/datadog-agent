@@ -31,11 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type store = autoscaling.Store[model.NodePoolInternal]
+type store = autoscalingstore.Store[model.NodePoolInternal]
 
 var (
 	nodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
@@ -50,7 +51,7 @@ var (
 		eksNodeClassGVR.Group: eksNodeClassGVR,
 	}
 
-	controllerID autoscaling.SenderID = "dca-c"
+	controllerID autoscalingstore.SenderID = "dca-c"
 )
 
 type Controller struct {
@@ -102,7 +103,7 @@ func NewController(
 	c.Controller = baseController
 
 	// TODO add later, if needed, when adding more telemetry
-	// store.RegisterObserver(autoscaling.Observer{
+	// store.RegisterObserver(autoscalingstore.Observer{
 	// 	DeleteFunc: unsetTelemetry,
 	// })
 
@@ -148,10 +149,12 @@ func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling
 }
 
 func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *karpenterv1.NodePool) autoscaling.ProcessResult {
-	npi, foundInStore, unlock := c.store.LockRead(name, true)
-	defer unlock()
+	item, foundInStore := c.store.Get(name)
+	defer item.Release()
 
 	if foundInStore {
+		npi := item.Value()
+
 		// Get Target NodePool from Lister if needed
 		var targetNp *karpenterv1.NodePool
 		if npi.TargetName() != "" {

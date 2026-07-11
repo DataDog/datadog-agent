@@ -24,7 +24,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -53,7 +52,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=anymiss_allmatch",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -82,7 +80,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=empty",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -111,7 +108,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=cap",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -135,18 +131,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "all(xs, {@it > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=capplus",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -170,18 +159,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "all(xs, {@it > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=toolarge",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -205,18 +187,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "all(xs, {@it > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "allpos tag=scany",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }

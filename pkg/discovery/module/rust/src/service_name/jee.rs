@@ -777,8 +777,7 @@ xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/
             TestCase {
                 name: "application.xml with doctype and no webapps",
                 xml: Some(
-                    r#"<!DOCTYPE application PUBLIC "-//Sun Microsystems, Inc.//DTD J2EE Application 1.2//EN
-http://java.sun.com/j2ee/dtds/application_1_2.dtd">
+                    r#"<!DOCTYPE application PUBLIC "-//Sun Microsystems, Inc.//DTD J2EE Application 1.2//EN" "http://java.sun.com/j2ee/dtds/application_1_2.dtd">
 <application><module><java>my_app.jar</java></module></application>"#,
                 ),
                 expected: Some(vec![]),

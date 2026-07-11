@@ -1008,7 +1008,7 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 
 func TestNormalizeUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptDDEnv maps to "x.test.env" instead of "env".
-	customJSON := `{"version":"test","concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

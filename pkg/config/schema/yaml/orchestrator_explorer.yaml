@@ -1,0 +1,160 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/orchestrator_explorer.yaml.schema.json
+node_type: section
+type: object
+properties:
+  collector_discovery:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+  container_scrubbing:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          enabling/disabling the environment variables & command scrubbing from the container specs
+          this option will potentially impact the CPU usage of the agent
+  custom_resources:
+    node_type: section
+    type: object
+    properties:
+      max_count:
+        node_type: setting
+        type: integer
+        default: 5000
+      ootb:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          gateway_api:
+            node_type: setting
+            type: boolean
+            default: false
+          ingress_controllers:
+            node_type: setting
+            type: boolean
+            default: false
+          service_mesh:
+            node_type: setting
+            type: boolean
+            default: false
+  custom_sensitive_annotations_labels:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  custom_sensitive_words:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Orchestrator Explorer DCA and core agent
+  extra_tags:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  kubelet_config_check:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
+  manifest_collection:
+    node_type: section
+    type: object
+    properties:
+      buffer_flush_interval:
+        node_type: setting
+        type: string
+        default: 20s
+        format: duration
+        tags:
+        - golang_type:duration
+      buffer_manifest:
+        node_type: setting
+        type: boolean
+        default: true
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+  max_message_bytes:
+    node_type: setting
+    type: integer
+    default: 10000000
+  max_per_message:
+    node_type: setting
+    type: integer
+    default: 100
+  orchestrator_additional_endpoints:
+    node_type: setting
+    type: object
+    default: {}
+    env_vars:
+    - DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS
+    - DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS
+    additionalProperties:
+      items:
+        type: string
+      type: array
+  orchestrator_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
+    - DD_ORCHESTRATOR_URL
+  terminated_pods:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+  terminated_pods_improved:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+  terminated_resources:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+  use_legacy_endpoint:
+    node_type: setting
+    type: boolean
+    default: false
+tags:
+- full-agent-only:true

@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "languagedetection",
+    srcs = [
+        "doc.go",
+        "handler.go",
+        "language_detection.go",
+        "language_detection_nocompile.go",
+        "ownership.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/core/workloadmeta/def",
+        "//pkg/clusteragent/api",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//pkg/util/log",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+dd_agent_go_test(
+    name = "languagedetection_test",
+    srcs = [
+        "handler_test.go",
+        "ownership_test.go",
+        "util_test.go",
+    ],
+    embed = [":languagedetection"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_fx//:fx",
+    ],
+)

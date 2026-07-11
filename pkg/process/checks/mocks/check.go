@@ -95,7 +95,7 @@ type Check_Init_Call struct {
 //   - syscfg *checks.SysProbeConfig
 //   - info *checks.HostInfo
 //   - oneShot bool
-func (_e *Check_Expecter) Init(syscfg interface{}, info interface{}, oneShot interface{}) *Check_Init_Call {
+func (_e *Check_Expecter) Init(syscfg any, info any, oneShot any) *Check_Init_Call {
 	return &Check_Init_Call{Call: _e.mock.On("Init", syscfg, info, oneShot)}
 }
 
@@ -300,7 +300,7 @@ type Check_Run_Call struct {
 // Run is a helper method to define mock.On call
 //   - nextGroupID func() int32
 //   - options *checks.RunOptions
-func (_e *Check_Expecter) Run(nextGroupID interface{}, options interface{}) *Check_Run_Call {
+func (_e *Check_Expecter) Run(nextGroupID any, options any) *Check_Run_Call {
 	return &Check_Run_Call{Call: _e.mock.On("Run", nextGroupID, options)}
 }
 

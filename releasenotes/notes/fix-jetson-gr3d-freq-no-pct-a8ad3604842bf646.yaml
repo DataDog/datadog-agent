@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix Jetson check failing to parse ``tegrastats`` output on boards (e.g. Jetson AGX Thor)
+    where ``GR3D_FREQ`` reports only per-GPC frequencies with no usage percentage
+    (e.g. ``GR3D_FREQ @[494,494,494]``). When no percentage is present,
+    ``nvidia.jetson.gpu.usage`` is omitted instead of causing a parse error.

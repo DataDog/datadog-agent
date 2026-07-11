@@ -335,7 +335,7 @@ func TestProvider_Provide(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
-			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+			mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -444,11 +444,13 @@ func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 			Name:      "long-running-init",
 			Namespace: "default",
 		},
-		Containers: []workloadmeta.OrchestratorContainer{
+		InitContainers: []workloadmeta.OrchestratorContainer{
 			{
 				ID:   "80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b",
 				Name: "init",
 			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
 			{
 				ID:   "not-yet-running-so-empty",
 				Name: "main-app",
@@ -496,7 +498,7 @@ func (suite *FilteringTestSuite) SetupTest() {
 	))
 
 	suite.store = store
-	suite.mockSender = mocksender.NewMockSender(checkid.ID("test"))
+	suite.mockSender = mocksender.NewMockSender(suite.T(), checkid.ID("test"))
 	suite.mockSender.SetupAcceptAll()
 
 	// Set up kubelet mock
@@ -643,7 +645,7 @@ func (suite *FilteringTestSuite) TestContainerNameFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude istio-proxy containers using config
-	suite.mockConfig.SetWithoutSource("container_exclude", "name:istio-proxy")
+	suite.mockConfig.SetInTest("container_exclude", "name:istio-proxy")
 	suite.createProviderWithFilters()
 
 	// Provide metrics
@@ -666,7 +668,7 @@ func (suite *FilteringTestSuite) TestNamespaceFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude kube-system namespace pods using config
-	suite.mockConfig.SetWithoutSource("container_exclude", "kube_namespace:kube-system")
+	suite.mockConfig.SetInTest("container_exclude", "kube_namespace:kube-system")
 	suite.createProviderWithFilters()
 
 	// Provide metrics
@@ -713,7 +715,7 @@ func (suite *FilteringTestSuite) TestSpecificImageNameFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude containers with specific image name
-	suite.mockConfig.SetWithoutSource("container_exclude", "image:istio/proxy")
+	suite.mockConfig.SetInTest("container_exclude", "image:istio/proxy")
 	suite.createProviderWithFilters()
 
 	// Provide metrics
@@ -748,7 +750,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 
 	// Setup mock config with kubelet_use_api_server=true
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kubelet_use_api_server", true)
+	mockConfig.SetInTest("kubelet_use_api_server", true)
 
 	// Setup tagger with canonical UUID
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -796,7 +798,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	}
 
 	// Setup sender
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	// Create provider

@@ -9,7 +9,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",

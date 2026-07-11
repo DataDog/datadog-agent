@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -46,7 +45,7 @@ func netflowDockerProvisioner() provisioners.Provisioner {
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.AmazonLinuxECSDefault))
+		host, err := ec2.NewVM(awsEnv, name)
 		if err != nil {
 			return err
 		}
@@ -146,6 +145,8 @@ func (s *netflowDockerSuite) TestNetflow() {
 		for _, ndmflow := range ndmflows {
 			stats.flowTypes[ndmflow.FlowType]++
 			stats.ipProtocols[ndmflow.IPProtocol]++
+			assert.NotEmpty(c, ndmflow.DSCPName, "dscp_name should always be populated (falls back to DSCP-<n>)")
+			assert.Equal(c, ndmflow.TOS>>2, ndmflow.DSCP, "dscp should be the top 6 bits of the tos byte")
 		}
 		s.T().Logf("flows_flushed metric shows that agent sent %d flows, fakeintake received %d ndmflows", int(totalFlowsFlushed), len(ndmflows))
 		s.T().Logf("stats: %+v", stats)

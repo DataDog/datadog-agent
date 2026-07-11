@@ -1,6 +1,8 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 exports_files([
     "types_linux.go",
@@ -12,4 +14,75 @@ cgo_godefs(
     src = "types.go",
     visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+go_library(
+    name = "sharedlibraries",
+    srcs = [
+        "compile.go",
+        "ebpf.go",
+        "libset.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/bytecode/runtime",
+        "//pkg/ebpf/kernelbugs",
+        "//pkg/ebpf/modifiers",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/telemetry",
+        "//pkg/network/ebpf",
+        "//pkg/util/common",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+# types_linux_test.go and ebpf_test.go must be in separate rules because
+# types_linux_test.go needs //pkg/ebpf/ebpftest:cgo_align (for TestCgoAlignment)
+# while ebpf_test.go needs //pkg/ebpf/ebpftest (for TestBuildMode).
+# Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+# and cannot coexist in the same rule's deps.
+
+dd_agent_go_test(
+    name = "sharedlibraries_types_test",
+    # keep: split from sharedlibraries_test; see comment above.
+    srcs = ["types_linux_test.go"],
+    embed = [":sharedlibraries"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
+    deps = select({
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "sharedlibraries_test",
+    # keep: split from sharedlibraries_types_test; see comment above.
+    srcs = ["ebpf_test.go"],
+    embed = [":sharedlibraries"],
+    # keep: needs TestBuildMode from the main ebpftest library (not cgo_align).
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/network/usm/sharedlibraries/testutil",
+        "//pkg/network/usm/testutil",
+        "//pkg/network/usm/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@org_golang_x_sys//unix",
+    ],
 )

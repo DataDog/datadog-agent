@@ -123,9 +123,11 @@ func (t eventType) String() string { return eventTypeStrings[t] }
 type eventData struct {
 	// host specifies the host which the sender is sending to.
 	host string
-	// bytes represents the number of bytes affected by this event.
+	// bytes represents the number of compressed bytes affected by this event.
 	bytes int
-	// count specfies the number of payloads that this events refers to.
+	// uncompressedBytes represents the number of uncompressed bytes affected by this event.
+	uncompressedBytes int
+	// count specifies the number of payloads that this event refers to.
 	count int
 	// duration specifies the time it took to complete this event. It
 	// is set for eventType{Sent,Retry,Rejected}.
@@ -333,10 +335,11 @@ func (s *sender) sendOnce(p *payload) bool {
 	start := time.Now()
 	err = s.do(req)
 	stats := &eventData{
-		bytes:    p.body.Len(),
-		count:    1,
-		duration: time.Since(start),
-		err:      err,
+		bytes:             p.body.Len(),
+		uncompressedBytes: p.uncompressedSize,
+		count:             1,
+		duration:          time.Since(start),
+		err:               err,
 	}
 	if err != nil {
 		log.Tracef("Error submitting payload: %v\n", err)
@@ -491,9 +494,10 @@ func isRetriable(code int) bool {
 
 // payloads specifies a payload to be sent by the sender.
 type payload struct {
-	body    *bytes.Buffer     // request body
-	headers map[string]string // request headers
-	retries *atomic.Int32     // number of retries sending this payload
+	body             *bytes.Buffer     // request body (compressed)
+	headers          map[string]string // request headers
+	retries          *atomic.Int32     // number of retries sending this payload
+	uncompressedSize int               // size of the payload before compression
 }
 
 // ppool is a pool of payloads.
@@ -514,6 +518,7 @@ func newPayload(headers map[string]string) *payload {
 	p.body.Reset()
 	p.headers = headers
 	p.retries.Store(0)
+	p.uncompressedSize = 0
 	return p
 }
 
@@ -524,6 +529,7 @@ func (p *payload) clone() *payload {
 	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
 		log.Errorf("Error cloning writer payload: %v", err)
 	}
+	clone.uncompressedSize = p.uncompressedSize
 	return clone
 }
 

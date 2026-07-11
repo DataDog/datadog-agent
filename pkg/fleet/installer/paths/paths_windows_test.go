@@ -110,6 +110,21 @@ func assertDACLAutoInherit(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	assert.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED)
 }
 
+func TestFileReadableByEveryonePreservesDACLProtection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("api_key: test\n"), 0600))
+	require.NoError(t, setNamedSecurityInfoWithSDDL(path, "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AU)"))
+
+	sd, err := getSecurityDescriptor(path)
+	require.NoError(t, err)
+	assertDACLProtected(t, sd)
+
+	require.NoError(t, SetFileReadableByEveryone(path))
+	sd, err = getSecurityDescriptor(path)
+	require.NoError(t, err)
+	assertDACLProtected(t, sd)
+}
+
 func TestCreateDirIfNotExists(t *testing.T) {
 	t.Run("directory does not exist", func(t *testing.T) {
 		root := t.TempDir()

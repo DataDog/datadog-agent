@@ -1,0 +1,123 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "proxy",
+    srcs = [
+        "unix_transparent_proxy.go",
+        "unix_transparent_proxy_builder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "proxy_test",
+    srcs = ["unix_transparent_proxy_test.go"],
+    embed = [":proxy"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

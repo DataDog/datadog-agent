@@ -47,7 +47,7 @@ has_key(o, k) {
 }
 
 valid(p) {
-	p.name = "tests.test"
+	p.name = "%s"
 	has_key(p, "cmdLine")
 	has_key(p, "envs")
 	has_key(p, "exe")
@@ -64,7 +64,7 @@ findings[f] {
 		{}
 	)
 }
-`).
+`, self).
 		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "Self", evt.RuleID)
 			assert.Equal(t, 0, evt.RuleVersion)
@@ -92,7 +92,7 @@ has_key(o, k) {
 }
 
 valid(p) {
-	p.name == "tests.test"
+	p.name == "%s"
 	has_key(p, "cmdLine")
 	has_key(p, "envs")
 	has_key(p, "exe")
@@ -120,7 +120,7 @@ findings[f] {
 		{"name": proc.name},
 	)
 }
-`).
+`, self).
 		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "SelfDuplicated", evt.RuleID)
 			assert.Equal(t, 0, evt.RuleVersion)

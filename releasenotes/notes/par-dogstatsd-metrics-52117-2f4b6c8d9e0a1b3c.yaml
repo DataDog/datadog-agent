@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now submits execution metrics through DogStatsD.

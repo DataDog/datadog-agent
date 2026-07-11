@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containerd",
@@ -17,35 +18,40 @@ go_library(
         "//pkg/util/containers/image",
         "//pkg/util/log",
         "//pkg/util/retry",
-        "@com_github_containerd_containerd//:containerd",
-        "@com_github_containerd_containerd//containers",
-        "@com_github_containerd_containerd//leases",
-        "@com_github_containerd_containerd//mount",
-        "@com_github_containerd_containerd//namespaces",
-        "@com_github_containerd_containerd//oci",
         "@com_github_containerd_containerd_api//types",
+        "@com_github_containerd_containerd_v2//client",
+        "@com_github_containerd_containerd_v2//core/containers",
+        "@com_github_containerd_containerd_v2//core/leases",
+        "@com_github_containerd_containerd_v2//core/mount",
+        "@com_github_containerd_containerd_v2//defaults",
+        "@com_github_containerd_containerd_v2//pkg/namespaces",
+        "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_containerd_errdefs//:errdefs",
         "@com_github_opencontainers_image_spec//identity",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "containerd_test",
     srcs = [
         "containerd_util_test.go",
         "namespaces_test.go",
     ],
     embed = [":containerd"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/containerd/fake",
         "@com_github_containerd_cgroups_v3//cgroup1/stats",
-        "@com_github_containerd_containerd//:containerd",
-        "@com_github_containerd_containerd//cio",
-        "@com_github_containerd_containerd//containers",
-        "@com_github_containerd_containerd//oci",
         "@com_github_containerd_containerd_api//types",
+        "@com_github_containerd_containerd_v2//client",
+        "@com_github_containerd_containerd_v2//core/containers",
+        "@com_github_containerd_containerd_v2//pkg/cio",
+        "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_containerd_typeurl_v2//:typeurl",
         "@com_github_gogo_protobuf//types",
         "@com_github_opencontainers_runtime_spec//specs-go",

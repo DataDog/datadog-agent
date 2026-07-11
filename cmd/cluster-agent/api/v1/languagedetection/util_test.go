@@ -750,7 +750,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	podALanguageDetails := &pbgo.PodLanguageDetails{
 		Namespace: defaultNs,
-		Name:      "pod-a",
+		Name:      "dummyrs-1-2342347-98765",
 		ContainerDetails: []*pbgo.ContainerLanguageDetails{
 			{
 				ContainerName: "container-1",
@@ -792,7 +792,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	podBLanguageDetails := &pbgo.PodLanguageDetails{
 		Namespace: customNs,
-		Name:      "pod-b",
+		Name:      "dummyrs-2-2342347-98765",
 		ContainerDetails: []*pbgo.ContainerLanguageDetails{
 			{
 				ContainerName: "container-5",

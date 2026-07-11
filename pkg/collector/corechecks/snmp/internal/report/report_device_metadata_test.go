@@ -51,7 +51,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -189,7 +189,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -282,7 +282,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -448,7 +448,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -526,7 +526,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -600,7 +600,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -675,7 +675,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -878,7 +878,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 		},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -1527,7 +1527,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysica
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -1697,7 +1697,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *test
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{

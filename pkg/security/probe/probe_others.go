@@ -127,6 +127,9 @@ func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
+// EnrichRuleEvent is a no-op on unsupported platforms
+func (p *Probe) EnrichRuleEvent(_ *model.Event) {}
+
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
 

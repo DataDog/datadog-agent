@@ -16,7 +16,7 @@ import (
 // NewMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func NewMock(reqs Requires) (traceconfig.Component, error) {
-	reqs.Config.SetWithoutSource("api_key", "apikey")
+	reqs.Config.SetInTest("api_key", "apikey")
 	traceCfg, err := setupConfigCommon(reqs)
 	if err != nil {
 		return nil, err

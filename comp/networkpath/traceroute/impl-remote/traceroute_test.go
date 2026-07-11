@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -204,6 +204,85 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 	}
 }
 
+func TestGetTracerouteSACKNotSupported(t *testing.T) {
+	const sackMessage = "sack traceroute failed: ReceiveProbe() failed: SACK not supported for this target/source: endpoint returned SACK-permitted but found no SACK options: sackDriver found no SACK options"
+	const standardMessage = "SACK is not supported for this target/source."
+
+	tests := []struct {
+		name         string
+		errorCode    payload.TracerouteErrorCode
+		errorMessage string
+		expectedCode payload.TracerouteErrorCode
+		expectedMsg  string
+	}{
+		{
+			name:         "SACK_NOT_SUPPORTED code is remapped with standard message",
+			errorCode:    payload.TracerouteErrCodeSACKNotSupported,
+			errorMessage: sackMessage,
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with SACK not supported message is remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: sackMessage,
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with found no SACK options message is remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: "endpoint returned SACK-permitted but found no SACK options",
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with unrelated message is not remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: "some other unknown error",
+			expectedCode: payload.TracerouteErrCodeUnknown,
+			expectedMsg:  "some other unknown error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+			errResp := payload.TracerouteErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
+			jsonBytes, err := json.Marshal(errResp)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &mockTransport{
+					RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+						return &http.Response{
+							StatusCode: http.StatusInternalServerError,
+							Body:       io.NopCloser(bytes.NewReader(jsonBytes)),
+							Header:     make(http.Header),
+						}, nil
+					},
+				},
+			}
+
+			cfg := config.Config{
+				DestHostname: "example.com",
+				DestPort:     80,
+				Protocol:     payload.ProtocolTCP,
+			}
+
+			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+			_, err = rt.Run(context.Background(), cfg)
+			require.Error(t, err)
+
+			var trErr *payload.TracerouteError
+			require.ErrorAs(t, err, &trErr)
+			assert.Equal(t, tt.expectedCode, trErr.Code)
+			assert.Equal(t, tt.expectedMsg, trErr.Message)
+		})
+	}
+}
+
 func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
 	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
 
@@ -234,47 +313,50 @@ func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
 
 func TestGetTracerouteURL(t *testing.T) {
 	tests := []struct {
-		name                      string
-		host                      string
-		clientID                  string
-		port                      uint16
-		protocol                  payload.Protocol
-		tcpMethod                 payload.TCPMethod
-		tcpSynParisTracerouteMode bool
-		disableWindowsDriver      bool
-		reverseDNS                bool
-		maxTTL                    uint8
-		timeout                   time.Duration
-		tracerouteQueries         int
-		e2eQueries                int
-		expectedParams            map[string]string
+		name                            string
+		host                            string
+		clientID                        string
+		port                            uint16
+		protocol                        payload.Protocol
+		tcpMethod                       payload.TCPMethod
+		tcpSynParisTracerouteMode       bool
+		disableWindowsDriver            bool
+		reverseDNS                      bool
+		disableSourcePublicIPCollection bool
+		maxTTL                          uint8
+		timeout                         time.Duration
+		tracerouteQueries               int
+		e2eQueries                      int
+		expectedParams                  map[string]string
 	}{
 		{
-			name:                      "validate URL",
-			host:                      "google.com",
-			clientID:                  "test-client",
-			port:                      80,
-			protocol:                  payload.ProtocolTCP,
-			tcpMethod:                 payload.TCPConfigPreferSACK,
-			tcpSynParisTracerouteMode: true,
-			disableWindowsDriver:      false,
-			reverseDNS:                true,
-			maxTTL:                    30,
-			timeout:                   5 * time.Second,
-			tracerouteQueries:         3,
-			e2eQueries:                50,
+			name:                            "validate URL",
+			host:                            "google.com",
+			clientID:                        "test-client",
+			port:                            80,
+			protocol:                        payload.ProtocolTCP,
+			tcpMethod:                       payload.TCPConfigPreferSACK,
+			tcpSynParisTracerouteMode:       true,
+			disableWindowsDriver:            false,
+			reverseDNS:                      true,
+			disableSourcePublicIPCollection: false,
+			maxTTL:                          30,
+			timeout:                         5 * time.Second,
+			tracerouteQueries:               3,
+			e2eQueries:                      50,
 			expectedParams: map[string]string{
-				"client_id":                     "test-client",
-				"port":                          "80",
-				"max_ttl":                       "30",
-				"timeout":                       "5000000000",
-				"protocol":                      "TCP",
-				"tcp_method":                    "prefer_sack",
-				"tcp_syn_paris_traceroute_mode": "true",
-				"reverse_dns":                   "true",
-				"traceroute_queries":            "3",
-				"e2e_queries":                   "50",
-				"disable_windows_driver":        "false",
+				"client_id":                           "test-client",
+				"port":                                "80",
+				"max_ttl":                             "30",
+				"timeout":                             "5000000000",
+				"protocol":                            "TCP",
+				"tcp_method":                          "prefer_sack",
+				"tcp_syn_paris_traceroute_mode":       "true",
+				"reverse_dns":                         "true",
+				"disable_source_public_ip_collection": "false",
+				"traceroute_queries":                  "3",
+				"e2e_queries":                         "50",
+				"disable_windows_driver":              "false",
 			},
 		},
 	}
@@ -301,6 +383,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				tt.tcpSynParisTracerouteMode,
 				tt.disableWindowsDriver,
 				tt.reverseDNS,
+				tt.disableSourcePublicIPCollection,
 				tt.maxTTL,
 				tt.timeout,
 				tt.tracerouteQueries,

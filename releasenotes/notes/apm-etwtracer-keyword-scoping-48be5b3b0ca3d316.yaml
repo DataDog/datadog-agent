@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM : On Windows, the .NET ETW tracer now forwards only the .NET runtime
+    events that match its configured keywords, instead of all events delivered
+    by the tracing session.

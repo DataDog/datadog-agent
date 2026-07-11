@@ -53,7 +53,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
+	mockSender, processor, _ := generic.CreateTestProcessor(t, containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -115,7 +115,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 func TestDockerCustomPart(t *testing.T) {
 	// Mocksender
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -260,7 +260,7 @@ container_exclude_logs: name:agent2 image:datadog/agent
 }
 
 func TestContainersRunning(t *testing.T) {
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	// Define tags for 3 different containers. The first 2 have the same tags.
@@ -361,7 +361,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
+	mockSender, processor, _ := generic.CreateTestProcessor(t, containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check

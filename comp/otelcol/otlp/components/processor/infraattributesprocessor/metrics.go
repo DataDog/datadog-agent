@@ -40,7 +40,13 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride)
+		// trace_container_tag_promotion only makes sense for traces: it exists to
+		// feed trace-agent's `_dd.tags.container` promotion
+		// (ConsumeContainerTagsFromResource), which metrics never go through.
+		// The metrics path already recognizes DD-format keys directly via
+		// kubernetesDDTags, so prefixing would only strand data under
+		// `rename`. Always pass "off" here regardless of the configured mode.
+		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, ContainerTagPromotionOff)
 	}
 	return md, nil
 }

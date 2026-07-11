@@ -30,5 +30,5 @@ func newNoopReporter(_ noopReporterRequires) noopReporterProvides {
 
 type noopReporter struct{}
 
-func (r *noopReporter) Name() string                   { return "noop_reporter" }
-func (r *noopReporter) Report(_ reporter.ReportOutput) {}
+func (r *noopReporter) Name() string                        { return "noop_reporter" }
+func (r *noopReporter) Report(_ reporter.ReportOutput) bool { return false }

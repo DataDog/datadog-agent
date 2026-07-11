@@ -258,7 +258,8 @@ wit-bindgen-rust-macro,https://github.com/bytecodealliance/wit-bindgen,Apache-2.
 wit-component,https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-component,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Peter Huene <peter@huene.dev>
 wit-parser,https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-parser,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Alex Crichton <alex@alexcrichton.com>
 writeable,https://github.com/unicode-org/icu4x,Unicode-3.0,The ICU4X Project Developers
-xml-rs,https://github.com/kornelski/xml-rs,MIT,Vladimir Matveev <vmatveev@citrine.cc>
+xml,https://github.com/kornelski/xml-rs,MIT,"Vladimir Matveev <vmatveev@citrine.cc>, Kornel (https://github.com/kornelski)"
+xml-rs,https://github.com/netvl/xml-rs,MIT,"Vladimir Matveev <vmatveev@citrine.cc>, Kornel (https://github.com/kornelski)"
 yoke,https://github.com/unicode-org/icu4x,Unicode-3.0,Manish Goregaokar <manishsmail@gmail.com>
 yoke-derive,https://github.com/unicode-org/icu4x,Unicode-3.0,Manish Goregaokar <manishsmail@gmail.com>
 zerofrom,https://github.com/unicode-org/icu4x,Unicode-3.0,Manish Goregaokar <manishsmail@gmail.com>

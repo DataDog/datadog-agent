@@ -3,7 +3,7 @@ import os
 import re
 import sys
 
-from invoke import Exit
+from invoke import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
@@ -393,7 +393,26 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version, release=release)}"'
     if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
-    described_version = ctx.run(cmd, hide=True).stdout.strip()
+    try:
+        described_version = ctx.run(cmd, hide=True).stdout.strip()
+    except UnexpectedExit:
+        # In CI, a missing tag is a real error — re-raise so packaging/release jobs don't
+        # silently produce artifacts under a fabricated version.
+        if os.getenv("CI_PIPELINE_ID") or os.getenv("CI"):
+            raise
+        # Locally (e.g. shallow clone, worktree without fetched tags), fall back to the
+        # latest published release as a dev version so builds and pre-commit hooks can proceed.
+        git_sha = get_commit_sha(ctx, short=True)
+        try:
+            latest = GithubAPI(public_repo=True).latest_release(int(major_version))
+        except Exception:
+            latest = f"{major_version}.0.0"
+        print(
+            f"[WARN] Could not find a tag matching '{major_version}.*' reachable from HEAD. "
+            f"Falling back to dev version {latest}-devel.",
+            file=sys.stderr,
+        )
+        return latest, "devel", 0, git_sha, None
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
     commit_number_match = DESCRIBE_PATTERN.match(described_version)

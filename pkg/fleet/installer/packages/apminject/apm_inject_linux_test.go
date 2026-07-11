@@ -70,7 +70,7 @@ func TestInstrumentLDPreload_BuggyLibrary(t *testing.T) {
 	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
 	a := newInstallerWithPaths(tmpDir, preloadFile)
 
-	err := a.InstrumentLDPreload(context.TODO())
+	err := a.InstrumentLDPreload(context.TODO(), ViaPersistentPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to verify injected lib")
 
@@ -97,7 +97,7 @@ func TestInstrumentLDPreload_AlreadyInstalled(t *testing.T) {
 
 	a := newInstallerWithPaths(tmpDir, preloadFile)
 
-	err := a.InstrumentLDPreload(context.TODO())
+	err := a.InstrumentLDPreload(context.TODO(), ViaPersistentPath)
 	assert.NoError(t, err)
 
 	content, err := os.ReadFile(preloadFile)
@@ -133,7 +133,7 @@ func TestUninstrumentLDPreload_WithActiveBuggyPreload(t *testing.T) {
 	// Step 1: instrument with a harmless library — verifySharedLib passes and
 	// the launcher path is written to ld.so.preload.
 	require.NoError(t, buildHarmlessSO(t, tmpDir, launcherPath))
-	require.NoError(t, a.InstrumentLDPreload(context.TODO()))
+	require.NoError(t, a.InstrumentLDPreload(context.TODO(), ViaPersistentPath))
 
 	content, err := os.ReadFile(preloadFile)
 	require.NoError(t, err)
@@ -155,6 +155,114 @@ func TestUninstrumentLDPreload_WithActiveBuggyPreload(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(content), "launcher.preload.so",
 		"launcher entry must be removed from ld.so.preload even when the library is buggy")
+}
+
+// TestInstrumentLDPreload_TmpfsSymlink verifies that ViaTmpfsLink references the
+// launcher through the tmpfs symlink: it creates the symlink pointing at the
+// persistent payload and writes the tmpfs path (not the persistent path) to
+// ld.so.preload.
+func TestInstrumentLDPreload_TmpfsSymlink(t *testing.T) {
+	tmpDir := t.TempDir()
+	injectDir := filepath.Join(tmpDir, "inject")
+	require.NoError(t, os.MkdirAll(injectDir, 0755))
+
+	launcherPath := filepath.Join(injectDir, "launcher.preload.so")
+	require.NoError(t, buildHarmlessSO(t, tmpDir, launcherPath))
+
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+	tmpfsDir := filepath.Join(tmpDir, "run-link")
+
+	a := newInstallerWithPaths(tmpDir, preloadFile)
+	a.tmpfsInjectDir = tmpfsDir
+
+	require.NoError(t, a.InstrumentLDPreload(context.TODO(), ViaTmpfsLink))
+
+	// The symlink resolves to the persistent payload (so AppArmor and the
+	// launcher's sibling resolution keep working through /opt).
+	resolved, err := os.Readlink(tmpfsDir)
+	require.NoError(t, err)
+	assert.Equal(t, injectDir, resolved)
+
+	content, err := os.ReadFile(preloadFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), filepath.Join(tmpfsDir, "launcher.preload.so"))
+	assert.NotContains(t, string(content), launcherPath,
+		"ld.so.preload must reference the tmpfs path, not the persistent path")
+}
+
+// TestInstrumentLDPreload_TmpfsBrokenDoesNotLink verifies that a broken launcher
+// is never reachable through the symlink: verification happens before the
+// symlink is created, so on failure neither the symlink nor the ld.so.preload
+// entry is written.
+func TestInstrumentLDPreload_TmpfsBrokenDoesNotLink(t *testing.T) {
+	tmpDir := t.TempDir()
+	injectDir := filepath.Join(tmpDir, "inject")
+	require.NoError(t, os.MkdirAll(injectDir, 0755))
+
+	launcherPath := filepath.Join(injectDir, "launcher.preload.so")
+	so := crasherSO(t, tmpDir)
+	require.NoError(t, os.Rename(so, launcherPath))
+
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+	tmpfsDir := filepath.Join(tmpDir, "run-link")
+
+	a := newInstallerWithPaths(tmpDir, preloadFile)
+	a.tmpfsInjectDir = tmpfsDir
+
+	err := a.InstrumentLDPreload(context.TODO(), ViaTmpfsLink)
+	assert.Error(t, err)
+
+	_, statErr := os.Lstat(tmpfsDir)
+	assert.True(t, os.IsNotExist(statErr), "symlink must not be created when the launcher is buggy")
+	_, statErr = os.Stat(preloadFile)
+	assert.True(t, os.IsNotExist(statErr), "ld.so.preload must not be created when the launcher is buggy")
+}
+
+// TestInstrumentLDPreload_TmpfsModeNoPersistentEntry reproduces the install flow
+// on a systemd-managed host: the systemd service first writes the tmpfs entry
+// (InstrumentLDPreload with ViaTmpfsLink), then the installer's own direct write
+// runs over the same ld.so.preload. With ViaTmpfsLink propagated to the direct
+// write, that second write must stay on the tmpfs path and must NOT append the
+// persistent /opt path — otherwise a broken launcher would still load from the
+// persistent path on the next reboot, defeating the tmpfs safety guarantee.
+func TestInstrumentLDPreload_TmpfsModeNoPersistentEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	injectDir := filepath.Join(tmpDir, "inject")
+	require.NoError(t, os.MkdirAll(injectDir, 0755))
+
+	launcherPath := filepath.Join(injectDir, "launcher.preload.so")
+	require.NoError(t, buildHarmlessSO(t, tmpDir, launcherPath))
+
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+	tmpfsDir := filepath.Join(tmpDir, "run-link")
+	tmpfsLauncher := filepath.Join(tmpfsDir, "launcher.preload.so")
+
+	// Step 1: the systemd service process writes the tmpfs entry.
+	svc := newInstallerWithPaths(tmpDir, preloadFile)
+	svc.tmpfsInjectDir = tmpfsDir
+	require.NoError(t, svc.InstrumentLDPreload(context.TODO(), ViaTmpfsLink))
+
+	// Step 2: the installer process does its own direct write over the same
+	// file. On a systemd-managed host Instrument passes ViaTmpfsLink to this
+	// call, so it must remain on the tmpfs path.
+	inst := newInstallerWithPaths(tmpDir, preloadFile)
+	inst.tmpfsInjectDir = tmpfsDir
+	require.NoError(t, inst.InstrumentLDPreload(context.TODO(), ViaTmpfsLink))
+
+	content, err := os.ReadFile(preloadFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), tmpfsLauncher,
+		"ld.so.preload must reference the tmpfs path")
+	assert.NotContains(t, string(content), launcherPath,
+		"ld.so.preload must not contain the persistent /opt launcher path")
+	// The tmpfs entry must appear exactly once (idempotent across both writes).
+	count := 0
+	for _, line := range splitLines(string(content)) {
+		if line == tmpfsLauncher {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "tmpfs launcher path must appear exactly once")
 }
 
 // buildHarmlessSO compiles a shared library that does nothing on load.

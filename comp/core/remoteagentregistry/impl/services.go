@@ -72,7 +72,15 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 	}
 	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetFlareFilesResponse, err error) *remoteagentregistry.FlareData {
 		if err != nil {
-			return nil
+			// The remote agent is registered but unreachable (crashed, gRPC failure, timeout).
+			// Surface the error as UNREACHABLE.txt without blocking the rest of the flare.
+			log.Warnf("Remote agent %q could not be reached during flare collection: %v", details.DisplayName, err)
+			return &remoteagentregistry.FlareData{
+				RegisteredAgent: details,
+				Files: map[string][]byte{
+					"UNREACHABLE.txt": []byte(fmt.Sprintf("%s could not be reached: %v\n", details.DisplayName, err)),
+				},
+			}
 		}
 		return &remoteagentregistry.FlareData{
 			RegisteredAgent: details,

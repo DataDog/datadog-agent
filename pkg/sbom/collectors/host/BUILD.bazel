@@ -1,0 +1,83 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "host",
+    srcs = [
+        "collector.go",
+        "doc.go",
+        "flare_provider.go",
+        "host.go",
+        "host_wmi.go",
+        "request.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/sbom",
+        "//pkg/sbom/scanner",
+        "//pkg/sbom/types",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/trivy",
+        "@com_github_aquasecurity_trivy//pkg/types",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/sbom/collectors",
+            "//pkg/util/pointer",
+            "//pkg/util/winutil",
+            "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+            "@com_github_shirou_gopsutil_v4//host",
+            "@com_github_yusufpapurcu_wmi//:wmi",
+        ],
+        "//conditions:default": [],
+    }),
+)

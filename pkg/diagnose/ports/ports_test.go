@@ -6,6 +6,7 @@
 package ports
 
 import (
+	"net/netip"
 	"os"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/port"
 )
+
+var ipv4Loopback = netip.MustParseAddr("127.0.0.1")
 
 // realProcess returns this test binary's PID and its OS-reported process
 // name. Tests use this so isAgentProcess can succeed on both Windows (where
@@ -57,8 +60,8 @@ func TestWorstBind(t *testing.T) {
 
 	// Agent bind + unknown-owner bind (Pid=0): unknown (1) beats agent (0).
 	binds := []port.Port{
-		{Proto: "tcp", Port: 8126, IP: "0.0.0.0", Pid: pid, Process: name},
-		{Proto: "tcp", Port: 8126, IP: "127.0.0.1", Pid: 0},
+		{Proto: "tcp", Port: 8126, IP: netip.IPv4Unspecified(), Pid: pid, Process: name},
+		{Proto: "tcp", Port: 8126, IP: ipv4Loopback, Pid: 0},
 	}
 	worst, sev, _ := worstBind(binds)
 	require.Equal(t, severityUnknown, sev)
@@ -72,8 +75,8 @@ func TestWorstBind_ForeignOverAgent(t *testing.T) {
 	// Pid=1 resolves to a non-agent process (Linux echoes Process="nginx";
 	// Windows resolves PID 1 to something like "System Idle Process").
 	binds := []port.Port{
-		{Proto: "tcp", Port: 8126, IP: "0.0.0.0", Pid: pid, Process: name},
-		{Proto: "tcp", Port: 8126, IP: "127.0.0.1", Pid: 1, Process: "nginx"},
+		{Proto: "tcp", Port: 8126, IP: netip.IPv4Unspecified(), Pid: pid, Process: name},
+		{Proto: "tcp", Port: 8126, IP: ipv4Loopback, Pid: 1, Process: "nginx"},
 	}
 	worst, sev, _ := worstBind(binds)
 	require.Equal(t, severityForeign, sev)
@@ -86,8 +89,8 @@ func TestWorstBind_OrderIndependent(t *testing.T) {
 	swapAgentNames(t, map[string]struct{}{name: {}})
 
 	binds := []port.Port{
-		{Proto: "tcp", Port: 8126, IP: "127.0.0.1", Pid: 0},
-		{Proto: "tcp", Port: 8126, IP: "0.0.0.0", Pid: pid, Process: name},
+		{Proto: "tcp", Port: 8126, IP: ipv4Loopback, Pid: 0},
+		{Proto: "tcp", Port: 8126, IP: netip.IPv4Unspecified(), Pid: pid, Process: name},
 	}
 	worst, sev, _ := worstBind(binds)
 	require.Equal(t, severityUnknown, sev)

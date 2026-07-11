@@ -49,6 +49,8 @@ You should consider moving to the agent-sandbox account. Please follow https://d
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: str | None = None
+            privateKeyPath: str | None = None
+            privateKeyPassword: str | None = None
             account: str | None = _DEFAULT_ACCOUNT
 
         azure: Azure | None = None
@@ -57,6 +59,8 @@ You should consider moving to the agent-sandbox account. Please follow https://d
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: str | None = None
+            privateKeyPath: str | None = None
+            privateKeyPassword: str | None = None
             pullSecretPath: str | None = None
             account: str | None = _DEFAULT_ACCOUNT
 

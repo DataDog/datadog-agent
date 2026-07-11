@@ -4,6 +4,7 @@ using Datadog.CustomActions.Rollback;
 using Microsoft.Win32;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -20,14 +21,29 @@ namespace Datadog.CustomActions
         private static readonly string SessionKeyPath = $@"{AutoLoggerBasePath}\{SessionName}";
         private const string RollbackDataName = "ConfigureAutoLogger";
 
-        private static readonly string[] ProviderGuids =
+        // Provider GUID -> MatchAnyKeyword mask. The session is enabled at EnableLevel=4
+        // (Informational), and each mask is the OR of the keyword bits carried by the event
+        // IDs that comp/logonduration/impl/analyzer.go actually consumes. The masks were read
+        // from each provider's manifest (Get-WinEvent -ListProvider); every consumed event ID
+        // is emitted at Level 4, so filtering this way is loss-less for the phases we report
+        // while dropping the verbose, all-keyword firehose we never read.
+        private static readonly Dictionary<string, long> ProviderKeywords = new Dictionary<string, long>
         {
-            "{22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716}", // Microsoft-Windows-Kernel-Process
-            "{A68CA8B7-004F-D7B6-A698-07E2DE0F1F5D}", // Microsoft-Windows-Kernel-General
-            "{DBE9B383-7CF3-4331-91CC-A3CB16A3B538}", // Microsoft-Windows-Winlogon
-            "{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}", // Microsoft-Windows-User Profiles Service
-            "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", // Microsoft-Windows-GroupPolicy
-            "{30336ED4-E327-447C-9DE0-51B652C86108}"   // Microsoft-Windows-Shell-Core
+            // Kernel-Process: WINEVENT_KEYWORD_PROCESS -> process start (evt 1).
+            { "{22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716}", 0x10L },
+            // Kernel-General: BootPerformance -> boot timestamp (evt 12).
+            { "{A68CA8B7-004F-D7B6-A698-07E2DE0F1F5D}", 0x80L },
+            // Winlogon: PerfInstrumentation | PerfDiagnostics | ms:Telemetry -> shell-cmd (9,10),
+            // login-UI (103,104), session-logon (7001).
+            { "{DBE9B383-7CF3-4331-91CC-A3CB16A3B538}", 0x200000030000L },
+            // User Profiles Service: Operational/Diagnostic channel keywords | win:ResponseTime ->
+            // profile load (1,2) and create (1001,1002).
+            { "{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}", 0x6001000000000000L },
+            // GroupPolicy: Operational channel keyword -> machine GP (4000,8000), user GP (4001,8001).
+            { "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", 0x4000000000000000L },
+            // Shell-Core: StartupPerf | Shell -> explorer init (9601,9602), desktop create
+            // (9611,9612), desktop steps (9648,9649).
+            { "{30336ED4-E327-447C-9DE0-51B652C86108}", 0x4010000L }
         };
 
         /// <summary>
@@ -67,13 +83,6 @@ namespace Datadog.CustomActions
 
         private static ActionResult ConfigureAutoLogger(ISession session)
         {
-            var autologgerEnabled = session.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                session.Log("DD_LOGON_DURATION_AUTOLOGGER is not set to true, skipping AutoLogger configuration");
-                return ActionResult.Success;
-            }
-
             var rollbackDataStore = new RollbackDataStore(session, RollbackDataName);
             try
             {
@@ -89,10 +98,28 @@ namespace Datadog.CustomActions
                 // Snapshot the current registry state before making any changes
                 rollbackDataStore.Add(new RegistryKeyRollbackData(SessionKeyPath));
 
+                // Preserve the runtime Start value set by the agent (e.g. Start=1 when
+                // logon_duration.enabled is true). On upgrades with DD_INSTALL_ONLY=1 the
+                // agent service is not restarted, so the agent never gets to re-apply the
+                // toggle — we must not reset Start=0 in that case.
+                var startValue = 0;
+                using (var existingKey = Registry.LocalMachine.OpenSubKey(SessionKeyPath))
+                {
+                    if (existingKey != null)
+                    {
+                        var raw = existingKey.GetValue("Start");
+                        if (raw is int i)
+                        {
+                            startValue = i;
+                        }
+                        session.Log($"Existing AutoLogger Start={startValue}, preserving through upgrade");
+                    }
+                }
+
                 var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
                 var etlFilePath = Path.Combine(logonDurationDir, EtlFileName);
 
-                CreateAutoLoggerRegistryKeys(session, etlFilePath);
+                CreateAutoLoggerRegistryKeys(session, etlFilePath, startValue);
 
                 if (!string.IsNullOrEmpty(ddAgentUserSidString))
                 {
@@ -117,7 +144,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static void CreateAutoLoggerRegistryKeys(ISession session, string etlFilePath)
+        private static void CreateAutoLoggerRegistryKeys(ISession session, string etlFilePath, int startValue)
         {
             session.Log($"Creating AutoLogger session key: {SessionKeyPath}");
 
@@ -128,7 +155,7 @@ namespace Datadog.CustomActions
                     throw new Exception($"Failed to create registry key: {SessionKeyPath}");
                 }
 
-                sessionKey.SetValue("Start", 0, RegistryValueKind.DWord);
+                sessionKey.SetValue("Start", startValue, RegistryValueKind.DWord);
                 sessionKey.SetValue("Guid", Guid.NewGuid().ToString("B").ToUpperInvariant(), RegistryValueKind.String);
                 sessionKey.SetValue("BufferSize", 128, RegistryValueKind.DWord);
                 sessionKey.SetValue("MaximumBuffers", 32, RegistryValueKind.DWord);
@@ -139,9 +166,9 @@ namespace Datadog.CustomActions
                 session.Log("AutoLogger session values configured");
             }
 
-            foreach (var providerGuid in ProviderGuids)
+            foreach (var provider in ProviderKeywords)
             {
-                var providerKeyPath = $@"{SessionKeyPath}\{providerGuid}";
+                var providerKeyPath = $@"{SessionKeyPath}\{provider.Key}";
                 session.Log($"Creating provider sub-key: {providerKeyPath}");
 
                 using (var providerKey = Registry.LocalMachine.CreateSubKey(providerKeyPath))
@@ -152,7 +179,11 @@ namespace Datadog.CustomActions
                     }
 
                     providerKey.SetValue("Enabled", 1, RegistryValueKind.DWord);
-                    providerKey.SetValue("EnableLevel", 5, RegistryValueKind.DWord);
+                    // Informational level (4), not Verbose (5): every consumed event ID is
+                    // emitted at level 4, so this drops only noise.
+                    providerKey.SetValue("EnableLevel", 4, RegistryValueKind.DWord);
+                    // Keyword filter: collect only the event categories the analyzer reads.
+                    providerKey.SetValue("MatchAnyKeyword", provider.Value, RegistryValueKind.QWord);
                 }
             }
 
@@ -235,14 +266,6 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureAutoLoggerRollback(Session session)
         {
             var wrappedSession = new SessionWrapper(session);
-            var autologgerEnabled = wrappedSession.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                wrappedSession.Log("DD_LOGON_DURATION_AUTOLOGGER was not set to true; " +
-                                   "skipping rollback to preserve pre-existing autologger state");
-                return ActionResult.Success;
-            }
-
             try
             {
                 var rollbackDataStore = new RollbackDataStore(wrappedSession, RollbackDataName);

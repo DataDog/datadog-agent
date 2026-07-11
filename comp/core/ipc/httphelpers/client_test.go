@@ -8,6 +8,7 @@ package httphelpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -187,7 +188,10 @@ func TestDoGet(t *testing.T) {
 
 		_, err := client.Get(ts.URL, WithTimeout(10*time.Millisecond))
 		require.Error(t, err)
-		require.ErrorContains(t, err, "Client.Timeout exceeded")
+
+		var netErr net.Error
+		require.True(t, errors.As(err, &netErr))
+		assert.True(t, netErr.Timeout())
 	})
 }
 

@@ -105,13 +105,13 @@ func sampler(samples []map[string]disk.IOCountersStat, _ ...string) (map[string]
 	return ioSamples[idx], nil
 }
 
-func TestIOCheckDM(_ *testing.T) {
+func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 
 	switch os := runtime.GOOS; os {
 	case "windows":
@@ -135,7 +135,7 @@ func TestIOCheck(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	expectedRates := 2
@@ -202,7 +202,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	expectedRates := 0

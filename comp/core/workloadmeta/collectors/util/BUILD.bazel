@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "doc.go",
+        "ecs_util.go",
+        "image_metadata_util.go",
+        "kube_metadata_util.go",
+        "kubelet.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//internal/third_party/golang/expansion",
+        "//pkg/util/containers",
+        "//pkg/util/containers/image",
+        "//pkg/util/ecs",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/fargate",
+        "//pkg/util/flavor",
+        "//pkg/util/gpu",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+    ],
+)
+
+dd_agent_go_test(
+    name = "util_test",
+    srcs = [
+        "ecs_util_test.go",
+        "image_metadata_util_test.go",
+        "kube_metadata_util_test.go",
+        "kubelet_test.go",
+    ],
+    embed = [":util"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@org_uber_go_fx//:fx",
+    ],
+)

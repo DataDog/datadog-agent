@@ -142,7 +142,7 @@ func fakeInformerFactory(t *testing.T, crs ...*datadoghq.DatadogInstrumentation)
 
 func newTestWebhook(t *testing.T, factory dynamicinformer.DynamicSharedInformerFactory, handlers ...instrumentation.Handler) *Webhook {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("instrumentation_crd_controller.enabled", true)
+	cfg.SetInTest("instrumentation_crd_controller.enabled", true)
 	return NewWebhook(cfg, handlers, factory)
 }
 

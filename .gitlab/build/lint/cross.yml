@@ -8,7 +8,7 @@
   extends: .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    FLAVORS: '--flavor base'
+    FLAVORS: "--flavor base"
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi

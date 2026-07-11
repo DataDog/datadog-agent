@@ -1,0 +1,55 @@
+# Requires Cilium. Use this instead of operator/network-policy.yaml when you
+# want FQDN-scoped Datadog intake egress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: host-profiler
+  namespace: host-profiler
+specs:
+- description: Egress DNS
+  endpointSelector:
+    matchLabels:
+      # Must match the pods created by operator/collector.yaml.
+      app.kubernetes.io/name: host-profiler-collector
+  egress:
+  - toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+- description: Egress to Datadog intake
+  endpointSelector:
+    matchLabels:
+      # Must match the pods created by operator/collector.yaml.
+      app.kubernetes.io/name: host-profiler-collector
+  egress:
+  - toFQDNs:
+    - matchPattern: "**.datadoghq.com"
+    - matchPattern: "**.datadoghq.eu"
+    - matchPattern: "**.ddog-gov.com"
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+- description: Egress to kubelet API
+  endpointSelector:
+    matchLabels:
+      # Must match the pods created by operator/collector.yaml.
+      app.kubernetes.io/name: host-profiler-collector
+  egress:
+  - toPorts:
+    - ports:
+      - port: "10250"
+        protocol: TCP
+- description: Egress to Kubernetes API server
+  endpointSelector:
+    matchLabels:
+      # Must match the pods created by operator/collector.yaml.
+      app.kubernetes.io/name: host-profiler-collector
+  egress:
+  - toEntities:
+    - kube-apiserver

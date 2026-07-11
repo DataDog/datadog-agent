@@ -19,13 +19,7 @@
           "location": {
             "method": "main.lenStructFields"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "isEmpty(x.Dict)",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

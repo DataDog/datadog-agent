@@ -1,0 +1,12 @@
+network_path:
+  connections_monitoring:
+    enabled: true
+  collector:
+    flush_interval: 2s
+    pathtest_interval: 10s
+    pathtest_ttl: 1m
+    filters:
+      - match_domain: '*'
+        type: exclude
+      - match_domain: 'httpbin.dynamic-netpath.test'
+        type: include

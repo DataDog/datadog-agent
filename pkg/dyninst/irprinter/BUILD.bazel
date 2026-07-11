@@ -8,6 +8,7 @@ go_library(
         "yaml.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irprinter",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/ir",
@@ -21,6 +22,10 @@ go_test(
     name = "irprinter_test",
     srcs = ["example_test.go"],
     embed = [":irprinter"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = ["//pkg/dyninst/ir"],
 )

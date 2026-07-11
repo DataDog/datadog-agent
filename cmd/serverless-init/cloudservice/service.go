@@ -77,19 +77,12 @@ type CloudService interface {
 	// ctx is optional and only used by CloudRunJobs for span creation
 	Init(ctx *TracingContext) error
 
-	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error)
+	// Shutdown cleans up the CloudService and allows emitting shutdown metrics.
+	// metricAgent may be nil when no API key is configured.
+	Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error)
 
 	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
 	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
-
-	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
-	// forceFlushAll parameter on the call to forceFlushToSerializer in the
-	// pkg/aggregator/demultiplexer_serverless.ServerlessDemultiplexer.ForceFlushToSerializer
-	// method. This is currently necessary to support Cloud Run Jobs where the
-	// shutdown flow is more abrupt than other environments. We may want to
-	// unravel this thread in a cleaner way in the future.
-	ShouldForceFlushAllOnForceFlushToSerializer() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -159,8 +152,8 @@ func (l *LocalService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (l *LocalService) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(localServiceShutdownMetricName, 1.0, l.GetSource(), 0)
 	}
 }
@@ -168,11 +161,6 @@ func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(localServiceStartMetricName, 1.0, l.GetSource(), 0)
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer

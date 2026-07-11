@@ -16,6 +16,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -186,9 +187,19 @@ func buildSlogLogger(
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
 
+	// errortracking branch is a sibling of asyncHandler under the
+	// global level filter. The Handler atomic-loads the current Submitter
+	// (and per-PC Bouncer) on every record, so the chain is correctly wired
+	// whether or not the agenttelemetry component has registered yet; its
+	// Enabled returns false when no Submitter is registered, short-circuiting
+	// the multi-handler.
+	errortrackingHandler := errortracking.NewHandler(loadErrortrackingSubmitter).
+		WithBouncerLoader(loadErrortrackingBouncer)
+	topHandler := handlers.NewMulti(asyncHandler, errortrackingHandler)
+
 	levelVar := new(stdslog.LevelVar)
 	levelVar.Set(types.ToSlogLevel(logLevel))
-	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
+	levelHandler := handlers.NewLevel(levelVar, topHandler)
 
 	// Close async handler first so it drains and stops writing, then close writers.
 	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
@@ -276,4 +287,23 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 	return t.writer.Write(p)
+}
+
+// loadErrortrackingSubmitter is the closure handed to errortracking.NewHandler.
+// It atomically loads the current Submitter on every Handle call; returning
+// nil signals "no submitter registered yet" and the handler drops the record
+// silently.
+func loadErrortrackingSubmitter() errortracking.Submitter {
+	p := errortrackingSubmitterSlot.Load()
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+// loadErrortrackingBouncer atomically loads the registered Bouncer
+// (or nil if none). Handed to the errortracking.Handler so it can
+// check dedup on every Error record without a slow-path mutex.
+func loadErrortrackingBouncer() *errortracking.Bouncer {
+	return errortrackingBouncerSlot.Load()
 }

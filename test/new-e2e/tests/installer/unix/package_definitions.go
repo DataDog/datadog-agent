@@ -75,13 +75,41 @@ var PackagesConfig = []TestPackageConfig{
 	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-ddot", Alias: "ddot-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
-	{Name: "datadog-apm-inject", Version: "latest"},
-	{Name: "apm-inject-package", Version: "latest"},
+	{Name: "datadog-apm-inject", Version: pinnedApmInjectVersion()},
+	{Name: "apm-inject-package", Version: pinnedApmInjectVersion()},
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
 	{Name: "datadog-apm-library-js", Version: "latest"},
 	{Name: "datadog-apm-library-dotnet", Alias: "apm-library-dotnet-package", Version: "latest"},
 	{Name: "datadog-apm-library-python", Version: "latest"},
+}
+
+func pinnedApmInjectVersion() string {
+	if version, ok := os.LookupEnv("E2E_APM_INJECT_PACKAGE_VERSION"); ok && version != "" {
+		return version
+	}
+	return "0.67.2-1"
+}
+
+func previousApmInjectVersion() string {
+	if version, ok := os.LookupEnv("E2E_APM_INJECT_PREVIOUS_PACKAGE_VERSION"); ok && version != "" {
+		return version
+	}
+	return "0.58.0-1"
+}
+
+func pinnedApmLibraryPythonVersion() string {
+	if version, ok := os.LookupEnv("E2E_APM_LIBRARY_PYTHON_PACKAGE_VERSION"); ok && version != "" {
+		return version
+	}
+	return "4.11.0"
+}
+
+func previousApmLibraryPythonVersion() string {
+	if version, ok := os.LookupEnv("E2E_APM_LIBRARY_PYTHON_PREVIOUS_PACKAGE_VERSION"); ok && version != "" {
+		return version
+	}
+	return "2.8.5"
 }
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {

@@ -13,12 +13,19 @@ import (
 type parserFunc func(api.Payload) (interface{}, error)
 
 var parserMap = map[string]parserFunc{
-	"/api/v2/logs":        getLogPayLoadJSON,
-	"/api/v2/series":      getMetricPayLoadJSON,
-	"/api/v1/series":      getV1MetricPayLoadJSON,
-	"/api/v1/check_run":   getCheckRunPayLoadJSON,
-	"/api/v1/connections": getConnectionsPayLoadProtobuf,
-	"/api/beta/sketches":  getSketchPayloadProtobuf,
+	"/api/v2/agentdiscovery":        getAgentDiscoveryPayloadProtobuf,
+	"/api/v2/logs":                  getLogPayLoadJSON,
+	"/api/v2/series":                getMetricPayLoadJSON,
+	"/api/v1/series":                getV1MetricPayLoadJSON,
+	"/api/v1/check_run":             getCheckRunPayLoadJSON,
+	"/api/v1/connections":           getConnectionsPayLoadProtobuf,
+	"/api/beta/sketches":            getSketchPayloadProtobuf,
+	"/api/intake/metrics/v3/series": getMetricV3SeriesPayload,
+	"/api/v2/apmtelemetry":          getAgentTelemetryLogsJSON,
+}
+
+func getAgentDiscoveryPayloadProtobuf(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseAgentDiscoveryPayload(payload)
 }
 
 func getLogPayLoadJSON(payload api.Payload) (interface{}, error) {
@@ -43,6 +50,14 @@ func getConnectionsPayLoadProtobuf(payload api.Payload) (interface{}, error) {
 
 func getSketchPayloadProtobuf(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseSketches(payload)
+}
+
+func getMetricV3SeriesPayload(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseMetricSeriesV3(payload)
+}
+
+func getAgentTelemetryLogsJSON(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseAgentTelemetryLogs(payload)
 }
 
 // IsRouteHandled checks if a route is handled by the Datadog parsed store

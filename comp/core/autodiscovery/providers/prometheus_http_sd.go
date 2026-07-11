@@ -23,6 +23,10 @@ import (
 	"sync"
 	"time"
 
+	"reflect"
+
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/ext"
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -42,6 +46,14 @@ type httpSDTargetGroup struct {
 	Labels  map[string]string `json:"labels,omitempty"`
 }
 
+// httpSDTarget is the CEL variable type exposed to exclude_filter expressions.
+// Fields use json tags so CEL resolves them as lowercase names (host, port, labels).
+type httpSDTarget struct {
+	Host   string            `json:"host"`
+	Port   string            `json:"port"`
+	Labels map[string]string `json:"labels"`
+}
+
 // httpSDCheckTemplate represents the check configuration template
 // applied to each discovered target.
 type httpSDCheckTemplate struct {
@@ -56,6 +68,7 @@ type httpSDEntry struct {
 	url           string
 	client        *http.Client
 	checkTemplate httpSDCheckTemplate
+	filterProgram cel.Program // compiled exclude_filter CEL program; nil if no filter
 }
 
 // httpSDConfigEntry mirrors a single entry under prometheus_http_sd.configs in
@@ -63,34 +76,46 @@ type httpSDEntry struct {
 type httpSDConfigEntry struct {
 	URL           string `mapstructure:"url" yaml:"url"`
 	CheckTemplate string `mapstructure:"check_template" yaml:"check_template"`
+	// ExcludeFilter is an optional CEL expression that, when it evaluates to true,
+	// causes the target to be skipped. The expression receives a single variable
+	// named "target" with fields "host" (string), "port" (string), and "labels" (map of string to string).
+	ExcludeFilter string `mapstructure:"exclude_filter" yaml:"exclude_filter"`
 }
 
 // buildEntries validates each raw config entry and produces the corresponding
-// httpSDEntry values that share a single HTTP client.
-func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, error) {
-	if len(rawConfigs) == 0 {
-		return nil, errors.New("prometheus_http_sd provider requires at least one endpoint (set prometheus_http_sd.configs)")
-	}
-
+// httpSDEntry values that share a single HTTP client. Invalid entries are
+// skipped and their errors returned alongside the valid entries so the caller
+// can decide whether to abort (all failed) or continue with the remainder.
+func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, []error) {
 	entries := make([]*httpSDEntry, 0, len(rawConfigs))
+	var errs []error
 	for i, raw := range rawConfigs {
 		if raw.URL == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: url is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: url is required", i))
+			continue
 		}
 		if raw.CheckTemplate == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i))
+			continue
 		}
 		tmpl, err := parseCheckTemplate(raw.CheckTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err))
+			continue
+		}
+		filterProg, err := compileExcludeFilter(raw.ExcludeFilter)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %v", i, err))
+			continue
 		}
 		entries = append(entries, &httpSDEntry{
 			url:           raw.URL,
 			client:        sharedClient,
 			checkTemplate: tmpl,
+			filterProgram: filterProg,
 		})
 	}
-	return entries, nil
+	return entries, errs
 }
 
 // PrometheusHTTPSDConfigProvider polls one or more Prometheus HTTP Service
@@ -125,9 +150,12 @@ func NewPrometheusHTTPSDConfigProvider(
 		return nil, err
 	}
 
-	entries, err := buildEntries(rawConfigs, client)
-	if err != nil {
-		return nil, err
+	entries, entryErrs := buildEntries(rawConfigs, client)
+	for _, err := range entryErrs {
+		log.Warnf("prometheus_http_sd: skipping invalid entry: %v", err)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("prometheus_http_sd: all %d entry(ies) failed to initialize", len(rawConfigs))
 	}
 
 	return &PrometheusHTTPSDConfigProvider{
@@ -250,6 +278,11 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 				port = ""
 			}
 
+			if excluded, filterErr := e.isExcluded(host, port, tg.Labels); filterErr == nil && excluded {
+				log.Debugf("http_sd: target %s excluded by filter", target)
+				continue
+			}
+
 			config, buildErr := e.buildConfig(host, port, tags)
 			if buildErr != nil {
 				log.Warnf("http_sd: failed to build config for target %s: %v", target, buildErr)
@@ -258,6 +291,7 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 			configs = append(configs, config)
 		}
 	}
+
 	return configs, nil
 }
 
@@ -351,4 +385,44 @@ func substituteTemplateVars(v interface{}, host, port string) interface{} {
 	s = strings.ReplaceAll(s, "%%host%%", host)
 	s = strings.ReplaceAll(s, "%%port%%", port)
 	return s
+}
+
+// compileExcludeFilter compiles a CEL expression into a reusable program.
+// The expression receives a single "target" variable of type httpSDTarget with
+// fields "host" (string), "port" (string), and "labels" (map<string, string>).
+// Returns nil for an empty expression.
+func compileExcludeFilter(expr string) (cel.Program, error) {
+	if expr == "" {
+		return nil, nil
+	}
+	env, err := cel.NewEnv(
+		ext.NativeTypes(reflect.TypeOf(httpSDTarget{}), ext.ParseStructTag("json")),
+		cel.Variable("target", cel.ObjectType("providers.httpSDTarget")),
+	)
+	if err != nil {
+		return nil, err
+	}
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
+	}
+	if ast.OutputType() != cel.BoolType {
+		return nil, fmt.Errorf("exclude_filter must return bool, got %s", ast.OutputType())
+	}
+	return env.Program(ast)
+}
+
+// isExcluded evaluates the entry's exclude_filter against the given target fields.
+// Returns false (not excluded) when no filter is set or evaluation fails.
+func (e *httpSDEntry) isExcluded(host, port string, labels map[string]string) (bool, error) {
+	if e.filterProgram == nil {
+		return false, nil
+	}
+	out, _, err := e.filterProgram.Eval(map[string]any{
+		"target": httpSDTarget{Host: host, Port: port, Labels: labels},
+	})
+	if err != nil {
+		return false, err
+	}
+	return out.Value().(bool), nil
 }

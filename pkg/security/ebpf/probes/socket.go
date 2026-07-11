@@ -32,6 +32,18 @@ func getSocketProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 			},
 			CGroupPath: cgroup2MountPoint,
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_socket",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_io_socket",
+			},
+		},
 	}
 
 	socketProbes = append(socketProbes, ExpandSyscallProbes(&manager.Probe{

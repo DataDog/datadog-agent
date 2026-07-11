@@ -3015,6 +3015,60 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			} else {
 				out.RCode = uint8(in.Uint8())
 			}
+		case "ips":
+			if in.IsNull() {
+				in.Skip()
+				out.IPs = nil
+			} else {
+				in.Delim('[')
+				if out.IPs == nil {
+					if !in.IsDelim(']') {
+						out.IPs = make([]string, 0, 4)
+					} else {
+						out.IPs = []string{}
+					}
+				} else {
+					out.IPs = (out.IPs)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v41 string
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						v41 = string(in.String())
+					}
+					out.IPs = append(out.IPs, v41)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "cnames":
+			if in.IsNull() {
+				in.Skip()
+				out.CNames = nil
+			} else {
+				in.Delim('[')
+				if out.CNames == nil {
+					if !in.IsDelim(']') {
+						out.CNames = make([]string, 0, 4)
+					} else {
+						out.CNames = []string{}
+					}
+				} else {
+					out.CNames = (out.CNames)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v42 string
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						v42 = string(in.String())
+					}
+					out.CNames = append(out.CNames, v42)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -3033,6 +3087,34 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		const prefix string = ",\"code\":"
 		out.RawString(prefix[1:])
 		out.Uint8(uint8(in.RCode))
+	}
+	if len(in.IPs) != 0 {
+		const prefix string = ",\"ips\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('[')
+			for v43, v44 := range in.IPs {
+				if v43 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v44))
+			}
+			out.RawByte(']')
+		}
+	}
+	if len(in.CNames) != 0 {
+		const prefix string = ",\"cnames\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('[')
+			for v45, v46 := range in.CNames {
+				if v45 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v46))
+			}
+			out.RawByte(']')
+		}
 	}
 	out.RawByte('}')
 }

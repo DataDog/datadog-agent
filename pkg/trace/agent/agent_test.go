@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
@@ -3601,10 +3602,6 @@ func TestMergeDuplicates(t *testing.T) {
 }
 
 func TestProcessStatsTimeout(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-		t.Skip("TestProcessStatsTimeout is known to fail on the macOS Gitlab runners.")
-	}
-
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
@@ -3613,7 +3610,7 @@ func TestProcessStatsTimeout(t *testing.T) {
 
 	statsPayload := testutil.StatsPayloadSample()
 
-	t.Run("context_timeout", func(t *testing.T) {
+	syncTestContextTimeout := func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 
@@ -3627,11 +3624,11 @@ func TestProcessStatsTimeout(t *testing.T) {
 		assert.Equal(t, context.DeadlineExceeded, err)
 
 		// Should timeout around 50ms, not hang indefinitely
-		assert.Less(t, elapsed, 100*time.Millisecond, "ProcessStats should respect context timeout")
-		assert.Greater(t, elapsed, 45*time.Millisecond, "ProcessStats should wait for context timeout")
-	})
+		assert.Equal(t, 50*time.Millisecond, elapsed, "ProcessStats should respect context timeout")
+	}
+	t.Run("context_timeout", func(t *testing.T) { synctest.Test(t, syncTestContextTimeout) })
 
-	t.Run("context_cancelled", func(t *testing.T) {
+	syncTestContextCancelled := func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
@@ -3650,9 +3647,9 @@ func TestProcessStatsTimeout(t *testing.T) {
 		assert.Equal(t, context.Canceled, err)
 
 		// Should be cancelled around 30ms
-		assert.Less(t, elapsed, 60*time.Millisecond, "ProcessStats should respect context cancellation")
-		assert.Greater(t, elapsed, 25*time.Millisecond, "ProcessStats should wait for context cancellation")
-	})
+		assert.Equal(t, 30*time.Millisecond, elapsed, "ProcessStats should respect context cancellation")
+	}
+	t.Run("context_cancelled", func(t *testing.T) { synctest.Test(t, syncTestContextCancelled) })
 
 	t.Run("successful_processing", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

@@ -233,3 +233,32 @@ func TestGetAPIDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestErrorDetail(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "json:api detail",
+			body: `{"errors":[{"status":"401","title":"Unauthorized","detail":"Authenticated as arn:aws:sts::123:assumed-role/R/s but no identity mapping was found."}]}`,
+			want: ": Authenticated as arn:aws:sts::123:assumed-role/R/s but no identity mapping was found.",
+		},
+		{name: "title only when no detail", body: `{"errors":[{"title":"Unauthorized"}]}`, want: ": Unauthorized"},
+		{name: "multiple errors joined", body: `{"errors":[{"detail":"a"},{"detail":"b"}]}`, want: ": a; b"},
+		{name: "non-json body yields nothing", body: `<html>502 Bad Gateway</html>`, want: ""},
+		{name: "empty errors array yields nothing", body: `{"errors":[]}`, want: ""},
+		{name: "empty body yields nothing", body: ``, want: ""},
+		// A success-shaped body must never be surfaced (defense-in-depth: the API key lives here on 200,
+		// but errorDetail only runs on non-200 and reads only errors[].title/detail).
+		{name: "success-shaped body yields nothing", body: `{"data":{"attributes":{"api_key":"SECRETKEY"}}}`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := errorDetail([]byte(tt.body))
+			assert.Equal(t, tt.want, got)
+			assert.NotContains(t, got, "SECRETKEY")
+		})
+	}
+}

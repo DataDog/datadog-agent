@@ -1,0 +1,14 @@
+# Policy for: .github/workflows/notify-datadog-agent-on-push.yml in DataDog/opentelemetry-ebpf-profiler
+issuer: https://token.actions.githubusercontent.com
+subject: repo:DataDog/opentelemetry-ebpf-profiler:ref:refs/heads/datadog
+
+claim_pattern:
+  event_name: push
+  ref: refs/heads/datadog
+  ref_protected: "true"
+  job_workflow_ref: DataDog/opentelemetry-ebpf-profiler/\.github/workflows/notify-datadog-agent-on-push\.yml@refs/heads/datadog
+  repository: DataDog/opentelemetry-ebpf-profiler
+
+# most restrictive that still grants permissions for repository_dispatch
+permissions:
+  contents: write

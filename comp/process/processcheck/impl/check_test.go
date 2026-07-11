@@ -80,7 +80,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sysprobeConf := sysprobeconfigmock.NewMock(t)
 			for k, v := range tc.sysProbeConfigs {
-				sysprobeConf.SetWithoutSource(k, v)
+				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
@@ -94,7 +94,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 					return &statsd.NoOpClient{}
 				}),
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

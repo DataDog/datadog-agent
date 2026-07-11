@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const probeUID = "dns"
@@ -54,11 +55,25 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 func (e *ebpfProgram) Init() error {
 	defer e.bytecode.Close()
 
-	var constantEditors []manager.ConstantEditor
+	// The port list has already been sanitized in config.New()
+	ports := e.cfg.DNSMonitoringPortList
+	log.Infof("DNS monitoring ports: %v", ports)
+
+	constantEditors := make([]manager.ConstantEditor, 0, config.DNSPortsMax+1)
 	if e.cfg.CollectDNSStats {
 		constantEditors = append(constantEditors, manager.ConstantEditor{
 			Name:  "dns_stats_enabled",
 			Value: uint64(1),
+		})
+	}
+	for i := 0; i < config.DNSPortsMax; i++ {
+		var val uint64
+		if i < len(ports) {
+			val = uint64(uint16(ports[i]))
+		}
+		constantEditors = append(constantEditors, manager.ConstantEditor{
+			Name:  fmt.Sprintf("dns_port_%d", i),
+			Value: val,
 		})
 	}
 
@@ -82,32 +97,6 @@ func (e *ebpfProgram) Init() error {
 	})
 	if err == nil {
 		ddebpf.AddNameMappings(e.Manager, "npm_dns")
-
-		dnsPortsMap, _, err := e.Manager.GetMap("dns_ports")
-		if err != nil {
-			return fmt.Errorf("getting dns_ports map: %w", err)
-		}
-
-		// clear out existing entries, because if the user changes the config
-		// to remove a port, the map will still be there with the old config
-		var key uint16
-		iter := dnsPortsMap.Iterate()
-		for iter.Next(&key, nil) {
-			if err := dnsPortsMap.Delete(&key); err != nil {
-				return fmt.Errorf("error deleting dns port %d: %w", key, err)
-			}
-		}
-		if err := iter.Err(); err != nil {
-			return fmt.Errorf("error iterating dns_ports map: %w", err)
-		}
-
-		val := uint8(1)
-		for _, p := range e.cfg.DNSMonitoringPortList {
-			port := uint16(p)
-			if err := dnsPortsMap.Put(&port, &val); err != nil {
-				return fmt.Errorf("error putting dns port %d: %w", p, err)
-			}
-		}
 	}
 	return err
 }

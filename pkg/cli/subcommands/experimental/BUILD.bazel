@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "experimental",
+    srcs = [
+        "check.go",
+        "check_permissions_notwindows.go",
+        "check_permissions_windows.go",
+        "command.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/experimental",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/cli/subcommands/config",
+        "//pkg/config/schema",
+        "//pkg/config/utils",
+        "//pkg/util/fxutil",
+        "//pkg/util/scrubber",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "experimental_test",
+    srcs = [
+        "check_test.go",
+        "command_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":experimental"],
+    embedsrcs = ["testdata/yaml_error_test.yaml"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core",
+        "//pkg/cli/subcommands/config",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

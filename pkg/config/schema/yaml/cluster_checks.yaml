@@ -1,0 +1,157 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/cluster_checks.yaml.schema.json
+node_type: section
+title: Cluster check Configuration
+type: object
+visibility: public
+description: |-
+  Enter specific configurations for your cluster check.
+  The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+  the node-agents (provided the clustercheck config provider is enabled on them).
+  Uncomment this parameter and the one below to enable them.
+  See https://docs.datadoghq.com/agent/kubernetes/cluster/
+tags:
+- template_section:ClusterChecks
+- full-agent-only:true
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Set to true to enable the dispatching logic on the leader cluster-agent.
+  node_expiration_timeout:
+    node_type: setting
+    type: integer
+    default: 30
+    visibility: public
+    description: |-
+      Set "node_expiration_timeout" time in second after which Node-agents that have not
+      queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
+    comment: value in seconds
+  warmup_duration:
+    node_type: setting
+    type: integer
+    default: 30
+    visibility: public
+    description: |-
+      Set the "warmup_duration" duration in second for the cluster-agent to wait for all
+      node-agents to report to it before dispatching configurations.
+    comment: value in seconds
+  cluster_tag_name:
+    node_type: setting
+    type: string
+    default: cluster_name
+    visibility: public
+    description: |-
+      If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
+      to all cluster-check configurations sent to the node-agents.
+      Set a custom tag name here, or disable it by setting an empty name.
+  extra_tags:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    visibility: public
+    description: Set a list of additionnal tags can to be added to every cluster-check
+      configuration.
+    example: |2-
+
+        - <TAG_KEY>:<TAG_VALUE>
+  advanced_dispatching_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      If advanced_dispatching_enabled is true the leader cluster-agent collects stats
+      from the cluster level check runners to optimize the check dispatching logic.
+  rebalance_with_utilization:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: If rebalance_with_utilization is true, the cluster-agent will rebalance
+      cluster checks using node utilization.
+  clc_runners_port:
+    node_type: setting
+    type: integer
+    default: 5005
+    visibility: public
+    description: |-
+      Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
+      check runners and collect their stats.
+  crd_collection:
+    node_type: setting
+    type: boolean
+    default: false
+  exclude_checks:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  exclude_checks_from_dispatching:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  ksm_sharding_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: 'KSM resource sharding: splits KSM check by resource type (pods, nodes,
+      others)'
+  rebalance_min_percentage_improvement:
+    node_type: setting
+    type: integer
+    default: 10
+    comment: Experimental. Subject to change. Rebalance only if the distribution found
+      improves the current one by this.
+  rebalance_period:
+    node_type: setting
+    type: string
+    default: 10m0s
+    format: duration
+    tags:
+    - golang_type:duration
+  stickiness_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Biases check placement toward the runner where a check previously ran.
+  stickiness_factor:
+    node_type: setting
+    type: number
+    default: 4
+    tags:
+    - golang_type:float64
+    comment: Multiplier applied to workersNeeded when computing the stickiness bias.
+  stickiness_lower_limit:
+    node_type: setting
+    type: number
+    default: 0.05
+    tags:
+    - golang_type:float64
+    comment: Minimum stickiness bias applied when stickiness is enabled.
+  stickiness_upper_limit:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+    comment: Maximum stickiness bias applied regardless of workersNeeded.
+  support_hybrid_ignore_ad_tags:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      Cluster check Autodiscovery
+      TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
+  unscheduled_check_threshold:
+    node_type: setting
+    type: integer
+    default: 60
+    comment: value in seconds

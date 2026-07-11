@@ -17,13 +17,13 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	syncerStoreID autoscaling.SenderID = "prof-s"
+	syncerStoreID autoscalingstore.SenderID = "prof-s"
 
 	syncerReconcilePeriod = 1 * time.Minute
 )
@@ -36,8 +36,8 @@ const (
 //   - dpaOwnership maps each DPA store key to the profile name that owns it.
 //     This is the single source of truth for what the syncer has created.
 type AutoscalerSyncer struct {
-	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal]
-	dpaStore     *autoscaling.Store[model.PodAutoscalerInternal]
+	profileStore *autoscalingstore.Store[model.PodAutoscalerProfileInternal]
+	dpaStore     *autoscalingstore.Store[model.PodAutoscalerInternal]
 	isLeader     func() bool
 
 	mu           sync.Mutex
@@ -56,8 +56,8 @@ type AutoscalerSyncer struct {
 // until every dependency returns true. Typical deps are
 // WorkloadWatcher.HasSynced and the profile controller's HasSynced.
 func NewAutoscalerSyncer(
-	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
-	dpaStore *autoscaling.Store[model.PodAutoscalerInternal],
+	profileStore *autoscalingstore.Store[model.PodAutoscalerProfileInternal],
+	dpaStore *autoscalingstore.Store[model.PodAutoscalerInternal],
 	isLeader func() bool,
 	readyDeps ...cache.InformerSynced,
 ) *AutoscalerSyncer {
@@ -73,15 +73,15 @@ func NewAutoscalerSyncer(
 	// Only observe the profile store. DPA store changes (values updates, scaling
 	// events) are irrelevant and would trigger expensive reconciles every ~30s.
 	// Conflict with user-created DPAs is detected by the periodic safety-net reconcile.
-	profileStore.RegisterObserver(autoscaling.Observer{
-		SetFunc:    func(_ string, sender autoscaling.SenderID) { s.enqueue(sender) },
-		DeleteFunc: func(_ string, sender autoscaling.SenderID) { s.enqueue(sender) },
+	profileStore.RegisterObserver(autoscalingstore.Observer{
+		SetFunc:    func(_ string, sender autoscalingstore.SenderID) { s.enqueue(sender) },
+		DeleteFunc: func(_ string, sender autoscalingstore.SenderID) { s.enqueue(sender) },
 	})
 
 	return s
 }
 
-func (s *AutoscalerSyncer) enqueue(sender autoscaling.SenderID) {
+func (s *AutoscalerSyncer) enqueue(sender autoscalingstore.SenderID) {
 	if sender == syncerStoreID {
 		return
 	}
@@ -144,7 +144,7 @@ func (s *AutoscalerSyncer) rebuildOwnership() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	profileManagedDPAs := s.dpaStore.GetFiltered(func(pai model.PodAutoscalerInternal) bool {
+	profileManagedDPAs := s.dpaStore.List(func(pai model.PodAutoscalerInternal) bool {
 		return pai.IsProfileManaged() && !pai.Deleted()
 	})
 
@@ -180,7 +180,7 @@ func (s *AutoscalerSyncer) reconcile() {
 func (s *AutoscalerSyncer) buildDesiredState() map[string]desiredDPA {
 	desired := make(map[string]desiredDPA)
 
-	profiles := s.profileStore.GetAll()
+	profiles := s.profileStore.List(nil)
 	for _, profileInternal := range profiles {
 		if !profileInternal.Valid() || profileInternal.Template() == nil {
 			continue
@@ -221,7 +221,7 @@ func (s *AutoscalerSyncer) resolveConflicts(desired map[string]desiredDPA) {
 		return
 	}
 
-	nonProfileDPAs := s.dpaStore.GetFiltered(func(pai model.PodAutoscalerInternal) bool {
+	nonProfileDPAs := s.dpaStore.List(func(pai model.PodAutoscalerInternal) bool {
 		return !pai.IsProfileManaged() && pai.Spec() != nil && !pai.Deleted()
 	})
 
@@ -271,39 +271,48 @@ func (s *AutoscalerSyncer) applyChanges(desired map[string]desiredDPA) {
 func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 	targetRef := buildTargetRef(d.ref)
 
-	pai, found, unlock := s.dpaStore.LockRead(dpaKey, true)
+	item, found := s.dpaStore.Get(dpaKey)
+	defer item.Release()
 	if !found {
 		_, name, _ := cache.SplitMetaNamespaceKey(dpaKey)
 		log.Infof("Creating DPA %s for profile %s", dpaKey, d.profileName)
-		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
-		s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
+		pai := model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
+		item.Upsert(pai, syncerStoreID)
 		return
 	}
 
+	pai := item.Value()
 	if !pai.IsProfileManaged() {
-		unlock()
 		return
 	}
 
-	if pai.ProfileName() == d.profileName && pai.DesiredProfileTemplateHash() == d.templateHash {
-		unlock()
+	// A desired DPA must never stay flagged for deletion. ProcessAll notifies the
+	// syncer per profile during a workload-watcher pass, so a prior reconcile may have
+	// run against partial profile-store state (e.g. a workload mid-move from one
+	// profile to another) and marked this DPA deleted; re-claim it here.
+	upToDate := pai.ProfileName() == d.profileName && pai.DesiredProfileTemplateHash() == d.templateHash
+	if upToDate && !pai.Deleted() {
 		return
 	}
 
-	pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
-	s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
+	if !upToDate {
+		pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
+	}
+	pai.ClearDeleted()
+	item.Upsert(pai, syncerStoreID)
 }
 
 // deleteDPA marks a DPA entry as deleted in the store.
 func (s *AutoscalerSyncer) deleteDPA(dpaKey string) {
-	pai, found, unlock := s.dpaStore.LockRead(dpaKey, false)
+	item, found := s.dpaStore.Get(dpaKey)
+	defer item.Release()
 	if !found {
-		unlock()
 		return
 	}
 
+	pai := item.Value()
 	pai.SetDeleted()
-	s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
+	item.Upsert(pai, syncerStoreID)
 }
 
 func buildTargetRef(ref model.NamespacedObjectReference) autoscalingv2.CrossVersionObjectReference {

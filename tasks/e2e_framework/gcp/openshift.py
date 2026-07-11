@@ -67,7 +67,6 @@ def create_openshift(
     extra_flags = {
         "scenario": scenario_name,
         "ddinfra:env": f"gcp/{cfg.get_gcp().account}",
-        "ddinfra:gcp/defaultPublicKeyPath": cfg.get_gcp().publicKeyPath,
         "ddinfra:gcp/openshift/pullSecretPath": pull_secret_path,
         "ddinfra:gcp/enableNestedVirtualization": use_nested_virtualization,
         "ddinfra:gcp/defaultInstanceType": "n2-standard-8",

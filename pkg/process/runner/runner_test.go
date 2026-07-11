@@ -143,7 +143,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.SetInTest("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			// Mock IPC component to provide TLS credentials
 			ipcMock := ipcmock.New(t)

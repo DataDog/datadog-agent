@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -209,7 +209,7 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 func (suite *ConfigManagerSuite) TestFailedNonTemplateSecretResolutionRetried() {
 	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
 	resolver := &retrySecretResolver{failuresRemaining: 1}
-	cm := newReconcilingConfigManager(resolver, nil, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(resolver, nil, nil, nil, nil).(*reconcilingConfigManager)
 
 	changes, changedIDs := cm.processNewConfig(inputNewConfig)
 	assert.Empty(suite.T(), changedIDs)
@@ -595,7 +595,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver, nil, nil)
+			return newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil)
 		}},
 	})
 }
@@ -622,7 +622,7 @@ func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
 
 	// A service whose FilterTemplates drops any template whose Name has a
 	// static config in the shared index — this is the contract ProcessService
@@ -676,7 +676,7 @@ func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
 
 	staticRedis1 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6379")}}
 	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
@@ -703,7 +703,7 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
 
 	logsOnly := integration.Config{
 		Name:       "redis",
@@ -720,9 +720,9 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 
 func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",
@@ -745,18 +745,18 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 	count, issues := hp.GetAllIssues()
 	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
-	expectedIssueID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
+	expectedIssueID := admisconfig.TemplateIssueID + ":postgres:docker://abc123:" + tpl.Digest()
 	issue := issues[expectedIssueID]
 	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
 	assert.Equal(t, expectedIssueID, issue.Id)
-	assert.Equal(t, storedef.ADMisconfigurationSource, issue.Source)
+	assert.Equal(t, admisconfig.Source, issue.Source)
 }
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "redis",
@@ -772,9 +772,9 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 	// Pre-populate a health issue using the same IssueId format the code uses.
 	hp.ReportIssue(&healthplatformpayload.Issue{
-		Id:        "ad-template:redis:docker://def456:" + tpl.Digest(),
-		IssueName: storedef.ADMisconfigurationIssueName,
-		Source:    storedef.ADMisconfigurationSource,
+		Id:        admisconfig.TemplateIssueID + ":redis:docker://def456:" + tpl.Digest(),
+		IssueName: admisconfig.TemplateIssueName,
+		Source:    admisconfig.Source,
 	})
 	count, _ := hp.GetAllIssues()
 	require.Equal(t, 1, count)
@@ -785,3 +785,34 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	count, _ = hp.GetAllIssues()
 	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
 }
+
+func TestResolveTemplateForService_SkipsReportWhenServiceNotReady(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.New(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "postgres",
+		ADIdentifiers: []string{"postgres"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%")},
+	}
+
+	svc := &notReadyService{dummyService{
+		ID:            "docker://abc123",
+		ADIdentifiers: []string{"postgres"},
+	}}
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.False(t, ok, "a not-ready service must not resolve")
+
+	count, _ := hp.GetAllIssues()
+	assert.Equal(t, 0, count, "transient 'service not ready' must not be reported as a health issue")
+}
+
+// notReadyService exercises the transient configresolver.ErrServiceNotReady path.
+type notReadyService struct {
+	dummyService
+}
+
+func (notReadyService) IsReady() bool { return false }

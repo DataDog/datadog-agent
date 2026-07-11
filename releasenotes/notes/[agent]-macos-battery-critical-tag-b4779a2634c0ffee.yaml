@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The macOS battery check now adds a ``power_state:battery_critical``
+    tag to the ``system.battery.power_state`` metric when the operating system
+    reports a degraded battery.

@@ -7,8 +7,8 @@
 // Each file in this package covers one concern:
 //
 //   - anomalydetection_nix_test.go — reporter tests: DSD-spike (CUSUM) and file-log-spike (BOCPD)
-//   - defaults_nix_test.go        — observer disabled by default (no [observer] lines)
-//   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/agent_logs gates)
+//   - defaults_nix_test.go        — observer disabled by default (no observer telemetry metrics)
+//   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/internal gates)
 //   - shutdown_nix_test.go        — graceful shutdown under DSD load (no panic/crash)
 package anomalydetection
 
@@ -17,8 +17,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -52,18 +50,22 @@ func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: true
   logs:
     enabled: false
-  agent_logs:
-    enabled: false
+    internal:
+      enabled: false
   detectors:
     cusum:
       enabled: true
     bocpd:
       enabled: false
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &metricsTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -152,18 +154,8 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 		s.T().Log("done sending metrics")
 	}()
 
-	// Poll the journal for the reporter marker. The stdoutReporter writes via
-	// fmt.Printf (→ process stdout → journald). No line cap is applied so we
-	// never miss the marker because of journal truncation.
-	s.T().Log("polling journal for reporter marker...")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
-		assert.NoError(c, err, "journalctl execution failed")
-		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 3*time.Minute, 5*time.Second)
-
-	dumpObserverLines(s.T(), s.Env())
-	s.T().Log("reporter marker found")
+	waitForReportsTelemetry(s)
+	s.T().Log("reports telemetry detected")
 }
 
 // logTriggeredSuite exercises the external log collection path of the observer.
@@ -206,16 +198,22 @@ log_level: debug
 logs_config:
   file_scan_period: 1
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: false
   logs:
     enabled: true
-  agent_logs:
-    enabled: false
+    containers:
+      min_severity: ""  # plain file logs have no severity; accept all levels
+    internal:
+      enabled: false
   detectors:
     bocpd:
       warmup_points: 20
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &logTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -325,13 +323,6 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 		s.T().Log("done writing log lines")
 	}()
 
-	s.T().Log("polling journal for reporter marker...")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
-		assert.NoError(c, err, "journalctl execution failed")
-		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 3*time.Minute, 5*time.Second)
-
-	dumpObserverLines(s.T(), s.Env())
-	s.T().Log("reporter marker found via log trigger")
+	waitForReportsTelemetry(s)
+	s.T().Log("reports telemetry detected via log trigger")
 }

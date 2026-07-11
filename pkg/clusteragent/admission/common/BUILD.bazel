@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "const.go",
+        "global.go",
+        "label_selectors.go",
+        "lib_config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = ["lib_config_test.go"],
+    embed = [":common"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+    ],
+)

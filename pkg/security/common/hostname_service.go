@@ -8,7 +8,7 @@ package common
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 )
 
 // StaticHostnameService is a hostname service that returns a fixed hostname

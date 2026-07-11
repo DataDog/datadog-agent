@@ -8,36 +8,40 @@
 // team: agent-configuration
 package configstreamconsumer
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
-// SessionIDProvider supplies the RAR session ID, typically after registration completes.
-// When set, the consumer will call WaitSessionID at connect time instead of using Params.SessionID.
-type SessionIDProvider interface {
-	WaitSessionID(ctx context.Context) (string, error)
-}
-
-// Params defines the parameters for the configstreamconsumer component
+// Params for the configstreamconsumer component.
 type Params struct {
-	// ClientName is the identity of this remote agent (e.g., "system-probe", "trace-agent")
+	// ClientName identifies this remote agent (e.g. "system-probe"). Required.
 	ClientName string
-	// CoreAgentAddress is the address of the core agent IPC endpoint
-	CoreAgentAddress string
-	// SessionID is the RAR session ID for authorization. Required if SessionIDProvider is nil.
-	SessionID string
-	// SessionIDProvider supplies the session ID at connect time (e.g. from remote agent component).
-	// When set, SessionID may be empty; the consumer will block on WaitSessionID before connecting.
-	SessionIDProvider SessionIDProvider
-	// ReadyTimeout is how long OnStart blocks waiting for the first config snapshot before
-	// returning an error and aborting startup. Defaults to 60s when zero.
+	// CLIConfigPath is the binary's resolved -config / --cfgpath (file or dir).
+	CLIConfigPath string
+	// ReadyTimeout caps NewComponent's wait for the first snapshot. Defaults to 60s.
 	ReadyTimeout time.Duration
 }
 
-// Component is the config stream consumer component interface.
-// Its sole purpose is to receive configuration from the core agent stream and write it
-// into the local config.Component via the model.Writer provided at construction.
-// Callers that need to read config or subscribe to changes should use config.Component directly.
-// Readiness is guaranteed by the FX lifecycle: start blocks until the first snapshot is received.
-type Component interface{}
+// Option mutates Params.
+type Option func(*Params)
+
+// WithReadyTimeout overrides the default first-snapshot timeout.
+func WithReadyTimeout(d time.Duration) Option {
+	return func(p *Params) { p.ReadyTimeout = d }
+}
+
+// NewParams returns Params with the required fields set; apply Options for the rest.
+func NewParams(clientName, cliConfigPath string, opts ...Option) Params {
+	p := Params{
+		ClientName:    clientName,
+		CLIConfigPath: cliConfigPath,
+	}
+	for _, opt := range opts {
+		opt(&p)
+	}
+	return p
+}
+
+// Component is the config stream consumer. IsActive is true once the initial snapshot
+// has been applied to the global config builder.
+type Component interface {
+	IsActive() bool
+}

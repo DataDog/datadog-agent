@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/noop-impl",
         "//comp/forwarder/orchestrator/def",
         "//pkg/util/fxutil",
         "//pkg/util/option",

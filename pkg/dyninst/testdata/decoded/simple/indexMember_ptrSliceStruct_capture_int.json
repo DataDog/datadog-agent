@@ -18,7 +18,7 @@
           {
             "function": "main.ptrStructSliceArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 986
+            "lineNumber": 1000
           },
           {
             "function": "main.main",

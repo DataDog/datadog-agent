@@ -320,7 +320,7 @@ func TestSendMetric(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := mocksender.NewMockSender(t, "foo")
 			metricSender := MetricSender{sender: mockSender}
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -573,7 +573,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := mocksender.NewMockSender(t, "foo")
 			mockSender.SetupAcceptAll()
 
 			metricSender := MetricSender{
@@ -763,7 +763,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := mocksender.NewMockSender(t, "foo")
 			metricSender := MetricSender{sender: mockSender}
 
 			profiledefinition.ValidateEnrichMetricTags(tt.metricsTags)

@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/api",
         "//test/fakeintake/server/rcstore",
         "//test/fakeintake/server/serverstore",
@@ -26,6 +27,7 @@ go_library(
         "@com_github_prometheus_client_golang//prometheus/promhttp",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/structpb",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//require",
@@ -79,6 +81,7 @@ go_library(
 go_test(
     name = "server_test",
     srcs = [
+        "par_test.go",
         "rc_test.go",
         "redact_test.go",
         "server_test.go",
@@ -135,84 +138,57 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/api",
         "//test/fakeintake/server/rcstore",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:android": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:osx": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:qnx": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
             "@com_github_benbjohnson_clock//:clock",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

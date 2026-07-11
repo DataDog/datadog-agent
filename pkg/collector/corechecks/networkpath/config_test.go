@@ -19,7 +19,7 @@ import (
 
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig.SetInTest("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -484,6 +484,62 @@ disable_windows_driver: true
 				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
 				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 				DisableWindowsDriver:  true,
+			},
+		},
+		{
+			name: "Disable collecting source public IP",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
+		{
+			name: "Disable collecting source public IP from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+`),
+			rawInitConfig: []byte(`
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
+		{
+			name: "Disable collecting source public IP from init config cannot be re-enabled per instance",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+disable_source_public_ip_collection: false
+`),
+			rawInitConfig: []byte(`
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
 			},
 		},
 	}

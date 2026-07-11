@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["conntrack.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/testutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/testutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

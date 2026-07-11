@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containers",
@@ -18,7 +19,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "containers_test",
     srcs = [
         "entity_test.go",
@@ -27,6 +28,5 @@ go_test(
         "pause_test.go",
     ],
     embed = [":containers"],
-    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

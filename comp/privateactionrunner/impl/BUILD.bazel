@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["privateactionrunner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/def",
+        "//comp/dogstatsd/statsd/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/networkpath/traceroute/def",
+        "//comp/privateactionrunner/def",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/parversion",
+        "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/autoconnections",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
+        "//pkg/privateactionrunner/util",
+        "//pkg/util/http",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["privateactionrunner_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

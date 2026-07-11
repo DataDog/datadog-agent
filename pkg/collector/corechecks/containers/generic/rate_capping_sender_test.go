@@ -29,7 +29,7 @@ func (s *rateCappingSuite) tick() {
 
 // Put configuration back in a known state before each test
 func (s *rateCappingSuite) SetupTest() {
-	s.mockSender = mocksender.NewMockSender("rateTest")
+	s.mockSender = mocksender.NewMockSender(s.T(), "rateTest")
 	s.mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	s.cappedSender = &CappedSender{

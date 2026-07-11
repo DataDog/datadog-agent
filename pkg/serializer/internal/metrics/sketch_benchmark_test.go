@@ -27,7 +27,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	mockConfig := mock.New(b)
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 	logger := logmock.New(b)
 
 	for n := 0; n < b.N; n++ {

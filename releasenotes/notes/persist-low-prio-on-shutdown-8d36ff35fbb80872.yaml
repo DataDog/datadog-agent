@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Persist low-priority transactions (such as retried metrics) to disk
+    during a graceful Agent shutdown instead of dropping them.

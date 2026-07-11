@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "local",
+    srcs = ["local.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/diagnose/local",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common",
+        "//comp/collector/collector/def",
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/forwarder/eventplatform/impl",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator",
+        "//pkg/collector",
+        "//pkg/diagnose/connectivity",
+        "//pkg/diagnose/ports",
+        "//pkg/util/option",
+    ],
+)

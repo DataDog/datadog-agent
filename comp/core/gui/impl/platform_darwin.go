@@ -6,8 +6,11 @@
 package guiimpl
 
 import (
-	"errors"
+	"fmt"
+	"net/http"
 
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
@@ -25,10 +28,32 @@ const instructionTemplate = `{{define "loginInstruction" }}
 <p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
 {{end}}`
 
-func restartEnabled() bool {
-	return false
+func restartEnabled(sysprobeConfig sysprobeconfig.Component) bool {
+	return sysprobeConfig.GetBool("system_probe_config.enabled")
 }
 
-func restart() error {
-	return errors.New("restarting the agent is not implemented on non-windows platforms")
+func restart(getToken func() string, sysprobeSocketPath string) error {
+	client := sysprobeclient.Get(sysprobeSocketPath)
+
+	url := sysprobeclient.URL("/agent-restart")
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("could not build restart request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+getToken())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach system-probe: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := sysprobeclient.ReadAllResponseBody(resp)
+		if err != nil {
+			return fmt.Errorf("system-probe agent restart failed with status %d; could not read response body: %w", resp.StatusCode, err)
+		}
+		return fmt.Errorf("system-probe agent restart failed with status %d: %s", resp.StatusCode, body)
+	}
+	return nil
 }

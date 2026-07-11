@@ -54,6 +54,7 @@ type KubeEndpointSlicesListener struct {
 	newService         chan<- Service
 	delService         chan<- Service
 	targetAllEndpoints bool
+	serviceTracker     types.ServiceTracker
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
 	telemetryStore     *telemetry.Store
@@ -86,6 +87,7 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 		serviceLister:         serviceInformer.Lister(),
 		promInclAnnot:         getPrometheusIncludeAnnotations(),
 		targetAllEndpoints:    options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		serviceTracker:        options.ServiceTracker,
 		filterStore:           options.Filter,
 		telemetryStore:        options.Telemetry,
 	}, nil
@@ -111,13 +113,17 @@ func (l *KubeEndpointSlicesListener) Listen(newSvc chan<- Service, delSvc chan<-
 		log.Errorf("cannot add event handler to service informer: %s", err)
 	}
 
+	if l.serviceTracker != nil {
+		l.serviceTracker.NotifyOnChange(l.processServiceUpdate)
+	}
+
 	endpointSlices, err := l.endpointSliceLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Cannot list Kubernetes endpointslices: %s", err)
 	}
 
 	for _, slice := range endpointSlices {
-		l.createServiceFromSlice(slice, true)
+		l.createServiceFromSlice(slice)
 	}
 }
 
@@ -131,7 +137,7 @@ func (l *KubeEndpointSlicesListener) endpointSliceAdded(obj interface{}) {
 		log.Errorf("Expected an *discv1.EndpointSlice type, got: %T", obj)
 		return
 	}
-	l.createServiceFromSlice(slice, true)
+	l.createServiceFromSlice(slice)
 }
 
 func (l *KubeEndpointSlicesListener) endpointSliceDeleted(obj interface{}) {
@@ -164,13 +170,13 @@ func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) 
 	oldSlice, ok := old.(*discv1.EndpointSlice)
 	if !ok {
 		log.Errorf("Expected an *discv1.EndpointSlice type, got: %T", old)
-		l.createServiceFromSlice(slice, true)
+		l.createServiceFromSlice(slice)
 		return
 	}
 
 	if l.endpointSlicesDiffer(slice, oldSlice) {
 		l.removeServiceFromSlice(oldSlice)
-		l.createServiceFromSlice(slice, true)
+		l.createServiceFromSlice(slice)
 	}
 }
 
@@ -185,24 +191,32 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 	oldSvc, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a *v1.Service type, got: %T", old)
-		l.processServiceUpdate(svc)
+		l.processServiceUpdate(svc.Namespace, svc.Name)
 		return
 	}
 
 	// Detect if new annotations are added
 	if !isServiceAnnotated(oldSvc, kubeEndpointSlicesID) && isServiceAnnotated(svc, kubeEndpointSlicesID) {
-		l.processServiceUpdate(svc)
+		l.processServiceUpdate(svc.Namespace, svc.Name)
+		return
 	}
 
-	// Detect changes of AD labels for standard tags if the Service is annotated
-	if isServiceAnnotated(svc, kubeEndpointSlicesID) &&
+	// Detect if prometheus annotations changed
+	if l.promInclAnnot.AnnotationsDiffer(svc.GetAnnotations(), oldSvc.GetAnnotations()) {
+		l.processServiceUpdate(svc.Namespace, svc.Name)
+		return
+	}
+
+	// Detect changes of AD labels for standard tags if the Service is annotated or tracked
+	tracked := l.serviceTracker != nil && l.serviceTracker.HasService(svc.Namespace, svc.Name)
+	if (isServiceAnnotated(svc, kubeEndpointSlicesID) || tracked) &&
 		(standardTagsDigest(oldSvc.GetLabels()) != standardTagsDigest(svc.GetLabels())) {
-		l.processServiceUpdate(svc)
+		l.processServiceUpdate(svc.Namespace, svc.Name)
 	}
 }
 
 // createServiceFromSlice processes a single EndpointSlice and creates KubeEndpointServices for its endpoints
-func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.EndpointSlice, checkServiceAnnotations bool) {
+func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.EndpointSlice) {
 	if slice == nil {
 		return
 	}
@@ -213,8 +227,9 @@ func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.Endpoi
 		return
 	}
 
-	if checkServiceAnnotations && l.shouldIgnore(slice) {
-		// Ignore endpointslices with no AD annotation on their corresponding service
+	if !l.shouldEmitSlice(slice) {
+		// The corresponding service is neither targeted by AD, tracked by an external
+		// source (e.g. a DatadogInstrumentation CR), nor AD-annotated.
 		return
 	}
 
@@ -282,11 +297,11 @@ func (l *KubeEndpointSlicesListener) removeServiceFromSlice(slice *discv1.Endpoi
 	}
 }
 
-// processServiceUpdate handles service update events by regenerating all endpoints for the service
-// This is only called when service annotations/labels change, which affects ALL endpoints
-func (l *KubeEndpointSlicesListener) processServiceUpdate(svc *v1.Service) {
-	allSlices, err := l.endpointSliceLister.EndpointSlices(svc.Namespace).List(
-		labels.Set{kubernetesServiceNameLabel: svc.Name}.AsSelector(),
+// processServiceUpdate regenerates all endpoints for a service by re-listing its
+// EndpointSlices and reconciling each through the emit gate.
+func (l *KubeEndpointSlicesListener) processServiceUpdate(serviceNamespace, serviceName string) {
+	allSlices, err := l.endpointSliceLister.EndpointSlices(serviceNamespace).List(
+		labels.Set{kubernetesServiceNameLabel: serviceName}.AsSelector(),
 	)
 	if err != nil {
 		log.Warnf("Cannot get Kubernetes endpointslices - EndpointSlice services won't be updated - error: %s", err)
@@ -297,7 +312,7 @@ func (l *KubeEndpointSlicesListener) processServiceUpdate(svc *v1.Service) {
 	// Remove and recreate all endpoints for this service
 	for _, slice := range allSlices {
 		l.removeServiceFromSlice(slice)
-		l.createServiceFromSlice(slice, false)
+		l.createServiceFromSlice(slice)
 	}
 }
 
@@ -354,12 +369,22 @@ func (l *KubeEndpointSlicesListener) isEndpointSlicesAnnotated(slice *discv1.End
 	return isServiceAnnotated(ksvc, kubeEndpointSlicesID) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
-func (l *KubeEndpointSlicesListener) shouldIgnore(slice *discv1.EndpointSlice) bool {
-	if l.targetAllEndpoints {
+// shouldEmitSlice reports whether endpoints from this slice should be scheduled:
+// AD targets all endpoints, OR the slice's service is tracked by an external source
+// (e.g. a DatadogInstrumentation CR), OR the service carries AD annotations.
+func (l *KubeEndpointSlicesListener) shouldEmitSlice(slice *discv1.EndpointSlice) bool {
+	return l.targetAllEndpoints ||
+		l.isServiceTracked(slice) ||
+		l.isEndpointSlicesAnnotated(slice)
+}
+
+// isServiceTracked reports whether the slice's service is tracked by an external source.
+func (l *KubeEndpointSlicesListener) isServiceTracked(slice *discv1.EndpointSlice) bool {
+	if l.serviceTracker == nil {
 		return false
 	}
-
-	return !l.isEndpointSlicesAnnotated(slice)
+	svcName := slice.Labels[kubernetesServiceNameLabel]
+	return svcName != "" && l.serviceTracker.HasService(slice.Namespace, svcName)
 }
 
 // processEndpointSlice parses a single kubernetes EndpointSlice object

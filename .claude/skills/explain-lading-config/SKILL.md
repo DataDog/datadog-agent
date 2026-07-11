@@ -3,6 +3,7 @@ name: explain-lading-config
 description: Explains a lading.yaml config file from the regression test suite, using the lading Rust source as ground truth for field meanings and defaults.
 user_invocable: true
 argument-hint: "[experiment name]"
+model: sonnet
 ---
 
 # explain-lading-config

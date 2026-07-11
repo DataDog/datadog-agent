@@ -1,0 +1,78 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "postgres",
+    srcs = [
+        "model_linux.go",
+        "operations.go",
+        "pgx_testclient.go",
+        "protocol.go",
+        "server.go",
+        "stats_linux.go",
+        "statskeeper.go",
+        "telemetry.go",
+        "testutils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/protocols",
+        "//pkg/network/protocols/events",
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/postgres/ebpf",
+        "//pkg/network/protocols/telemetry",
+        "//pkg/network/usm/buildmode",
+        "//pkg/network/usm/config",
+        "//pkg/network/usm/utils",
+        "//pkg/util/log",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_davecgh_go_spew//spew",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@com_github_stretchr_testify//require",
+        "@com_github_uptrace_bun//:bun",
+        "@com_github_uptrace_bun_dialect_pgdialect//:pgdialect",
+        "@com_github_uptrace_bun_driver_pgdriver//:pgdriver",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/types",
+            "//pkg/process/util",
+            "//pkg/util/sync",
+            "@com_github_datadog_go_sqllexer//:go-sqllexer",
+            "@com_github_datadog_sketches_go//ddsketch",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/types",
+            "//pkg/process/util",
+            "//pkg/util/sync",
+            "@com_github_datadog_go_sqllexer//:go-sqllexer",
+            "@com_github_datadog_sketches_go//ddsketch",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "postgres_test",
+    srcs = [
+        "model_linux_test.go",
+        "statskeeper_test.go",
+        "telemetry_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":postgres"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/network/config",
+        "//pkg/network/protocols/postgres/ebpf",
+        "//pkg/network/protocols/telemetry",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

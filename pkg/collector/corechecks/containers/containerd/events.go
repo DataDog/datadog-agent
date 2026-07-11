@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	containerdevents "github.com/containerd/containerd/events"
+	containerd "github.com/containerd/containerd/v2/client"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"

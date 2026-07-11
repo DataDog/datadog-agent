@@ -15,6 +15,7 @@ import (
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/twmb/murmur3"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
@@ -42,29 +43,69 @@ func init() {
 	}
 }
 
-// ToManifest converts a log record from k8sobjectsreceiver to an orchestrator manifest.
+// ToManifest converts resource/log records from k8sobjectsreceiver to an orchestrator manifest.
 // The receiver supports two modes:
 //   - Pull mode: k8s object is directly in the log body as JSON
 //   - Watch mode: log body contains an "object" field with the k8s resource, and a "type" field for event type
 //
+// Log record attributes and optional resource attributes are preserved as manifest extra attributes.
 // Returns the manifest and a boolean indicating if it's from a watch event.
-func ToManifest(logRecord plog.LogRecord) (*agentmodel.Manifest, bool, error) {
+func ToManifest(logRecord plog.LogRecord, resources ...pcommon.Resource) (*agentmodel.Manifest, bool, error) {
 	// Try to parse the body to detect the mode
 	var bodyMap map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &bodyMap); err != nil {
 		return nil, false, fmt.Errorf("failed to unmarshal log body: %w", err)
 	}
 
+	var manifest *agentmodel.Manifest
+	var err error
+	isWatch := false
+
 	// Check if this is a watch log (body contains "object" field)
 	if objectField, hasObject := bodyMap["object"]; hasObject {
 		// Watch log: body has structure like {"object": {...}, "type": "ADDED"}
-		manifest, err := watchLogToManifest(objectField, bodyMap)
-		return manifest, true, err
+		manifest, err = watchLogToManifest(objectField, bodyMap)
+		isWatch = true
+	} else {
+		// Pull log: body directly contains the k8s object
+		manifest, err = pullLogToManifestFromMap(bodyMap)
+	}
+	if err != nil {
+		return nil, isWatch, err
 	}
 
-	// Pull log: body directly contains the k8s object
-	manifest, err := pullLogToManifestFromMap(bodyMap)
-	return manifest, false, err
+	manifest.ExtraAttributes = manifestExtraAttributes(logRecord, resources...)
+
+	return manifest, isWatch, nil
+}
+
+func manifestExtraAttributes(logRecord plog.LogRecord, resources ...pcommon.Resource) map[string]string {
+	extraAttributesCapacity := logRecord.Attributes().Len()
+	for _, resource := range resources {
+		extraAttributesCapacity += resource.Attributes().Len()
+	}
+	if extraAttributesCapacity == 0 {
+		return nil
+	}
+
+	extraAttributes := make(map[string]string, extraAttributesCapacity)
+	for _, resource := range resources {
+		addOTLPAttributes(extraAttributes, resource.Attributes())
+	}
+	addOTLPAttributes(extraAttributes, logRecord.Attributes())
+	if len(extraAttributes) == 0 {
+		return nil
+	}
+	return extraAttributes
+}
+
+func addOTLPAttributes(extraAttributes map[string]string, attributes pcommon.Map) {
+	attributes.Range(func(k string, v pcommon.Value) bool {
+		if k != "" {
+			extraAttributes[k] = v.AsString()
+		}
+		return true
+	})
 }
 
 // watchLogToManifest handles logs from k8sobjectsreceiver in watch mode.
@@ -112,8 +153,6 @@ func pullLogToManifestFromMap(k8sResource map[string]interface{}) (*agentmodel.M
 //
 // Parameters:
 //   - k8sResource: The Kubernetes resource as a map (already unmarshaled from JSON)
-//   - resource: OTLP resource containing additional metadata
-//   - logRecord: OTLP log record for extracting tags and attributes
 //   - isTerminated: true if this represents a deleted resource (watch mode only)
 func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminated bool) (*agentmodel.Manifest, error) {
 	// Check if the resource kind should be skipped for security reasons
@@ -413,8 +452,7 @@ func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSiz
 	list := &util.PayloadList[interface{}]{
 		Items: interfaceManifests,
 		WeightAt: func(i int) int {
-			// Use the serialized manifest content size as the weight
-			return len(manifests[i].Content)
+			return manifests[i].Size()
 		},
 	}
 
@@ -473,7 +511,7 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 			sl := rl.ScopeLogs().At(j)
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				lr := sl.LogRecords().At(k)
-				manifest, isWatch, err := ToManifest(lr)
+				manifest, isWatch, err := ToManifest(lr, resource)
 				if err != nil {
 					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
 					continue

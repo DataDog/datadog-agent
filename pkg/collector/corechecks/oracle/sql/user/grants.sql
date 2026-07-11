@@ -40,6 +40,8 @@ declare
     'v_$transaction',
     'v_$locked_object',
     'v_$active_session_history',
+    'v_$lock',
+    'gv_$lock',
     'dba_objects',
     'cdb_data_files',
     'dba_data_files'

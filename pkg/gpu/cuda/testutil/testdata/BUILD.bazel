@@ -1,0 +1,8 @@
+filegroup(
+    name = "testdata",
+    srcs = glob(
+        ["**"],
+        exclude = ["**/*.go"],
+    ),
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "procscan",
+    srcs = [
+        "list_pids.go",
+        "proc_stat_reader.go",
+        "scanner.go",
+        "start_time_cache.go",
+        "time_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/discovery/tracermetadata",
+        "//pkg/discovery/tracermetadata/model",
+        "//pkg/dyninst/process",
+        "//pkg/util/log",
+        "@com_github_google_btree//:btree",
+        "@org_golang_x_sys//unix",
+        "@org_golang_x_time//rate",
+    ],
+)
+
+go_test(
+    name = "procscan_test",
+    srcs = [
+        "list_pids_test.go",
+        "proc_stat_reader_test.go",
+        "scanner_test.go",
+        "start_time_cache_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":procscan"],
+    embedsrcs = [
+        "testdata/stat/all_digits.txt",
+        "testdata/stat/closing_paren.txt",
+        "testdata/stat/golang.txt",
+        "testdata/stat/long_name.txt",
+        "testdata/stat/maxlen_comm.txt",
+        "testdata/stat/multiple_parens.txt",
+        "testdata/stat/numbers_start.txt",
+        "testdata/stat/parens_in_name.txt",
+        "testdata/stat/quotes_backslash.txt",
+        "testdata/stat/simple.txt",
+        "testdata/stat/single_char.txt",
+        "testdata/stat/small_pid.txt",
+        "testdata/stat/special_chars.txt",
+        "testdata/stat/with_spaces.txt",
+    ],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/discovery/tracermetadata/model",
+        "//pkg/dyninst/process",
+        "@com_github_goccy_go_yaml//:go-yaml",
+        "@com_github_goccy_go_yaml//ast",
+        "@com_github_goccy_go_yaml//lexer",
+        "@com_github_goccy_go_yaml//parser",
+        "@com_github_goccy_go_yaml//token",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -60,22 +60,47 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 }
 
 func (w *worker) run() {
+	defer w.server.workerWg.Done()
 	for {
 		select {
 		case <-w.server.stopChan:
+			// On stop, optionally drain still-queued packets and flush the
+			// batcher into the time sampler before exiting. Gated by
+			// dogstatsd_flush_incomplete_buckets; stop() waits on workerWg so
+			// the flush completes before the demultiplexer is torn down.
+			if w.server.config.GetBool("dogstatsd_flush_incomplete_buckets") {
+				w.drainAndFlush()
+			}
 			return
 		case <-w.server.health.C:
-		case <-w.server.serverlessFlushChan:
-			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:
-			w.packetsTelemetry.TelemetryUntrackPackets(ps)
-			w.samples = w.samples[0:0]
-			// we return the samples in case the slice was extended
-			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.handlePackets(ps)
 		}
 
+	}
+}
+
+// handlePackets parses one batch of packets into the worker's batcher.
+func (w *worker) handlePackets(ps packets.Packets) {
+	w.packetsTelemetry.TelemetryUntrackPackets(ps)
+	w.samples = w.samples[0:0]
+	// we return the samples in case the slice was extended
+	// when parsing the packets
+	w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+}
+
+// drainAndFlush parses any packets still queued in packetsIn, then flushes the
+// batcher into the time sampler.
+func (w *worker) drainAndFlush() {
+	for {
+		select {
+		case ps := <-w.server.packetsIn:
+			w.handlePackets(ps)
+		default:
+			w.batcher.flush()
+			return
+		}
 	}
 }

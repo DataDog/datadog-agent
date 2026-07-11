@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/process/util/api/config",
+        "//pkg/redact",
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/process/util/api/config",
+        "//pkg/redact",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

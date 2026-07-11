@@ -1,0 +1,104 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/multi_region_failover.yaml.schema.json
+node_type: section
+type: object
+properties:
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+  dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+  failover_apm:
+    node_type: setting
+    type: boolean
+    default: false
+  failover_logs:
+    node_type: setting
+    type: boolean
+    default: false
+  failover_metrics:
+    node_type: setting
+    type: boolean
+    default: false
+  logs_service_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  metric_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  remote_configuration:
+    node_type: section
+    type: object
+    properties:
+      clients:
+        node_type: section
+        type: object
+        properties:
+          cache_bypass_limit:
+            node_type: setting
+            type: integer
+            default: 5
+          ttl_seconds:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            tags:
+            - golang_type:duration
+      config_root:
+        node_type: setting
+        type: string
+        default: ''
+      director_root:
+        node_type: setting
+        type: string
+        default: ''
+      key:
+        node_type: setting
+        type: string
+        default: ''
+      max_backoff_interval:
+        node_type: setting
+        type: string
+        default: 5m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      max_backoff_time:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        tags:
+        - golang_type:duration
+      org_status_refresh_interval:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      refresh_interval:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        tags:
+        - golang_type:duration
+  site:
+    node_type: setting
+    type: string
+    default: ''

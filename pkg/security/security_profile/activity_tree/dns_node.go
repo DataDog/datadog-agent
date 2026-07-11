@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -21,6 +22,18 @@ type DNSNode struct {
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
 	Requests       []model.DNSEvent
+}
+
+// size approximates this node's heap footprint
+func (dn *DNSNode) size() int64 {
+	s := int64(unsafe.Sizeof(*dn))
+	s += seenBytes(dn.NodeBase)
+	s += sliceBackingBytes(cap(dn.Requests), unsafe.Sizeof(model.DNSEvent{}))
+	s += sliceBackingBytes(cap(dn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	for _, req := range dn.Requests {
+		s += int64(len(req.Question.Name))
+	}
+	return s
 }
 
 // NewDNSNode returns a new DNSNode instance

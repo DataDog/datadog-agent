@@ -395,15 +395,7 @@ func (c *ControllerV1) generateTemplates() {
 			probeEndpoint,
 			[]admiv1.OperationType{admiv1.Create},
 			[]common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"configmaps"}}},
-			&metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.NamespaceLabelKey,
-						Operator: metav1.LabelSelectorOpIn,
-						Values:   []string{c.config.getServiceNs()},
-					},
-				},
-			},
+			c.getProbeNamespaceSelector(),
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					common.ProbeLabelKey: "true",

@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	etw "github.com/DataDog/datadog-agent/comp/etw/def"
@@ -1563,6 +1563,11 @@ func (p *WindowsProbe) DumpProcessCache(_ bool) (string, error) {
 func (p *WindowsProbe) NewEvent() *model.Event {
 	return NewWindowsEvent(p.fieldHandlers)
 }
+
+// EnrichRuleEvent is a no-op on Windows. The Windows process model does not
+// share the Linux argv/envp truncation pipeline, so there is nothing to
+// backfill here.
+func (p *WindowsProbe) EnrichRuleEvent(_ *model.Event) {}
 
 // HandleActions executes the actions of a triggered rule
 func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {

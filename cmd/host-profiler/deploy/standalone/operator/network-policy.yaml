@@ -1,0 +1,33 @@
+# Requires a cluster networking layer that enforces Kubernetes NetworkPolicy.
+# If your cluster does not enforce NetworkPolicy resources, this manifest is
+# accepted but does not restrict egress.
+#
+# This NetworkPolicy allows DNS, Datadog intake egress, and kubelet API access
+# required by the Host Profiler.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: host-profiler
+  namespace: host-profiler
+spec:
+  podSelector:
+    matchLabels:
+      # Must match the pods created by operator/collector.yaml.
+      app.kubernetes.io/name: host-profiler-collector
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution.
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Datadog intake and Kubernetes API egress over HTTPS.
+    - ports:
+        - port: 443
+          protocol: TCP
+    # Kubelet API.
+    - ports:
+        - port: 10250
+          protocol: TCP

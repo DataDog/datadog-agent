@@ -47,3 +47,10 @@ go_test(
         "//conditions:default": [],
     }),
 )
+
+go_test(
+    name = "pclntab_internal_test",
+    srcs = ["pclntab_internal_test.go"],
+    embed = [":pclntab"],
+    gotags = ["test"],
+)

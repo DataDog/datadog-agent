@@ -55,6 +55,9 @@ func TestFilterBuilderOps(t *testing.T) {
 				prefixes: map[EntityIDPrefix]struct{}{
 					ContainerImageMetadata: {},
 					ECSTask:                {},
+					KubernetesKueueQueue:   {},
+					KueueResourceFlavor:    {},
+					KueueWorkload:          {},
 					KubernetesMetadata:     {},
 					KubernetesPodUID:       {},
 					Process:                {},

@@ -188,6 +188,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// Function should continue and check all services in termination loop
 				serviceNames := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-trace-agent",
 					"datadog-process-agent",
 					"datadog-security-agent",
@@ -210,6 +211,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// All services are not running
 				serviceNames := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-trace-agent",
 					"datadog-process-agent",
 					"datadog-security-agent",
@@ -249,6 +251,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// Other services are not running
 				otherServices := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-agent-action",
@@ -286,6 +289,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// Other services are not running
 				otherServices := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-agent-action",
@@ -312,6 +316,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// Other services are not running
 				serviceNames := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
@@ -342,6 +347,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				// Other services are not running
 				serviceNames := []string{
 					"datadog-otel-agent",
+					"dd-procmgr-service",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
@@ -388,6 +394,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 		mockAPI.On("StopService", "datadogagent").Return(nil)
 		serviceNames := []string{
 			"datadog-otel-agent",
+			"dd-procmgr-service",
 			"datadog-trace-agent",
 			"datadog-process-agent",
 			"datadog-security-agent",
@@ -426,6 +433,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 		// Other services are not running
 		serviceNames := []string{
 			"datadog-otel-agent",
+			"dd-procmgr-service",
 			"datadog-process-agent",
 			"datadog-security-agent",
 			"datadog-system-probe",

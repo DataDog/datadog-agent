@@ -43,7 +43,8 @@ type StatusResponse struct {
 
 // RebalanceResponse holds the DCA response for a rebalancing request
 type RebalanceResponse struct {
-	CheckID     string `json:"check_id"`
+	Digest      string `json:"digest"`
+	CheckName   string `json:"check_name"`
 	CheckWeight int    `json:"check_weight"`
 
 	SourceNodeName string `json:"source_node_name"`

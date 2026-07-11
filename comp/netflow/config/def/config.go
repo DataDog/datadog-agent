@@ -38,12 +38,13 @@ type NetflowConfig struct {
 
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
-	FlowType  common.FlowType `mapstructure:"flow_type"`
-	Port      uint16          `mapstructure:"port"`
-	BindHost  string          `mapstructure:"bind_host"`
-	Workers   int             `mapstructure:"workers"`
-	Namespace string          `mapstructure:"namespace"`
-	Mapping   []Mapping       `mapstructure:"mapping"`
+	FlowType            common.FlowType `mapstructure:"flow_type"`
+	Port                uint16          `mapstructure:"port"`
+	BindHost            string          `mapstructure:"bind_host"`
+	Workers             int             `mapstructure:"workers"`
+	Namespace           string          `mapstructure:"namespace"`
+	Mapping             []Mapping       `mapstructure:"mapping"`
+	EnableBiflowParsing bool            `mapstructure:"enable_biflow_parsing"`
 }
 
 // Mapping contains configuration for a Netflow/IPFIX field mapping

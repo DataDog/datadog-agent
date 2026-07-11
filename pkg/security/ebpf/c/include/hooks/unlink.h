@@ -44,6 +44,15 @@ int hook_do_unlinkat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_unlinkat")
+int hook_filename_unlinkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
+    }
+    return 0;
+}
+
 HOOK_ENTRY("vfs_unlink")
 int hook_vfs_unlink(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -181,6 +190,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_unlinkat")
 int rethook_do_unlinkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
+}
+
+HOOK_EXIT("filename_unlinkat")
+int rethook_filename_unlinkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }

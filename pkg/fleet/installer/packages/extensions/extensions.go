@@ -221,7 +221,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
 	if err != nil {
 		if errors.Is(err, oci.ErrNoLayerMatchesAnnotations) {
 			// The extension is not available in the package, skip it.

@@ -26,7 +26,7 @@ func init() {
 const (
 	// IssueName is the identifier for ROFS permission issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "read-only-filesystem-error"
+	IssueName = "Read-Only Filesystem Error"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "rofs-permissions"
@@ -38,10 +38,10 @@ type rofsPermissionsModule struct {
 }
 
 // NewModule creates a new ROFS permissions issue module
-func NewModule(conf config.Component) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
 		template: NewRofsPermissionIssue(),
-		conf:     conf,
+		conf:     deps.Config,
 	}
 }
 

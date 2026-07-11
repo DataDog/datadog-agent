@@ -12,7 +12,7 @@ import (
 
 // SSEEvent is a message sent to SSE clients.
 type SSEEvent struct {
-	Event string // "status", "progress", "heartbeat"
+	Event string // "advance", "status"
 	Data  []byte // JSON payload
 }
 

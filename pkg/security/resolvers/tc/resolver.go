@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ProgramKey is used to uniquely identify a tc program
@@ -165,10 +166,20 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 
 // detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held
 func (tcr *Resolver) detachHook(tcKey ProgramKey, entry programEntry, m *manager.Manager) {
+	if err := m.DetachHook(entry.probe.ProbeIdentificationPair); err != nil {
+		// fall through and clean up our local state below if the ebpf-manager has already stopped
+		if !errors.Is(err, manager.ErrManagerNotInitialized) {
+			seclog.Errorf("couldn't detach TC classifier %s: %v", entry.probe.ProbeIdentificationPair, err)
+			return
+		}
+	}
+
+	// only remove the program mapping if the ebpf-manager successfully detached the eBPF program
+	// otherwise SetupNewTCClassifierWithNetNSHandle might try to recreate the probe when it already exists
+	// from the ebpf-manager PoV.
+	// TODO(yoanngh): fix this ebpf-manager/tc resolver desync
 	ddebpf.RemoveProgramID(entry.programID, "cws")
 	delete(tcr.programs, tcKey)
-
-	_ = m.DetachHook(entry.probe.ProbeIdentificationPair)
 }
 
 // FlushNetworkNamespaceID flushes network ID

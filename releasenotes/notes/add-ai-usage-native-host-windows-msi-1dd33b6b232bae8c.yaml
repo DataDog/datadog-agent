@@ -1,11 +1,7 @@
 ---
 features:
   - |
-    The Windows MSI installer now ships the AI usage Chrome native messaging
-    host (``ai-prompt-logger-native-host.exe``) under ``bin\agent``. The
-    installer generates a Chrome Native Messaging Host
-    manifest under ``bin\agent\dist`` and registers it machine-wide under
-    ``HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts`` (including the
-    ``WOW6432Node`` view for 32-bit Chrome). The host's runtime configuration is
-    generated as ``C:\ProgramData\Datadog\ai_usage_native_host.yaml`` and uses
-    the Agent's configured APM receiver port.
+    The Windows MSI installer now includes the AI Usage Chrome Native Messaging
+    Host, which is intended to work with a companion Chrome extension to power
+    EUDM AI usage features. The host is currently dormant because the Chrome
+    extension is not yet enabled, so no AI usage host process runs on the system.

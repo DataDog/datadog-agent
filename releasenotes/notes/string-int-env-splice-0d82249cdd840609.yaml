@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed numeric list settings such as ``network_config.dns_monitoring_ports`` ignoring environment-variable overrides: ``DD_NETWORK_CONFIG_DNS_MONITORING_PORTS`` now accepts a JSON array (``"[53,5353]"``) or a space-separated list (``"53 5353"``) instead of only a single value.

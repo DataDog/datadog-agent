@@ -25,7 +25,11 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite linuxDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
+	// Disable the health platform: with Docker pre-baked on the e2e AMI, its
+	// periodic docker-socket check adds a non-deterministic warning to diagnose
+	// output that is unrelated to the suites under test and breaks their counts.
+	params := agentparams.WithAgentConfig("health_platform:\n  enabled: false")
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params)))))
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {

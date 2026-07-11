@@ -77,6 +77,7 @@ import (
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -87,7 +88,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -123,13 +124,13 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
@@ -138,7 +139,7 @@ import (
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
@@ -186,6 +187,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -203,6 +205,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -229,9 +233,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
-		if globalParams.CommonRoot != "" {
-			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
-		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
@@ -239,7 +240,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
@@ -401,7 +402,7 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// agentStarted and agentRunning are metrics used for internal agent telemetry
 	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
 	agentStarted.Inc()
 	agentRunning.Set(1)
@@ -413,11 +414,11 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
-			defaultpaths.PyChecksPath,
-			defaultpaths.LogFile,
-			defaultpaths.JmxLogFile,
-			defaultpaths.DogstatsDLogFile,
-			defaultpaths.StreamlogsLogFile,
+			defaultpaths.GetDefaultPyChecksPath(),
+			defaultpaths.GetDefaultLogFile(),
+			defaultpaths.GetDefaultJmxLogFile(),
+			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
@@ -489,6 +490,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
@@ -507,7 +509,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(ac, cfg.GetString("confd_path"))
+					common.LoadComponents(ac, cfg)
 					return nil
 				},
 			})
@@ -519,7 +521,7 @@ func getSharedFxOption() fx.Option {
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
@@ -563,6 +565,7 @@ func getSharedFxOption() fx.Option {
 					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
 					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
 					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":              commonsettings.NewProfilingPeriod(),
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
@@ -575,6 +578,8 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
+		// errortracking submitter wire — atel owns buffer/flush/recursion.
+		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -593,6 +598,33 @@ func getSharedFxOption() fx.Option {
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
+}
+
+// installErrortrackingHandler is a no-op when the feature is disabled
+// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
+// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
+// the matching clear runs synchronously inside atel.stop()
+// (deliberately not as a separate OnStop hook here) so it precedes the
+// final flush-goroutine drain.
+func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
+	if !configUtils.IsErrorTrackingEnabled(cfg) {
+		return
+	}
+
+	submitter := func(elog errortrackingpkg.ErrorLog) {
+		at.SubmitErrorLog(elog)
+	}
+
+	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
+	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
+
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
+			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
+			return nil
+		},
+	})
 }
 
 // startAgent Initializes the agent process
@@ -648,6 +680,7 @@ func startAgent(
 	common.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
+	procmgrcoat.StartReporter(ctx, tlm)
 
 	// Setup expvar server
 	telemetryHandler := tlm.Handler()

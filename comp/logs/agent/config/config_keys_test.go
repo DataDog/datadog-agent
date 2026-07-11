@@ -27,12 +27,12 @@ func TestGetAPIKeyGetter(t *testing.T) {
 	assert.Equal(t, "1234", apiKey)
 	assert.Equal(t, "api_key", path)
 
-	mockConfig.SetWithoutSource("api_key", "abcd")
+	mockConfig.SetInTest("api_key", "abcd")
 	apiKey, path = l.getMainAPIKey()
 	assert.Equal(t, "abcd", apiKey)
 	assert.Equal(t, "api_key", path)
 
-	mockConfig.SetWithoutSource("logs_config.api_key", "5678")
+	mockConfig.SetInTest("logs_config.api_key", "5678")
 	apiKey, path = l.getMainAPIKey()
 	assert.Equal(t, "5678", apiKey)
 	assert.Equal(t, "logs_config.api_key", path)
@@ -75,7 +75,7 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 			"Port":        5678,
 			"is_reliable": false
 		}]`
-	mockConfig.SetWithoutSource("logs_config.additional_endpoints", jsonString)
+	mockConfig.SetInTest("logs_config.additional_endpoints", jsonString)
 
 	endpoints, path := l.getAdditionalEndpoints()
 	assert.Equal(t, expected, endpoints)
@@ -83,22 +83,8 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 
 	// Test with a regular setup from the configuration file
 	mockConfig.UnsetForSource("logs_config.additional_endpoints", model.SourceUnknown)
-	mockConfig.SetWithoutSource("logs_config.additional_endpoints",
-		[]map[string]interface{}{
-			{
-				"api_key":     "apiKey2",
-				"Host":        "http://localhost1",
-				"Port":        1234,
-				"is_reliable": true,
-				"use_ssl":     true,
-			},
-			{
-				"api_key":     "apiKey3",
-				"Host":        "http://localhost2",
-				"Port":        5678,
-				"is_reliable": false,
-			},
-		})
+	mockConfig.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"api_key": "apiKey2", "Host": "http://localhost1", "Port": 1234, "is_reliable": true, "use_ssl": true}, {"api_key": "apiKey3", "Host": "http://localhost2", "Port": 5678, "is_reliable": false}})
+
 	endpoints, _ = l.getAdditionalEndpoints()
 	assert.Equal(t, expected, endpoints)
 	assert.Equal(t, "logs_config.additional_endpoints", path)

@@ -27,6 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	errBTFCatalogUnmarshal = errors.New("unmarshal BTF catalog")
+	errBTFNotInCatalog     = errors.New("BTF not in catalog")
+	errBTFDownload         = errors.New("BTF download")
+	errBTFExtract          = errors.New("extract kernel BTF from tarball")
+	errBTFHashMismatch     = errors.New("BTF hash mismatch")
+	errBTFLoad             = errors.New("BTF load")
+)
+
 type btfCatalog struct {
 	X64   btfArchCatalog `json:"x86_64"`
 	Arm64 btfArchCatalog `json:"arm64"`
@@ -74,18 +83,10 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
 		return nil, nil
 	}
-
-	platform, err := getBTFPlatform()
-	if err != nil {
-		return nil, fmt.Errorf("BTF platform: %s", err)
-	}
-	platformVersion, err := kernel.PlatformVersion()
-	if err != nil {
-		return nil, fmt.Errorf("platform version: %s", err)
-	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return nil, fmt.Errorf("kernel release: %s", err)
+	if b.platform == "" || b.platformVersion == "" || b.kernelVersion == "" {
+		plat, _ := kernel.Platform()
+		log.Warnf("unsupported BTF platform/version/release: %s/%s/%s", plat, b.platformVersion, b.kernelVersion)
+		return nil, nil
 	}
 
 	ctx, cancelCause := context.WithCancelCause(ctx)
@@ -96,9 +97,9 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 		b:               b,
 		ctx:             ctx,
 		cancelCause:     cancelCause,
-		platform:        platform,
-		platformVersion: platformVersion,
-		kernelVersion:   kernelVersion,
+		platform:        b.platform,
+		platformVersion: b.platformVersion,
+		kernelVersion:   b.kernelVersion,
 		arch:            arch,
 		result:          make(chan *returnBTF),
 	}
@@ -117,9 +118,37 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 	}
 
 	// ensure we get the correct error (if any) from the context
-	err = ctx.Err()
-	if errors.Is(err, context.Canceled) {
-		err = context.Cause(ctx)
+	err := ctx.Err()
+	if rbtf == nil {
+		errorTags := make([]string, len(b.fixedtags), len(b.fixedtags)+1)
+		copy(errorTags, b.fixedtags)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				err = context.Cause(ctx)
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				errorTags = append(errorTags, "timeout")
+			} else if errors.Is(err, errBTFNotInCatalog) {
+				errorTags = append(errorTags, "not_in_catalog")
+			} else if errors.Is(err, errBTFCatalogUnmarshal) {
+				errorTags = append(errorTags, "catalog_unmarshal")
+			} else if errors.Is(err, errBTFHashMismatch) {
+				errorTags = append(errorTags, "hash_mismatch")
+			} else if errors.Is(err, errBTFDownload) {
+				errorTags = append(errorTags, "download")
+			} else if errors.Is(err, errBTFExtract) {
+				errorTags = append(errorTags, "extract")
+			} else if errors.Is(err, errBTFLoad) {
+				errorTags = append(errorTags, "load")
+			} else {
+				errorTags = append(errorTags, "unknown")
+			}
+		} else {
+			errorTags = append(errorTags, "not_in_catalog")
+		}
+		b.telemetry.rcErrors.Inc(errorTags...)
+	} else {
+		b.telemetry.rcSuccess.Inc(b.fixedtags...)
 	}
 	return rbtf, err
 }
@@ -139,6 +168,7 @@ type rcBTFLoader struct {
 
 func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var rbtf *returnBTF
+	var allErrors []error
 	for k, config := range update {
 		// we should ACK all updates, even if we find a result or error earlier
 		if r.ctx.Err() != nil || r.ignoreUpdates.Load() || rbtf != nil {
@@ -150,6 +180,7 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 		if err != nil {
 			log.Errorf("BTF remote config key %q: %s", k, err)
 			applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			allErrors = append(allErrors, err)
 			continue
 		}
 
@@ -158,13 +189,18 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 			if err != nil {
 				log.Error(err)
 				applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				allErrors = append(allErrors, err)
 				continue
 			}
 		}
 		applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	if rbtf == nil {
-		r.cancelCause(fmt.Errorf("no BTF in catalog found for %s/%s/%s/%s", r.arch, r.platform, r.platformVersion, r.kernelVersion))
+		if allErrors != nil {
+			r.cancelCause(errors.Join(allErrors...))
+		} else {
+			r.cancelCause(fmt.Errorf("%w for %s/%s/%s/%s", errBTFNotInCatalog, r.arch, r.platform, r.platformVersion, r.kernelVersion))
+		}
 		return
 	}
 	r.result <- rbtf
@@ -174,7 +210,7 @@ func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
 	btfURL := fmt.Sprintf("%s/btfs/%s/%s/%s/%s.btf.tar.xz", r.b.rcDownloadHost, r.platform, r.platformVersion, r.arch, r.kernelVersion)
 	btfTarballBuffer, err := r.downloadFile(btfURL, entry.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("BTF download: %s", err)
+		return nil, fmt.Errorf("%w: %w", errBTFDownload, err)
 	}
 
 	// extract in-memory tarball to regular BTF output directory
@@ -182,16 +218,20 @@ func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
 	extractDir := filepath.Join(filepath.Dir(relPath), r.kernelVersion)
 	absExtractDir := filepath.Join(r.b.btfOutputDir, extractDir)
 	if err := archive.TarXZExtractAllReader(btfTarballBuffer, absExtractDir); err != nil {
-		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
+		return nil, fmt.Errorf("%w: %s", errBTFExtract, err)
 	}
-	return r.b.checkforBTF(extractDir)
+	rbtf, err := r.b.checkforBTF(extractDir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", errBTFLoad, err)
+	}
+	return rbtf, nil
 }
 
 func (r *rcBTFLoader) findEntry(config state.RawConfig) (*btfEntry, error) {
 	var catalog btfCatalog
 	err := json.Unmarshal(config.Config, &catalog)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal BTF catalog: %s", err)
+		return nil, fmt.Errorf("%w: %s", errBTFCatalogUnmarshal, err)
 	}
 
 	var entry *btfEntry
@@ -229,7 +269,7 @@ func (r *rcBTFLoader) downloadFile(url string, hash string) (*bytes.Reader, erro
 
 	calcHash := hex.EncodeToString(h.Sum(nil))
 	if calcHash != hash {
-		return nil, fmt.Errorf("hash for %s mismatch: expected %s, got %s", url, hash, calcHash)
+		return nil, fmt.Errorf("%w for %s: expected %s, got %s", errBTFHashMismatch, url, hash, calcHash)
 	}
 	return bytes.NewReader(memOut.Bytes()), nil
 }

@@ -8,16 +8,12 @@ from invoke.exceptions import Exit
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
 
-default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
-default_private_path_key_name = "ddinfra:aws/defaultPrivateKeyPath"
-
 
 def deploy(
     ctx: Context,
     scenario_name: str,
     config_path: str | None = None,
     key_pair_required: bool = False,
-    public_key_required: bool = False,
     app_key_required: bool = False,
     stack_name: str | None = None,
     pipeline_id: str | None = None,
@@ -50,15 +46,6 @@ def deploy(
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
         raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
-
-    defaultPublicKeyPath = cfg.get_aws().publicKeyPath
-    if public_key_required and defaultPublicKeyPath is None:
-        raise Exit(f"Your scenario requires to define {default_public_path_key_name} in the configuration file")
-    flags[default_public_path_key_name] = defaultPublicKeyPath
-
-    privateKeyPath = cfg.get_aws().privateKeyPath
-    if privateKeyPath is not None:
-        flags[default_private_path_key_name] = privateKeyPath
 
     awsKeyPairName = cfg.get_aws().keyPairName
 

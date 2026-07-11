@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["nvml.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/gpu/safenvml",
+        "//pkg/gpu/testutil",
+        "@com_github_nvidia_go_nvml//pkg/nvml",
+        "@com_github_stretchr_testify//require",
+    ],
+)

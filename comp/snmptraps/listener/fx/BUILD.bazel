@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmptraps/listener/def",
+        "//comp/snmptraps/listener/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

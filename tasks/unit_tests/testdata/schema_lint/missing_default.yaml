@@ -11,8 +11,3 @@ properties:
   no_default:
     node_type: setting
     type: string
-  excepted_no_default:
-    node_type: setting
-    type: string
-    tags:
-      - TODO:fix-no-default

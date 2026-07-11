@@ -53,9 +53,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	opts = append(opts, pulumi.Parent(helmComponent))
 
-	// Create namespace if necessary
-	ns, err := corev1.NewNamespace(e.Ctx(), args.Namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), args.Namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(args.Namespace),
 		},
 	}, opts...)

@@ -6,7 +6,8 @@
 -- Includes: Tokenization (byte-to-token classification, run-length
 --   encoding, special token promotion), pattern matching contract,
 --   credit-based rate limiting, pattern table management (creation,
---   eviction, ordering), sampled-count metadata tagging.
+--   eviction, ordering), sampled-count metadata tagging, detection-only
+--   noisy-log tagging, optional pattern hash tagging.
 -- Excludes:
 --   - Preprocessor pipeline orchestration (JSON aggregation, multiline
 --     labeling and combining, aggregation strategies upstream of sampling)
@@ -14,6 +15,8 @@
 --   - Message framing, parsing, and raw content handling
 --   - Telemetry counter emissions (dropped, kept, new_patterns, evictions)
 --   - NoopSampler (trivial pass-through when sampling is disabled)
+--   - Include/exclude filter resolution and important-log bypass policy
+--     wiring (modelled as preconditions around ProcessLog entry)
 
 ------------------------------------------------------------
 -- Value Types
@@ -38,12 +41,16 @@
 --   Character runs: consecutive letters [a-zA-Z] and any byte not
 --     classified above produce a single token encoding the run length:
 --     C1 (1 char) through C10 (10+ chars). Capped at C10.
---     Before emitting, short runs (1-4 chars) are checked for special
+--     Before emitting, short runs (1-9 chars) are checked for special
 --     token promotion (see Tokenization contract).
 --
---   Special: character runs of 1-4 chars that match known patterns
---     are promoted to one of: Month, Day, Zone, Apm, T.
---     The regular C1-C4 token is replaced by the special token.
+--   Special: character runs of 1-9 chars that match known patterns
+--     are promoted to one of:
+--       Month, Day, Zone, Apm, T
+--       Warn, Fatal, Error, Panic, Alert, Severe, Critical,
+--       Emergency, Exception, Crash, Failure, Deadlock, Timeout
+--     The corresponding regular Cn token is replaced by the special
+--     token.
 
 value TokenSequence {
     -- Ordered sequence of tokens produced by the tokenizer from
@@ -111,9 +118,9 @@ contract Tokenization {
         -- 15 consecutive digits produce D10, identical to 10 digits.
 
     @invariant SpecialTokenPromotion
-        -- Before emitting a character run of length 1-4, the run's
+        -- Before emitting a character run of length 1-9, the run's
         -- bytes are uppercased and checked against a fixed table.
-        -- If matched, the special token replaces the regular C1-C4:
+        -- If matched, the special token replaces the regular Cn:
         --   Length 1: T → time_separator, Z → zone
         --   Length 2: AM, PM → apm
         --   Length 3:
@@ -122,10 +129,33 @@ contract Tokenization {
         --     UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST
         --       IST MSK CET BST HST HDT NST NDT → zone
         --   Length 4:
+        --     WARN → warn
+        --     CRIT → critical
         --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
         --       AKST AKDT CHST CHDT → zone
-        -- Character runs of length 5+ are never promoted. Runs of
-        -- length 1-4 that match no pattern emit the regular token.
+        --   Length 5:
+        --     FATAL → fatal
+        --     ERROR → error
+        --     PANIC → panic
+        --     ALERT → alert
+        --     EMERG → emergency
+        --     CRASH → crash
+        --   Length 6:
+        --     SEVERE → severe
+        --     FAILED → failure
+        --   Length 7:
+        --     WARNING → warn
+        --     CRASHED → crash
+        --     FAILURE → failure
+        --     TIMEOUT → timeout
+        --   Length 8:
+        --     CRITICAL → critical
+        --     DEADLOCK → deadlock
+        --   Length 9:
+        --     EMERGENCY → emergency
+        --     EXCEPTION → exception
+        -- Character runs of length 10+ are never promoted. Runs of
+        -- length 1-9 that match no pattern emit the regular token.
         -- Matching is case-insensitive: "jan", "JAN", "Jan" all
         -- match month.
 
@@ -217,6 +247,17 @@ config {
     -- Maximum bytes of the log message's first line to tokenize.
     -- Bytes beyond this offset are ignored by the tokenizer.
     tokenizer_max_input_bytes: Integer = 2048
+
+    -- When true, logs that would be dropped are emitted with
+    -- noisy_log:true instead of being dropped.
+    detection_only: Boolean = false
+
+    -- When true, noisy_log:true detection-only logs are tagged with
+    -- log_hash:<hash>, where the hash is computed from the canonical
+    -- structural token sequence for the matched sampler pattern.
+    -- It does not tag bypassed, new-pattern, protected, under-burst,
+    -- or adaptive_sampler_sampled_count:<n> logs.
+    tag_pattern_hash: Boolean = false
 }
 
 ------------------------------------------------------------
@@ -251,11 +292,19 @@ rule EmitMatchingLog {
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
     ensures: entry.sampled_count = 0
-    ensures: LogEmitted(message, sampled_count: prior_sampled_count)
+    ensures: if config.detection_only:
+        LogEmitted(message, sampled_count: 0)
+    ensures: if not config.detection_only and prior_sampled_count > 0:
+        LogEmitted(message, sampled_count: prior_sampled_count)
+    ensures: if not config.detection_only and prior_sampled_count = 0:
+        LogEmitted(message, sampled_count: 0)
 
     @guidance
-        -- If prior_sampled_count > 0 the emitted message is tagged
+        -- If not in detection-only mode and prior_sampled_count > 0,
+        -- the emitted message is tagged
         -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
+        -- Detection-only mode never emits adaptive_sampler_sampled_count
+        -- on allowed logs because it does not actually drop matching logs.
         --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table to maintain descending match_count order.
@@ -265,7 +314,9 @@ rule EmitMatchingLog {
 }
 
 -- A log matches an existing pattern but credits are insufficient.
--- The message is dropped and the suppressed count increments.
+-- In normal mode the suppressed count increments and the message is
+-- dropped; in detection-only mode the message is emitted with
+-- noisy_log:true and the suppressed count is not updated.
 
 rule DropMatchingLog {
     when: ProcessLog(message, incoming)
@@ -282,12 +333,19 @@ rule DropMatchingLog {
         else: entry.credits + refill
 
     requires: capped_credits < 1.0
+    let prior_sampled_count = entry.sampled_count
 
     ensures: entry.credits = capped_credits
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
-    ensures: entry.sampled_count = entry.sampled_count + 1
-    ensures: LogDropped(message)
+    ensures: if config.detection_only:
+        entry.sampled_count = prior_sampled_count
+    ensures: if not config.detection_only:
+        entry.sampled_count = prior_sampled_count + 1
+    ensures: if config.detection_only:
+        LogEmitted(message, noisy_log: true, pattern_hash: entry.signature if config.tag_pattern_hash)
+    ensures: if not config.detection_only:
+        LogDropped(message)
 
     @guidance
         -- After updating, the entry is bubbled toward the front of
@@ -399,7 +457,9 @@ invariant SampledCountNonNegative {
 --
 -- MessageContentIntegrity: the sampler never modifies log content
 --   bytes. Emitted messages are byte-identical to their input.
---   Only metadata (adaptive_sampler_sampled_count tag) may be added.
+--   Only metadata tags (adaptive_sampler_sampled_count, noisy_log,
+--   log_hash) may be added. log_hash is limited to emitted
+--   noisy_log:true logs.
 --
 -- SteadyStateRateBound: after burst exhaustion, a pattern emits
 --   at most rate_limit logs per second. Over interval T seconds,

@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -170,6 +172,48 @@ func assertEqualLibInjection(actualLibs []libInfo, expectedLibs []libInfo) bool 
 	}
 
 	return reflect.DeepEqual(actualLibsAsSet, expectedLibsAsSet)
+}
+
+// TestAPMInjectionMutatorSetsStatusOnConfigError verifies that when
+// buildLibraryInjectionConfig fails (e.g. registry allow-list rejection),
+// both injection-status and injection-error annotations are set on the pod
+// even though InjectAPMLibraries is never called.
+func TestAPMInjectionMutatorSetsStatusOnConfigError(t *testing.T) {
+	mutator := &mutatorCore{
+		config: &Config{
+			staticConfig: staticConfig{
+				Instrumentation:   &InstrumentationConfig{},
+				containerRegistry: "docker.io/datadog",
+				registryAllowList: []string{"docker.io/datadog"},
+			},
+		},
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+	}
+
+	config := extractedPodLibInfo{
+		libs: []libInfo{
+			{lang: python, image: "dd-lib-python-init:v3"},
+		},
+		source: libInfoSourceLibInjection,
+	}
+
+	m := mutator.apmInjectionMutator(config, false, localLibraryInstrumentationInstallType)
+	err := m.mutatePod(pod)
+	require.NoError(t, err, "config errors must not propagate to Mutate")
+
+	status, ok := annotation.Get(pod, annotation.InjectionStatus)
+	require.True(t, ok, "injection-status annotation must be set")
+	assert.Equal(t, annotation.InjectionStatusSkipped, status)
+
+	injErr, ok := annotation.Get(pod, annotation.InjectionError)
+	require.True(t, ok, "injection-error annotation must be set")
+	assert.NotEmpty(t, injErr)
 }
 
 func TestBuildLibraryInjectionConfigRejectsImplicitLibraryRegistryWhenAllowListIsSet(t *testing.T) {

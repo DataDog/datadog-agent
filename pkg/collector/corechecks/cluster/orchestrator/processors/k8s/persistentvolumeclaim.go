@@ -36,10 +36,10 @@ func NewPersistentVolumeClaimHandlers(tagger tagger.Component) *PersistentVolume
 	return &PersistentVolumeClaimHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *PersistentVolumeClaimHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *PersistentVolumeClaimHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*corev1.PersistentVolumeClaim)
 	m := resourceModel.(*model.PersistentVolumeClaim)
 
@@ -114,10 +114,24 @@ func (h *PersistentVolumeClaimHandlers) ResourceList(ctx processors.ProcessorCon
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *PersistentVolumeClaimHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*corev1.PersistentVolumeClaim).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *PersistentVolumeClaimHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*corev1.PersistentVolumeClaim).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

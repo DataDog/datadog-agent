@@ -36,6 +36,7 @@ write_pb_go(
             "flare.pb.go",
             "flare_grpc.pb.go",
             "remoteagent.pb.go",
+            "remoteagent_grpc.pb.go",
             "status.pb.go",
             "status_grpc.pb.go",
             "telemetry.pb.go",
@@ -68,6 +69,7 @@ go_library(
         "kubemetadata.pb.go",
         "model.pb.go",
         "remoteagent.pb.go",
+        "remoteagent_grpc.pb.go",
         "remoteconfig.pb.go",
         "remoteconfig_gen.go",
         "status.pb.go",
@@ -80,6 +82,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",

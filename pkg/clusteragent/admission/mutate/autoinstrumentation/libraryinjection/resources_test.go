@@ -140,6 +140,51 @@ func TestPodSumResourceRequirements(t *testing.T) {
 			expectedLimitCPU: "500m", // limit is adjusted to match request
 			expectedReqCPU:   "500m",
 		},
+		{
+			name: "partial limits preserve set values without inferring missing ones",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app1",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10m"), corev1.ResourceMemory: resource.MustParse("128Mi")},
+								Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+							},
+						},
+						{
+							Name: "app2",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10m"), corev1.ResourceMemory: resource.MustParse("128Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedLimitMem: "256Mi",
+			expectedLimitCPU: "0",
+			expectedReqCPU:   "20m",
+			expectedReqMem:   "256Mi",
+		},
+		{
+			name: "absent limits are not inferred from requests",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m"), corev1.ResourceMemory: resource.MustParse("128Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedLimitMem: "0",
+			expectedLimitCPU: "0",
+			expectedReqCPU:   "50m",
+			expectedReqMem:   "128Mi",
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +276,25 @@ func TestComputeResourceRequirements_Skip(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "app"},
+					},
+				},
+			},
+			shouldSkip: false,
+		},
+		{
+			name: "do not skip when limit is absent regardless of request",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
+								},
+							},
+						},
 					},
 				},
 			},
@@ -471,7 +535,7 @@ func TestInitContainerIsSidecar(t *testing.T) {
 }
 
 func TestIsLanguageSupported(t *testing.T) {
-	supportedLangs := []string{"java", "js", "python", "dotnet", "ruby", "php"}
+	supportedLangs := []string{"java", "js", "python", "dotnet", "ruby", "php", "c"}
 	for _, lang := range supportedLangs {
 		assert.True(t, libraryinjection.IsLanguageSupported(lang), "expected %s to be supported", lang)
 	}

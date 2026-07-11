@@ -20,7 +20,7 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
@@ -448,7 +448,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	var dsch eventmonitor.EventConsumerHandler
 	d := mockDirectSender(t)
-	d.sysprobeconfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+	d.sysprobeconfig.SetInTest("system_probe_config.process_service_inference.enabled", true)
 	evm := &fakeEventMonitor{}
 	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
 	require.NoError(t, err)

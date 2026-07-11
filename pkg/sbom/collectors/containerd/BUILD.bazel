@@ -1,10 +1,25 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-# gazelle:ignore
+# containerd.go uses //go:build containerd && trivy
+# gazelle:build_tags containerd,trivy
 
 go_library(
     name = "containerd",
-    srcs = ["doc.go"],
+    srcs = [
+        "containerd.go",
+        "doc.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd",
     visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/containerd",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/trivy",
+        "@com_github_containerd_containerd_v2//client",
+    ],
 )

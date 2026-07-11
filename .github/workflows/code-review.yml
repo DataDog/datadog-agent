@@ -1,0 +1,33 @@
+---
+name: "Code review"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - main
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  review:
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
+    with:
+      provider: codex
+      # 'always'    → runs automatically on pull_request events above
+      # 'on_demand' → runs when a write-access collaborator comments /dd-review
+      trigger_mode: on_demand
+      # Root-level files apply to every PR.
+      # Sub-directory files apply only when the PR touches files under that prefix.
+      prompt_file_pattern: "**/codereview_guideline.md"
+      review_event: COMMENT_ONLY
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+      openai_api_key: ${{ secrets.OPENAI_API_KEY }}

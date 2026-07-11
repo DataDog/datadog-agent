@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "config",
@@ -27,12 +30,11 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = ["agent_config_test.go"],
     data = glob(["testdata/**"]),
     embed = [":config"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/defaultpaths",

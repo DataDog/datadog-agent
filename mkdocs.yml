@@ -60,6 +60,19 @@ nav:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
     - End-to-end tests: how-to/test/e2e.md
+    - Manual QA: 
+      - how-to/test/manual-qa/index.md
+      - AWS: 
+        - VM: how-to/test/manual-qa/aws-vm.md 
+        - Docker: how-to/test/manual-qa/aws-docker.md
+        - EKS: how-to/test/manual-qa/aws-eks.md
+        - ECS: how-to/test/manual-qa/aws-ecs.md
+        - Kind: how-to/test/manual-qa/aws-kind.md
+      - Azure: 
+        - VM: how-to/test/manual-qa/azure-vm.md
+      - GCP: 
+        - VM: how-to/test/manual-qa/gcp-vm.md
+      
   - Go:
     - Add nested modules: how-to/go/modules.md
   - Debug agents:
@@ -111,6 +124,7 @@ nav:
   - Introduction: agent-schema/index.md
   - Keyword Reference: agent-schema/keywords.md
   - Examples: agent-schema/examples.md
+  - CLI Commands: agent-schema/cli.md
   - FAQ: agent-schema/faq.md
 - Architecture:
   - DogStatsD:

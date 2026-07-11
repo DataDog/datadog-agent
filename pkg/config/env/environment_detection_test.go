@@ -24,12 +24,14 @@ func TestExcludeFeatures(t *testing.T) {
 		Kubernetes:               struct{}{},
 		ECSFargate:               struct{}{},
 		EKSFargate:               struct{}{},
+		Process:                  struct{}{},
 	}
 
 	excludedFeatures := []string{
 		"cri",
 		"name:cri",
 		"name:docker",
+		"name:process",
 		"name:^.*fargate",
 	}
 

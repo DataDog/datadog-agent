@@ -389,7 +389,7 @@ func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.Executable
 func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource symbol.Source, ind int) (bool, symbol.Source) {
 	symbolSource := d.getSymbolSourceIfGoPCLnTab(e)
 	if existingSymbolSource >= symbolSource {
-		slog.Info("Skipping symbol upload",
+		slog.Debug("Skipping symbol upload",
 			slog.String("reason", "existing_symbols"),
 			slog.String("path", e.Path()),
 			slog.Int("endpoint", ind),
@@ -407,7 +407,7 @@ func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource
 		return false, symbolSource
 	}
 	if existingSymbolSource >= symbolSource {
-		slog.Info("Skipping symbol upload",
+		slog.Debug("Skipping symbol upload",
 			slog.String("reason", "existing_symbols"),
 			slog.String("path", e.Path()),
 			slog.Int("endpoint", ind),

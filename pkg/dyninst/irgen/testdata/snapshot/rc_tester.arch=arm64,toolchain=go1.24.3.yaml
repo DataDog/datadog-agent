@@ -1,5 +1,12 @@
 ID: 1
 Probes:
+    - instances:
+        - subprogram: {subprogram: 3}
+          events:
+            - Kind: Entry
+              Type: 1016 EventRootType Probe[runtime.recovery]
+              InjectionPoints: [{PC: "0x4d910", Frameless: false}]
+              Condition: null
     - id: http_handler
       version: 0
       type: LOG_PROBE
@@ -49,7 +56,7 @@ Subprograms:
       InlinePCRanges: []
       Variables:
         - Name: w
-          Type: 109 GoInterfaceType net/http.ResponseWriter
+          Type: 110 GoInterfaceType net/http.ResponseWriter
           Locations:
             - Range: 0x8a28e0..0x8a2938
               Pieces:
@@ -73,7 +80,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: r
-          Type: 110 PointerType *net/http.Request
+          Type: 111 PointerType *net/http.Request
           Locations:
             - Range: 0x8a28e0..0x8a2944
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
@@ -83,7 +90,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: span
-          Type: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+          Type: 113 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
             - Range: 0x8a2958..0x8a2988
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -91,7 +98,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: '&buf'
-          Type: 114 PointerType *bytes.Buffer
+          Type: 115 PointerType *bytes.Buffer
           Locations:
             - Range: 0x8a2a2c..0x8a2a40
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -119,6 +126,82 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
+    - ID: 3
+      Name: runtime.recovery
+      OutOfLinePCRanges: [0x4d910..0x4db80]
+      InlinePCRanges: []
+      Variables:
+        - Name: gp
+          Type: 58 PointerType *runtime.g
+          Locations:
+            - Range: 0x4d910..0x4da20
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x4da20..0x4da88
+              Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: p
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4d92c..0x4da00
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: pc
+          Type: 3 BaseType uintptr
+          Locations:
+            - Range: 0x4d950..0x4da24
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+            - Range: 0x4da24..0x4da88
+              Pieces: [{Size: 8, Op: {CfaOffset: -40}}]
+            - Range: 0x4da88..0x4dad0
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: sp
+          Type: 3 BaseType uintptr
+          Locations:
+            - Range: 0x4d954..0x4d9dc
+              Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
+            - Range: 0x4d9dc..0x4da24
+              Pieces: [{Size: 8, Op: {RegNo: 6, Shift: 0}}]
+            - Range: 0x4da24..0x4db54
+              Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
+            - Range: 0x4db54..0x4db64
+              Pieces: [{Size: 8, Op: {RegNo: 6, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: p0
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4d92c..0x4d958
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: saveOpenDeferState
+          Type: 6 BaseType bool
+          Locations:
+            - Range: 0x4d948..0x4d9c4
+              Pieces: [{Size: 1, Op: {RegNo: 3, Shift: 0}}]
+            - Range: 0x4d9d4..0x4da24
+              Pieces: [{Size: 1, Op: {RegNo: 3, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: '@gp'
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4d910..0x4db80
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 994
@@ -131,7 +214,7 @@ Types:
       Name: '**github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
       ByteSize: 8
       GoKind: 22
-      Pointee: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+      Pointee: 113 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: PointerType
       ID: 986
       Name: '**mime/multipart.FileHeader'
@@ -164,25 +247,25 @@ Types:
       ByteSize: 8
       Pointee: 837 PointerType *table<string,[]string>
     - __kind: PointerType
-      ID: 136
+      ID: 137
       Name: '**table<string,float64>'
       ByteSize: 8
-      Pointee: 137 PointerType *table<string,float64>
+      Pointee: 138 PointerType *table<string,float64>
     - __kind: PointerType
       ID: 692
       Name: '**table<string,github.com/DataDog/go-tuf/data.HexBytes>'
       ByteSize: 8
       Pointee: 693 PointerType *table<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: PointerType
-      ID: 131
+      ID: 132
       Name: '**table<string,interface {}>'
       ByteSize: 8
-      Pointee: 132 PointerType *table<string,interface {}>
+      Pointee: 133 PointerType *table<string,interface {}>
     - __kind: PointerType
-      ID: 126
+      ID: 127
       Name: '**table<string,string>'
       ByteSize: 8
-      Pointee: 127 PointerType *table<string,string>
+      Pointee: 128 PointerType *table<string,string>
     - __kind: PointerType
       ID: 996
       Name: '*[]*crypto/x509.Certificate'
@@ -333,12 +416,12 @@ Types:
       GoKind: 22
       Pointee: 831 UnresolvedPointeeType bufio.Writer
     - __kind: PointerType
-      ID: 114
+      ID: 115
       Name: '*bytes.Buffer'
       ByteSize: 8
       GoRuntimeType: 2318496
       GoKind: 22
-      Pointee: 115 UnresolvedPointeeType bytes.Buffer
+      Pointee: 116 UnresolvedPointeeType bytes.Buffer
     - __kind: PointerType
       ID: 445
       Name: '*compress/flate.CorruptInputError'
@@ -394,19 +477,19 @@ Types:
       GoKind: 22
       Pointee: 614 StructureType context.deadlineExceededError
     - __kind: PointerType
-      ID: 149
+      ID: 150
       Name: '*context.emptyCtx'
       ByteSize: 8
       GoRuntimeType: 1431200
       GoKind: 22
-      Pointee: 150 StructureType context.emptyCtx
+      Pointee: 151 StructureType context.emptyCtx
     - __kind: PointerType
-      ID: 151
+      ID: 152
       Name: '*context.stopCtx'
       ByteSize: 8
       GoRuntimeType: 1431360
       GoKind: 22
-      Pointee: 152 StructureType context.stopCtx
+      Pointee: 153 StructureType context.stopCtx
     - __kind: PointerType
       ID: 182
       Name: '*context.timerCtx'
@@ -422,12 +505,12 @@ Types:
       GoKind: 22
       Pointee: 166 StructureType context.todoCtx
     - __kind: PointerType
-      ID: 158
+      ID: 159
       Name: '*context.valueCtx'
       ByteSize: 8
       GoRuntimeType: 1570400
       GoKind: 22
-      Pointee: 159 StructureType context.valueCtx
+      Pointee: 160 StructureType context.valueCtx
     - __kind: PointerType
       ID: 161
       Name: '*context.withoutCancelCtx'
@@ -693,7 +776,7 @@ Types:
       GoKind: 22
       Pointee: 498 UnresolvedPointeeType encoding/xml.UnsupportedTypeError
     - __kind: PointerType
-      ID: 106
+      ID: 107
       Name: '*error'
       ByteSize: 8
       GoRuntimeType: 401856
@@ -714,14 +797,14 @@ Types:
       GoKind: 22
       Pointee: 560 UnresolvedPointeeType errors.joinError
     - __kind: PointerType
-      ID: 108
+      ID: 109
       Name: '*float32'
       ByteSize: 8
       GoRuntimeType: 402816
       GoKind: 22
       Pointee: 19 BaseType float32
     - __kind: PointerType
-      ID: 99
+      ID: 100
       Name: '*float64'
       ByteSize: 8
       GoRuntimeType: 402880
@@ -841,26 +924,26 @@ Types:
       GoKind: 22
       Pointee: 789 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.NoopTracer
     - __kind: PointerType
-      ID: 112
+      ID: 113
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
       ByteSize: 8
       GoRuntimeType: 2329760
       GoKind: 22
-      Pointee: 113 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+      Pointee: 114 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: PointerType
-      ID: 144
+      ID: 145
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext'
       ByteSize: 8
       GoRuntimeType: 2048032
       GoKind: 22
-      Pointee: 145 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
+      Pointee: 146 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
     - __kind: PointerType
-      ID: 139
+      ID: 140
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
       ByteSize: 8
       GoRuntimeType: 1211168
       GoKind: 22
-      Pointee: 140 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+      Pointee: 141 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
     - __kind: PointerType
       ID: 934
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.ciVisibilityPayload'
@@ -876,12 +959,12 @@ Types:
       GoKind: 22
       Pointee: 927 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.payload
     - __kind: PointerType
-      ID: 142
+      ID: 143
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
       ByteSize: 8
       GoRuntimeType: 1211296
       GoKind: 22
-      Pointee: 143 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+      Pointee: 144 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
     - __kind: PointerType
       ID: 737
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttribute'
@@ -897,12 +980,12 @@ Types:
       GoKind: 22
       Pointee: 254 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
     - __kind: PointerType
-      ID: 146
+      ID: 147
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace'
       ByteSize: 8
       GoRuntimeType: 2272448
       GoKind: 22
-      Pointee: 147 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
+      Pointee: 148 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
     - __kind: PointerType
       ID: 803
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.tracer'
@@ -932,12 +1015,12 @@ Types:
       GoKind: 22
       Pointee: 800 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/internal/datastreams.Processor
     - __kind: PointerType
-      ID: 156
+      ID: 157
       Name: '*github.com/DataDog/dd-trace-go/v2/internal/orchestrion.glsContext'
       ByteSize: 8
       GoRuntimeType: 1441760
       GoKind: 22
-      Pointee: 157 StructureType github.com/DataDog/dd-trace-go/v2/internal/orchestrion.glsContext
+      Pointee: 158 StructureType github.com/DataDog/dd-trace-go/v2/internal/orchestrion.glsContext
     - __kind: PointerType
       ID: 801
       Name: '*github.com/DataDog/dd-trace-go/v2/internal/telemetry.client'
@@ -1571,19 +1654,19 @@ Types:
       GoKind: 22
       Pointee: 533 UnresolvedPointeeType html/template.Error
     - __kind: PointerType
-      ID: 101
+      ID: 102
       Name: '*int'
       ByteSize: 8
       GoRuntimeType: 402496
       GoKind: 22
       Pointee: 9 BaseType int
     - __kind: PointerType
-      ID: 104
+      ID: 105
       Name: '*int16'
       ByteSize: 8
       GoRuntimeType: 402112
       GoKind: 22
-      Pointee: 96 BaseType int16
+      Pointee: 97 BaseType int16
     - __kind: PointerType
       ID: 22
       Name: '*int32'
@@ -1592,14 +1675,14 @@ Types:
       GoKind: 22
       Pointee: 14 BaseType int32
     - __kind: PointerType
-      ID: 100
+      ID: 101
       Name: '*int64'
       ByteSize: 8
       GoRuntimeType: 402368
       GoKind: 22
       Pointee: 15 BaseType int64
     - __kind: PointerType
-      ID: 105
+      ID: 106
       Name: '*int8'
       ByteSize: 8
       GoRuntimeType: 401984
@@ -1708,25 +1791,25 @@ Types:
       ByteSize: 8
       Pointee: 835 GoSwissMapHeaderType map<string,[]string>
     - __kind: PointerType
-      ID: 134
+      ID: 135
       Name: '*map<string,float64>'
       ByteSize: 8
-      Pointee: 135 GoSwissMapHeaderType map<string,float64>
+      Pointee: 136 GoSwissMapHeaderType map<string,float64>
     - __kind: PointerType
       ID: 690
       Name: '*map<string,github.com/DataDog/go-tuf/data.HexBytes>'
       ByteSize: 8
       Pointee: 691 GoSwissMapHeaderType map<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: PointerType
-      ID: 129
+      ID: 130
       Name: '*map<string,interface {}>'
       ByteSize: 8
-      Pointee: 130 GoSwissMapHeaderType map<string,interface {}>
+      Pointee: 131 GoSwissMapHeaderType map<string,interface {}>
     - __kind: PointerType
-      ID: 124
+      ID: 125
       Name: '*map<string,string>'
       ByteSize: 8
-      Pointee: 125 GoSwissMapHeaderType map<string,string>
+      Pointee: 126 GoSwissMapHeaderType map<string,string>
     - __kind: PointerType
       ID: 447
       Name: '*math/big.ErrNaN'
@@ -1866,12 +1949,12 @@ Types:
       GoKind: 22
       Pointee: 339 UnresolvedPointeeType net.notFoundError
     - __kind: PointerType
-      ID: 154
+      ID: 155
       Name: '*net.onlyValuesCtx'
       ByteSize: 8
       GoRuntimeType: 1431840
       GoKind: 22
-      Pointee: 155 StructureType net.onlyValuesCtx
+      Pointee: 156 StructureType net.onlyValuesCtx
     - __kind: PointerType
       ID: 340
       Name: '*net.result·2'
@@ -1922,12 +2005,12 @@ Types:
       GoKind: 22
       Pointee: 550 UnresolvedPointeeType net/http.ProtocolError
     - __kind: PointerType
-      ID: 110
+      ID: 111
       Name: '*net/http.Request'
       ByteSize: 8
       GoRuntimeType: 2362624
       GoKind: 22
-      Pointee: 111 StructureType net/http.Request
+      Pointee: 112 StructureType net/http.Request
     - __kind: PointerType
       ID: 859
       Name: '*net/http.Response'
@@ -2495,7 +2578,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1437120
       GoKind: 22
-      Pointee: 27 UnresolvedPointeeType runtime._panic
+      Pointee: 27 StructureType runtime._panic
     - __kind: PointerType
       ID: 567
       Name: '*runtime.boundsError'
@@ -2504,12 +2587,12 @@ Types:
       GoKind: 22
       Pointee: 568 StructureType runtime.boundsError
     - __kind: PointerType
-      ID: 64
+      ID: 65
       Name: '*runtime.cgoCallers'
       ByteSize: 8
       GoRuntimeType: 403776
       GoKind: 22
-      Pointee: 65 UnresolvedPointeeType runtime.cgoCallers
+      Pointee: 66 UnresolvedPointeeType runtime.cgoCallers
     - __kind: PointerType
       ID: 49
       Name: '*runtime.coro'
@@ -2537,7 +2620,7 @@ Types:
       ByteSize: 8
       Pointee: 535 GoStringDataType runtime.errorString.str
     - __kind: PointerType
-      ID: 57
+      ID: 58
       Name: '*runtime.g'
       ByteSize: 8
       GoRuntimeType: 917376
@@ -2584,12 +2667,12 @@ Types:
       GoKind: 22
       Pointee: 47 UnresolvedPointeeType runtime.timer
     - __kind: PointerType
-      ID: 78
+      ID: 79
       Name: '*runtime.traceBuf'
       ByteSize: 8
       GoRuntimeType: 1650208
       GoKind: 22
-      Pointee: 79 UnresolvedPointeeType runtime.traceBuf
+      Pointee: 80 UnresolvedPointeeType runtime.traceBuf
     - __kind: PointerType
       ID: 561
       Name: '*strconv.NumError'
@@ -2598,7 +2681,7 @@ Types:
       GoKind: 22
       Pointee: 562 UnresolvedPointeeType strconv.NumError
     - __kind: PointerType
-      ID: 95
+      ID: 96
       Name: '*string'
       ByteSize: 8
       GoRuntimeType: 401920
@@ -2761,7 +2844,7 @@ Types:
       ByteSize: 8
       Pointee: 842 StructureType table<string,[]string>
     - __kind: PointerType
-      ID: 137
+      ID: 138
       Name: '*table<string,float64>'
       ByteSize: 8
       Pointee: 211 StructureType table<string,float64>
@@ -2771,12 +2854,12 @@ Types:
       ByteSize: 8
       Pointee: 719 StructureType table<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: PointerType
-      ID: 132
+      ID: 133
       Name: '*table<string,interface {}>'
       ByteSize: 8
       Pointee: 203 StructureType table<string,interface {}>
     - __kind: PointerType
-      ID: 127
+      ID: 128
       Name: '*table<string,string>'
       ByteSize: 8
       Pointee: 195 StructureType table<string,string>
@@ -2835,14 +2918,14 @@ Types:
       GoKind: 22
       Pointee: 246 StructureType time.zoneTrans
     - __kind: PointerType
-      ID: 107
+      ID: 108
       Name: '*uint'
       ByteSize: 8
       GoRuntimeType: 402560
       GoKind: 22
       Pointee: 12 BaseType uint
     - __kind: PointerType
-      ID: 103
+      ID: 104
       Name: '*uint16'
       ByteSize: 8
       GoRuntimeType: 402176
@@ -2856,7 +2939,7 @@ Types:
       GoKind: 22
       Pointee: 4 BaseType uint32
     - __kind: PointerType
-      ID: 102
+      ID: 103
       Name: '*uint64'
       ByteSize: 8
       GoRuntimeType: 402432
@@ -2939,7 +3022,7 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 109 GoInterfaceType net/http.ResponseWriter
+            Type: 110 GoInterfaceType net/http.ResponseWriter
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 1, index: 0, name: w}
@@ -2948,11 +3031,12 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: r
           Offset: 17
           Kind: argument
           Expression:
-            Type: 110 PointerType *net/http.Request
+            Type: 111 PointerType *net/http.Request
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 1, index: 1, name: r}
@@ -2961,6 +3045,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1013
       Name: Probe[main.HandleHTTP]Return
@@ -2983,25 +3068,57 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1015
       Name: Probe[main.LookAtTheRequest]Return
+    - __kind: EventRootType
+      ID: 1016
+      Name: Probe[runtime.recovery]
+      ByteSize: 17
+      EventKind: Entry
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: '@exception'
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 57 GoEmptyInterfaceType interface {}
+            Operations:
+                - __kind: PanicUnwindPrepareOp
+                - __kind: LocationOp
+                  Variable: {subprogram: 3, index: 6, name: '@gp'}
+                  Offset: 0
+                  ByteSize: 8
+                - __kind: DereferenceOp
+                  Bias: 32
+                  ByteSize: 8
+                  NullAsZero: false
+                - __kind: DereferenceOp
+                  Bias: 8
+                  ByteSize: 16
+                  NullAsZero: false
+                - __kind: PanicUnwindEvictSlotsOp
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
-      ID: 94
+      ID: 95
       Name: '[0]uint8'
       GoRuntimeType: 722496
       GoKind: 17
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 91
+      ID: 92
       Name: '[10]runtime.heldLockInfo'
       ByteSize: 160
       GoRuntimeType: 722400
       GoKind: 17
       Count: 10
       HasCount: true
-      Element: 92 StructureType runtime.heldLockInfo
+      Element: 93 StructureType runtime.heldLockInfo
     - __kind: ArrayType
       ID: 839
       Name: '[10]uint8'
@@ -3021,32 +3138,32 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 77
+      ID: 78
       Name: '[2]*runtime.traceBuf'
       ByteSize: 16
       GoRuntimeType: 722016
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 78 PointerType *runtime.traceBuf
+      Element: 79 PointerType *runtime.traceBuf
     - __kind: ArrayType
-      ID: 76
+      ID: 77
       Name: '[2][2]*runtime.traceBuf'
       ByteSize: 32
       GoRuntimeType: 722112
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 77 ArrayType [2]*runtime.traceBuf
+      Element: 78 ArrayType [2]*runtime.traceBuf
     - __kind: ArrayType
-      ID: 83
+      ID: 84
       Name: '[2][8]runtime.pcvalueCacheEnt'
       ByteSize: 384
       GoRuntimeType: 722304
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 84 ArrayType [8]runtime.pcvalueCacheEnt
+      Element: 85 ArrayType [8]runtime.pcvalueCacheEnt
     - __kind: ArrayType
       ID: 56
       Name: '[2]uint64'
@@ -3057,7 +3174,7 @@ Types:
       HasCount: true
       Element: 10 BaseType uint64
     - __kind: ArrayType
-      ID: 89
+      ID: 90
       Name: '[32]uint64'
       ByteSize: 256
       GoRuntimeType: 752352
@@ -3066,7 +3183,7 @@ Types:
       HasCount: true
       Element: 10 BaseType uint64
     - __kind: ArrayType
-      ID: 67
+      ID: 68
       Name: '[32]uintptr'
       ByteSize: 256
       GoRuntimeType: 721824
@@ -3093,7 +3210,7 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 90
+      ID: 91
       Name: '[4]uint64'
       ByteSize: 32
       GoRuntimeType: 698496
@@ -3111,7 +3228,7 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 60
+      ID: 61
       Name: '[6]uintptr'
       ByteSize: 48
       GoRuntimeType: 708512
@@ -3120,14 +3237,14 @@ Types:
       HasCount: true
       Element: 3 BaseType uintptr
     - __kind: ArrayType
-      ID: 84
+      ID: 85
       Name: '[8]runtime.pcvalueCacheEnt'
       ByteSize: 192
       GoRuntimeType: 722208
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 85 StructureType runtime.pcvalueCacheEnt
+      Element: 86 StructureType runtime.pcvalueCacheEnt
     - __kind: GoSliceHeaderType
       ID: 993
       Name: '[]*crypto/x509.Certificate'
@@ -3173,7 +3290,7 @@ Types:
       Name: '[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array'
       DynamicSizeClass: slice
       ByteSize: 8
-      Element: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+      Element: 113 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: GoSliceHeaderType
       ID: 985
       Name: '[]*mime/multipart.FileHeader'
@@ -3232,7 +3349,7 @@ Types:
       Name: '[]*table<string,float64>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 137 PointerType *table<string,float64>
+      Element: 138 PointerType *table<string,float64>
     - __kind: GoSliceDataType
       ID: 725
       Name: '[]*table<string,github.com/DataDog/go-tuf/data.HexBytes>.array'
@@ -3244,13 +3361,13 @@ Types:
       Name: '[]*table<string,interface {}>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 132 PointerType *table<string,interface {}>
+      Element: 133 PointerType *table<string,interface {}>
     - __kind: GoSliceDataType
       ID: 201
       Name: '[]*table<string,string>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 127 PointerType *table<string,string>
+      Element: 128 PointerType *table<string,string>
     - __kind: GoSliceHeaderType
       ID: 995
       Name: '[][]*crypto/x509.Certificate'
@@ -3306,7 +3423,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 99 PointerType *float64
+          Type: 100 PointerType *float64
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -3321,7 +3438,7 @@ Types:
       ByteSize: 8
       Element: 20 BaseType float64
     - __kind: GoSliceHeaderType
-      ID: 138
+      ID: 139
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
       ByteSize: 24
       GoRuntimeType: 491680
@@ -3329,7 +3446,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 139 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+          Type: 140 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -3342,9 +3459,9 @@ Types:
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
       DynamicSizeClass: slice
       ByteSize: 56
-      Element: 140 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+      Element: 141 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
     - __kind: GoSliceHeaderType
-      ID: 141
+      ID: 142
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
       ByteSize: 24
       GoRuntimeType: 491872
@@ -3352,7 +3469,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 142 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+          Type: 143 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -3365,7 +3482,7 @@ Types:
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
       DynamicSizeClass: slice
       ByteSize: 40
-      Element: 143 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+      Element: 144 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
     - __kind: GoSliceHeaderType
       ID: 1007
       Name: '[]net/http.segment'
@@ -3479,7 +3596,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 95 PointerType *string
+          Type: 96 PointerType *string
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -3594,7 +3711,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 95 PointerType *string
+          Type: 96 PointerType *string
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -3635,7 +3752,7 @@ Types:
       Name: bufio.Writer
       ByteSize: 8
     - __kind: UnresolvedPointeeType
-      ID: 115
+      ID: 116
       Name: bytes.Buffer
       ByteSize: 8
     - __kind: GoChannelType
@@ -3649,13 +3766,13 @@ Types:
       GoRuntimeType: 609600
       GoKind: 18
     - __kind: BaseType
-      ID: 98
+      ID: 99
       Name: complex128
       ByteSize: 16
       GoRuntimeType: 591296
       GoKind: 16
     - __kind: BaseType
-      ID: 97
+      ID: 98
       Name: complex64
       ByteSize: 8
       GoRuntimeType: 591232
@@ -3700,7 +3817,7 @@ Types:
       GoRuntimeType: 685632
       GoKind: 19
     - __kind: GoInterfaceType
-      ID: 116
+      ID: 117
       Name: context.Context
       ByteSize: 16
       GoRuntimeType: 1299296
@@ -3720,7 +3837,7 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 150 StructureType context.emptyCtx
+          Type: 151 StructureType context.emptyCtx
       ContextOffset: -1
       KeyOffset: -1
       ValueOffset: -1
@@ -3733,10 +3850,10 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: mu
           Offset: 16
-          Type: 118 StructureType sync.Mutex
+          Type: 119 StructureType sync.Mutex
         - Name: done
           Offset: 24
           Type: 176 StructureType sync/atomic.Value
@@ -3771,7 +3888,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: GoContextImplementationType
-      ID: 150
+      ID: 151
       Name: context.emptyCtx
       GoRuntimeType: 1619520
       GoKind: 25
@@ -3780,7 +3897,7 @@ Types:
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 152
+      ID: 153
       Name: context.stopCtx
       ByteSize: 24
       GoRuntimeType: 1855392
@@ -3788,10 +3905,10 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: stop
           Offset: 16
-          Type: 153 GoSubroutineType func() bool
+          Type: 154 GoSubroutineType func() bool
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
@@ -3820,12 +3937,12 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 150 StructureType context.emptyCtx
+          Type: 151 StructureType context.emptyCtx
       ContextOffset: -1
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 159
+      ID: 160
       Name: context.valueCtx
       ByteSize: 48
       GoRuntimeType: 1865984
@@ -3833,13 +3950,13 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: key
           Offset: 16
-          Type: 160 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: val
           Offset: 32
-          Type: 160 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
       KeyOffset: 16
       ValueOffset: 32
     - __kind: GoContextImplementationType
@@ -3851,7 +3968,7 @@ Types:
       RawFields:
         - Name: c
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
       KeyOffset: -1
       ValueOffset: -1
     - __kind: BaseType
@@ -4209,7 +4326,7 @@ Types:
       Name: fmt.wrapErrors
       ByteSize: 8
     - __kind: GoSubroutineType
-      ID: 61
+      ID: 62
       Name: func()
       ByteSize: 8
       GoRuntimeType: 482240
@@ -4221,13 +4338,13 @@ Types:
       GoRuntimeType: 701696
       GoKind: 19
     - __kind: GoSubroutineType
-      ID: 153
+      ID: 154
       Name: func() bool
       ByteSize: 8
       GoRuntimeType: 601600
       GoKind: 19
     - __kind: GoSubroutineType
-      ID: 72
+      ID: 73
       Name: func(*runtime.g, unsafe.Pointer) bool
       ByteSize: 8
       GoRuntimeType: 864096
@@ -4405,7 +4522,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: DDTraceSpanType
-      ID: 113
+      ID: 114
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
       ByteSize: 288
       GoRuntimeType: 2394656
@@ -4413,7 +4530,7 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 117 StructureType sync.RWMutex
+          Type: 118 StructureType sync.RWMutex
         - Name: name
           Offset: 24
           Type: 11 GoStringHeaderType string
@@ -4434,13 +4551,13 @@ Types:
           Type: 15 BaseType int64
         - Name: meta
           Offset: 104
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
         - Name: metaStruct
           Offset: 112
-          Type: 128 GoMapType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
+          Type: 129 GoMapType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
         - Name: metrics
           Offset: 120
-          Type: 133 GoMapType map[string]float64
+          Type: 134 GoMapType map[string]float64
         - Name: spanID
           Offset: 128
           Type: 10 BaseType uint64
@@ -4455,10 +4572,10 @@ Types:
           Type: 14 BaseType int32
         - Name: spanLinks
           Offset: 160
-          Type: 138 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+          Type: 139 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
         - Name: spanEvents
           Offset: 184
-          Type: 141 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+          Type: 142 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
         - Name: goExecTraced
           Offset: 208
           Type: 6 BaseType bool
@@ -4470,7 +4587,7 @@ Types:
           Type: 6 BaseType bool
         - Name: context
           Offset: 216
-          Type: 144 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
+          Type: 145 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
         - Name: integration
           Offset: 224
           Type: 11 GoStringHeaderType string
@@ -4479,13 +4596,13 @@ Types:
           Type: 6 BaseType bool
         - Name: pprofCtxActive
           Offset: 248
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: pprofCtxRestore
           Offset: 264
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: taskEnd
           Offset: 280
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
       SpanKind: 2
       TraceIDOffset: 136
       SpanIDOffset: 128
@@ -4493,7 +4610,7 @@ Types:
       SpanContextOffset: 216
       SpanContextTraceIDOffset: 49
     - __kind: StructureType
-      ID: 145
+      ID: 146
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
       ByteSize: 168
       GoRuntimeType: 2263520
@@ -4504,13 +4621,13 @@ Types:
           Type: 6 BaseType bool
         - Name: trace
           Offset: 8
-          Type: 146 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
+          Type: 147 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
         - Name: span
           Offset: 16
-          Type: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+          Type: 113 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
         - Name: errors
           Offset: 24
-          Type: 121 StructureType sync/atomic.Int32
+          Type: 122 StructureType sync/atomic.Int32
         - Name: reparentID
           Offset: 32
           Type: 11 GoStringHeaderType string
@@ -4519,16 +4636,16 @@ Types:
           Type: 6 BaseType bool
         - Name: traceID
           Offset: 49
-          Type: 148 ArrayType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.traceID
+          Type: 149 ArrayType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.traceID
         - Name: spanID
           Offset: 72
           Type: 10 BaseType uint64
         - Name: mu
           Offset: 80
-          Type: 117 StructureType sync.RWMutex
+          Type: 118 StructureType sync.RWMutex
         - Name: baggage
           Offset: 104
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
         - Name: hasBaggage
           Offset: 112
           Type: 4 BaseType uint32
@@ -4537,12 +4654,12 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: spanLinks
           Offset: 136
-          Type: 138 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+          Type: 139 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
         - Name: baggageOnly
           Offset: 160
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 140
+      ID: 141
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
       ByteSize: 56
       GoRuntimeType: 1948960
@@ -4559,7 +4676,7 @@ Types:
           Type: 10 BaseType uint64
         - Name: Attributes
           Offset: 24
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
         - Name: Tracestate
           Offset: 32
           Type: 11 GoStringHeaderType string
@@ -4580,12 +4697,12 @@ Types:
           Offset: 8
           Type: 938 BaseType time.Duration
     - __kind: GoMapType
-      ID: 128
+      ID: 129
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
       ByteSize: 8
       GoRuntimeType: 1300576
       GoKind: 21
-      HeaderType: 130 GoSwissMapHeaderType map<string,interface {}>
+      HeaderType: 131 GoSwissMapHeaderType map<string,interface {}>
     - __kind: UnresolvedPointeeType
       ID: 927
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.payload
@@ -4597,7 +4714,7 @@ Types:
       GoRuntimeType: 590272
       GoKind: 10
     - __kind: StructureType
-      ID: 143
+      ID: 144
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
       ByteSize: 40
       GoRuntimeType: 1783360
@@ -4651,7 +4768,7 @@ Types:
       GoRuntimeType: 1002560
       GoKind: 5
     - __kind: StructureType
-      ID: 147
+      ID: 148
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
       ByteSize: 104
       GoRuntimeType: 2151072
@@ -4659,16 +4776,16 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 117 StructureType sync.RWMutex
+          Type: 118 StructureType sync.RWMutex
         - Name: spans
           Offset: 24
           Type: 261 GoSliceHeaderType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
         - Name: tags
           Offset: 48
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
         - Name: propagatingTags
           Offset: 56
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
         - Name: finished
           Offset: 64
           Type: 9 BaseType int
@@ -4677,7 +4794,7 @@ Types:
           Type: 6 BaseType bool
         - Name: priority
           Offset: 80
-          Type: 99 PointerType *float64
+          Type: 100 PointerType *float64
         - Name: locked
           Offset: 88
           Type: 6 BaseType bool
@@ -4686,9 +4803,9 @@ Types:
           Type: 263 BaseType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.samplingDecision
         - Name: root
           Offset: 96
-          Type: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+          Type: 113 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: ArrayType
-      ID: 148
+      ID: 149
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.traceID
       ByteSize: 16
       GoRuntimeType: 915072
@@ -4726,7 +4843,7 @@ Types:
       RawFields:
         - Name: ResponseWriter
           Offset: 0
-          Type: 109 GoInterfaceType net/http.ResponseWriter
+          Type: 110 GoInterfaceType net/http.ResponseWriter
         - Name: status
           Offset: 16
           Type: 9 BaseType int
@@ -4735,7 +4852,7 @@ Types:
       Name: github.com/DataDog/dd-trace-go/v2/internal/datastreams.Processor
       ByteSize: 8
     - __kind: GoContextImplementationType
-      ID: 157
+      ID: 158
       Name: github.com/DataDog/dd-trace-go/v2/internal/orchestrion.glsContext
       ByteSize: 16
       GoRuntimeType: 1659616
@@ -4743,7 +4860,7 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
       KeyOffset: -1
       ValueOffset: -1
     - __kind: UnresolvedPointeeType
@@ -5725,7 +5842,7 @@ Types:
       GoRuntimeType: 591040
       GoKind: 2
     - __kind: BaseType
-      ID: 96
+      ID: 97
       Name: int16
       ByteSize: 2
       GoRuntimeType: 590656
@@ -5749,7 +5866,7 @@ Types:
       GoRuntimeType: 590528
       GoKind: 3
     - __kind: GoEmptyInterfaceType
-      ID: 160
+      ID: 57
       Name: interface {}
       ByteSize: 16
       GoRuntimeType: 863808
@@ -5766,7 +5883,7 @@ Types:
       Name: internal/bisect.parseError
       ByteSize: 8
     - __kind: StructureType
-      ID: 88
+      ID: 89
       Name: internal/chacha8rand.State
       ByteSize: 304
       GoRuntimeType: 1885696
@@ -5774,10 +5891,10 @@ Types:
       RawFields:
         - Name: buf
           Offset: 0
-          Type: 89 ArrayType [32]uint64
+          Type: 90 ArrayType [32]uint64
         - Name: seed
           Offset: 256
-          Type: 90 ArrayType [4]uint64
+          Type: 91 ArrayType [4]uint64
         - Name: i
           Offset: 288
           Type: 4 BaseType uint32
@@ -5820,7 +5937,7 @@ Types:
           Offset: 0
           Type: 38 StructureType internal/runtime/atomic.Uint8
     - __kind: StructureType
-      ID: 70
+      ID: 71
       Name: internal/runtime/atomic.Int64
       ByteSize: 8
       GoRuntimeType: 1669024
@@ -5831,7 +5948,7 @@ Types:
           Type: 35 StructureType internal/runtime/atomic.noCopy
         - Name: _
           Offset: 0
-          Type: 71 StructureType internal/runtime/atomic.align64
+          Type: 72 StructureType internal/runtime/atomic.align64
         - Name: value
           Offset: 0
           Type: 15 BaseType int64
@@ -5862,7 +5979,7 @@ Types:
           Offset: 0
           Type: 5 BaseType uint8
     - __kind: StructureType
-      ID: 75
+      ID: 76
       Name: internal/runtime/atomic.Uintptr
       ByteSize: 8
       GoRuntimeType: 1514400
@@ -5875,7 +5992,7 @@ Types:
           Offset: 0
           Type: 3 BaseType uintptr
     - __kind: StructureType
-      ID: 71
+      ID: 72
       Name: internal/runtime/atomic.align64
       GoRuntimeType: 1008128
       GoKind: 25
@@ -5887,7 +6004,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 120
+      ID: 121
       Name: internal/sync.Mutex
       ByteSize: 8
       GoRuntimeType: 1513600
@@ -6131,7 +6248,7 @@ Types:
       TablePtrSliceType: 848 GoSliceDataType []*table<string,[]string>.array
       GroupType: 845 StructureType noalg.map.group[string][]string
     - __kind: GoSwissMapHeaderType
-      ID: 135
+      ID: 136
       Name: map<string,float64>
       ByteSize: 48
       GoKind: 25
@@ -6144,7 +6261,7 @@ Types:
           Type: 3 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 136 PointerType **table<string,float64>
+          Type: 137 PointerType **table<string,float64>
         - Name: dirLen
           Offset: 24
           Type: 9 BaseType int
@@ -6195,7 +6312,7 @@ Types:
       TablePtrSliceType: 725 GoSliceDataType []*table<string,github.com/DataDog/go-tuf/data.HexBytes>.array
       GroupType: 722 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSwissMapHeaderType
-      ID: 130
+      ID: 131
       Name: map<string,interface {}>
       ByteSize: 48
       GoKind: 25
@@ -6208,7 +6325,7 @@ Types:
           Type: 3 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 131 PointerType **table<string,interface {}>
+          Type: 132 PointerType **table<string,interface {}>
         - Name: dirLen
           Offset: 24
           Type: 9 BaseType int
@@ -6227,7 +6344,7 @@ Types:
       TablePtrSliceType: 209 GoSliceDataType []*table<string,interface {}>.array
       GroupType: 206 StructureType noalg.map.group[string]interface {}
     - __kind: GoSwissMapHeaderType
-      ID: 125
+      ID: 126
       Name: map<string,string>
       ByteSize: 48
       GoKind: 25
@@ -6240,7 +6357,7 @@ Types:
           Type: 3 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 126 PointerType **table<string,string>
+          Type: 127 PointerType **table<string,string>
         - Name: dirLen
           Offset: 24
           Type: 9 BaseType int
@@ -6294,26 +6411,26 @@ Types:
       GoKind: 21
       HeaderType: 835 GoSwissMapHeaderType map<string,[]string>
     - __kind: GoMapType
-      ID: 133
+      ID: 134
       Name: map[string]float64
       ByteSize: 8
       GoRuntimeType: 1153856
       GoKind: 21
-      HeaderType: 135 GoSwissMapHeaderType map<string,float64>
+      HeaderType: 136 GoSwissMapHeaderType map<string,float64>
     - __kind: GoMapType
       ID: 226
       Name: map[string]interface {}
       ByteSize: 8
       GoRuntimeType: 1147200
       GoKind: 21
-      HeaderType: 130 GoSwissMapHeaderType map<string,interface {}>
+      HeaderType: 131 GoSwissMapHeaderType map<string,interface {}>
     - __kind: GoMapType
-      ID: 123
+      ID: 124
       Name: map[string]string
       ByteSize: 8
       GoRuntimeType: 1149632
       GoKind: 21
-      HeaderType: 125 GoSwissMapHeaderType map<string,string>
+      HeaderType: 126 GoSwissMapHeaderType map<string,string>
     - __kind: StructureType
       ID: 448
       Name: math/big.ErrNaN
@@ -6472,7 +6589,7 @@ Types:
       Name: net.notFoundError
       ByteSize: 8
     - __kind: GoContextImplementationType
-      ID: 155
+      ID: 156
       Name: net.onlyValuesCtx
       ByteSize: 32
       GoRuntimeType: 1777600
@@ -6480,10 +6597,10 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: lookupValues
           Offset: 16
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
       KeyOffset: -1
       ValueOffset: -1
     - __kind: StructureType
@@ -6604,7 +6721,7 @@ Types:
           Offset: 8
           Type: 17 VoidPointerType unsafe.Pointer
     - __kind: StructureType
-      ID: 111
+      ID: 112
       Name: net/http.Request
       ByteSize: 304
       GoRuntimeType: 2400384
@@ -6678,7 +6795,7 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: ctx
           Offset: 248
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: pat
           Offset: 264
           Type: 861 PointerType *net/http.pattern
@@ -6687,7 +6804,7 @@ Types:
           Type: 705 GoSliceHeaderType []string
         - Name: otherValues
           Offset: 296
-          Type: 123 GoMapType map[string]string
+          Type: 124 GoMapType map[string]string
     - __kind: StructureType
       ID: 860
       Name: net/http.Response
@@ -6733,12 +6850,12 @@ Types:
           Type: 833 GoMapType net/http.Header
         - Name: Request
           Offset: 128
-          Type: 110 PointerType *net/http.Request
+          Type: 111 PointerType *net/http.Request
         - Name: TLS
           Offset: 136
           Type: 856 PointerType *crypto/tls.ConnectionState
     - __kind: GoInterfaceType
-      ID: 109
+      ID: 110
       Name: net/http.ResponseWriter
       ByteSize: 16
       GoRuntimeType: 1207328
@@ -7062,7 +7179,7 @@ Types:
           Type: 826 PointerType *net/http.conn
         - Name: req
           Offset: 8
-          Type: 110 PointerType *net/http.Request
+          Type: 111 PointerType *net/http.Request
         - Name: reqBody
           Offset: 16
           Type: 828 GoInterfaceType io.ReadCloser
@@ -7080,7 +7197,7 @@ Types:
           Type: 6 BaseType bool
         - Name: writeContinueMu
           Offset: 44
-          Type: 118 StructureType sync.Mutex
+          Type: 119 StructureType sync.Mutex
         - Name: canWriteContinue
           Offset: 52
           Type: 829 StructureType sync/atomic.Bool
@@ -7653,7 +7770,7 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: elem
           Offset: 16
-          Type: 160 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
     - __kind: StructureType
       ID: 200
       Name: noalg.struct { key string; elem string }
@@ -7760,7 +7877,7 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 116 GoInterfaceType context.Context
+          Type: 117 GoInterfaceType context.Context
         - Name: cancel
           Offset: 16
           Type: 169 GoSubroutineType context.CancelFunc
@@ -7817,10 +7934,55 @@ Types:
       ID: 29
       Name: runtime._defer
       ByteSize: 8
-    - __kind: UnresolvedPointeeType
+    - __kind: StructureType
       ID: 27
       Name: runtime._panic
-      ByteSize: 8
+      ByteSize: 104
+      GoRuntimeType: 2263968
+      GoKind: 25
+      RawFields:
+        - Name: argp
+          Offset: 0
+          Type: 17 VoidPointerType unsafe.Pointer
+        - Name: arg
+          Offset: 8
+          Type: 57 GoEmptyInterfaceType interface {}
+        - Name: link
+          Offset: 24
+          Type: 26 PointerType *runtime._panic
+        - Name: startPC
+          Offset: 32
+          Type: 3 BaseType uintptr
+        - Name: startSP
+          Offset: 40
+          Type: 17 VoidPointerType unsafe.Pointer
+        - Name: sp
+          Offset: 48
+          Type: 17 VoidPointerType unsafe.Pointer
+        - Name: lr
+          Offset: 56
+          Type: 3 BaseType uintptr
+        - Name: fp
+          Offset: 64
+          Type: 17 VoidPointerType unsafe.Pointer
+        - Name: retpc
+          Offset: 72
+          Type: 3 BaseType uintptr
+        - Name: deferBitsPtr
+          Offset: 80
+          Type: 7 PointerType *uint8
+        - Name: slotsPtr
+          Offset: 88
+          Type: 17 VoidPointerType unsafe.Pointer
+        - Name: recovered
+          Offset: 96
+          Type: 6 BaseType bool
+        - Name: goexit
+          Offset: 97
+          Type: 6 BaseType bool
+        - Name: deferreturn
+          Offset: 98
+          Type: 6 BaseType bool
     - __kind: StructureType
       ID: 568
       Name: runtime.boundsError
@@ -7847,7 +8009,7 @@ Types:
       GoRuntimeType: 591616
       GoKind: 8
     - __kind: UnresolvedPointeeType
-      ID: 65
+      ID: 66
       Name: runtime.cgoCallers
       ByteSize: 8
     - __kind: UnresolvedPointeeType
@@ -7855,7 +8017,7 @@ Types:
       Name: runtime.coro
       ByteSize: 8
     - __kind: StructureType
-      ID: 86
+      ID: 87
       Name: runtime.dlogPerM
       GoRuntimeType: 1004096
       GoKind: 25
@@ -8125,7 +8287,7 @@ Types:
           Offset: 0
           Type: 4 BaseType uint32
     - __kind: StructureType
-      ID: 58
+      ID: 59
       Name: runtime.gsignalStack
       ByteSize: 40
       GoRuntimeType: 1785472
@@ -8150,7 +8312,7 @@ Types:
       GoRuntimeType: 843808
       GoKind: 12
     - __kind: StructureType
-      ID: 92
+      ID: 93
       Name: runtime.heldLockInfo
       ByteSize: 16
       GoRuntimeType: 1495520
@@ -8161,9 +8323,9 @@ Types:
           Type: 3 BaseType uintptr
         - Name: rank
           Offset: 8
-          Type: 93 BaseType runtime.lockRank
+          Type: 94 BaseType runtime.lockRank
     - __kind: StructureType
-      ID: 80
+      ID: 81
       Name: runtime.libcall
       ByteSize: 48
       GoRuntimeType: 1951264
@@ -8188,7 +8350,7 @@ Types:
           Offset: 40
           Type: 3 BaseType uintptr
     - __kind: BaseType
-      ID: 93
+      ID: 94
       Name: runtime.lockRank
       ByteSize: 8
       GoRuntimeType: 843712
@@ -8202,7 +8364,7 @@ Types:
       RawFields:
         - Name: g0
           Offset: 0
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: morebuf
           Offset: 8
           Type: 32 StructureType runtime.gobuf
@@ -8217,34 +8379,34 @@ Types:
           Type: 10 BaseType uint64
         - Name: gsignal
           Offset: 80
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: goSigStack
           Offset: 88
-          Type: 58 StructureType runtime.gsignalStack
+          Type: 59 StructureType runtime.gsignalStack
         - Name: sigmask
           Offset: 128
-          Type: 59 ArrayType runtime.sigset
+          Type: 60 ArrayType runtime.sigset
         - Name: tls
           Offset: 136
-          Type: 60 ArrayType [6]uintptr
+          Type: 61 ArrayType [6]uintptr
         - Name: mstartfn
           Offset: 184
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
         - Name: curg
           Offset: 192
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: caughtsig
           Offset: 200
           Type: 33 BaseType runtime.guintptr
         - Name: p
           Offset: 208
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: nextp
           Offset: 216
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: oldp
           Offset: 224
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: id
           Offset: 232
           Type: 15 BaseType int64
@@ -8253,7 +8415,7 @@ Types:
           Type: 14 BaseType int32
         - Name: throwing
           Offset: 244
-          Type: 63 BaseType runtime.throwType
+          Type: 64 BaseType runtime.throwType
         - Name: preemptoff
           Offset: 248
           Type: 11 GoStringHeaderType string
@@ -8313,10 +8475,10 @@ Types:
           Type: 34 StructureType internal/runtime/atomic.Uint32
         - Name: cgoCallers
           Offset: 312
-          Type: 64 PointerType *runtime.cgoCallers
+          Type: 65 PointerType *runtime.cgoCallers
         - Name: park
           Offset: 320
-          Type: 66 StructureType runtime.note
+          Type: 67 StructureType runtime.note
         - Name: alllink
           Offset: 328
           Type: 30 PointerType *runtime.m
@@ -8328,7 +8490,7 @@ Types:
           Type: 33 BaseType runtime.guintptr
         - Name: createstack
           Offset: 352
-          Type: 67 ArrayType [32]uintptr
+          Type: 68 ArrayType [32]uintptr
         - Name: lockedExt
           Offset: 608
           Type: 4 BaseType uint32
@@ -8337,16 +8499,16 @@ Types:
           Type: 4 BaseType uint32
         - Name: mWaitList
           Offset: 616
-          Type: 68 StructureType runtime.mWaitList
+          Type: 69 StructureType runtime.mWaitList
         - Name: mLockProfile
           Offset: 624
-          Type: 69 StructureType runtime.mLockProfile
+          Type: 70 StructureType runtime.mLockProfile
         - Name: profStack
           Offset: 688
           Type: 45 GoSliceHeaderType []uintptr
         - Name: waitunlockf
           Offset: 712
-          Type: 72 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
+          Type: 73 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
         - Name: waitlock
           Offset: 720
           Type: 17 VoidPointerType unsafe.Pointer
@@ -8355,7 +8517,7 @@ Types:
           Type: 9 BaseType int
         - Name: waitTraceBlockReason
           Offset: 736
-          Type: 73 BaseType runtime.traceBlockReason
+          Type: 74 BaseType runtime.traceBlockReason
         - Name: syscalltick
           Offset: 740
           Type: 4 BaseType uint32
@@ -8364,10 +8526,10 @@ Types:
           Type: 30 PointerType *runtime.m
         - Name: trace
           Offset: 752
-          Type: 74 StructureType runtime.mTraceState
+          Type: 75 StructureType runtime.mTraceState
         - Name: libcall
           Offset: 808
-          Type: 80 StructureType runtime.libcall
+          Type: 81 StructureType runtime.libcall
         - Name: libcallpc
           Offset: 856
           Type: 3 BaseType uintptr
@@ -8379,7 +8541,7 @@ Types:
           Type: 33 BaseType runtime.guintptr
         - Name: winsyscall
           Offset: 880
-          Type: 81 StructureType runtime.winlibcall
+          Type: 82 StructureType runtime.winlibcall
         - Name: vdsoSP
           Offset: 880
           Type: 3 BaseType uintptr
@@ -8394,16 +8556,16 @@ Types:
           Type: 34 StructureType internal/runtime/atomic.Uint32
         - Name: pcvalueCache
           Offset: 904
-          Type: 82 StructureType runtime.pcvalueCache
+          Type: 83 StructureType runtime.pcvalueCache
         - Name: dlogPerM
           Offset: 1296
-          Type: 86 StructureType runtime.dlogPerM
+          Type: 87 StructureType runtime.dlogPerM
         - Name: mOS
           Offset: 1296
-          Type: 87 StructureType runtime.mOS
+          Type: 88 StructureType runtime.mOS
         - Name: chacha8
           Offset: 1320
-          Type: 88 StructureType internal/chacha8rand.State
+          Type: 89 StructureType internal/chacha8rand.State
         - Name: cheaprand
           Offset: 1624
           Type: 10 BaseType uint64
@@ -8412,12 +8574,12 @@ Types:
           Type: 9 BaseType int
         - Name: locksHeld
           Offset: 1640
-          Type: 91 ArrayType [10]runtime.heldLockInfo
+          Type: 92 ArrayType [10]runtime.heldLockInfo
         - Name: _
           Offset: 1800
-          Type: 94 ArrayType [0]uint8
+          Type: 95 ArrayType [0]uint8
     - __kind: StructureType
-      ID: 69
+      ID: 70
       Name: runtime.mLockProfile
       ByteSize: 64
       GoRuntimeType: 2010144
@@ -8425,7 +8587,7 @@ Types:
       RawFields:
         - Name: waitTime
           Offset: 0
-          Type: 70 StructureType internal/runtime/atomic.Int64
+          Type: 71 StructureType internal/runtime/atomic.Int64
         - Name: stack
           Offset: 8
           Type: 45 GoSliceHeaderType []uintptr
@@ -8445,7 +8607,7 @@ Types:
           Offset: 57
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 87
+      ID: 88
       Name: runtime.mOS
       ByteSize: 24
       GoRuntimeType: 1875616
@@ -8467,7 +8629,7 @@ Types:
           Offset: 16
           Type: 4 BaseType uint32
     - __kind: StructureType
-      ID: 74
+      ID: 75
       Name: runtime.mTraceState
       ByteSize: 56
       GoRuntimeType: 1875392
@@ -8475,10 +8637,10 @@ Types:
       RawFields:
         - Name: seqlock
           Offset: 0
-          Type: 75 StructureType internal/runtime/atomic.Uintptr
+          Type: 76 StructureType internal/runtime/atomic.Uintptr
         - Name: buf
           Offset: 8
-          Type: 76 ArrayType [2][2]*runtime.traceBuf
+          Type: 77 ArrayType [2][2]*runtime.traceBuf
         - Name: link
           Offset: 40
           Type: 30 PointerType *runtime.m
@@ -8489,7 +8651,7 @@ Types:
           Offset: 52
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 68
+      ID: 69
       Name: runtime.mWaitList
       ByteSize: 8
       GoRuntimeType: 1218080
@@ -8505,14 +8667,14 @@ Types:
       GoRuntimeType: 843424
       GoKind: 12
     - __kind: StructureType
-      ID: 66
+      ID: 67
       Name: runtime.note
       ByteSize: 8
       GoRuntimeType: 1217952
       GoKind: 25
       RawFields: [{Name: key, Offset: 0, Type: 3 BaseType uintptr}]
     - __kind: StructureType
-      ID: 82
+      ID: 83
       Name: runtime.pcvalueCache
       ByteSize: 392
       GoRuntimeType: 1495360
@@ -8520,12 +8682,12 @@ Types:
       RawFields:
         - Name: entries
           Offset: 0
-          Type: 83 ArrayType [2][8]runtime.pcvalueCacheEnt
+          Type: 84 ArrayType [2][8]runtime.pcvalueCacheEnt
         - Name: inUse
           Offset: 384
           Type: 9 BaseType int
     - __kind: StructureType
-      ID: 85
+      ID: 86
       Name: runtime.pcvalueCacheEnt
       ByteSize: 24
       GoRuntimeType: 1786240
@@ -8563,13 +8725,13 @@ Types:
       DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
-      ID: 62
+      ID: 63
       Name: runtime.puintptr
       ByteSize: 8
       GoRuntimeType: 843616
       GoKind: 12
     - __kind: ArrayType
-      ID: 59
+      ID: 60
       Name: runtime.sigset
       ByteSize: 8
       GoRuntimeType: 916992
@@ -8599,7 +8761,7 @@ Types:
       Name: runtime.synctestGroup
       ByteSize: 8
     - __kind: BaseType
-      ID: 63
+      ID: 64
       Name: runtime.throwType
       ByteSize: 4
       GoRuntimeType: 591744
@@ -8609,13 +8771,13 @@ Types:
       Name: runtime.timer
       ByteSize: 8
     - __kind: BaseType
-      ID: 73
+      ID: 74
       Name: runtime.traceBlockReason
       ByteSize: 1
       GoRuntimeType: 591808
       GoKind: 8
     - __kind: UnresolvedPointeeType
-      ID: 79
+      ID: 80
       Name: runtime.traceBuf
       ByteSize: 8
     - __kind: StructureType
@@ -8638,7 +8800,7 @@ Types:
       GoRuntimeType: 1300704
       GoKind: 8
     - __kind: StructureType
-      ID: 81
+      ID: 82
       Name: runtime.winlibcall
       GoRuntimeType: 1004000
       GoKind: 25
@@ -8932,7 +9094,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 118
+      ID: 119
       Name: sync.Mutex
       ByteSize: 8
       GoRuntimeType: 1490240
@@ -8940,12 +9102,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 119 StructureType sync.noCopy
+          Type: 120 StructureType sync.noCopy
         - Name: mu
           Offset: 0
-          Type: 120 StructureType internal/sync.Mutex
+          Type: 121 StructureType internal/sync.Mutex
     - __kind: StructureType
-      ID: 117
+      ID: 118
       Name: sync.RWMutex
       ByteSize: 24
       GoRuntimeType: 1874272
@@ -8953,7 +9115,7 @@ Types:
       RawFields:
         - Name: w
           Offset: 0
-          Type: 118 StructureType sync.Mutex
+          Type: 119 StructureType sync.Mutex
         - Name: writerSem
           Offset: 8
           Type: 4 BaseType uint32
@@ -8962,12 +9124,12 @@ Types:
           Type: 4 BaseType uint32
         - Name: readerCount
           Offset: 16
-          Type: 121 StructureType sync/atomic.Int32
+          Type: 122 StructureType sync/atomic.Int32
         - Name: readerWait
           Offset: 20
-          Type: 121 StructureType sync/atomic.Int32
+          Type: 122 StructureType sync/atomic.Int32
     - __kind: StructureType
-      ID: 119
+      ID: 120
       Name: sync.noCopy
       GoRuntimeType: 1003232
       GoKind: 25
@@ -8981,12 +9143,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 122 StructureType sync/atomic.noCopy
+          Type: 123 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 4 BaseType uint32
     - __kind: StructureType
-      ID: 121
+      ID: 122
       Name: sync/atomic.Int32
       ByteSize: 4
       GoRuntimeType: 1491520
@@ -8994,7 +9156,7 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 122 StructureType sync/atomic.noCopy
+          Type: 123 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 14 BaseType int32
@@ -9007,9 +9169,9 @@ Types:
       RawFields:
         - Name: v
           Offset: 0
-          Type: 160 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
     - __kind: StructureType
-      ID: 122
+      ID: 123
       Name: sync/atomic.noCopy
       GoRuntimeType: 1003328
       GoKind: 25
@@ -9536,7 +9698,7 @@ Types:
       ByteSize: 4
       GoRuntimeType: 1005536
       GoKind: 5
-MaxTypeID: 1015
+MaxTypeID: 1016
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x13dd6e0", TypesOffset: 296}
 GoMapHashInfo:
@@ -9545,4 +9707,5 @@ GoMapHashInfo:
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m
+    Panic: 27 StructureType runtime._panic
 IsARM64: true

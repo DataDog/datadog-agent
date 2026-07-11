@@ -1408,7 +1408,7 @@ collect_count_metrics: true
 collect_ethtool_metrics: true
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1564,7 +1564,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1652,7 +1652,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1734,7 +1734,7 @@ func TestFetchEthtoolStats(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1782,7 +1782,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1830,7 +1830,7 @@ func TestFetchEthtoolStatsENODEVOnDriverInfo(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1873,7 +1873,7 @@ func TestFetchEthtoolStatsENODEVOnStats(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1962,7 +1962,7 @@ procfs_path: "/mocked/procfs"
 `)
 	var customTags []string
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1997,7 +1997,7 @@ func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
 procfs_path: "/wrong_mocked/procfs"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2033,7 +2033,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2068,7 +2068,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2102,7 +2102,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2134,7 +2134,7 @@ procfs_path: "/mocked/procfs"
 `)
 	var customTags []string
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2171,7 +2171,7 @@ collect_conntrack_metrics: true
 conntrack_path: "/usr/bin/conntrack"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2211,7 +2211,7 @@ whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2252,7 +2252,7 @@ conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2310,7 +2310,7 @@ func TestFetchQueueStatsSS(t *testing.T) {
 	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2355,7 +2355,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2893,7 +2893,7 @@ func TestNetworkCheckUncombinedConnectionStates(t *testing.T) {
 collect_connection_state: true
 combine_connection_states: false
 `)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
@@ -2966,7 +2966,7 @@ func TestNetworkCheckUncombinedConnectionStatesSS(t *testing.T) {
 collect_connection_state: true
 combine_connection_states: false
 `)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 

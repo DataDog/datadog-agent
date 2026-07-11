@@ -7,7 +7,6 @@ go_library(
         "mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock",
-    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",
@@ -15,13 +14,13 @@ go_library(
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
+        "//comp/core/tagger/mock",
         "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/def",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/noop-impl",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@//comp/core/tagger/mock",
     ],
 )
