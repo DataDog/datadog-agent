@@ -17,7 +17,7 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_shirou_gopsutil_v4//disk",

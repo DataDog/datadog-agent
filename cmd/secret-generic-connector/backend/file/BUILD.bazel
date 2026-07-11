@@ -15,7 +15,7 @@ go_library(
     deps = [
         "//cmd/secret-generic-connector/secret",
         "@com_github_mitchellh_mapstructure//:mapstructure",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

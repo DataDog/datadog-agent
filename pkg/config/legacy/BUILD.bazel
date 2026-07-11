@@ -20,7 +20,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "@in_gopkg_ini_v1//:ini_v1",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

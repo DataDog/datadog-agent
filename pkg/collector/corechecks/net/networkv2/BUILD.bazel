@@ -28,7 +28,7 @@ go_library(
             "@com_github_safchain_ethtool//:ethtool",
             "@com_github_shirou_gopsutil_v4//net",
             "@com_github_spf13_afero//:afero",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
@@ -72,7 +72,7 @@ go_library(
             "@com_github_safchain_ethtool//:ethtool",
             "@com_github_shirou_gopsutil_v4//net",
             "@com_github_spf13_afero//:afero",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -114,7 +114,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//net",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

@@ -38,7 +38,7 @@ go_library(
         "@com_github_masterminds_semver_v3//:semver",
         "@com_github_openshift_api//quota/v1:quota",
         "@com_github_patrickmn_go_cache//:go-cache",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
     ],

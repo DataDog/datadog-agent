@@ -11,7 +11,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//pkg/snmp/utils",
         "//pkg/util/log",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -23,6 +23,6 @@ go_test(
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

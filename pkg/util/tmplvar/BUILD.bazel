@@ -14,7 +14,7 @@ go_library(
         "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/util/log",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

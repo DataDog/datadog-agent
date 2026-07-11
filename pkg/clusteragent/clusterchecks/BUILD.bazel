@@ -57,7 +57,7 @@ go_library(
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_kube_state_metrics_v2//pkg/options",
     ],
 )
@@ -97,6 +97,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

@@ -71,7 +71,6 @@ go_library(
         "@com_github_knqyf263_go_rpmdb//pkg",
         "@com_github_moby_moby_client//:client",
         "@com_github_shirou_gopsutil_v4//process",
-        "@in_yaml_go_yaml_v2//:yaml",
         "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_api//rbac/v1:rbac",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",

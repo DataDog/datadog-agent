@@ -27,7 +27,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -53,6 +53,6 @@ dd_agent_go_test(
         "//pkg/collector/check/stub",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

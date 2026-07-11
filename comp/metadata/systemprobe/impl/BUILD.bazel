@@ -24,7 +24,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/option",
         "//pkg/version",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
