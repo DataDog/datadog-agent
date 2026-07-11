@@ -4,9 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod agent_credentials;
+mod pipe_security;
 mod spawn;
 mod wide;
 
+pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use spawn::spawn_child;
 
 use anyhow::Result;

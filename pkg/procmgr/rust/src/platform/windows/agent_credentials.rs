@@ -15,6 +15,7 @@ use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
+use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{
     IsWellKnownSid, LookupAccountNameW, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
 };
@@ -87,6 +88,40 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
             password,
         }),
         _ => Ok(AgentAccount::ServiceAccountLogon { domain, user }),
+    }
+}
+
+/// SID string (`S-1-5-...`) for the installed agent service account (pipe ACLs).
+pub(crate) fn installed_agent_account_sid_string() -> Result<String> {
+    let Some(key) = open_datadog_agent_key() else {
+        bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
+    };
+    let user = registry_nonempty_string(&key, "installedUser")
+        .context("read installedUser from registry")?;
+    let domain = key
+        .get_string("installedDomain")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let sid = lookup_account_sid(&domain, &user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
+    sid_to_string(&sid)
+}
+
+fn sid_to_string(sid: &[u8]) -> Result<String> {
+    unsafe {
+        let mut sid_string: *mut u16 = ptr::null_mut();
+        if ConvertSidToStringSidW(sid.as_ptr() as *mut _, &mut sid_string) == 0 {
+            bail!(
+                "ConvertSidToStringSidW: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        let len = (0..).take_while(|&i| *sid_string.add(i) != 0).count();
+        let slice = std::slice::from_raw_parts(sid_string, len);
+        let sid = String::from_utf16_lossy(slice);
+        windows_sys::Win32::Foundation::LocalFree(sid_string as _);
+        Ok(sid)
     }
 }
 

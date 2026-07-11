@@ -15,6 +15,8 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 
+use crate::platform::create_pipe_server;
+
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 const DEFAULT_PIPE_INSTANCES: usize = 4;
 
@@ -91,10 +93,10 @@ where
     let path = ipc_path();
     let pipe_name = path.as_os_str().to_os_string();
 
-    let server = ServerOptions::new()
-        .first_pipe_instance(true)
-        .create(&pipe_name)
-        .context("failed to create named pipe")?;
+    let mut server_options = ServerOptions::new();
+    server_options.first_pipe_instance(true);
+    let server =
+        create_pipe_server(&server_options, &pipe_name).context("failed to create named pipe")?;
 
     info!("gRPC server listening on {}", path.display());
 
@@ -152,8 +154,7 @@ async fn accept_loop(
         }
 
         let connected = server;
-        server = ServerOptions::new()
-            .create(&pipe_name)
+        server = create_pipe_server(&ServerOptions::new(), &pipe_name)
             .context("failed to create next named pipe instance")?;
 
         if tx.send(Ok(NamedPipeIo(connected))).await.is_err() {
