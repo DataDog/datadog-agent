@@ -47,14 +47,7 @@ pub(super) fn spawn_as_primary_token(
     )?;
     let stdin_handle = map_stdio_handle_nul()?;
 
-    let command_line = {
-        let mut cmdline = windows_crt_escape_arg(&request.command);
-        for arg in &request.args {
-            cmdline.push(' ');
-            cmdline.push_str(&windows_crt_escape_arg(arg));
-        }
-        cmdline
-    };
+    let command_line = build_windows_command_line(&request.command, &request.args);
 
     let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
         .encode_wide()
@@ -173,9 +166,26 @@ fn duplicate_primary_token(process_name: &str, token: HANDLE) -> Result<HANDLE> 
     Ok(primary_token)
 }
 
-fn windows_crt_escape_arg(s: &str) -> String {
-    // Matches the quoting rules used by the Windows CRT (inverse of
-    // CommandLineToArgvW decoding).
+fn build_windows_command_line(command: &str, args: &[String]) -> String {
+    let mut cmdline = windows_command_line_arg(command);
+    for arg in args {
+        cmdline.push(' ');
+        cmdline.push_str(&windows_command_line_arg(arg));
+    }
+    cmdline
+}
+
+fn windows_command_line_arg(s: &str) -> String {
+    // Matches MSVC / CommandLineToArgvW: quote only when the token contains
+    // whitespace or quotes. Unconditional quoting breaks cmd.exe /C because it
+    // parses the raw command line after the switch, not argv[2] alone.
+    if s.is_empty() {
+        return "\"\"".to_string();
+    }
+    if !s.chars().any(|ch| ch.is_whitespace() || ch == '"') {
+        return s.to_string();
+    }
+
     let mut out = String::new();
     out.push('"');
     let mut backslashes = 0usize;
@@ -197,6 +207,32 @@ fn windows_crt_escape_arg(s: &str) -> String {
     out.push_str(&"\\".repeat(backslashes * 2));
     out.push('"');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_line_quotes_only_when_needed_for_cmd_c() {
+        let line = build_windows_command_line("cmd.exe", &["/C".to_string(), "exit 1".to_string()]);
+        assert_eq!(line, r#"cmd.exe /C "exit 1""#);
+    }
+
+    #[test]
+    fn command_line_preserves_args_without_spaces() {
+        let line = build_windows_command_line(
+            "ping.exe",
+            &["-n".to_string(), "61".to_string(), "127.0.0.1".to_string()],
+        );
+        assert_eq!(line, "ping.exe -n 61 127.0.0.1");
+    }
+
+    #[test]
+    fn command_line_quotes_paths_with_spaces() {
+        let line = build_windows_command_line(r"C:\Program Files\app.exe", &["--flag".to_string()]);
+        assert_eq!(line, r#""C:\Program Files\app.exe" --flag"#);
+    }
 }
 
 fn env_block_from_baseline_plus_overrides(
