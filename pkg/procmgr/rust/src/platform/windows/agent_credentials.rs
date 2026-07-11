@@ -297,7 +297,8 @@ mod tests {
         if super::super::open_datadog_agent_key().is_some() {
             return;
         }
-        let account = resolve_agent_account().expect("unit tests should fall back without registry");
+        let account =
+            resolve_agent_account().expect("unit tests should fall back without registry");
         assert_eq!(account, AgentAccount::LocalSystem);
     }
 }
