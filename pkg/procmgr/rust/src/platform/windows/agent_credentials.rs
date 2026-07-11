@@ -53,7 +53,15 @@ impl AgentAccount {
 
 /// Resolve the agent service account from registry + LSA private data.
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
-    let key = open_datadog_agent_key().context("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent")?;
+    let Some(key) = open_datadog_agent_key() else {
+        // Unit tests spawn agent-profile children on hosts without an installed Agent
+        // (e.g. Windows Bazel CI). Treat as LocalSystem so spawn inherits the test
+        // runner token, matching production when procmgr runs as SYSTEM.
+        if cfg!(test) {
+            return Ok(AgentAccount::LocalSystem);
+        }
+        bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
+    };
     let user = registry_nonempty_string(&key, "installedUser")
         .context("read installedUser from registry")?;
     let domain = key
@@ -282,5 +290,14 @@ mod tests {
             Some(AgentAccount::NetworkService)
         );
         assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
+    }
+
+    #[test]
+    fn resolve_without_registry_uses_supervisor_token_in_unit_tests() {
+        if super::super::open_datadog_agent_key().is_some() {
+            return;
+        }
+        let account = resolve_agent_account().expect("unit tests should fall back without registry");
+        assert_eq!(account, AgentAccount::LocalSystem);
     }
 }
