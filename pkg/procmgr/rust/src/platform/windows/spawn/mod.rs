@@ -36,41 +36,19 @@ pub(crate) fn spawn_child(
         privileged::validate_process_request(process_name, &request)?;
     }
 
-    // Prefer primary-token spawning (explicit stdio handles). Privileged fallbacks inherit
-    // the supervisor token; dd-procmgr-service runs as LocalSystem on Windows.
-    match profile {
-        SpawnProfile::Privileged => {
-            match spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem) {
-                Ok(handle) => return Ok(handle),
-                Err(e) => {
-                    log::warn!(
-                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
-                    );
-                }
-            }
-        }
-        SpawnProfile::Agent => {
-            let account = resolve_agent_account().with_context(|| {
-                format!("[{process_name}] resolve agent service account for spawn")
-            })?;
-            match spawn_as_primary_token(process_name, &request, &account) {
-                Ok(handle) => return Ok(handle),
-                Err(e) if account.inherits_supervisor_token() => {
-                    log::warn!(
-                        "[{process_name}] primary-token agent spawn failed (agent account is LocalSystem; trying inherited supervisor token): {e:#}"
-                    );
-                }
-                Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!(
-                            "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
-                        )
-                    });
-                }
-            }
-        }
+    if let Some(handle) = try_primary_token_spawn(process_name, &request, profile)? {
+        return Ok(handle);
     }
 
+    spawn_with_inherited_token(process_name, request, profile)
+}
+
+/// Fall back to `tokio::process::Command` with inherited or impersonated supervisor token.
+fn spawn_with_inherited_token(
+    process_name: &str,
+    request: SpawnRequest,
+    profile: SpawnProfile,
+) -> Result<ProcessHandle> {
     let (command, mut cmd) = command::build_command(request)?;
     match profile {
         SpawnProfile::Privileged => spawn_as_local_system(process_name, &command, &mut cmd)
@@ -78,5 +56,50 @@ pub(crate) fn spawn_child(
                 format!("[{process_name}] privileged spawn failed: could not run as LocalSystem")
             }),
         SpawnProfile::Agent => spawn_as_agent_user(process_name, &command, &mut cmd),
+    }
+}
+
+/// Try `CreateProcessAsUserW` with explicit stdio handles.
+///
+/// Returns `Ok(Some(handle))` on success, `Ok(None)` when the caller should fall back to
+/// inherited-token spawning, or `Err` when agent-profile spawn cannot fall back.
+fn try_primary_token_spawn(
+    process_name: &str,
+    request: &SpawnRequest,
+    profile: SpawnProfile,
+) -> Result<Option<ProcessHandle>> {
+    // Prefer primary-token spawning (explicit stdio handles). Privileged fallbacks inherit
+    // the supervisor token; dd-procmgr-service runs as LocalSystem on Windows.
+    match profile {
+        SpawnProfile::Privileged => {
+            match spawn_as_primary_token(process_name, request, &AgentAccount::LocalSystem) {
+                Ok(handle) => Ok(Some(handle)),
+                Err(e) => {
+                    log::warn!(
+                        "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
+                    );
+                    Ok(None)
+                }
+            }
+        }
+        SpawnProfile::Agent => {
+            let account = resolve_agent_account().with_context(|| {
+                format!("[{process_name}] resolve agent service account for spawn")
+            })?;
+            match spawn_as_primary_token(process_name, request, &account) {
+                Ok(handle) => Ok(Some(handle)),
+                Err(e) if account.inherits_supervisor_token() => {
+                    log::warn!(
+                        "[{process_name}] primary-token agent spawn failed (agent account is LocalSystem; trying inherited supervisor token): {e:#}"
+                    );
+                    Ok(None)
+                }
+                Err(e) => Err(e).with_context(|| {
+                    format!(
+                        "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
+                    )
+                }),
+            }
+        }
     }
 }
