@@ -9,26 +9,20 @@ use crate::spawn::SpawnRequest;
 
 use super::super::{install_root, program_data_root};
 
-/// Reject privileged spawn requests that don't exactly match our embedded catalog spec.
+/// Windows-only catalog for [`SpawnProfile::Privileged`] processes.
+///
+/// Only process-agent uses the privileged profile today; PAR and DDOT use
+/// [`SpawnProfile::Agent`] and are validated through the normal spawn path.
 pub(super) fn validate_process_request(process_name: &str, request: &SpawnRequest) -> Result<()> {
     let install_root = install_root();
     let etc_root = program_data_root();
 
     let spec = privileged_process_spec(process_name, &install_root, &etc_root)?;
 
-    validate_privileged_stdio(process_name, request)?;
     validate_privileged_working_dir(process_name, &spec, request)?;
     validate_privileged_command_args(process_name, &spec, request)?;
     validate_privileged_env(process_name, request)?;
 
-    Ok(())
-}
-
-fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !request.stdout_setting.is_inherit_or_null() || !request.stderr_setting.is_inherit_or_null()
-    {
-        bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
-    }
     Ok(())
 }
 
