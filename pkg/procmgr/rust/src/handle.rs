@@ -147,7 +147,9 @@ impl ProcessHandle {
 #[cfg(windows)]
 async fn raw_wait_exit_code(process_handle: usize) -> Result<ExitStatus> {
     use std::os::windows::process::ExitStatusExt;
-    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, INFINITE, WaitForSingleObject,
+    };
 
     const WAIT_OBJECT_0: u32 = 0;
     const WAIT_FAILED: u32 = 0xFFFF_FFFF;
