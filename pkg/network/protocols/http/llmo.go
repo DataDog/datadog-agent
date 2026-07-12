@@ -8,6 +8,7 @@
 package http
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/llmobs"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -36,6 +38,10 @@ const (
 	llmoSpanName    = "llm.request"
 	llmoServiceName = "llmo-usm-poc"
 	llmoAgentAddr   = "localhost:8126"
+	// llmoMLApp is the default LLM Observability app name (the "AI" product
+	// groups spans by ml_app); overridden per-span by the resolved service.
+	llmoMLApp        = "apm-lite-ebpf"
+	llmoModelVendor  = "openai"
 
 	// llmBodyBufferSize must match LLM_BODY_BUFFER_SIZE in the eBPF code
 	// (pkg/network/ebpf/c/protocols/tls/llmo.h).
@@ -122,13 +128,15 @@ func ensureLLMOTracer() bool {
 		if err := tracer.Start(
 			tracer.WithService(llmoServiceName),
 			tracer.WithAgentAddr(llmoAgentAddr),
+			tracer.WithLLMObsEnabled(true),
+			tracer.WithLLMObsMLApp(llmoMLApp),
 			tracer.WithLogStartup(false),
 		); err != nil {
 			log.Warnf("LLMO: failed to start tracer: %v", err)
 			return
 		}
 		llmoTracerReady = true
-		log.Infof("LLMO: tracer started; emitting one span per LLM request to %s", llmoAgentAddr)
+		log.Infof("LLMO: tracer started with LLM Observability; emitting to %s", llmoAgentAddr)
 	})
 	return llmoTracerReady
 }
@@ -209,40 +217,47 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 
 	end := time.Now()
 	start := end.Add(-time.Duration(latencyNs))
-
 	destIP := util.FromLowHigh(connKey.DstIPLow, connKey.DstIPHigh)
 
-	span := tracer.StartSpan(
-		llmoSpanName,
-		tracer.ServiceName(info.service),
-		tracer.ResourceName(path),
-		tracer.SpanType("http"),
-		tracer.StartTime(start),
+	// Emit an LLM Observability span so it lands in the "AI" section, grouped by
+	// ml_app = the resolved service (e.g. openai-test).
+	span, _ := llmobs.StartLLMSpan(context.Background(), llmoSpanName,
+		llmobs.WithMLApp(info.service),
+		llmobs.WithModelName(info.model),
+		llmobs.WithModelProvider(llmoModelVendor),
+		llmobs.WithStartTime(start),
 	)
-	span.SetTag("http.method", method.String())
-	span.SetTag("http.status_code", statusCode)
-	span.SetTag("http.url", path)
-	span.SetTag("out.host", destIP.String())
-	span.SetTag("network.destination.port", connKey.DstPort)
-	span.SetTag("llm.source", "apm-lite-ebpf")
-	if info.model != "" {
-		span.SetTag("llm.request.model", info.model)
-	}
+
+	var input, output []llmobs.LLMMessage
 	if info.prompt != "" {
-		span.SetTag("llm.request.prompt", info.prompt)
+		input = []llmobs.LLMMessage{{Role: "user", Content: info.prompt}}
 	}
 	if info.response != "" {
-		span.SetTag("llm.response.content", info.response)
+		output = []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}
+	}
+
+	annotations := []llmobs.AnnotateOption{
+		llmobs.WithAnnotatedTags(map[string]string{
+			"http.method":              method.String(),
+			"http.status_code":         strconv.Itoa(int(statusCode)),
+			"http.url":                 path,
+			"out.host":                 destIP.String(),
+			"network.destination.port": strconv.Itoa(int(connKey.DstPort)),
+			"llm.source":               "apm-lite-ebpf",
+		}),
 	}
 	if info.totalTokens > 0 {
-		span.SetTag("llm.usage.prompt_tokens", info.promptTokens)
-		span.SetTag("llm.usage.completion_tokens", info.completionTokens)
-		span.SetTag("llm.usage.total_tokens", info.totalTokens)
+		annotations = append(annotations, llmobs.WithAnnotatedMetrics(map[string]float64{
+			llmobs.MetricKeyInputTokens:  float64(info.promptTokens),
+			llmobs.MetricKeyOutputTokens: float64(info.completionTokens),
+			llmobs.MetricKeyTotalTokens:  float64(info.totalTokens),
+		}))
 	}
-	if statusCode >= 400 {
-		span.SetTag("error", true)
-	}
-	span.Finish(tracer.FinishTime(end))
+	span.AnnotateLLMIO(input, output, annotations...)
+
+	var finishOpts []llmobs.FinishSpanOption
+	finishOpts = append(finishOpts, llmobs.WithFinishTime(end))
+	span.Finish(finishOpts...)
 }
 
 // captureLLMBody marks the connection as LLM traffic (so the eBPF write hook
