@@ -1,1 +1,89 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = [
+        "agentrestart_darwin.go",
+        "agentrestart_others.go",
+        "config.go",
+        "restart.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/api/debug",
+        "//cmd/system-probe/modules",
+        "//comp/core/settings/def",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/api/coverage",
+        "//pkg/ebpf",
+        "//pkg/system-probe/api/module",
+        "//pkg/system-probe/api/server",
+        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
+        "//pkg/system-probe/utils",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = [
+        "agentrestart_darwin_test.go",
+        "agentrestart_others_test.go",
+    ],
+    embed = [":api"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

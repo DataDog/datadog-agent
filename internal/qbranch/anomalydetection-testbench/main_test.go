@@ -35,11 +35,11 @@ func TestFxApp(t *testing.T) {
 			fx.Supply(option.None[workloadfilterdef.Component]()),
 			fx.Supply(option.None[taggerdef.Component]()),
 			core.Bundle(),
-			// Mirror main(): force anomaly detection on so NewComponent yields the
-			// full observerImpl (with DebugView) instead of the disabled stub, and
+			// Mirror main(): force scorer dry-run on so NewComponent yields the full
+			// observerImpl (with DebugView) instead of the disabled stub, and
 			// keep the agent-internal log tap off so it never ingests scenario data.
 			fx.Decorate(func(c config.Component) config.Component {
-				c.Set("anomaly_detection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 				c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 				return c
 			}),

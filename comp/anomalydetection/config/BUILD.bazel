@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/config",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/model"],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
