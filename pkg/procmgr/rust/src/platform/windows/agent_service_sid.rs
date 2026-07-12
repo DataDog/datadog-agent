@@ -9,10 +9,9 @@
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
-use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::Services::{
-    OpenSCManagerW, OpenServiceW, QueryServiceConfigW, SC_HANDLE, SC_MANAGER_CONNECT,
-    SERVICE_QUERY_CONFIG,
+    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW, SC_HANDLE,
+    SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
 use super::sid::{lookup_account_sid, sid_to_string};
@@ -98,7 +97,7 @@ impl Drop for ServiceHandle {
     fn drop(&mut self) {
         if !self.0.is_null() {
             unsafe {
-                CloseHandle(self.0);
+                CloseServiceHandle(self.0);
             }
         }
     }
