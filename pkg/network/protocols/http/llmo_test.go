@@ -109,6 +109,59 @@ func TestParseLLMBodyExtractsFirstMessageAsPrompt(t *testing.T) {
 	assert.Equal(t, "be terse", prompt)
 }
 
+func TestParseLLMMessages(t *testing.T) {
+	// Wire format produced by the openai-go SDK: content before role.
+	body := `{"messages":[{"content":"You are a concise assistant.","role":"system"},{"content":"what is eBPF?","role":"user"}],"model":"gpt-4o-mini"}`
+
+	tests := []struct {
+		name string
+		raw  []byte
+		want []llmMessage
+	}{
+		{
+			name: "system + user",
+			raw:  []byte(body),
+			want: []llmMessage{
+				{role: "system", content: "You are a concise assistant."},
+				{role: "user", content: "what is eBPF?"},
+			},
+		},
+		{
+			name: "behind http2 frame header, nul padded",
+			raw:  padTo(append(http2DataFrameHeader(len(body)), []byte(body)...), llmBodyBufferSize),
+			want: []llmMessage{
+				{role: "system", content: "You are a concise assistant."},
+				{role: "user", content: "what is eBPF?"},
+			},
+		},
+		{
+			name: "single user message",
+			raw:  []byte(`{"messages":[{"content":"hi","role":"user"}],"model":"gpt-4o-mini"}`),
+			want: []llmMessage{{role: "user", content: "hi"}},
+		},
+		{
+			name: "trailing message truncated at buffer boundary is dropped",
+			raw:  []byte(`{"messages":[{"content":"sys","role":"system"},{"content":"partial user`),
+			want: []llmMessage{{role: "system", content: "sys"}},
+		},
+		{
+			name: "no messages",
+			raw:  []byte(`{"model":"gpt-4o-mini"}`),
+			want: nil,
+		},
+		{
+			name: "empty",
+			raw:  nil,
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseLLMMessages(tt.raw))
+		})
+	}
+}
+
 func TestParseLLMUsage(t *testing.T) {
 	tests := []struct {
 		name                 string

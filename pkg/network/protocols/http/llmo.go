@@ -103,17 +103,32 @@ var (
 	llmModelRe   = regexp.MustCompile(`"model"\s*:\s*"([^"]*)"`)
 	llmContentRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"`)
 
+	// llmMessageRe captures each request message as a (content, role) pair.
+	// The OpenAI SDK serializes chat messages as {"content":"...","role":"..."}
+	// (content before role), so a single pass over the request body yields every
+	// message — system, user, assistant — in order.
+	llmMessageRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"\s*,\s*"role"\s*:\s*"([^"]*)"`)
+
 	// Token usage extractors (from the response body).
 	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
 	llmTotalTokRe  = regexp.MustCompile(`"total_tokens"\s*:\s*(\d+)`)
 )
 
+// llmMessage is one chat message (role + content) parsed from the request body.
+type llmMessage struct {
+	role    string
+	content string
+}
+
 // llmSpanInfo holds everything parsed from the captured request/response
 // bodies to enrich an LLM span.
 type llmSpanInfo struct {
-	service          string
-	model            string
+	service string
+	model   string
+	// messages are the request's chat messages (system, user, ...) in order.
+	// prompt is kept as the last user message for the tag/fallback path.
+	messages         []llmMessage
 	prompt           string
 	response         string
 	promptTokens     int64
@@ -176,6 +191,25 @@ func parseLLMBody(raw []byte) (model string, prompt string) {
 	return model, prompt
 }
 
+// parseLLMMessages extracts every chat message (role + content) from a captured
+// request body window, in order. Extraction is tolerant of surrounding binary/
+// NUL bytes and truncation, same as parseLLMBody. A message truncated at the
+// buffer boundary (no closing "role" for its content) is simply omitted.
+func parseLLMMessages(raw []byte) []llmMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	matches := llmMessageRe.FindAllSubmatch(raw, -1)
+	if matches == nil {
+		return nil
+	}
+	msgs := make([]llmMessage, 0, len(matches))
+	for _, m := range matches {
+		msgs = append(msgs, llmMessage{content: string(m[1]), role: string(m[2])})
+	}
+	return msgs
+}
+
 // parseLLMUsage extracts token usage from a captured response body window.
 // The window is the tail of the response, where the usage object lives, and
 // may contain surrounding binary/NUL bytes; extraction is tolerant.
@@ -229,7 +263,15 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	)
 
 	var input, output []llmobs.LLMMessage
-	if info.prompt != "" {
+	// Prefer the full parsed message list (system, user, ...) so every request
+	// message shows as a distinct input on the span; fall back to the single
+	// user prompt when the message list wasn't parsed.
+	if len(info.messages) > 0 {
+		input = make([]llmobs.LLMMessage, 0, len(info.messages))
+		for _, m := range info.messages {
+			input = append(input, llmobs.LLMMessage{Role: m.role, Content: m.content})
+		}
+	} else if info.prompt != "" {
 		input = []llmobs.LLMMessage{{Role: "user", Content: info.prompt}}
 	}
 	if info.response != "" {
@@ -290,6 +332,15 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 			n = llmBodyBufferSize
 		}
 		info.model, info.prompt = parseLLMBody(reqBody.Data[:n])
+		info.messages = parseLLMMessages(reqBody.Data[:n])
+		// Prefer the last user message as the prompt (with a system message
+		// present, the first "content" is the system prompt, not the user's).
+		for i := len(info.messages) - 1; i >= 0; i-- {
+			if info.messages[i].role == "user" {
+				info.prompt = info.messages[i].content
+				break
+			}
+		}
 	}
 
 	// Response body tail -> token usage.
