@@ -24,7 +24,12 @@ func TestQueryFileUsrMerge(t *testing.T) {
 		{Package: sbomtypes.Package{Name: "coreutils"}, InstalledFiles: []string{"/usr/bin/cat"}},
 	}
 
-	merged := newFileQuerier(report, true)
+	backing := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		backing[i] = report[i].Package
+	}
+
+	merged := newFileQuerier(report, backing, true)
 	for _, tc := range []struct {
 		name    string
 		query   string
@@ -49,7 +54,7 @@ func TestQueryFileUsrMerge(t *testing.T) {
 
 	// Without usr-merge, /bin and /usr/bin are distinct trees: an unmatched
 	// /usr/bin/mount must not be cross-attributed to the /bin/mount package.
-	plain := newFileQuerier(report, false)
+	plain := newFileQuerier(report, backing, false)
 	if pkg := plain.queryFile("/usr/bin/mount"); pkg != nil {
 		t.Errorf("queryFile(/usr/bin/mount) attributed to %q on a non-usr-merged layout, want no match", pkg.Name)
 	}

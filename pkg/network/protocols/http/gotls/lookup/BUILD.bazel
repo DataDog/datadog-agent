@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lookup",
+    srcs = [
+        "luts.go",
+        "main.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/go/bininspect",
+            "@com_github_go_delve_delve//pkg/goversion",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/go/bininspect",
+            "@com_github_go_delve_delve//pkg/goversion",
+        ],
+        "//conditions:default": [],
+    }),
+)

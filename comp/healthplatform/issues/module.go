@@ -12,6 +12,12 @@
 // 1. Create a new sub-package (e.g., issues/myissue/)
 // 2. Implement the Module interface
 // 3. Call RegisterModuleFactory in your package's init() function
+//
+// Health-check IssueIDs must be unique per host, since a downstream aggregator
+// keys recommendations on (org, IssueID) alone. A module whose check can run
+// with different results/config on multiple hosts (or multiple binaries on the
+// same host) must scope its IssueID accordingly — see invalidconfig's
+// instanceIssueID for the pattern.
 package issues
 
 import (

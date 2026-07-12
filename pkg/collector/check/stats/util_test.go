@@ -14,9 +14,9 @@ import (
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
 
-func newMockStats(updateTimestamp time.Time, lastExecutionTime time.Duration, interval time.Duration) *Stats {
+func newMockStats(t testing.TB, updateTimestamp time.Time, lastExecutionTime time.Duration, interval time.Duration) *Stats {
 	mockStatsCheck := newMockCheckWithInterval(interval)
-	mockStats := NewStats(mockStatsCheck, healthplatformmock.Mock(nil))
+	mockStats := NewStats(mockStatsCheck, healthplatformmock.New(t))
 
 	mockStats.UpdateTimestamp = updateTimestamp
 	mockStats.LastExecutionTime = lastExecutionTime
@@ -36,29 +36,29 @@ func TestCalculateCheckDelay(t *testing.T) {
 	}{
 		{
 			name:         "First Check Run",
-			prevRunStats: newMockStats(time.Time{}, 0*time.Second, 15*time.Second),
+			prevRunStats: newMockStats(t, time.Time{}, 0*time.Second, 15*time.Second),
 			execTime:     2 * time.Second,
 			delay:        0,
 		},
 		{
 			name:         "Long Running Check",
-			prevRunStats: newMockStats(time.Time{}, 999999*time.Second, 0),
+			prevRunStats: newMockStats(t, time.Time{}, 999999*time.Second, 0),
 			execTime:     999999 * time.Second,
 			delay:        0,
 		},
 		{
 			name:         "Regular Running Delayed Check",
-			prevRunStats: newMockStats(mockNow.Add(-16*time.Second), 17*time.Second, 15*time.Second),
+			prevRunStats: newMockStats(t, mockNow.Add(-16*time.Second), 17*time.Second, 15*time.Second),
 			delay:        18, // Check ran 33 seconds after the previous run started
 		},
 		{
 			name:         "Regular Running Delayed Check With Execution Time In Decimal Seconds ",
-			prevRunStats: newMockStats(mockNow.Add(-16*time.Second), 17320*time.Millisecond, 15*time.Second),
+			prevRunStats: newMockStats(t, mockNow.Add(-16*time.Second), 17320*time.Millisecond, 15*time.Second),
 			delay:        18.32, // Check ran 33 seconds after the previous run started
 		},
 		{
 			name:         "Recovery from delay",
-			prevRunStats: newMockStats(mockNow.Add(-6*time.Second), 1*time.Second, 15*time.Second),
+			prevRunStats: newMockStats(t, mockNow.Add(-6*time.Second), 1*time.Second, 15*time.Second),
 			delay:        0,
 		},
 	}

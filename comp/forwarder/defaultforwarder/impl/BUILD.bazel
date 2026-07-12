@@ -11,7 +11,6 @@ go_library(
         "otel_sync_forwarder.go",
         "shared_connection.go",
         "status.go",
-        "sync_forwarder.go",
         "telemetry.go",
         "test_common.go",
         "worker.go",
