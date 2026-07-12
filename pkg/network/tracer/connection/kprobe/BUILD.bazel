@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kprobe",
+    srcs = [
+        "compile.go",
+        "config.go",
+        "manager.go",
+        "tracer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/bytecode/runtime",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/prebuilt",
+        "//pkg/ebpf/telemetry",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/ebpf/probes",
+        "//pkg/network/filter",
+        "//pkg/network/tracer/connection/ssl-uprobes",
+        "//pkg/network/tracer/connection/util",
+        "//pkg/network/tracer/offsetguess",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "//pkg/util/slices",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+go_test(
+    name = "kprobe_test",
+    srcs = [
+        "compile_test.go",
+        "tracer_test.go",
+    ],
+    embed = [":kprobe"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/prebuilt",
+        "//pkg/network/config",
+        "//pkg/util/kernel",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

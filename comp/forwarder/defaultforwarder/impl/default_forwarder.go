@@ -474,6 +474,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
+			// On timeout, transactions still queued for purge are dropped.
 			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
 		}
 	} else {

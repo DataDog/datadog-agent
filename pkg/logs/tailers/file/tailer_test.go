@@ -515,13 +515,18 @@ func TestStructuredMessagePreserved(t *testing.T) {
 	defer f.Close()
 
 	outputChan := make(chan *message.Message, chanSize)
-	// debug_attr_parsing gates the structured JSON envelope; enable it so the
-	// syslog parser renders the "message"/"syslog" object this test asserts on.
+	// attribute_parsing gates whether the syslog parser is installed at all
+	// (IsAttributeParsingEnabled); without it the decoder uses the noop parser
+	// and the message stays StateUnstructured. debug_attr_parsing gates the
+	// structured JSON envelope so the parser renders the "message"/"syslog"
+	// object this test asserts on.
+	attributeParsing := true
 	debugAttrParsing := true
 	source := sources.NewReplaceableSource(sources.NewLogSource("syslog-test", &config.LogsConfig{
 		Type:             config.FileType,
 		Path:             testPath,
 		Format:           config.SyslogFormat,
+		AttributeParsing: &attributeParsing,
 		DebugAttrParsing: &debugAttrParsing,
 	}))
 	info := status.NewInfoRegistry()

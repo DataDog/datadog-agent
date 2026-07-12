@@ -1,0 +1,60 @@
+"""toolchains for rpath-patching"""
+
+load(":install_name_tool.bzl", "macos_rpath_rewriter")
+load(":patchelf.bzl", "patchelf_rpath_rewriter")
+load(":toolchain.bzl", "noop_toolchain", "rpath_rewriter_toolchain")
+
+# Provides rpath rewriting toolchains. Rewriters either expose a `rewriter_tool`
+# executable taking <thing-to-patch> <new-rpath> <output-path>, or expose no
+# executable to signal that rpath rewriting is not applicable for the target.
+toolchain_type(
+    name = "rpath_rewriter",
+    visibility = ["//visibility:public"],
+)
+
+patchelf_rpath_rewriter(
+    name = "patchelf_rpath_rewriter",
+    patchelf = "@patchelf//:patchelf",
+)
+
+rpath_rewriter_toolchain(
+    name = "patchelf_rpath_rewriter_toolchain",
+    rewriter_tool = ":patchelf_rpath_rewriter",
+)
+
+macos_rpath_rewriter(
+    name = "install_name_tool_rpath_rewriter",
+    install_name_tool = "//bazel/tools:install_name_tool",
+)
+
+rpath_rewriter_toolchain(
+    name = "install_name_tool_rpath_rewriter_toolchain",
+    rewriter_tool = ":install_name_tool_rpath_rewriter",
+)
+
+noop_toolchain(
+    name = "noop_rpath_rewriter_toolchain",
+)
+
+toolchain(
+    name = "patchelf_toolchain",
+    exec_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":patchelf_rpath_rewriter_toolchain",
+    toolchain_type = ":rpath_rewriter",
+)
+
+toolchain(
+    name = "install_name_tool_toolchain",
+    exec_compatible_with = ["@platforms//os:macos"],
+    target_compatible_with = ["@platforms//os:macos"],
+    toolchain = ":install_name_tool_rpath_rewriter_toolchain",
+    toolchain_type = ":rpath_rewriter",
+)
+
+toolchain(
+    name = "noop_windows_toolchain",
+    target_compatible_with = ["@platforms//os:windows"],
+    toolchain = ":noop_rpath_rewriter_toolchain",
+    toolchain_type = ":rpath_rewriter",
+)

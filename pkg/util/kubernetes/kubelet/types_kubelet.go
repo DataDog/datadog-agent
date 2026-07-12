@@ -308,6 +308,8 @@ type ContainerStateTerminated struct {
 // ConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type ConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 

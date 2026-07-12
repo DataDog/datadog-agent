@@ -45,6 +45,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/anomalydetection/config",
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/observer/impl/patterns",

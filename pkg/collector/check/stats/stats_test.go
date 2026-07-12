@@ -79,7 +79,7 @@ func getTelemetryData() (string, error) {
 }
 
 func TestNewStats(t *testing.T) {
-	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	stats := NewStats(newMockCheck(), healthplatformmock.New(t))
 
 	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
@@ -95,7 +95,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
-	NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	NewStats(newMockCheck(), healthplatformmock.New(t))
 
 	tlmData, err := getTelemetryData()
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestFirstExecutionTimeMetric(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
-	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	stats := NewStats(newMockCheck(), healthplatformmock.New(t))
 	haagent := haagentmock.NewMockHaAgent()
 
 	stats.Add(100*time.Millisecond, nil, []error{}, SenderStats{}, haagent)

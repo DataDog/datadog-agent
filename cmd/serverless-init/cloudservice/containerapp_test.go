@@ -9,8 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestGetContainerAppTags(t *testing.T) {
@@ -152,4 +156,32 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
+}
+
+func TestContainerAppShutdownEmitsMetrics(t *testing.T) {
+	skipOnWindows(t)
+	demux := createDemultiplexer(t)
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+
+	service := NewContainerApp()
+	service.Shutdown(agent, true, nil)
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Empty(t, timedMetrics)
+	assert.Len(t, generatedMetrics, 2)
+
+	foundShutdown := false
+	for _, sample := range generatedMetrics {
+		if sample.Name == containerAppShutdownMetricName {
+			foundShutdown = true
+		}
+	}
+	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestContainerAppShutdownNilMetricAgent(t *testing.T) {
+	service := NewContainerApp()
+	require.NotPanics(t, func() {
+		service.Shutdown(nil, true, nil)
+	})
 }

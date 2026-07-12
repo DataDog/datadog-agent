@@ -149,8 +149,8 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
-	if enhancedMetricsEnabled {
+func (c *CloudRunJobs) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		duration := float64(time.Since(c.startTime).Milliseconds())
 		metricAgent.AddEnhancedMetric(cloudRunJobsDurationMetricName, duration, c.GetSource(), 0)
 
@@ -167,11 +167,6 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(cloudRunJobsStartMetricName, 1.0, c.GetSource(), 0)
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
-func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return true
 }
 
 func isCloudRunJob() bool {

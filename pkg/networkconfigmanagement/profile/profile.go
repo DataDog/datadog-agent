@@ -15,13 +15,19 @@ type Map map[string]*NCMProfile
 
 // NCMProfile represents the profile with transformed variables such as the commands map for easy access to commands
 type NCMProfile struct {
-	Name          string
-	Commands      CommandSet
+	Name     string
+	Commands CommandSet
+	// Preprocessing is a set of "redactions" that get applied immediately. If
+	// you roll back, it will be to the version AFTER preprocessing. This is to
+	// remove things like extra trailing/leading whitespace, or text like
+	// "Current configuration:" that we don't have options to suppress.
+	Preprocessing []RedactionRule
 	Redactions    []RedactionRule
 	MetadataRules []MetadataRule
 }
 
 type CommandSet struct {
+	Verify     *PlainCommand
 	GetVersion *PlainCommand `json:"get_version,omitempty"`
 	// Config fetching
 	GetRunning *PlainCommand `json:"get_running,omitempty"`
