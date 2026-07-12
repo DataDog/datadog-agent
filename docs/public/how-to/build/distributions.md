@@ -29,7 +29,7 @@ Omnibus creates a package **for the operating system it runs on**, so you'll get
 There is currently no way to "cross-build" packages for a platform different than the host's.
 ///
 
-Omnibus is best called indirectly, via [dda](../../setup/required.md/#tooling) commands.
+Omnibus is best called indirectly, via [dda](../../setup/required.md#tooling) commands.
 The main entrypoint is the `omnibus.build` invoke task, which you can run like this:
 ```bash
 dda inv omnibus.build
