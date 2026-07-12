@@ -192,10 +192,14 @@ func parseLLMUsage(raw []byte) (promptTokens, completionTokens, totalTokens int6
 // prompt may be empty if the body was not captured (e.g. the first request on
 // a connection) or could not be parsed.
 func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
-	// Only emit a span when we actually captured LLM payload data. Without it
-	// (e.g. the first request on a connection, before the body was captured),
-	// the span would carry no model/prompt/response and just be noise — the
-	// request is still counted in USM's HTTP metrics.
+	// Only emit a span when we resolved a real service AND captured LLM payload
+	// data. Without a resolved service (PID→service inference failed) or any
+	// model/prompt/response (e.g. first request on a connection, before the body
+	// was captured), the span would be noise — the request is still counted in
+	// USM's HTTP metrics.
+	if info.service == "" {
+		return
+	}
 	if info.model == "" && info.prompt == "" && info.response == "" {
 		return
 	}
@@ -208,15 +212,9 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 
 	destIP := util.FromLowHigh(connKey.DstIPLow, connKey.DstIPHigh)
 
-	// Use the USM-resolved service name when available, else the PoC default.
-	service := info.service
-	if service == "" {
-		service = llmoServiceName
-	}
-
 	span := tracer.StartSpan(
 		llmoSpanName,
-		tracer.ServiceName(service),
+		tracer.ServiceName(info.service),
 		tracer.ResourceName(path),
 		tracer.SpanType("http"),
 		tracer.StartTime(start),
@@ -318,14 +316,16 @@ func (h *StatKeeper) resolveLLMService(pid uint32) string {
 		return ""
 	}
 
-	cmdline := readProcCmdline(pid)
-	if len(cmdline) == 0 {
-		return ""
+	// Populate the extractor's cache from /proc while the process is alive.
+	// Short-lived clients may have exited by the time a later transaction is
+	// processed, so we still consult the cache (GetServiceContext) below even
+	// when the fresh read fails.
+	if cmdline := readProcCmdline(pid); len(cmdline) > 0 {
+		h.llmServiceExtractor.ExtractSingle(&procutil.Process{
+			Pid:     int32(pid),
+			Cmdline: cmdline,
+		})
 	}
-	h.llmServiceExtractor.ExtractSingle(&procutil.Process{
-		Pid:     int32(pid),
-		Cmdline: cmdline,
-	})
 
 	for _, tag := range h.llmServiceExtractor.GetServiceContext(int32(pid)) {
 		// Tags look like "process_context:<service>".
