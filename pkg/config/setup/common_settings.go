@@ -1565,7 +1565,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
-	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "true")
+	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "datadog_only")
 	config.BindEnvAndSetDefault("use_v3_api.series.endpoints", map[string]string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
@@ -1929,6 +1929,14 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
 	// Useful for auto-discovered sources that cannot be configured via integration-level YAML.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.disabled_sources", []string{})
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown", "5m")
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 1000.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit", 1.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 1000.0)
 	// Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
 	// without dropping them. Real adaptive sampling takes precedence when enabled.
 	config.BindEnvAndSetDefault("logs_config.experimental_noisy_log_detection", false)
@@ -2135,9 +2143,6 @@ func podman(config pkgconfigmodel.Setup) {
 }
 
 func anomalyDetection(config pkgconfigmodel.Setup) {
-	// Master switch. When false the entire anomaly detection subsystem is a no-op.
-	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
-
 	// Log ingestion gate. When false, all log sources (container, kubelet, internal)
 	// are not routed into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
@@ -2214,22 +2219,22 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.dry_run.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.alpha", 0.014)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.saturation_k", 5.0)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.window_secs", 15)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.window", 15*time.Second)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.low_threshold", 0.15)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", 0.40)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", 0.20)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_events", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.logs", false)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown_secs", 300)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 300*time.Second)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_anomalies", 50)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
-	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", 120*time.Second)
 
 	// Baseline analysis window.
 	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.enabled", true)

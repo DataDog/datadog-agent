@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    The ``otel-agent flare`` command now writes its diagnostic archive into a
+    private, unpredictably-named directory (restricted to the current user)
+    instead of a predictable, world-readable path in the shared system temporary
+    directory. Previously, on a multi-user host, another local user could read
+    the flare contents (collected configuration, environment variables, and
+    debug data), or redirect the archive by pre-creating a symlink at the
+    predictable path.

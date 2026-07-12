@@ -43,7 +43,7 @@ func newTestProbe(client *fakeclientset.Clientset) *Probe {
 }
 
 func newTestProbeWithHP(t *testing.T, client *fakeclientset.Clientset) (*Probe, healthplatformdef.Component) {
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	return &Probe{
 		k8sClient:      client,
 		namespace:      testNamespace,

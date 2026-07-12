@@ -748,3 +748,64 @@ func BenchmarkRender(b *testing.B) {
 		})
 	}
 }
+
+func TestGetAttribute_EmptyFieldsNotFound(t *testing.T) {
+	// Absent syslog string fields must be reported as absent, not
+	// present-but-empty, so remap_source rules never match on a hollow value.
+	// Parsers encode absence two ways: the empty string, and the nilvalue
+	// sentinel "-" (RFC 5424 NILVALUE / parseBSDNoTimestamp placeholder). Both
+	// must be treated as not-found.
+	stringPaths := []string{
+		"syslog.timestamp",
+		"syslog.hostname",
+		"syslog.appname",
+		"syslog.procid",
+		"syslog.msgid",
+	}
+	for _, sentinel := range []string{"", nilvalue} {
+		sc := &SyslogStructuredContent{
+			syslog: SyslogFields{
+				Timestamp: sentinel,
+				Hostname:  sentinel,
+				AppName:   sentinel,
+				ProcID:    sentinel,
+				MsgID:     sentinel,
+				Severity:  -1,
+				Facility:  -1,
+			},
+		}
+		for _, path := range stringPaths {
+			val, ok := sc.GetAttribute(path)
+			assert.False(t, ok, "%s should be absent for sentinel %q", path, sentinel)
+			assert.Equal(t, "", val, "%s should return empty string for sentinel %q", path, sentinel)
+		}
+		// version/severity/facility are absent regardless of the string sentinel.
+		for _, path := range []string{"syslog.version", "syslog.severity", "syslog.facility"} {
+			val, ok := sc.GetAttribute(path)
+			assert.False(t, ok, "%s should be absent", path)
+			assert.Equal(t, "", val)
+		}
+	}
+}
+
+func TestGetAttribute_NilvalueFieldsNotFoundThroughParser(t *testing.T) {
+	// Through the real parser: a digit-prefixed no-timestamp BSD message
+	// (RFC 3164 §4.3.2, e.g. PAN-OS/CSV) encodes every absent header field as
+	// the nilvalue sentinel "-". GetAttribute must not surface those as
+	// present-with-value-"-", otherwise a remap_source rule keyed on, say,
+	// syslog.appname would match every such message.
+	parsed, err := Parse([]byte(`<134>1,2026/06/23,00053,TRAFFIC,end,payload`))
+	require.NoError(t, err)
+	sc := NewSyslogStructuredContent(parsed)
+	for _, path := range []string{
+		"syslog.timestamp",
+		"syslog.hostname",
+		"syslog.appname",
+		"syslog.procid",
+		"syslog.msgid",
+	} {
+		val, ok := sc.GetAttribute(path)
+		assert.False(t, ok, "%s should be absent when parser encodes it as nilvalue", path)
+		assert.Equal(t, "", val, "%s should return empty string when absent", path)
+	}
+}

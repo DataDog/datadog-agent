@@ -22,6 +22,7 @@ type Connection interface {
 	SetProfile(p *profile.NCMProfile)
 	RetrieveRunningConfig(ctx context.Context) ([]byte, error)
 	RetrieveStartupConfig(ctx context.Context) ([]byte, error)
+	Verify(ctx context.Context) error
 	PushConfig(ctx context.Context, config string) error
 	Close() error
 }

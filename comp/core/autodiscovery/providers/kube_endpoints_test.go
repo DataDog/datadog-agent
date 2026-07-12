@@ -288,7 +288,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 func TestKubeEndpointsHealthPlatformReporting(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	cfg := configmock.New(t)
 
 	provider := kubeEndpointsConfigProvider{

@@ -933,6 +933,8 @@ func (suite *KubeletTestSuite) TestGetConfig() {
 	_, config, err := kubeutil.GetConfig(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), config)
+	require.Equal(suite.T(), "kubelet.config.k8s.io/v1beta1", config.KubeletConfig.APIVersion)
+	require.Equal(suite.T(), "KubeletConfiguration", config.KubeletConfig.Kind)
 }
 
 func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {

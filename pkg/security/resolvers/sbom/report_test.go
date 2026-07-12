@@ -57,7 +57,7 @@ func TestToCycloneDXRuntimeProperties(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			report := NewPackagesReport([]sbomtypes.PackageWithInstalledFiles{{Package: tt.pkg}}, "")
+			report := NewPackagesReport([]sbomtypes.Package{tt.pkg}, "")
 			bom := report.ToCycloneDX()
 			if len(bom.Components) != 1 {
 				t.Fatalf("got %d components, want 1", len(bom.Components))

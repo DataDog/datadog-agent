@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -67,6 +68,7 @@ type ConfigReader interface {
 	GetInt(key string) int
 	GetFloat64(key string) float64
 	GetString(key string) string
+	GetDuration(key string) time.Duration
 	IsConfigured(key string) bool
 }
 

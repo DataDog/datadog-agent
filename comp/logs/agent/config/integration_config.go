@@ -107,12 +107,14 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
-	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
-	// message bodies. When true (the default once syslog ingestion is wired up),
-	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
-	// structured SIEM fields. Set to false to skip this detection and treat the
-	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
-	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+	// AttributeParsing controls whether the full syslog parser is active for
+	// this source. When true, incoming lines are parsed into structured syslog
+	// messages with metadata extraction, CEF/LEEF detection, and processing
+	// rule support (e.g. remap_source). When false, a no-op parser is used
+	// and lines pass through as raw text. When nil (unconfigured), it is
+	// auto-enabled if any remap_source processing rule is defined, and
+	// defaults to off otherwise. See IsAttributeParsingEnabled().
+	AttributeParsing *bool `mapstructure:"attribute_parsing" json:"attribute_parsing" yaml:"attribute_parsing"`
 
 	// DebugAttrParsing controls whether the syslog parser renders structured
 	// JSON output (with "message", "syslog", and optionally "siem" keys) or
@@ -702,13 +704,33 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 	return true // default behaviour when nothing's been configured
 }
 
-// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
-// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
-func (c *LogsConfig) IsSIEMParsingEnabled() bool {
-	if c.SIEMParsing != nil {
-		return *c.SIEMParsing
+// IsAttributeParsingEnabled returns whether the full syslog parser should be
+// active for this source. When AttributeParsing is explicitly set, that value
+// is used. When nil (unconfigured), it is auto-enabled if debug_attr_parsing is
+// on or if any remap_source processing rule — either per-source or global — is
+// defined, and defaults to false otherwise.
+func (c *LogsConfig) IsAttributeParsingEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	if c.AttributeParsing != nil {
+		return *c.AttributeParsing
 	}
-	return true
+	// Debug rendering requires the syslog parser to run: enabling
+	// debug_attr_parsing without attribute_parsing would otherwise install the
+	// noop parser and silently emit raw text instead of the structured envelope.
+	if c.DebugAttrParsing != nil && *c.DebugAttrParsing {
+		return true
+	}
+	for _, rule := range c.ProcessingRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	globalRules, _ := GlobalProcessingRules(coreConfig)
+	for _, rule := range globalRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	return false
 }
 
 // IsDebugAttrParsingEnabled returns whether the syslog parser should render

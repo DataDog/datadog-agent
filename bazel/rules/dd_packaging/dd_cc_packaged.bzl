@@ -7,7 +7,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "otool_dir_action", "otool_file_action", "patchelf_dir_action", "patchelf_file_action", "rewrite_rpath")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "otool_dir_action", "patchelf_dir_action", "rewrite_rpath", "rewrite_rpaths_for_files")
 
 def _is_os(ctx, constraint):
     return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
@@ -32,14 +32,7 @@ def _dd_packaged_files_impl(ctx):
                     out = f
                 dest = prefix
             else:
-                if is_linux:
-                    out = ctx.actions.declare_file("patched/" + f.basename)
-                    patchelf_file_action(ctx, f, out, rpath)
-                elif is_macos:
-                    out = ctx.actions.declare_file("patched/" + f.basename)
-                    otool_file_action(ctx, f, out, rpath)
-                else:
-                    out = f
+                out = rewrite_rpaths_for_files(ctx, inputs = [f], rpath = rpath)[0]
                 dest = (prefix + "/" + f.basename) if prefix else f.basename
             dest_src_map[dest] = out
 
@@ -78,6 +71,7 @@ _dd_packaged_files_rule = rule(
         "_install_dir": attr.label(default = "@@//:install_dir"),
     },
     toolchains = [
+        "//bazel/toolchains/rpath_rewriter",
         "@@//bazel/toolchains/patchelf:patchelf_toolchain_type",
         "@@//bazel/toolchains/otool:otool_toolchain_type",
     ],
@@ -125,6 +119,7 @@ _dd_cc_packaged_rule = rule(
 
 def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
+
     rewrite_rpath(
         name = patched_name,
         inputs = [input],

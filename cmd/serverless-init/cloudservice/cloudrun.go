@@ -202,8 +202,8 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (c *CloudRun) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(cloudRunShutdownMetricName, 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
@@ -212,11 +212,6 @@ func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent,
 func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(cloudRunStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyStartMetricName, 1.0, c.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (c *CloudRun) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isCloudRunService() bool {

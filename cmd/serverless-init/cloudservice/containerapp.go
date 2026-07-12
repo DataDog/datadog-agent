@@ -199,8 +199,8 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (c *ContainerApp) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(containerAppShutdownMetricName, 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(containerAppLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
@@ -209,11 +209,6 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(containerAppStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(containerAppLegacyStartMetricName, 1.0, c.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isContainerAppService() bool {

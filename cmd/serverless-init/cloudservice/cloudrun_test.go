@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -279,4 +282,32 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrfx.function_signature_type": "test_signature",
 		"gcrfx.resource_name":           "projects/test_project/locations/test_region/services/test_service/functions/test_target",
 	}, tags)
+}
+
+func TestCloudRunShutdownEmitsMetrics(t *testing.T) {
+	skipOnWindows(t)
+	demux := createDemultiplexer(t)
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+
+	service := &CloudRun{}
+	service.Shutdown(agent, true, nil)
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Empty(t, timedMetrics)
+	assert.Len(t, generatedMetrics, 2)
+
+	foundShutdown := false
+	for _, sample := range generatedMetrics {
+		if sample.Name == cloudRunShutdownMetricName {
+			foundShutdown = true
+		}
+	}
+	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestCloudRunShutdownNilMetricAgent(t *testing.T) {
+	service := &CloudRun{}
+	require.NotPanics(t, func() {
+		service.Shutdown(nil, true, nil)
+	})
 }

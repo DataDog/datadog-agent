@@ -17,18 +17,15 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
-    uses: DataDog/code-review-action/.github/workflows/code-review.yml@ed7f36e34dff9247ddb602d22ac097708d06cc83 # v1.0.1
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
     with:
       provider: codex
       # 'always'    → runs automatically on pull_request events above
       # 'on_demand' → runs when a write-access collaborator comments /dd-review
       trigger_mode: on_demand
-      # Root-level file applies to every PR.
+      # Root-level files apply to every PR.
       # Sub-directory files apply only when the PR touches files under that prefix.
-      prompt_file: |
-        codereview_guideline.md
-        bazel/codereview_guideline.md
-        .claude/skills/codereview_guideline.md
+      prompt_file_pattern: "**/codereview_guideline.md"
       review_event: COMMENT_ONLY
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

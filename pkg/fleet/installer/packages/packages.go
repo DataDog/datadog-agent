@@ -231,6 +231,46 @@ func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
 	return PackageTypeDEB
 }
 
+// ensureAgentFIPSProvider runs fipsinstall.sh for the package tree at pkgPath so that
+// requirefips binaries can start. The deb/rpm postinst handles this; the OCI flow does not,
+// so we do it here before re-exec'ing into the tree's installer.
+// No-op for non-FIPS packages (no fipsinstall.sh) and for already-configured trees
+// (openssl.cnf.tmp consumed). Returns an error if the tree looks partially configured.
+func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "ensure_fips_provider")
+	defer func() { span.Finish(err) }()
+
+	scriptPath := filepath.Join(pkgPath, "embedded", "bin", "fipsinstall.sh")
+	if info, statErr := os.Stat(scriptPath); statErr != nil || info.Mode()&0o111 == 0 {
+		return nil // not a FIPS package, or the script is not executable
+	}
+	if _, statErr := os.Stat(filepath.Join(pkgPath, "embedded", "ssl", "openssl.cnf.tmp")); statErr != nil {
+		// .tmp already consumed; verify fipsmodule.cnf also exists
+		if _, modErr := os.Stat(filepath.Join(pkgPath, "embedded", "ssl", "fipsmodule.cnf")); modErr == nil {
+			return nil // fully configured
+		}
+		return fmt.Errorf("fipsinstall incomplete: openssl.cnf.tmp consumed but fipsmodule.cnf missing at %s; re-installation required", pkgPath)
+	}
+
+	cmd := telemetry.CommandContext(ctx, scriptPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// Clear inherited OPENSSL env so fipsinstall uses the target tree's binaries
+	// without contamination from the running process's embedded FIPS provider.
+	cleanEnv := make([]string, 0, len(os.Environ()))
+	for _, e := range os.Environ() {
+		k, _, _ := strings.Cut(e, "=")
+		if k != "OPENSSL_CONF" && k != "OPENSSL_MODULES" && k != "LD_LIBRARY_PATH" {
+			cleanEnv = append(cleanEnv, e)
+		}
+	}
+	cmd.Env = cleanEnv
+	if err = cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run fipsinstall.sh: %w", err)
+	}
+	return nil
+}
+
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
 	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
@@ -253,6 +293,10 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		}
 		if !os.IsNotExist(err) {
 			hooksCLIPath = agentInstallerPath
+			// Run fipsinstall.sh before re-exec so requirefips binaries can start.
+			if err := ensureAgentFIPSProvider(ctx, pkgPath); err != nil {
+				return fmt.Errorf("failed to configure FIPS provider for %s: %w", pkgPath, err)
+			}
 		}
 	}
 	hookCtx := HookContext{

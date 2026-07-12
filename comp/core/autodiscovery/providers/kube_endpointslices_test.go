@@ -785,7 +785,7 @@ func TestHasEndpointSliceAnnotations(t *testing.T) {
 
 func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
 	configmock.New(t)
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	provider := kubeEndpointSlicesConfigProvider{
 		configErrors:   map[string]provTypes.ErrorMsgSet{},

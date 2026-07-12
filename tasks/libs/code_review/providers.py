@@ -35,15 +35,24 @@ def run_review(
     prompt_path.write_text(review_prompt.content, encoding="utf-8")
     print(f"Review prompt written to {prompt_path}", file=sys.stderr)
 
-    invocations = [
-        build_provider_invocation(
-            provider=provider_name,
-            review_prompt=review_prompt,
-            prompt_path=prompt_path,
-            artifact_dir=artifact_dir,
+    invocations = []
+    for provider_name in expand_providers(provider):
+        review_diff = None
+        if provider_name == "codex":
+            review_diff = collect_review_diff(ctx, repo_root, review_prompt.base)
+            diff_path = artifact_dir / "codex-diff.md"
+            diff_path.write_text(review_diff, encoding="utf-8")
+            print(f"Codex review diff written to {diff_path}", file=sys.stderr)
+
+        invocations.append(
+            build_provider_invocation(
+                provider=provider_name,
+                review_prompt=review_prompt,
+                prompt_path=prompt_path,
+                artifact_dir=artifact_dir,
+                review_diff=review_diff,
+            )
         )
-        for provider_name in expand_providers(provider)
-    ]
 
     for invocation in invocations:
         _ensure_command_exists(invocation.executable)
@@ -86,17 +95,17 @@ def build_provider_invocation(
     review_prompt: ReviewPrompt,
     prompt_path: Path,
     artifact_dir: Path,
+    review_diff: str | None = None,
 ) -> ProviderInvocation:
     output_path = artifact_dir / f"{provider}.md"
 
     if provider == "codex":
-        # `codex review --base ... [PROMPT]` rejects combining a base ref and a prompt.
-        # Use `codex exec` instead and ask Codex to inspect the same diff explicitly.
         prompt = (
-            f"Review the current git changes against {review_prompt.base}.\n"
-            f"Use `git diff --find-renames {review_prompt.base}...HEAD` to inspect the patch.\n"
+            f"Review the current git changes against {review_prompt.base} using the precomputed diff below.\n"
             "Do not modify files. Return only review findings and an overall correctness verdict.\n\n"
-            f"{review_prompt.content}"
+            f"{review_prompt.content}\n"
+            "## Precomputed Diff\n\n"
+            f"{review_diff or 'No diff was provided.'}"
         )
         return ProviderInvocation(
             provider=provider,
@@ -131,6 +140,21 @@ def build_provider_invocation(
         )
 
     raise CodeReviewError(f"Unknown provider {provider!r}")
+
+
+def collect_review_diff(ctx, repo_root: Path, base: str) -> str:
+    diff_range = shlex.quote(f"{base}...HEAD")
+    sections = []
+    for title, command in (
+        ("DIFF STAT", f"git diff --find-renames --stat {diff_range}"),
+        ("PATCH", f"git diff --find-renames {diff_range}"),
+    ):
+        result = ctx.run(f"cd {shlex.quote(str(repo_root))} && {command}", hide=True, warn=True)
+        if result.exited != 0:
+            raise CodeReviewError(result.stderr.strip() or f"{command} failed")
+        sections.extend([f"--- {title} ---", result.stdout.strip() or "(empty)", ""])
+
+    return "\n".join(sections).rstrip() + "\n"
 
 
 def expand_providers(provider: str) -> tuple[str, ...]:

@@ -34,8 +34,8 @@ func newTestCheck(id string) *stubCheck {
 	return &stubCheck{id: id}
 }
 
-func addExpvarsCheckStats(c check.Check) {
-	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(nil))
+func addExpvarsCheckStats(t testing.TB, c check.Check) {
+	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent(), healthplatformmock.New(t))
 }
 
 func setUp(cfg model.Config) {
@@ -70,7 +70,7 @@ func TestShouldLogLastVerboseLog(t *testing.T) {
 			// When I start the check
 			checkLogger.CheckStarted()
 			// And increment the CheckStats
-			addExpvarsCheckStats(testCheck)
+			addExpvarsCheckStats(t, testCheck)
 			// And the check finishes
 			checkLogger.CheckFinished()
 
@@ -103,7 +103,7 @@ func TestShouldLogInitialCheckLoggingSeries(t *testing.T) {
 			// When I start the check
 			checkLogger.CheckStarted()
 			// And increment the CheckStats
-			addExpvarsCheckStats(testCheck)
+			addExpvarsCheckStats(t, testCheck)
 			// And the check finishes
 			checkLogger.CheckFinished()
 

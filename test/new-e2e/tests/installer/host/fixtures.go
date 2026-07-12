@@ -74,7 +74,7 @@ func (h *Host) CallExamplePythonApp(traceID string) {
 func (h *Host) StartExamplePythonAppInDocker() {
 	h.WaitForTraceAgentSocketReady()
 	h.remote.MustExecute(fmt.Sprintf("sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py %s python /usr/src/app/http_server.py",
-		h.dockerImage("dockerhub/library/python:3.8-slim", "python:3.8-slim")))
+		h.dockerImage("dockerhub/library/python:3.9-slim", "python:3.9-slim")))
 }
 
 // StopExamplePythonAppInDocker stops the example Python app in Docker

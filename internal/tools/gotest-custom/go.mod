@@ -4,5 +4,5 @@ go 1.26.0
 
 require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/klauspost/compress v1.18.6
+	github.com/klauspost/compress v1.19.0
 )

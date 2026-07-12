@@ -117,6 +117,39 @@ func TestKubeletConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletConfigTestSuite))
 }
 
+func TestResolveManifestTypeMeta(t *testing.T) {
+	const realAPIVersion = "kubelet.config.k8s.io/v1beta1"
+	const realKind = "KubeletConfiguration"
+
+	tests := []struct {
+		name           string
+		spec           workloadmeta.KubeletConfigSpec
+		wantKind       string
+		wantAPIVersion string
+	}{
+		{
+			name:           "apiVersion populated + kind populated (modern kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{APIVersion: realAPIVersion, Kind: realKind},
+			wantKind:       realKind,
+			wantAPIVersion: realAPIVersion,
+		},
+		{
+			name:           "apiVersion empty + kind empty (legacy kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{},
+			wantKind:       kubeletVirtualKind,
+			wantAPIVersion: kubeletVirtualAPIVersion,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKind, gotAPIVersion := resolveManifestTypeMeta(tc.spec)
+			require.Equal(t, tc.wantKind, gotKind)
+			require.Equal(t, tc.wantAPIVersion, gotAPIVersion)
+		})
+	}
+}
+
 func (suite *KubeletConfigTestSuite) TestKubeletConfigCheck() {
 	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)
