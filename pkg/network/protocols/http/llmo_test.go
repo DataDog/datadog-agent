@@ -157,48 +157,120 @@ func TestParseLLMMessages(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, parseLLMMessages(tt.raw))
+			assert.Equal(t, tt.want, parseLLMMessages(tt.raw, providerOpenAI))
 		})
 	}
 }
 
-func TestParseLLMUsage(t *testing.T) {
+func TestParseAnthropicMessages(t *testing.T) {
+	// Wire format produced by the anthropic-sdk-go client: user content is an
+	// array of text blocks and the system prompt is a top-level array.
+	body := `{"max_tokens":100,"messages":[{"content":[{"text":"what is eBPF?","type":"text"}],"role":"user"}],"model":"claude-haiku-4-5","system":[{"text":"You are a concise assistant.","type":"text"}]}`
+
 	tests := []struct {
-		name                 string
-		raw                  []byte
-		wantP, wantC, wantT int64
+		name string
+		raw  []byte
+		want []llmMessage
 	}{
 		{
-			name:  "response tail with usage",
-			raw:   []byte(`"finish_reason":"stop"}],"usage":{"prompt_tokens":17,"completion_tokens":55,"total_tokens":72},"system_fingerprint":"fp_abc"}`),
-			wantP: 17, wantC: 55, wantT: 72,
+			name: "system (top-level) + user (content array)",
+			raw:  []byte(body),
+			want: []llmMessage{
+				{role: "system", content: "You are a concise assistant."},
+				{role: "user", content: "what is eBPF?"},
+			},
 		},
 		{
-			name:  "nul padded tail",
-			raw:   padTo([]byte(`,"usage":{"prompt_tokens":9,"completion_tokens":24,"total_tokens":33}}`), llmBodyBufferSize),
-			wantP: 9, wantC: 24, wantT: 33,
+			name: "behind http2 frame header, nul padded",
+			raw:  padTo(append(http2DataFrameHeader(len(body)), []byte(body)...), llmBodyBufferSize),
+			want: []llmMessage{
+				{role: "system", content: "You are a concise assistant."},
+				{role: "user", content: "what is eBPF?"},
+			},
 		},
 		{
-			name:  "spaced usage",
-			raw:   []byte(`"usage" : { "prompt_tokens" : 100 , "completion_tokens" : 200 , "total_tokens" : 300 }`),
-			wantP: 100, wantC: 200, wantT: 300,
-		},
-		{
-			name:  "no usage present",
-			raw:   []byte(`{"id":"x","choices":[{"delta":{}}]}`),
-			wantP: 0, wantC: 0, wantT: 0,
-		},
-		{
-			name:  "empty",
-			raw:   nil,
-			wantP: 0, wantC: 0, wantT: 0,
+			name: "no system prompt",
+			raw:  []byte(`{"messages":[{"content":[{"text":"hi","type":"text"}],"role":"user"}],"model":"claude-haiku-4-5"}`),
+			want: []llmMessage{{role: "user", content: "hi"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, c, tot := parseLLMUsage(tt.raw)
-			assert.Equal(t, tt.wantP, p, "prompt_tokens")
-			assert.Equal(t, tt.wantC, c, "completion_tokens")
+			assert.Equal(t, tt.want, parseLLMMessages(tt.raw, providerAnthropic))
+		})
+	}
+}
+
+func TestDetectProvider(t *testing.T) {
+	assert.Equal(t, providerAnthropic, detectProvider("claude-haiku-4-5"))
+	assert.Equal(t, providerAnthropic, detectProvider("claude-3-5-sonnet-20241022"))
+	assert.Equal(t, providerOpenAI, detectProvider("gpt-4o-mini"))
+	assert.Equal(t, providerOpenAI, detectProvider("o1-preview"))
+	assert.Equal(t, providerOpenAI, detectProvider("")) // unknown -> default
+}
+
+func TestParseResponseText(t *testing.T) {
+	openaiResp := []byte(`{"choices":[{"message":{"role":"assistant","content":"OpenAI answer."}}]}`)
+	anthropicResp := []byte(`{"content":[{"type":"text","text":"Anthropic answer."}],"usage":{"input_tokens":9,"output_tokens":4}}`)
+	assert.Equal(t, "OpenAI answer.", parseResponseText(openaiResp, providerOpenAI))
+	assert.Equal(t, "Anthropic answer.", parseResponseText(anthropicResp, providerAnthropic))
+}
+
+func TestParseLLMUsage(t *testing.T) {
+	tests := []struct {
+		name                string
+		raw                 []byte
+		provider            string
+		wantI, wantO, wantT int64
+	}{
+		{
+			name:     "openai response tail with usage",
+			raw:      []byte(`"finish_reason":"stop"}],"usage":{"prompt_tokens":17,"completion_tokens":55,"total_tokens":72},"system_fingerprint":"fp_abc"}`),
+			provider: providerOpenAI,
+			wantI:    17, wantO: 55, wantT: 72,
+		},
+		{
+			name:     "openai nul padded tail",
+			raw:      padTo([]byte(`,"usage":{"prompt_tokens":9,"completion_tokens":24,"total_tokens":33}}`), llmBodyBufferSize),
+			provider: providerOpenAI,
+			wantI:    9, wantO: 24, wantT: 33,
+		},
+		{
+			name:     "openai spaced usage",
+			raw:      []byte(`"usage" : { "prompt_tokens" : 100 , "completion_tokens" : 200 , "total_tokens" : 300 }`),
+			provider: providerOpenAI,
+			wantI:    100, wantO: 200, wantT: 300,
+		},
+		{
+			name:     "anthropic usage (total derived)",
+			raw:      []byte(`"stop_reason":"end_turn","usage":{"input_tokens":33,"cache_read_input_tokens":0,"output_tokens":26}}`),
+			provider: providerAnthropic,
+			wantI:    33, wantO: 26, wantT: 59,
+		},
+		{
+			name:     "anthropic nul padded",
+			raw:      padTo([]byte(`,"usage":{"input_tokens":31,"output_tokens":29}}`), llmBodyBufferSize),
+			provider: providerAnthropic,
+			wantI:    31, wantO: 29, wantT: 60,
+		},
+		{
+			name:     "no usage present",
+			raw:      []byte(`{"id":"x","choices":[{"delta":{}}]}`),
+			provider: providerOpenAI,
+			wantI:    0, wantO: 0, wantT: 0,
+		},
+		{
+			name:     "empty",
+			raw:      nil,
+			provider: providerOpenAI,
+			wantI:    0, wantO: 0, wantT: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in, out, tot := parseLLMUsage(tt.raw, tt.provider)
+			assert.Equal(t, tt.wantI, in, "input_tokens")
+			assert.Equal(t, tt.wantO, out, "output_tokens")
 			assert.Equal(t, tt.wantT, tot, "total_tokens")
 		})
 	}

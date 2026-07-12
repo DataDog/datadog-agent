@@ -40,8 +40,12 @@ const (
 	llmoAgentAddr   = "localhost:8126"
 	// llmoMLApp is the default LLM Observability app name (the "AI" product
 	// groups spans by ml_app); overridden per-span by the resolved service.
-	llmoMLApp        = "apm-lite-ebpf"
-	llmoModelVendor  = "openai"
+	llmoMLApp = "apm-lite-ebpf"
+
+	// Providers we recognize. The provider is inferred from the model name and
+	// selects the per-provider body/response/usage parsers.
+	providerOpenAI    = "openai"
+	providerAnthropic = "anthropic"
 
 	// llmBodyBufferSize must match LLM_BODY_BUFFER_SIZE in the eBPF code
 	// (pkg/network/ebpf/c/protocols/tls/llmo.h).
@@ -103,13 +107,26 @@ var (
 	llmModelRe   = regexp.MustCompile(`"model"\s*:\s*"([^"]*)"`)
 	llmContentRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"`)
 
-	// llmMessageRe captures each request message as a (content, role) pair.
-	// The OpenAI SDK serializes chat messages as {"content":"...","role":"..."}
-	// (content before role), so a single pass over the request body yields every
-	// message — system, user, assistant — in order.
+	// llmMessageRe captures each OpenAI request message as a (content, role)
+	// pair. The OpenAI SDK serializes chat messages as {"content":"...","role":
+	// "..."} (content before role), so a single pass yields every message —
+	// system, user, assistant — in order.
 	llmMessageRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"\s*,\s*"role"\s*:\s*"([^"]*)"`)
 
-	// Token usage extractors (from the response body).
+	// Anthropic request messages carry content as an array of text blocks:
+	// "content":[{"text":"...","type":"text"}],"role":"user". Capture the block
+	// text followed by the message role.
+	llmAnthropicMsgRe = regexp.MustCompile(`"text"\s*:\s*"([^"]*)"[^\]]*\]\s*,\s*"role"\s*:\s*"([^"]*)"`)
+	// Anthropic has no "system" message role; the system prompt is a top-level
+	// array of text blocks.
+	llmAnthropicSystemRe = regexp.MustCompile(`"system"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]*)"`)
+	// Anthropic response content and usage: the assistant answer is in a "text"
+	// field and token usage uses input_tokens/output_tokens (no total_tokens).
+	llmTextRe      = regexp.MustCompile(`"text"\s*:\s*"([^"]*)"`)
+	llmInputTokRe  = regexp.MustCompile(`"input_tokens"\s*:\s*(\d+)`)
+	llmOutputTokRe = regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)
+
+	// OpenAI token usage extractors (from the response body).
 	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
 	llmTotalTokRe  = regexp.MustCompile(`"total_tokens"\s*:\s*(\d+)`)
@@ -124,16 +141,26 @@ type llmMessage struct {
 // llmSpanInfo holds everything parsed from the captured request/response
 // bodies to enrich an LLM span.
 type llmSpanInfo struct {
-	service string
-	model   string
+	service  string
+	provider string // "openai" | "anthropic" — inferred from the model
+	model    string
 	// messages are the request's chat messages (system, user, ...) in order.
 	// prompt is kept as the last user message for the tag/fallback path.
-	messages         []llmMessage
-	prompt           string
-	response         string
-	promptTokens     int64
-	completionTokens int64
-	totalTokens      int64
+	messages     []llmMessage
+	prompt       string
+	response     string
+	inputTokens  int64
+	outputTokens int64
+	totalTokens  int64
+}
+
+// detectProvider infers the LLM provider from the model name. Anthropic models
+// are named "claude-*"; everything else defaults to OpenAI-shaped parsing.
+func detectProvider(model string) string {
+	if strings.HasPrefix(model, "claude") {
+		return providerAnthropic
+	}
+	return providerOpenAI
 }
 
 // ensureLLMOTracer lazily starts the dd-trace-go tracer pointed at the local
@@ -192,13 +219,22 @@ func parseLLMBody(raw []byte) (model string, prompt string) {
 }
 
 // parseLLMMessages extracts every chat message (role + content) from a captured
-// request body window, in order. Extraction is tolerant of surrounding binary/
-// NUL bytes and truncation, same as parseLLMBody. A message truncated at the
-// buffer boundary (no closing "role" for its content) is simply omitted.
-func parseLLMMessages(raw []byte) []llmMessage {
+// request body window, in order, using the parser for the given provider.
+// Extraction is tolerant of surrounding binary/NUL bytes and truncation, same
+// as parseLLMBody; a message truncated at the buffer boundary is omitted.
+func parseLLMMessages(raw []byte, provider string) []llmMessage {
 	if len(raw) == 0 {
 		return nil
 	}
+	if provider == providerAnthropic {
+		return parseAnthropicMessages(raw)
+	}
+	return parseOpenAIMessages(raw)
+}
+
+// parseOpenAIMessages extracts (content, role) pairs from an OpenAI chat request
+// body, where each message is {"content":"...","role":"..."}.
+func parseOpenAIMessages(raw []byte) []llmMessage {
 	matches := llmMessageRe.FindAllSubmatch(raw, -1)
 	if matches == nil {
 		return nil
@@ -210,23 +246,68 @@ func parseLLMMessages(raw []byte) []llmMessage {
 	return msgs
 }
 
-// parseLLMUsage extracts token usage from a captured response body window.
-// The window is the tail of the response, where the usage object lives, and
-// may contain surrounding binary/NUL bytes; extraction is tolerant.
-func parseLLMUsage(raw []byte) (promptTokens, completionTokens, totalTokens int64) {
+// parseAnthropicMessages extracts messages from an Anthropic request body. The
+// system prompt is a top-level array (no "system" role); user/assistant
+// messages carry their text inside a content-block array. System is returned
+// first, then the messages in order, so the resulting list matches OpenAI's
+// system-first ordering.
+func parseAnthropicMessages(raw []byte) []llmMessage {
+	var msgs []llmMessage
+	if m := llmAnthropicSystemRe.FindSubmatch(raw); m != nil {
+		msgs = append(msgs, llmMessage{role: "system", content: string(m[1])})
+	}
+	for _, m := range llmAnthropicMsgRe.FindAllSubmatch(raw, -1) {
+		msgs = append(msgs, llmMessage{content: string(m[1]), role: string(m[2])})
+	}
+	return msgs
+}
+
+// parseResponseText extracts the assistant's answer from a captured response
+// body window, using the shape for the given provider.
+func parseResponseText(raw []byte, provider string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	re := llmContentRe // OpenAI: choices[].message.content
+	if provider == providerAnthropic {
+		re = llmTextRe // Anthropic: content[].text
+	}
+	if m := re.FindSubmatch(raw); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
+// parseLLMUsage extracts token usage from a captured response body window,
+// using the field names for the given provider. Returned counts are
+// provider-neutral (input, output, total) mapping to the LLM Observability
+// token metrics. The window may contain surrounding binary/NUL bytes;
+// extraction is tolerant.
+func parseLLMUsage(raw []byte, provider string) (inputTokens, outputTokens, totalTokens int64) {
 	if len(raw) == 0 {
 		return 0, 0, 0
 	}
+	if provider == providerAnthropic {
+		// Anthropic: input_tokens/output_tokens, and no total (derive it).
+		if m := llmInputTokRe.FindSubmatch(raw); m != nil {
+			inputTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+		}
+		if m := llmOutputTokRe.FindSubmatch(raw); m != nil {
+			outputTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+		}
+		return inputTokens, outputTokens, inputTokens + outputTokens
+	}
+	// OpenAI: prompt_tokens/completion_tokens/total_tokens.
 	if m := llmPromptTokRe.FindSubmatch(raw); m != nil {
-		promptTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+		inputTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
 	}
 	if m := llmComplTokRe.FindSubmatch(raw); m != nil {
-		completionTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+		outputTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
 	}
 	if m := llmTotalTokRe.FindSubmatch(raw); m != nil {
 		totalTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
 	}
-	return promptTokens, completionTokens, totalTokens
+	return inputTokens, outputTokens, totalTokens
 }
 
 // emitLLMSpan emits a single APM span for one LLM request transaction.
@@ -258,7 +339,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	span, _ := llmobs.StartLLMSpan(context.Background(), llmoSpanName,
 		llmobs.WithMLApp(info.service),
 		llmobs.WithModelName(info.model),
-		llmobs.WithModelProvider(llmoModelVendor),
+		llmobs.WithModelProvider(info.provider),
 		llmobs.WithStartTime(start),
 	)
 
@@ -290,8 +371,8 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	}
 	if info.totalTokens > 0 {
 		annotations = append(annotations, llmobs.WithAnnotatedMetrics(map[string]float64{
-			llmobs.MetricKeyInputTokens:  float64(info.promptTokens),
-			llmobs.MetricKeyOutputTokens: float64(info.completionTokens),
+			llmobs.MetricKeyInputTokens:  float64(info.inputTokens),
+			llmobs.MetricKeyOutputTokens: float64(info.outputTokens),
 			llmobs.MetricKeyTotalTokens:  float64(info.totalTokens),
 		}))
 	}
@@ -332,7 +413,8 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 			n = llmBodyBufferSize
 		}
 		info.model, info.prompt = parseLLMBody(reqBody.Data[:n])
-		info.messages = parseLLMMessages(reqBody.Data[:n])
+		info.provider = detectProvider(info.model)
+		info.messages = parseLLMMessages(reqBody.Data[:n], info.provider)
 		// Prefer the last user message as the prompt (with a system message
 		// present, the first "content" is the system prompt, not the user's).
 		for i := len(info.messages) - 1; i >= 0; i-- {
@@ -343,7 +425,7 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		}
 	}
 
-	// Response body tail -> token usage.
+	// Response body tail -> token usage (parsed per provider).
 	if h.llmRespBodyMap != nil {
 		var respBody llmBody
 		if err := h.llmRespBodyMap.Lookup(&key, &respBody); err == nil {
@@ -351,7 +433,7 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 			if n > llmBodyBufferSize {
 				n = llmBodyBufferSize
 			}
-			info.promptTokens, info.completionTokens, info.totalTokens = parseLLMUsage(respBody.Data[:n])
+			info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(respBody.Data[:n], info.provider)
 		}
 	}
 
@@ -363,10 +445,7 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 			if n > llmBodyBufferSize {
 				n = llmBodyBufferSize
 			}
-			// The response head's only "content" field is the assistant message.
-			if c := llmContentRe.FindSubmatch(respHead.Data[:n]); c != nil {
-				info.response = string(c[1])
-			}
+			info.response = parseResponseText(respHead.Data[:n], info.provider)
 		}
 	}
 
