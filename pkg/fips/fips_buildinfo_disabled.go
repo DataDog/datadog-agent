@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SERV) Fix revive linter
-package serverless
+//go:build !goexperiment.systemcrypto && !goexperiment.boringcrypto && !requirefips
 
-// FlushableAgent allows flushing
-type FlushableAgent interface {
-	Flush()
-}
+package fips
+
+// BuiltForFIPS reports whether this binary was built as the FIPS flavor.
+func BuiltForFIPS() bool { return false }
