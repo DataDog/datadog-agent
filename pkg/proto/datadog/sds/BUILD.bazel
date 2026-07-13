@@ -1,0 +1,24 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
+
+exports_files(["sds_result.proto"])
+
+proto_library(
+    name = "sds_proto",
+    srcs = ["sds_result.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+rust_prost_library(
+    name = "sds_rust_proto",
+    proto = ":sds_proto",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+)
