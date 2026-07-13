@@ -84,10 +84,10 @@
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
-        "description": "Major Go dependency updates require manual migrations",
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["major"],
-        "enabled": false
+        "dependencyDashboardApproval": true
       },
       {
         "matchManagers": ["gomod"],
