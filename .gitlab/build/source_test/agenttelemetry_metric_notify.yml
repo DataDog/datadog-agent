@@ -33,7 +33,7 @@ agenttelemetry_metric_vm_reminder_pending:
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
-    - dda inv -- -e github.pr-commenter --title="COAT metric validation VM" --body="This PR changes a COAT metric profile. A dev VM build for this pipeline is running — this comment will update with a copy-paste \`aws.create-vm\` command once the Linux build finishes."
+    - dda inv -- -e github.pr-commenter --title="COAT metric validation VM" --body="This PR changes a COAT metric profile. This pipeline is currently building the agent package — once it's ready, this comment will update with the command to create a VM with that package installed, so you can validate the metric."
 
 agenttelemetry_metric_vm_reminder_linux:
   stage: e2e_deploy
@@ -50,7 +50,7 @@ agenttelemetry_metric_vm_reminder_linux:
   script:
     - |
       cat > coat-metric-vm-reminder.md <<'EOF'
-      A dev VM build for this pipeline is ready:
+      The agent package for this pipeline is ready. Create a VM with that package installed using:
 
       ```
       dda inv aws.create-vm --pipeline-id=__PIPELINE_ID__

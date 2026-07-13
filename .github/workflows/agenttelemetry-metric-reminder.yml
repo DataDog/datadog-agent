@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
+    paths:
+      - comp/core/agenttelemetry/impl/defaultProfiles.yaml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -32,6 +34,10 @@ jobs:
             // renders it as this exact "## {title}" header) so we can clean it up too.
             const vmCommentHeader = '## COAT metric validation VM';
 
+            // The paths: filter above only looks at this specific push's diff, so it can still
+            // trigger a run where the *cumulative* PR diff no longer touches the file (e.g. a
+            // later commit reverts an earlier one). Re-check against the full PR diff here so
+            // that case is detected and the comments below get cleaned up correctly.
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
