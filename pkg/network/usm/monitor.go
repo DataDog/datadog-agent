@@ -233,7 +233,9 @@ func (m *Monitor) Stop() {
 
 	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 
-	m.ebpfProgram.Close()
+	if err := m.ebpfProgram.Close(); err != nil {
+		log.Errorf("error during USM shutdown: %v", err)
+	}
 	m.closeFilterFn()
 	usmstate.Set(usmstate.Stopped)
 }

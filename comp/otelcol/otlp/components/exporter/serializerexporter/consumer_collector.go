@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/exporter"
 )
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
@@ -48,7 +49,7 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 			nonFargateTags = append(nonFargateTags, tag)
 		}
 	}
-	if len(c.seenTags) == 0 || len(nonFargateTags) > 0 {
+	if (len(c.seenHosts) > 0 && len(c.seenTags) == 0) || len(nonFargateTags) > 0 {
 		tags := append(buildTags, nonFargateTags...)
 		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, tags))
 	}
