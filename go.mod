@@ -26,8 +26,8 @@ replace (
 	github.com/spf13/viper => github.com/spf13/viper v1.20.1
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
-	// and run `go mod tidy` then `dda inv tidy`
-	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260708094528-c397d37f0cba
+	// and run `GOPROXY="" go mod tidy` then `dda inv tidy`
+	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260710090740-d9125b4c5568
 )
 
 require (
@@ -206,7 +206,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.18
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
-	github.com/DataDog/ebpf-manager v0.7.18
+	github.com/DataDog/ebpf-manager v0.8.0
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.3
 	github.com/DataDog/jsonapi v0.13.0
@@ -242,10 +242,9 @@ require (
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cilium/ebpf v0.21.0
+	github.com/cilium/ebpf v0.22.0
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
@@ -331,7 +330,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.47
+	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/mdlayher/netlink v1.11.2
 	github.com/mdlayher/vsock v1.3.0
 	github.com/miekg/dns v1.1.72
@@ -633,6 +632,7 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect

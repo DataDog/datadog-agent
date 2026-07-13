@@ -133,6 +133,7 @@ go_library(
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/util/winutil",
             "//pkg/util/winutil/servicemain",
             "@com_github_spf13_cobra//:cobra",
@@ -143,7 +144,10 @@ go_library(
 
 dd_agent_go_test(
     name = "run_test",
-    srcs = ["command_test.go"],
+    srcs = [
+        "command_test.go",
+        "fleet_policies_dir_test.go",
+    ],
     data = [
         "test_config.yaml",
         "test_config_no_dd.yaml",
