@@ -201,6 +201,7 @@ exports_files(["go.mod"])
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr //pkg/proto/pbgo/procmgr
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx

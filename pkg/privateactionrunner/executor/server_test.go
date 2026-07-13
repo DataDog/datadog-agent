@@ -1,0 +1,194 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package executor
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
+)
+
+// fakeExecutor stands in for the execute-one-action core so these tests exercise
+// only the gRPC streaming/serialization/error-mapping plumbing (PRD testing seam 3),
+// not real bundle execution (that is covered at the core seam, testing seam 1).
+type fakeExecutor struct {
+	prepared   *runners.PreparedWorkflowTask
+	prepareErr error
+	output     interface{}
+	runErr     error
+
+	gotRawTask []byte
+}
+
+func (f *fakeExecutor) PrepareTask(_ context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error) {
+	f.gotRawTask = task.Raw
+	if f.prepareErr != nil {
+		return nil, task, f.prepareErr
+	}
+	return f.prepared, nil, nil
+}
+
+func (f *fakeExecutor) RunPrepared(_ context.Context, _ *runners.PreparedWorkflowTask) (interface{}, error) {
+	return f.output, f.runErr
+}
+
+// startTestServer serves a real executor gRPC server on a Unix socket and returns a
+// connected client. The server is stopped and the connection closed via t.Cleanup.
+func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
+	t.Helper()
+
+	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() { served <- Serve(ctx, lis, srv) }()
+
+	conn, err := grpc.NewClient(
+		"passthrough:///"+socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
+			return Dial(dialCtx, socketPath, 2*time.Second)
+		}),
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = conn.Close()
+		cancel()
+		<-served
+	})
+
+	return pb.NewExecutorClient(conn)
+}
+
+// runAction drives the server-streaming RunAction to completion and returns the
+// single terminal ActionResult.
+func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.ActionResult {
+	t.Helper()
+
+	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: taskBytes})
+	require.NoError(t, err)
+
+	var result *pb.ActionResult
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		if r := resp.GetResult(); r != nil {
+			result = r
+		}
+	}
+	require.NotNil(t, result, "RunAction stream ended without a terminal ActionResult")
+	return result
+}
+
+func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{"greeting": "hello"},
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+
+	client := startTestServer(t, srv)
+
+	rawTask := []byte(`{"data":{"id":"task-1","attributes":{"job_id":"job-1"}}}`)
+	result := runAction(t, client, rawTask)
+
+	// The executor forwards the raw task bytes to the core unmodified so signature
+	// verification sees the original envelope.
+	assert.Equal(t, rawTask, fake.gotRawTask)
+
+	require.NotNil(t, result.GetOutput(), "expected a success output, got error: %v", result.GetError())
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.GetOutput(), &got))
+	assert.Equal(t, map[string]interface{}{"greeting": "hello"}, got)
+}
+
+func TestServeRunActionReturnsStructuredErrorOnFailure(t *testing.T) {
+	fake := &fakeExecutor{
+		prepareErr: util.NewPARError(
+			aperrorpb.ActionPlatformErrorCode_SIGNATURE_ERROR,
+			errors.New("bad signature"),
+		),
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+
+	require.Nil(t, result.GetOutput())
+	require.NotNil(t, result.GetError())
+	assert.Equal(t, aperrorpb.ActionPlatformErrorCode_SIGNATURE_ERROR, result.GetError().GetErrorCode())
+	assert.Equal(t, "bad signature", result.GetError().GetMessage())
+}
+
+func TestServeRunActionWrapsPlainRunErrorAsActionError(t *testing.T) {
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		runErr:   errors.New("boom"),
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+
+	require.NotNil(t, result.GetError())
+	assert.Equal(t, aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, result.GetError().GetErrorCode())
+}
+
+func TestServeRunActionRejectedWhenNotReady(t *testing.T) {
+	fake := &fakeExecutor{prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}}}
+	srv := NewServer(fake, "test-version") // ready defaults to false
+
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+
+	require.NotNil(t, result.GetError())
+	assert.Equal(t, aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, result.GetError().GetErrorCode())
+	assert.Nil(t, fake.gotRawTask, "action must not be dispatched to the core when not ready")
+}
+
+func TestHealthReportsReadinessAndVersion(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	client := startTestServer(t, srv)
+
+	resp, err := client.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	assert.False(t, resp.GetReady())
+	assert.Equal(t, ProtocolVersion, resp.GetProtocolVersion())
+	assert.Equal(t, "test-version", resp.GetVersion())
+
+	srv.SetReady(true)
+	resp, err = client.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	assert.True(t, resp.GetReady())
+}
