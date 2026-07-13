@@ -74,21 +74,20 @@ fn token_user_sid(token: &TokenHandle) -> Result<Vec<u8>> {
             bail!("GetTokenInformation: {}", std::io::Error::last_os_error());
         }
 
-        let token_user = &*(buffer.as_ptr() as *const TOKEN_USER);
-        if token_user.User.Sid.is_null() {
+        // GetTokenInformation writes into an arbitrary byte buffer; read_unaligned
+        // avoids UB from casting Vec<u8> to &TOKEN_USER.
+        let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
+        let sid_ptr = token_user.User.Sid;
+        if sid_ptr.is_null() {
             bail!("TokenUser SID is null");
         }
 
-        let sid_len = GetLengthSid(token_user.User.Sid);
+        let sid_len = GetLengthSid(sid_ptr);
         if sid_len == 0 {
             bail!("GetLengthSid returned 0");
         }
         let mut sid = vec![0u8; sid_len as usize];
-        std::ptr::copy_nonoverlapping(
-            token_user.User.Sid as *const u8,
-            sid.as_mut_ptr(),
-            sid_len as usize,
-        );
+        std::ptr::copy_nonoverlapping(sid_ptr as *const u8, sid.as_mut_ptr(), sid_len as usize);
         Ok(sid)
     }
 }
