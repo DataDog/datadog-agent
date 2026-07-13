@@ -1,4 +1,3 @@
-schema_version: 1
 checks:
   - id: example
     crate: example
