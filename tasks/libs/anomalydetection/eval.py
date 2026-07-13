@@ -40,9 +40,11 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
-# not for Gaussian F1 eval (eval_scenarios / eval_combinations).
+# not for Gaussian F1 eval (eval_scenarios / eval_combinations). cross_signal and
+# time_cluster are intentionally excluded: this study evaluates scorer-produced
+# correlation periods only.
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
-CORRELATORS = ["cross_signal", "time_cluster"]
+CORRELATORS = ["anomaly_scorer"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
 # always enables all of them unless force-disabled.
@@ -55,8 +57,8 @@ EXTRACTORS = [
 # Fixed anchor subsets used by eval_component to anchor the evaluation at known
 # reference configurations regardless of the random seed.
 ANCHOR_COMBOS = [
-    {"detectors": ["bocpd"], "correlators": ["time_cluster"]},
-    {"detectors": ["bocpd", "rrcf"], "correlators": ["cross_signal", "time_cluster"]},
+    {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
+    {"detectors": ["bocpd", "rrcf"], "correlators": ["anomaly_scorer"]},
 ]
 
 
@@ -424,7 +426,7 @@ def random_component_combinations(
             continue
         seen.add(key)
         combos.append({"detectors": dets, "correlators": cors})
-    if attempts >= max_attempts:
+    if n > 0 and attempts >= max_attempts:
         print(
             color_message(
                 f"Warning: Only generated {len(combos)} unique combinations (max attempts={max_attempts})",
@@ -432,6 +434,17 @@ def random_component_combinations(
             )
         )
     return combos
+
+
+def _component_base_config(name: str, enabled: bool) -> dict:
+    """Base JSON config for a component in eval-generated testbench params."""
+    cfg: dict[str, object] = {"enabled": enabled}
+    if enabled and name == "anomaly_scorer":
+        # The scorer only contributes to Gaussian F1 when it emits Medium- or
+        # High-severity episodes as anomaly_periods. Keep cooldown at zero so
+        # those periods end on actual scorer de-escalation, not a delivery delay.
+        cfg.update({"correlation_events": True, "cooldown_secs": 0})
+    return cfg
 
 
 def _combo_to_config(
@@ -447,9 +460,9 @@ def _combo_to_config(
     enabled_set = set(detectors + correlators)
     components = {}
     for name in DETECTORS + CORRELATORS:
-        components[name] = {"enabled": name in enabled_set}
+        components[name] = _component_base_config(name, name in enabled_set)
     for name in EXTRACTORS:
-        components[name] = {"enabled": name not in force_disable_set}
+        components[name] = _component_base_config(name, name not in force_disable_set)
     return {"components": components}
 
 
@@ -458,7 +471,35 @@ def _combo_to_config(
 
 def _sample_component_params(trial, component: str) -> dict:
     """Sample Optuna hyperparameters for a named component that supports parseJSON."""
+
+    def sample_anomaly_scorer() -> dict:
+        # A correlation episode begins at the selected Medium or High threshold.
+        # Keep Low below High so the scorer's three-level state machine remains
+        # well-formed while allowing Optuna to choose the emission boundary.
+        low_threshold = trial.suggest_float("anomaly_scorer.low_threshold", 0.01, 0.2, log=True)
+        high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
+        high_threshold = min(0.45, low_threshold + high_threshold_gap)
+        # The scorer applies HighThreshold * MarginPct to both downward
+        # transitions. Sample that effective margin as a safe fraction of the
+        # Low boundary so Medium always has a reachable exit threshold.
+        hysteresis_fraction_of_low = trial.suggest_float("anomaly_scorer.hysteresis_fraction_of_low", 0.05, 0.9)
+        margin_pct = hysteresis_fraction_of_low * low_threshold / high_threshold
+        return {
+            "correlation_events": True,
+            "correlation_event_threshold": trial.suggest_categorical(
+                "anomaly_scorer.correlation_event_threshold", ["medium", "high"]
+            ),
+            "cooldown_secs": 0,
+            "alpha": trial.suggest_float("anomaly_scorer.alpha", 0.005, 0.08, log=True),
+            "saturation_k": trial.suggest_float("anomaly_scorer.saturation_k", 2.0, 12.0),
+            "window_secs": trial.suggest_int("anomaly_scorer.window_secs", 5, 60),
+            "low_threshold": low_threshold,
+            "high_threshold": high_threshold,
+            "margin_pct": margin_pct,
+        }
+
     space = {
+        "anomaly_scorer": sample_anomaly_scorer,
         "bocpd": lambda: {
             # "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
             "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
@@ -481,14 +522,6 @@ def _sample_component_params(trial, component: str) -> dict:
             # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
             "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
             "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
-        },
-        "cross_signal": lambda: {
-            # "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
-        },
-        "time_cluster": lambda: {
-            # "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
-            # "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
-            # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
         },
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
@@ -516,10 +549,10 @@ def _build_optuna_config(
 
     for name in DETECTORS + CORRELATORS + EXTRACTORS:
         if name not in active_set:
-            result[name] = {"enabled": False}
+            result[name] = _component_base_config(name, False)
 
     for name in components:
-        params = {"enabled": True}
+        params = _component_base_config(name, True)
         if name not in locked:
             params.update(_sample_component_params(trial, name))
         result[name] = params
