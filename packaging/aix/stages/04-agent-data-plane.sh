@@ -34,6 +34,8 @@ fi
 ADP_AIX_BINARY_PATH=${ADP_AIX_BINARY_PATH:-}
 ADP_RELEASE_TARBALL_PATH=${ADP_RELEASE_TARBALL_PATH:-}
 ADP_RELEASE_TARBALL_DIR="$BUILD_DIR/agent-data-plane-release-tarball"
+ADP_SPDX_LICENSES_ARCHIVE="$BUILD_DIR/agent-data-plane-spdx-licenses.tar.gz"
+ADP_SPDX_LICENSES_EXTRACT_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses-extract"
 ADP_SPDX_LICENSES_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses"
 ADP_THIRD_PARTY_GENERATED_DIR="$BUILD_DIR/agent-data-plane-third-party-licenses"
 ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
@@ -137,9 +139,13 @@ if [ -z "$ADP_THIRD_PARTY_SRC" ]; then
         exit 1
     fi
     log "Generating ADP THIRD-PARTY license artifacts with SPDX license-list-data $ADP_SPDX_LICENSES_VERSION"
-    rm -rf "$ADP_THIRD_PARTY_GENERATED_DIR"
-    SPDX_LICENSES_VERSION="$ADP_SPDX_LICENSES_VERSION" \
-        sh "$SALUKI_SRC/ci/tooling/fetch-spdx-licenses.sh" "$ADP_SPDX_LICENSES_DIR"
+    rm -rf "$ADP_THIRD_PARTY_GENERATED_DIR" "$ADP_SPDX_LICENSES_EXTRACT_DIR" "$ADP_SPDX_LICENSES_DIR"
+    curl -sSfL -o "$ADP_SPDX_LICENSES_ARCHIVE" \
+        "https://github.com/spdx/license-list-data/archive/refs/tags/v$ADP_SPDX_LICENSES_VERSION.tar.gz"
+    mkdir -p "$ADP_SPDX_LICENSES_EXTRACT_DIR"
+    gzip -dc "$ADP_SPDX_LICENSES_ARCHIVE" | tar -xf - -C "$ADP_SPDX_LICENSES_EXTRACT_DIR"
+    mv "$ADP_SPDX_LICENSES_EXTRACT_DIR/license-list-data-$ADP_SPDX_LICENSES_VERSION" \
+        "$ADP_SPDX_LICENSES_DIR"
     sh "$SALUKI_SRC/ci/tooling/collect-third-party-licenses.sh" \
         "$ADP_SPDX_LICENSES_DIR/text" \
         "$ADP_LICENSE_3RDPARTY" \
