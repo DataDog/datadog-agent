@@ -34,6 +34,8 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -88,6 +90,11 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
+	// executor-mode state (split deployment model; on-demand par-executor).
+	executorServer  *executor.Server
+	encryptionStore *encryptioncontext.Store
+	executorDone    chan struct{}
+
 	telemetry *telemetry.Telemetry
 
 	started     bool
@@ -119,6 +126,34 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
+	})
+	return Provides{Comp: runner}, nil
+}
+
+// NewExecutorComponent creates a privateactionrunner component that runs in the
+// on-demand executor mode of the split deployment model: instead of polling OPMS,
+// it serves the local control<->executor gRPC service (dispatched to by par-control).
+// It shares identity/enrollment/config resolution with the single-process runner.
+func NewExecutorComponent(reqs Requires) (Provides, error) {
+	ctx := context.Background()
+	if !isEnabled(reqs.Config) {
+		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrNotEnabled
+	}
+
+	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	if err != nil {
+		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
+	}
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	if err != nil {
+		return Provides{}, err
+	}
+	runner.ownsMetricsClient = true
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: runner.StartExecutor,
+		OnStop:  runner.StopExecutor,
 	})
 	return Provides{Comp: runner}, nil
 }
@@ -206,6 +241,112 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 		close(errChan)
 	}()
 	return errChan
+}
+
+// StartExecutor starts the on-demand executor gRPC server instead of the OPMS
+// polling loop (split deployment model). It is idempotent via startOnce.
+func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
+	var err error
+	p.started = true
+	p.startOnce.Do(func() {
+		defer close(p.startChan)
+		err = p.startExecutor(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
+	// Keep the parent context's deadline for the startup phase but allow Stop() to
+	// cancel it; cancelling it also triggers the gRPC server's graceful stop.
+	ctx, p.cancelStart = context.WithCancel(ctx)
+	defer p.logger.Flush()
+
+	cfg, err := p.getRunnerConfig(ctx)
+	if err != nil {
+		p.logger.Errorf("Private action runner executor failed to start: %v", err)
+		return err
+	}
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
+
+	p.logger.Info("Private action runner executor starting")
+	p.logger.Info("==> Version : " + parversion.RunnerVersion)
+	p.logger.Info("==> URN : " + cfg.Urn)
+
+	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	p.encryptionStore = encryptioncontext.NewStore()
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore)
+
+	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+
+	go p.encryptionStore.Start()
+	keysManager.Start(ctx)
+	// Gate dispatch on signing keys being ready (the control plane polls Health).
+	go func() {
+		keysManager.WaitForReady()
+		p.executorServer.SetReady(true)
+		p.logger.Info("Private action runner executor ready to accept actions")
+	}()
+
+	lis, err := executor.Listen(executor.DefaultSocketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on executor socket %q: %w", executor.DefaultSocketPath, err)
+	}
+	p.logger.Info("Private action runner executor listening on " + executor.DefaultSocketPath)
+
+	p.executorDone = make(chan struct{})
+	go func() {
+		defer close(p.executorDone)
+		if serveErr := executor.Serve(ctx, lis, p.executorServer); serveErr != nil {
+			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
+		}
+	}()
+	return nil
+}
+
+// StopExecutor gracefully stops the executor gRPC server and releases resources.
+func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
+	if !p.started {
+		return nil // Never started, nothing to stop
+	}
+
+	// Cancel the serve context (graceful gRPC stop) and wait for startup to settle.
+	p.cancelStart()
+	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
+	defer cancelWaitCtx()
+	if err := p.waitForStartup(waitCtx); err != nil {
+		p.logger.Warn("PAR executor startup did not complete in time, forcing cleanup")
+	}
+
+	if p.executorDone != nil {
+		select {
+		case <-p.executorDone:
+			p.logger.Info("Private action runner executor stopped gracefully")
+		case <-ctx.Done():
+			p.logger.Warn("Private action runner executor did not stop in time")
+		}
+	}
+
+	var stopErr error
+	if p.encryptionStore != nil {
+		p.encryptionStore.Stop()
+	}
+	if p.ownsMetricsClient && p.metricsClient != nil {
+		if err := p.metricsClient.Flush(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
+		}
+		if err := p.metricsClient.Close(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to close metrics client: %w", err))
+		}
+	}
+	return stopErr
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {

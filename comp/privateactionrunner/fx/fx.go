@@ -24,3 +24,17 @@ func Module() fxutil.Module {
 		fx.Invoke(func(_ privateactionrunner.Component) {}),
 	)
 }
+
+// ExecutorModule defines the fx options for the on-demand executor mode of the
+// split deployment model. It serves the local control<->executor gRPC service
+// instead of polling OPMS.
+func ExecutorModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			privateactionrunnerimpl.NewExecutorComponent,
+		),
+		fxutil.ProvideOptional[privateactionrunner.Component](),
+		// Force instantiation since no other component depends on privateactionrunner
+		fx.Invoke(func(_ privateactionrunner.Component) {}),
+	)
+}

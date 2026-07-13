@@ -28,6 +28,8 @@ go_library(
         "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/runners",
