@@ -93,8 +93,9 @@ type KubeASConfig struct {
 	ResyncPeriodEvents        int    `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents            bool   `yaml:"unbundle_events"`
 	BundleUnspecifiedEvents   bool   `yaml:"bundle_unspecified_events"`
-	EventCollectionMode       string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
-	EventCollectionBufferSize int    `yaml:"event_collection_buffer_size"`
+	EventCollectionMode            string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
+	EventCollectionBufferSize      int    `yaml:"event_collection_buffer_size"`
+	EventCollectionUnboundedBuffer bool   `yaml:"event_collection_unbounded_buffer"` // no dropped events, unbounded memory growth
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -214,6 +215,9 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 
 	if k.instance.EventCollectionBufferSize < 1 {
 		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
+	}
+	if k.instance.EventCollectionUnboundedBuffer {
+		log.Warn("event_collection_unbounded_buffer is enabled: event buffer memory is now unbounded")
 	}
 
 	hostnameDetected, _ := hostname.Get(context.TODO())
@@ -360,7 +364,7 @@ func (k *KubeASCheck) startEventCollection() error {
 		k.mu.Unlock()
 		return nil
 	}
-	ec := k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
+	ec := k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize, k.instance.EventCollectionUnboundedBuffer)
 	if ec == nil {
 		k.mu.Unlock()
 		return errors.New("could not create EventCollector: invalid buffer size")
