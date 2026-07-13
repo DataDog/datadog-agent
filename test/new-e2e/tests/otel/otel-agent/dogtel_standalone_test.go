@@ -182,6 +182,13 @@ func (s *dogtelStandaloneTestSuite) TestDogtelHosts() {
 // helm.NewKubernetesAgent (see components/datadog/agent/helm/kubernetes_agent.go).
 const coreAgentPodLabel = "dda-linux-datadog"
 
+// coreAgentNamespace is a namespace distinct from the standalone otel-agent's
+// "datadog" namespace. Both otelstandalone.K8sAppDefinition and the Helm agent
+// installation create an image-pull secret named "registry-credentials-<namespace>"
+// whenever a private registry is configured (true in CI); reusing the same
+// namespace for both would make them collide on the same Pulumi resource.
+const coreAgentNamespace = "datadog-core-agent"
+
 // dogtelCoexistTestSuite verifies that a standalone otel-agent (DD_OTEL_STANDALONE=true,
 // dogtelextension enabled) and a separate, Helm-deployed core Datadog Agent can run
 // side by side in the same cluster/namespace without conflicting: no IPC/auth-token
@@ -206,7 +213,7 @@ func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kuber
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 			provlocal.WithAgentOptions(
-				kubernetesagentparams.WithNamespace("datadog"),
+				kubernetesagentparams.WithNamespace(coreAgentNamespace),
 			),
 		)
 	}
@@ -214,7 +221,7 @@ func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kuber
 		provkindvm.WithRunOptions(
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
-				kubernetesagentparams.WithNamespace("datadog"),
+				kubernetesagentparams.WithNamespace(coreAgentNamespace),
 			),
 		),
 	)
@@ -226,7 +233,12 @@ func TestDogtelStandaloneCoexistWithCoreAgent(t *testing.T) {
 	e2e.Run(t, &dogtelCoexistTestSuite{},
 		e2e.WithProvisioner(dogtelCoexistProvisioner()),
 		e2e.WithCoverageRequired(map[string]bool{
-			"agent":      true,
+			// env.Agent resolves to the standalone otel-agent (provisioners export it
+			// after the Helm agent), so requiring "agent" coverage would exec the
+			// core agent's coverage command inside a pod that only has an
+			// otel-agent container. The Helm core agent's own coverage is collected
+			// by whichever suite owns env.Agent as the Helm agent (not this one).
+			"agent":      false,
 			"otel-agent": true,
 		}),
 	)
@@ -249,10 +261,10 @@ func (s *dogtelCoexistTestSuite) SetupSuite() {
 // core Agent pod reach Running with zero restarts, i.e. neither crash-loops when
 // co-located.
 func (s *dogtelCoexistTestSuite) TestBothAgentsRunning() {
-	otelAgentPod := getPodByAppLabel(s, s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
+	otelAgentPod := getPodByAppLabel(s, "datadog", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	assertPodRunningNoRestarts(s, otelAgentPod, "otel-agent")
 
-	coreAgentPod := getPodByAppLabel(s, coreAgentPodLabel)
+	coreAgentPod := getPodByAppLabel(s, coreAgentNamespace, coreAgentPodLabel)
 	assertPodRunningNoRestarts(s, coreAgentPod, "agent")
 }
 
@@ -274,8 +286,8 @@ func (s *dogtelCoexistTestSuite) TestCoreAgentMetricsReachFakeintake() {
 	}, 5*time.Minute, 10*time.Second, "core agent health metric not received")
 }
 
-func getPodByAppLabel(s *dogtelCoexistTestSuite, appLabel string) corev1.Pod {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 	})
 	require.NoError(s.T(), err)
