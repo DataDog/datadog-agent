@@ -236,12 +236,20 @@ impl AgentCheck {
         )
     }
 
-    /// Send Event Platform Event
+    /// Send Event Platform Event (UTF-8 payload).
     pub fn event_platform_event(&self, raw_event: &str, event_track_type: &str) -> Result<()> {
-        self.aggregator.submit_event_platform_event(
+        self.event_platform_event_bytes(raw_event.as_bytes(), event_track_type)
+    }
+
+    /// Send Event Platform Event (arbitrary bytes, e.g. protobuf).
+    pub fn event_platform_event_bytes(
+        &self,
+        raw_event: &[u8],
+        event_track_type: &str,
+    ) -> Result<()> {
+        self.aggregator.submit_event_platform_event_bytes(
             &self.check_id,
             raw_event,
-            raw_event.len() as c_int,
             event_track_type,
         )
     }
