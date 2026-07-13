@@ -27,7 +27,6 @@ with one declarative, namespace-scoped resource per workload that:
 Design references (read before non-trivial changes):
 - RFC: [DatadogInstrumentation CRD for Workload-Scoped Product Enablement](https://datadoghq.atlassian.net/wiki/spaces/CONTP/pages/6564659495)
 - [Autodiscovery Handler for DatadogInstrumentation](https://datadoghq.atlassian.net/wiki/spaces/CONTP/pages/6579552410)
-- Epic: [CONTP-1453](https://datadoghq.atlassian.net/browse/CONTP-1453)
 
 ## The CRD
 
