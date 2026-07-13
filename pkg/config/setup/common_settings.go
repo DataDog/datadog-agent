@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -2016,7 +2015,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", "${log_path}/streamlogs_info/streamlogs.log")
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
-	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write",
+		GetPlatformDefault(map[string]interface{}{
+			"fargate": false,
+			"other":   true,
+		}),
+	)
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
