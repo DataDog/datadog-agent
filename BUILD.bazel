@@ -52,7 +52,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
 # gazelle:exclude cmd/cluster-agent/api/*.go
-# gazelle:exclude cmd/cluster-agent/api/agent
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
