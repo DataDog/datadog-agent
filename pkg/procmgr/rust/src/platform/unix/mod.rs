@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod runtime_user;
 mod spawn;
 
+pub(crate) use runtime_user::runtime_user_for_pid;
 pub(crate) use spawn::spawn_child_handle;
 
 use nix::sys::signal::{self, Signal};
@@ -12,6 +14,11 @@ use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
+
+/// Unix managed children run as the dd-procmgr supervisor account (`dd-agent`).
+pub(crate) fn spawn_user_display() -> &'static str {
+    "dd-agent"
+}
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
