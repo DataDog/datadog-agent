@@ -422,7 +422,7 @@ var clockThrottleReasons = []clockThrottleReason{
 	{name: "none", bit: nvml.ClocksEventReasonNone},
 }
 
-const notThrottledReason = "not-throttled"
+const notThrottledReason = "not_throttled"
 const throttleReasonTag = "throttle_reason"
 
 func clockThrottleReasonMetrics(reasons uint64) []Metric {
