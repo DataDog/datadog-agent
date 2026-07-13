@@ -37,9 +37,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
@@ -73,7 +75,8 @@ var (
 
 type usmHTTP2Suite struct {
 	suite.Suite
-	isTLS bool
+	isTLS             bool
+	useDirectConsumer bool
 }
 
 func (s *usmHTTP2Suite) getCfg() *config.Config {
@@ -81,30 +84,50 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
+	cfg.HTTP2UseDirectConsumer = s.useDirectConsumer
 	return cfg
 }
 
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		for _, tc := range []struct {
-			name  string
-			isTLS bool
+		for _, consumer := range []struct {
+			name              string
+			useDirectConsumer bool
 		}{
 			{
-				name:  "without TLS",
-				isTLS: false,
+				name:              "batch consumer",
+				useDirectConsumer: false,
 			},
 			{
-				name:  "with TLS",
-				isTLS: true,
+				name:              "direct consumer",
+				useDirectConsumer: true,
 			},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-					t.Skip("GoTLS not supported for this setup")
+			t.Run(consumer.name, func(t *testing.T) {
+				if consumer.useDirectConsumer && !events.SupportsDirectConsumer() {
+					t.Skip("Direct consumer requires kernel >= 5.8.0")
 				}
-				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
+				for _, tc := range []struct {
+					name  string
+					isTLS bool
+				}{
+					{
+						name:  "without TLS",
+						isTLS: false,
+					},
+					{
+						name:  "with TLS",
+						isTLS: true,
+					},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+							t.Skip("GoTLS not supported for this setup")
+						}
+						suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS, useDirectConsumer: consumer.useDirectConsumer})
+					})
+				}
 			})
 		}
 	})
@@ -141,6 +164,13 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
+	// Capture the terminated_http2 event counter so we can assert the terminated
+	// connections stream actually delivered events to userspace (via the batch or
+	// direct consumer, whichever the matrix selected). NewCounter returns the
+	// existing global counter with this name if it already exists.
+	terminatedEventsCounter := telemetry.NewCounter("usm.terminated_http2.events_captured", telemetry.OptStatsd)
+	terminatedEventsBefore := terminatedEventsCounter.Get()
+
 	clients := getHTTP2UnixClientArray(2, unixPath)
 	for i := 0; i < usmhttp2.HTTP2TerminatedBatchSize; i++ {
 		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
@@ -172,6 +202,42 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	require.Eventually(t, func() bool {
 		return utils.CountMapEntries(t, dynamicTableMap) == 0
 	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
+
+	// The dynamic table only drains once the terminated_http2 stream delivers the
+	// terminated connection tuples to userspace, so the counter must have advanced.
+	// This guards against a false positive where the map is empty simply because no
+	// terminated events were ever received.
+	assert.Greater(t, terminatedEventsCounter.Get(), terminatedEventsBefore, "terminated_http2 stream delivered no events")
+}
+
+// TestHTTP2NetifProbeMatchesConsumerMode verifies that the netif_receive_skb flush
+// tracepoint is attached only when the batch consumer is used. In direct consumer
+// mode both http2 event streams (the main stream and the terminated connections
+// stream) emit events directly, so the flush probe is excluded. This proves the
+// configured consumer mode is genuinely in effect rather than silently falling back
+// to the batch consumer, which the stats-based tests cannot distinguish.
+func (s *usmHTTP2Suite) TestHTTP2NetifProbeMatchesConsumerMode() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	// The http2 netif flush program (see flush.h). It is unexported in the http2
+	// package, so we match on its eBPF function name, as other tests do with map names.
+	const netifProbeFuncName = "tracepoint__net__netif_receive_skb_http2"
+	netifRunning := false
+	for _, p := range monitor.ebpfProgram.Manager.Manager.GetProbes() {
+		if p.EBPFFuncName == netifProbeFuncName {
+			netifRunning = p.IsRunning()
+			break
+		}
+	}
+
+	if s.useDirectConsumer {
+		assert.False(t, netifRunning, "netif flush probe must not be running when using the direct consumer")
+	} else {
+		assert.True(t, netifRunning, "netif flush probe must be running when using the batch consumer")
+	}
 }
 
 func (s *usmHTTP2Suite) TestSimpleHTTP2() {
