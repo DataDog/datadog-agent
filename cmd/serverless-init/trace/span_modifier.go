@@ -6,9 +6,12 @@
 package trace
 
 import (
+	"encoding/binary"
+	"fmt"
 	"sync"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,5 +76,57 @@ func (m *CloudRunJobsSpanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	// Only reparent root spans (ParentID == 0) that match adopted trace
 	if span.ParentID == 0 {
 		span.ParentID = m.jobSpan.SpanID
+	}
+}
+
+// ModifySpanV1 is the V1 (idx) equivalent of ModifySpan.
+func (m *CloudRunJobsSpanModifier) ModifySpanV1(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
+	// Skip job span itself
+	if span.Name() == "gcp.run.job.task" {
+		return
+	}
+	if chunk == nil {
+		return
+	}
+
+	traceIDLow := chunk.LegacyTraceID()
+	traceIDHigh := binary.BigEndian.Uint64(chunk.TraceID[:8])
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.jobSpan == nil {
+		return
+	}
+
+	// Adopt TraceID from first span seen (regardless of whether it's a root span)
+	if !m.adopted {
+		m.adopted = true
+		m.jobSpan.TraceID = traceIDLow
+		if traceIDHigh != 0 {
+			traceutil.SetTraceIDHigh(m.jobSpan, fmt.Sprintf("%016x", traceIDHigh))
+		}
+	}
+
+	// Check full 128-bit trace ID match (low 64 bits + high 64 bits)
+	if m.jobSpan.TraceID != traceIDLow {
+		log.Debugf("Cloud Run Job: span has different TraceID (span=%s)", span.Name())
+		return
+	}
+	if jobHigh, ok := traceutil.GetTraceIDHigh(m.jobSpan); ok && traceIDHigh != 0 {
+		if jobHigh != fmt.Sprintf("%016x", traceIDHigh) {
+			log.Debugf("Cloud Run Job: span has different TraceID (span=%s)", span.Name())
+			return
+		}
+	}
+
+	// Upgrade job span to 128-bit trace ID if we see high bits we didn't have before.
+	if !traceutil.HasTraceIDHigh(m.jobSpan) && traceIDHigh != 0 {
+		traceutil.SetTraceIDHigh(m.jobSpan, fmt.Sprintf("%016x", traceIDHigh))
+	}
+
+	// Only reparent root spans (ParentID == 0) that match adopted trace
+	if span.ParentID() == 0 {
+		span.SetParentID(m.jobSpan.SpanID)
 	}
 }

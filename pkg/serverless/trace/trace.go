@@ -218,9 +218,14 @@ func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
 	t.ta.PrioritySampler.UpdateTargetTPS(tps)
 }
 
-// SetSpanModifier sets the span modifier to the trace agent.
+// SetSpanModifier sets the span modifier to the trace agent. If sm also
+// implements agent.SpanModifierV1, it is wired in as the V1 (idx) modifier
+// as well, so overrides apply to both the legacy and V1 processing paths.
 func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifier) {
 	t.ta.SpanModifier = sm
+	if smV1, ok := sm.(agent.SpanModifierV1); ok {
+		t.ta.SpanModifierV1 = smV1
+	}
 }
 
 // GetSpanModifier returns the span modifier from the trace agent.
