@@ -4,4 +4,3 @@ checks:
     include_in_build: true
     platforms:
       - linux
-      - darwin

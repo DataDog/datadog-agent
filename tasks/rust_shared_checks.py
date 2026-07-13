@@ -3,7 +3,7 @@ Invoke tasks for building Rust-based shared-library checks.
 
 These checks compile to `cdylib` and must be staged into `checks.d` with the
 expected loader naming convention:
-  libdatadog-agent-<check_id>.(so|dylib)
+  libdatadog-agent-<check_id>.so
 """
 
 from __future__ import annotations
@@ -41,15 +41,7 @@ def _repo_root(ctx) -> Path:
 def _current_platform() -> str:
     if sys.platform.startswith("linux"):
         return "linux"
-    if sys.platform == "darwin":
-        return "darwin"
-    return "windows"
-
-
-def _lib_extension(platform: str) -> str:
-    if platform == "darwin":
-        return "dylib"
-    return "so"
+    return "unsupported"
 
 
 def _load_manifest(manifest_path: Path) -> list[CheckSpec]:
@@ -113,8 +105,8 @@ def build(ctx, checks_d_dir, manifest_path=None):
     manifest = Path(manifest_path) if manifest_path else default_manifest_path
 
     platform = _current_platform()
-    if platform == "windows":
-        raise Exit("Refusing to build Rust shared-library checks on windows")
+    if platform != "linux":
+        raise Exit("Refusing to build Rust shared-library checks outside linux")
 
     specs = _load_manifest(manifest)
     selected, skipped = _select_checks(specs, platform)
@@ -128,12 +120,10 @@ def build(ctx, checks_d_dir, manifest_path=None):
 
     checks_d_path.mkdir(parents=True, exist_ok=True)
 
-    ext = _lib_extension(platform)
-
     # Drop stale libs for manifest checks so deselected ones are not shipped.
     managed_ids = {s.id for s in specs}
     for check_id in managed_ids:
-        candidate = checks_d_path / f"libdatadog-agent-{check_id}.{ext}"
+        candidate = checks_d_path / f"libdatadog-agent-{check_id}.so"
         if candidate.exists():
             candidate.unlink()
 
@@ -163,11 +153,11 @@ def build(ctx, checks_d_dir, manifest_path=None):
     # Stage built libs with loader naming and owner-only perms.
     target_mode = 0o500
     for s in selected:
-        built_lib = rustchecks_dir / "target" / "release" / f"lib{s.crate}.{ext}"
+        built_lib = rustchecks_dir / "target" / "release" / f"lib{s.crate}.so"
         if not built_lib.exists():
             raise Exit(f"Expected built library not found: {built_lib}")
 
-        staged_lib = checks_d_path / f"libdatadog-agent-{s.id}.{ext}"
+        staged_lib = checks_d_path / f"libdatadog-agent-{s.id}.so"
         shutil.copy2(built_lib, staged_lib)
         os.chmod(staged_lib, target_mode)
 

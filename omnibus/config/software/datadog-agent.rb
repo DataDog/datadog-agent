@@ -104,8 +104,8 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # Stage Rust shared-library checks (Linux + macOS only).
-  unless windows_target?
+  # Stage Rust shared-library checks (Linux only).
+  if linux_target?
     command "dda inv -- -e rust-shared-checks.build --checks-d-dir=\"#{conf_dir}/checks.d\"",
       env: env,
       :live_stream => Omnibus.logger.live_stream(:info)

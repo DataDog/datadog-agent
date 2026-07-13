@@ -68,12 +68,6 @@ build do
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
-            if Dir.exist?("#{install_dir}/etc/datadog-agent/checks.d")
-              # Rust checks are built under install_dir; Linux packages ship config from output_config_dir.
-              move "#{install_dir}/etc/datadog-agent/checks.d", "#{output_config_dir}/etc/datadog-agent", :force => true
-              # Owner-only perms on shipped shared-library checks (see agent-dmg/postinst).
-              command "find #{output_config_dir}/etc/datadog-agent/checks.d -maxdepth 1 -type f -name 'libdatadog-agent-*.so' -exec chmod 0500 {} \\; 2>/dev/null || true"
-            end
             move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             unless heroku_target?
               if sysprobe_enabled?
@@ -99,6 +93,14 @@ build do
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
+
+            # Move the built-in shared-library checks (built under install_dir) into the
+            # package's checks.d and set owner-only permissions on them.
+            Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
+              dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
+              move lib, dest, :force => true
+              command "chmod 0500 #{dest}"
+            end
 
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"
