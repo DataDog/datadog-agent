@@ -878,6 +878,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}
