@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod account_name;
 mod agent_credentials;
 mod agent_service_sid;
 mod local_account;
