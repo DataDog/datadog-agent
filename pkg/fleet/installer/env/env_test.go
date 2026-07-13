@@ -83,6 +83,9 @@ func TestFromEnv(t *testing.T) {
 				envAppKey:                                     "app_key_123",
 				envPAREnabled:                                 "true",
 				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				envAgentMajorVersion:                          "7",
+				envAgentMinorVersion:                          "79.0~rc.2",
+				envAgentDistChannel:                           "beta",
 			},
 			expected: &Env{
 				APIKey:                "123456",
@@ -138,6 +141,9 @@ func TestFromEnv(t *testing.T) {
 				AppKey:              "app_key_123",
 				PAREnabled:          true,
 				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				AgentMajorVersion:   "7",
+				AgentMinorVersion:   "79.0~rc.2",
+				AgentDistChannel:    "beta",
 			},
 		},
 		{
