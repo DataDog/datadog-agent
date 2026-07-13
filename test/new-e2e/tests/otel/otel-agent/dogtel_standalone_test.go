@@ -191,9 +191,13 @@ const coreAgentNamespace = "datadog-core-agent"
 
 // dogtelCoexistTestSuite verifies that a standalone otel-agent (DD_OTEL_STANDALONE=true,
 // dogtelextension enabled) and a separate, Helm-deployed core Datadog Agent can run
-// side by side in the same cluster/namespace without conflicting: no IPC/auth-token
-// errors, no crash loops, the dogtel tagger gRPC server starts cleanly, and the core
-// Agent's own telemetry independently reaches fakeintake.
+// side by side in the same cluster without conflicting: no IPC/auth-token errors, no
+// crash loops, the dogtel tagger gRPC server starts cleanly, and the core Agent's own
+// telemetry independently reaches fakeintake. The two agents are deployed into distinct
+// namespaces (see coreAgentNamespace) to avoid each side's image-pull-secret creation
+// colliding on the same Pulumi resource name; this test therefore covers cluster-level
+// coexistence (shared nodes, shared fakeintake, no cross-agent IPC contention) rather
+// than namespace-scoped resource collisions from deploying both into "datadog".
 //
 // The core Agent's otelCollector/otel-agent sidecar is intentionally left disabled:
 // enabling otlp_config on the core Agent at the same time as a standalone otel-agent
