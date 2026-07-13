@@ -43,10 +43,14 @@ type ProvisionerParams struct {
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
 	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
-	// instead of the Datadog Helm chart. See StandaloneAgentDeployFunc.
+	// in addition to (or instead of) the Datadog Helm chart. See StandaloneAgentDeployFunc.
 	standaloneAgentFunc StandaloneAgentDeployFunc
-	workerNodes         []kubeComp.KindWorkerNode
-	imagesToLoad        []string
+	// agentOptionsSet is true once WithAgentOptions or WithoutAgent has been called
+	// explicitly. It lets KindRunFunc distinguish "caller wants the Helm agent deployed
+	// alongside a standalone agent" from "agentOptions is just its non-nil zero value".
+	agentOptionsSet bool
+	workerNodes     []kubeComp.KindWorkerNode
+	imagesToLoad    []string
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -84,6 +88,7 @@ func WithName(name string) ProvisionerOption {
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = opts
+		params.agentOptionsSet = true
 		return nil
 	}
 }
@@ -108,6 +113,7 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
+		params.agentOptionsSet = true
 		return nil
 	}
 }
@@ -137,8 +143,10 @@ func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFun
 }
 
 // WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
-// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources
-// instead of the Datadog Helm chart.
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources.
+// By default this replaces the Datadog Helm chart; combine with an explicit
+// WithAgentOptions call to deploy both side by side (e.g. to test that a standalone
+// otel-agent doesn't conflict with a co-located core Agent).
 func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.standaloneAgentFunc = fn
@@ -273,15 +281,15 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	if params.standaloneAgentFunc != nil {
-		standaloneAgent, err := params.standaloneAgentFunc(&localEnv, kubeProvider, fakeIntake)
-		if err != nil {
-			return err
-		}
-		if err := standaloneAgent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
-			return err
-		}
-	} else if params.agentOptions != nil {
+	// deployHelmAgent decides whether the Datadog Helm chart is installed. It's always
+	// installed when the caller didn't request a standalone agent (preserving the
+	// pre-existing default). When a standalone agent is requested, the Helm chart is
+	// only installed on top of it if the caller explicitly opted in via WithAgentOptions
+	// (or WithoutAgent) - otherwise standaloneAgentFunc alone continues to mean
+	// "standalone agent only", matching prior behavior.
+	deployHelmAgent := params.agentOptions != nil && (params.standaloneAgentFunc == nil || params.agentOptionsSet)
+
+	if deployHelmAgent {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:
@@ -310,8 +318,21 @@ agents:
 				return err
 			}
 		}
-	} else {
+	} else if params.standaloneAgentFunc == nil {
 		env.Agent = nil
+	}
+
+	// The standalone agent is deployed after (and, when both are present, exported
+	// after) the Helm agent so env.Agent resolves to the standalone agent - mirroring
+	// scenarios/aws/kindvm/run.go's ordering for the AWS KinD scenario.
+	if params.standaloneAgentFunc != nil {
+		standaloneAgent, err := params.standaloneAgentFunc(&localEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneAgent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {
