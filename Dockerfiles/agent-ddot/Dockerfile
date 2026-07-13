@@ -15,5 +15,7 @@ RUN chmod 755 -R /opt/entrypoints \
   && chown dd-agent:root /etc/datadog-agent/otel-config.yaml \
   && rm -rf /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && find /etc/datadog-agent/checks.d -maxdepth 1 -type f -exec chmod 0500 {} \; 2>/dev/null || true
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run
+
+# Set owner-only (0500) perms on built-in Rust shared-library checks.
+RUN for f in /etc/datadog-agent/checks.d/libdatadog-agent-*.so; do [ -f "$f" ] && chmod 0500 "$f"; done

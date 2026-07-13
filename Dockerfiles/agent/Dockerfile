@@ -203,13 +203,15 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && find /etc/datadog-agent/checks.d -maxdepth 1 -type f -exec chmod 0500 {} \; 2>/dev/null || true \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   # Keep the PAR config read-only, but group-readable so init containers can
   # copy it on OpenShift where containers run with a random UID in the root group.
   && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
+
+# Set owner-only (0500) perms on built-in Rust shared-library checks.
+RUN for f in /etc/datadog-agent/checks.d/libdatadog-agent-*.so; do [ -f "$f" ] && chmod 0500 "$f"; done
 
 # Check that the UID of dd-agent is still 100.
 #
