@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scraper",
+    srcs = [
+        "config.go",
+        "filter.go",
+        "histogram.go",
+        "label_aggregator.go",
+        "labels.go",
+        "scraper.go",
+        "transform.go",
+        "transformers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/openmetrics/scraper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/prometheus",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+go_test(
+    name = "scraper_test",
+    srcs = [
+        "config_test.go",
+        "filter_test.go",
+        "labels_test.go",
+        "scraper_test.go",
+        "transformers_test.go",
+    ],
+    embed = [":scraper"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/collector/check/stats",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/serializer/types",
+        "//pkg/util/prometheus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
