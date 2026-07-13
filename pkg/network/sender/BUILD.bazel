@@ -162,7 +162,6 @@ go_library(
             "//pkg/version",
             "@com_github_datadog_agent_payload_v5//process",
             "@com_github_datadog_zstd//:zstd",
-            "@com_github_shirou_gopsutil_v4//process",
             "@com_github_twmb_murmur3//:murmur3",
             "@org_go4_intern//:intern",
         ],
