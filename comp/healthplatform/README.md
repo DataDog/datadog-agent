@@ -8,7 +8,7 @@ Every health issue has three identity fields. Follow these rules when adding a n
 
 - **Format**: kebab-case — lowercase letters, digits, and hyphens only
 - **Scope**: unique per issue *instance* — used as the store map key
-- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`)
+- **Variadic**: yes — callers may append a suffix to distinguish instances of the same type (e.g. `"check-execution-failure:nginx"`), or a hashed suffix when the distinguishing value isn't human-readable, as `invalidconfig` does with `"invalid-config:" + fnv64a(hostname + configPath)`. Prefer a 64-bit (or wider) digest over 32-bit for this — at 32 bits, fleets of ~10k+ distinct instances have a non-negligible birthday-collision chance, which can silently re-collapse the very instances the suffix exists to distinguish.
 - **Examples**: `"invalid-config"`, `"rofs-permissions"`, `"check-execution-failure"`
 
 ### `issue_name` (`IssueName`)
@@ -54,7 +54,7 @@ On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store 
 | Package | `id` | `issue_name` | `title` |
 |---|---|---|---|
 | `admisconfig` | set by caller | `Autodiscovery Misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has Schema Violations"` |
+| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `"Agent cannot write to: <directories>"` |
 | `checkfailure` | `check-execution-failure` | `Check Execution Failure` | `"Check '<checkName>' Failed"` |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `"Admission Controller Unreachable"` |

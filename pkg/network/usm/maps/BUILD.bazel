@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "maps",
+    srcs = [
+        "detector.go",
+        "pid_validator.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/maps",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/usm",
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+    ],
+)
+
+go_test(
+    name = "maps_test",
+    srcs = [
+        "detector_test.go",
+        "pid_validator_test.go",
+    ],
+    embed = [":maps"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//require",
+    ],
+)

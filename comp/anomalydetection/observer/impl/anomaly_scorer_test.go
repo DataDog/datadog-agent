@@ -172,8 +172,8 @@ func TestWindowExpiry(t *testing.T) {
 
 	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
 	// Series fires once at t=1000; last seen = 1000.
-	// Window at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
-	// Window at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
+	// WindowSecs at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
+	// WindowSecs at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
 	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
 	s.Advance(1014)
 
@@ -477,10 +477,10 @@ func (l *collectingListener) OnSeverityTransition(e severityeventsdef.SeverityEv
 	l.events = append(l.events, e)
 }
 
-func mustSubscribeSeverityEvents(t *testing.T, s StandaloneAnomalyScorer, cfg severityeventsdef.SeverityEventsConfiguration) severityeventsdef.SeverityEventsSubscription {
+func mustSubscribeSeverityEvents(t *testing.T, s StandaloneAnomalyScorer, cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) severityeventsdef.SeverityEventsSubscription {
 	t.Helper()
 
-	sub, err := s.SubscribeSeverityEvents(cfg)
+	sub, err := s.SubscribeSeverityEvents(cfg, listener)
 	if err != nil {
 		t.Fatalf("SubscribeSeverityEvents() error = %v", err)
 	}
@@ -497,7 +497,7 @@ func TestSubscribeBasic(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, l)
 
 	// Advance with no anomalies: EWMA=0, stays Low — no event.
 	s.Advance(1000)
@@ -532,9 +532,8 @@ func TestSubscribeCooldown(t *testing.T) {
 
 	l := &collectingListener{}
 	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
-		Listener:     l,
 		CooldownSecs: 60, // 60s cooldown on de-escalations
-	})
+	}, l)
 
 	// Warm-up: seed state at Low (EWMA=0, first advance never fires an event).
 	s.Advance(1000)
@@ -544,7 +543,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s.Advance(1001) // EWMA≈0.632 → High
 
 	// Advance with no anomalies: EWMA decays near 0 quickly (alpha=0.99).
-	// Cooldown=60 should block de-escalation for 60 seconds after the escalation.
+	// CooldownSecs=60 should block de-escalation for 60 seconds after the escalation.
 	s.Advance(1002) // EWMA=0 → raw Low, but cooldown blocks it
 
 	escalations, deescalations := 0, 0
@@ -586,11 +585,10 @@ func TestSubscribeFilter(t *testing.T) {
 	// Only receive escalations.
 	l := &collectingListener{}
 	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
-		Listener: l,
 		Filter: severityeventsdef.SeverityEventFilter{
 			Direction: severityeventsdef.SeverityEventEscalation,
 		},
-	})
+	}, l)
 
 	// Warm-up: seed state at Low.
 	s.Advance(1000)
@@ -608,14 +606,6 @@ func TestSubscribeFilter(t *testing.T) {
 	}
 }
 
-// TestSubscribeNilListenerReturnsError verifies that nil listeners are rejected.
-func TestSubscribeNilListenerReturnsError(t *testing.T) {
-	sub, err := NewAnomalyScorer(DefaultAnomalyScorerConfig()).SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{})
-	if err != severityeventsdef.ErrNilListener {
-		t.Fatalf("expected ErrNilListener, got subscription=%v err=%v", sub, err)
-	}
-}
-
 // TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
 func TestUnsubscribe(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
@@ -625,7 +615,7 @@ func TestUnsubscribe(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	sub := mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
+	sub := mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, l)
 
 	// Warm-up: seed at Low.
 	s.Advance(1000)
@@ -651,9 +641,8 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 
 	l := &collectingListener{}
 	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
-		Listener:     l,
 		CooldownSecs: 3600, // long cooldown — would suppress de-escalation if stale
-	})
+	}, l)
 
 	// Drive to High.
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
@@ -689,13 +678,10 @@ func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
 	fast := &collectingListener{}
 	slow := &collectingListener{}
 
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, fast)
 	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
-		Listener: fast,
-	})
-	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
-		Listener:     slow,
 		CooldownSecs: 60,
-	})
+	}, slow)
 
 	s.Advance(1000)
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))

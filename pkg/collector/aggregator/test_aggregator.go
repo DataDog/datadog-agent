@@ -106,6 +106,68 @@ func testSubmitMetric(t *testing.T) {
 	sender.AssertMetric(t, "Historate", "test_historate", 21, "my_hostname", []string{"tag1", "tag2"})
 }
 
+func testSubmitMetricUsesRegisteredSenderManager(t *testing.T) {
+	defaultSender := mocksender.NewMockSender(t, checkid.ID("normalID"))
+	overrideSender := mocksender.NewMockSender(t, checkid.ID("shadowID"))
+	reloadedOverrideSender := mocksender.NewMockSender(t, checkid.ID("shadowID"))
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	release := ScopeInitCheckContext(defaultSender.GetSenderManager(), logReceiver, tagger, filterStore)
+	defer release()
+
+	defaultSender.SetupAcceptAll()
+	overrideSender.SetupAcceptAll()
+	reloadedOverrideSender.SetupAcceptAll()
+	mocksender.SetSender(defaultSender, checkid.ID("shadowID"))
+	unregister, ok := RegisterCheckSenderManager(checkid.ID("shadowID"), overrideSender.GetSenderManager())
+	if !ok {
+		t.Fatal("expected sender manager override registration to succeed")
+	}
+
+	cTags := []*C.char{C.CString("tag1"), nil}
+	SubmitMetric(C.CString("shadowID"),
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
+		C.CString("test_shadow_gauge"),
+		C.double(21),
+		&cTags[0],
+		C.CString("my_hostname"),
+		C.bool(false))
+
+	defaultSender.AssertMetricMissing(t, "Gauge", "test_shadow_gauge")
+	overrideSender.AssertMetric(t, "Gauge", "test_shadow_gauge", 21, "my_hostname", []string{"tag1"})
+
+	reloadedUnregister, ok := RegisterCheckSenderManager(checkid.ID("shadowID"), reloadedOverrideSender.GetSenderManager())
+	if !ok {
+		t.Fatal("expected reloaded sender manager override registration to succeed")
+	}
+	unregister()
+	unregister()
+	SubmitMetric(C.CString("shadowID"),
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
+		C.CString("test_reloaded_gauge"),
+		C.double(22),
+		&cTags[0],
+		C.CString("my_hostname"),
+		C.bool(false))
+
+	defaultSender.AssertMetricMissing(t, "Gauge", "test_reloaded_gauge")
+	overrideSender.AssertMetricMissing(t, "Gauge", "test_reloaded_gauge")
+	reloadedOverrideSender.AssertMetric(t, "Gauge", "test_reloaded_gauge", 22, "my_hostname", []string{"tag1"})
+
+	reloadedUnregister()
+	SubmitMetric(C.CString("shadowID"),
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
+		C.CString("test_default_gauge"),
+		C.double(23),
+		&cTags[0],
+		C.CString("my_hostname"),
+		C.bool(false))
+
+	defaultSender.AssertMetric(t, "Gauge", "test_default_gauge", 23, "my_hostname", []string{"tag1"})
+	reloadedOverrideSender.AssertMetricMissing(t, "Gauge", "test_default_gauge")
+}
+
 func testSubmitMetricEmptyTags(t *testing.T) {
 	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()

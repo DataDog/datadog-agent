@@ -2286,7 +2286,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -3529,6 +3529,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	// since kernel 6.13, override_creds/revert_creds are inlined; we detect credential overrides by
+	// comparing task_struct->cred and task_struct->real_cred in the capabilities hooks
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructCred, "struct task_struct", "cred")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
@@ -3636,6 +3640,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
 		constantfetch.OffsetNameFlowI4StructProto,
 		constantfetch.TypeFieldPair{
@@ -3715,12 +3720,19 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		},
 	)
 
+	// module
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+
+	// cgroup
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
+
 	// fs
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
@@ -3729,8 +3741,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
 }
 
 // HandleActions handles the rule actions

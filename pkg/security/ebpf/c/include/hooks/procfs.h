@@ -183,7 +183,7 @@ int hook_proc_fd_link(ctx_t *ctx) {
     char name[32];
 
     get_dentry_name(d, name, sizeof(name)); // this is the file descriptor number
-    bpf_probe_read(&d_parent, sizeof(d_parent), &d->d_parent);
+    d_parent = get_dentry_parent(d);
     d = d_parent;
 
     get_dentry_name(d, name, sizeof(name)); // this should be 'fd'
@@ -191,7 +191,7 @@ int hook_proc_fd_link(ctx_t *ctx) {
         return 0;
     }
 
-    bpf_probe_read(&d_parent, sizeof(d_parent), &d->d_parent);
+    d_parent = get_dentry_parent(d);
     d = d_parent;
     get_dentry_name(d, name, sizeof(name)); // this should be the pid of the procfs path
     u32 pid = atoi(name);
