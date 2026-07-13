@@ -503,6 +503,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: admisconfig.TemplateIssueName,
+			IssueType: admisconfig.TemplateIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
 			Source:    admisconfig.Source,
 		}

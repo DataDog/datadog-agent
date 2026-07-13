@@ -14,6 +14,7 @@ import (
 
 const (
 	issueName  = IssueName
+	issueType  = IssueType
 	category   = "check-execution"
 	location   = "collector"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
@@ -112,6 +113,7 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) (*healthplatfo
 
 	return &healthplatform.Issue{
 		IssueName:   issueName,
+		IssueType:   issueType,
 		Title:       string(title),
 		Description: string(desc),
 		Category:    category,

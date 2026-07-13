@@ -21,6 +21,9 @@ func init() {
 const (
 	// IssueName is the human-readable issue name for check execution failures.
 	IssueName = "Check Execution Failure"
+	// IssueType is the snake_case type key for check execution failures:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "check_execution_failure"
 	// IssueID is the unique instance id prefix used when reporting check failures (kebab-case).
 	IssueID = "check-execution-failure"
 )

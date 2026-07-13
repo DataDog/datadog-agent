@@ -17,6 +17,9 @@ import (
 const (
 	// IssueName is the human-readable issue name for system-probe configuration-schema violations.
 	IssueName = "Invalid System-Probe Config"
+	// IssueType is the snake_case type key for system-probe configuration-schema
+	// violations: IssueName lowercased with spaces replaced by underscores (hyphens preserved).
+	IssueType = "invalid_system-probe_config"
 	// IssueID is the stable instance identifier / registry key (kebab-case).
 	IssueID = "invalid-system-probe-config"
 )

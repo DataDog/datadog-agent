@@ -28,6 +28,10 @@ const (
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "Read-Only Filesystem Error"
 
+	// IssueType is the snake_case type key for ROFS permission issues:
+	// IssueName lowercased with spaces replaced by underscores (hyphens preserved).
+	IssueType = "read-only_filesystem_error"
+
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "rofs-permissions"
 )

@@ -16,6 +16,9 @@ import (
 const (
 	// IssueName is the human-readable issue name for configuration-schema violations.
 	IssueName = "Invalid Config"
+	// IssueType is the snake_case type key for configuration-schema violations:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "invalid_config"
 	// IssueID is the stable instance identifier / registry key (kebab-case).
 	IssueID = "invalid-config"
 )

@@ -22,6 +22,10 @@ const (
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "Docker File Tailing Disabled"
 
+	// IssueType is the snake_case type key for Docker permission issues:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "docker_file_tailing_disabled"
+
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"
 )

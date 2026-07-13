@@ -353,8 +353,8 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 
 // ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
 // responsible for building the complete proto Issue (template lookup, field
-// population). issue.IssueName is used as the issue-type key for telemetry and
-// persistence.
+// population), including issue.IssueType. issue.IssueName is used as the
+// issue-type key for telemetry and persistence.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")

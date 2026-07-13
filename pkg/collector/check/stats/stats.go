@@ -332,6 +332,7 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: checkfailure.IssueName,
+			IssueType: checkfailure.IssueType,
 			Title:     "Check Execution Failure",
 			Source:    cs.CheckName,
 		}

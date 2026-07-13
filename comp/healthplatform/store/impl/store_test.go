@@ -149,6 +149,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 	err := h.ReportIssue(&healthplatformpayload.Issue{
 		Id:        "check-failure:mysql:abc",
 		IssueName: "check-failure",
+		IssueType: "check_failure",
 		Title:     "Check 'mysql' Failed",
 		Source:    "mysql",
 		Severity:  healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
@@ -164,6 +165,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 	assert.Contains(t, issue.Tags, "env:prod")
 	assert.NotEmpty(t, issue.DetectedAt)
 	assert.NotNil(t, issue.PersistedIssue)
+	assert.Equal(t, "check_failure", issue.IssueType)
 }
 
 func TestReportIssueMinimalProto(t *testing.T) {
@@ -181,6 +183,37 @@ func TestReportIssueMinimalProto(t *testing.T) {
 	assert.Equal(t, "custom:id-1", issue.Id)
 	assert.Equal(t, "my-component", issue.Source)
 	assert.Equal(t, "custom-type", issue.IssueName)
+}
+
+// TestReportIssuePreservesIssueType guards that the store never overwrites or
+// derives IssueType — the caller (module BuildIssue or a direct reporter) owns
+// that value entirely, same as every other proto field.
+func TestReportIssuePreservesIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "id-1",
+		IssueName: "Some Issue Name",
+		IssueType: "custom_caller_chosen_type",
+	}))
+
+	issue := h.GetIssue("id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "custom_caller_chosen_type", issue.IssueType)
+}
+
+// TestReportIssueAllowsEmptyIssueType guards that an unset IssueType is not
+// backfilled by the store — the backend, not the agent, owns any default
+// derivation from IssueName.
+func TestReportIssueAllowsEmptyIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "id-2",
+		IssueName: "Some Issue Name",
+	}))
+
+	issue := h.GetIssue("id-2")
+	require.NotNil(t, issue)
+	assert.Empty(t, issue.IssueType)
 }
 
 func TestReportIssueStateTransition(t *testing.T) {
