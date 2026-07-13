@@ -3,7 +3,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "matching")
 load("@rules_testing//lib:util.bzl", "util")
@@ -58,6 +58,19 @@ def _duplicate_destinations_impl(ctx):
 _duplicate_destinations = rule(
     implementation = _duplicate_destinations_impl,
     attrs = {"dep": attr.label(providers = [PackageFilegroupInfo])},
+)
+
+def _tree_artifact_impl(ctx):
+    tree = ctx.actions.declare_directory("tree_dir")
+    ctx.actions.run_shell(
+        outputs = [tree],
+        command = "mkdir -p $1 && touch $1/file",
+        arguments = [tree.path],
+    )
+    return DefaultInfo(files = depset([tree]))
+
+_tree_artifact = rule(
+    implementation = _tree_artifact_impl,
 )
 
 # ── Test cases ───────────────────────────────────────────────────────────────
@@ -434,6 +447,42 @@ def _test_diamond_no_duplicates(name):
 def _test_diamond_no_duplicates_impl(env, target):
     _outputs_of(env, target).contains_exactly([])
 
+# Test 10: installed_executables treats the dict value as a prefix for both
+# files and TreeArtifacts, so artifacts land under prefix/basename.
+def _test_installed_executables_use_prefix(name):
+    cc_binary(
+        name = name + "_bin",
+        srcs = ["testdata/main.c"],
+    )
+    native.genrule(
+        name = name + "_file",
+        outs = ["installed_executable_file"],
+        cmd = "touch $@",
+    )
+    _tree_artifact(
+        name = name + "_tree",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_bin",
+        installed_executables = {
+            ":" + name + "_file": "bin",
+            ":" + name + "_tree": "share",
+        },
+    )
+    analysis_test(
+        name = name,
+        impl = _test_installed_executables_use_prefix_impl,
+        target = name + "_packaged_exec_files",
+    )
+
+def _test_installed_executables_use_prefix_impl(env, target):
+    dest_src_map = target[PackageFilesInfo].dest_src_map
+    env.expect.that_dict(dest_src_map).keys().contains_exactly([
+        "bin/installed_executable_file",
+        "share/tree_dir",
+    ])
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -449,5 +498,6 @@ def dd_packaging_test_suite(name):
             _test_cc_binary_collected,
             _test_cc_binary_no_cc_shared_library_info,
             _test_diamond_no_duplicates,
+            _test_installed_executables_use_prefix,
         ],
     )

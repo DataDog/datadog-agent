@@ -2,53 +2,42 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
-def rewrite_rpaths_for_files(ctx, inputs, rpath):
-    """Creates actions to apply an rpath rewriter to the inputs.
+_RPATH_REWRITER_TOOLCHAIN = "//bazel/toolchains/rpath_rewriter"
+
+def rewrite_rpaths(ctx, inputs, rpath):
+    """Creates actions to apply an rpath rewriter to files and TreeArtifacts.
+
+    The selected rpath rewriter toolchain provides separate tools for regular
+    files and TreeArtifacts. A `None` tool means rpath rewriting is not
+    applicable for that artifact kind on the target platform; in that case, the
+    original input is returned unchanged and no copy action is registered.
 
     Args:
       ctx: the rule context.
-      inputs: the files to patch.
+      inputs: the files or TreeArtifacts to patch.
       rpath: the rpath to set.
 
     Returns:
-      A list of the generated outputs
+      A list of rewritten outputs, in the same order as inputs. Rewritten
+      artifacts preserve the input basename. On platforms where rewriting is a
+      no-op, some or all entries may be the original inputs.
     """
-    toolchain = ctx.toolchains["//bazel/toolchains/rpath_rewriter"]
-
-    # No-op: just pass the inputs through.
-    if toolchain.rewriter_tool == None:
-        return inputs
+    toolchain = ctx.toolchains[_RPATH_REWRITER_TOOLCHAIN]
 
     outputs = []
     for input in inputs:
-        output = ctx.actions.declare_file("patched/" + input.basename)
-        args = ctx.actions.args()
-        args.add(input)
-        args.add(rpath)
-        args.add(output)
-        ctx.actions.run(
-            inputs = [input],
-            outputs = [output],
-            arguments = [args],
-            executable = toolchain.rewriter_tool,
-            toolchain = "//bazel/toolchains/rpath_rewriter",
-        )
-        outputs.append(output)
+        tool = toolchain.tree_rewriter_tool if input.is_directory else toolchain.rewriter_tool
 
-    return outputs
+        # No-op: just pass this input through.
+        if tool == None:
+            outputs.append(input)
+            continue
 
-def rewrite_rpaths_for_trees(ctx, inputs, rpath):
-    """Creates actions to apply an rpath rewriter to TreeArtifact (directory) inputs.
-    """
-    toolchain = ctx.toolchains["//bazel/toolchains/rpath_rewriter"]
+        if input.is_directory:
+            output = ctx.actions.declare_directory("patched_dirs/" + input.basename)
+        else:
+            output = ctx.actions.declare_file("patched/" + input.basename)
 
-    # No-op: just pass the inputs through.
-    if toolchain.tree_rewriter_tool == None:
-        return inputs
-
-    outputs = []
-    for input in inputs:
-        output = ctx.actions.declare_directory("patched_dirs/" + input.basename)
         args = ctx.actions.args()
         args.add(input.path)
         args.add(rpath)
@@ -57,8 +46,8 @@ def rewrite_rpaths_for_trees(ctx, inputs, rpath):
             inputs = [input],
             outputs = [output],
             arguments = [args],
-            executable = toolchain.tree_rewriter_tool,
-            toolchain = "//bazel/toolchains/rpath_rewriter",
+            executable = tool,
+            toolchain = _RPATH_REWRITER_TOOLCHAIN,
         )
         outputs.append(output)
 
@@ -66,7 +55,7 @@ def rewrite_rpaths_for_trees(ctx, inputs, rpath):
 
 def _rewrite_rpath_impl(ctx):
     rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
-    return DefaultInfo(files = depset(rewrite_rpaths_for_files(ctx, inputs = ctx.files.inputs, rpath = rpath)))
+    return DefaultInfo(files = depset(rewrite_rpaths(ctx, inputs = ctx.files.inputs, rpath = rpath)))
 
 rewrite_rpath = rule(
     implementation = _rewrite_rpath_impl,
@@ -88,5 +77,5 @@ rewrite_rpath = rule(
             default = "@@//:install_dir",
         ),
     },
-    toolchains = ["//bazel/toolchains/rpath_rewriter"],
+    toolchains = [_RPATH_REWRITER_TOOLCHAIN],
 )
