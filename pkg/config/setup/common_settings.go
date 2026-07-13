@@ -1098,6 +1098,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.logs.enabled", true)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
+	// ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+	// (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+	// more efficient than the Agent. Forwarded to ADP over the config stream.
+	config.BindEnvAndSetDefault("data_plane.serializer_zstd_compressor_level", 3)
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
