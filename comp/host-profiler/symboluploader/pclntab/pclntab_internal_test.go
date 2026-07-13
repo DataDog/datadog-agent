@@ -98,3 +98,29 @@ func TestMalformedNumFuncsNoDoS(t *testing.T) {
 		t.Fatalf("expected numFuncs bound error, got: %v", err)
 	}
 }
+
+// TestMalformedNumFuncsMissingSentinel guards the sentinel-entry check: a functab with exactly
+// 2*numFuncs*fieldSize bytes (pairs only, no trailing sentinel pc) must be rejected. The old bound
+// `numFuncs > len(functab)/(2*fieldSize)` accepted such blobs; the correct check requires
+// (2*numFuncs+1) fields.
+func TestMalformedNumFuncsMissingSentinel(t *testing.T) {
+	const hdrSize = 64 // unsafe.Sizeof(pclntabHeader116{})
+	const fieldSize = ptrSize
+	const numFuncs = uint64(4)
+
+	// Build a functab with exactly 2*numFuncs fields (pairs only, sentinel missing).
+	functabSize := int(2 * numFuncs * fieldSize)
+	b := make([]byte, hdrSize+functabSize)
+	binary.NativeEndian.PutUint32(b[0:], magicGo1_16)
+	b[7] = ptrSize
+	binary.NativeEndian.PutUint64(b[8:], numFuncs)
+	// pclnOffset (offset 56) points to hdrSize, so functab starts right after the header.
+	for _, off := range []int{24, 32, 40, 48, 56} {
+		binary.NativeEndian.PutUint64(b[off:], hdrSize)
+	}
+
+	_, err := parseGoPCLnTab(b)
+	if err == nil || !strings.Contains(err.Error(), "exceeds functab capacity") {
+		t.Fatalf("expected sentinel bound error, got: %v", err)
+	}
+}
