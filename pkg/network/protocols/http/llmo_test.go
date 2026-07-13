@@ -216,6 +216,60 @@ func TestParseResponseText(t *testing.T) {
 	assert.Equal(t, "Anthropic answer.", parseResponseText(anthropicResp, providerAnthropic))
 }
 
+func TestParseToolCalls(t *testing.T) {
+	// OpenAI: tool_calls[].function.arguments is a JSON-encoded string.
+	openaiResp := []byte(`{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[` +
+		`{"id":"call_abc","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},` +
+		`"finish_reason":"tool_calls"}]}`)
+	// Anthropic: content[] tool_use block with an input object.
+	anthropicResp := []byte(`{"content":[{"type":"tool_use","id":"toolu_01","name":"get_weather","input":{"city":"Paris"}}],` +
+		`"stop_reason":"tool_use","usage":{"input_tokens":40,"output_tokens":18}}`)
+	// Two OpenAI tool calls in one response.
+	openaiMulti := []byte(`"tool_calls":[` +
+		`{"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}},` +
+		`{"id":"call_2","type":"function","function":{"name":"get_time","arguments":"{\"tz\":\"UTC\"}"}}]`)
+
+	tests := []struct {
+		name     string
+		raw      []byte
+		provider string
+		want     []llmToolCall
+	}{
+		{
+			name:     "openai single tool call (args unescaped)",
+			raw:      openaiResp,
+			provider: providerOpenAI,
+			want:     []llmToolCall{{id: "call_abc", name: "get_weather", arguments: `{"city":"Paris"}`}},
+		},
+		{
+			name:     "openai two tool calls",
+			raw:      openaiMulti,
+			provider: providerOpenAI,
+			want: []llmToolCall{
+				{id: "call_1", name: "get_weather", arguments: `{"city":"Paris"}`},
+				{id: "call_2", name: "get_time", arguments: `{"tz":"UTC"}`},
+			},
+		},
+		{
+			name:     "anthropic tool_use (input object)",
+			raw:      anthropicResp,
+			provider: providerAnthropic,
+			want:     []llmToolCall{{id: "toolu_01", name: "get_weather", arguments: `{"city":"Paris"}`}},
+		},
+		{
+			name:     "plain text answer -> no tool calls",
+			raw:      []byte(`{"choices":[{"message":{"content":"hi"}}]}`),
+			provider: providerOpenAI,
+			want:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseToolCalls(tt.raw, tt.provider))
+		})
+	}
+}
+
 func TestParseLLMUsage(t *testing.T) {
 	tests := []struct {
 		name                string

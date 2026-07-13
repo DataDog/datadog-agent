@@ -9,6 +9,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"regexp"
 	"strconv"
@@ -126,6 +127,15 @@ var (
 	llmInputTokRe  = regexp.MustCompile(`"input_tokens"\s*:\s*(\d+)`)
 	llmOutputTokRe = regexp.MustCompile(`"output_tokens"\s*:\s*(\d+)`)
 
+	// Tool-call extractors (from the response body). The model does not run
+	// tools; it emits a structured request to call one, which is on the wire.
+	// OpenAI: choices[].message.tool_calls[] = {id,type:"function",function:
+	// {name, arguments:"<json-string>"}}. arguments is a JSON-encoded string.
+	llmOpenAIToolRe = regexp.MustCompile(`"id"\s*:\s*"([^"]*)"\s*,\s*"type"\s*:\s*"function"\s*,\s*"function"\s*:\s*\{\s*"name"\s*:\s*"([^"]*)"\s*,\s*"arguments"\s*:\s*"((?:\\.|[^"\\])*)"`)
+	// Anthropic: content[] = {type:"tool_use",id,name,input:{...}}. input is a
+	// JSON object (flat inputs only for this PoC regex).
+	llmAnthropicToolRe = regexp.MustCompile(`"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"([^"]*)"\s*,\s*"name"\s*:\s*"([^"]*)"\s*,\s*"input"\s*:\s*(\{[^{}]*\})`)
+
 	// OpenAI token usage extractors (from the response body).
 	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
@@ -136,6 +146,15 @@ var (
 type llmMessage struct {
 	role    string
 	content string
+}
+
+// llmToolCall is a tool the model requested the app to invoke, parsed from the
+// response body. The model never executes the tool; it emits this request and
+// the app runs it, so only the request (name + arguments) is on the wire.
+type llmToolCall struct {
+	id        string
+	name      string
+	arguments string // JSON arguments object
 }
 
 // llmSpanInfo holds everything parsed from the captured request/response
@@ -149,6 +168,7 @@ type llmSpanInfo struct {
 	messages     []llmMessage
 	prompt       string
 	response     string
+	toolCalls    []llmToolCall
 	inputTokens  int64
 	outputTokens int64
 	totalTokens  int64
@@ -278,6 +298,32 @@ func parseResponseText(raw []byte, provider string) string {
 	return ""
 }
 
+// parseToolCalls extracts the tool calls the model requested from a captured
+// response body window, per provider. Returns nil when there are none (a plain
+// text answer). OpenAI arguments arrive as a JSON-encoded string and are
+// unescaped to raw JSON; Anthropic inputs are already a JSON object.
+func parseToolCalls(raw []byte, provider string) []llmToolCall {
+	if len(raw) == 0 {
+		return nil
+	}
+	var calls []llmToolCall
+	if provider == providerAnthropic {
+		for _, m := range llmAnthropicToolRe.FindAllSubmatch(raw, -1) {
+			calls = append(calls, llmToolCall{id: string(m[1]), name: string(m[2]), arguments: string(m[3])})
+		}
+		return calls
+	}
+	for _, m := range llmOpenAIToolRe.FindAllSubmatch(raw, -1) {
+		args := string(m[3])
+		// arguments is a JSON string literal (escaped); unescape to raw JSON.
+		if unq, err := strconv.Unquote(`"` + args + `"`); err == nil {
+			args = unq
+		}
+		calls = append(calls, llmToolCall{id: string(m[1]), name: string(m[2]), arguments: args})
+	}
+	return calls
+}
+
 // parseLLMUsage extracts token usage from a captured response body window,
 // using the field names for the given provider. Returned counts are
 // provider-neutral (input, output, total) mapping to the LLM Observability
@@ -323,7 +369,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	if info.service == "" {
 		return
 	}
-	if info.model == "" && info.prompt == "" && info.response == "" {
+	if info.model == "" && info.prompt == "" && info.response == "" && len(info.toolCalls) == 0 {
 		return
 	}
 	if !ensureLLMOTracer() {
@@ -355,20 +401,37 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	} else if info.prompt != "" {
 		input = []llmobs.LLMMessage{{Role: "user", Content: info.prompt}}
 	}
-	if info.response != "" {
-		output = []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}
+	// The assistant's turn is a tool call, a text answer, or both. Emit an
+	// output message whenever we have either.
+	if info.response != "" || len(info.toolCalls) > 0 {
+		out := llmobs.LLMMessage{Role: "assistant", Content: info.response}
+		for _, tc := range info.toolCalls {
+			out.ToolCalls = append(out.ToolCalls, llmobs.ToolCall{
+				Name:      tc.name,
+				Arguments: json.RawMessage(tc.arguments),
+				ToolID:    tc.id,
+				Type:      "function",
+			})
+		}
+		output = []llmobs.LLMMessage{out}
 	}
 
-	annotations := []llmobs.AnnotateOption{
-		llmobs.WithAnnotatedTags(map[string]string{
-			"http.method":              method.String(),
-			"http.status_code":         strconv.Itoa(int(statusCode)),
-			"http.url":                 path,
-			"out.host":                 destIP.String(),
-			"network.destination.port": strconv.Itoa(int(connKey.DstPort)),
-			"llm.source":               "apm-lite-ebpf",
-		}),
+	tags := map[string]string{
+		"http.method":              method.String(),
+		"http.status_code":         strconv.Itoa(int(statusCode)),
+		"http.url":                 path,
+		"out.host":                 destIP.String(),
+		"network.destination.port": strconv.Itoa(int(connKey.DstPort)),
+		"llm.source":               "apm-lite-ebpf",
 	}
+	if len(info.toolCalls) > 0 {
+		names := make([]string, 0, len(info.toolCalls))
+		for _, tc := range info.toolCalls {
+			names = append(names, tc.name)
+		}
+		tags["llm.tool_calls"] = strings.Join(names, ",")
+	}
+	annotations := []llmobs.AnnotateOption{llmobs.WithAnnotatedTags(tags)}
 	if info.totalTokens > 0 {
 		annotations = append(annotations, llmobs.WithAnnotatedMetrics(map[string]float64{
 			llmobs.MetricKeyInputTokens:  float64(info.inputTokens),
@@ -446,6 +509,7 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 				n = llmBodyBufferSize
 			}
 			info.response = parseResponseText(respHead.Data[:n], info.provider)
+			info.toolCalls = parseToolCalls(respHead.Data[:n], info.provider)
 		}
 	}
 
