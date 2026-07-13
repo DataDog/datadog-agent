@@ -153,8 +153,6 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			case source.AWSECSFargateKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("fargate", []string{src.Tag()})
-				} else if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
