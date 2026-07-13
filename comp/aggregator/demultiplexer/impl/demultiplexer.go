@@ -124,7 +124,10 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 		}
 	}
 
-	// Override FlushInterval only if flushInterval is set by the user
+	options.FlushInterval = config.GetDuration("aggregator_flush_interval")
+
+	// Programmatic override (e.g. the `check` command passes 0 to disable
+	// periodic flushes) wins over the config value.
 	if v, ok := params.flushInterval.Get(); ok {
 		options.FlushInterval = v
 	}

@@ -1585,6 +1585,9 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
+	// How often the aggregator flushes metrics, events, and service checks to the serializer.
+	// Mirrors pkg/aggregator.DefaultFlushInterval; kept inline to avoid an import cycle.
+	config.BindEnvAndSetDefault("aggregator_flush_interval", 15*time.Second)
 }
 
 func serverless(config pkgconfigmodel.Setup) {
