@@ -1742,11 +1742,30 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 // parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the index of the string in the string table
 func parseStringBytesRef(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
-	ref, bts, err := parseStringBytes(bts)
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+
+	var (
+		value []byte
+		err   error
+	)
+	switch typ := msgp.NextType(bts); typ {
+	case msgp.BinType:
+		value, bts, err = msgp.ReadBytesZC(bts)
+	case msgp.StrType:
+		value, bts, err = msgp.ReadStringZC(bts)
+	default:
+		return 0, bts, msgp.TypeError{Encoded: typ, Method: msgp.StrType}
+	}
 	if err != nil {
 		return 0, bts, err
 	}
-	return stringTable.Add(ref), bts, nil
+	if utf8.Valid(value) {
+		return stringTable.AddBytes(value), bts, nil
+	}
+	return stringTable.Add(repairUTF8(msgp.UnsafeString(value))), bts, nil
 }
 
 // parseStringBytesRef reads the next type in the msgpack payload and

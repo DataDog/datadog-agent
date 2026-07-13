@@ -92,6 +92,17 @@ func (s *StringTable) Add(str string) uint32 {
 	return s.addUnchecked(str)
 }
 
+// AddBytes adds a UTF-8 byte slice to the string table. It avoids copying the
+// bytes when the string is already present, but copies new values because the
+// input buffer may be reused after decoding.
+func (s *StringTable) AddBytes(value []byte) uint32 {
+	transient := msgp.UnsafeString(value)
+	if idx, ok := s.lookup[transient]; ok {
+		return idx
+	}
+	return s.addUnchecked(string(value))
+}
+
 // Get returns the string at the given index - panics if out of bounds
 func (s *StringTable) Get(idx uint32) string {
 	return s.strings[idx]
