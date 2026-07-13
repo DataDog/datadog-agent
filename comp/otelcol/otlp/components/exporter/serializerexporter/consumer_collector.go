@@ -54,10 +54,6 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 		series = append(series, exporterWorkloadMetrics(k.metricSuffix, timestamp, allTags))
 	}
 
-	// Suppress the hostless fallback emission of "metrics.running" (no Host set)
-	// when every signal seen was already attributed to a specific workload
-	// type via seenTagSets, to avoid double-counting a single workload for
-	// billing.
 	if len(c.seenHosts) > 0 && len(c.seenTagSets) == 0 {
 		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, buildTags))
 	}
