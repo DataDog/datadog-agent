@@ -1,7 +1,8 @@
 """
 Tasks for managing Kubernetes version updates in e2e tests.
-This module provides automation for fetching and updating Kubernetes versions
-from Docker Hub's kindest/node repository.
+This module fetches the latest Kubernetes releases from GitHub, tracks known
+versions in k8s_versions.json, and updates the kubernetesVersion pinned in
+the Kubernetes latest-style jobs of .gitlab/test/e2e/e2e.yml.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import os
 import re
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -39,16 +40,22 @@ VERSIONS_FILE = "k8s_versions.json"
 E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
 KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_versions.json"
 
+K8S_LATEST_JOB = "new-e2e-containers-k8s-latest"
+K8S_RC_LATEST_JOB = "new-e2e-containers-k8s-rc-latest"
+
 # Regex pattern for Kubernetes version (release and RC supported)
 # Matches: v1.35.0, v1.35.0-rc.1, etc.
 K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
+# ReleaseType is an enum that describes the Kubernetes Version release type
+# We care about stable (release) versions and RC (prerelease) versions.
 class ReleaseType(Enum):
     STABLE = 1
     RC = 2
 
-# KubernetesRelease represents a Kubernetes version fetched from Github
-# Given that it is a Github release, it won't contain an image digest or kind version.
+# KubernetesRelease represents a Kubernetes version fetched from GitHub.
+# This class does NOT contain image digest because it does not refer to
+# a built image in a registry - it refers to a GitHub release.
 class KubernetesRelease:
     def __init__(self, tag: str):
         self.tag: str = tag
@@ -57,7 +64,7 @@ class KubernetesRelease:
         # start with stable
         self.release_type: ReleaseType = ReleaseType.STABLE
         if not self.semver:
-            raise ValueError(f"Version could not be parsed from {self.semver}")
+            raise Exit(f"KubernetesRelease: could not parse semver from tag '{self.tag}'", code=1)
 
         # override to RC if applicable
         if self.semver.prerelease and self.semver.prerelease.startswith("rc"):
@@ -66,16 +73,15 @@ class KubernetesRelease:
     def as_dict(self):
         return { 'tag': self.tag, 'rc': self.release_type == ReleaseType.RC }
 
-# KindKubernetesImage represents an existing Kubernetes version. This means
-# a version that already has a corresponding Kind image built, so it will contain
-# a digest and possibly a kind_version.
+# KindKubernetesImage represents a Kubernetes version that has been built and pushed
+# to a registry. Accordingly, it will contain an image digest and possibly a kind_version.
 class KindKubernetesImage(KubernetesRelease):
     def __init__(self, tag: str, digest: str, kind_version: str = ""):
         super().__init__(tag)
 
         self.digest: str = digest
-        if not self.digest:
-            raise ValueError(f"Digest is a required field")
+        if not self.digest.startswith('sha256:') or len(self.digest) != 71:
+            raise Exit(f"KindKubernetesImage: invalid digest '{digest}' for tag '{self.tag}' (expected sha256:<64 hex chars>)", code=1)
 
         self.kind_version: str = kind_version
 
@@ -83,7 +89,12 @@ class KindKubernetesImage(KubernetesRelease):
     def from_dict(cls, data) -> KindKubernetesImage:
         tag = data.get('tag')
         digest = data.get('digest')
-        kind_version = data.get('kind_version')
+        if not tag or not digest:
+            raise Exit(
+                f"KindKubernetesImage.from_dict: 'tag' and 'digest' are required (got tag={tag!r}, digest={digest!r})",
+                code=1,
+            )
+        kind_version = data.get('kind_version') or ""
         return cls(tag, digest, kind_version)
 
     def as_dict(self):
@@ -92,7 +103,7 @@ class KindKubernetesImage(KubernetesRelease):
             tmp['kind_version'] = self.kind_version
         return tmp
 
-
+# KubernetesVersions is a collection of either KubernetesReleases or KindKubernetesImages.
 class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
     def __init__(self):
         self.versions:list[T] = []
@@ -118,6 +129,11 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
         return iter(self.versions)
 
     def add(self, version: T):
+        """Add a version. If a version with the same tag already exists, replace it."""
+        for i, existing in enumerate(self.versions):
+            if existing.tag == version.tag:
+                self.versions[i] = version
+                return
         self.versions.append(version)
 
     def latest(self, release_type:ReleaseType) -> T | None:
@@ -129,13 +145,102 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
     def contains(self, tag: str) -> bool:
         return any(x.tag == tag for x in self.versions)
 
+class JobLocation(NamedTuple):
+    """Line indices for the parts of a Kubernetes latest-style job. Any field is None if not found."""
+    job_start: int | None
+    rules_line: int | None
+    extra_params_line: int | None
+    job_end: int | None
+
+
+class WhenNeverLocation(NamedTuple):
+    rules_line: int
+    when_never_line: int | None
+
+
+class E2EJobFile:
+    def __init__(self, file_name: str) -> None:
+        self.file_name = file_name
+
+        if not os.path.exists(file_name):
+            raise Exit(f"E2EJobFile: file not found: {file_name}", code=1)
+
+        with open(file_name) as f:
+            self._lines = f.read().split("\n")
+
+    def get_kubernetes_image(self, job_name: str) -> KindKubernetesImage:
+        """Parse and return the current kubernetes image for a job. Re-parses every call."""
+        loc = _find_k8s_latest_job(self._lines, job_name)
+        if loc.extra_params_line is None:
+            raise Exit(f"Job '{job_name}' not found in {self.file_name}", code=1)
+
+        pattern = rf'kubernetesVersion=({K8S_VERSION_PATTERN}(?:@sha256:[a-f0-9]+)?)'
+        match = re.search(pattern, self._lines[loc.extra_params_line])
+        if not match:
+            raise Exit(f"Could not parse kubernetesVersion=... in job '{job_name}' of {self.file_name}", code=1)
+
+        parts = match.group(1).split('@')
+        if len(parts) != 2:
+            raise Exit(f"kubernetesVersion in job '{job_name}' of {self.file_name} must be in <version>@<digest> format", code=1)
+        version, digest = parts
+
+        return KindKubernetesImage(version, digest)
+
+    def set_kubernetes_image(self, job_name: str, kubernetes_image: KindKubernetesImage) -> None:
+        loc = _find_k8s_latest_job(self._lines, job_name)
+        if loc.extra_params_line is None:
+            raise Exit(f"Job '{job_name}' not found in {self.file_name}", code=1)
+
+        new_line, n = re.subn(
+            rf'kubernetesVersion={K8S_VERSION_PATTERN}@sha256:[a-f0-9]+',
+            f'kubernetesVersion={kubernetes_image.tag}@{kubernetes_image.digest}',
+            self._lines[loc.extra_params_line],
+            count=1,
+        )
+        if n == 0:
+            raise Exit(f"Failed to substitute kubernetesVersion in job '{job_name}' of {self.file_name}", code=1)
+        self._lines[loc.extra_params_line] = new_line
+
+    def _find_when_never(self, job_name: str) -> WhenNeverLocation:
+        """Locate the `when: never` rule (if any) within the job's rules block."""
+        loc = _find_k8s_latest_job(self._lines, job_name)
+        if loc.rules_line is None or loc.job_end is None:
+            raise Exit(f"Job '{job_name}' not found in {self.file_name}", code=1)
+
+        for i, line in enumerate(self._lines[loc.rules_line:loc.job_end], start=loc.rules_line):
+            if "when: never" in line:
+                return WhenNeverLocation(rules_line=loc.rules_line, when_never_line=i)
+        return WhenNeverLocation(rules_line=loc.rules_line, when_never_line=None)
+
+    def enable(self, job_name: str) -> bool:
+        """Enable the job. Returns True if the file was mutated."""
+        loc = self._find_when_never(job_name)
+        if loc.when_never_line is None:
+            return False
+        del self._lines[loc.when_never_line]
+        return True
+
+    def disable(self, job_name: str) -> bool:
+        """Disable the job. Returns True if the file was mutated."""
+        loc = self._find_when_never(job_name)
+        if loc.when_never_line is not None:
+            return False  # already disabled
+
+        rules_line = self._lines[loc.rules_line]
+        indent = ' ' * (len(rules_line) - len(rules_line.lstrip()) + 2)
+        self._lines.insert(loc.rules_line + 1, f"{indent}- when: never # disabled — RC not newer than latest stable")
+        return True
+
+    def save(self) -> None:
+        with open(self.file_name, 'w') as f:
+            f.write('\n'.join(self._lines))
+
 
 def fetch_github_releases(version_pattern: str = K8S_VERSION_PATTERN) -> KubernetesVersions[KubernetesRelease]:
     """Get releases from Kubernetes GitHub repository."""
     discovered = KubernetesVersions[KubernetesRelease]()
 
-    # Get the last 100 releases
-    # TODO(TBD): Should we fetch all releases or is the last 25 enough?
+    # Get the latest 25 releases. TODO(TBD): is 25 enough, or should we paginate?
     url = f"{GITHUB_URL_BASE}/repos/kubernetes/kubernetes/releases?per_page=25&page=1"
 
     try:
@@ -148,7 +253,7 @@ def fetch_github_releases(version_pattern: str = K8S_VERSION_PATTERN) -> Kuberne
                 discovered.add(KubernetesRelease(tag_name))
 
     except requests.exceptions.RequestException as e:
-        raise Exit(f"Error fetching releases from Github: {e}", code=1) from e
+        raise Exit(f"Failed to fetch Kubernetes releases from {url}: {e}", code=1) from e
 
     return discovered
 
@@ -212,8 +317,8 @@ def _get_latest_kind_release() -> str | None:
 
 def _get_latest_releases() -> KubernetesVersions[KubernetesRelease]:
     """
-    Fetch and parse the latest Kubernetes versions from GitHub releases.
-    Returns a dictionary with the latest stable and RC versions.
+    Fetch the latest Kubernetes releases from GitHub. Returns a collection containing
+    the latest stable release, and the latest RC only if it is newer than the latest stable.
     """
 
     all_versions = fetch_github_releases()
@@ -275,120 +380,58 @@ def _set_github_output(name: str, value: str) -> None:
         print(f"::set-output name={name}::{value}")
 
 
-def _find_k8s_latest_job(content: str) -> tuple[int | None, int | None, int | None]:
+def _find_k8s_latest_job(content: list[str], job_name: str) -> JobLocation:
     """
-    Find the new-e2e-containers-k8s-latest job section in the raw content.
-    Returns (job_start_line, job_end_line, extra_params_line) or (None, None, None) if not found.
+    Locate a Kubernetes latest-style job (one with a `kubernetesVersion=<tag>@<digest>` line)
+    within the given YAML content, by top-level job name.
+
+    job_end is the line index of the next top-level entry. Any field is None if not found.
     """
-    lines = content.split('\n')
-    in_latest_job = False
+    in_job = False
     job_start = None
     extra_params_line = None
+    rules_line = None
 
-    for i, line in enumerate(lines):
-        # Find the new-e2e-containers-k8s-latest job
-        if line.strip().startswith('new-e2e-containers-k8s-latest:'):
-            in_latest_job = True
+    for i, line in enumerate(content):
+        if line.strip().startswith(f'{job_name}:'):
+            in_job = True
             job_start = i
             continue
 
-        if in_latest_job:
+        if in_job:
+            if 'rules:' in line:
+                rules_line = i
+
             if 'EXTRA_PARAMS:' in line and 'kubernetesVersion=' in line:
                 extra_params_line = i
 
             if line and not line[0].isspace() and line.strip().endswith(':'):
-                return job_start, i, extra_params_line
+                return JobLocation(job_start, rules_line, extra_params_line, i)
 
-    return None, None, None
+    return JobLocation(None, None, None, None)
 
 
-def _extract_version_from_latest_job(content: str) -> KindKubernetesImage | None:
+def _update_e2e_yaml_file(
+    k8s_jobs: E2EJobFile,
+    job_name: str,
+    desired: KindKubernetesImage,
+) -> tuple[bool, list[str]]:
     """
-    Extract the current Kubernetes version from the new-e2e-containers-k8s-latest job.
-    Returns {'version': 'v1.34.0', 'digest': 'sha256:...'} or None if not found.
+    Set the kubernetesVersion of `job_name` to `desired` if it differs from the current value.
+
+    Returns (updated: bool, updated_versions: list[str])
     """
-    _, _, extra_params_line = _find_k8s_latest_job(content)
+    print(f"Desired version for {job_name}: {desired.tag}")
 
-    if extra_params_line is None:
-        return None
+    current = k8s_jobs.get_kubernetes_image(job_name)
+    print(f"Current version in {job_name}: {current.tag}")
 
-    lines = content.split('\n')
-    line = lines[extra_params_line]
-
-    pattern = rf'kubernetesVersion=({K8S_VERSION_PATTERN}(?:@sha256:[a-f0-9]+)?)'
-    match = re.search(pattern, line)
-
-    if match:
-        version_str = match.group(1)
-        # Check if it has a digest
-        if '@sha256:' in version_str:
-            version, digest = version_str.split('@')
-            return KindKubernetesImage(version, digest)
-
-    return None
-
-
-def _update_e2e_yaml_file(new_versions: KubernetesVersions[KindKubernetesImage]) -> tuple[bool, list[str]]:
-    """
-    Update the e2e.yml file with new Kubernetes versions.
-
-    1. Reads the desired latest version from new_versions
-    2. Reads the current latest version from new-e2e-containers-k8s-latest job
-    3. If they differ, updates the new-e2e-containers-k8s-latest job with the new version
-       (never modifies the original matrix)
-
-    Returns (success: bool, updated_versions: List[str])
-    """
-    if not os.path.exists(E2E_YAML_PATH):
-        raise Exit(f"Error: {E2E_YAML_PATH} not found", code=1)
-
-    # Load the file
-    with open(E2E_YAML_PATH) as f:
-        content = f.read()
-
-    # 1. Reads the desired latest version from new_versions
-    if not new_versions:
-        print("No new versions found")
+    if current.tag == desired.tag and current.digest == desired.digest:
+        print(f"{job_name} is already at the desired version")
         return False, []
 
-    desired = new_versions.latest(ReleaseType.STABLE)
-    print(f"Desired latest version from new_versions: {desired.tag}")
-
-    # 2. Reads the current latest version from new-e2e-containers-k8s-latest job
-    current_latest = _extract_version_from_latest_job(content)
-
-    if not current_latest:
-        print("No current latest version found in new-e2e-containers-k8s-latest job")
-        return False, []
-
-    print(f"Current latest version in new-e2e-containers-k8s-latest job: {current_latest.tag}")
-
-    if current_latest.tag == desired.tag and current_latest.digest == desired.digest:
-        print("YAML is already in sync with new_versions")
-        return False, []
-
-    # 3. If they differ, update the new-e2e-containers-k8s-latest job (never modify the matrix)
-    _, _, extra_params_line = _find_k8s_latest_job(content)
-
-    if extra_params_line is None:
-        raise Exit("Error: Could not find new-e2e-containers-k8s-latest job", code=1)
-
-    lines = content.split('\n')
-
-    print(f"Updating new-e2e-containers-k8s-latest job to {desired.tag}")
-    old_line = lines[extra_params_line]
-    new_line = re.sub(
-        rf'kubernetesVersion={K8S_VERSION_PATTERN}@sha256:[a-f0-9]+',
-        f'kubernetesVersion={desired.tag}@{desired.digest}',
-        old_line,
-    )
-    lines[extra_params_line] = new_line
-
-    new_content = '\n'.join(lines)
-    with open(E2E_YAML_PATH, 'w') as f:
-        f.write(new_content)
-
-    print(f"Successfully updated {E2E_YAML_PATH}")
+    k8s_jobs.set_kubernetes_image(job_name, desired)
+    print(f"Updated {job_name} to {desired.tag}")
     return True, [desired.tag]
 
 
@@ -403,12 +446,11 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     """
     _check_dependencies()
 
-    print(f"Fetching latest Kubernetes version...")
+    print("Fetching latest Kubernetes version...")
     latest = _get_latest_releases()
     if not latest.versions:
-        print("Error: Could not find any Kubernetes versions")
         _set_github_output('has_new_versions', 'false')
-        raise Exit("No Kubernetes versions found", code=1)
+        raise Exit("fetch-versions: GitHub returned no Kubernetes releases matching the expected pattern", code=1)
 
     # Load previous versions and compare
     existing_versions = _load_existing_versions(output_file)
@@ -423,27 +465,32 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
         _set_github_output('has_new_versions', 'true')
         _set_github_output('new_versions', json.dumps(new_versions.as_dict()))
     else:
-        print(f"\nNo new version(s) found")
+        print("\nNo new version(s) found")
         _set_github_output('has_new_versions', 'false')
 
 
 @task
 def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     """
-    Update the e2e.yml file with new Kubernetes versions.
+    Update the Kubernetes latest jobs in .gitlab/test/e2e/e2e.yml to the latest
+    known versions from `versions_file`.
 
-    This task reads Kubernetes versions from a JSON file:
-    1. Compares with the current version in new-e2e-containers-k8s-latest job
-    2. If they differ, updates the new-e2e-containers-k8s-latest job with the new version
+    Behavior:
+      - The stable job (K8S_LATEST_JOB) is pinned to the latest STABLE release.
+      - The RC job (K8S_RC_LATEST_JOB) is pinned to the latest RC release AND
+        enabled only when that RC is newer than the latest stable; otherwise
+        it is disabled via a `- when: never` rule.
 
     Args:
         versions_file: Path to the JSON file containing versions (default: k8s_versions.json)
 
     Outputs (GitHub Actions):
-        updated: 'true' if the file was updated
-        new_versions: Markdown-formatted list of updated versions
+        updated: 'true' if any pinned version was updated
+        new_versions: comma-delimited list of newly pinned versions (each in backticks)
     """
     _check_dependencies()
+
+    k8s_jobs = E2EJobFile(E2E_YAML_PATH)
 
     # Check if there are new versions to process
     if not os.path.exists(versions_file):
@@ -457,18 +504,39 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
 
     print("Checking for new versions to add to e2e.yml...")
 
-    # Update the YAML file
-    updated, added_versions = _update_e2e_yaml_file(all_versions)
+    stable = all_versions.latest(ReleaseType.STABLE)
+    rc = all_versions.latest(ReleaseType.RC)
+
+    # Stable job: always attempt to update to the latest stable
+    if stable is not None:
+        updated_stable, added_stable = _update_e2e_yaml_file(k8s_jobs, K8S_LATEST_JOB, stable)
+    else:
+        print("No stable version available in new_versions")
+        updated_stable, added_stable = False, []
+
+    # RC job: only update + enable if there's an RC newer than the latest stable;
+    # otherwise disable it so it doesn't run redundantly.
+    if rc and (stable is None or rc.semver > stable.semver):
+        updated_rc, added_rc = _update_e2e_yaml_file(k8s_jobs, K8S_RC_LATEST_JOB, rc)
+        k8s_jobs.enable(K8S_RC_LATEST_JOB)
+    else:
+        print(f"No RC newer than latest stable — disabling {K8S_RC_LATEST_JOB}")
+        k8s_jobs.disable(K8S_RC_LATEST_JOB)
+        updated_rc, added_rc = False, []
+
+    k8s_jobs.save()
+
+    updated = updated_stable or updated_rc
+    added_versions = added_stable + added_rc
 
     if updated:
-        # Format the list of new versions for the PR body
-        version_list = '\n'.join(f"- `{v}`" for v in added_versions)
+        version_list = ', '.join(f"`{v}`" for v in added_versions)
         _set_github_output('updated', 'true')
         _set_github_output('new_versions', version_list)
-        print(f"\nSuccessfully updated to latest version: {added_versions[0]}")
+        print(f"\nSuccessfully updated to: {', '.join(added_versions)}")
     else:
         _set_github_output('updated', 'false')
-        print("\nNo updates made")
+        print("\nNo version updates made")
 
 
 @task
@@ -504,18 +572,20 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
     latest_kind_release = None
     updated = False
 
-    for version in existing_k8s_versions:# Derive minor version key ("1.35" from "v1.35.1")
+    # Iterate ascending by semver so the highest patch/RC for each minor wins.
+    for version in sorted(existing_k8s_versions, key=lambda v: v.semver):
+        # Derive minor version key ("1.35" from "v1.35.1")
         minor_key = f"{version.semver.major}.{version.semver.minor}"
         # Resolve kind_version: prefer what's already in kind_versions.json, then
         # the version in k8s_versions.json, then fallback to the latest kind release from GitHub.
         existing = kind_versions.get(minor_key, {})
-        kind_version = existing.get('kind_version') or version.get('kind_version')
+        kind_version = existing.get('kind_version') or version.kind_version
         if not kind_version:
             if latest_kind_release is None:
                 latest_kind_release = _get_latest_kind_release()
             kind_version = latest_kind_release
             if not kind_version:
-                raise Exit(f"Could not determine kind version for {version.tag}", code=1)
+                raise Exit(f"Could not determine kind version for {version.tag} (no kind_version in {KIND_VERSIONS_JSON_PATH} or {VERSIONS_FILE}, and fetching the latest kind release from GitHub failed)", code=1)
             print(f"Using latest kind release {kind_version} for {minor_key}")
 
         node_image_version = f"{version.tag}@{version.digest}"
@@ -562,7 +632,7 @@ def save_versions(_, versions, versions_file=VERSIONS_FILE):
         try:
             versions = KubernetesVersions.from_dict(json.loads(versions), type_=KindKubernetesImage)
         except json.JSONDecodeError as e:
-            raise Exit(f"Invalid JSON in versions argument: {e}", code=1) from e
+            raise Exit(f"save-versions: --versions is not valid JSON ({e}); expected a JSON object mapping tag to version data", code=1) from e
 
     # Load existing versions
     existing_versions = _load_existing_versions(versions_file)
