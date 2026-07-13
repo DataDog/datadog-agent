@@ -8,6 +8,7 @@ package servicetest
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
@@ -187,6 +188,14 @@ func ExpectedInstalledServices() []string {
 		"ddnpm",
 		"ddprocmon",
 	}
+}
+
+// ExpectedInstalledServicesBeforeProcmgr returns services on MSIs from before dd-procmgr.
+// Use when asserting service layout after rollback to a pre-procmgr version.
+func ExpectedInstalledServicesBeforeProcmgr() []string {
+	return slices.DeleteFunc(slices.Clone(ExpectedInstalledServices()), func(name string) bool {
+		return name == "dd-procmgr-service"
+	})
 }
 
 // ExpectedRunningServices returns the list of services expected to be running after installation
