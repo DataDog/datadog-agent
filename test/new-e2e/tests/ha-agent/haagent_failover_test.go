@@ -192,7 +192,9 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertCheckIsRunning(c, v.Env().Agent1, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
-	v.Env().Host2.Execute("sudo systemctl start datadog-agent")
+	// Restart through the Agent client so its readiness state is reset. The next
+	// client command will then wait for the Agent API to become available.
+	require.NoError(v.T(), v.Env().Agent2.Client.Restart())
 
 	// agent2 comes back up, polls Remote Config, and picks up the existing
 	// "agent1 active" config, so it settles into standby on its own.
@@ -231,7 +233,9 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertCheckIsRunning(c, v.Env().Agent2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
-	v.Env().Host1.Execute("sudo systemctl start datadog-agent")
+	// Restart through the Agent client so its readiness state is reset. Without
+	// this, the cached ready state makes the next command race Agent startup.
+	require.NoError(v.T(), v.Env().Agent1.Client.Restart())
 
 	// agent1 comes back up, polls Remote Config, and picks up the existing
 	// "agent2 active" config, so it settles into standby on its own.
