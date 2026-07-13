@@ -117,10 +117,6 @@ func (n *WorkflowRunner) RunTask(
 
 	logger := log.FromContext(ctx)
 
-	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
-	defer heartbeatCancel()
-	go n.startHeartbeat(heartbeatCtx, task, logger)
-
 	ctx = telemetry.WithService(ctx, observability.ParService)
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
 	span.SetResourceName(fqn)
