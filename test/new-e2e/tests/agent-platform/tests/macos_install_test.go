@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -304,6 +306,142 @@ func (m *macosInstallSuite) TestCpuReportsSignalMetrics() {
 			return
 		}
 		assert.NotEmpty(c, metrics, "system.cpu.idle should be forwarded to fakeintake")
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// macosDogstatsdMarker delimits the block TestDogstatsdListening appends to
+// datadog.yaml, so it can be identified and removed again during cleanup.
+const macosDogstatsdMarker = "# added by e2e TestDogstatsdListening"
+
+// TestDogstatsdListening proves the agent's embedded DogStatsD UDP listener is not just
+// bound to 127.0.0.1:8125, but actually receives, aggregates, and forwards a real metric.
+// A "port is open" check alone wouldn't catch a broken parser, aggregator, or forwarder.
+func (m *macosInstallSuite) TestDogstatsdListening() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	boundPorts := macosTestClient.MustExecuteOn(m.T(), "sudo lsof -nP -iUDP:8125")
+	assert.Contains(m.T(), boundPorts, "agent", "the agent process should be bound to UDP 8125")
+
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ndd_url: %s\n' | sudo tee -a %s`,
+		macosDogstatsdMarker, confFilePath, macosDogstatsdMarker, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+1d" %s`, macosDogstatsdMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy after redirecting dd_url.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 20*time.Second, 1*time.Second)
+
+	const metricName = "e2e.macos.dogstatsd.sanity"
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`bash -c 'echo -n "%s:1|c" > /dev/udp/127.0.0.1/8125'`, metricName,
+	))
+
+	// Delivery is async (aggregation flush + forwarder flush), so poll fakeintake
+	// rather than asserting once.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := m.Env().FakeIntake.Client().FilterMetrics(metricName)
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, metrics, "%s should be forwarded to fakeintake", metricName)
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// macosDogstatsdE2EMarker delimits the block TestDogstatsdMetricEndToEnd appends to
+// datadog.yaml, so it can be identified and removed again during cleanup.
+const macosDogstatsdE2EMarker = "# added by e2e TestDogstatsdMetricEndToEnd"
+
+// TestDogstatsdMetricEndToEnd broadens TestDogstatsdListening's single-count-metric check
+// into coverage across DogStatsD's metric types (gauge, count, histogram) and tag
+// propagation over UDP. It does not cover the dogstatsd_socket (Unix socket) transport,
+// which is a separate, untested code path.
+func (m *macosInstallSuite) TestDogstatsdMetricEndToEnd() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ndd_url: %s\n' | sudo tee -a %s`,
+		macosDogstatsdE2EMarker, confFilePath, macosDogstatsdE2EMarker, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+1d" %s`, macosDogstatsdE2EMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy after redirecting dd_url.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 20*time.Second, 1*time.Second)
+
+	const (
+		gaugeMetric     = "e2e.macos.dogstatsd.gauge"
+		gaugeTag        = "e2e:macos-gauge"
+		countMetric     = "e2e.macos.dogstatsd.count"
+		countTag        = "e2e:macos-count"
+		histogramMetric = "e2e.macos.dogstatsd.histogram"
+		histogramTag    = "e2e:macos-histogram"
+		// histogram_aggregates defaults to ["max", "median", "avg", "count"] (see
+		// pkg/config/config_template.yaml), so the agent flushes this suffix without
+		// any extra config.
+		histogramCountSuffix = ".count"
+	)
+
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`bash -c 'echo -n "%s:42|g|#%s" > /dev/udp/127.0.0.1/8125'`, gaugeMetric, gaugeTag,
+	))
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`bash -c 'echo -n "%s:1|c|#%s" > /dev/udp/127.0.0.1/8125'`, countMetric, countTag,
+	))
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`bash -c 'echo -n "%s:100|h|#%s" > /dev/udp/127.0.0.1/8125'`, histogramMetric, histogramTag,
+	))
+
+	// Delivery is async (aggregation flush + forwarder flush), so poll fakeintake
+	// rather than asserting once.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := m.Env().FakeIntake.Client().FilterMetrics(gaugeMetric, client.WithTags[*aggregator.MetricSeries]([]string{gaugeTag}))
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, metrics, "%s tagged %q should be forwarded to fakeintake", gaugeMetric, gaugeTag)
+	}, 2*time.Minute, 5*time.Second)
+
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := m.Env().FakeIntake.Client().FilterMetrics(countMetric, client.WithTags[*aggregator.MetricSeries]([]string{countTag}))
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, metrics, "%s tagged %q should be forwarded to fakeintake", countMetric, countTag)
+	}, 2*time.Minute, 5*time.Second)
+
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := m.Env().FakeIntake.Client().FilterMetrics(histogramMetric+histogramCountSuffix, client.WithTags[*aggregator.MetricSeries]([]string{histogramTag}))
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, metrics, "%s tagged %q should be forwarded to fakeintake", histogramMetric+histogramCountSuffix, histogramTag)
 	}, 2*time.Minute, 5*time.Second)
 }
 
