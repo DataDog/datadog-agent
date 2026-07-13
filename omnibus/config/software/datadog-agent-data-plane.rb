@@ -8,16 +8,16 @@ name "datadog-agent-data-plane"
 # We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
-adp_version = "1.3.0"
+adp_version = "1.3.1"
 adp_hashes = {
-  "linux-amd64"        => "52b98149e3a5877309ba877332a3a9bd9b360cca2500de8bb406428491249470",
-  "linux-arm64"        => "b552daa11401a2eef6e0b7b081b8a8daa115af98194049e9a427c305bb6a61a7",
-  "fips-linux-amd64"   => "e74092b24c0bfc3d5b46ae919d20405ad6ab9acdb26efcafec7e40d2ba32cb0d",
-  "fips-linux-arm64"   => "feb7dcbf13c53a7018171773c0750ddbe394ea4a21e0bf93e55b391e2a0fbc71",
-  "darwin-amd64"       => "c46f14cb5818a570e61489b33b9c5e74d00b646fe4ab5f35b6f283499859c17b",
-  "darwin-arm64"       => "e1ceb847f924501c5310aa24c28ff5b1a2f732a987113d2c082c1c50548cca30",
-  "windows-amd64"      => "a1c1a148f75c76a418054dd52a78483d2b8e42f1bf91bc81b8b2aef3f6fbd69d",
-  "fips-windows-amd64" => "f37b40496555b6dae391705a9a89a3807f297ff613a466138bd85ede7bcb0e52",
+  "linux-amd64"        => "23b49fde8563a9a3a8dc68b46331c4dcb87373a4d50df74a3d40b26bdaa7b3e4",
+  "linux-arm64"        => "95c3ce251e686f371d516930d96d5b9357463faaec15dc361240403767e63450",
+  "fips-linux-amd64"   => "ba21cc727bfb117c05833a710ba14af492dd7e9b2cabe4c1e2e77f51e548799e",
+  "fips-linux-arm64"   => "9b92b8bbb33f00195205bdf07847d9e8fe6681f66faf401a62311f0b00db2d14",
+  "darwin-amd64"       => "e956ecbe696afb1a3e5f019a2f3594e40804e98f1bfe862ffc9e18850779cb5f",
+  "darwin-arm64"       => "cfdf28d45c68271eb24fc7fe6ec89c0d996a10d72fb681143fe899e7ffd97437",
+  "windows-amd64"      => "8c0370e37d1b544647dae9411955b1a6324ff23d485bf8be57ef4cf97cfe2b30",
+  "fips-windows-amd64" => "f797704d3e2ac5da04c3cfc005841ed71be25cf412aea8436edc95a5e92a2ff0",
 }
 
 default_version adp_version
