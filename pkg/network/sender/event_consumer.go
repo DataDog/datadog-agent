@@ -8,7 +8,6 @@
 package sender
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,28 +38,9 @@ var _ eventmonitor.EventConsumer = &directSenderConsumer{}
 // this is necessary due to the out-of-order initialization between CNM and Event Monitor.
 var directSenderConsumerInstance atomic.Pointer[directSenderConsumer]
 
-type directSenderConsumer struct {
-	log       log.Component
-	processes map[uint32]*process
-	mtx       sync.Mutex
-
-	proxyFilter          *dockerProxyFilter
-	extractor            *serviceExtractor
-	processNameExtractor *processNameExtractor
-	pidAliveFunc         func(pid int) bool
-	fetchProcesses       bool
-}
-
 // NewDirectSenderConsumer creates the direct sender consumer and returns it for event monitor registration
 func NewDirectSenderConsumer(em EventConsumerRegistry, log log.Component, sysprobeconfig sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
-	dsc := &directSenderConsumer{
-		log:                  log,
-		processes:            make(map[uint32]*process),
-		proxyFilter:          newDockerProxyFilter(log),
-		extractor:            newServiceExtractor(sysprobeconfig),
-		processNameExtractor: newProcessNameExtractor(),
-		pidAliveFunc:         ddos.PidExists,
-	}
+	dsc := newDirectSenderConsumer(log, sysprobeconfig)
 	err := em.AddEventConsumerHandler(dsc)
 	if err != nil {
 		return nil, err

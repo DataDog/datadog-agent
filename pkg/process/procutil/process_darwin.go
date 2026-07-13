@@ -50,6 +50,87 @@ func (p *probe) StatsForPIDs(_ []int32, _ time.Time) (map[int32]*Stats, error) {
 	return stats, nil
 }
 
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	result, err := callPs(allProcessFields, pid, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(result) == 1 {
+		return nil, nil
+	}
+	r := result[0]
+	ipid, err := strconv.Atoi(r[0])
+	if err != nil {
+		return nil, fmt.Errorf("pid: %s", err)
+	}
+	if ipid != int(pid) {
+		return nil, fmt.Errorf("pid %d != %d", pid, ipid)
+	}
+
+	k, err := unix.SysctlKinfoProc("kern.proc.pid", int(pid))
+	if err != nil {
+		// The process may have exited between the ps(1) call and this sysctl
+		// call (TOCTOU race).  On macOS the kernel returns success with 0
+		// bytes written rather than ESRCH, which unix.SysctlKinfoProc
+		// converts to EIO.
+		if errors.Is(err, unix.EIO) || errors.Is(err, unix.ESRCH) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("kproc: %w", err)
+	}
+	return processFromPID(pid, r, k)
+}
+
+func processFromPID(pid int32, r []string, k *unix.KinfoProc) (*Process, error) {
+	ppid, err := strconv.Atoi(r[1])
+	if err != nil {
+		return nil, fmt.Errorf("ppid: %s", err)
+	}
+	utime, stime, err := makeTimeStat(r[2], r[3])
+	if err != nil {
+		return nil, fmt.Errorf("times: %s", err)
+	}
+	createTime, err := formatElapsedTime(r[4])
+	if err != nil {
+		return nil, fmt.Errorf("etime: %s", err)
+	}
+	rss, err := strconv.Atoi(r[6])
+	if err != nil {
+		return nil, err
+	}
+	vms, err := strconv.Atoi(r[7])
+	if err != nil {
+		return nil, err
+	}
+	pagein, err := strconv.Atoi(r[8])
+	if err != nil {
+		return nil, err
+	}
+	proc := &Process{
+		Pid:     pid,
+		Ppid:    int32(ppid),
+		Name:    bytesToString(k.Proc.P_comm[:]),
+		Comm:    bytesToString(k.Proc.P_comm[:]),
+		Cmdline: r[9:],
+		Uids:    []int32{int32(k.Eproc.Ucred.Uid)},
+		Gids: []int32{
+			int32(k.Eproc.Pcred.P_rgid),
+			int32(k.Eproc.Ucred.Ngroups),
+			int32(k.Eproc.Pcred.P_svgid),
+		},
+		Stats: &Stats{
+			CreateTime:  createTime,
+			Status:      r[5],
+			Nice:        int32(k.Proc.P_nice),
+			CPUTime:     &CPUTimesStat{User: utime, System: stime},
+			MemInfo:     &MemoryInfoStat{RSS: uint64(rss) * 1024, VMS: uint64(vms) * 1024, Swap: uint64(pagein)},
+			IOStat:      &IOCountersStat{},
+			CtxSwitches: &NumCtxSwitchesStat{},
+		},
+	}
+	return proc, nil
+}
+
 func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	return allProcesses()
 }
@@ -104,52 +185,11 @@ func allProcesses() (map[int32]*Process, error) {
 			// These would only happen for very short-lived processes.
 			continue
 		}
-		ppid, err := strconv.Atoi(r[1])
-		if err != nil {
-			return nil, fmt.Errorf("ppid: %s", err)
-		}
-		utime, stime, err := makeTimeStat(r[2], r[3])
-		if err != nil {
-			return nil, fmt.Errorf("times: %s", err)
-		}
-		createTime, err := formatElapsedTime(r[4])
-		if err != nil {
-			return nil, fmt.Errorf("etime: %s", err)
-		}
-		rss, err := strconv.Atoi(r[6])
+		proc, err := processFromPID(pid, r, k)
 		if err != nil {
 			return nil, err
 		}
-		vms, err := strconv.Atoi(r[7])
-		if err != nil {
-			return nil, err
-		}
-		pagein, err := strconv.Atoi(r[8])
-		if err != nil {
-			return nil, err
-		}
-		procs[pid] = &Process{
-			Pid:     pid,
-			Ppid:    int32(ppid),
-			Name:    bytesToString(k.Proc.P_comm[:]),
-			Comm:    bytesToString(k.Proc.P_comm[:]),
-			Cmdline: r[9:],
-			Uids:    []int32{int32(k.Eproc.Ucred.Uid)},
-			Gids: []int32{
-				int32(k.Eproc.Pcred.P_rgid),
-				int32(k.Eproc.Ucred.Ngroups),
-				int32(k.Eproc.Pcred.P_svgid),
-			},
-			Stats: &Stats{
-				CreateTime:  createTime,
-				Status:      r[5],
-				Nice:        int32(k.Proc.P_nice),
-				CPUTime:     &CPUTimesStat{User: utime, System: stime},
-				MemInfo:     &MemoryInfoStat{RSS: uint64(rss) * 1024, VMS: uint64(vms) * 1024, Swap: uint64(pagein)},
-				IOStat:      &IOCountersStat{},
-				CtxSwitches: &NumCtxSwitchesStat{},
-			},
-		}
+		procs[pid] = proc
 	}
 
 	return procs, nil
