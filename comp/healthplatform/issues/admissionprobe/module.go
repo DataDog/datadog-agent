@@ -45,6 +45,10 @@ func (m *admissionProbeModule) IssueName() string {
 	return IssueName
 }
 
+func (m *admissionProbeModule) IssueType() string {
+	return IssueType
+}
+
 func (m *admissionProbeModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return m.template.BuildIssue(context)
 }

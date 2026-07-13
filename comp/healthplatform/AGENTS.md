@@ -38,7 +38,7 @@ Sub-package roles:
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
 
 > **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
-> `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly.
+> `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly. When a template *is* registered but `BuildIssue` errors, the minimal proto still gets `IssueType` from `Template.IssueType()` — only the fully-unregistered case ships an empty `IssueType`.
 
 ### Consuming healthplatform components from other code
 
@@ -127,6 +127,8 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 - Scope: same scope as `IssueName` — unique per issue *type*
 - **The agent never derives this value at runtime.** Each module defines its own `const IssueType` next to `IssueName` (following the same format rule above) and sets it explicitly in `BuildIssue`, exactly like `IssueName`. `store.ReportIssue` passes it through unmodified — it is not validated, backfilled, or overwritten. Any default derivation from `IssueName` for issues that omit it is the backend's responsibility, not the agent's — do not add that logic here to avoid duplicating it.
 - Export as `const IssueType` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueType = IssueType` in the `BuildIssue` file
+- Path A modules also implement `Template.IssueType() string` (mirroring `IssueName() string`) returning the same const — the runner's minimal-fallback proto uses it when `BuildIssue` errors
+- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `loadFromDisk`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
 
 ### `Title` — human sentence, instance-specific
 
@@ -355,6 +357,7 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 - [ ] `IssueType` is a `const`, exported next to `IssueName`, and equals `IssueName` lowercased with spaces replaced by underscores (hyphens preserved)
 - [ ] `issue.IssueType` is set inside `BuildIssue` to the fixed `issueType` const — it is not computed at runtime and not left empty
 - [ ] Minimal fallback issues built at call sites (when `BuildIssue` errors) also set `IssueType` from the same package constant
+- [ ] For Path A modules: the `Module` struct implements `IssueType() string` returning the same const (mirrors `IssueName()`)
 
 ### `Title` checks
 

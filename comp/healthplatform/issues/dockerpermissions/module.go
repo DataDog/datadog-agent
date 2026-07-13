@@ -46,6 +46,10 @@ func (m *dockerPermissionsModule) IssueName() string {
 	return IssueName
 }
 
+func (m *dockerPermissionsModule) IssueType() string {
+	return IssueType
+}
+
 func (m *dockerPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return m.template.BuildIssue(context)
 }

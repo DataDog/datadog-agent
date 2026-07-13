@@ -44,6 +44,10 @@ func (m *checkFailureModule) IssueName() string {
 	return IssueName
 }
 
+func (m *checkFailureModule) IssueType() string {
+	return IssueType
+}
+
 func (m *checkFailureModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return m.template.BuildIssue(context)
 }

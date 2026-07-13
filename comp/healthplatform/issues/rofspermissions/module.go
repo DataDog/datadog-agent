@@ -53,6 +53,10 @@ func (r *rofsPermissionsModule) IssueName() string {
 	return IssueName
 }
 
+func (r *rofsPermissionsModule) IssueType() string {
+	return IssueType
+}
+
 func (r *rofsPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return r.template.BuildIssue(context)
 }

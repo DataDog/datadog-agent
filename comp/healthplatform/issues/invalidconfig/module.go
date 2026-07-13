@@ -41,6 +41,10 @@ func (m *invalidConfigModule) IssueName() string {
 	return IssueName
 }
 
+func (m *invalidConfigModule) IssueType() string {
+	return IssueType
+}
+
 func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return InvalidConfigIssue{}.BuildIssue(context)
 }

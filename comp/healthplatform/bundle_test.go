@@ -309,5 +309,8 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",
 			mod.IssueName(), issue.IssueName)
+		assert.Equal(t, mod.IssueType(), issue.IssueType,
+			"module IssueType() %q must equal BuildIssue().IssueType %q",
+			mod.IssueType(), issue.IssueType)
 	}
 }

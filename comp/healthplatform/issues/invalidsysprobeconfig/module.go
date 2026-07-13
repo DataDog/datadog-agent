@@ -42,6 +42,10 @@ func (m *invalidSysprobeConfigModule) IssueName() string {
 	return IssueName
 }
 
+func (m *invalidSysprobeConfigModule) IssueType() string {
+	return IssueType
+}
+
 func (m *invalidSysprobeConfigModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return InvalidSysprobeConfigIssue{}.BuildIssue(context)
 }
