@@ -318,14 +318,14 @@ api_key:
 #
 #   series:
 
-#     # @param enabled - string - optional - default: "true"
-#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "true"
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "datadog_only"
 #     # Global default for the non-distribution metrics intake version. Accepted values:
 #     #   - true: v3 for every destination except Observability Pipelines Worker.
 #     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
 #     #   - false: v2 everywhere.
 #
-#     enabled: "true"
+#     enabled: "datadog_only"
 
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
