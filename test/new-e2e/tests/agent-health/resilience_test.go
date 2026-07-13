@@ -69,7 +69,7 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		assert.NoError(ct, err)
 		initialIssues = nil
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, resilienceIssueID) {
+			for _, iss := range findIssuesByPrefix(p, resilienceIssueID) {
 				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					initialIssues = append(initialIssues, iss)
 				}
@@ -99,7 +99,7 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		assert.NoError(ct, err)
 		reloadedIssues = nil
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, resilienceIssueID) {
+			for _, iss := range findIssuesByPrefix(p, resilienceIssueID) {
 				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
@@ -128,7 +128,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 		payloads, err := fakeIntake.GetAgentHealth()
 		assert.NoError(ct, err)
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, resilienceIssueID) {
+			for _, iss := range findIssuesByPrefix(p, resilienceIssueID) {
 				if iss.PersistedIssue != nil && iss.PersistedIssue.FirstSeen != "" && originalFirstSeen == "" {
 					originalFirstSeen = iss.PersistedIssue.FirstSeen
 				}
@@ -156,7 +156,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 		payloads, err := fakeIntake.GetAgentHealth()
 		assert.NoError(ct, err)
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, resilienceIssueID) {
+			for _, iss := range findIssuesByPrefix(p, resilienceIssueID) {
 				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
 					return
 				}
@@ -186,7 +186,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 		assert.NoError(ct, err)
 		recurrentIssues = nil
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, resilienceIssueID) {
+			for _, iss := range findIssuesByPrefix(p, resilienceIssueID) {
 				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					recurrentIssues = append(recurrentIssues, iss)
 				}

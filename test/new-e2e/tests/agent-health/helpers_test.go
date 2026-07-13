@@ -45,3 +45,18 @@ func findIssuesByID(t testing.TB, report *aggregator.AgentHealthPayload, issueID
 	}
 	return results
 }
+
+// findIssuesByPrefix returns all issues whose ID starts with prefix from a fakeintake payload.
+// Useful for issue types where the ID includes a runtime-generated hash suffix.
+func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []*healthplatform.Issue {
+	if report == nil || report.HealthReport == nil {
+		return nil
+	}
+	var results []*healthplatform.Issue
+	for id, issue := range report.Issues {
+		if strings.HasPrefix(id, prefix) {
+			results = append(results, issue)
+		}
+	}
+	return results
+}
