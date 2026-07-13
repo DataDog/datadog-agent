@@ -200,6 +200,43 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
+			name: "Azure Container Apps (no replica name, falls back to name for Primary)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):  conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.ServiceNameKey):    "my-app",
+				string(semconv1_27.CloudAccountIDKey): "sub-123",
+				AttributeAzureResourceGroupName:       "my-rg",
+			}),
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary: "my-app",
+					Dimensions: map[string]string{
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps (no replica name, no name, still detected with empty Primary)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+			}),
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary:    "",
+					Dimensions: map[string]string{},
+				},
+			},
+		},
+		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),

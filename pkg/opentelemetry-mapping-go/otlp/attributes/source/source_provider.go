@@ -36,7 +36,7 @@ const (
 
 // Identifier holds the identity of a telemetry source.
 // For sources that can be identified by a single value, only Primary is set.
-// For sources that needs to be identified by multiple values (e.g. Azure Container Apps), Dimensions is set.
+// For sources that need to be identified by multiple values (e.g. Azure Container Apps), Dimensions is set.
 type Identifier struct {
 	Primary    string
 	Dimensions map[string]string
