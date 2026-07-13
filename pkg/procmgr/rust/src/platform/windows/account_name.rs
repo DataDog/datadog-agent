@@ -50,10 +50,7 @@ mod tests {
     fn display_formats_well_known_accounts() {
         assert_eq!(local_system().display(), r"NT AUTHORITY\SYSTEM");
         assert_eq!(local_service().display(), r"NT AUTHORITY\LocalService");
-        assert_eq!(
-            network_service().display(),
-            r"NT AUTHORITY\NetworkService"
-        );
+        assert_eq!(network_service().display(), r"NT AUTHORITY\NetworkService");
     }
 
     #[test]

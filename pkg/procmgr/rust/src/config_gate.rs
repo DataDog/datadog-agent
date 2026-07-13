@@ -160,7 +160,11 @@ impl YamlCache {
         }
     }
 
-    fn optional_bool_key_if_exists(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
+    fn optional_bool_key_if_exists(
+        &mut self,
+        path: &str,
+        key: &str,
+    ) -> anyhow::Result<Option<bool>> {
         if !Path::new(path).is_file() {
             return Ok(None);
         }
@@ -362,8 +366,7 @@ mod tests {
             clear_gated_env_vars();
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
-            let _discovery =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
@@ -377,8 +380,7 @@ mod tests {
             clear_gated_env_vars();
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
-            let _discovery =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true");
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
@@ -452,8 +454,7 @@ mod tests {
                 "DD_FLEET_POLICIES_DIR",
                 fleet_dir.to_string_lossy().as_ref(),
             );
-            let _discovery =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
