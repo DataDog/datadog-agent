@@ -297,6 +297,16 @@ func TestSendToRetryLogic(t *testing.T) {
 			expectedError:    "HTTP 500",
 		},
 		{
+			// A 5xx body embedding a dial error must not be treated as a transport failure.
+			name: "no retry on 5xx whose body mentions a dial error",
+			serverBehavior: func(_ int) (int, string, time.Duration) {
+				return 503, "upstream connect error or disconnect/reset before headers: connection refused", 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    false,
+			expectedError:    "HTTP 503",
+		},
+		{
 			name: "non-retryable 400 error",
 			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 400, "Bad Request", 0

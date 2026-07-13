@@ -274,13 +274,15 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	for attempt := 3; attempt > 0; attempt-- {
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
-			// Always close the response body if it exists
+			// A response (even 5xx) means the server received the non-idempotent POST, so
+			// don't retry; only a transport failure with no response is a retry candidate.
+			responseReceived := r != nil
 			if r != nil {
 				r.Body.Close()
 			}
 			lastErr = err
 
-			if !isRetryableFlareError(err) {
+			if responseReceived || !isRetryableFlareError(err) {
 				return "", err
 			}
 			log.Warn("Failed to send flare, retrying in 1 second")
@@ -295,9 +297,8 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }
 
-// isRetryableFlareError reports whether a failed flare POST is safe to retry. The POST
-// creates a Zendesk ticket and is not idempotent, so we retry only on connect/DNS-phase
-// failures, where the request provably never reached the server.
+// isRetryableFlareError reports whether a transport failure (no HTTP response) is safe to
+// retry: only connect/DNS-phase errors, where the non-idempotent flare POST never landed.
 func isRetryableFlareError(err error) bool {
 	if err == nil {
 		return false
