@@ -19,7 +19,3 @@ pub(crate) fn from_ptr(ptr: *const u16) -> String {
         String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len))
     }
 }
-
-pub(crate) fn from_utf16(value: &[u16]) -> String {
-    String::from_utf16_lossy(value)
-}
