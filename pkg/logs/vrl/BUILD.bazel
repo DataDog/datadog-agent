@@ -1,14 +1,20 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# NOTE: Gazelle can't resolve vrl.go's cgo/native link deps, so it will
+# reintroduce broken copts/clinkopts (derived from vrl.go's #cgo pragma,
+# with a doubled path) on every `bazel run //:gazelle` regen touching this
+# package — delete those two lines afterwards. cdeps below is the
+# authoritative, working link mechanism (verified: copts/clinkopts alone
+# produce a "vrl.h file not found" compile error under Bazel's sandbox,
+# since the sandbox only exposes declared inputs).
 go_library(
     name = "vrl",
     srcs = [
         "vrl.go",
         "vrl_stub.go",
     ],
+    cdeps = ["//pkg/logs/vrl/rust:vrl_filter_cc"],
     cgo = True,
-    clinkopts = ["-Lpkg/logs/vrl/pkg/logs/vrl/rust -lvrl_filter -ldl -lpthread -lm"],
-    copts = ["-Ipkg/logs/vrl/pkg/logs/vrl/rust/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/vrl",
     visibility = ["//visibility:public"],
 )
@@ -19,4 +25,21 @@ go_test(
     embed = [":vrl"],
     gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
+)
+
+# Exercises the real cgo-backed implementation (vrl.go) through Bazel, unlike
+# vrl_test above which only ever builds the !vrl stub. Requires the "vrl" tag
+# so cdeps' cc_import(libvrl_filter) actually gets linked in.
+go_test(
+    name = "vrl_real_cgo_test",
+    srcs = ["vrl_test.go"],
+    embed = [":vrl"],
+    gotags = [
+        "test",
+        "vrl",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

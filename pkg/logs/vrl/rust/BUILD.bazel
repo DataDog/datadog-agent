@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_static_library", "rust_test")
@@ -38,6 +39,31 @@ filegroup(
     name = "vrl_filter_headers",
     srcs = ["include/vrl.h"],
     visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vrl_filter_hdrs",
+    hdrs = [":vrl_filter_headers"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "vrl_filter_static_import",
+    static_library = ":libvrl_filter",
+)
+
+# Headers + static lib bundled for consumption via a go_library's `cdeps`.
+# This wires the header/lib as real Bazel-sandboxed compile/link inputs,
+# instead of hand-rolled -I/-L paths (which the sandbox doesn't expose
+# undeclared files to).
+cc_library(
+    name = "vrl_filter_cc",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":vrl_filter_hdrs",
+        ":vrl_filter_static_import",
+    ],
 )
 
 # Install target for the libvrl_filter static library. Invoked with
