@@ -90,6 +90,36 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	}, nil, nil
 }
 
+// ResolveTimeout returns the effective per-task timeout: the task's own timeout if set,
+// otherwise the runner's configured default.
+func (e *WorkflowTaskExecutor) ResolveTimeout(task *types.Task) *int32 {
+	if timeoutSeconds := task.TimeoutSeconds(); timeoutSeconds != nil {
+		return timeoutSeconds
+	}
+	return e.config.TaskTimeoutSeconds
+}
+
+// RunPrepared runs a prepared task under its effective per-task timeout and returns the
+// action output on success, or an error on failure. A timeout is surfaced as a timeout
+// error. This is the single run+timeout seam shared by the single-process OPMS loop and
+// the on-demand executor gRPC handler, so action behavior cannot diverge between them.
+func (e *WorkflowTaskExecutor) RunPrepared(
+	ctx context.Context,
+	preparedTask *PreparedWorkflowTask,
+) (interface{}, error) {
+	logger := log.FromContext(ctx)
+	timeoutSeconds := e.ResolveTimeout(preparedTask.Task)
+
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
+	defer timeoutCancel()
+
+	output, err := e.RunTask(timeoutCtx, preparedTask)
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		return nil, timeoutErr
+	}
+	return output, err
+}
+
 func (e *WorkflowTaskExecutor) RunTask(
 	ctx context.Context,
 	preparedTask *PreparedWorkflowTask,
