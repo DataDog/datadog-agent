@@ -8,10 +8,40 @@
 package sender
 
 import (
-	gopsutil "github.com/shirou/gopsutil/v4/process"
+	"sync"
+	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+type directSenderConsumer struct {
+	log       log.Component
+	processes map[uint32]*process
+	mtx       sync.Mutex
+	procprobe procutil.Probe
+
+	proxyFilter          *dockerProxyFilter
+	extractor            *serviceExtractor
+	processNameExtractor *processNameExtractor
+	pidAliveFunc         func(pid int) bool
+	fetchProcesses       bool
+}
+
+func newDirectSenderConsumer(log log.Component, sysprobeconfig sysprobeconfig.Component) *directSenderConsumer {
+	return &directSenderConsumer{
+		log:                  log,
+		processes:            make(map[uint32]*process),
+		procprobe:            procutil.NewProcessProbe(),
+		proxyFilter:          newDockerProxyFilter(log),
+		extractor:            newServiceExtractor(sysprobeconfig),
+		processNameExtractor: newProcessNameExtractor(),
+		pidAliveFunc:         ddos.PidExists,
+	}
+}
 
 // Copy implements eventmonitor.EventConsumerHandler
 func (d *directSenderConsumer) Copy(ev *model.Event) any {
@@ -29,18 +59,19 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 		return
 	}
 
-	pp, err := gopsutil.NewProcess(int32(p.Pid))
-	if err != nil {
+	pp, err := d.procprobe.ProcessFromPID(int32(p.Pid))
+	if pp == nil || err != nil {
 		return
 	}
+
 	if p.Cwd == "" {
-		p.Cwd, _ = pp.Cwd()
+		p.Cwd = pp.Cwd
 	}
 	if p.Comm == "" {
-		p.Comm, _ = pp.Name()
+		p.Comm = pp.Comm
 	}
 	if len(p.Cmdline) == 0 {
-		p.Cmdline, _ = pp.CmdlineSlice()
+		p.Cmdline = pp.Cmdline
 	}
 }
 
@@ -49,24 +80,19 @@ func (d *directSenderConsumer) collectProcesses() error {
 		return nil
 	}
 
-	procs, err := gopsutil.Processes()
+	procs, err := d.procprobe.ProcessesByPID(time.Now(), false)
 	if err != nil {
 		return err
 	}
 
 	for _, pp := range procs {
-		ppid, _ := pp.Ppid()
-		cmdline, _ := pp.CmdlineSlice()
-		cwd, _ := pp.Cwd()
-		comm, _ := pp.Name()
-		exe, _ := pp.Exe()
 		p := &process{
 			Pid:       uint32(pp.Pid),
-			PPid:      uint32(ppid),
-			Cmdline:   cmdline,
-			Cwd:       cwd,
-			Comm:      comm,
-			Exe:       exe,
+			PPid:      uint32(pp.Ppid),
+			Cmdline:   pp.Cmdline,
+			Cwd:       pp.Cwd,
+			Comm:      pp.Comm,
+			Exe:       pp.Exe,
 			EventType: model.ExecEventType,
 		}
 		d.HandleEvent(p)

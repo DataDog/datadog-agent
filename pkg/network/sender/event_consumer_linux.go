@@ -10,10 +10,37 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+type directSenderConsumer struct {
+	log       log.Component
+	processes map[uint32]*process
+	mtx       sync.Mutex
+
+	proxyFilter          *dockerProxyFilter
+	extractor            *serviceExtractor
+	processNameExtractor *processNameExtractor
+	pidAliveFunc         func(pid int) bool
+	fetchProcesses       bool
+}
+
+func newDirectSenderConsumer(log log.Component, sysprobeconfig sysprobeconfig.Component) *directSenderConsumer {
+	return &directSenderConsumer{
+		log:                  log,
+		processes:            make(map[uint32]*process),
+		proxyFilter:          newDockerProxyFilter(log),
+		extractor:            newServiceExtractor(sysprobeconfig),
+		processNameExtractor: newProcessNameExtractor(),
+		pidAliveFunc:         ddos.PidExists,
+	}
+}
 
 // Copy implements eventmonitor.EventConsumerHandler
 func (d *directSenderConsumer) Copy(ev *model.Event) any {

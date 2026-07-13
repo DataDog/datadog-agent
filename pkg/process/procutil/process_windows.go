@@ -228,6 +228,18 @@ func (p *probe) StatsForPIDs(pids []int32, _ time.Time) (map[int32]*Stats, error
 	return statsToReturn, nil
 }
 
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	if proc, ok := p.procs[pid]; ok {
+		return proc.DeepCopy(), nil
+	}
+	proc := &Process{Pid: pid}
+	if err := fillProcessDetails(pid, proc); err != nil {
+		return nil, err
+	}
+	p.procs[pid] = proc
+	return proc.DeepCopy(), nil
+}
+
 func (p *probe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Process, error) {
 	// TODO: reuse PIDs slice across runs
 	pids, err := getPIDs()
