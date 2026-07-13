@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
-	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/apache/arrow-go/v18 v18.6.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
@@ -24,7 +24,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.203 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
@@ -114,7 +114,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jsimonetti/rtnetlink/v2 v2.0.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -161,7 +161,7 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
-	google.golang.org/grpc v1.81.1 // indirect
+	google.golang.org/grpc v1.82.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.35.6 // indirect

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -261,7 +262,8 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 // SetObserver wires an observer component into the DogStatsD metric pipeline
 // and the BufferedAggregator → CheckSampler path (Go core checks).
 //
-// Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
+// Requires the observer pipeline to be effectively required and
+// anomaly_detection.metrics.enabled to be true.
 // Every raw metric sample passing through the time-sampler workers, the
 // no-aggregation pipeline, and every CheckSampler will be forwarded to the
 // provided observer handle before aggregation. The call is a no-op when
@@ -271,8 +273,8 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 	cfg := pkgconfigsetup.Datadog()
-	if !cfg.GetBool("anomaly_detection.enabled") {
-		d.log.Debug("Observer disabled (anomaly_detection.enabled=false)")
+	if !anomalydetectionconfig.ObserverRequired(cfg) {
+		d.log.Debug("Observer disabled (no active anomaly detection gate)")
 		return
 	}
 	if !cfg.GetBool("anomaly_detection.metrics.enabled") {

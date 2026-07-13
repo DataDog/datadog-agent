@@ -8,6 +8,7 @@
 package healthplatform
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -28,6 +30,19 @@ import (
 )
 
 // team: agent-health fleet-remediation
+
+// findInvalidConfigIssue returns the invalid-config issue among a health
+// report's issues, if any. The issue's map key is IssueID scoped with a
+// host+path suffix (invalidconfig.IssueID + ":" + digest), so lookups must
+// match by prefix rather than by the bare constant.
+func findInvalidConfigIssue(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
+	for id, iss := range issues {
+		if strings.HasPrefix(id, invalidconfig.IssueID+":") {
+			return iss
+		}
+	}
+	return nil
+}
 
 // requireSchema skips the test when the compressed schema files haven't been
 // generated yet (run `dda inv schema.generate`). CI always has them; local
@@ -89,7 +104,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			return false
 		}
 		for _, p := range payloads {
-			if iss, ok := p.Issues["invalid-config"]; ok && iss != nil {
+			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
 				errorsStruct := iss.GetExtra().GetFields()["errors"].GetStructValue()
 				return errorsStruct != nil && len(errorsStruct.GetFields()) > 0
 			}
@@ -102,7 +117,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 
 	var receivedIssue *healthplatformpayload.Issue
 	for _, p := range payloads {
-		if iss, ok := p.Issues["invalid-config"]; ok && iss != nil {
+		if iss := findInvalidConfigIssue(p.Issues); iss != nil {
 			receivedIssue = iss
 			break
 		}

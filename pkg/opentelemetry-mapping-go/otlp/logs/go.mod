@@ -3,12 +3,12 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.203
+	github.com/DataDog/agent-payload/v5 v5.0.205
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50
-	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/murmur3 v1.1.8
@@ -38,7 +38,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

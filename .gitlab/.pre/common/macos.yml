@@ -75,6 +75,7 @@
   - export AWS_RETRY_MAX_ATTEMPTS=5
 
 .macos_gitlab:
+  extends: [".bazel:defs:cache:macos"]
   needs: ["go_deps", "go_tools_deps"]
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
@@ -94,8 +95,6 @@
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
     - export GOCACHE="$TMPDIR/go-build"
-    - dda inv -- -e rtloader.make
-    - dda inv -- -e rtloader.install
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose

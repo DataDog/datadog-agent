@@ -31,7 +31,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.64.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.203 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
@@ -182,7 +182,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
-	google.golang.org/grpc v1.81.1 // indirect
+	google.golang.org/grpc v1.82.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

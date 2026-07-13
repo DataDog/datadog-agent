@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/serializer
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.203
+	github.com/DataDog/agent-payload/v5 v5.0.205
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -92,7 +92,7 @@ require (
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect

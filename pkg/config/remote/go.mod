@@ -24,7 +24,7 @@ require (
 	go.etcd.io/bbolt v1.5.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/time v0.15.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
@@ -33,7 +33,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.64.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.203 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5 // indirect
