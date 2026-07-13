@@ -29,7 +29,13 @@ fn current_runtime_user() -> String {
 
 #[cfg(windows)]
 fn current_runtime_user() -> String {
-    std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string())
+    let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string());
+    let domain = std::env::var("USERDOMAIN").unwrap_or_default();
+    if domain.is_empty() {
+        format!(r".\{user}")
+    } else {
+        format!(r"{domain}\{user}")
+    }
 }
 
 #[test]
