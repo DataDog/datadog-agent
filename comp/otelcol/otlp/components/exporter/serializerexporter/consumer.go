@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -211,7 +212,12 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for _, tags := range c.fargateTagSets {
-			taskArn := strings.Split(tags[0], ":")[1]
+			prefix := string(source.AWSECSFargateKind) + ":"
+			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
+			if idx == -1 {
+				continue
+			}
+			taskArn := strings.TrimPrefix(tags[idx], prefix)
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
