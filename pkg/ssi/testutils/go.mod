@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/stretchr/testify v1.11.1
-	k8s.io/api v0.35.5
-	k8s.io/apimachinery v0.35.6
+	k8s.io/api v0.36.2
+	k8s.io/apimachinery v0.36.2
 )
 
 require (
