@@ -16,7 +16,6 @@ import (
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
-	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
@@ -832,8 +831,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
-	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
+	// The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
+	// check is disabled.
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", 1*time.Minute)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -1069,7 +1069,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_intervals", 5)
 
-	// Remote agents
 	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)
 	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
@@ -1077,7 +1076,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
-	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
@@ -1158,7 +1156,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("api_key", "")
 
-	// Agent
 	config.BindEnvAndSetDefault("site", DefaultSite)
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com", "DD_DD_URL", "DD_URL")
@@ -1399,7 +1396,6 @@ func autoscaling(config pkgconfigmodel.Setup) {
 }
 
 func fips(config pkgconfigmodel.Setup) {
-	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
@@ -1408,7 +1404,6 @@ func fips(config pkgconfigmodel.Setup) {
 }
 
 func remoteconfig(config pkgconfigmodel.Setup) {
-	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnvAndSetDefault("remote_configuration.api_key", "")
@@ -1445,12 +1440,10 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 }
 
 func remoteflags(config pkgconfigmodel.Setup) {
-	// Remote flags
 	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
-	// Autoconfig
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1509,7 +1502,6 @@ func debugging(config pkgconfigmodel.Setup) {
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
-	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
@@ -1548,7 +1540,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 }
 
 func serializer(config pkgconfigmodel.Setup) {
-	// Serializer
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1594,7 +1585,6 @@ func aggregator(config pkgconfigmodel.Setup) {
 }
 
 func serverless(config pkgconfigmodel.Setup) {
-	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true, "DD_ENHANCED_METRICS_ENABLED")
@@ -1626,7 +1616,6 @@ func serverless(config pkgconfigmodel.Setup) {
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
-	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
@@ -1663,7 +1652,6 @@ func forwarder(config pkgconfigmodel.Setup) {
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {
-	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
@@ -1775,8 +1763,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 }
 
 func logsagent(config pkgconfigmodel.Setup) {
-	// Logs Agent
-
 	// External Use: modify those parameters to configure the logs-agent.
 	// enable the logs-agent:
 	config.BindEnvAndSetDefault("logs_enabled", false)
@@ -1787,11 +1773,25 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
-	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingCount)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
+
+	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", 0)
+
+	// The maximum number of bytes that will be used to generate a checksum fingerprint;
+	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", 100000)
+
+	// The default number of lines (or bytes) to skip when reading a file.
+	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", 0)
+
+	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+	// Options are:
+	// - "line_checksum": compute the fingerprint by lines
+	// - "byte_checksum": compute the fingerprint by bytes
+	// - "disabled": disable fingerprinting
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+
 	// specific logs-agent api-key
 	config.BindEnvAndSetDefault("logs_config.api_key", "")
 	// use the `time` field from container log files instead of ingestion time
@@ -2072,7 +2072,6 @@ func vector(config pkgconfigmodel.Setup) {
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {
-	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
@@ -2080,7 +2079,6 @@ func cloudfoundry(config pkgconfigmodel.Setup) {
 }
 
 func containerd(config pkgconfigmodel.Setup) {
-	// Containerd
 	config.BindEnvAndSetDefault("containerd_namespace", []string{})
 	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
 	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
@@ -2089,14 +2087,12 @@ func containerd(config pkgconfigmodel.Setup) {
 }
 
 func cri(config pkgconfigmodel.Setup) {
-	// CRI
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 }
 
 func kubernetes(config pkgconfigmodel.Setup) {
-	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
