@@ -98,11 +98,13 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 }
 
 func (n *WorkflowRunner) run(parentCtx context.Context) {
-	// Detach from the parent context's deadline and cancellation so the
-	// polling loop isn't bounded by the startup timeout.
-	ctx, cancel := context.WithCancel(context.WithoutCancel(parentCtx))
-	defer cancel()
-	logger := log.FromContext(ctx)
+	// taskCtx is detached from the parent and NOT cancelled when this loop
+	// returns, so in-flight tasks drain gracefully on shutdown (Stop waits via n.wg).
+	taskCtx := context.WithoutCancel(parentCtx)
+	// pollCtx is cancelled on loop exit to abort any in-flight poll/prepare.
+	pollCtx, cancelPoll := context.WithCancel(taskCtx)
+	defer cancelPoll()
+	logger := log.FromContext(pollCtx)
 	n.wg.Add(1)
 	defer n.wg.Done()
 
@@ -127,9 +129,9 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 		var task *types.Task
 		var retryAfterDuration time.Duration
 		breaker.Do(
-			ctx,
+			pollCtx,
 			func() error {
-				dequeuedTask, retryAfter, err := n.opmsClient.DequeueTask(ctx)
+				dequeuedTask, retryAfter, err := n.opmsClient.DequeueTask(pollCtx)
 				if err != nil {
 					logger.Error("failed to dequeue task", log.ErrorField(err))
 					return err
@@ -155,9 +157,9 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 			continue
 		}
 
-		preparedTask, failureTask, err := n.taskExecutor.PrepareTask(ctx, task)
+		preparedTask, failureTask, err := n.taskExecutor.PrepareTask(pollCtx, task)
 		if err != nil {
-			n.publishFailure(ctx, failureTask, err)
+			n.publishFailure(taskCtx, failureTask, err)
 			continue
 		}
 
@@ -166,7 +168,7 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 		go func() {
 			defer n.wg.Done()
 			defer func() { <-n.sem }()
-			n.handleTask(ctx, preparedTask)
+			n.handleTask(taskCtx, preparedTask)
 		}()
 	}
 }
