@@ -49,11 +49,17 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
-        let procs = self.mgr.processes().await;
-        let proc = resolve_process(&procs, &name_or_uuid)?;
+        let (mut detail, pid) = {
+            let procs = self.mgr.processes().await;
+            let proc = resolve_process(&procs, &name_or_uuid)?;
+            (process_detail_fields(proc), proc.pid())
+        };
+        detail.runtime_user = pid
+            .and_then(platform::runtime_user_for_pid)
+            .unwrap_or_default();
 
         Ok(Response::new(proto::DescribeResponse {
-            detail: Some(process_detail(proc)),
+            detail: Some(detail),
         }))
     }
 
@@ -318,12 +324,12 @@ fn resolve_process<'a>(
 }
 
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
+    process_detail_fields(proc)
+}
+
+fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     let (profile, user) = process_identity(proc);
-    let runtime_user = proc
-        .pid()
-        .and_then(platform::runtime_user_for_pid)
-        .unwrap_or_default();
     proto::ProcessDetail {
         uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
@@ -346,7 +352,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         last_signal: proc.last_signal(),
         profile,
         user,
-        runtime_user,
+        runtime_user: String::new(),
     }
 }
 
