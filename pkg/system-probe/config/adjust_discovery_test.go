@@ -52,6 +52,30 @@ func TestAdjustDiscoveryServiceCollectionBatchSize(t *testing.T) {
 	}
 }
 
+func TestAdjustDiscoveryServiceCollectionMaxConsecutiveTimeouts(t *testing.T) {
+	key := discoveryNS("service_collection_max_consecutive_timeouts")
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{"positive value preserved", 7, 7},
+		{"zero disables timeout guard", 0, 0},
+		{"negative value falls back to default", -1, defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setInt(cfg, key, tc.input)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetInt(key))
+		})
+	}
+}
+
 func TestAdjustDiscovery_Coexistence(t *testing.T) {
 	tests := []struct {
 		name                     string
@@ -158,6 +182,27 @@ func TestAdjustDiscovery_ForceEnablesRequiredProtocols(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAdjustDiscovery_ForceEnablesHTTP2 pins the requirement that discovery
+// mode force-enables HTTP/2 (like HTTP) rather than leaving it off. It guards
+// against http2 being accidentally moved back into the force-disabled set.
+func TestAdjustDiscovery_ForceEnablesHTTP2(t *testing.T) {
+	http2Key := smNS("http2", "enabled")
+
+	assert.Contains(t, discoveryForceEnabledProtocols, http2Key,
+		"http2 should be force-enabled in discovery mode")
+	assert.NotContains(t, discoveryForceDisabledProtocols, http2Key,
+		"http2 should not be force-disabled in discovery mode")
+
+	cfg := mock.NewSystemProbe(t)
+	setBool(cfg, discoveryKey, true)
+	setBool(cfg, http2Key, false) // user explicitly disabled it
+
+	adjustDiscovery(cfg)
+
+	assert.True(t, cfg.GetBool(http2Key),
+		"discovery mode should override an explicit http2 disable")
 }
 
 func TestAdjustDiscovery_ForceEnablesProcessServiceInference(t *testing.T) {

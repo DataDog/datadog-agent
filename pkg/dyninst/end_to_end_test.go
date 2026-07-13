@@ -807,13 +807,15 @@ func waitForLogMessages(
 			exactMatcher(`/dd.span_id`),
 			replacement(`"[span_id]"`),
 		))
-		// Field-site span_id (rendered inside a captured context.Context's
-		// fields). Same source of non-determinism. dd.trace_id and dd.parent_id
-		// (and their field-site equivalents) are deterministic from the test's
-		// outbound traceparent and are NOT redacted.
+		// span_id inside a captured context.Context's entries map is dd-trace-go's
+		// server-generated child span, non-deterministic across runs. It is now an
+		// entry value rather than a path segment, so the path-based matcher no
+		// longer catches it; redact it from the entries map instead. trace_id and
+		// parent_id are deterministic from the test's outbound traceparent and are
+		// left intact.
 		redactors = append(redactors, redactor(
-			matchRegexp(`/debugger/snapshot/captures/[^/]+/arguments/.*/span_id$`),
-			replacement(`"[span_id]"`),
+			prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
+			replacerFunc(redactContextSpanID),
 		))
 		redactors = append(redactors, redactor(
 			prefixMatcher("/debugger/snapshot/stack"),

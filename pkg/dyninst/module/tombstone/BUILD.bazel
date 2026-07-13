@@ -7,6 +7,7 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/dyninst/module/statedir",
         "//pkg/util/backoff",
         "//pkg/util/log",
         "//pkg/version",

@@ -51,6 +51,7 @@ const (
 	KindKubernetesDeployment          Kind = "kubernetes_deployment"
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -1266,6 +1267,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
@@ -1536,6 +1539,63 @@ func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueResourceFlavor{}
+
+// GenerateKueueWorkloadEntityID returns the workloadmeta entity ID for a Kueue Workload.
+func GenerateKueueWorkloadEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KueuePodSetAssignment is a Kueue Workload pod set assignment.
+type KueuePodSetAssignment struct {
+	Name    string
+	Flavors map[string]string
+}
+
+// KubernetesKueueWorkload is an Entity representing a Kueue Workload.
+type KubernetesKueueWorkload struct {
+	EntityID
+	EntityMeta
+	QueueName         string
+	ClusterQueueName  string
+	PodSetAssignments []KueuePodSetAssignment
+}
+
+// GetID implements Entity#GetID.
+func (w *KubernetesKueueWorkload) GetID() EntityID {
+	return w.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (w *KubernetesKueueWorkload) Merge(e Entity) error {
+	ww, ok := e.(*KubernetesKueueWorkload)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueWorkload with different kind %T", e)
+	}
+
+	return merge(w, ww)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (w KubernetesKueueWorkload) DeepCopy() Entity {
+	cw := deepcopy.Copy(w).(KubernetesKueueWorkload)
+	return &cw
+}
+
+// String implements Entity#String.
+func (w KubernetesKueueWorkload) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, w.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, w.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Workload -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
+	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueWorkload{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -2190,6 +2250,9 @@ type GPU struct {
 
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
+
+	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
+	PCIBusID string
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType

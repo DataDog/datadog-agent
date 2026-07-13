@@ -86,15 +86,6 @@ func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation
 }
 func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
 
-// noopLogExtractor is a LogMetricsExtractor that returns no metrics.
-// This simulates a log at a timestamp that produces no virtual metrics.
-type noopLogExtractor struct{}
-
-func (e *noopLogExtractor) Name() string { return "noop_extractor" }
-func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	return observerdef.LogMetricsExtractorOutput{}
-}
-
 type sharedTagsExtractor struct{}
 
 func (e *sharedTagsExtractor) Name() string { return "shared_tags_extractor" }

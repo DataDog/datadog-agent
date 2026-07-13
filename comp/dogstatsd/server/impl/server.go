@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -126,9 +125,13 @@ type dsdServer struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
+	// workerWg tracks the worker run loops. stop() waits on it so that every
+	// worker has finished its run loop — including any flush-on-stop of its
+	// batcher — before stop() returns and the demultiplexer is torn down.
+	workerWg sync.WaitGroup
+
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
-	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
@@ -204,7 +207,6 @@ func initTelemetry() {
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
 }
 
-// TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 // NewComponent creates a new dogstatsd server component.
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
@@ -300,7 +302,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
-		serverlessFlushChan:     make(chan bool),
 		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
@@ -518,7 +519,16 @@ func (s *dsdServer) stop(context.Context) error {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+
 	close(s.stopChan)
+
+	// Wait for every worker run loop to exit before tearing down the
+	// demultiplexer. When dogstatsd_flush_incomplete_buckets is set, each worker
+	// flushes its batcher into the time sampler as it exits (see worker.run), so
+	// waiting here guarantees those samples have reached the sampler before the
+	// demultiplexer's own stop drains and flushes them out. Without the flag the
+	// workers simply return, and this wait is a cheap barrier.
+	s.workerWg.Wait()
 
 	if s.Statistics != nil {
 		s.Statistics.Stop()
@@ -582,6 +592,7 @@ func (s *dsdServer) handleMessages() {
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		s.workerWg.Add(1)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -610,19 +621,6 @@ func (s *dsdServer) forwarder(fcon net.Conn) {
 			s.packetsIn <- packets
 		}
 	}
-}
-
-// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *dsdServer) ServerlessFlush(sketchesBucketDelay time.Duration) {
-	s.log.Debug("Received a Flush trigger")
-
-	// make all workers flush their aggregated data (in the batchers) into the time samplers
-	s.serverlessFlushChan <- true
-
-	start := time.Now()
-	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.demultiplexer.ForceFlushToSerializer(start.Add(sketchesBucketDelay), true)
 }
 
 // dropCR drops a terminal \r from the data.

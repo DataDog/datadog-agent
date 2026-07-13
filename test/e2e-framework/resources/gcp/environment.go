@@ -58,6 +58,7 @@ const (
 	DDInfraDefaultZoneNameParamName        = "gcp/defaultZone"
 	DDInfraDefautVMServiceAccountParamName = "gcp/defaultVMServiceAccount"
 	DDInfraGKEEnableAutopilot              = "gcp/gke/enableAutopilot"
+	DDInfraGKENodeCountParamName           = "gcp/gke/nodeCount"
 	DDInfraOpenShiftPullSecretPath         = "gcp/openshift/pullSecretPath"
 	DDInfraOpenShiftCPUs                   = "gcp/openshift/cpus"
 	DDInfraOpenShiftMemory                 = "gcp/openshift/memory"
@@ -198,8 +199,13 @@ func (e *Environment) DefaultSubnet() string {
 func (e *Environment) GetCommonEnvironment() *config.CommonEnvironment {
 	return e.CommonEnvironment
 }
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
+}
+
+func (e *Environment) DefaultGKENodeCount() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraGKENodeCountParamName, e.envDefault.ddInfra.defaultGKENodeCount)
 }
 
 func (e *Environment) DefaultVMServiceAccount() string {

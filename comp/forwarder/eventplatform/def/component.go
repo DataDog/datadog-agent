@@ -45,6 +45,8 @@ const (
 	EventTypeEventManagement = "event-management"
 	// EventTypeKubeActions represents a kubernetes action result event
 	EventTypeKubeActions = "kube-actions"
+	// EventTypeAgentDiscovery represents an Agent Discovery configuration files event
+	EventTypeAgentDiscovery = "agentdiscovery"
 )
 
 // Component is the interface of the event platform forwarder component.

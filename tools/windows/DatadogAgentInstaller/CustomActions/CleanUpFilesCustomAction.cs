@@ -9,9 +9,6 @@ namespace Datadog.CustomActions
 {
     public class CleanUpFilesCustomAction
     {
-        private const string AdpProcmgrConfigFileName = "datadog-agent-data-plane.yaml";
-        private const string DdotProcmgrConfigFileName = "datadog-agent-ddot.yaml";
-
         /// <summary>
         /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
         /// Used before InstallFiles, during uninstall, and on rollback.
@@ -19,15 +16,6 @@ namespace Datadog.CustomActions
         public static ActionResult CleanupFiles(Session session)
         {
             return CleanupFiles(new SessionWrapper(session));
-        }
-
-        /// <summary>
-        /// Rollback-only: remove fleet-written processes.d YAML that MSI does not track.
-        /// Scheduled only on fresh install rollbacks (see Conditions.FirstInstall on the WiX action).
-        /// </summary>
-        public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
-        {
-            return RemoveFleetProcmgrConfigOnRollback(new SessionWrapper(session));
         }
 
         /// <summary>
@@ -40,7 +28,6 @@ namespace Datadog.CustomActions
 
         /// <summary>
         /// Uninstall tail: drop empty processes.d and empty install root after MSI components are removed.
-        /// Fleet prerm already removed processes.d YAML on full uninstall.
         /// </summary>
         public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
         {
@@ -50,12 +37,6 @@ namespace Datadog.CustomActions
         private static ActionResult CleanupFiles(ISession session)
         {
             RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
-            return ActionResult.Success;
-        }
-
-        private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
-        {
-            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
@@ -79,6 +60,9 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
+                // fleet postinst writes processes.d/*.yaml (untracked by MSI); RemoveFolderEx owns
+                // uninstall, this covers install/upgrade/repair rollback and the repair pre-clean.
+                Path.Combine(projectLocation, "processes.d"),
             }
             // installation specific files
             .Concat(session.GeneratedPaths());
@@ -107,35 +91,6 @@ namespace Datadog.CustomActions
                     session.Log($"Error while deleting file: {e}");
                     // Don't fail in cleanup/rollback actions otherwise
                     // we may brick the installation.
-                }
-            }
-        }
-
-        private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation)
-        {
-            if (string.IsNullOrEmpty(projectLocation))
-            {
-                return;
-            }
-
-            var processesDir = Path.Combine(projectLocation, "processes.d");
-            foreach (var fileName in new[] { AdpProcmgrConfigFileName, DdotProcmgrConfigFileName })
-            {
-                var path = Path.Combine(processesDir, fileName);
-                try
-                {
-                    if (!File.Exists(path))
-                    {
-                        session.Log($"{path} not found, skip deletion.");
-                        continue;
-                    }
-
-                    session.Log($"Deleting fleet process manager config \"{path}\"");
-                    File.Delete(path);
-                }
-                catch (Exception e)
-                {
-                    session.Log($"Error while deleting fleet process manager config {path}: {e}");
                 }
             }
         }
@@ -175,5 +130,6 @@ namespace Datadog.CustomActions
                 session.Log($"Error while deleting empty install directory: {e}");
             }
         }
+
     }
 }

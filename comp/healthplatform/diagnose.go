@@ -14,7 +14,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// team: agent-health
+// team: agent-health fleet-remediation
 
 // Diagnose converts health platform issues to diagnose format.
 // When diagCfg.Verbose is true, remediations are included in the output.

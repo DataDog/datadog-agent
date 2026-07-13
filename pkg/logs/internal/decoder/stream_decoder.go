@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	syslogparser "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -47,7 +48,13 @@ func newSyslogStreamDecoder(source *sources.ReplaceableSource, tailerInfo *statu
 	detectedPattern := &DetectedPattern{}
 
 	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsSIEMParsingEnabled()))
+	var p parsers.Parser
+	if source.Config().IsAttributeParsingEnabled(pkgconfigsetup.Datadog()) {
+		p = syslogparser.NewParser(source.Config().IsDebugAttrParsingEnabled())
+	} else {
+		p = noop.New()
+	}
+	lineParser := NewSingleLineParser(lineHandler, p)
 	f := framer.NewSyslogFramer(lineParser.process, maxMessageSize, tailerInfo)
 
 	formatInfo := status.NewMappedInfo("Format")

@@ -98,6 +98,32 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: agent-performance
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: agent_performance.container_restarts
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.container_terminated
+        preserve_tags:
+          - kind
+          - pod_name
+          - reason
+      - name: agent_performance.memory_usage
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: database
   metric:
     exclude:
@@ -168,6 +194,48 @@ profiles:
     start_after: 600
     iterations: 0
     period: 14400
+- name: csi-driver
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: datadog_csi_driver.node_publish_volume_attempts
+        preserve_tags:
+          - status
+          - type
+      - name: datadog_csi_driver.node_unpublish_volume_attempts
+        preserve_tags:
+          - status
+      - name: datadog_csi_driver.library_resolutions
+        preserve_tags:
+          - library
+          - result
+      - name: datadog_csi_driver.library_download_duration_seconds_count
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_download_duration_seconds_sum
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_cleanup
+        preserve_tags:
+          - library
+          - status
+          - strategy
+      - name: datadog_csi_driver.libraries_cached
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.libraries_cached_bytes
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.library_volume_links
+        preserve_tags:
+          - library
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900
 - name: ondemand
   events:
     - name: agentbsod
@@ -371,6 +439,16 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: appsec_injector.watched_changes
+        preserve_tags:
+          - proxy_type
+          - operation
+          - success
+      - name: appsec_injector.sidecar_mutations
+        preserve_tags:
+          - proxy_type
+          - outcome
+          - reason
   schedule:
     start_after: 30
     iterations: 0
@@ -397,6 +475,29 @@ profiles:
       - name: injector.pe_memory_allocation_failures
       - name: injector.pe_injection_context_allocated
       - name: injector.pe_injection_context_cleanedup
+      - name: injector.crashes_during_injection
+      - name: injector.crashes_post_injection
+      - name: injector.boot_recovery_crash_boots_detected
+      - name: injector.boot_recovery_driver_self_disabled
+      - name: injector.boot_recovery_stability_timer_fired
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: autodiscovery-discovery-probe
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: autodiscovery.discovery_queue_depth
+        preserve_tags:
+          - integration_name
+          - entity_kind
+      - name: autodiscovery.discovery_results
+        preserve_tags:
+          - integration_name
+          - result
+          - entity_kind
   schedule:
     start_after: 30
     iterations: 0

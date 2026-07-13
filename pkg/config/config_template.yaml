@@ -318,14 +318,14 @@ api_key:
 #
 #   series:
 
-#     # @param enabled - string - optional - default: "true"
-#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "true"
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "datadog_only"
 #     # Global default for the non-distribution metrics intake version. Accepted values:
 #     #   - true: v3 for every destination except Observability Pipelines Worker.
 #     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
 #     #   - false: v2 everywhere.
 #
-#     enabled: "true"
+#     enabled: "datadog_only"
 
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
@@ -1267,8 +1267,8 @@ api_key:
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
 
-#   # @param auto_multi_line_detection - boolean - optional - default: false
-#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+#   # @param auto_multi_line_detection - boolean - optional - default: true
+#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: true
 #   # Enable automatic aggregation of multi-line logs for common log patterns.
 #   # More information can be found in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
