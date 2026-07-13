@@ -82,7 +82,7 @@ ENV GOPATH=/go
 RUN go version && \
     curl --version
 
-ARG DDA_VERSION=v0.33.1
+ARG DDA_VERSION=v0.36.1
 ENV DDA_INTERACTIVE=false
 # Install prebuilt dda and sync tasks
 RUN ARCH=$(dpkg --print-architecture) && \
