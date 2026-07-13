@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.executor;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor";
+
+import "datadog/privateactionrunner/error_code.proto";
+
+/**
+This proto defines the local control-plane <-> executor contract for the split
+Private Action Runner. The always-on Rust control plane (par-control) dispatches
+actions to the on-demand Go executor (par-executor) over this gRPC service on a
+local socket. The control plane owns all OPMS interaction; the executor only
+verifies and runs a single action and streams the outcome back.
+*/
+
+// HealthRequest is the request for the Health RPC.
+message HealthRequest {}
+
+// HealthResponse reports whether the executor is ready to accept actions. The
+// control plane gates dispatch on `ready` so it never sends an action before
+// the executor can run it (e.g. before remote-config signing keys are loaded).
+message HealthResponse {
+  bool ready = 1;
+  // protocol_version lets the control plane negotiate compatibility with the executor.
+  uint32 protocol_version = 2;
+  // active_actions is the number of actions currently running in the executor.
+  int32 active_actions = 3;
+  // version is the executor build version.
+  string version = 4;
+}
+
+// RunActionRequest carries the raw task bytes exactly as dequeued from OPMS so
+// the executor can verify the task signature itself. The control plane forwards
+// these bytes unmodified and parses only unverified routing fields for heartbeats.
+message RunActionRequest {
+  bytes task = 1;
+}
+
+// RunActionResponse is one event in the RunAction result stream. The stream ends
+// with exactly one ActionResult; zero or more ActionStatus messages may precede it.
+message RunActionResponse {
+  oneof event {
+    ActionStatus status = 1;
+    ActionResult result = 2;
+  }
+}
+
+// ActionStatus is an optional in-progress update emitted while an action runs.
+message ActionStatus {
+  string message = 1;
+}
+
+// ActionResult is the terminal outcome of an action: either a success output or
+// a structured error matching the OPMS publish contract. The control plane
+// publishes this outcome to OPMS verbatim.
+message ActionResult {
+  oneof outcome {
+    // output is the JSON-encoded action output on success.
+    bytes output = 1;
+    // error is the structured failure (verification, credential, allowlist, timeout, ...).
+    datadog.privateactionrunner.errorcode.ActionPlatformError error = 2;
+  }
+}
+
+service Executor {
+  // RunAction runs a single action and streams status updates ending in a final ActionResult.
+  rpc RunAction(RunActionRequest) returns (stream RunActionResponse);
+  // Health reports executor readiness and liveness; used to gate dispatch.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}

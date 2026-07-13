@@ -408,6 +408,7 @@ write_source_files(
         "//pkg/proto/pbgo/mocks/core:api_mockgen",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/executor:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
         "//pkg/proto/pbgo/process:write_pb_go",
         "//pkg/proto/pbgo/procmgr:write_pb_go",
