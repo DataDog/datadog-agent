@@ -9,8 +9,10 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -411,47 +413,52 @@ func TestIsRetryableFlareError(t *testing.T) {
 			expected: false,
 		},
 		{
-			// A timeout may occur after the request reached the server and a ticket was
-			// created, so retrying it risks a duplicate: not retryable.
-			name:     "timeout error not retryable",
-			err:      errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"),
+			// url.Error wrapping, as http.Client returns it.
+			name:     "dial connection refused",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}},
+			expected: true,
+		},
+		{
+			name:     "dial network unreachable",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("network unreachable")},
+			expected: true,
+		},
+		{
+			// Connect-phase timeout: connection never established.
+			name:     "dial timeout",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("i/o timeout")},
+			expected: true,
+		},
+		{
+			name:     "dns i/o timeout",
+			err:      &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true},
+			expected: true,
+		},
+		{
+			name:     "dns server misbehaving",
+			err:      &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true},
+			expected: true,
+		},
+		{
+			name:     "dns no such host",
+			err:      &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
+			expected: true,
+		},
+		{
+			// Request was sent, so it may have been processed.
+			name:     "read connection reset not retryable",
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")},
 			expected: false,
 		},
 		{
-			name:     "connection refused error",
-			err:      errors.New("dial tcp 127.0.0.1:8080: connection refused"),
-			expected: true,
-		},
-		{
-			// A reset can happen mid/after transmission, so the server may already have
-			// created the ticket: not retryable.
-			name:     "connection reset error not retryable",
-			err:      errors.New("read tcp 127.0.0.1:8080: connection reset by peer"),
+			// Can fire after the request was sent.
+			name:     "client timeout not retryable",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)")},
 			expected: false,
 		},
 		{
-			name:     "network unreachable error",
-			err:      errors.New("dial tcp 192.168.1.1:8080: network unreachable"),
-			expected: true,
-		},
-		{
-			name:     "temporary failure error",
-			err:      errors.New("temporary failure in name resolution"),
-			expected: true,
-		},
-		{
-			name:     "non-retryable error",
+			name:     "generic error not retryable",
 			err:      errors.New("invalid request format"),
-			expected: false,
-		},
-		{
-			name:     "authentication error",
-			err:      errors.New("authentication failed"),
-			expected: false,
-		},
-		{
-			name:     "validation error",
-			err:      errors.New("validation failed"),
 			expected: false,
 		},
 	}

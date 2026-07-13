@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -298,18 +299,20 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 }
 
 // isRetryableFlareError reports whether a transport failure (no HTTP response) is safe to
-// retry: only connect/DNS-phase errors, where the non-idempotent flare POST never landed.
+// retry: only DNS- and dial-phase failures, where the non-idempotent POST never left.
 func isRetryableFlareError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	errStr := strings.ToLower(err.Error())
-	return strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "network unreachable") ||
-		strings.Contains(errStr, "no route to host") ||
-		strings.Contains(errStr, "no such host") ||
-		strings.Contains(errStr, "temporary failure in name resolution")
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return opErr.Op == "dial"
+	}
+	return false
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
