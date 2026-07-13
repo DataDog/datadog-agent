@@ -281,7 +281,9 @@ properties:
   atomic_registry_write:
     node_type: setting
     type: boolean
-    default: true
+    platform_default:
+      fargate: false
+      other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
   auditor_ttl:
