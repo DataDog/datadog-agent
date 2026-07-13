@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	winbrand = windows.NewLazyDLL("winbrand.dll")
+	winbrand = windows.NewLazySystemDLL("winbrand.dll")
 )
 
 const registryHive = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
