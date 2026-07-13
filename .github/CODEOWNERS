@@ -614,9 +614,7 @@
 /pkg/config/setup/apm_settings.go               @DataDog/agent-apm @DataDog/agent-configuration
 /pkg/config/setup/privateactionrunner*.go       @DataDog/action-platform @DataDog/agent-configuration
 /pkg/config/setup/process*.go                   @DataDog/container-experiences @DataDog/agent-configuration
-/pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
-/pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
-/pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
+/pkg/config/setup/system_probe*.go              @DataDog/ebpf-platform @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
