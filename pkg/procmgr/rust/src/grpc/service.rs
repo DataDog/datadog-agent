@@ -323,10 +323,6 @@ fn resolve_process<'a>(
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
-    process_detail_fields(proc)
-}
-
 fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     let (profile, user) = process_identity(proc);
@@ -432,7 +428,7 @@ mod tests {
         };
         let proc =
             ManagedProcess::new_config("detail-proc".to_string(), test_helpers::test_uuid(), cfg);
-        let detail = process_detail(&proc);
+        let detail = process_detail_fields(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
         assert_eq!(detail.working_dir, "/tmp");
