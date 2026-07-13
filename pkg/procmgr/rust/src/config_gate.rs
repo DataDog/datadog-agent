@@ -9,6 +9,9 @@
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. Resolution order matches agent config:
 //! environment override, fleet policy YAML, explicit base YAML value, then agent default.
+//!
+//! When deprecated `process_config.enabled` is set, collection keys follow
+//! `loadProcessTransforms` in `pkg/config/setup/process.go` instead of defaults.
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -84,10 +87,39 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     },
 ];
 
+/// Legacy `process_config.enabled` values after `loadProcessTransforms`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProcessEnabledMode {
+    Disabled,
+    ProcessesOnly,
+    ContainersOnly,
+}
+
+impl ProcessEnabledMode {
+    fn process_collection(self) -> bool {
+        matches!(self, Self::ProcessesOnly)
+    }
+
+    fn container_collection(self) -> bool {
+        matches!(self, Self::ContainersOnly)
+    }
+}
+
 impl GatedKeySpec {
     fn enabled(&self, path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.env_override() {
             return Ok(enabled);
+        }
+        if let Some(mode) = legacy_process_enabled_mode(path, yaml, self.fleet_policy_file)? {
+            match self.key {
+                "process_config.process_collection.enabled" => {
+                    return Ok(mode.process_collection());
+                }
+                "process_config.container_collection.enabled" => {
+                    return Ok(mode.container_collection());
+                }
+                _ => {}
+            }
         }
         if let Some(enabled) = self.fleet_policy_bool(yaml)? {
             return Ok(enabled);
@@ -192,6 +224,61 @@ pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
             })
         })
     })
+}
+
+fn legacy_process_enabled_mode(
+    path: &str,
+    yaml: &mut YamlCache,
+    fleet_policy_file: Option<&'static str>,
+) -> anyhow::Result<Option<ProcessEnabledMode>> {
+    if let Some(mode) = legacy_enabled_env_mode() {
+        return Ok(Some(mode));
+    }
+    if let Some(filename) = fleet_policy_file {
+        if let Some(dir) = resolve_fleet_policies_dir() {
+            let fleet_path = Path::new(&dir).join(filename);
+            let fleet_path = fleet_path.to_string_lossy();
+            if Path::new(fleet_path.as_ref()).is_file()
+                && let Some(value) =
+                    lookup_dotted_key(yaml.load(fleet_path.as_ref())?, "process_config.enabled")
+                && let Some(mode) = legacy_enabled_mode(value)
+            {
+                return Ok(Some(mode));
+            }
+        }
+    }
+    if let Some(value) = lookup_dotted_key(yaml.load(path)?, "process_config.enabled") {
+        return Ok(legacy_enabled_mode(value));
+    }
+    Ok(None)
+}
+
+fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
+    ["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"]
+        .into_iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .map(|value| legacy_enabled_mode_from_string(&value))
+        .next()
+}
+
+fn legacy_enabled_mode(value: &serde_yaml::Value) -> Option<ProcessEnabledMode> {
+    match value {
+        serde_yaml::Value::String(text) => Some(legacy_enabled_mode_from_string(text)),
+        serde_yaml::Value::Bool(enabled) => Some(if *enabled {
+            ProcessEnabledMode::ProcessesOnly
+        } else {
+            ProcessEnabledMode::ContainersOnly
+        }),
+        _ => None,
+    }
+}
+
+fn legacy_enabled_mode_from_string(text: &str) -> ProcessEnabledMode {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "disabled" => ProcessEnabledMode::Disabled,
+        "true" | "1" | "t" | "yes" | "y" | "on" => ProcessEnabledMode::ProcessesOnly,
+        _ => ProcessEnabledMode::ContainersOnly,
+    }
 }
 
 fn config_key_enabled(path: &str, key: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
@@ -354,9 +441,39 @@ mod tests {
             let agent = write_config(
                 dir.path(),
                 "datadog.yaml",
-                "process_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                "process_config:\n  enabled: disabled\n  process_discovery:\n    enabled: false\n",
             );
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_false_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_true_enables_process_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: true\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 
