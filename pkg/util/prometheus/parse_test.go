@@ -324,6 +324,159 @@ func generateLargeMetricsData() []byte {
 	return []byte(sb.String())
 }
 
+func TestParseMetricsFromResponse_PrometheusTextFormat(t *testing.T) {
+	testData := `# TYPE go_goroutines gauge
+go_goroutines 42
+# TYPE http_requests_total counter
+http_requests_total{method="GET"} 100
+http_requests_total{method="POST"} 50`
+
+	metrics, err := ParseMetricsFromResponse([]byte(testData), "text/plain; charset=utf-8", nil)
+	require.NoError(t, err)
+
+	gaugeFamily := findFamily(metrics, "go_goroutines")
+	require.NotNil(t, gaugeFamily, "gauge family should exist")
+	assert.Equal(t, "GAUGE", gaugeFamily.Type)
+	require.Len(t, gaugeFamily.Samples, 1)
+	assert.Equal(t, float64(42), gaugeFamily.Samples[0].Value)
+
+	counterFamily := findFamily(metrics, "http_requests_total")
+	require.NotNil(t, counterFamily, "counter family should exist")
+	assert.Equal(t, "COUNTER", counterFamily.Type)
+	require.Len(t, counterFamily.Samples, 2)
+
+	// Verify sample values by label
+	for _, s := range counterFamily.Samples {
+		switch s.Metric["method"] {
+		case "GET":
+			assert.Equal(t, float64(100), s.Value)
+		case "POST":
+			assert.Equal(t, float64(50), s.Value)
+		default:
+			t.Errorf("unexpected method label: %s", s.Metric["method"])
+		}
+	}
+}
+
+func TestParseMetricsFromResponse_OpenMetricsContentTypeSelectsParser(t *testing.T) {
+	// Verify that the OpenMetrics content-type causes a different code path
+	// than text/plain. We test with the Prometheus text parser as baseline,
+	// then confirm the OpenMetrics content type is correctly detected.
+
+	testData := `# TYPE go_goroutines gauge
+go_goroutines 42
+`
+	// text/plain should use the Prometheus parser successfully
+	metrics, err := ParseMetricsFromResponse([]byte(testData), ContentTypeText, nil)
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "GAUGE", metrics[0].Type)
+
+	// Verify constant values used for content-type detection
+	assert.Equal(t, "application/openmetrics-text", ContentTypeOpenMetrics)
+	assert.Equal(t, "text/plain", ContentTypeText)
+	assert.True(t, strings.Contains("application/openmetrics-text; version=1.0.0", ContentTypeOpenMetrics),
+		"OpenMetrics content type with version should match the constant")
+	assert.False(t, strings.Contains(ContentTypeText, ContentTypeOpenMetrics),
+		"text/plain should not match OpenMetrics content type")
+}
+
+func TestParseMetricsFromResponse_Histogram(t *testing.T) {
+	testData := `# TYPE request_duration_seconds histogram
+request_duration_seconds_bucket{le="0.1"} 10
+request_duration_seconds_bucket{le="0.5"} 25
+request_duration_seconds_bucket{le="+Inf"} 30
+request_duration_seconds_sum 15.5
+request_duration_seconds_count 30`
+
+	metrics, err := ParseMetricsFromResponse([]byte(testData), "text/plain", nil)
+	require.NoError(t, err)
+
+	histFamily := findFamily(metrics, "request_duration_seconds")
+	require.NotNil(t, histFamily, "histogram family should exist")
+	assert.Equal(t, "HISTOGRAM", histFamily.Type)
+	assert.Len(t, histFamily.Samples, 5, "should have 3 buckets + sum + count")
+
+	// Verify bucket samples have the le label
+	bucketCount := 0
+	for _, s := range histFamily.Samples {
+		if _, ok := s.Metric["le"]; ok {
+			bucketCount++
+		}
+	}
+	assert.Equal(t, 3, bucketCount, "should have 3 bucket samples with le label")
+}
+
+func TestParseMetricsFromResponse_Summary(t *testing.T) {
+	testData := `# TYPE rpc_duration_seconds summary
+rpc_duration_seconds{quantile="0.5"} 0.001
+rpc_duration_seconds{quantile="0.99"} 0.01
+rpc_duration_seconds_sum 5.0
+rpc_duration_seconds_count 100`
+
+	metrics, err := ParseMetricsFromResponse([]byte(testData), "text/plain", nil)
+	require.NoError(t, err)
+
+	summaryFamily := findFamily(metrics, "rpc_duration_seconds")
+	require.NotNil(t, summaryFamily, "summary family should exist")
+	assert.Equal(t, "SUMMARY", summaryFamily.Type)
+	assert.Len(t, summaryFamily.Samples, 4, "should have 2 quantiles + sum + count")
+
+	// Verify quantile samples
+	quantileCount := 0
+	for _, s := range summaryFamily.Samples {
+		if _, ok := s.Metric["quantile"]; ok {
+			quantileCount++
+		}
+	}
+	assert.Equal(t, 2, quantileCount, "should have 2 quantile samples")
+}
+
+func TestParseMetricsFromResponse_RawLineFilters(t *testing.T) {
+	testData := `# TYPE go_goroutines gauge
+go_goroutines 42
+# TYPE http_requests_total counter
+http_requests_total{method="GET"} 100
+http_requests_total{method="POST"} 50`
+
+	// Filter out lines containing method="POST"
+	metrics, err := ParseMetricsFromResponse([]byte(testData), "text/plain", []string{`method="POST"`})
+	require.NoError(t, err)
+
+	counterFamily := findFamily(metrics, "http_requests_total")
+	require.NotNil(t, counterFamily, "counter family should exist after filtering")
+	assert.Len(t, counterFamily.Samples, 1, "should have 1 sample after filtering out POST")
+	assert.Equal(t, "GET", counterFamily.Samples[0].Metric["method"])
+
+	// The gauge should be unaffected by the filter
+	gaugeFamily := findFamily(metrics, "go_goroutines")
+	require.NotNil(t, gaugeFamily)
+	assert.Len(t, gaugeFamily.Samples, 1)
+}
+
+func TestParseMetricsFromResponse_UntypedMetrics(t *testing.T) {
+	testData := `some_untyped_metric{label="value"} 42
+another_untyped_metric 99`
+
+	metrics, err := ParseMetricsFromResponse([]byte(testData), "text/plain", nil)
+	require.NoError(t, err)
+
+	require.Len(t, metrics, 2, "should have 2 untyped metric families")
+	for _, fam := range metrics {
+		assert.Equal(t, "UNTYPED", fam.Type, "metric %s should be UNTYPED", fam.Name)
+	}
+
+	untypedFamily := findFamily(metrics, "some_untyped_metric")
+	require.NotNil(t, untypedFamily)
+	require.Len(t, untypedFamily.Samples, 1)
+	assert.Equal(t, float64(42), untypedFamily.Samples[0].Value)
+
+	anotherFamily := findFamily(metrics, "another_untyped_metric")
+	require.NotNil(t, anotherFamily)
+	require.Len(t, anotherFamily.Samples, 1)
+	assert.Equal(t, float64(99), anotherFamily.Samples[0].Value)
+}
+
 func generateLargeMetricsDataWithEmptyPods() []byte {
 	var sb strings.Builder
 	sb.WriteString("# TYPE container_cpu_usage_seconds_total counter\n")

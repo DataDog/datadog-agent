@@ -1,0 +1,261 @@
+## All options defined here are available to all instances.
+init_config:
+
+instances:
+
+    ## @param openmetrics_endpoint - string - required
+    ## The URL exposing metrics in the OpenMetrics / Prometheus format.
+  - openmetrics_endpoint: http://localhost:8080/metrics
+
+    ## @param namespace - string - optional
+    ## The namespace to prepend to all metric names.
+    ## E.g. if namespace is "myapp" and a raw metric is "requests_total",
+    ## the resulting Datadog metric will be "myapp.requests_total".
+    #
+    # namespace: ""
+
+    ## @param metrics - list - required
+    ## Metrics to collect from the endpoint.
+    ##
+    ## Each entry is one of:
+    ##   - A string: a regex pattern matching raw metric names (use ".*" to collect all).
+    ##   - A mapping of {raw_name: datadog_name} to rename metrics.
+    ##   - A mapping of {raw_name: {name: datadog_name, type: metric_type}} to rename
+    ##     and override the type.
+    ##
+    ## Supported metric types: counter, gauge, histogram, summary, rate,
+    ## counter_gauge, native (auto-detect from endpoint).
+    ##
+    ## Examples:
+    ##   metrics:
+    ##     - ".*"                           # collect everything
+    ##     - go_goroutines                  # collect by exact name
+    ##     - "http_request_duration_.*"     # collect by regex
+    ##     - http_requests_total: my_app.requests   # rename
+    ##     - process_cpu_seconds_total:     # rename + type override
+    ##         name: my_app.cpu_seconds
+    ##         type: gauge
+    #
+    metrics:
+      - ".*"
+
+    ## @param raw_metric_prefix - string - optional
+    ## A prefix to strip from every raw metric name before the namespace is applied.
+    #
+    # raw_metric_prefix: ""
+
+    ## @param exclude_metrics - list of strings - optional
+    ## Metrics to exclude. Supports exact match and regex patterns.
+    #
+    # exclude_metrics: []
+
+    ## @param exclude_metrics_by_labels - mapping - optional
+    ## Skip metrics whose labels match the given values.
+    ## Keys are label names, values are lists of label values to exclude.
+    ## Use "*" to exclude all values for a label.
+    #
+    # exclude_metrics_by_labels: {}
+
+    ## @param rename_labels - mapping - optional
+    ## A mapping of label names to tag names. The label will be submitted
+    ## using the new name as the tag key.
+    #
+    # rename_labels: {}
+
+    ## @param exclude_labels - list of strings - optional
+    ## Labels to exclude from tags.
+    #
+    # exclude_labels: []
+
+    ## @param include_labels - list of strings - optional
+    ## If set, only these labels will be submitted as tags.
+    #
+    # include_labels: []
+
+    ## @param share_labels - mapping - optional
+    ## Share labels from one metric to others. This is useful when a
+    ## metric like kube_pod_info has metadata labels that should be
+    ## attached to other metrics.
+    ##
+    ## Keys are source metric names. Values have:
+    ##   labels: list of label names to share (empty = share all)
+    ##   match:  list of label names that must match between source and target
+    ##
+    ## Example:
+    ##   share_labels:
+    ##     kube_pod_info:
+    ##       labels:
+    ##         - node
+    ##         - host_ip
+    ##       match:
+    ##         - pod
+    ##         - namespace
+    #
+    # share_labels: {}
+
+    ## @param hostname_label - string - optional
+    ## Use the value of this label as the hostname for the metric.
+    #
+    # hostname_label: ""
+
+    ## @param hostname_format - string - optional
+    ## A template for the hostname. Must contain <HOSTNAME>.
+    ## Example: "<HOSTNAME>-suffix"
+    #
+    # hostname_format: ""
+
+    ## @param type_overrides - mapping - optional
+    ## Override the type of a metric. Keys are raw metric names,
+    ## values are Prometheus types: counter, gauge, histogram, summary.
+    #
+    # type_overrides: {}
+
+    ## @param collect_histogram_buckets - boolean - optional - default: true
+    ## Whether to collect histogram bucket metrics.
+    #
+    # collect_histogram_buckets: true
+
+    ## @param histogram_buckets_as_distributions - boolean - optional - default: false
+    ## Send histogram buckets as Datadog distribution metrics.
+    #
+    # histogram_buckets_as_distributions: false
+
+    ## @param non_cumulative_histogram_buckets - boolean - optional - default: false
+    ## Whether to decumulate histogram bucket values.
+    #
+    # non_cumulative_histogram_buckets: false
+
+    ## @param collect_counters_with_distributions - boolean - optional - default: false
+    ## When histogram_buckets_as_distributions is true, also submit
+    ## the sum and count as monotonic_count.
+    #
+    # collect_counters_with_distributions: false
+
+    ## @param send_distribution_counts_as_monotonic - boolean - optional - default: false
+    ## Submit histogram/summary _count as monotonic_count.
+    #
+    # send_distribution_counts_as_monotonic: false
+
+    ## @param send_distribution_sums_as_monotonic - boolean - optional - default: false
+    ## Submit histogram/summary _sum as monotonic_count.
+    #
+    # send_distribution_sums_as_monotonic: false
+
+    ## @param enable_health_service_check - boolean - optional - default: true
+    ## Submit a service check "openmetrics.health" reflecting endpoint reachability.
+    #
+    # enable_health_service_check: true
+
+    ## @param ignore_connection_errors - boolean - optional - default: false
+    ## Silently ignore connection errors instead of raising them.
+    #
+    # ignore_connection_errors: false
+
+    ## @param max_returned_metrics - integer - optional - default: 0 (unlimited)
+    ## Limit the number of metrics submitted per check run.
+    #
+    # max_returned_metrics: 0
+
+    ## @param raw_line_filters - list of strings - optional
+    ## Filter out raw text lines from the response before parsing.
+    ## Lines containing any of these strings will be removed.
+    #
+    # raw_line_filters: []
+
+    ## @param telemetry - boolean - optional - default: false
+    ## Enable telemetry metrics for the scraper (input/processed/ignored counts).
+    #
+    # telemetry: false
+
+    ## @param cache_metric_wildcards - boolean - optional - default: true
+    ## Cache regex match results for metric names across scrapes.
+    #
+    # cache_metric_wildcards: true
+
+    ## @param tag_by_endpoint - boolean - optional - default: false
+    ## Add an "endpoint:<url>" tag to every metric.
+    #
+    # tag_by_endpoint: false
+
+    ## @param timeout - integer - optional - default: 10
+    ## HTTP request timeout in seconds.
+    #
+    # timeout: 10
+
+    ## @param headers - mapping - optional
+    ## Additional HTTP headers to send with every request.
+    #
+    # headers: {}
+
+    ## @param username - string - optional
+    ## Username for HTTP basic authentication.
+    #
+    # username: ""
+
+    ## @param password - string - optional
+    ## Password for HTTP basic authentication.
+    #
+    # password: ""
+
+    ## @param bearer_token_auth - boolean - optional - default: false
+    ## Use bearer token authentication.
+    #
+    # bearer_token_auth: false
+
+    ## @param bearer_token_path - string - optional
+    ## Path to file containing the bearer token.
+    #
+    # bearer_token_path: ""
+
+    ## @param tls_verify - boolean - optional - default: true
+    ## Whether to verify TLS certificates.
+    #
+    # tls_verify: true
+
+    ## @param tls_cert - string - optional
+    ## Path to TLS client certificate.
+    #
+    # tls_cert: ""
+
+    ## @param tls_private_key - string - optional
+    ## Path to TLS client private key.
+    #
+    # tls_private_key: ""
+
+    ## @param tls_ca_cert - string - optional
+    ## Path to CA certificate for TLS verification.
+    #
+    # tls_ca_cert: ""
+
+    ## @param proxy - mapping - optional
+    ## Proxy settings. Keys are "http", "https", "no_proxy".
+    #
+    # proxy: {}
+
+    ## @param skip_proxy - boolean - optional - default: false
+    ## Skip proxy for this endpoint.
+    #
+    # skip_proxy: false
+
+    ## @param tags - list of strings - optional
+    ## Additional tags to attach to every metric, event, and service check.
+    #
+    # tags:
+    #   - "key:value"
+
+    ## @param min_collection_interval - integer - optional - default: 15
+    ## Minimum number of seconds between check runs.
+    #
+    # min_collection_interval: 15
+
+    ## V1 compatibility options (deprecated — prefer V2 names above):
+    ##
+    ## prometheus_url → use openmetrics_endpoint
+    ## prometheus_metrics_prefix → use raw_metric_prefix
+    ## labels_mapper → use rename_labels
+    ## label_joins → use share_labels
+    ## label_to_hostname → use hostname_label
+    ## ignore_metrics → use exclude_metrics
+    ## send_histograms_buckets → use collect_histogram_buckets
+    ## send_distribution_buckets → use histogram_buckets_as_distributions
+    ## health_service_check → use enable_health_service_check
