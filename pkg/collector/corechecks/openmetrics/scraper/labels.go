@@ -13,17 +13,17 @@ import (
 // LabelProcessor handles converting Prometheus metric labels into Datadog tags,
 // with support for renaming, filtering, and hostname extraction.
 type LabelProcessor struct {
-	renameLabels  map[string]string
-	excludeLabels map[string]struct{}
-	includeLabels map[string]struct{}
-	hostnameLabel string
+	renameLabels   map[string]string
+	excludeLabels  map[string]struct{}
+	includeLabels  map[string]struct{}
+	hostnameLabel  string
 	hostnameFormat string
 }
 
 // NewLabelProcessor creates a LabelProcessor from config.
 func NewLabelProcessor(cfg *Config) *LabelProcessor {
 	lp := &LabelProcessor{
-		renameLabels:  cfg.RenameLabels,
+		renameLabels:   cfg.RenameLabels,
 		hostnameLabel:  cfg.HostnameLabel,
 		hostnameFormat: cfg.HostnameFormat,
 	}

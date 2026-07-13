@@ -9,6 +9,7 @@
 package scraper
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -34,7 +35,7 @@ type Config struct {
 	ExtraMetrics []interface{} `yaml:"extra_metrics"`
 
 	// Prefix stripped from raw metric names before namespace is applied
-	RawMetricPrefix string `yaml:"raw_metric_prefix"`
+	RawMetricPrefix  string `yaml:"raw_metric_prefix"`
 	PromMetricPrefix string `yaml:"prometheus_metrics_prefix"` // V1
 
 	// Type overrides: raw_metric_name → "counter"|"gauge"|"histogram"|"summary"|"rate"
@@ -47,8 +48,8 @@ type Config struct {
 	ShareLabels   map[string]ShareLabelsConfig `yaml:"share_labels"`
 
 	// Label handling — V1 names
-	LabelsMapper map[string]string            `yaml:"labels_mapper"`
-	LabelJoins   map[string]LabelJoinsConfig  `yaml:"label_joins"`
+	LabelsMapper map[string]string           `yaml:"labels_mapper"`
+	LabelJoins   map[string]LabelJoinsConfig `yaml:"label_joins"`
 
 	// Hostname from labels
 	HostnameLabel   string `yaml:"hostname_label"`
@@ -88,12 +89,12 @@ type Config struct {
 	MaxReturnedMetrics       int   `yaml:"max_returned_metrics"`
 
 	// HTTP options
-	Timeout        int               `yaml:"timeout"`
-	Headers        map[string]string `yaml:"headers"`
-	ExtraHeaders   map[string]string `yaml:"extra_headers"`
-	Username       string            `yaml:"username"`
-	Password       string            `yaml:"password"`
-	BearerTokenAuth bool             `yaml:"bearer_token_auth"`
+	Timeout         int               `yaml:"timeout"`
+	Headers         map[string]string `yaml:"headers"`
+	ExtraHeaders    map[string]string `yaml:"extra_headers"`
+	Username        string            `yaml:"username"`
+	Password        string            `yaml:"password"`
+	BearerTokenAuth bool              `yaml:"bearer_token_auth"`
 	BearerTokenPath string            `yaml:"bearer_token_path"`
 
 	// TLS
@@ -103,8 +104,8 @@ type Config struct {
 	TLSCACert     string `yaml:"tls_ca_cert"`
 
 	// Proxy
-	Proxy    map[string]string `yaml:"proxy"`
-	SkipProxy bool             `yaml:"skip_proxy"`
+	Proxy     map[string]string `yaml:"proxy"`
+	SkipProxy bool              `yaml:"skip_proxy"`
 
 	// Connection
 	PersistConnections *bool `yaml:"persist_connections"`
@@ -240,14 +241,14 @@ func (c *Config) applyDefaults() {
 // Validate checks required fields.
 func (c *Config) Validate() error {
 	if c.OpenMetricsEndpoint == "" {
-		return fmt.Errorf("either `openmetrics_endpoint` or `prometheus_url` must be set")
+		return errors.New("either `openmetrics_endpoint` or `prometheus_url` must be set")
 	}
 	if len(c.Metrics) == 0 && len(c.ExtraMetrics) == 0 {
-		return fmt.Errorf("`metrics` must be set")
+		return errors.New("`metrics` must be set")
 	}
 	if c.HostnameLabel != "" && c.HostnameFormat != "" {
 		if !strings.Contains(c.HostnameFormat, "<HOSTNAME>") {
-			return fmt.Errorf("`hostname_format` must contain the placeholder `<HOSTNAME>`")
+			return errors.New("`hostname_format` must contain the placeholder `<HOSTNAME>`")
 		}
 	}
 	return nil

@@ -78,7 +78,7 @@ func (s *recordingSender) MonotonicCount(metric string, value float64, hostname 
 	s.calls = append(s.calls, metricCall{"MonotonicCount", metric, value, hostname, tags})
 }
 
-func (s *recordingSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+func (s *recordingSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, _ bool) {
 	s.calls = append(s.calls, metricCall{"MonotonicCountWithFlushFirstValue", metric, value, hostname, tags})
 }
 
@@ -120,15 +120,15 @@ func (s *recordingSender) HistogramBucket(metric string, value int64, lowerBound
 	s.bucketCalls = append(s.bucketCalls, bucketCall{metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue})
 }
 
-func (s *recordingSender) Event(_ event.Event)                                        {}
-func (s *recordingSender) EventPlatformEvent(_ []byte, _ string)                      {}
-func (s *recordingSender) Commit()                                                    { s.committed = true }
-func (s *recordingSender) DisableDefaultHostname(_ bool)                              {}
-func (s *recordingSender) SetCheckCustomTags(_ []string)                              {}
-func (s *recordingSender) SetCheckService(_ string)                                   {}
-func (s *recordingSender) SetNoIndex(_ bool)                                          {}
-func (s *recordingSender) FinalizeCheckServiceTag()                                   {}
-func (s *recordingSender) GetSenderStats() stats.SenderStats                          { return stats.SenderStats{} }
+func (s *recordingSender) Event(_ event.Event)                                                {}
+func (s *recordingSender) EventPlatformEvent(_ []byte, _ string)                              {}
+func (s *recordingSender) Commit()                                                            { s.committed = true }
+func (s *recordingSender) DisableDefaultHostname(_ bool)                                      {}
+func (s *recordingSender) SetCheckCustomTags(_ []string)                                      {}
+func (s *recordingSender) SetCheckService(_ string)                                           {}
+func (s *recordingSender) SetNoIndex(_ bool)                                                  {}
+func (s *recordingSender) FinalizeCheckServiceTag()                                           {}
+func (s *recordingSender) GetSenderStats() stats.SenderStats                                  { return stats.SenderStats{} }
 func (s *recordingSender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ int) {}
 func (s *recordingSender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string)        {}
 
@@ -553,8 +553,8 @@ func TestDecumulateHistogramBucketsPreservesNonBuckets(t *testing.T) {
 	assert.Equal(t, "h_count", result[1].Sample.Metric["__name__"])
 
 	// Decumulated buckets.
-	assert.Equal(t, 80.0, result[2].Sample.Value)  // first bucket, no subtraction
-	assert.Equal(t, 20.0, result[3].Sample.Value)  // 100 - 80
+	assert.Equal(t, 80.0, result[2].Sample.Value) // first bucket, no subtraction
+	assert.Equal(t, 20.0, result[3].Sample.Value) // 100 - 80
 }
 
 func TestDecumulateHistogramBucketsDoesNotMutateOriginals(t *testing.T) {

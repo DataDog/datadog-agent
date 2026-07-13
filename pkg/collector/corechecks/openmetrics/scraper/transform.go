@@ -28,7 +28,7 @@ type MetricTransformer struct {
 
 	// Cache for native-type metrics: the transformer is resolved on first
 	// encounter from the endpoint-reported type and cached for subsequent scrapes.
-	nativeMu sync.RWMutex
+	nativeMu    sync.RWMutex
 	nativeCache map[string]TransformerFunc
 
 	// Summary transformer options
@@ -55,10 +55,6 @@ func NewMetricTransformer(cfg *Config, filter *MetricFilter) *MetricTransformer 
 	// Pre-compile transformers for exact-match metrics that have a non-native type.
 	for rawName, inc := range filter.exactIncludes {
 		if inc.match.Type != "" && inc.match.Type != defaultMetricType {
-			name := inc.match.Name
-			if name == "" {
-				name = rawName
-			}
 			tf, err := mt.buildTransformer(inc.match.Type)
 			if err != nil {
 				log.Warnf("openmetrics: cannot build transformer for metric %q type %q: %v", rawName, inc.match.Type, err)

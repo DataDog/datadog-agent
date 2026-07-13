@@ -17,9 +17,9 @@ import (
 
 // HistogramOptions controls how histograms are transformed.
 type HistogramOptions struct {
-	CollectHistogramBuckets         bool
-	HistogramBucketsAsDistributions bool
-	NonCumulativeHistogramBuckets   bool
+	CollectHistogramBuckets          bool
+	HistogramBucketsAsDistributions  bool
+	NonCumulativeHistogramBuckets    bool
 	CollectCountersWithDistributions bool
 }
 
