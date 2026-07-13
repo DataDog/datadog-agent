@@ -12,6 +12,7 @@ import (
 
 // PidExists returns true if the pid is still alive
 func PidExists(pid int) bool {
+	// gopsutil PidExists returns true when WaitForSingleObject returns WAIT_TIMEOUT (process still running)
 	exists, _ := process.PidExists(int32(pid))
 	return exists
 }
