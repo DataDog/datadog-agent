@@ -43,6 +43,9 @@ uuid.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["signal", "process", "user"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+libc.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true
 windows-sys = { workspace = true, features = [
