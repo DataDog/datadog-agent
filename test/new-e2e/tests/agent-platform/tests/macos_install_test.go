@@ -59,8 +59,8 @@ func TestMacosInstallScript(t *testing.T) {
 	// Going directly through the configmap is the only way we have for now to let Pulumi know about it.
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoAgentNoFakeIntake(
-			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault))),
+		awshost.Provisioner(
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
 		e2e.WithStackName(macosSharedStackName),
@@ -184,6 +184,99 @@ func (m *macosInstallSuite) TestAgentStatusAndConfig() {
 	versionOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent version")
 	assert.NoError(m.T(), err)
 	assert.Regexp(m.T(), `Agent \d+\.\d+\.\d+`, versionOutput)
+}
+
+// macosEssentialChecks are the core checks a default macOS install always schedules,
+// regardless of container/cloud/Kubernetes context (verified by polling a fresh
+// install for 90s: this set stabilizes by ~t=35s and stays constant afterward).
+// They back the host's core metrics (system.cpu.*, system.mem.*, system.disk.*,
+// system.net.*, system.load.*, system.uptime, ntp.offset); losing any of them would
+// leave the agent reporting healthy status while silently missing whole metric
+// families. Checks that ship a conf.yaml.default but depend on hardware (battery,
+// wlan) or a runtime context (containerd, cri, kubelet, ecs_fargate, ...) are
+// intentionally excluded, since they legitimately don't run on a bare EC2 host.
+var macosEssentialChecks = []string{
+	"cloud_hostinfo", "container_image", "container_lifecycle",
+	"cpu", "disk", "io", "load", "memory", "network", "ntp", "telemetry", "uptime",
+}
+
+// TestEssentialChecksLoaded asserts that the checks backing the agent's core host
+// metrics are actually scheduled and running, not just that some check runs (the
+// generic non-empty assertion in TestAgentStatusAndConfig would still pass if a
+// build regressed default-check registration and dropped cpu/memory/disk/network/ntp
+// entirely). It runs read-only against the state SetupSuite already installed.
+func (m *macosInstallSuite) TestEssentialChecksLoaded() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+
+	// Check scheduling is staggered on startup, so poll rather than assert once
+	// (mirrors the check-running poll in TestAgentStatusAndConfig).
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		jsonStatus, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status -j")
+		if !assert.NoError(c, err) {
+			return
+		}
+		var statusMap map[string]any
+		if !assert.NoError(c, json.Unmarshal([]byte(jsonStatus), &statusMap)) {
+			return
+		}
+		runnerStats, ok := statusMap["runnerStats"].(map[string]any)
+		if !assert.True(c, ok, "status JSON should contain runnerStats") {
+			return
+		}
+		checks, ok := runnerStats["Checks"].(map[string]any)
+		if !assert.True(c, ok, "runnerStats should contain Checks") {
+			return
+		}
+		for _, name := range macosEssentialChecks {
+			assert.Contains(c, checks, name, "essential check %q should be scheduled", name)
+		}
+	}, 40*time.Second, 2*time.Second)
+}
+
+// macosCPUMetricsMarker delimits the block TestCpuReportsSignalMetrics appends to
+// datadog.yaml, so it can be identified and removed again during cleanup.
+const macosCPUMetricsMarker = "# added by e2e TestCpuReportsSignalMetrics"
+
+// TestCpuReportsSignalMetrics proves the cpu check doesn't just get scheduled
+// (TestEssentialChecksLoaded) but actually collects and successfully forwards real
+// metric data. It redirects the already-running agent's dd_url at this suite's
+// fakeintake and asserts a cpu metric shows up there, which is the only way to
+// distinguish "the check runs" from "the check runs and its data reaches Datadog".
+func (m *macosInstallSuite) TestCpuReportsSignalMetrics() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ndd_url: %s\n' | sudo tee -a %s`,
+		macosCPUMetricsMarker, confFilePath, macosCPUMetricsMarker, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+1d" %s`, macosCPUMetricsMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy after redirecting dd_url.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 20*time.Second, 1*time.Second)
+
+	// Delivery is async (collection interval + forwarder flush), so poll fakeintake
+	// rather than asserting once.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := m.Env().FakeIntake.Client().FilterMetrics("system.cpu.idle")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, metrics, "system.cpu.idle should be forwarded to fakeintake")
+	}, 2*time.Minute, 5*time.Second)
 }
 
 func (m *macosInstallSuite) TestAgentRestart() {
