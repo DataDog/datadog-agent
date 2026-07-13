@@ -118,5 +118,59 @@ fn privileged_process_spec(
 }
 
 fn normalize_win_path(s: &str) -> String {
+    let s = s
+        .strip_prefix(r"\\?\UNC\")
+        .map(|rest| format!(r"\\{rest}"))
+        .or_else(|| s.strip_prefix(r"\\?\").map(str::to_string))
+        .unwrap_or_else(|| s.to_string());
     s.replace('/', "\\").to_ascii_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spawn::{DATADOG_AGENT_PROCESS, SpawnRequest};
+
+    #[test]
+    fn normalize_win_path_strips_verbatim_prefix() {
+        assert_eq!(
+            normalize_win_path(r"\\?\C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"),
+            r"c:\program files\datadog\datadog agent\bin\agent\process-agent.exe"
+        );
+    }
+
+    #[test]
+    fn privileged_command_matches_resolved_install_root() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let install_root = temp.path().join("Datadog Agent");
+        std::fs::create_dir_all(install_root.join(r"bin\agent")).expect("mkdir");
+        let exe = install_root.join(r"bin\agent\process-agent.exe");
+        std::fs::write(&exe, b"").expect("touch exe");
+
+        let etc_root = temp.path().join("Datadog");
+        std::fs::create_dir_all(&etc_root).expect("mkdir etc");
+        std::fs::write(etc_root.join("datadog.yaml"), b"").expect("touch yaml");
+
+        let spec = privileged_process_spec(
+            DATADOG_AGENT_PROCESS,
+            &install_root,
+            &etc_root,
+        )
+        .expect("spec");
+
+        let request = SpawnRequest {
+            command: exe.to_string_lossy().into_owned(),
+            args: vec![
+                "--cfgpath".to_string(),
+                etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
+            ],
+            env: Vec::new(),
+            working_dir: None,
+            stdout_setting: crate::spawn::stdio_setting::StdioSetting::Inherit,
+            stderr_setting: crate::spawn::stdio_setting::StdioSetting::Inherit,
+        };
+
+        validate_privileged_command_args(DATADOG_AGENT_PROCESS, &spec, &request)
+            .expect("resolved install root command should match");
+    }
 }

@@ -319,7 +319,28 @@ fn default_install_root() -> PathBuf {
 }
 
 fn install_root() -> PathBuf {
-    install_root_from_registry().unwrap_or_else(default_install_root)
+    let root = install_root_from_registry().unwrap_or_else(default_install_root);
+    resolve_install_root_symlinks(root)
+}
+
+/// Match fleet installer `resolveDatadogProgramFilesInstallRoot` (`filepath.EvalSymlinks`).
+fn resolve_install_root_symlinks(path: PathBuf) -> PathBuf {
+    match std::fs::canonicalize(&path) {
+        Ok(resolved) => strip_verbatim_path_prefix(resolved),
+        Err(_) => path,
+    }
+}
+
+/// `std::fs::canonicalize` on Windows may prefix paths with `\\?\` or `\\?\UNC\`.
+fn strip_verbatim_path_prefix(path: PathBuf) -> PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(stripped) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{stripped}"));
+    }
+    if let Some(stripped) = s.strip_prefix(r"\\?\") {
+        return PathBuf::from(stripped);
+    }
+    path
 }
 
 /// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
@@ -524,5 +545,15 @@ mod env_override_tests {
         merge_env_overrides(&mut vars, &[("PATH".to_string(), "override".to_string())]);
         assert_eq!(vars.len(), 1);
         assert_eq!(vars.get("PATH").unwrap(), "override");
+    }
+
+    #[test]
+    fn strip_verbatim_path_prefix_removes_extended_prefix() {
+        assert_eq!(
+            strip_verbatim_path_prefix(PathBuf::from(
+                r"\\?\C:\Program Files\Datadog\Datadog Agent"
+            )),
+            PathBuf::from(r"C:\Program Files\Datadog\Datadog Agent")
+        );
     }
 }
