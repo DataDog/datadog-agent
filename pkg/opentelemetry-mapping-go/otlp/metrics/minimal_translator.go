@@ -169,8 +169,6 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						tags = append(tags, key+":"+src.Identifier.Dimensions[key])
 					}
 					c.ConsumeTagSet("azurecontainerapps", tags)
-				} else if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
 				}
 			}
 		}

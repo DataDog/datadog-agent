@@ -181,35 +181,37 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
 		p := cloudPlatform.Str()
 		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
-			if replicaName, ok := attrs.Get(AttributeAzureContainerAppInstanceID); ok {
-				dims := map[string]string{}
-				for otelKey, ddKey := range AzureContainerAppsMappings {
-					if v, ok := attrs.Get(otelKey); ok && v.Str() != "" {
-						dims[ddKey] = v.Str()
-					}
+			dims := map[string]string{}
+			for otelKey, ddKey := range AzureContainerAppsMappings {
+				if v, ok := attrs.Get(otelKey); ok && v.Str() != "" {
+					dims[ddKey] = v.Str()
 				}
-				// Fallback: derive subscription_id, resource_group, and name from cloud.resource_id
-				if v, ok := attrs.Get(string(semconv1_27.CloudResourceIDKey)); ok && v.Str() != "" {
-					if parsed, err := parseAzureResourceID(v.Str()); err == nil {
-						if _, ok := dims["subscription_id"]; !ok && parsed.SubscriptionID != "" {
-							dims["subscription_id"] = parsed.SubscriptionID
-						}
-						if _, ok := dims["resource_group"]; !ok && parsed.ResourceGroup != "" {
-							dims["resource_group"] = parsed.ResourceGroup
-						}
-						if _, ok := dims["name"]; !ok && parsed.ResourceName != "" {
-							dims["name"] = parsed.ResourceName
-						}
-					}
-				}
-				return source.Source{
-					Kind: source.AzureContainerAppsKind,
-					Identifier: source.Identifier{
-						Primary:    replicaName.Str(),
-						Dimensions: dims,
-					},
-				}, true
 			}
+			// Fallback: derive subscription_id, resource_group, and name from cloud.resource_id
+			if v, ok := attrs.Get(string(semconv1_27.CloudResourceIDKey)); ok && v.Str() != "" {
+				if parsed, err := parseAzureResourceID(v.Str()); err == nil {
+					if _, ok := dims["subscription_id"]; !ok && parsed.SubscriptionID != "" {
+						dims["subscription_id"] = parsed.SubscriptionID
+					}
+					if _, ok := dims["resource_group"]; !ok && parsed.ResourceGroup != "" {
+						dims["resource_group"] = parsed.ResourceGroup
+					}
+					if _, ok := dims["name"]; !ok && parsed.ResourceName != "" {
+						dims["name"] = parsed.ResourceName
+					}
+				}
+			}
+			primary := dims["replica_name"]
+			if primary == "" {
+				primary = dims["name"]
+			}
+			return source.Source{
+				Kind: source.AzureContainerAppsKind,
+				Identifier: source.Identifier{
+					Primary:    primary,
+					Dimensions: dims,
+				},
+			}, true
 		}
 	}
 
