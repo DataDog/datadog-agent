@@ -30,8 +30,39 @@ import (
 // agentPackage is the OCI package name for the Datadog Agent.
 const agentPackage = "datadog-agent"
 
+// agentPackageImage is the image name as it appears in OCI URLs.
+// Used as the map key for env.RegistryOverrideByImage.
+const agentPackageImage = "agent-package"
+
+// envInstallerRegistryURLAgent is the per-image registry override the
+// oci downloader and env.FromEnv() both honor. We set this from a
+// non-stable channel so the parent's own download and the child
+// re-exec's downstream Agent fetches all hit the same registry.
+const envInstallerRegistryURLAgent = "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"
+
+// Channels we accept.
+const (
+	channelStable = "stable"
+	channelBeta   = "beta"
+)
+
+// betaRegistry is the OCI registry that hosts beta / RC Agent builds.
+const betaRegistry = "install.datad0g.com"
+
 // releaseSuffixRe matches a trailing `-N` release suffix (e.g. `-1`).
 var releaseSuffixRe = regexp.MustCompile(`-\d+$`)
+
+// agentDistChannel validates e.AgentDistChannel ("stable", "beta").
+func agentDistChannel(e *env.Env) (string, error) {
+	switch e.AgentDistChannel {
+	case "", channelStable:
+		return channelStable, nil
+	case channelBeta:
+		return channelBeta, nil
+	default:
+		return "", fmt.Errorf("DD_AGENT_DIST_CHANNEL must be one of: %s, %s. Current value: %s", channelStable, channelBeta, e.AgentDistChannel)
+	}
+}
 
 // requestedAgentVersion returns the OCI tag the user has asked the running
 // installer to install — or "" if they have not asked for a specific version,
@@ -80,6 +111,46 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 		v += "-1"
 	}
 	return v, nil
+}
+
+// applyAgentDistChannel reads DD_AGENT_DIST_CHANNEL and overrides the
+// registry used for agent-package OCI fetches before running setup.
+//
+// Cases:
+//
+//   - DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE is already set → no-op (user wins)
+//   - channel == channelStable or unset → no-op
+//   - channel == channelBeta → default flips to betaRegistry
+//
+// Scope: agent-package only (suffix _AGENT_PACKAGE). APM SSI and other
+// non-Agent packages keep resolving via the site-based default.
+//
+// Limitation: oci.getRefAndKeychains treats overrides as mutually
+// exclusive with the default-registry fallback list:
+//
+//   - per-image override shadows env.RegistryOverride (populated from
+//     installer.registry.url in datadog.yaml) and the hardcoded defaults
+//   - only the chosen registry is tried — a host's global mirror is not
+//     attempted for beta-channel fetches
+//   - same shape impacts cross-registry upgrade / downgrade / rollback
+//     when a build only exists in one registry but operations target another
+//
+// Future work in pkg/fleet/installer/oci/download.go could extend
+// getRefAndKeychains to try {per-image override, global override,
+// defaults} in order rather than short-circuiting on the first override.
+func applyAgentDistChannel(e *env.Env) error {
+	channel, err := agentDistChannel(e)
+	if err != nil {
+		return err
+	}
+	if channel != channelBeta {
+		return nil
+	}
+	if _, set := e.RegistryOverrideByImage[agentPackageImage]; set {
+		return nil
+	}
+	e.RegistryOverrideByImage[agentPackageImage] = betaRegistry
+	return os.Setenv(envInstallerRegistryURLAgent, betaRegistry)
 }
 
 // parseMinorPrefix returns the numeric minor at the start of s — e.g. "78"
@@ -174,7 +245,7 @@ func categorizeDownloadError(err error) string {
 		case http.StatusUnauthorized:
 			return "authentication required (HTTP 401)"
 		case http.StatusForbidden:
-			return "authentication failed (HTTP 403)"
+			return "tag not found or access is denied (HTTP 403)"
 		case http.StatusProxyAuthRequired:
 			return "proxy authentication required (HTTP 407)"
 		default:

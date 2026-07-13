@@ -72,13 +72,13 @@ anomaly_detection:
   anomaly_scorer:
     enabled: true
     alpha: 0.3
-    window_secs: 30
+    window: 30s
     low_threshold: 0.030
     high_threshold: 0.060
     output:
       logs: true
       correlation_events: false
-      cooldown_secs: 300
+      cooldown: 300s
 ```
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.

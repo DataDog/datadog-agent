@@ -1334,3 +1334,61 @@ func TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence(t *testing.T) {
 		})
 	}
 }
+
+// TestScopeConvention verifies OtelSpanToDDSpan always reports the deprecated
+// otel.library.* aliases, and adds the otel.scope.* keys unless disable_otel_scope_convention is set.
+func TestScopeConvention(t *testing.T) {
+	tests := []struct {
+		name             string
+		disableScopeConv bool
+		expectScopeKeys  bool
+	}{
+		{
+			name:             "default: emits both otel.scope and otel.library conventions",
+			disableScopeConv: false,
+			expectScopeKeys:  true,
+		},
+		{
+			name:             "disable_otel_scope_convention: only emits otel.library convention",
+			disableScopeConv: true,
+			expectScopeKeys:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetTraceID([16]byte{1})
+			span.SetSpanID([8]byte{1})
+
+			res := pcommon.NewResource()
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("my-lib")
+			lib.SetVersion("1.2.3")
+
+			cfg := &config.AgentConfig{}
+			cfg.OTLPReceiver = &config.OTLP{}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+			cfg.Features = make(map[string]struct{})
+			if tt.disableScopeConv {
+				cfg.Features["disable_otel_scope_convention"] = struct{}{}
+			}
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			// The deprecated otel.library.* aliases must always be reported.
+			assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelLibraryNameKey)])
+			assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelLibraryVersionKey)])
+
+			if tt.expectScopeKeys {
+				assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelScopeNameKey)])
+				assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelScopeVersionKey)])
+			} else {
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeNameKey))
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeVersionKey))
+			}
+		})
+	}
+}
