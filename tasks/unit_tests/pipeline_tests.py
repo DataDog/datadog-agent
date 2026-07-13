@@ -96,6 +96,30 @@ class TestCompareToItself(unittest.TestCase):
     @patch('tasks.pipeline.datetime')
     @patch('tasks.pipeline.GithubAPI')
     @patch('tasks.pipeline.get_gitlab_repo')
+    def test_branch_never_mirrors(self, repo_mock, gh_mock, dt_mock, release_mock):
+        dt_mock.now.return_value = self.now
+        gh_mock.return_value = self.gh
+        release_mock.return_value = {"base_branch": "main"}
+        agent = MagicMock()
+        agent.commits = self.commits
+        # The branch 404s on every single attempt (e.g. the mirror is stuck) — the
+        # retry loop must exhaust all attempts and raise a clear RuntimeError
+        # instead of hanging forever or propagating the last GitlabGetError.
+        agent.branches.get.side_effect = GitlabGetError(response_code=404)
+        repo_mock.return_value = agent
+        with self.assertRaises(RuntimeError):
+            pipeline.compare_to_itself(self.context)
+        self.assertEqual(18, agent.branches.get.call_count)
+        agent.pipelines.create.assert_not_called()
+
+    @patch('tasks.pipeline.gitlab_configuration_is_modified', new=MagicMock(return_value=True))
+    @patch('builtins.open', new=MagicMock())
+    @patch.dict('os.environ', {"CI_COMMIT_REF_NAME": "Football"})
+    @patch('tasks.pipeline.time', new=MagicMock())
+    @patch('tasks.libs.releasing.json.load_release_json')
+    @patch('tasks.pipeline.datetime')
+    @patch('tasks.pipeline.GithubAPI')
+    @patch('tasks.pipeline.get_gitlab_repo')
     def test_branch_get_non_404_error_propagates(self, repo_mock, gh_mock, dt_mock, release_mock):
         dt_mock.now.return_value = self.now
         gh_mock.return_value = self.gh
