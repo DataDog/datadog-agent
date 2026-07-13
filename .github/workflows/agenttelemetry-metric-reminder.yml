@@ -30,20 +30,6 @@ jobs:
           script: |
             const marker = '<!-- coat-metric-reminder -->';
             const targetFile = 'comp/core/agenttelemetry/impl/defaultProfiles.yaml';
-            // Title used by the companion GitLab CI jobs (tasks/github_tasks.py::pr_commenter
-            // renders it as this exact "## {title}" header) so we can clean it up too.
-            const vmCommentHeader = '## COAT metric validation VM';
-
-            // The paths: filter above only looks at this specific push's diff, so it can still
-            // trigger a run where the *cumulative* PR diff no longer touches the file (e.g. a
-            // later commit reverts an earlier one). Re-check against the full PR diff here so
-            // that case is detected and the comments below get cleaned up correctly.
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            const touchesMetricFile = files.some((f) => f.filename === targetFile);
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
@@ -51,25 +37,6 @@ jobs:
               issue_number: context.issue.number,
             });
             const existing = comments.find((c) => c.body && c.body.includes(marker));
-            const existingVmComment = comments.find((c) => c.body && c.body.startsWith(vmCommentHeader));
-
-            if (!touchesMetricFile) {
-              if (existing) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: existing.id,
-                });
-              }
-              if (existingVmComment) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: existingVmComment.id,
-                });
-              }
-              return;
-            }
 
             // Extract the set of metric names declared under any `metrics:` list in the
             // profiles file, tracking indentation so we don't also match the `- name:`
