@@ -7,6 +7,7 @@ go_library(
         "epforwarder_mockgen.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
+        "pipelines_datasecurity.go",
         "pipelines_datastreams.go",
         "pipelines_dbm.go",
         "pipelines_eventmanagement.go",
