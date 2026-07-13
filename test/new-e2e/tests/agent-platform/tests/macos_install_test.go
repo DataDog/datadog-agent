@@ -71,16 +71,44 @@ func TestMacosInstallScript(t *testing.T) {
 // SetupSuite installs the agent once before any of the suite's Test methods run,
 // so TestInstallAgent and TestAgentRestart can each assert independently against
 // the same already-installed environment instead of one depending on the other.
+//
+// The suite reuses a shared/devmode host (see macosSharedStackName) across runs, so a
+// prior run's agent build can still be resident here. removePreInstalledAgent wipes it
+// first so a failed reinstall can never be masked by that stale leftover.
 func (m *macosInstallSuite) SetupSuite() {
 	m.BaseSuite.SetupSuite()
 
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	removePreInstalledAgent(macosTestClient)
+
 	install.MacOS(m.T(), macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	if m.T().Failed() {
+		m.FailNow("agent install failed, aborting SetupSuite")
+	}
 
 	// The agent should start at some point
 	m.EventuallyWithT(func(c *assert.CollectT) {
 		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
 	}, 20*time.Second, 1*time.Second)
+}
+
+// removePreInstalledAgent tears down any agent already present on the host, mirroring the
+// system-wide cleanup in cmd/agent/macos/uninstall_mac_os.sh. It is a no-op (all commands
+// are best-effort) when no agent is installed.
+func removePreInstalledAgent(client *common.MacOSTestClient) {
+	cmd := `
+sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+sudo launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
+sudo launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+sudo rm -rf "/Applications/Datadog Agent.app"
+sudo rm -rf /opt/datadog-agent
+sudo rm -f /usr/local/bin/datadog-agent
+sudo rm -f /var/log/datadog
+`
+	_, _ = client.Execute(cmd)
 }
 
 func (m *macosInstallSuite) TestInstallAgent() {
