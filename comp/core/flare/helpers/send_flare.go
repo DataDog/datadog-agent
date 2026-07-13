@@ -275,14 +275,12 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
 			// Always close the response body if it exists
-			statusCode := 0
 			if r != nil {
-				statusCode = r.StatusCode
 				r.Body.Close()
 			}
 			lastErr = err
 
-			if !isRetryableFlareError(err, statusCode) {
+			if !isRetryableFlareError(err) {
 				return "", err
 			}
 			log.Warn("Failed to send flare, retrying in 1 second")
@@ -297,22 +295,20 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }
 
-func isRetryableFlareError(err error, statusCode int) bool {
+// isRetryableFlareError reports whether a failed flare POST is safe to retry. The POST
+// creates a Zendesk ticket and is not idempotent, so we retry only on connect/DNS-phase
+// failures, where the request provably never reached the server.
+func isRetryableFlareError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	if statusCode >= 500 && statusCode < 600 {
-		return true
-	}
-
 	errStr := strings.ToLower(err.Error())
-
-	return strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
+	return strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "network unreachable") ||
-		strings.Contains(errStr, "temporary failure")
+		strings.Contains(errStr, "no route to host") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "temporary failure in name resolution")
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
