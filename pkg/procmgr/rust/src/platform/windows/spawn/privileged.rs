@@ -134,7 +134,9 @@ mod tests {
     #[test]
     fn normalize_win_path_strips_verbatim_prefix() {
         assert_eq!(
-            normalize_win_path(r"\\?\C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"),
+            normalize_win_path(
+                r"\\?\C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"
+            ),
             r"c:\program files\datadog\datadog agent\bin\agent\process-agent.exe"
         );
     }
@@ -151,12 +153,8 @@ mod tests {
         std::fs::create_dir_all(&etc_root).expect("mkdir etc");
         std::fs::write(etc_root.join("datadog.yaml"), b"").expect("touch yaml");
 
-        let spec = privileged_process_spec(
-            DATADOG_AGENT_PROCESS,
-            &install_root,
-            &etc_root,
-        )
-        .expect("spec");
+        let spec =
+            privileged_process_spec(DATADOG_AGENT_PROCESS, &install_root, &etc_root).expect("spec");
 
         let request = SpawnRequest {
             command: exe.to_string_lossy().into_owned(),
