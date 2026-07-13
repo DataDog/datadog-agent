@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Linux Agent packages can now ship built-in Rust-based checks as shared
+    libraries under ``/etc/datadog-agent/checks.d``, restricted to owner-only access.
+    No such check is shipped for now; this only adds the packaging support.
