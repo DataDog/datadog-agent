@@ -273,7 +273,7 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath, filepath.Base(ctx.PackagePath) == "experiment"); err != nil {
 		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 	}
 
@@ -307,18 +307,18 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT into the package processes.d. The
-// config's --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr
-// substitutes at launch with its own config directory (/etc/datadog-agent for the stable procmgr,
-// /etc/datadog-agent-exp for the experiment procmgr), so the experiment collector reads the
-// experiment config without the process definition itself changing.
-func writeDDOTProcmgrConfig(installRoot string) error {
+// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT into the package processes.d.
+func writeDDOTProcmgrConfig(installRoot string, isExperiment bool) error {
 	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
 	if _, err := os.Stat(otelAgentPath); err != nil {
 		return nil
 	}
 	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
+	source := embedded.DDOTProcessConfig
+	if isExperiment {
+		source = embedded.DDOTProcessConfigExperiment
+	}
+	config := strings.ReplaceAll(source, "/opt/datadog-agent", installRoot)
 	if err := os.MkdirAll(processesDir, 0755); err != nil {
 		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
 	}
