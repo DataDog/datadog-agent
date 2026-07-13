@@ -52,9 +52,6 @@ def create_gauge(metric_name, timestamp, value, tags, unit=None, metric_origin=N
 
 
 def send_metrics(series):
-    """
-    Send series of metrics to Datadog
-    """
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.metrics_api import MetricsApi
     from datadog_api_client.v2.model.metric_payload import MetricPayload
