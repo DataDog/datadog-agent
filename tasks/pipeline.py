@@ -721,7 +721,9 @@ def compare_to_itself(ctx):
             try:
                 if agent.branches.get(new_branch):
                     break
-            except GitlabGetError:
+            except GitlabGetError as e:
+                if e.response_code != 404:
+                    raise
                 # Branch not mirrored to GitLab yet, keep waiting.
                 continue
         else:
