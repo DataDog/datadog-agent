@@ -28,6 +28,7 @@ class TestADPAIXPackaging(unittest.TestCase):
         self.assertIn("ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}", stage)
         self.assertIn("CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}", stage)
         self.assertIn("$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane", stage)
+        self.assertIn("unset ARFLAGS", stage)
         self.assertIn("BUILD_PROFILE=\"$ADP_AIX_BUILD_PROFILE\" sh -c \"$ADP_AIX_BUILD_COMMAND\"", stage)
         self.assertIn("ADP_RELEASE_TARBALL_PATH", stage)
         self.assertIn("Prebuilt artifacts must be explicit", stage)
