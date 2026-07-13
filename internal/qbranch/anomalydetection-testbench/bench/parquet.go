@@ -45,7 +45,6 @@ func detectParquetFormat(dir string) ParquetFormat {
 	return FormatV1
 }
 
-
 // ---- Metric reader ----
 
 type fgmMetric struct {
@@ -80,7 +79,7 @@ func newParquetMetricReader(dirPath string) (*parquetMetricReader, error) {
 		}
 		all = append(all, metrics...)
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].Time < all[j].Time })
+	sort.SliceStable(all, func(i, j int) bool { return all[i].Time < all[j].Time })
 	return &parquetMetricReader{metrics: all}, nil
 }
 
@@ -118,51 +117,65 @@ func findMetricParquetFiles(dirPath string) ([]string, error) {
 }
 
 func readMetricParquetFile(filePath string) ([]fgmMetric, error) {
+	var all []fgmMetric
+	err := streamMetricParquetFileV1(filePath, func(metric fgmMetric) error {
+		all = append(all, metric)
+		return nil
+	})
+	return all, err
+}
+
+func streamMetricParquetFileV1(filePath string, fn func(fgmMetric) error) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("statting file: %w", err)
+		return fmt.Errorf("statting file: %w", err)
 	}
 	if info.Size() < minParquetFileSize {
-		return nil, nil
+		return fmt.Errorf("file is too small to be parquet (%d bytes)", info.Size())
 	}
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("opening file: %w", err)
+		return fmt.Errorf("opening file: %w", err)
 	}
 	defer f.Close()
 
 	pf, err := file.NewParquetReader(f)
 	if err != nil {
-		return nil, fmt.Errorf("creating parquet reader: %w", err)
+		return fmt.Errorf("creating parquet reader: %w", err)
 	}
 	defer pf.Close()
 
 	arrowReader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	if err != nil {
-		return nil, fmt.Errorf("creating arrow reader: %w", err)
+		return fmt.Errorf("creating arrow reader: %w", err)
 	}
 
 	ctx := context.Background()
 	rr, err := arrowReader.GetRecordReader(ctx, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("getting record reader: %w", err)
+		return fmt.Errorf("getting record reader: %w", err)
 	}
 	defer rr.Release()
 
-	var all []fgmMetric
 	for rr.Next() {
 		rec := rr.Record()
 		metrics, err := extractMetricsFromRecord(rec)
 		if err != nil {
-			return nil, fmt.Errorf("extracting metrics: %w", err)
+			rec.Release()
+			return fmt.Errorf("extracting metrics: %w", err)
 		}
-		all = append(all, metrics...)
+		for _, metric := range metrics {
+			if err := fn(metric); err != nil {
+				rec.Release()
+				return err
+			}
+		}
 		rec.Release()
 	}
 	if err := rr.Err(); err != nil && err.Error() != "EOF" {
-		return nil, fmt.Errorf("reading records: %w", err)
+		return fmt.Errorf("reading records: %w", err)
 	}
-	return all, nil
+	return nil
 }
 
 func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
@@ -322,37 +335,130 @@ func readAllMetrics(dir string) ([]recorderdef.MetricData, error) {
 		if m == nil {
 			break
 		}
-		var value float64
-		if m.ValueFloat != nil {
-			value = *m.ValueFloat
-		} else if m.ValueInt != nil {
-			value = float64(*m.ValueInt)
-		}
-		tags := make([]string, 0, len(m.Tags))
-		for k, v := range m.Tags {
-			if v != "" {
-				tags = append(tags, k+":"+v)
-			} else {
-				tags = append(tags, k)
-			}
-		}
-		out = append(out, recorderdef.MetricData{
-			Source:    m.RunID,
-			Name:      m.MetricName,
-			Value:     value,
-			Timestamp: m.Time / 1000,
-			Tags:      tags,
-			Dropped:   m.Dropped,
-		})
+		out = append(out, metricDataFromFGM(*m))
 	}
 	pkglog.Infof("ReadAllMetrics: loaded %d metrics", len(out))
 	return out, nil
 }
 
+func metricDataFromFGM(metric fgmMetric) recorderdef.MetricData {
+	var value float64
+	if metric.ValueFloat != nil {
+		value = *metric.ValueFloat
+	} else if metric.ValueInt != nil {
+		value = float64(*metric.ValueInt)
+	}
+	tags := make([]string, 0, len(metric.Tags))
+	for key, tagValue := range metric.Tags {
+		if tagValue != "" {
+			tags = append(tags, key+":"+tagValue)
+		} else {
+			tags = append(tags, key)
+		}
+	}
+	return recorderdef.MetricData{
+		Source:    metric.RunID,
+		Name:      metric.MetricName,
+		Value:     value,
+		Timestamp: metric.Time / 1000,
+		Tags:      tags,
+		Dropped:   metric.Dropped,
+	}
+}
+
+// streamOrderedMetrics reads metric parquet files in filename and row order
+// without retaining the full dataset. Equal timestamps are allowed.
+func streamOrderedMetrics(dir string, format ParquetFormat, fn func(recorderdef.MetricData) error) (int, error) {
+	var (
+		count        int
+		previousTime int64
+		havePrevious bool
+	)
+
+	consume := func(filePath string, metric recorderdef.MetricData) error {
+		if havePrevious && metric.Timestamp < previousTime {
+			return fmt.Errorf(
+				"metric timestamps are not globally ordered: %s contains %d after %d",
+				filepath.Base(filePath), metric.Timestamp, previousTime,
+			)
+		}
+		if err := fn(metric); err != nil {
+			return err
+		}
+		previousTime = metric.Timestamp
+		havePrevious = true
+		count++
+		return nil
+	}
+
+	var err error
+	if format == FormatV2 {
+		err = streamAllMetricsV2(dir, consume)
+	} else {
+		err = streamAllMetricsV1(dir, consume)
+	}
+	if err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
+func streamAllMetricsV1(dir string, fn func(string, recorderdef.MetricData) error) error {
+	files, err := findMetricParquetFiles(dir)
+	if err != nil {
+		return fmt.Errorf("listing v1 metric parquet files: %w", err)
+	}
+	for _, filePath := range files {
+		if err := streamMetricParquetFileV1(filePath, func(metric fgmMetric) error {
+			return fn(filePath, metricDataFromFGM(metric))
+		}); err != nil {
+			return fmt.Errorf("streaming %s: %w", filePath, err)
+		}
+	}
+	return nil
+}
+
 // ---- Log reader ----
 
-// readAllLogs reads all log parquet files from dir and returns LogData records.
-func readAllLogs(dir string) ([]recorderdef.LogData, error) {
+// streamOrderedLogs reads log parquet files in filename and row order without
+// retaining the full dataset. The caller must provide parquet files whose rows
+// are globally ordered by timestamp; equal timestamps are allowed.
+func streamOrderedLogs(dir string, format ParquetFormat, fn func(recorderdef.LogData) error) (int, error) {
+	var (
+		count        int
+		previousTime int64
+		havePrevious bool
+	)
+
+	consume := func(filePath string, entry recorderdef.LogData) error {
+		if havePrevious && entry.TimestampMs < previousTime {
+			return fmt.Errorf(
+				"log timestamps are not globally ordered: %s contains %d after %d",
+				filepath.Base(filePath), entry.TimestampMs, previousTime,
+			)
+		}
+		if err := fn(entry); err != nil {
+			return err
+		}
+		previousTime = entry.TimestampMs
+		havePrevious = true
+		count++
+		return nil
+	}
+
+	var err error
+	if format == FormatV2 {
+		err = streamAllLogsV2(dir, consume)
+	} else {
+		err = streamAllLogsV1(dir, consume)
+	}
+	if err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
+func findLogParquetFilesV1(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -367,12 +473,164 @@ func readAllLogs(dir string) ([]recorderdef.LogData, error) {
 		}
 	}
 	sort.Strings(files)
+	return files, nil
+}
+
+func streamAllLogsV1(dir string, fn func(string, recorderdef.LogData) error) error {
+	files, err := findLogParquetFilesV1(dir)
+	if err != nil {
+		return fmt.Errorf("listing v1 log parquet files: %w", err)
+	}
+	for _, filePath := range files {
+		if err := streamLogParquetFileV1(filePath, func(entry recorderdef.LogData) error {
+			return fn(filePath, entry)
+		}); err != nil {
+			return fmt.Errorf("streaming %s: %w", filePath, err)
+		}
+	}
+	return nil
+}
+
+func streamLogParquetFileV1(filePath string, fn func(recorderdef.LogData) error) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("statting file: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return fmt.Errorf("file is too small to be parquet (%d bytes)", info.Size())
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	pf, err := file.NewParquetReader(f)
+	if err != nil {
+		return fmt.Errorf("creating parquet reader: %w", err)
+	}
+	defer pf.Close()
+
+	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
+	if err != nil {
+		return fmt.Errorf("creating arrow reader: %w", err)
+	}
+
+	rr, err := reader.GetRecordReader(context.Background(), nil, nil)
+	if err != nil {
+		return fmt.Errorf("getting record reader: %w", err)
+	}
+	defer rr.Release()
+
+	for rr.Next() {
+		rec := rr.Record()
+		if err := streamLogsFromRecordV1(rec, fn); err != nil {
+			rec.Release()
+			return err
+		}
+		rec.Release()
+	}
+	if err := rr.Err(); err != nil && err.Error() != "EOF" {
+		return fmt.Errorf("reading records: %w", err)
+	}
+	return nil
+}
+
+func streamLogsFromRecordV1(rec arrow.Record, fn func(recorderdef.LogData) error) error {
+	schema := rec.Schema()
+	timeIdx := findCol(schema, "time")
+	if timeIdx < 0 {
+		return fmt.Errorf("missing required Time column")
+	}
+	timeCol, ok := rec.Column(timeIdx).(*array.Int64)
+	if !ok {
+		return fmt.Errorf("Time column has type %T, expected int64", rec.Column(timeIdx))
+	}
+
+	getString := func(name string) (*array.String, error) {
+		idx := findCol(schema, name)
+		if idx < 0 {
+			return nil, nil
+		}
+		col, ok := rec.Column(idx).(*array.String)
+		if !ok {
+			return nil, fmt.Errorf("%s column has type %T, expected string", name, rec.Column(idx))
+		}
+		return col, nil
+	}
+
+	runIDCol, err := getString("runid")
+	if err != nil {
+		return err
+	}
+	statusCol, err := getString("status")
+	if err != nil {
+		return err
+	}
+	hostnameCol, err := getString("hostname")
+	if err != nil {
+		return err
+	}
+
+	var contentCol *array.Binary
+	if idx := findCol(schema, "content"); idx >= 0 {
+		contentCol, ok = rec.Column(idx).(*array.Binary)
+		if !ok {
+			return fmt.Errorf("Content column has type %T, expected binary", rec.Column(idx))
+		}
+	}
+
+	var tagsCol *array.List
+	if idx := findCol(schema, "tags"); idx >= 0 {
+		tagsCol, ok = rec.Column(idx).(*array.List)
+		if !ok {
+			return fmt.Errorf("Tags column has type %T, expected list", rec.Column(idx))
+		}
+		if _, ok := tagsCol.ListValues().(*array.String); !ok {
+			return fmt.Errorf("Tags values have type %T, expected string", tagsCol.ListValues())
+		}
+	}
+
+	for i := 0; i < int(rec.NumRows()); i++ {
+		if timeCol.IsNull(i) {
+			return fmt.Errorf("Time is null at row %d", i)
+		}
+		entry := recorderdef.LogData{TimestampMs: timeCol.Value(i)}
+		if runIDCol != nil && !runIDCol.IsNull(i) {
+			entry.Source = runIDCol.Value(i)
+		}
+		if contentCol != nil && !contentCol.IsNull(i) {
+			entry.Content = append([]byte(nil), contentCol.Value(i)...)
+		}
+		if statusCol != nil && !statusCol.IsNull(i) {
+			entry.Status = statusCol.Value(i)
+		}
+		if hostnameCol != nil && !hostnameCol.IsNull(i) {
+			entry.Hostname = hostnameCol.Value(i)
+		}
+		if tagsCol != nil {
+			entry.Tags = readStringList(tagsCol, i)
+		}
+		if err := fn(entry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readAllLogs reads all log parquet files from dir and returns LogData records.
+func readAllLogs(dir string) ([]recorderdef.LogData, error) {
+	files, err := findLogParquetFilesV1(dir)
+	if err != nil {
+		return nil, err
+	}
 
 	var logs []recorderdef.LogData
 	for _, f := range files {
 		readLogParquetFile(f, &logs)
 	}
-	sort.Slice(logs, func(i, j int) bool { return logs[i].TimestampMs < logs[j].TimestampMs })
+	sort.SliceStable(logs, func(i, j int) bool { return logs[i].TimestampMs < logs[j].TimestampMs })
 	pkglog.Infof("ReadAllLogs: loaded %d logs from %s", len(logs), dir)
 	return logs, nil
 }

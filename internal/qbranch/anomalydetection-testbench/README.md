@@ -73,6 +73,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
+| `--batch-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
 
 ## Components
 
@@ -147,6 +148,9 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
+
+# Fall back to retained loading and global sorting for unordered local recordings
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --batch-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/anomalydetection-testbench \
