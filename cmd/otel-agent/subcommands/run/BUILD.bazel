@@ -133,6 +133,7 @@ go_library(
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/util/winutil",
             "//pkg/util/winutil/servicemain",
             "@com_github_spf13_cobra//:cobra",
