@@ -1,0 +1,65 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+
+# Rust shared-library checks are Linux-only (the `rustchecks_crates` hub is
+# configured for linux triples only).
+_LINUX = ["@platforms//os:linux"]
+
+# rust_prost_library propagates CcInfo from proto_library, which transitively
+# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
+# so we provide it explicitly (mirrors //pkg/procmgr/rust:cpp_stdlib).
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = ["-lstdc++"],
+)
+
+# cdylib loaded by the shared-library check loader. `--cfg=bazel` selects the
+# `sds_proto` crate from //pkg/proto/datadog/sds:sds_rust_proto instead of the
+# prost-build codegen in build.rs (which only runs for `cargo build`/IDE).
+rust_shared_library(
+    name = "datasecurity",
+    srcs = glob(["src/**/*.rs"]),
+    crate_features = [
+        "engine-all",
+        "engine-postgres",
+    ],
+    crate_name = "datasecurity",
+    edition = "2024",
+    link_deps = [":cpp_stdlib"],
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX,
+    visibility = ["//visibility:public"],
+    # `shlib_core`/`dd_sds` match the Cargo `package =`/rename in Cargo.toml.
+    aliases = {
+        "//pkg/collector/sharedlibrary/rustchecks/core:core": "shlib_core",
+        "@rustchecks_crates//:dd-sensitive-data-scanner": "dd_sds",
+    },
+    deps = [
+        "//pkg/collector/sharedlibrary/rustchecks/core",
+        # Crate name exposed to Rust is `sds_proto` (the proto_library name).
+        "//pkg/proto/datadog/sds:sds_rust_proto",
+        # prost from the root hub so the generated sds types match sds_rust_proto.
+        "@crates//:prost",
+        "@rustchecks_crates//:anyhow",
+        "@rustchecks_crates//:dd-sensitive-data-scanner",
+        "@rustchecks_crates//:libc",
+        "@rustchecks_crates//:postgres",
+        "@rustchecks_crates//:serde",
+        "@rustchecks_crates//:serde_json",
+    ],
+)
+
+# Stage the cdylib with the loader naming convention
+# (libdatadog-agent-<check_id>.so) and owner-only perms. Enable/disable shipping
+# via ENABLED_CHECKS in //pkg/collector/sharedlibrary/rustchecks:BUILD.bazel,
+# which aggregates this into the `:install` target callers use.
+pkg_files(
+    name = "checks_d_files",
+    srcs = [":datasecurity"],
+    attributes = pkg_attributes(mode = "0500"),
+    prefix = "checks.d",
+    renames = {":datasecurity": "libdatadog-agent-datasecurity.so"},
+    target_compatible_with = _LINUX,
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,36 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+
+# Rust shared-library checks Cargo workspace. Built with Bazel (see the
+# per-check BUILD.bazel files); the exported manifest/lockfile back the
+# `rustchecks_crates` hub declared in //deps:crates.MODULE.bazel.
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+# ============================================================================
+# Shipped-checks manifest (replaces shared_checks_manifest.yaml)
+# ============================================================================
+#
+# This is the single place that decides which Rust shared-library checks are
+# built and staged into checks.d by omnibus and `dda inv agent.build`.
+#
+#   - To enable a check:  add its `:checks_d_files` target below.
+#   - To disable a check: remove (or comment out) its line.
+#   - Per-platform gating is handled by each check's `target_compatible_with`
+#     (all checks are currently Linux-only), so entries on an incompatible
+#     platform are skipped automatically rather than failing the build.
+ENABLED_CHECKS = [
+    "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:checks_d_files",
+    # "//pkg/collector/sharedlibrary/rustchecks/checks/example:checks_d_files",  # not shipped
+]
+
+# Aggregate installer used by callers:
+#   bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>
+# stages every ENABLED_CHECKS lib at <dir>/checks.d/libdatadog-agent-<check>.so.
+pkg_install(
+    name = "install",
+    srcs = ENABLED_CHECKS,
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

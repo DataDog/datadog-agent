@@ -12,6 +12,24 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
+
+# Rust shared-library checks live in their own Cargo workspace (separate release
+# profile + check-only deps such as `postgres` and `dd-sensitive-data-scanner`
+# that we don't want in the root universe). They are built with Bazel via
+# //pkg/collector/sharedlibrary/rustchecks/... instead of `cargo build`, so their
+# third-party crates get their own hub. Note: `prost` for the sds wire types
+# still comes from the root `@crates` hub so it matches
+# //pkg/proto/datadog/sds:sds_rust_proto (rules_rust_prost uses @crates).
+crate.from_cargo(
+    name = "rustchecks_crates",
+    cargo_lock = "//pkg/collector/sharedlibrary/rustchecks:Cargo.lock",
+    cargo_toml = "//pkg/collector/sharedlibrary/rustchecks:Cargo.toml",
+    platform_triples = [
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
 crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
@@ -20,4 +38,4 @@ crate.annotation(
     crate = "protoc-gen-tonic",
     gen_binaries = ["protoc-gen-tonic"],
 )
-use_repo(crate, "crates")
+use_repo(crate, "crates", "rustchecks_crates")
