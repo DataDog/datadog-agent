@@ -125,8 +125,8 @@ fn lookup_account_name(sid: &[u8]) -> Result<AccountName> {
 
         name.truncate(name_size as usize);
         domain.truncate(domain_size as usize);
-        let user = wide::from_utf16(&name);
-        let domain = wide::from_utf16(&domain);
+        let user = wide::from_ptr(name.as_ptr());
+        let domain = wide::from_ptr(domain.as_ptr());
         Ok(AccountName::new(domain, user))
     }
 }
