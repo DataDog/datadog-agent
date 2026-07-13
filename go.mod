@@ -331,7 +331,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.47
+	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/mdlayher/netlink v1.11.2
 	github.com/mdlayher/vsock v1.3.0
 	github.com/miekg/dns v1.1.72
