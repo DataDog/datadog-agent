@@ -18,9 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+// tagSetKey namespaces a ConsumeTagSet dedup key by metricSuffix, so that two
+// different workload types can never collide in seenTagSets even if their
+// tag content happens to coincide. sortedTags is derived from tags themselves
+// (sorted and joined) so that two calls with identical tags always dedup
 type tagSetKey struct {
 	metricSuffix string
-	tags         string
+	sortedTags   string
 }
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
@@ -79,14 +83,8 @@ func (c *collectorConsumer) ConsumeHost(host string) {
 func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 	sorted := slices.Clone(tags)
 	slices.Sort(sorted)
-
-	var dedupKey strings.Builder
-	for _, tag := range sorted {
-		fmt.Fprintf(&dedupKey, "%d:", len(tag))
-		dedupKey.WriteString(tag)
-	}
-	key := tagSetKey{metricSuffix: metricSuffix, tags: dedupKey.String()}
-	c.seenTagSets[key] = sorted
+	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
+	c.seenTagSets[dedupKey] = sorted
 }
 
 // exporterDefaultMetrics creates built-in metrics to report that an exporter is running
