@@ -35,6 +35,9 @@ type fakeExecutor struct {
 	prepareErr error
 	output     interface{}
 	runErr     error
+	// runGate, when non-nil, blocks RunPrepared until closed (or ctx cancelled),
+	// so tests can hold an action in-flight.
+	runGate chan struct{}
 
 	gotRawTask []byte
 }
@@ -47,7 +50,14 @@ func (f *fakeExecutor) PrepareTask(_ context.Context, task *types.Task) (*runner
 	return f.prepared, nil, nil
 }
 
-func (f *fakeExecutor) RunPrepared(_ context.Context, _ *runners.PreparedWorkflowTask) (interface{}, error) {
+func (f *fakeExecutor) RunPrepared(ctx context.Context, _ *runners.PreparedWorkflowTask) (interface{}, error) {
+	if f.runGate != nil {
+		select {
+		case <-f.runGate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return f.output, f.runErr
 }
 
@@ -62,7 +72,7 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
-	go func() { served <- Serve(ctx, lis, srv) }()
+	go func() { served <- Serve(ctx, lis, srv, ServeOptions{}) }()
 
 	conn, err := grpc.NewClient(
 		"passthrough:///"+socketPath,
@@ -191,4 +201,99 @@ func TestHealthReportsReadinessAndVersion(t *testing.T) {
 	resp, err = client.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	assert.True(t, resp.GetReady())
+}
+
+// dialTestExecutor connects a client to an executor already listening on socketPath.
+func dialTestExecutor(t *testing.T, socketPath string) pb.ExecutorClient {
+	t.Helper()
+	conn, err := grpc.NewClient(
+		"passthrough:///"+socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
+			return Dial(dialCtx, socketPath, 2*time.Second)
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	return pb.NewExecutorClient(conn)
+}
+
+func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.SetReady(true)
+
+	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(ctx, lis, srv, ServeOptions{
+			OrphanIdleTimeout: 40 * time.Millisecond,
+			PollInterval:      10 * time.Millisecond,
+		})
+	}()
+
+	// No client ever connects → the executor is orphaned and must self-exit.
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("orphaned executor did not self-exit")
+	}
+}
+
+func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
+	gate := make(chan struct{})
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{"drained": true},
+		runGate:  gate,
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+
+	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() { served <- Serve(ctx, lis, srv, ServeOptions{DrainTimeout: 2 * time.Second}) }()
+
+	client := dialTestExecutor(t, socketPath)
+	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: []byte(`{"data":{"id":"t"}}`)})
+	require.NoError(t, err)
+
+	// Wait until the action is genuinely in-flight.
+	require.Eventually(t, func() bool { return srv.active.Load() == 1 }, time.Second, 5*time.Millisecond)
+
+	// Ask the executor to stop while the action is mid-run, then let it finish.
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+	close(gate)
+
+	// Graceful drain must let the in-flight action complete: the client still
+	// receives its terminal output rather than a broken stream.
+	var result *pb.ActionResult
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		if r := resp.GetResult(); r != nil {
+			result = r
+		}
+	}
+	require.NotNil(t, result)
+	require.NotNil(t, result.GetOutput(), "drained action should complete with its output")
+
+	select {
+	case <-served:
+	case <-time.After(2 * time.Second):
+		t.Fatal("serve did not return after drain")
+	}
 }

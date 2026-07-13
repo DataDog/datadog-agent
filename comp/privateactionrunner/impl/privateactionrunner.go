@@ -302,9 +302,17 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("Private action runner executor listening on " + executor.DefaultSocketPath)
 
 	p.executorDone = make(chan struct{})
+	serveOpts := executor.ServeOptions{
+		// Bound graceful drain so a wedged action cannot block shutdown forever.
+		DrainTimeout: 30 * time.Second,
+		// Orphan safety net: self-exit if the control plane vanishes without
+		// stopping us. Generously larger than the control plane's idle timeout,
+		// which is the normal termination path.
+		OrphanIdleTimeout: 5 * time.Minute,
+	}
 	go func() {
 		defer close(p.executorDone)
-		if serveErr := executor.Serve(ctx, lis, p.executorServer); serveErr != nil {
+		if serveErr := executor.Serve(ctx, lis, p.executorServer, serveOpts); serveErr != nil {
 			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
 		}
 	}()
