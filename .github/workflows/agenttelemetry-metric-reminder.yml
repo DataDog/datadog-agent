@@ -1,7 +1,10 @@
 name: "Agent telemetry metric reminder"
 
 on:
-  pull_request:
+  # Runs in the context of the base branch (with a writable GITHUB_TOKEN) so it
+  # also works for PRs from forks, which otherwise only get a read-only token.
+  # Safe here since the job never checks out or executes the PR's code.
+  pull_request_target:
     types: [opened, synchronize, reopened]
     branches:
       - main
@@ -25,6 +28,9 @@ jobs:
           script: |
             const marker = '<!-- coat-metric-reminder -->';
             const targetFile = 'comp/core/agenttelemetry/impl/defaultProfiles.yaml';
+            // Title used by the companion GitLab CI job (tasks/github_tasks.py::pr_commenter
+            // renders it as this exact "## {title}" header) so we can clean it up too.
+            const vmCommentHeader = '## COAT metric validation VM';
 
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
@@ -39,6 +45,7 @@ jobs:
               issue_number: context.issue.number,
             });
             const existing = comments.find((c) => c.body && c.body.includes(marker));
+            const existingVmComment = comments.find((c) => c.body && c.body.startsWith(vmCommentHeader));
 
             if (!touchesMetricFile) {
               if (existing) {
@@ -46,6 +53,13 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id: existing.id,
+                });
+              }
+              if (existingVmComment) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingVmComment.id,
                 });
               }
               return;
