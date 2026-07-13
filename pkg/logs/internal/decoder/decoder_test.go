@@ -995,7 +995,7 @@ func TestDecoderBlankLineNewlineHandling(t *testing.T) {
 	criLine := func(content string) string {
 		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
 	}
-	run := func(t *testing.T, lines []string) []*message.Message {
+	run := func(_ *testing.T, lines []string) []*message.Message {
 		source := sources.NewLogSource("", &config.LogsConfig{})
 		d := InitializeDecoderForTest(source, kubernetes.New())
 		d.Start()
@@ -1079,7 +1079,7 @@ func TestDecoderAutoMultilineTimestampBlankLine(t *testing.T) {
 	criLine := func(content string) string {
 		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
 	}
-	run := func(t *testing.T, lines []string) []*message.Message {
+	run := func(_ *testing.T, lines []string) []*message.Message {
 		source := sources.NewLogSource("", &config.LogsConfig{})
 		d := InitializeDecoderForTest(source, kubernetes.New())
 		d.Start()
