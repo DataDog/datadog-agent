@@ -12,7 +12,7 @@ engine-postgres = ["dep:postgres"]
 [dependencies]
 anyhow = "1.0.100"
 shlib_core = { path = "../../core", package = "core" }
-dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260601-3c48e9fa5604", features = ["dd-sds"] }
+dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260713-90c144ee7013", default-features = false, features = ["dd-sds"] }
 libc = "0.2.182"
 postgres = { version = "0.19", optional = true, features = ["with-serde_json-1"] }
 prost = "0.14"
