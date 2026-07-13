@@ -2,31 +2,6 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
-def otool_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory.
-
-    Args:
-      ctx: the rule context.
-      input_dir: the source directory artifact to patch.
-      output_dir: the output directory artifact to write.
-      rpath: the rpath string to set.
-    """
-    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-    args = ctx.actions.args()
-    args.add(ctx.file._script.path)
-    args.add(ctx.executable._install_name_tool.path)
-    args.add(otool.path)
-    args.add(rpath)
-    args.add(input_dir.path)
-    args.add(output_dir.path)
-    ctx.actions.run(
-        inputs = [input_dir, ctx.file._script],
-        tools = [ctx.executable._install_name_tool],
-        outputs = [output_dir],
-        executable = ctx.file._dir_script,
-        arguments = [args],
-    )
-
 def rewrite_rpaths_for_files(ctx, inputs, rpath):
     """Creates actions to apply an rpath rewriter to the inputs.
 

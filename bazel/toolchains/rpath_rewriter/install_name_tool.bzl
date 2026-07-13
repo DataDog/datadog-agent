@@ -12,47 +12,46 @@ INPUT=$1
 RPATH=$2
 OUTPUT=$3
 
-INSTALL_NAME_TOOL=\"{install_name_tool}\"
-
-# RPATH is the full rpath (e.g. /opt/datadog-agent/embedded/lib); use as-is.
-cp \"$INPUT\" \"$OUTPUT\"
-# Restore owner-write so install_name_tool can modify dylibs installed as
-# read-only by their build system (e.g. Python lib-dynload modules).
-chmod u+w \"$OUTPUT\"
-
-# Match Linux patchelf --set-rpath semantics: the packaged output should have
-# exactly the packaging rpath, to avoid leaving in existing ones that may
-# point to build-time paths.
-\"$INSTALL_NAME_TOOL\" -delete_all_rpaths -add_rpath \"$RPATH\" \"$OUTPUT\"
-dylib_name=$(basename \"$OUTPUT\")
-new_id=\"$RPATH/$dylib_name\"
-
-\"$INSTALL_NAME_TOOL\" -id \"$new_id\" \"$OUTPUT\"
-
-# Dylibs built in the Bazel sandbox record their dependencies with absolute
-# sandbox paths as install names (e.g. bazel-out/.../libfoo.dylib). Those paths
-# vanish after the build, so rewrite them to $RPATH/<basename> so the dynamic
-# linker can find them via the rpath we just added. Leave everything else
-# (system libraries, @rpath/... references) untouched.
-/usr/bin/otool -L \"$OUTPUT\" | tail -n +2 | awk '{{print $1}}' | while read -r dep; do
-    if [[ \"$dep\" == *\"sandbox\"* ]] || [[ \"$dep\" == *\"bazel-out\"* ]]; then
-        dep_name=$(basename \"$dep\")
-        new_dep=\"$RPATH/$dep_name\"
-        \"$INSTALL_NAME_TOOL\" -change \"$dep\" \"$new_dep\" \"$OUTPUT\" 2>/dev/null || true
-    fi
-done
-
-# Re-sign with an ad-hoc signature after modification as install_name_tool invalidates
-# any existing code signature.
-/usr/bin/codesign --sign - --force \"$OUTPUT\"
+"{script}" "{install_name_tool}" /usr/bin/otool "$RPATH" "$INPUT" "$OUTPUT"
 """.format(
             install_name_tool = ctx.executable.install_name_tool.path,
+            script = ctx.file._script.path,
         ),
     )
 
     return DefaultInfo(
         executable = rewriter_tool,
-        files = depset([rewriter_tool, ctx.executable.install_name_tool]),
+        files = depset([rewriter_tool, ctx.file._script, ctx.executable.install_name_tool]),
+    )
+
+def _macos_tree_rpath_rewriter_impl(ctx):
+    tree_rewriter_tool = ctx.actions.declare_file(ctx.label.name + "_tree_rewriter_tool.sh")
+    ctx.actions.write(
+        output = tree_rewriter_tool,
+        is_executable = True,
+        content = """#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT=$1
+RPATH=$2
+OUTPUT=$3
+
+"{tree_script}" "{file_script}" "{install_name_tool}" /usr/bin/otool "$RPATH" "$INPUT" "$OUTPUT"
+""".format(
+            file_script = ctx.file._file_script.path,
+            install_name_tool = ctx.executable.install_name_tool.path,
+            tree_script = ctx.file._tree_script.path,
+        ),
+    )
+
+    return DefaultInfo(
+        executable = tree_rewriter_tool,
+        files = depset([
+            tree_rewriter_tool,
+            ctx.file._file_script,
+            ctx.file._tree_script,
+            ctx.executable.install_name_tool,
+        ]),
     )
 
 macos_rpath_rewriter = rule(
@@ -64,6 +63,31 @@ macos_rpath_rewriter = rule(
             executable = True,
             allow_files = True,
             mandatory = True,
+        ),
+        "_script": attr.label(
+            default = "//bazel/toolchains/rpath_rewriter:rewrite_with_install_name_tool.sh",
+            allow_single_file = True,
+        ),
+    },
+)
+
+macos_tree_rpath_rewriter = rule(
+    implementation = _macos_tree_rpath_rewriter_impl,
+    attrs = {
+        "install_name_tool": attr.label(
+            doc = "A valid label of a target pointing at an install_name_tool executable.",
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+            mandatory = True,
+        ),
+        "_file_script": attr.label(
+            default = "//bazel/toolchains/rpath_rewriter:rewrite_with_install_name_tool.sh",
+            allow_single_file = True,
+        ),
+        "_tree_script": attr.label(
+            default = "//bazel/toolchains/rpath_rewriter:rewrite_tree_with_install_name_tool.sh",
+            allow_single_file = True,
         ),
     },
 )

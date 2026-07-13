@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MACOS_SH="$(find "$TEST_SRCDIR" -path "*/rewrite_rpath/macos.sh" | head -1)"
-MACOS_DIR_SH="$(find "$TEST_SRCDIR" -path "*/rewrite_rpath/macos_dir.sh" | head -1)"
+MACOS_SH="$(find "$TEST_SRCDIR" -path "*/rpath_rewriter/rewrite_with_install_name_tool.sh" | head -1)"
+MACOS_DIR_SH="$(find "$TEST_SRCDIR" -path "*/rpath_rewriter/rewrite_tree_with_install_name_tool.sh" | head -1)"
 INSTALL_NAME_TOOL="${1:?usage: $0 <install-name-tool>}"
 
 LIBS=()
