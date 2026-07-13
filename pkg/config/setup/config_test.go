@@ -1885,12 +1885,12 @@ func boolPtr(b bool) *bool {
 
 func TestParseDelaDirective(t *testing.T) {
 	cases := []struct {
-		name          string
-		value         string
-		wantOK        bool
-		wantOrgUUID   string
-		wantProvider  string
-		wantParams    map[string]string
+		name         string
+		value        string
+		wantOK       bool
+		wantOrgUUID  string
+		wantProvider string
+		wantParams   map[string]string
 	}{
 		{
 			name:         "minimal",

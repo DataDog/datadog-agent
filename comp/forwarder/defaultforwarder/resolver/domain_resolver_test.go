@@ -179,7 +179,7 @@ func TestIsUsableWithPendingDelegatedAuth(t *testing.T) {
 	// builds a live domainForwarder for it instead of dropping it until an agent restart.
 	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
 		BaseURL:                 "https://example.com",
-		APIKeySet:                []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
+		APIKeySet:               []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
 		HasPendingDelegatedAuth: true,
 	})
 	require.NoError(t, err)
