@@ -203,6 +203,16 @@ impl ManagedProcess {
                 return false;
             }
         }
+        if !self.config.condition_config_any.is_empty()
+            && !crate::config_gate::condition_config_any_met(&self.config.condition_config_any)
+        {
+            info!(
+                "[{}] condition_config_any not met: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+            );
+            return false;
+        }
         true
     }
 
@@ -679,6 +689,18 @@ pub mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+        assert!(!proc.should_start());
+    }
+
+    #[test]
+    fn test_should_start_condition_config_any_not_met() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_config_any = vec![crate::config_gate::ConditionConfigFile {
+            path: "/nonexistent/datadog.yaml".into(),
+            keys: vec!["process_config.enabled".into()],
+        }];
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.should_start());
     }

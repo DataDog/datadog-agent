@@ -5,6 +5,17 @@ args:
   - '{{.EtcDir}}/datadog.yaml'
 auto_start: true
 condition_path_exists: '{{.InstallDir}}/bin/agent/process-agent.exe'
+condition_config_any:
+  - path: '{{.EtcDir}}/datadog.yaml'
+    keys:
+      - process_config.enabled
+      - process_config.process_collection.enabled
+      - process_config.container_collection.enabled
+      - process_config.process_discovery.enabled
+  - path: '{{.EtcDir}}/system-probe.yaml'
+    keys:
+      - network_config.enabled
+      - system_probe_config.enabled
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
