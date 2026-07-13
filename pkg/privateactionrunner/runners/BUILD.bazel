@@ -4,9 +4,8 @@ go_library(
     name = "runners",
     srcs = [
         "common_runner.go",
-        "interface.go",
-        "workflow_executor.go",
         "workflow_runner.go",
+        "workflow_task_executor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners",
     visibility = ["//visibility:public"],
