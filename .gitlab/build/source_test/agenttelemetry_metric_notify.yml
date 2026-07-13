@@ -4,11 +4,15 @@
 # See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Report-a-telemetry-metric
 #
 # Posts a placeholder comment immediately (agenttelemetry_metric_vm_reminder_pending), then
-# overwrites it in place (same pr-commenter title, so it edits rather than duplicates) with
-# copy-paste `aws.create-vm` commands for both Linux and Windows once at least one of those
-# platforms' e2e testing package deploy jobs succeeds. The deploy jobs are declared
-# `optional: true` in `needs` since they may not run at all on some pipelines (e.g.
-# DEPLOY_AGENT=false) — in that case the corresponding "ready" job just never runs and the
+# overwrites it in place (same pr-commenter title, so it edits rather than duplicates) once
+# the Linux e2e testing package deploy job succeeds (agenttelemetry_metric_vm_reminder_linux).
+# Gated on deploy_deb_testing-a7_x64 specifically because it's unconditionally included for
+# every dev branch pipeline (unlike deploy_windows_testing-a7, whose entire include file is
+# skipped for a PR that doesn't touch Windows/bazel-related paths — gating on it with
+# needs:optional would silently degrade to needs:[] and fire before any build exists, see
+# https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). The Linux
+# deploy job is still declared `optional: true` since it may not run at all on some
+# pipelines (e.g. DEPLOY_AGENT=false) — in that case this job just never runs and the
 # placeholder comment stays as-is.
 
 .agenttelemetry_metric_vm_notify_rules:
@@ -29,13 +33,16 @@ agenttelemetry_metric_vm_reminder_pending:
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
-    - dda inv -- -e github.pr-commenter --title="COAT metric validation VM" --body="This PR changes a COAT metric profile. A dev VM build for this pipeline is running — this comment will update with copy-paste \`aws.create-vm\` commands (Linux and Windows) once at least one platform's build finishes."
+    - dda inv -- -e github.pr-commenter --title="COAT metric validation VM" --body="This PR changes a COAT metric profile. A dev VM build for this pipeline is running — this comment will update with a copy-paste \`aws.create-vm\` command once the Linux build finishes."
 
-.agenttelemetry_metric_vm_reminder_ready:
+agenttelemetry_metric_vm_reminder_linux:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
+  needs:
+    - job: deploy_deb_testing-a7_x64
+      optional: true
   rules:
     - !reference [.agenttelemetry_metric_vm_notify_rules]
   before_script:
@@ -43,31 +50,19 @@ agenttelemetry_metric_vm_reminder_pending:
   script:
     - |
       cat > coat-metric-vm-reminder.md <<'EOF'
-      A dev VM build for this pipeline is ready. Pick the command for the platform you need to validate:
+      A dev VM build for this pipeline is ready:
 
-      Linux:
       ```
       dda inv aws.create-vm --pipeline-id=__PIPELINE_ID__
       ```
 
-      Windows:
-      ```
-      dda inv aws.create-vm --os-family=windows --pipeline-id=__PIPELINE_ID__
-      ```
+      Need Windows instead? Add `--os-family=windows` — but note Windows packages are only
+      built for this pipeline if it touched a Windows-related path, ran with
+      `RUN_E2E_TESTS`/`DEPLOY_AGENT`, or is on `main`/a release branch. If yours doesn't
+      qualify, no Windows build will ever exist for this pipeline id — push an unrelated
+      Windows-path change, or open a fresh pipeline with `RUN_E2E_TESTS=on`.
 
-      See [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry) for how to find the metric once the agent is running. If a command fails because that platform's build hasn't finished yet, wait a bit and retry.
+      See [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry) for how to find the metric once the agent is running.
       EOF
     - sed -i "s/__PIPELINE_ID__/${CI_PIPELINE_ID}/" coat-metric-vm-reminder.md
     - dda inv -- -e github.pr-commenter --title="COAT metric validation VM" --body-file=coat-metric-vm-reminder.md
-
-agenttelemetry_metric_vm_reminder_linux:
-  extends: .agenttelemetry_metric_vm_reminder_ready
-  needs:
-    - job: deploy_deb_testing-a7_x64
-      optional: true
-
-agenttelemetry_metric_vm_reminder_windows:
-  extends: .agenttelemetry_metric_vm_reminder_ready
-  needs:
-    - job: deploy_windows_testing-a7
-      optional: true
