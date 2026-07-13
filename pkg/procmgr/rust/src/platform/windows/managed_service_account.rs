@@ -23,7 +23,7 @@ const STATUS_INVALID_ACCOUNT_NAME: u32 = 0xC000_0064;
 const STATUS_NAME_TOO_LONG: u32 = 0xC000_0106;
 
 #[link(name = "logoncli")]
-extern "system" {
+unsafe extern "system" {
     fn NetQueryServiceAccount(
         servername: *const u16,
         accountname: *const u16,
@@ -33,7 +33,7 @@ extern "system" {
 }
 
 #[link(name = "netapi32")]
-extern "system" {
+unsafe extern "system" {
     fn NetApiBufferFree(buffer: *mut u8) -> u32;
 }
 

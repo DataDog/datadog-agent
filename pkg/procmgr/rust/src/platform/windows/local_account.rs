@@ -8,12 +8,10 @@
 //! Mirrors `pkg/fleet/installer/packages/user/windows.IsLocalAccount`.
 
 use anyhow::{Context, Result, bail};
-use std::io::ErrorKind;
 use std::ptr;
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, WIN32_ERROR};
-use windows_sys::Win32::Security::Authorization::GetWindowsAccountDomainSid;
-use windows_sys::Win32::Security::EqualSid;
-use windows_sys::Win32::System::SystemInformation::GetComputerNameW;
+use windows_sys::Win32::Security::{EqualSid, GetWindowsAccountDomainSid};
+use windows_sys::Win32::System::WindowsProgramming::GetComputerNameW;
 
 use super::sid::lookup_account_sid;
 use super::wide;
@@ -94,6 +92,8 @@ fn is_non_account_or_domain_sid(err: &anyhow::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
     use super::*;
 
     #[test]

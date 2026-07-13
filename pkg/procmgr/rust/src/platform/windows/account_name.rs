@@ -10,6 +10,7 @@ pub(crate) struct AccountName {
     user: String,
 }
 
+#[cfg(test)]
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
 impl AccountName {
@@ -18,18 +19,6 @@ impl AccountName {
             domain: domain.into(),
             user: user.into(),
         }
-    }
-
-    pub(crate) fn local_system() -> Self {
-        Self::new(NT_AUTHORITY, "SYSTEM")
-    }
-
-    pub(crate) fn local_service() -> Self {
-        Self::new(NT_AUTHORITY, "LocalService")
-    }
-
-    pub(crate) fn network_service() -> Self {
-        Self::new(NT_AUTHORITY, "NetworkService")
     }
 
     pub(crate) fn display(&self) -> String {
@@ -45,18 +34,24 @@ impl AccountName {
 mod tests {
     use super::*;
 
+    fn local_system() -> AccountName {
+        AccountName::new(NT_AUTHORITY, "SYSTEM")
+    }
+
+    fn local_service() -> AccountName {
+        AccountName::new(NT_AUTHORITY, "LocalService")
+    }
+
+    fn network_service() -> AccountName {
+        AccountName::new(NT_AUTHORITY, "NetworkService")
+    }
+
     #[test]
     fn display_formats_well_known_accounts() {
+        assert_eq!(local_system().display(), r"NT AUTHORITY\SYSTEM");
+        assert_eq!(local_service().display(), r"NT AUTHORITY\LocalService");
         assert_eq!(
-            AccountName::local_system().display(),
-            r"NT AUTHORITY\SYSTEM"
-        );
-        assert_eq!(
-            AccountName::local_service().display(),
-            r"NT AUTHORITY\LocalService"
-        );
-        assert_eq!(
-            AccountName::network_service().display(),
+            network_service().display(),
             r"NT AUTHORITY\NetworkService"
         );
     }

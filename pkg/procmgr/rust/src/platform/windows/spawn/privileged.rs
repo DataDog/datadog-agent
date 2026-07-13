@@ -129,7 +129,7 @@ fn normalize_win_path(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spawn::{DATADOG_AGENT_PROCESS, SpawnRequest};
+    use crate::spawn::{DATADOG_AGENT_PROCESS, SpawnRequest, StdioSetting};
 
     #[test]
     fn normalize_win_path_strips_verbatim_prefix() {
@@ -164,8 +164,8 @@ mod tests {
             ],
             env: Vec::new(),
             working_dir: None,
-            stdout_setting: crate::spawn::stdio_setting::StdioSetting::Inherit,
-            stderr_setting: crate::spawn::stdio_setting::StdioSetting::Inherit,
+            stdout_setting: StdioSetting::Inherit,
+            stderr_setting: StdioSetting::Inherit,
         };
 
         validate_privileged_command_args(DATADOG_AGENT_PROCESS, &spec, &request)
