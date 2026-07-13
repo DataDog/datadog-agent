@@ -18,6 +18,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -287,8 +288,9 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 		return fmt.Errorf("could not prepare extension: %w", err)
 	}
 
-	// Extract to a temporary directory first
-	tmpDir, err := os.MkdirTemp(paths.PackagesPath, pkg.Name+"-extension-")
+	// Extract to a temporary directory first. Prefixed with repository.TempDirPrefix
+	// so Repositories.loadRepositories skips it while it's still in progress.
+	tmpDir, err := os.MkdirTemp(paths.PackagesPath, repository.TempDirPrefix+pkg.Name+"-extension-")
 	if err != nil {
 		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}

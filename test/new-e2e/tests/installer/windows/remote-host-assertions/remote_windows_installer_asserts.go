@@ -146,7 +146,31 @@ type installerStatus struct {
 	Packages packageStatus `json:"packages"`
 }
 
+// packageStatusLegacy matches the status --json schema produced by installer
+// versions predating the package_states/extensions rework, where each
+// package's stable/experiment state was a plain version string.
+type packageStatusLegacy struct {
+	States       map[string]stateLegacy `json:"states"`
+	ConfigStates map[string]stateLegacy `json:"config_states"`
+}
+
+type stateLegacy struct {
+	Stable     string `json:"stable"`
+	Experiment string `json:"experiment"`
+}
+
+type installerStatusLegacy struct {
+	Version  string              `json:"version"`
+	Packages packageStatusLegacy `json:"packages"`
+}
+
 // parseStatusOutput parses the json status output of the Datadog Installer.
+//
+// Mixed-version e2e scenarios can query an installer binary released before
+// this schema changed from "states" (plain version strings) to
+// "package_states" (nested stable/experiment objects). Unmarshaling old JSON
+// into the new schema doesn't error - the missing key just leaves States nil
+// - so detect that case and fall back to the legacy schema.
 func parseStatusOutput(output string) (installerStatus, error) {
 	var status installerStatus
 
@@ -154,5 +178,35 @@ func parseStatusOutput(output string) (installerStatus, error) {
 	if err != nil {
 		return status, err
 	}
+	if len(status.Packages.States) == 0 {
+		var legacy installerStatusLegacy
+		if err := json.Unmarshal([]byte(output), &legacy); err == nil && len(legacy.Packages.States) > 0 {
+			status = fromLegacyStatus(legacy)
+		}
+	}
 	return status, nil
+}
+
+func fromLegacyStatus(legacy installerStatusLegacy) installerStatus {
+	states := make(map[string]packageVersionStatus, len(legacy.Packages.States))
+	for name, s := range legacy.Packages.States {
+		states[name] = packageVersionStatus{
+			Stable:     versionState{Version: s.Stable},
+			Experiment: versionState{Version: s.Experiment},
+		}
+	}
+	configStates := make(map[string]stableExperimentStatus, len(legacy.Packages.ConfigStates))
+	for name, s := range legacy.Packages.ConfigStates {
+		configStates[name] = stableExperimentStatus{
+			Stable:     s.Stable,
+			Experiment: s.Experiment,
+		}
+	}
+	return installerStatus{
+		Version: legacy.Version,
+		Packages: packageStatus{
+			States:       states,
+			ConfigStates: configStates,
+		},
+	}
 }

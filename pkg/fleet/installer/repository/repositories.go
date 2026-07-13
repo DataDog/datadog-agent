@@ -16,7 +16,10 @@ import (
 )
 
 const (
-	tempDirPrefix = "tmp-i-"
+	// TempDirPrefix is the prefix used for temporary directories created directly
+	// under a Repositories root path. loadRepositories skips directories with this
+	// prefix so in-progress scratch work never appears as a package repository.
+	TempDirPrefix = "tmp-i-"
 )
 
 // Repositories manages multiple repositories.
@@ -50,7 +53,7 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 		if !d.IsDir() {
 			continue
 		}
-		if strings.HasPrefix(d.Name(), tempDirPrefix) {
+		if strings.HasPrefix(d.Name(), TempDirPrefix) {
 			// Temporary dir created by Repositories.MkdirTemp, ignore
 			continue
 		}
@@ -136,7 +139,7 @@ func (r *Repositories) Cleanup(ctx context.Context) error {
 // This ensures that the temporary directory can be moved to the root path without copying.
 // The caller is responsible for cleaning up the directory.
 func (r *Repositories) MkdirTemp() (string, error) {
-	return os.MkdirTemp(r.rootPath, tempDirPrefix+"*")
+	return os.MkdirTemp(r.rootPath, TempDirPrefix+"*")
 }
 
 // AvailableDiskSpace returns the available disk space for the repositories.

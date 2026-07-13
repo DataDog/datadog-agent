@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.etcd.io/bbolt"
 )
@@ -33,6 +34,7 @@ type extensionsDB struct {
 // newExtensionsDB creates a new extensionsDB. It acts as a lock for extensions operations.
 func newExtensionsDB(dbPath string) (*extensionsDB, error) {
 	db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
+		Timeout:      5 * time.Minute,
 		FreelistType: bbolt.FreelistArrayType,
 	})
 	if err != nil {
