@@ -29,7 +29,9 @@ go_test(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/healthplatform/store/def",
+        "//pkg/aggregator/sender",
         "//pkg/collector/check",
+        "//pkg/collector/check/id",
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",

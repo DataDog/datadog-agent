@@ -373,12 +373,6 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe",
     ]
 
-    if fips_mode?
-      Dir.glob(File.join(install_dir, "bin", "agent", "aws_lc_fips_*_crypto.dll")).each do |bin|
-        sign_file bin
-      end
-    end
-
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin
     end

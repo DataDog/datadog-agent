@@ -233,9 +233,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
-		if globalParams.CommonRoot != "" {
-			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
-		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()

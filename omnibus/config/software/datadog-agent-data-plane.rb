@@ -83,7 +83,6 @@ build do
 
   if windows_target?
     copy 'bin/agent-data-plane.exe', "#{install_dir}/bin/agent"
-    copy 'bin/aws_lc_fips_*_crypto.dll', "#{install_dir}/bin/agent" if fips_mode?
     copy 'LICENSES', "#{install_dir}/LICENSES"
     copy 'LICENSE-3rdparty.csv', "#{install_dir}/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
   else

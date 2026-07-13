@@ -16,11 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+const (
+	pathAccessReadOnly  = ":ro"
+	pathAccessReadWrite = ":rw"
+)
+
 // onlyRshellPrefixedCommands returns the commands that are prefixed with the rshell namespace.
 //
 // Assumptions:
 //
-//  1. The list comes from the backend, and should only contain commmands that "make sense" to be run by rshell.
+//  1. The list comes from the backend, and should only contain commands that "make sense" to be run by rshell.
 func onlyRshellPrefixedCommands(commands []string) []string {
 	prefixedCommands := make([]string, 0, len(commands))
 	for _, c := range commands {
@@ -33,8 +38,8 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 	return prefixedCommands
 }
 
-// selectBackendPathsFromEnv returns the list of allowed paths for the current environment.
-// Falls back to the default (non-containerized) paths.
+// selectBackendPathsFromEnv returns the legacy input path list for the current environment.
+// Falls back to the default non-containerized paths.
 func selectBackendPathsFromEnv(m map[string][]string) []string {
 	if env.IsContainerized() {
 		return m[setup.RShellPathAllowMapContainerizedKey]
@@ -42,23 +47,147 @@ func selectBackendPathsFromEnv(m map[string][]string) []string {
 	return m[setup.RShellPathAllowMapDefaultKey]
 }
 
+func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string) []string {
+	operatorAllowedSet := make(map[string]struct{}, len(operatorAllowed))
+	for _, c := range operatorAllowed {
+		switch {
+		case c == setup.RShellCommandAllowAllWildcard:
+			return slices.Clone(backendAllowed)
+		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
+			operatorAllowedSet[c] = struct{}{}
+		}
+	}
+
+	filtered := make([]string, 0, len(backendAllowed))
+	for _, c := range backendAllowed {
+		if _, ok := operatorAllowedSet[c]; ok {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
 // cleanPathList applies path.Clean to each element of the list of paths
 // and ensures that each path ends with a separator:
 // so that "/var/log" is a prefix of "/var/log/nginx" but not of "/var/logger".
+// It preserves rshell access suffixes (:ro / :rw) at the end of the path spec.
 func cleanPathList(paths []string) []string {
 	cleaned := make([]string, len(paths))
 	for i, p := range paths {
-		cleaned[i] = path.Clean(p)
+		pathPart, accessSuffix := splitPathAccessSuffix(p)
+		cleanedPath := path.Clean(pathPart)
 
-		if !strings.HasSuffix(cleaned[i], "/") {
-			cleaned[i] += "/"
+		if !strings.HasSuffix(cleanedPath, "/") {
+			cleanedPath += "/"
 		}
+		cleaned[i] = cleanedPath + accessSuffix
 	}
 	return cleaned
 }
 
+// intersectAllowedPathsByAccess keeps narrower paths shared by the operator and backend allowlists,
+// then reduces the result to the broadest non-redundant paths.
+// Paths only match within the same access group, except unsuffixed operator root
+// which admits backend paths with their original access suffix.
+func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []string) []string {
+	filtered := make([]string, 0, len(operatorAllowed))
+	seen := make(map[string]struct{}, len(operatorAllowed))
+
+	for _, agentPath := range operatorAllowed {
+		for _, backendPath := range backendAllowed {
+			pathToKeep, ok := narrowerPathWithSameAccess(agentPath, backendPath)
+			if !ok {
+				continue
+			}
+			if _, ok := seen[pathToKeep]; ok {
+				continue
+			}
+			filtered = append(filtered, pathToKeep)
+			seen[pathToKeep] = struct{}{}
+		}
+	}
+	return reducePathListToBroadest(filtered)
+}
+
+func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
+	switch {
+	case strings.HasSuffix(pathSpec, pathAccessReadWrite):
+		return strings.TrimSuffix(pathSpec, pathAccessReadWrite), pathAccessReadWrite
+	case strings.HasSuffix(pathSpec, pathAccessReadOnly):
+		return strings.TrimSuffix(pathSpec, pathAccessReadOnly), pathAccessReadOnly
+	default:
+		return pathSpec, ""
+	}
+}
+
+func pathAccessGroup(pathSpec string) string {
+	_, accessSuffix := splitPathAccessSuffix(pathSpec)
+	if accessSuffix == pathAccessReadWrite {
+		return pathAccessReadWrite
+	}
+	return pathAccessReadOnly
+}
+
+func pathSpecPath(pathSpec string) string {
+	pathPart, _ := splitPathAccessSuffix(pathSpec)
+	return pathPart
+}
+
+func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
+	if isUnsuffixedRootPath(a) {
+		if isAbsolutePathSpecPath(bPath) {
+			return b, true
+		}
+		return "", false
+	}
+
+	if pathAccessGroup(a) != pathAccessGroup(b) {
+		return "", false
+	}
+	switch {
+	case aPath == bPath || strings.HasPrefix(aPath, bPath):
+		return a, true
+	case strings.HasPrefix(bPath, aPath):
+		return b, true
+	default:
+		return "", false
+	}
+}
+
+func isUnsuffixedRootPath(pathSpec string) bool {
+	pathPart, accessSuffix := splitPathAccessSuffix(pathSpec)
+	return pathPart == setup.RShellPathAllowAll && accessSuffix == ""
+}
+
+func isAbsolutePathSpecPath(pathPart string) bool {
+	return isPOSIXAbsolutePathSpecPath(pathPart) || isWindowsAbsolutePathSpecPath(pathPart)
+}
+
+func isPOSIXAbsolutePathSpecPath(pathPart string) bool {
+	return strings.HasPrefix(pathPart, "/")
+}
+
+func isWindowsAbsolutePathSpecPath(pathPart string) bool {
+	// Windows absolute paths are always in the format `C:/` where the drive letter
+	// can be any valid uppercase or lowercase letter. We check if the path follows
+	// this format.
+	if len(pathPart) < 3 {
+		return false
+	}
+	driveLetter := pathPart[0]
+	return ((driveLetter >= 'A' && driveLetter <= 'Z') || (driveLetter >= 'a' && driveLetter <= 'z')) &&
+		pathPart[1] == ':' &&
+		pathPart[2] == '/'
+}
+
 // reducePathListToBroadest reduces the list of paths by removing duplicates and
 // keeping the broadest path for each common prefix.
+// Read-only and read-write paths are reduced independently so write access does
+// not collapse into a broader read-only path with the same prefix.
+// When the same path exists in both groups, the read-write path is kept because
+// it already permits read access.
 //
 // Assumptions:
 //
@@ -66,11 +195,59 @@ func cleanPathList(paths []string) []string {
 //
 //  2. All paths have been normalized (end with a separator).
 func reducePathListToBroadest(paths []string) []string {
-	reduced := make([]string, 0)
+	if len(paths) == 0 {
+		return []string{}
+	}
+
+	readOnlyPaths, readWritePaths := splitPathListByAccess(paths)
+	reducedReadOnly := reducePathSpecsToBroadest(readOnlyPaths)
+	reducedReadWrite := reducePathSpecsToBroadest(readWritePaths)
+
+	reduced := dedupeSamePathPreferReadWrite(slices.Concat(reducedReadOnly, reducedReadWrite))
+
+	slices.Sort(reduced)
+	return slices.Compact(reduced)
+}
+
+// dedupeSamePathPreferReadWrite drops read-only entries when the same path also has read-write access.
+func dedupeSamePathPreferReadWrite(paths []string) []string {
+	readWritePaths := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		if pathAccessGroup(p) == pathAccessReadWrite {
+			readWritePaths[pathSpecPath(p)] = struct{}{}
+		}
+	}
+
+	deduped := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if pathAccessGroup(p) == pathAccessReadOnly {
+			if _, ok := readWritePaths[pathSpecPath(p)]; ok {
+				continue
+			}
+		}
+		deduped = append(deduped, p)
+	}
+	return deduped
+}
+
+func splitPathListByAccess(paths []string) (readOnly []string, readWrite []string) {
+	for _, p := range paths {
+		_, accessSuffix := splitPathAccessSuffix(p)
+		if accessSuffix == pathAccessReadWrite {
+			readWrite = append(readWrite, p)
+			continue
+		}
+		readOnly = append(readOnly, p)
+	}
+	return readOnly, readWrite
+}
+
+func reducePathSpecsToBroadest(paths []string) []string {
+	reduced := make([]string, 0, len(paths))
 	for _, p := range paths {
 		added := false
 		for j := range reduced {
-			if _, broadest := commonPath(p, reduced[j]); broadest != "" {
+			if broadest, ok := broadestPathSpec(p, reduced[j]); ok {
 				// The path p has a common prefix with the already present path reduced[j],
 				// so we replace the already present path with the broader common prefix.
 				reduced[j] = broadest
@@ -90,55 +267,24 @@ func reducePathListToBroadest(paths []string) []string {
 	return slices.Compact(reduced)
 }
 
-// intersectPathLists returns the intersection of two lists of paths.
-// Meaning that the returned list contains only the paths that are present in both lists.
-// If one list contains a sub-path of the other, only the sub-path is included in the intersection:
-// the narrower side wins.
-//
-// Assumptions:
-//
-//  1. Both lists have been reduced to the broadest possible paths (reducePathListToBroadest).
-func intersectPathLists(list1, list2 []string) []string {
-	intersection := make([]string, 0)
-	for _, p1 := range list1 {
-		for _, p2 := range list2 {
-			if deepest, _ := commonPath(p1, p2); deepest != "" {
-				intersection = append(intersection, deepest)
+func broadestPathSpec(a, b string) (string, bool) {
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
 
-				// If the common path is exactly the list1 path,
-				// then we already added the biggest possible path,
-				// so we can ignore the other path from list2.
-				if deepest == p1 {
-					break
-				}
-			}
+	switch {
+	case aPath == bPath:
+		if strings.HasSuffix(a, pathAccessReadOnly) {
+			return a, true
 		}
+		if strings.HasSuffix(b, pathAccessReadOnly) {
+			return b, true
+		}
+		return a, true
+	case strings.HasPrefix(aPath, bPath):
+		return b, true
+	case strings.HasPrefix(bPath, aPath):
+		return a, true
+	default:
+		return "", false
 	}
-	return intersection
-}
-
-// commonPath returns the deepest and the broadest common path between two paths.
-//
-// Assumptions:
-//
-//  1. Both a and b have been cleaned (path.Clean)
-//
-//  2. Both a and b have been normalized (end with a separator).
-func commonPath(a, b string) (deepest string, broadest string) {
-	if a == b {
-		return a, a
-	}
-
-	// a is "deeper" than b.
-	if strings.HasPrefix(a, b) {
-		return a, b
-	}
-
-	// b is "deeper" than a.
-	if strings.HasPrefix(b, a) {
-		return b, a
-	}
-
-	// a and b are not related, there is no common path.
-	return "", ""
 }

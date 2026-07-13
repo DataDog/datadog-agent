@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -164,12 +165,12 @@ type AnomalyScorerConfig struct {
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
-	const windowSecs = 15
+	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
 			Alpha:         0.014,
 			SaturationK:   5.0,
-			WindowSecs:    windowSecs,
+			WindowSecs:    window,
 			LowThreshold:  0.15,
 			HighThreshold: 0.40,
 			MarginPct:     0.20,
@@ -200,53 +201,45 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	ewma := &cfg.AnomalyScorerConfig
 	defaults := DefaultAnomalyScorerConfig()
 
-	if key := prefix + "alpha"; r.IsConfigured(key) {
-		v := r.GetFloat64(key)
-		if v <= 0 || v >= 1 {
-			pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
-			v = defaults.Alpha
-		}
-		ewma.Alpha = v
+	key := prefix + "alpha"
+	v := r.GetFloat64(key)
+	if v <= 0 || v >= 1 {
+		pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
+		v = defaults.Alpha
 	}
-	if key := prefix + "saturation_k"; r.IsConfigured(key) {
-		v := r.GetFloat64(key)
-		if v <= 0 {
-			pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
-			v = defaults.SaturationK
-		}
-		ewma.SaturationK = v
+	ewma.Alpha = v
+
+	key = prefix + "saturation_k"
+	v = r.GetFloat64(key)
+	if v <= 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
+		v = defaults.SaturationK
 	}
-	if key := prefix + "window_secs"; r.IsConfigured(key) {
-		v := r.GetInt(key)
-		if v < 1 {
-			pkglog.Warnf("anomaly_scorer: %s must be >= 1, got %d — using default %d", key, v, defaults.WindowSecs)
-			v = int(defaults.WindowSecs)
-		}
-		ewma.WindowSecs = int64(v)
+	ewma.SaturationK = v
+
+	key = prefix + "window"
+	d := r.GetDuration(key)
+	if d < time.Second {
+		pkglog.Warnf("anomaly_scorer: %s must be >= 1s, got %s — using default %ds", key, d, defaults.WindowSecs)
+		d = time.Duration(defaults.WindowSecs) * time.Second
 	}
-	if key := prefix + "low_threshold"; r.IsConfigured(key) {
-		ewma.LowThreshold = r.GetFloat64(key)
-	}
-	if key := prefix + "high_threshold"; r.IsConfigured(key) {
-		ewma.HighThreshold = r.GetFloat64(key)
-	}
-	if key := prefix + "margin_pct"; r.IsConfigured(key) {
-		ewma.MarginPct = r.GetFloat64(key)
-	}
+	ewma.WindowSecs = int64(d.Seconds())
+
+	ewma.LowThreshold = r.GetFloat64(prefix + "low_threshold")
+	ewma.HighThreshold = r.GetFloat64(prefix + "high_threshold")
+	ewma.MarginPct = r.GetFloat64(prefix + "margin_pct")
 
 	outPrefix := prefix + "output."
-	if key := outPrefix + "logs"; r.IsConfigured(key) {
-		cfg.Logs = r.GetBool(key)
+	cfg.Logs = r.GetBool(outPrefix + "logs")
+	cfg.CorrelationEvents = r.GetBool(outPrefix + "correlation_events")
+	key = outPrefix + "cooldown"
+	d = r.GetDuration(key)
+	if d < 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be >= 0, got %s — using default %ds", key, d, defaults.CooldownSecs)
+		d = time.Duration(defaults.CooldownSecs) * time.Second
 	}
-	if key := outPrefix + "correlation_events"; r.IsConfigured(key) {
-		cfg.CorrelationEvents = r.GetBool(key)
-	}
-	if key := outPrefix + "cooldown_secs"; r.IsConfigured(key) {
-		cfg.CooldownSecs = int64(r.GetInt(key))
-	}
-	if key := outPrefix + "max_anomalies"; r.IsConfigured(key) {
-		cfg.MaxEpisodeAnomalies = r.GetInt(key)
-	}
+	cfg.CooldownSecs = int64(d.Seconds())
+	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
 
 	return cfg
 }

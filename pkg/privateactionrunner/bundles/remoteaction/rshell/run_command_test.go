@@ -20,12 +20,38 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/rshell/interp"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{"command": command},
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{
+					AllowedCommands: allowedCommands,
+				},
+			},
+		},
+	}
+	return task
+}
+
+// makeTaskWithPaths constructs a task carrying the backend allowlists in the
+// signed task's nested system_inputs.remote_action policy. Use makeTask
+// (without this helper) to exercise the "backend did not send allowed_paths"
+// branch: a nil slice.
+func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
+	task := makeTask(command, allowedCommands)
+	task.Data.Attributes.SystemInputs.GetRemoteAction().AllowedPaths = allowedPaths
+	return task
+}
+
+func makeLegacyTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
@@ -36,123 +62,67 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 	return task
 }
 
-// makeTaskWithPaths constructs a task whose inputs include the allowedPaths
-// field. The backend ships allowedPaths as a per-environment map keyed by
-// "default" / "containerized"; the runner picks the relevant slice based
-// on env.IsContainerized at task time. Use makeTask (without this helper)
-// to exercise the "backend did not send the field" branch — absent JSON
-// fields and explicit null both round-trip to a nil Go map.
-func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
-	task := makeTask(command, allowedCommands)
+func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
+	task := makeLegacyTask(command, allowedCommands)
 	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
 	return task
 }
 
-// TestFilterAllowedCommandsMatrix pins backend × operator combinations.
-// The match is plain string equality except for the "rshell:*" sentinel,
-// which admits every backend entry in the rshell namespace.
-func TestFilterAllowedCommandsMatrix(t *testing.T) {
-	cases := []struct {
-		name     string
-		backend  []string
-		operator []string
-		want     []string
-	}{
-		// Empty/nil short-circuits.
-		{
-			name:     "backend nil, operator wildcard",
-			backend:  nil,
-			operator: []string{setup.RShellCommandAllowAllWildcard},
-			want:     []string{},
-		},
-		{
-			name:     "backend nil, operator empty",
-			backend:  nil,
-			operator: []string{},
-			want:     []string{},
-		},
-		{
-			name:     "backend nil, operator set",
-			backend:  nil,
-			operator: []string{"rshell:echo"},
-			want:     []string{},
-		},
-		{
-			name:     "backend empty, operator wildcard",
-			backend:  []string{},
-			operator: []string{setup.RShellCommandAllowAllWildcard},
-			want:     []string{},
-		},
-		{
-			name:     "backend set, operator nil (handler treats as kill-switch)",
-			backend:  []string{"rshell:echo"},
-			operator: nil,
-			want:     []string{},
-		},
-		{
-			name:     "backend set, operator empty (kill-switch)",
-			backend:  []string{"rshell:echo"},
-			operator: []string{},
-			want:     []string{},
-		},
-		// Wildcard branch.
-		{
-			name:     "wildcard admits all rshell-prefixed backend entries",
-			backend:  []string{"rshell:echo", "rshell:cat"},
-			operator: []string{setup.RShellCommandAllowAllWildcard},
-			want:     []string{"rshell:echo", "rshell:cat"},
-		},
-		{
-			name:     "wildcard scoped: non-namespaced backend entry rejected",
-			backend:  []string{"rshell:echo", "evil:cat"},
-			operator: []string{setup.RShellCommandAllowAllWildcard},
-			want:     []string{"rshell:echo"}},
-		{
-			name:     "wildcard coexists with explicit entries (wildcard subsumes them)",
-			backend:  []string{"rshell:echo", "rshell:cat"},
-			operator: []string{setup.RShellCommandAllowAllWildcard, "rshell:echo"},
-			want:     []string{"rshell:echo", "rshell:cat"}},
+func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
+	return RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{setup.RShellCommandAllowAllWildcard},
+	}
+}
 
-		// Exact-match intersection.
+func newDefaultRunCommandHandler() *RunCommandHandler {
+	return NewRunCommandHandler(defaultRunCommandHandlerConfig())
+}
+
+func newDefaultRunRemediationCommandHandler() *RunCommandHandler {
+	return NewRunRemediationCommandHandler(defaultRunCommandHandlerConfig())
+}
+
+func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
+	cases := []struct {
+		name    string
+		backend []string
+		want    []string
+	}{
 		{
-			name:     "operator superset of backend",
-			backend:  []string{"rshell:echo", "rshell:cat"},
-			operator: []string{"rshell:echo", "rshell:cat", "rshell:ls"},
-			want:     []string{"rshell:echo", "rshell:cat"}},
+			name:    "nil",
+			backend: nil,
+			want:    []string{},
+		},
 		{
-			name:     "backend superset of operator",
-			backend:  []string{"rshell:echo", "rshell:cat", "rshell:ls"},
-			operator: []string{"rshell:echo"},
-			want:     []string{"rshell:echo"}},
+			name:    "empty",
+			backend: []string{},
+			want:    []string{},
+		},
 		{
-			name:     "partial overlap",
-			backend:  []string{"rshell:echo", "rshell:cat"},
-			operator: []string{"rshell:cat", "rshell:ls"},
-			want:     []string{"rshell:cat"}},
+			name:    "backend rshell commands are preserved in order",
+			backend: []string{"rshell:echo", "rshell:cat"},
+			want:    []string{"rshell:echo", "rshell:cat"},
+		},
 		{
-			name:     "disjoint",
-			backend:  []string{"rshell:echo"},
-			operator: []string{"rshell:cat"},
-			want:     []string{}},
+			name:    "non-rshell backend entries are ignored",
+			backend: []string{"rshell:echo", "evil:cat", "cat"},
+			want:    []string{"rshell:echo"},
+		},
 		{
-			name:     "bare-name operator entry never matches namespaced backend",
-			backend:  []string{"rshell:cat"},
-			operator: []string{"cat"},
-			want:     []string{}},
+			name:    "wildcard token itself is ignored",
+			backend: []string{setup.RShellCommandAllowAllWildcard, "rshell:echo"},
+			want:    []string{"rshell:echo"},
+		},
 		{
-			name:     "output preserves backend iteration order",
-			backend:  []string{"rshell:ls", "rshell:cat", "rshell:echo"},
-			operator: []string{"rshell:cat", "rshell:echo", "rshell:ls"},
-			want:     []string{"rshell:ls", "rshell:cat", "rshell:echo"}},
-		{
-			name:     "duplicate operator entries are deduped at handler creation",
-			backend:  []string{"rshell:echo"},
-			operator: []string{"rshell:echo", "rshell:echo"},
-			want:     []string{"rshell:echo"}},
+			name:    "empty rshell command name is ignored",
+			backend: []string{"rshell:", "rshell:echo"},
+			want:    []string{"rshell:echo"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(nil, tc.operator)
+			handler := newDefaultRunCommandHandler()
 
 			got := handler.filterAllowedCommands(tc.backend)
 
@@ -165,152 +135,129 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 	}
 }
 
-// TestFilterAllowedPathsMatrix pins backend × operator combinations for
-// containment-aware intersection. The function is pure: it takes the
-// already-selected per-environment slice (env-routing happens in
-// backendPathsForEnv, tested separately). Operator paths are stored in
-// cleaned form (path.Clean + trailing "/"), and backend is normalized
-// inside filterAllowedPaths, so all expected outputs in this matrix carry
-// trailing slashes.
-func TestFilterAllowedPathsMatrix(t *testing.T) {
+func TestFilterAllowedCommandsDefaultOperatorPolicyEqualsBackendPolicy(t *testing.T) {
+	backend := []string{"rshell:echo", "rshell:cat", "evil:curl", "rshell:", setup.RShellCommandAllowAllWildcard}
+	handler := newDefaultRunCommandHandler()
+
+	got := handler.filterAllowedCommands(backend)
+
+	assert.Equal(t, onlyRshellPrefixedCommands(backend), got)
+}
+
+func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 	cases := []struct {
 		name     string
+		agent    []string
 		backend  []string
-		operator []string
-		want     []string
+		expected []string
 	}{
-		// Empty/nil short-circuits.
 		{
-			name:     "backend nil, operator wildcard",
-			backend:  nil,
-			operator: []string{setup.RShellPathAllowAll},
-			want:     []string{},
+			name:     "exact command intersection preserves backend order",
+			agent:    []string{"rshell:cat", "rshell:grep"},
+			backend:  []string{"rshell:echo", "rshell:grep", "rshell:cat"},
+			expected: []string{"rshell:grep", "rshell:cat"},
 		},
 		{
-			name:     "backend nil, operator empty",
-			backend:  nil,
-			operator: []string{},
-			want:     []string{},
+			name:     "disjoint lists produce empty result",
+			agent:    []string{"rshell:cat"},
+			backend:  []string{"rshell:echo"},
+			expected: []string{},
 		},
 		{
-			name:     "backend nil, operator set",
-			backend:  nil,
-			operator: []string{"/var/log"},
-			want:     []string{},
+			name:     "explicit empty agent list blocks all backend commands",
+			agent:    []string{},
+			backend:  []string{"rshell:echo"},
+			expected: []string{},
 		},
 		{
-			name:     "backend empty, operator wildcard",
-			backend:  []string{},
-			operator: []string{setup.RShellPathAllowAll},
-			want:     []string{},
+			name:     "agent wildcard leaves backend rshell commands intact",
+			agent:    []string{setup.RShellCommandAllowAllWildcard},
+			backend:  []string{"rshell:echo", "evil:cat", "rshell:cat"},
+			expected: []string{"rshell:echo", "rshell:cat"},
 		},
 		{
-			name:     "backend set, operator nil (kill-switch)",
-			backend:  []string{"/var/log"},
-			operator: nil,
-			want:     []string{},
-		},
-		{
-			name:     "backend set, operator empty (kill-switch)",
-			backend:  []string{"/var/log"},
-			operator: []string{},
-			want:     []string{},
-		},
-
-		// Wildcard branch — operator "/" passes the backend through.
-		// Output is the cleaned/reduced backend list (sorted, trailing "/").
-		{
-			name:     "wildcard root operator passes backend through",
-			backend:  []string{"/var/log", "/etc"},
-			operator: []string{"/"},
-			want:     []string{"/etc/", "/var/log/"},
-		},
-
-		// Exact-match (after normalization).
-		{
-			name:     "operator superset of backend",
-			backend:  []string{"/var/log", "/tmp"},
-			operator: []string{"/var/log", "/tmp", "/etc"},
-			want:     []string{"/tmp/", "/var/log/"},
-		},
-		{
-			name:     "backend superset of operator",
-			backend:  []string{"/var/log", "/tmp", "/etc"},
-			operator: []string{"/var/log"},
-			want:     []string{"/var/log/"},
-		},
-		{
-			name:     "partial overlap",
-			backend:  []string{"/var/log", "/opt"},
-			operator: []string{"/var/log", "/etc"},
-			want:     []string{"/var/log/"},
-		},
-		{
-			name:     "disjoint",
-			backend:  []string{"/etc"},
-			operator: []string{"/var/log"},
-			want:     []string{},
-		},
-
-		// Containment / "narrower wins".
-		{
-			name:     "operator narrower than backend",
-			backend:  []string{"/var/log"},
-			operator: []string{"/var/log/nginx"},
-			want:     []string{"/var/log/nginx/"},
-		},
-		{
-			name:     "backend narrower than operator",
-			backend:  []string{"/var/log/nginx"},
-			operator: []string{"/var/log"},
-			want:     []string{"/var/log/nginx/"},
-		},
-		{
-			name:     "operator selects two siblings under one backend parent",
-			backend:  []string{"/var/log"},
-			operator: []string{"/var/log/nginx", "/var/log/apache"},
-			want:     []string{"/var/log/apache/", "/var/log/nginx/"},
-		},
-		{
-			name:     "trailing slash on operator entry is normalized",
-			backend:  []string{"/var/log"},
-			operator: []string{"/var/log/"},
-			want:     []string{"/var/log/"},
-		},
-
-		// Prefix-sibling rejection.
-		{
-			name:     "prefix sibling: /var/logger does not satisfy /var/log",
-			backend:  []string{"/var/log"},
-			operator: []string{"/var/logger"},
-			want:     []string{},
-		},
-		{
-			name:     "prefix sibling reversed",
-			backend:  []string{"/var/logger"},
-			operator: []string{"/var/log"},
-			want:     []string{},
-		},
-
-		// Operator-side reduction: redundant operator entries collapse.
-		{
-			name:     "operator entries one inside the other collapse to broader",
-			backend:  []string{"/var/log/nginx"},
-			operator: []string{"/var/log", "/var/log/nginx"},
-			want:     []string{"/var/log/nginx/"},
-		},
-
-		// Multi-narrower stress (regression for the intersection bug).
-		{
-			name:     "operator broad, backend has many narrower siblings — all admitted",
-			backend:  []string{"/var/a", "/var/b", "/var/c"},
-			operator: []string{"/var"},
-			want:     []string{"/var/a/", "/var/b/", "/var/c/"},
+			name:     "unnamespaced agent commands do not match backend rshell commands",
+			agent:    []string{"cat"},
+			backend:  []string{"rshell:cat"},
+			expected: []string{},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(tc.operator, nil)
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+				OperatorAllowedCommands: tc.agent,
+			})
+
+			got := handler.filterAllowedCommands(tc.backend)
+
+			if len(tc.expected) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
+	cases := []struct {
+		name    string
+		backend []string
+		want    []string
+	}{
+		{
+			name:    "nil",
+			backend: nil,
+			want:    []string{},
+		},
+		{
+			name:    "empty",
+			backend: []string{},
+			want:    []string{},
+		},
+		{
+			name:    "backend paths are normalized",
+			backend: []string{"/var/log", "/etc/"},
+			want:    []string{"/var/log/", "/etc/"},
+		},
+		{
+			name: "backend paths from multiple policies are reduced",
+			backend: []string{
+				"/etc/datadog-agent",
+				"/etc",
+				"/host/var/log",
+				"/host/var/log",
+				"/host/var/log",
+			},
+			want: []string{"/etc/", "/host/var/log/"},
+		},
+		{
+			name:    "backend access overlays are preserved",
+			backend: []string{"/var/log:ro", "/var/log/datadog:rw"},
+			want:    []string{"/var/log/:ro", "/var/log/datadog/:rw"},
+		},
+		{
+			name:    "backend read-write path replaces read-only duplicate with same path",
+			backend: []string{"/var/log:ro", "/var/log:rw", "/etc:ro"},
+			want:    []string{"/etc/:ro", "/var/log/:rw"},
+		},
+		{
+			name:    "backend dot segments are cleaned without reducing siblings",
+			backend: []string{"/var/./log/../log:ro", "/var/logger:rw"},
+			want:    []string{"/var/log/:ro", "/var/logger/:rw"},
+		},
+		{
+			name:    "operator root sentinel admits windows drive-rooted backend paths",
+			backend: []string{"C:/Users/ContainerAdministrator/AppData/Local/Temp/par:rw"},
+			want:    []string{"C:/Users/ContainerAdministrator/AppData/Local/Temp/par/:rw"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedPaths: []string{setup.RShellPathAllowAll},
+			})
 
 			got := handler.filterAllowedPaths(tc.backend)
 
@@ -318,6 +265,162 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 				assert.Empty(t, got)
 			} else {
 				assert.ElementsMatch(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestFilterAllowedPathsDefaultOperatorPolicyEqualsReducedBackendPolicy(t *testing.T) {
+	backend := []string{
+		"/etc/datadog-agent",
+		"/etc",
+		"/host/var/log:ro",
+		"/host/var/log/datadog:ro",
+		"/tmp/cache:rw",
+		"/tmp:rw",
+		"C:/Users/ContainerAdministrator/AppData/Local/Temp/par:rw",
+	}
+	handler := newDefaultRunCommandHandler()
+
+	got := handler.filterAllowedPaths(backend)
+
+	assert.Equal(t, reducePathListToBroadest(cleanPathList(backend)), got)
+}
+
+func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
+	cases := []struct {
+		name     string
+		agent    []string
+		backend  []string
+		expected []string
+	}{
+		{
+			name:     "agent read-only descendant of backend read-only is kept",
+			agent:    []string{"/var/log/datadog:ro"},
+			backend:  []string{"/var/log:ro"},
+			expected: []string{"/var/log/datadog/:ro"},
+		},
+		{
+			name:     "agent read-write descendant of backend read-write is kept",
+			agent:    []string{"/var/log/datadog:rw"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/datadog/:rw"},
+		},
+		{
+			name:     "equal paths are kept",
+			agent:    []string{"/var/log:ro"},
+			backend:  []string{"/var/log:ro"},
+			expected: []string{"/var/log/:ro"},
+		},
+		{
+			name:     "explicit empty agent list blocks all backend paths",
+			agent:    []string{},
+			backend:  []string{"/var/log:ro", "/tmp:rw"},
+			expected: []string{},
+		},
+		{
+			name:     "backend descendant of agent path is kept",
+			agent:    []string{"/var/log:ro"},
+			backend:  []string{"/var/log/datadog:ro"},
+			expected: []string{"/var/log/datadog/:ro"},
+		},
+		{
+			name:     "explicit agent root keeps narrower backend paths",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:ro", "/etc"},
+			expected: []string{"/etc/", "/var/log/:ro"},
+		},
+		{
+			name:     "explicit agent root without suffix preserves backend read-write paths",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "explicit agent root keeps backend read-write over read-only duplicate",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "agent read-only path can still match backend read-only when same backend read-write also exists",
+			agent:    []string{"/var/log:ro"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:ro"},
+		},
+		{
+			name:     "agent read-only and read-write paths keep read-write when same backend path matches both",
+			agent:    []string{"/var/log:ro", "/var/log:rw"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "agent read-write root keeps narrower backend read-write paths",
+			agent:    []string{"/:rw"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "agent read-write path narrows backend read-write path",
+			agent:    []string{"/var/log/datadog:rw"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/datadog/:rw"},
+		},
+		{
+			name:     "ordinary unsuffixed agent path does not match backend read-write path",
+			agent:    []string{"/var/log"},
+			backend:  []string{"/var/log/datadog:rw"},
+			expected: []string{},
+		},
+		{
+			name:     "unrelated paths are not kept",
+			agent:    []string{"/opt/datadog:ro"},
+			backend:  []string{"/var/log:ro"},
+			expected: []string{},
+		},
+		{
+			name:     "read-only and read-write paths do not cross-match",
+			agent:    []string{"/var/log/datadog:rw", "/opt/datadog:ro"},
+			backend:  []string{"/var/log:ro", "/opt:rw"},
+			expected: []string{},
+		},
+		{
+			name:     "paths without access suffix participate in read-only group",
+			agent:    []string{"/var/log/datadog"},
+			backend:  []string{"/var/log"},
+			expected: []string{"/var/log/datadog/"},
+		},
+		{
+			name:     "read-only and read-write groups are combined after path reduction",
+			agent:    []string{"/var/log/datadog:ro", "/opt/datadog:rw", "/tmp/cache:ro"},
+			backend:  []string{"/var/log:ro", "/opt:rw", "/tmp:rw"},
+			expected: []string{"/opt/datadog/:rw", "/var/log/datadog/:ro"},
+		},
+		{
+			name:     "operator paths are reduced before backend intersection",
+			agent:    []string{"/var/log/datadog:rw", "/var/log:rw", "/etc/datadog:ro", "/etc:ro"},
+			backend:  []string{"/var/log/datadog/agent:rw", "/etc/datadog/agent:ro"},
+			expected: []string{"/etc/datadog/agent/:ro", "/var/log/datadog/agent/:rw"},
+		},
+		{
+			name:     "duplicate backend matches are reduced to broadest path",
+			agent:    []string{"/var/log:rw"},
+			backend:  []string{"/var/log:rw", "/var/log:rw", "/var/log/datadog:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedPaths: tc.agent,
+			})
+
+			got := handler.filterAllowedPaths(tc.backend)
+
+			if len(tc.expected) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tc.expected, got)
 			}
 		})
 	}
@@ -333,59 +436,32 @@ func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 	pathsCopy := slices.Clone(paths)
 	commandsCopy := slices.Clone(commands)
 
-	NewRunCommandHandler(paths, commands)
+	NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    paths,
+		OperatorAllowedCommands: commands,
+	})
 
-	assert.Equal(t, pathsCopy, paths, "operatorAllowedPaths input must not be mutated")
-	assert.Equal(t, commandsCopy, commands, "operatorAllowedCommands input must not be mutated")
+	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
+	assert.Equal(t, commandsCopy, commands, "AgentAllowedCommands input must not be mutated")
 }
 
-func TestNewRunCommandHandlerNormalizesOperatorPaths(t *testing.T) {
-	// Cleanup+reduce in action: redundant entries collapse, paths get
-	// a trailing slash, and the result is sorted.
-	handler := NewRunCommandHandler(
-		[]string{"/var/log/nginx", "/var/log", "/etc/"},
-		nil,
-	)
+func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths: []string{
+			"/var/log",
+			"/var/log/datadog",
+			"/var/log:rw",
+			"/var/log/datadog:rw",
+			"/etc:ro",
+			"/etc/datadog:ro",
+		},
+	})
 
-	assert.Equal(t, []string{"/etc/", "/var/log/"}, handler.operatorAllowedPaths)
-}
-
-func TestNewRunCommandHandlerDedupesOperatorCommands(t *testing.T) {
-	// Sort+Compact yields a sorted, deduplicated slice. Order is the
-	// implementation detail; what matters is "no duplicates."
-	handler := NewRunCommandHandler(
-		nil,
-		[]string{"rshell:cat", "rshell:echo", "rshell:cat", "rshell:ls"},
-	)
-
-	assert.Equal(t,
-		[]string{"rshell:cat", "rshell:echo", "rshell:ls"},
-		handler.operatorAllowedCommands,
-	)
-}
-
-func TestNewRunCommandHandlerNilInputs(t *testing.T) {
-	// Both sides nil: handler treats both as kill-switches downstream.
-	handler := NewRunCommandHandler(nil, nil)
-
-	assert.Empty(t, handler.operatorAllowedPaths)
-	assert.Empty(t, handler.operatorAllowedCommands)
-}
-
-func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
-	cfg := &config.Config{RShellAllowedPaths: []string{"/var/log", "/tmp"}}
-
-	bundle := NewRshellBundle(cfg)
-	action := bundle.GetAction("runCommand")
-
-	handler, ok := action.(*RunCommandHandler)
-	require.True(t, ok)
-	// Bundle wires the cleaned/reduced form into the handler.
-	assert.Equal(t, []string{"/tmp/", "/var/log/"}, handler.operatorAllowedPaths)
+	assert.Equal(t, []string{"/etc/:ro", "/var/log/:rw"}, handler.operatorAllowedPaths)
 }
 
 func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
-	handler := NewRunCommandHandler(nil, nil)
+	handler := newDefaultRunCommandHandler()
 
 	_, err := handler.Run(context.Background(), makeTask("", nil), nil)
 
@@ -393,8 +469,8 @@ func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
 }
 
 func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
-	// Operator nil + backend nil → empty effective list → rshell rejects.
-	handler := NewRunCommandHandler(nil, nil)
+	// Backend nil → empty effective list → rshell rejects.
+	handler := newDefaultRunCommandHandler()
 
 	out, err := handler.Run(context.Background(), makeTask("echo hello", nil), nil)
 
@@ -404,10 +480,69 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestRunCommandWithWildcardOperatorAndBackendAllowed(t *testing.T) {
-	// Operator uses the default ["rshell:*"] wildcard sentinel; backend
-	// allowed "rshell:echo"; echo runs.
-	handler := NewRunCommandHandler(nil, []string{setup.RShellCommandAllowAllWildcard})
+func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{"command": "echo hello"},
+	}
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "command not allowed")
+}
+
+func TestRunCommandLegacyInputAllowlistsRemainSupported(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+
+	out, err := handler.Run(context.Background(),
+		makeLegacyTask("echo hello", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandLegacyInputAllowedPathsRemainSupported(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir())
+	payload := dir + "/payload.txt"
+	require.NoError(t, os.WriteFile(filepath.FromSlash(payload), []byte("hello\n"), 0o600))
+	handler := newDefaultRunCommandHandler()
+
+	out, err := handler.Run(context.Background(),
+		makeLegacyTaskWithPaths("cat "+payload,
+			[]string{"rshell:cat"},
+			map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandSystemInputsOverrideLegacyInputAllowlists(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+	task := makeLegacyTask("echo hello", []string{"rshell:echo"})
+	task.Data.Attributes.SystemInputs = &privateactionspb.SystemInputs{
+		Input: &privateactionspb.SystemInputs_RemoteAction{
+			RemoteAction: &privateactionspb.RemoteAction{},
+		},
+	}
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "command not allowed")
+}
+
+func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hello", []string{"rshell:echo"}), nil)
@@ -419,9 +554,9 @@ func TestRunCommandWithWildcardOperatorAndBackendAllowed(t *testing.T) {
 }
 
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
-	// Operator wildcard, but backend only allowed "rshell:echo"; grep is
-	// blocked because it isn't in the backend list.
-	handler := NewRunCommandHandler(nil, []string{setup.RShellCommandAllowAllWildcard})
+	// Backend only allowed "rshell:echo"; grep is blocked because it isn't
+	// in the signed backend list.
+	handler := newDefaultRunCommandHandler()
 
 	out, err := handler.Run(context.Background(),
 		makeTask("grep foo", []string{"rshell:echo"}), nil)
@@ -432,27 +567,14 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestRunCommandOperatorIntersectionAllows(t *testing.T) {
-	// Operator narrowed to "rshell:echo"; backend allowed echo and cat;
-	// echo passes the intersection.
-	handler := NewRunCommandHandler(nil, []string{"rshell:echo"})
+func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{"rshell:cat"},
+	})
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hi", []string{"rshell:echo", "rshell:cat"}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hi\n", result.Stdout)
-}
-
-func TestRunCommandOperatorIntersectionBlocksDisjoint(t *testing.T) {
-	// Operator narrowed to "rshell:cat"; backend allowed only echo —
-	// disjoint, intersection empty, echo rejected.
-	handler := NewRunCommandHandler(nil, []string{"rshell:cat"})
-
-	out, err := handler.Run(context.Background(),
-		makeTask("echo hi", []string{"rshell:echo"}), nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -460,9 +582,11 @@ func TestRunCommandOperatorIntersectionBlocksDisjoint(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
-	// Explicit empty operator command list is the kill-switch.
-	handler := NewRunCommandHandler(nil, []string{})
+func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{},
+	})
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hi", []string{"rshell:echo"}), nil)
@@ -474,14 +598,14 @@ func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
 }
 
 func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
-	// End-to-end: operator allows /var/log, backend only allows /tmp on
-	// bare-metal hosts (the env this test process runs in); /var/log
-	// isn't in the backend list, so cat /var/log/syslog must fail.
-	handler := NewRunCommandHandler([]string{"/var/log"}, []string{"rshell:cat"})
+	// Backend only allows /tmp on bare-metal hosts (the env this test process
+	// runs in); /var/log isn't in the backend list, so cat /var/log/syslog
+	// must fail.
+	handler := newDefaultRunCommandHandler()
 
 	task := makeTaskWithPaths("cat /var/log/syslog",
 		[]string{"rshell:cat"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {"/tmp"}})
+		[]string{"/tmp"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -497,17 +621,14 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 	// handler must surface that diagnostic in SandboxWarnings, not in
 	// Stderr — so callers inspecting Stderr to detect command failure
 	// don't see false positives. ExitCode and Stdout are independent of
-	// the sandbox configuration noise. The missing path is chosen so it
-	// does not share a prefix with the temp dir; otherwise
-	// reducePathListToBroadest collapses them and rshell never sees the
-	// missing one.
-	dir := t.TempDir()
+	// the sandbox configuration noise.
+	dir := filepath.ToSlash(t.TempDir())
 	missing := "/__rshell_sandbox_warnings_test_missing__"
-	handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:echo"})
+	handler := newDefaultRunCommandHandler()
 
 	task := makeTaskWithPaths("echo hello",
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir, missing}})
+		[]string{dir, missing})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -525,12 +646,12 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 	// All configured paths exist — SandboxWarnings must be nil so the
 	// JSON wire output omits the field entirely (omitempty).
-	dir := t.TempDir()
-	handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:echo"})
+	dir := filepath.ToSlash(t.TempDir())
+	handler := newDefaultRunCommandHandler()
 
 	task := makeTaskWithPaths("echo hi",
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -541,15 +662,34 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 		"a clean sandbox configuration must produce no warnings")
 }
 
+func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir())
+	handler := newDefaultRunCommandHandler()
+
+	task := makeTaskWithPaths("echo ok",
+		[]string{"rshell:echo"},
+		[]string{dir + ":rw"})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "ok\n", result.Stdout)
+	assert.Empty(t, result.Stderr)
+	assert.Nil(t, result.SandboxWarnings)
+}
+
 func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 	// RunCommandOutputs has no truncation marker. Treat output caps as
 	// action errors instead of returning partial stdout/stderr as normal
 	// command results.
-	dir := t.TempDir()
+	dir := filepath.ToSlash(t.TempDir())
+	payload := dir + "/payload.txt"
 	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, "payload.txt"),
+		filepath.FromSlash(payload),
 		bytes.Repeat([]byte("x"), 10*1024*1024+1),
-		0600,
+		0o600,
 	))
 
 	cases := []struct {
@@ -559,21 +699,21 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 	}{
 		{
 			name:    "stdout limit",
-			command: "cat payload.txt",
+			command: "cat " + payload,
 			wantErr: interp.ErrOutputLimitExceeded,
 		},
 		{
 			name:    "stderr limit",
-			command: "cat payload.txt >&2",
+			command: "cat " + payload + " >&2",
 			wantErr: interp.ErrStderrLimitExceeded,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:cat"})
+			handler := newDefaultRunCommandHandler()
 			task := makeTaskWithPaths(tc.command,
 				[]string{"rshell:cat"},
-				map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+				[]string{dir})
 
 			out, err := handler.Run(context.Background(), task, nil)
 
@@ -631,7 +771,7 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
 // actions and that each carries the expected rshell execution mode.
 func TestNewRshellBundleRegistersBothModes(t *testing.T) {
-	bundle := NewRshellBundle(&config.Config{})
+	bundle := NewRshellBundle(&parconfig.Config{})
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
@@ -646,25 +786,44 @@ func TestNewRshellBundleRegistersBothModes(t *testing.T) {
 // mode, a file-target output redirection into a path inside the AllowedPaths
 // sandbox succeeds and writes the file.
 func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "out.txt")
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
 
-	handler := NewRunRemediationCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTaskWithPaths("echo hello > "+target,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 0, result.ExitCode)
-	content, readErr := os.ReadFile(target)
+	content, readErr := os.ReadFile(filepath.FromSlash(target))
 	require.NoError(t, readErr)
 	assert.Equal(t, "hello\n", string(content))
+}
+
+// TestRunRemediationCommandReadOnlyPathBlocksFileRedirect verifies that
+// remediation mode does not upgrade read-only path entries to read-write.
+func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
+
+	handler := newDefaultRunRemediationCommandHandler()
+	task := makeTaskWithPaths("echo hello > "+target,
+		[]string{"rshell:echo"},
+		[]string{dir + ":ro"})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"remediation mode must reject writes to read-only allowed paths")
+	_, statErr := os.Stat(filepath.FromSlash(target))
+	assert.True(t, os.IsNotExist(statErr),
+		"remediation mode must not create the redirect target for read-only paths")
 }
 
 // TestRunCommandReadOnlyBlocksFileRedirect verifies that the read-only
@@ -672,16 +831,13 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 // file behind. This is the security guarantee that distinguishes the two
 // actions.
 func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "out.txt")
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
 
-	handler := NewRunCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := newDefaultRunCommandHandler()
 	task := makeTaskWithPaths("echo hello > "+target,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -689,7 +845,7 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.NotEqual(t, 0, result.ExitCode,
 		"read-only mode must reject file-target redirections")
-	_, statErr := os.Stat(target)
+	_, statErr := os.Stat(filepath.FromSlash(target))
 	assert.True(t, os.IsNotExist(statErr),
 		"read-only mode must not create the redirect target")
 }
@@ -698,17 +854,14 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 // in remediation mode, a redirection target outside the effective AllowedPaths
 // is rejected.
 func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
-	allowedDir := t.TempDir()
-	outsideTarget := filepath.Join(t.TempDir(), "out.txt")
+	allowedDir := filepath.ToSlash(t.TempDir())
+	outsideTarget := filepath.ToSlash(filepath.Join(t.TempDir(), "out.txt"))
 
-	handler := NewRunRemediationCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := newDefaultRunRemediationCommandHandler()
 	// Only allowedDir is in the sandbox; the write targets a sibling temp dir.
 	task := makeTaskWithPaths("echo hello > "+outsideTarget,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {allowedDir}})
+		[]string{allowedDir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -716,6 +869,6 @@ func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.NotEqual(t, 0, result.ExitCode,
 		"redirection outside the sandbox must be rejected even in remediation mode")
-	_, statErr := os.Stat(outsideTarget)
+	_, statErr := os.Stat(filepath.FromSlash(outsideTarget))
 	assert.True(t, os.IsNotExist(statErr))
 }

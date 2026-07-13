@@ -867,7 +867,7 @@ properties:
           use_direct_consumer:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       http2:
         node_type: section
         type: object
@@ -2666,7 +2666,7 @@ properties:
           dir:
             node_type: setting
             type: string
-            default: /tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info
+            default: ${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info
           enabled:
             node_type: setting
             type: boolean

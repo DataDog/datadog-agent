@@ -375,6 +375,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 				LogLevel:    ebpf.LogLevelBranch,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
+			Cache: managerOptions.VerifierOptions.Cache,
 		}
 
 		if err := collectionSpec.LoadAndAssign(l.objects, &opts); err != nil {
