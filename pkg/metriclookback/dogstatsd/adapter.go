@@ -56,33 +56,27 @@ func NewDogStatsDAdapter(retention *metriclookback.Retention, opts DogStatsDOpti
 		return nil
 	}
 
-	names := make([]string, 0, len(opts.MetricNames)+1)
 	seen := make(map[string]struct{}, len(opts.MetricNames)+1)
 	for _, name := range opts.MetricNames {
 		if name == "" {
 			continue
 		}
-		if _, found := seen[name]; found {
-			continue
-		}
 		seen[name] = struct{}{}
-		names = append(names, name)
 	}
 	if opts.Monitor != nil {
 		if monitorName := opts.Monitor.MetricName(); monitorName != "" {
-			if _, found := seen[monitorName]; !found {
-				seen[monitorName] = struct{}{}
-				names = append(names, monitorName)
-			}
+			seen[monitorName] = struct{}{}
 		}
 	}
-	if len(names) == 0 {
+	if len(seen) == 0 {
 		return nil
 	}
 
 	adapter := &DogStatsDAdapter{retention: retention, materializer: opts.BucketMaterializer, monitor: opts.Monitor, egressController: opts.EgressController}
-	if len(names) == 1 {
-		adapter.single = names[0]
+	if len(seen) == 1 {
+		for name := range seen {
+			adapter.single = name
+		}
 		return adapter
 	}
 
