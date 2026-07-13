@@ -1,3 +1,4 @@
+import json
 import plistlib
 import unittest
 from pathlib import Path
@@ -11,19 +12,33 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_omnibus_recipe_selects_darwin_artifacts_and_supports_url_base_override(self):
         recipe = (REPO_ROOT / "omnibus/config/software/datadog-agent-data-plane.rb").read_text()
 
-        self.assertIn('adp_hashes', recipe)
-        self.assertIn('"darwin-amd64"', recipe)
-        self.assertIn('"darwin-arm64"', recipe)
+        self.assertIn("deps/adp.json", recipe)
         self.assertIn("AGENT_DATA_PLANE_SOURCE_URL_BASE", recipe)
         self.assertIn('package_target = "darwin-#{target_arch}"', recipe)
         self.assertIn("Agent Data Plane FIPS artifacts are not available for macOS", recipe)
         self.assertIn('package_target = "fips-#{package_target}" if fips_mode?', recipe)
-        self.assertIn('"windows-amd64"', recipe)
-        self.assertIn('"fips-windows-amd64"', recipe)
         self.assertIn('adp_hash_key = "fips-#{package_target}"', recipe)
         self.assertIn('package_target = "#{package_target}-fips"', recipe)
         self.assertIn('package_extension = "zip"', recipe)
         self.assertNotIn("aws_lc_fips", recipe)
+
+    def test_adp_config_defines_hashes_for_all_platforms(self):
+        adp_config = json.loads((REPO_ROOT / "deps/adp.json").read_text())
+
+        self.assertIn("version", adp_config)
+        self.assertEqual(
+            set(adp_config["hashes"]),
+            {
+                "linux-amd64",
+                "linux-arm64",
+                "fips-linux-amd64",
+                "fips-linux-arm64",
+                "darwin-amd64",
+                "darwin-arm64",
+                "windows-amd64",
+                "fips-windows-amd64",
+            },
+        )
 
     def test_adp_dependency_is_included_on_linux_macos_and_windows(self):
         dependencies = (REPO_ROOT / "omnibus/config/software/datadog-agent-dependencies.rb").read_text()

@@ -8,17 +8,11 @@ name "datadog-agent-data-plane"
 # We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
-adp_version = "1.3.1"
-adp_hashes = {
-  "linux-amd64"        => "23b49fde8563a9a3a8dc68b46331c4dcb87373a4d50df74a3d40b26bdaa7b3e4",
-  "linux-arm64"        => "95c3ce251e686f371d516930d96d5b9357463faaec15dc361240403767e63450",
-  "fips-linux-amd64"   => "ba21cc727bfb117c05833a710ba14af492dd7e9b2cabe4c1e2e77f51e548799e",
-  "fips-linux-arm64"   => "9b92b8bbb33f00195205bdf07847d9e8fe6681f66faf401a62311f0b00db2d14",
-  "darwin-amd64"       => "e956ecbe696afb1a3e5f019a2f3594e40804e98f1bfe862ffc9e18850779cb5f",
-  "darwin-arm64"       => "cfdf28d45c68271eb24fc7fe6ec89c0d996a10d72fb681143fe899e7ffd97437",
-  "windows-amd64"      => "8c0370e37d1b544647dae9411955b1a6324ff23d485bf8be57ef4cf97cfe2b30",
-  "fips-windows-amd64" => "f797704d3e2ac5da04c3cfc005841ed71be25cf412aea8436edc95a5e92a2ff0",
-}
+require 'json'
+
+adp_config = JSON.parse(File.read(File.expand_path('../../../deps/adp.json', __dir__)))
+adp_version = adp_config['version']
+adp_hashes = adp_config['hashes']
 
 default_version adp_version
 
