@@ -41,7 +41,7 @@ tower.workspace = true
 uuid.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["signal", "process"] }
+nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true
