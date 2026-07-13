@@ -130,6 +130,13 @@ func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	}
 }
 
+// WithoutUnit creates a new dimensions struct with the unit cleared.
+func (d *Dimensions) WithoutUnit() *Dimensions {
+	newDims := *d
+	newDims.unit = ""
+	return &newDims
+}
+
 // Uses a logic similar to what is done in the span processor to build metric keys:
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/b2327211df976e0a57ef0425493448988772a16b/processor/spanmetricsprocessor/processor.go#L353-L387
 // TODO: make this a public util function?
