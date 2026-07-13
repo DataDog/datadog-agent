@@ -1,0 +1,80 @@
+name: "Agent telemetry metric reminder"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  # write permissions are needed to create/update/delete the comment
+  pull-requests: write
+
+jobs:
+  remind:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const marker = '<!-- coat-metric-reminder -->';
+            const targetFile = 'comp/core/agenttelemetry/impl/defaultProfiles.yaml';
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const touchesMetricFile = files.some((f) => f.filename === targetFile);
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (!touchesMetricFile) {
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                });
+              }
+              return;
+            }
+
+            const body = `${marker}
+            ## COAT metric reminder
+
+            This PR changes \`${targetFile}\`, which reports metrics via Cross-Org Agent Telemetry (COAT). Per the [COAT: Report a telemetry metric](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Report-a-telemetry-metric) guide, please confirm before merging:
+
+            - [ ] Validated the metric via e2e tests or a dev VM, and checked it appears correctly in ddcoat (see [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry))
+            - [ ] Updated the public docs in [DataDog/documentation](https://github.com/DataDog/documentation/blob/master/content/en/data_security/agent.md)
+            - [ ] Filed a tracking ticket on the [ASUP Jira board](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889) using the [template](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889?selectedIssue=ASUP-46)
+            - [ ] After merge: noted the target Agent release and will confirm GA before considering the metric live
+
+            _Automated reminder — does not block merging. Updates automatically if this file changes again._`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
