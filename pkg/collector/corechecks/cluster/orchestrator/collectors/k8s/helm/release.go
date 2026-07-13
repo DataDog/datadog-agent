@@ -48,6 +48,28 @@ type RevisionSummary struct {
 	Config map[string]interface{}
 }
 
+// ChartAggregate collapses every release's chart to one entry per chart name. A
+// chart is a package identified by its content, not a per-namespace/cluster
+type ChartAggregate struct {
+	// Latest is the representative content: the highest version seen.
+	Latest *Chart
+	// Versions is every distinct version seen, newest first.
+	Versions []ChartVersionSummary
+	// ReleaseCount is the number of distinct releases using this chart (any version).
+	ReleaseCount int
+}
+
+// ChartVersionSummary summarizes one version of a chart.
+type ChartVersionSummary struct {
+	Version    string
+	AppVersion string
+	// Releases is the number of distinct releases that used this version.
+	Releases int
+	// DefaultValues holds this version's chart default values, so the UI can diff
+	// defaults across versions without re-collecting each one over time.
+	DefaultValues map[string]interface{}
+}
+
 // Info describes the deployment state of a release.
 type Info struct {
 	FirstDeployed string `json:"first_deployed,omitempty"`
