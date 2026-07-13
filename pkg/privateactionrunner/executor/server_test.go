@@ -158,6 +158,44 @@ func TestServeRunActionReturnsStructuredErrorOnFailure(t *testing.T) {
 	assert.Equal(t, "bad signature", result.GetError().GetMessage())
 }
 
+func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
+	// Each failure category the core can produce must reach the control plane with
+	// its structured error code intact (PRD testing seam: verification, credential,
+	// allowlist, timeout). Plain (uncoded) errors default to INTERNAL_ERROR.
+	cases := []struct {
+		name     string
+		err      error
+		wantCode aperrorpb.ActionPlatformErrorCode
+	}{
+		{"bad signature", util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_ERROR, errors.New("bad sig")), aperrorpb.ActionPlatformErrorCode_SIGNATURE_ERROR},
+		{"signing key not found", util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND, errors.New("no key")), aperrorpb.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND},
+		{"expired task", util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, errors.New("expired")), aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK},
+		{"disallowed action", util.DefaultActionError(errors.New("action not allowed")), aperrorpb.ActionPlatformErrorCode_ACTION_ERROR},
+		{"unresolvable credential", errors.New("could not resolve connection"), aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Most failures surface from PrepareTask (verify/credentials); the
+			// allowlist case surfaces from RunPrepared — cover both entry points.
+			fake := &fakeExecutor{prepareErr: tc.err}
+			if tc.wantCode == aperrorpb.ActionPlatformErrorCode_ACTION_ERROR {
+				fake = &fakeExecutor{
+					prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+					runErr:   tc.err,
+				}
+			}
+			srv := NewServer(fake, "test-version")
+			srv.SetReady(true)
+			client := startTestServer(t, srv)
+
+			result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+			require.NotNil(t, result.GetError())
+			assert.Equal(t, tc.wantCode, result.GetError().GetErrorCode())
+		})
+	}
+}
+
 func TestServeRunActionWrapsPlainRunErrorAsActionError(t *testing.T) {
 	fake := &fakeExecutor{
 		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
