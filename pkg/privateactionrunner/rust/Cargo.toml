@@ -1,0 +1,48 @@
+[package]
+name = "par-control"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Private Action Runner control plane (always-on, on-demand executor orchestration)"
+
+[lib]
+name = "par_control"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "par-control"
+path = "src/bins/par-control.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap = { workspace = true, features = ["derive"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+log.workspace = true
+native-tls.workspace = true
+p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
+prost.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time", "sync"] }
+tokio-native-tls.workspace = true
+tokio-stream = { workspace = true, features = ["net"] }
+tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
+tower.workspace = true
+# Real HTTPS to OPMS via native-tls (system OpenSSL), avoiding rustls/ring for
+# cargo-deny. Requires OpenSSL dev libs at build time. See README.md.
+# native-tls-no-default: native-tls without the bundled webpki-root-certs
+# (CDLA-Permissive-2.0, rejected by cargo-deny); OPMS trust uses the system store.
+ureq = { workspace = true, features = ["json", "native-tls-no-default"] }
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[build-dependencies]
+tonic-prost-build.workspace = true

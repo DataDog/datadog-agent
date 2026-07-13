@@ -700,6 +700,9 @@ namespace WixSetup.Datadog_Agent
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
+            // par-control (private action runner control plane, Rust). Plain file in bin\agent.
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ParControl));
+
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",

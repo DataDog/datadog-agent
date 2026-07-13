@@ -1,0 +1,118 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+# rust_prost_library propagates CcInfo from proto_library, which transitively
+# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
+# so we provide it explicitly (same pattern as //pkg/procmgr/rust).
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
+)
+
+_LIB_SRCS = glob(
+    ["src/**/*.rs"],
+    exclude = ["src/bins/**"],
+)
+
+_LIB_DEPS = [
+    "//pkg/proto/datadog/privateactionrunner:executor_rust_proto",
+    "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
+    "@crates//:anyhow",
+    "@crates//:base64",
+    "@crates//:chrono",
+    "@crates//:hyper-util",
+    "@crates//:log",
+    "@crates//:native-tls",
+    "@crates//:p256",
+    "@crates//:prost",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:serde_yaml",
+    "@crates//:tokio",
+    "@crates//:tokio-native-tls",
+    "@crates//:tokio-stream",
+    "@crates//:tonic",
+    "@crates//:tonic-prost",
+    "@crates//:tower",
+    "@crates//:ureq",
+    "@crates//:uuid",
+]
+
+rust_library(
+    name = "par-control-lib",
+    srcs = _LIB_SRCS,
+    crate_name = "par_control",
+    edition = "2024",
+    link_deps = [":cpp_stdlib"],
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = _LIB_DEPS,
+)
+
+rust_binary(
+    name = "par-control",
+    srcs = ["src/bins/par-control.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":par-control-lib",
+        "@crates//:anyhow",
+        "@crates//:clap",
+        "@crates//:tokio",
+    ],
+)
+
+rust_test(
+    name = "par-control_test",
+    crate = ":par-control-lib",
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = [
+        "@crates//:tempfile",
+        "@crates//:tokio",
+    ],
+)
+
+# Packaging: install par-control into the agent distribution (see
+# //pkg/procmgr/rust for the same Linux embedded/bin vs Windows bin/agent split).
+pkg_files(
+    name = "all_files_linux",
+    srcs = [":par-control"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "all_files_windows",
+    srcs = [":par-control"],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = select({
+        "@platforms//os:linux": [":all_files_linux"],
+        "@platforms//os:windows": [":all_files_windows"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = _LINUX_OR_WINDOWS,
+)

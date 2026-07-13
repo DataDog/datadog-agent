@@ -20,4 +20,24 @@ crate.annotation(
     crate = "protoc-gen-tonic",
     gen_binaries = ["protoc-gen-tonic"],
 )
+
+# par-control's ureq native-tls backend pulls openssl-sys. Link it against the
+# agent's own OpenSSL (@openssl, built from source via foreign_cc) — "same as the
+# rest of the agent" — instead of the system libs or a Rust-vendored copy. The
+# openssl-sys build script is pointed at the foreign_cc install tree via OPENSSL_DIR.
+crate.annotation(
+    build_script_data = ["@openssl//:gen_dir"],
+    build_script_env = {
+        "OPENSSL_NO_VENDOR": "1",
+        "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
+    },
+    crate = "openssl-sys",
+    data = ["@openssl"],
+    deps = ["@openssl"],
+)
+
+# Make the @openssl repo visible inside the crate extension so the openssl-sys
+# annotation above can reference it.
+inject_repo(crate, "openssl")
+
 use_repo(crate, "crates")
