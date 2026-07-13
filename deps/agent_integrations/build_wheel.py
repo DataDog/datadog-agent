@@ -47,8 +47,17 @@ def main():
     # Modify the hatch build config to explicitly exclude provided files or patterns, as per
     # https://hatch.pypa.io/1.16/config/build/#patterns
     if args.exclude:
-        wheel_config = hatch_build_config.setdefault("targets", {}).setdefault("wheel", {})
-        wheel_config.setdefault("exclude", []).extend(args.exclude)
+        wheel_config = hatch_build_config.get("targets", {}).get("wheel", {})
+        # If there's globally set excludes but no wheel-level excludes, avoid overriding globals
+        # by modifying the global setting instead.
+        if "exclude" not in wheel_config and "exclude" in hatch_build_config:
+            hatch_exclude = hatch_build_config["exclude"]
+        else:
+            hatch_exclude = (
+                hatch_build_config.setdefault("targets", {}).setdefault("wheel", {}).setdefault("exclude", [])
+            )
+
+        hatch_exclude.extend(args.exclude)
 
     # This is essentially equivalent to to hatchling's `build_wheel` PEP-517 hook
     next(WheelBuilder(str(args.src), config=config).build(directory=args.output_dir, versions=["standard"]))
