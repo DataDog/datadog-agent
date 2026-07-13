@@ -20,6 +20,11 @@ func (k *Version) HasSKStorage() bool {
 	return false
 }
 
+// HaveIOURing returns whether the kernel supports io-uring.
+func (k *Version) HaveIOURing() bool {
+	return false
+}
+
 // HaveRingBuffers returns whether the kernel supports ring buffer.
 // here it's not, since we are built without eBPF support
 func (k *Version) HaveRingBuffers() bool {

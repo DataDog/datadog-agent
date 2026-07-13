@@ -35,6 +35,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

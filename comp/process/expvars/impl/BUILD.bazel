@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["expvars.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/expvars/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/telemetry/def",
+        "//comp/def",
+        "//comp/process/expvars/def",
+        "//comp/process/hostinfo/def",
+        "//pkg/config/setup",
+        "//pkg/process/runner/endpoint",
+        "//pkg/process/status",
+        "//pkg/process/util",
+        "//pkg/system-probe/config",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["expvars_test.go"],
+    # This test creates a server that listens on a port. We can't run each flavor at once.
+    tags = ["exclusive"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
+        "//comp/core/telemetry/mock",
+        "//comp/process/expvars/def",
+        "//comp/process/expvars/fx",
+        "//comp/process/hostinfo/mock",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

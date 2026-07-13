@@ -6,9 +6,11 @@
 package observerimpl
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -163,12 +165,12 @@ type AnomalyScorerConfig struct {
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
-	const windowSecs = 15
+	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
 			Alpha:         0.014,
 			SaturationK:   5.0,
-			WindowSecs:    windowSecs,
+			WindowSecs:    window,
 			LowThreshold:  0.15,
 			HighThreshold: 0.40,
 			MarginPct:     0.20,
@@ -199,53 +201,45 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	ewma := &cfg.AnomalyScorerConfig
 	defaults := DefaultAnomalyScorerConfig()
 
-	if key := prefix + "alpha"; r.IsConfigured(key) {
-		v := r.GetFloat64(key)
-		if v <= 0 || v >= 1 {
-			pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
-			v = defaults.Alpha
-		}
-		ewma.Alpha = v
+	key := prefix + "alpha"
+	v := r.GetFloat64(key)
+	if v <= 0 || v >= 1 {
+		pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
+		v = defaults.Alpha
 	}
-	if key := prefix + "saturation_k"; r.IsConfigured(key) {
-		v := r.GetFloat64(key)
-		if v <= 0 {
-			pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
-			v = defaults.SaturationK
-		}
-		ewma.SaturationK = v
+	ewma.Alpha = v
+
+	key = prefix + "saturation_k"
+	v = r.GetFloat64(key)
+	if v <= 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
+		v = defaults.SaturationK
 	}
-	if key := prefix + "window_secs"; r.IsConfigured(key) {
-		v := r.GetInt(key)
-		if v < 1 {
-			pkglog.Warnf("anomaly_scorer: %s must be >= 1, got %d — using default %d", key, v, defaults.WindowSecs)
-			v = int(defaults.WindowSecs)
-		}
-		ewma.WindowSecs = int64(v)
+	ewma.SaturationK = v
+
+	key = prefix + "window"
+	d := r.GetDuration(key)
+	if d < time.Second {
+		pkglog.Warnf("anomaly_scorer: %s must be >= 1s, got %s — using default %ds", key, d, defaults.WindowSecs)
+		d = time.Duration(defaults.WindowSecs) * time.Second
 	}
-	if key := prefix + "low_threshold"; r.IsConfigured(key) {
-		ewma.LowThreshold = r.GetFloat64(key)
-	}
-	if key := prefix + "high_threshold"; r.IsConfigured(key) {
-		ewma.HighThreshold = r.GetFloat64(key)
-	}
-	if key := prefix + "margin_pct"; r.IsConfigured(key) {
-		ewma.MarginPct = r.GetFloat64(key)
-	}
+	ewma.WindowSecs = int64(d.Seconds())
+
+	ewma.LowThreshold = r.GetFloat64(prefix + "low_threshold")
+	ewma.HighThreshold = r.GetFloat64(prefix + "high_threshold")
+	ewma.MarginPct = r.GetFloat64(prefix + "margin_pct")
 
 	outPrefix := prefix + "output."
-	if key := outPrefix + "logs"; r.IsConfigured(key) {
-		cfg.Logs = r.GetBool(key)
+	cfg.Logs = r.GetBool(outPrefix + "logs")
+	cfg.CorrelationEvents = r.GetBool(outPrefix + "correlation_events")
+	key = outPrefix + "cooldown"
+	d = r.GetDuration(key)
+	if d < 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be >= 0, got %s — using default %ds", key, d, defaults.CooldownSecs)
+		d = time.Duration(defaults.CooldownSecs) * time.Second
 	}
-	if key := outPrefix + "correlation_events"; r.IsConfigured(key) {
-		cfg.CorrelationEvents = r.GetBool(key)
-	}
-	if key := outPrefix + "cooldown_secs"; r.IsConfigured(key) {
-		cfg.CooldownSecs = int64(r.GetInt(key))
-	}
-	if key := outPrefix + "max_anomalies"; r.IsConfigured(key) {
-		cfg.MaxEpisodeAnomalies = r.GetInt(key)
-	}
+	cfg.CooldownSecs = int64(d.Seconds())
+	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
 
 	return cfg
 }
@@ -339,7 +333,8 @@ type anomalyScorer struct {
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
 // independently of the observer engine (e.g. testbench replay path).
 type StandaloneAnomalyScorer interface {
-	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error)
+	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	LastScore() float64
@@ -398,9 +393,8 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 
 	// Self-subscribe as the internal watcher.
 	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
-		Listener:     s,
 		CooldownSecs: cfg.CooldownSecs,
-	}); err != nil {
+	}, s); err != nil {
 		pkglog.Errorf("[observer] anomaly scorer self-subscription failed: %v", err)
 	}
 
@@ -608,15 +602,15 @@ func (s *anomalyScorer) Reset() {
 // Standalone scorer methods (retained for testbench replay)
 // ---------------------------------------------------------------------------
 
-// SubscribeSeverityEvents creates a dispatcher for cfg, seeds it from the
-// current raw severity when available, and returns it with an unsubscribe
-// function.
-func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
-	if cfg.Listener == nil {
-		return severityeventsdef.SeverityEventsSubscription{}, severityeventsdef.ErrNilListener
+// SubscribeSeverityEvents creates a dispatcher for cfg/listener, seeds it
+// from the current raw severity when available, and returns it with an
+// unsubscribe function.
+func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	if listener == nil {
+		return severityeventsdef.SeverityEventsSubscription{}, errors.New("nil severity event listener")
 	}
 
-	dispatcher := severityeventsimpl.NewDispatcher(cfg)
+	dispatcher := severityeventsimpl.NewDispatcher(cfg, listener)
 
 	s.mu.Lock()
 	knownLevel := s.rawLevelInitialized
@@ -645,6 +639,13 @@ func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEv
 			}
 		},
 	}, nil
+}
+
+// SubscribeSeverityEventsReader is a convenience for pull-only consumers: it
+// registers its own internal listener via SubscribeSeverityEvents and returns
+// a Reader whose GetSeverity() reflects the latest delivered level.
+func (s *anomalyScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	return severityeventsimpl.NewSeverityReader(s, cfg)
 }
 
 // LastScore returns the most recently computed EWMA score. Thread-safe.

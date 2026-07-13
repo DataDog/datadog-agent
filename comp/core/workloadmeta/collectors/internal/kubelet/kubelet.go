@@ -103,6 +103,8 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 
 	wmetaConfigDocument := workloadmeta.KubeletConfigDocument{
 		KubeletConfig: workloadmeta.KubeletConfigSpec{
+			APIVersion:       config.KubeletConfig.APIVersion,
+			Kind:             config.KubeletConfig.Kind,
 			CPUManagerPolicy: config.KubeletConfig.CPUManagerPolicy,
 		},
 	}

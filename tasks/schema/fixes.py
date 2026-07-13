@@ -199,6 +199,10 @@ full_agent_only_paths = [
     "metadata_ip_resolution_from_hostname",
     "metric_filterlist",
     "metric_filterlist_match_prefix",
+    "metric_lookback",
+    "metric_lookback.collection_interval",
+    "metric_lookback.enabled",
+    "metric_lookback.enabled_checks",
     "metric_tag_filterlist",
     "metric_tag_filterlist_adp_only",
     "metrics_port",
@@ -416,12 +420,74 @@ def fix_full_agent_only(core_schema, sysprobe_schema):
     return core_schema, sysprobe_schema
 
 
+# A `template_section:<value>` tag records which config template a node belongs to.
+TEMPLATE_SECTION_PREFIX = "template_section:"
+
+
+def _template_section_values(node):
+    """Return the set of `template_section:<value>` values carried by *node*'s tags."""
+    return {
+        tag[len(TEMPLATE_SECTION_PREFIX) :]
+        for tag in node.get("tags", [])
+        if isinstance(tag, str) and tag.startswith(TEMPLATE_SECTION_PREFIX)
+    }
+
+
+def _strip_redundant_template_section_tags(setting, parent_section_values):
+    """Drop `template_section:<value>` tags from *setting* whose value is already
+    carried by its parent section, then remove the `tags` list if it becomes empty."""
+    tags = setting.get("tags")
+    if not isinstance(tags, list):
+        return
+    kept = [
+        tag
+        for tag in tags
+        if not (
+            isinstance(tag, str)
+            and tag.startswith(TEMPLATE_SECTION_PREFIX)
+            and tag[len(TEMPLATE_SECTION_PREFIX) :] in parent_section_values
+        )
+    ]
+    if kept:
+        setting["tags"] = kept
+    else:
+        del setting["tags"]
+
+
+def _clean_template_section_tags(section):
+    """Recursively clean redundant `template_section` tags under *section*.
+
+    A direct setting child's `template_section:<value>` tag is redundant when the
+    enclosing section already carries the same value, so it is removed."""
+    parent_values = _template_section_values(section)
+    props = section.get("properties")
+    if not isinstance(props, dict):
+        return
+    for child in props.values():
+        if not isinstance(child, dict):
+            continue
+        if child.get("node_type") == "setting":
+            _strip_redundant_template_section_tags(child, parent_values)
+        elif child.get("node_type") == "section":
+            _clean_template_section_tags(child)
+
+
+def fix_redundant_template_section_tags(core_schema, sysprobe_schema):
+    # A setting that repeats its parent section's `template_section:<value>` tag adds no
+    # information — it is already implied by the enclosing section. Remove those redundant
+    # tags, and drop any `tags` list left empty as a result.
+    for schema in (core_schema, sysprobe_schema):
+        _clean_template_section_tags(schema)
+    return core_schema, sysprobe_schema
+
+
 def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_full_agent_only(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_env_parsers(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_redundant_template_section_tags(core_schema, sysprobe_schema)
 
     # special edge case for api_key
     core_schema["properties"]["api_key"]["type"] = "string"
