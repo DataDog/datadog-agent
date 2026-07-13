@@ -53,6 +53,7 @@ dd_agent_go_test(
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
+        "//pkg/collector/check/defaults",
         "//pkg/collector/sharedlibrary/ffi",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
