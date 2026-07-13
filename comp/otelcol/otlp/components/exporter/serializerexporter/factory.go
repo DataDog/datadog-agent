@@ -121,7 +121,7 @@ func newFactoryForAgentWithType(
 				apmReceiverAddr: apmReceiverAddr,
 				ipath:           ipath,
 				hosts:           make(map[string]struct{}),
-				ecsFargateTags:  make(map[string]struct{}),
+				fargateTagSets:  make(map[tagSetKey][]string),
 			}
 		},
 		options:      options,
