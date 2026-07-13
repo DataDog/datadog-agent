@@ -1914,9 +1914,6 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let bin_dir = install_dir.join("ext/ddot/embedded/bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
 
-    let etc_dir = dir.path().join("etc");
-    std::fs::create_dir_all(&etc_dir).unwrap();
-
     let script = bin_dir.join("otel-agent");
     std::fs::write(
         &script,
@@ -1937,6 +1934,8 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    let etc_dir = dir.path().join("etc");
+    std::fs::create_dir_all(&etc_dir).unwrap();
     let pid_dir = dir.path().join("pid");
     std::fs::create_dir_all(pid_dir.join("run")).unwrap();
 
