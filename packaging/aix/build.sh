@@ -76,6 +76,8 @@ check_tool xz         xz
 check_tool make       make
 check_tool cmake      cmake
 check_tool gcc        gcc
+check_tool bash       bash
+check_tool protoc     protobuf
 check_tool python3.12 python3.12
 check_tool go         golang
 check_tool dump       bos.perf.tools

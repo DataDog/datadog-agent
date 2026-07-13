@@ -21,10 +21,21 @@ log "=== Stage: $STAGE_NAME ==="
 : "${STAGING:?STAGING must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 
-ADP_AIX_BUILD_COMMAND=${ADP_AIX_BUILD_COMMAND:-}
+ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}
+CARGO_HOME=${CARGO_HOME:-$BUILD_DIR/cargo-home}
+CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}
+export CARGO_HOME CARGO_TARGET_DIR
+
+if [ "${ADP_AIX_BUILD_COMMAND+x}" = x ]; then
+    ADP_AIX_BUILD_COMMAND=$ADP_AIX_BUILD_COMMAND
+else
+    ADP_AIX_BUILD_COMMAND="make build-adp-aix"
+fi
 ADP_AIX_BINARY_PATH=${ADP_AIX_BINARY_PATH:-}
 ADP_RELEASE_TARBALL_PATH=${ADP_RELEASE_TARBALL_PATH:-}
 ADP_RELEASE_TARBALL_DIR="$BUILD_DIR/agent-data-plane-release-tarball"
+ADP_SPDX_LICENSES_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses"
+ADP_THIRD_PARTY_GENERATED_DIR="$BUILD_DIR/agent-data-plane-third-party-licenses"
 ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
 ADP_LICENSES_DEST="$STAGING/opt/datadog-agent/LICENSES"
 
@@ -55,18 +66,12 @@ rm -rf "$ADP_RELEASE_TARBALL_DIR"
 if [ -n "$ADP_AIX_BUILD_COMMAND" ]; then
     log "Building agent-data-plane via $ADP_AIX_BUILD_COMMAND"
     cd "$SALUKI_SRC"
-    sh -c "$ADP_AIX_BUILD_COMMAND"
+    BUILD_PROFILE="$ADP_AIX_BUILD_PROFILE" sh -c "$ADP_AIX_BUILD_COMMAND"
     if [ -z "$ADP_AIX_BINARY_PATH" ]; then
-        ADP_AIX_BINARY_PATH="$SALUKI_SRC/target/release/agent-data-plane"
-    fi
-    if [ -z "$ADP_RELEASE_TARBALL_PATH" ]; then
-        set -- "$SALUKI_SRC"/target/release-tarball/agent-data-plane-*.tar.gz
-        if [ -f "$1" ]; then
-            ADP_RELEASE_TARBALL_PATH="$1"
-        fi
+        ADP_AIX_BINARY_PATH="$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane"
     fi
 else
-    log "ADP_AIX_BUILD_COMMAND is not set; expected command is make build-adp-aix"
+    log "ADP_AIX_BUILD_COMMAND is disabled"
     if [ -z "$ADP_AIX_BINARY_PATH" ] && [ -z "$ADP_RELEASE_TARBALL_PATH" ]; then
         log "ERROR: set ADP_AIX_BUILD_COMMAND, ADP_AIX_BINARY_PATH, or ADP_RELEASE_TARBALL_PATH"
         log "       Prebuilt artifacts must be explicit when the build hook is disabled."
@@ -123,6 +128,22 @@ fi
 ADP_THIRD_PARTY_SRC=${ADP_THIRD_PARTY_SRC:-}
 if [ -z "$ADP_THIRD_PARTY_SRC" ] && [ -d "$ADP_RELEASE_TARBALL_DIR/opt/datadog/agent-data-plane/LICENSES" ]; then
     ADP_THIRD_PARTY_SRC="$ADP_RELEASE_TARBALL_DIR/opt/datadog/agent-data-plane/LICENSES"
+fi
+if [ -z "$ADP_THIRD_PARTY_SRC" ]; then
+    ADP_SPDX_LICENSES_VERSION=${ADP_SPDX_LICENSES_VERSION:-$(awk '/^export ADP_SPDX_LICENSES_VERSION[[:space:]]*:=/ {print $4; exit}' "$SALUKI_SRC/Makefile")}
+    if [ -z "$ADP_SPDX_LICENSES_VERSION" ]; then
+        log "ERROR: could not determine ADP_SPDX_LICENSES_VERSION from $SALUKI_SRC/Makefile"
+        exit 1
+    fi
+    log "Generating ADP THIRD-PARTY license artifacts with SPDX license-list-data $ADP_SPDX_LICENSES_VERSION"
+    rm -rf "$ADP_THIRD_PARTY_GENERATED_DIR"
+    SPDX_LICENSES_VERSION="$ADP_SPDX_LICENSES_VERSION" \
+        sh "$SALUKI_SRC/ci/tooling/fetch-spdx-licenses.sh" "$ADP_SPDX_LICENSES_DIR"
+    sh "$SALUKI_SRC/ci/tooling/collect-third-party-licenses.sh" \
+        "$ADP_SPDX_LICENSES_DIR/text" \
+        "$ADP_LICENSE_3RDPARTY" \
+        "$ADP_THIRD_PARTY_GENERATED_DIR"
+    ADP_THIRD_PARTY_SRC="$ADP_THIRD_PARTY_GENERATED_DIR"
 fi
 if [ ! -d "$ADP_THIRD_PARTY_SRC" ]; then
     log "ERROR: ADP THIRD-PARTY license directory not found"
