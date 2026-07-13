@@ -7,11 +7,12 @@ package com_datadoghq_remoteaction_internal
 
 import (
 	"context"
+	"crypto/ecdh"
+	"crypto/hpke"
 	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -28,24 +29,24 @@ func newTask(taskID string, inputs map[string]any) *types.Task {
 	return task
 }
 
-func assertSealRoundTrip(t *testing.T, store *encryptioncontext.Store, encryptionContextID string, result *PrepareEncryptionOutputs) {
+func assertHPKESealRoundTrip(t *testing.T, store *encryptioncontext.Store, encryptionContextID string, result *PrepareEncryptionOutputs) {
 	t.Helper()
 
-	publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(result.PublicKey)
 	require.NoError(t, err)
-	require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
 
 	privateKey, found := store.GetAndDelete(encryptionContextID)
 	require.True(t, found)
 	require.NotNil(t, privateKey)
 
-	var publicKeyArray [32]byte
-	copy(publicKeyArray[:], publicKey)
-	plaintext := []byte("hello")
-	sealed, err := box.SealAnonymous(nil, plaintext, &publicKeyArray, nil)
+	publicKey, err := hpke.DHKEM(ecdh.P256()).NewPublicKey(publicKeyBytes)
 	require.NoError(t, err)
-	opened, ok := box.OpenAnonymous(nil, sealed, &publicKeyArray, privateKey)
-	require.True(t, ok)
+
+	plaintext := []byte("hello")
+	sealed, err := hpke.Seal(publicKey, hpke.HKDFSHA256(), hpke.AES256GCM(), nil, plaintext)
+	require.NoError(t, err)
+	opened, err := hpke.Open(privateKey, hpke.HKDFSHA256(), hpke.AES256GCM(), nil, sealed)
+	require.NoError(t, err)
 	require.Equal(t, plaintext, opened)
 }
 
@@ -85,8 +86,8 @@ func TestPrepareEncryptionRun(t *testing.T) {
 
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok, "unexpected output type %T", output)
-			require.Equal(t, "curve25519", result.KeyType)
-			assertSealRoundTrip(t, store, testCase.inputs["encryptionContextId"].(string), result)
+			require.Equal(t, encryptioncontext.KeyTypeHPKE, result.KeyType)
+			assertHPKESealRoundTrip(t, store, testCase.inputs["encryptionContextId"].(string), result)
 		})
 	}
 }
