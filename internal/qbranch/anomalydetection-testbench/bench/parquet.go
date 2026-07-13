@@ -369,6 +369,15 @@ func metricDataFromFGM(metric fgmMetric) recorderdef.MetricData {
 // streamOrderedMetrics reads metric parquet files in filename and row order
 // without retaining the full dataset. Equal timestamps are allowed.
 func streamOrderedMetrics(dir string, format ParquetFormat, fn func(recorderdef.MetricData) error) (int, error) {
+	return streamOrderedMetricsWithContexts(dir, format, nil, fn)
+}
+
+func streamOrderedMetricsWithContexts(
+	dir string,
+	format ParquetFormat,
+	v2Contexts map[uint64]contextEntryV2,
+	fn func(recorderdef.MetricData) error,
+) (int, error) {
 	var (
 		count        int
 		previousTime int64
@@ -393,7 +402,11 @@ func streamOrderedMetrics(dir string, format ParquetFormat, fn func(recorderdef.
 
 	var err error
 	if format == FormatV2 {
-		err = streamAllMetricsV2(dir, consume)
+		if v2Contexts == nil {
+			err = streamAllMetricsV2(dir, consume)
+		} else {
+			err = streamAllMetricsV2WithContexts(dir, v2Contexts, consume)
+		}
 	} else {
 		err = streamAllMetricsV1(dir, consume)
 	}
@@ -424,6 +437,15 @@ func streamAllMetricsV1(dir string, fn func(string, recorderdef.MetricData) erro
 // retaining the full dataset. The caller must provide parquet files whose rows
 // are globally ordered by timestamp; equal timestamps are allowed.
 func streamOrderedLogs(dir string, format ParquetFormat, fn func(recorderdef.LogData) error) (int, error) {
+	return streamOrderedLogsWithContexts(dir, format, nil, fn)
+}
+
+func streamOrderedLogsWithContexts(
+	dir string,
+	format ParquetFormat,
+	v2Contexts map[uint64]contextEntryV2,
+	fn func(recorderdef.LogData) error,
+) (int, error) {
 	var (
 		count        int
 		previousTime int64
@@ -448,7 +470,11 @@ func streamOrderedLogs(dir string, format ParquetFormat, fn func(recorderdef.Log
 
 	var err error
 	if format == FormatV2 {
-		err = streamAllLogsV2(dir, consume)
+		if v2Contexts == nil {
+			err = streamAllLogsV2(dir, consume)
+		} else {
+			err = streamAllLogsV2WithContexts(dir, v2Contexts, consume)
+		}
 	} else {
 		err = streamAllLogsV1(dir, consume)
 	}

@@ -244,6 +244,10 @@ func streamAllMetricsV2(dir string, fn func(string, recorderdef.MetricData) erro
 	if err != nil {
 		return fmt.Errorf("reading contexts: %w", err)
 	}
+	return streamAllMetricsV2WithContexts(dir, contexts, fn)
+}
+
+func streamAllMetricsV2WithContexts(dir string, contexts map[uint64]contextEntryV2, fn func(string, recorderdef.MetricData) error) error {
 	files, err := findMetricParquetFilesV2(dir)
 	if err != nil {
 		return err
@@ -470,6 +474,10 @@ func streamAllLogsV2(dir string, fn func(string, recorderdef.LogData) error) err
 	if err != nil {
 		return fmt.Errorf("reading contexts: %w", err)
 	}
+	return streamAllLogsV2WithContexts(dir, contexts, fn)
+}
+
+func streamAllLogsV2WithContexts(dir string, contexts map[uint64]contextEntryV2, fn func(string, recorderdef.LogData) error) error {
 	files, err := findLogParquetFilesV2(dir)
 	if err != nil {
 		return fmt.Errorf("listing v2 log parquet files: %w", err)

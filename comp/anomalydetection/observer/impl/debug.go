@@ -45,6 +45,12 @@ type DebugView interface {
 	// the dispatch channel. Synchronous: returns after IngestMetric and any
 	// scheduler-triggered advances complete. Testbench-only.
 	IngestMetricSync(source string, sample observerdef.MetricView)
+	// IngestLogSync feeds a log directly into the engine and synchronously
+	// executes scheduler-triggered advances. Used by one-shot headless streams.
+	IngestLogSync(source string, msg observerdef.LogView)
+	// FinishReplayStream flushes the scheduler at end-of-input without resetting
+	// analysis state or replaying retained storage.
+	FinishReplayStream()
 	// IngestTestbenchLog feeds a log directly into the engine without driving
 	// any scheduler-triggered advances. Used during batch pre-loading in the
 	// testbench replay path so that extractor state is built up and log

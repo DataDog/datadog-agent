@@ -6,6 +6,7 @@
 package bench
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -102,6 +103,96 @@ func TestStreamOrderedMetricsV1RejectsDisorderAcrossFiles(t *testing.T) {
 	count, err := streamOrderedMetrics(dir, FormatV1, func(recorderdef.MetricData) error { return nil })
 	require.Equal(t, 1, count)
 	require.ErrorContains(t, err, "observer-metrics-000001.parquet contains 1000 after 1001")
+}
+
+func TestStreamOrderedObservationsMergesMetricsAndLogs(t *testing.T) {
+	dir := t.TempDir()
+	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), []recorderdef.MetricData{
+		{Name: "cpu", Timestamp: 10},
+		{Name: "cpu", Timestamp: 12},
+	}, 1)
+	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{
+		{Content: []byte("between"), TimestampMs: 11_500},
+		{Content: []byte("same-second"), TimestampMs: 12_500},
+		{Content: []byte("last"), TimestampMs: 13_000},
+	}, 1)
+
+	var (
+		timestamps []int64
+		kinds      []string
+	)
+	metricCount, logCount, err := streamOrderedObservations(dir, FormatV1, false, func(observation parquetObservation) error {
+		timestamps = append(timestamps, observation.timestampSec())
+		if observation.metric != nil {
+			kinds = append(kinds, "metric")
+		} else {
+			kinds = append(kinds, "log")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, metricCount)
+	require.Equal(t, 3, logCount)
+	require.Equal(t, []int64{10, 11, 12, 12, 13}, timestamps)
+	require.Equal(t, []string{"metric", "log", "metric", "log", "log"}, kinds)
+}
+
+func TestStreamOrderedObservationsLogsOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), []recorderdef.MetricData{{Name: "ignored", Timestamp: 10}}, 1)
+	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 11_000}}, 1)
+
+	metricCount, logCount, err := streamOrderedObservations(dir, FormatV1, true, func(observation parquetObservation) error {
+		require.Nil(t, observation.metric)
+		require.NotNil(t, observation.log)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Zero(t, metricCount)
+	require.Equal(t, 1, logCount)
+}
+
+func TestStreamOrderedObservationsStopsOnConsumerError(t *testing.T) {
+	dir := t.TempDir()
+	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), []recorderdef.MetricData{
+		{Name: "cpu", Timestamp: 10},
+		{Name: "cpu", Timestamp: 11},
+	}, 1)
+	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 10_000}}, 1)
+
+	wantErr := errors.New("stop")
+	_, _, err := streamOrderedObservations(dir, FormatV1, false, func(parquetObservation) error {
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+}
+
+func TestStreamOrderedObservationsV2(t *testing.T) {
+	dir := t.TempDir()
+	writeContextsParquetV2(t, filepath.Join(dir, "contexts.parquet"))
+	writeMetricParquetV2(t, filepath.Join(dir, "metrics-000000.parquet"))
+	writeLogParquetV2(t, filepath.Join(dir, "logs-000000.parquet"))
+
+	var (
+		timestamps []int64
+		kinds      []string
+	)
+	metricCount, logCount, err := streamOrderedObservations(dir, FormatV2, false, func(observation parquetObservation) error {
+		timestamps = append(timestamps, observation.timestampSec())
+		if observation.metric != nil {
+			kinds = append(kinds, "metric")
+			require.Equal(t, []string{"host:host-a", "source:check"}, observation.metric.Tags)
+		} else {
+			kinds = append(kinds, "log")
+			require.Equal(t, []string{"host:host-b", "source:logs"}, observation.log.Tags)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, metricCount)
+	require.Equal(t, 2, logCount)
+	require.Equal(t, []int64{10, 11, 12, 13}, timestamps)
+	require.Equal(t, []string{"metric", "log", "metric", "log"}, kinds)
 }
 
 func BenchmarkLogParquetLoading(b *testing.B) {
@@ -251,6 +342,68 @@ func writeMetricParquetV1(t testing.TB, path string, metrics []recorderdef.Metri
 	table := array.NewTableFromRecords(schema, []arrow.Record{record})
 	defer table.Release()
 
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	require.NoError(t, pqarrow.WriteTable(table, f, rowGroupSize, nil, pqarrow.DefaultWriterProps()))
+}
+
+func writeContextsParquetV2(t testing.TB, path string) {
+	t.Helper()
+	schema := arrow.NewSchema([]arrow.Field{
+		{Name: "context_key", Type: arrow.PrimitiveTypes.Uint64},
+		{Name: "name", Type: arrow.BinaryTypes.String},
+		{Name: "tag_host", Type: arrow.BinaryTypes.String},
+		{Name: "tag_source", Type: arrow.BinaryTypes.String},
+	}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+
+	builder.Field(0).(*array.Uint64Builder).AppendValues([]uint64{1, 2}, nil)
+	builder.Field(1).(*array.StringBuilder).AppendValues([]string{"system.cpu", "logs"}, nil)
+	builder.Field(2).(*array.StringBuilder).AppendValues([]string{"host-a", "host-b"}, nil)
+	builder.Field(3).(*array.StringBuilder).AppendValues([]string{"check", "logs"}, nil)
+	writeRecordParquet(t, path, schema, builder.NewRecord(), 1)
+}
+
+func writeMetricParquetV2(t testing.TB, path string) {
+	t.Helper()
+	schema := arrow.NewSchema([]arrow.Field{
+		{Name: "context_key", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "value", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "timestamp_ns", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "source", Type: arrow.BinaryTypes.String},
+	}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+
+	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{1, 1}, nil)
+	builder.Field(1).(*array.Float64Builder).AppendValues([]float64{1, 2}, nil)
+	builder.Field(2).(*array.Int64Builder).AppendValues([]int64{10_000_000_000, 12_000_000_000}, nil)
+	builder.Field(3).(*array.StringBuilder).AppendValues([]string{"check", "check"}, nil)
+	writeRecordParquet(t, path, schema, builder.NewRecord(), 1)
+}
+
+func writeLogParquetV2(t testing.TB, path string) {
+	t.Helper()
+	schema := arrow.NewSchema([]arrow.Field{
+		{Name: "context_key", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "content", Type: arrow.BinaryTypes.Binary},
+		{Name: "timestamp_ns", Type: arrow.PrimitiveTypes.Int64},
+	}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+
+	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{2, 2}, nil)
+	builder.Field(1).(*array.BinaryBuilder).AppendValues([][]byte{[]byte("first"), []byte("last")}, nil)
+	builder.Field(2).(*array.Int64Builder).AppendValues([]int64{11_000_000_000, 13_000_000_000}, nil)
+	writeRecordParquet(t, path, schema, builder.NewRecord(), 1)
+}
+
+func writeRecordParquet(t testing.TB, path string, schema *arrow.Schema, record arrow.Record, rowGroupSize int64) {
+	t.Helper()
+	defer record.Release()
+	table := array.NewTableFromRecords(schema, []arrow.Record{record})
+	defer table.Release()
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	require.NoError(t, pqarrow.WriteTable(table, f, rowGroupSize, nil, pqarrow.DefaultWriterProps()))

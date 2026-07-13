@@ -327,14 +327,32 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 ## Architecture
 
-### Replay pipeline
+### Replay pipelines
 
-The testbench feeds historical data through the observer engine in two phases:
+Headless runs stream by default. Metric and log parquet readers are merged into
+one timestamp-ordered observation stream. Each observation is ingested
+synchronously, detector/correlator analysis advances with the same scheduler as
+the live Observer, and an end-of-input flush analyzes the final timestamp. The
+stream uses the production storage limits, including the default 120-second
+point-retention window, so observation memory is bounded by the active window
+and series cardinality rather than total scenario length.
 
-1. **Pre-load** — parquet rows are ingested via `IngestLogNoAdvance` / `IngestMetricSync`. The engine accumulates extractor state and writes time-series points, but no detector or correlator advances are triggered.
-2. **Replay** — `ReplayStoredData` walks through the in-memory storage in chronological order and drives the full detector→correlator pipeline tick by tick, as if data were arriving live.
+Headless output still retains anomaly and correlation history because the
+evaluator consumes the complete result set. Pathological runs that emit an
+extreme number of results can therefore still require significant memory.
 
-Because all points are pre-loaded before replay starts, the engine storage is configured with **no point-retention window** (`PointRetentionSecs = 0`). This is intentional and testbench-specific: the production observer uses a bounded retention window (120 s by default). The unbounded config is constructed in `bench.go` and passed explicitly to `DebugView.Reset` — the shared engine code never hard-codes it.
+Streaming requires rows to be globally ordered within each input type. Equal
+timestamps are supported. Unordered local recordings fail with a descriptive
+error instead of silently producing late points.
+
+Interactive runs, and headless runs with `--batch-parquet`, use the retained
+replay pipeline:
+
+1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
+2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+
+The retained path supports interactive component toggles and remains available
+as a compatibility fallback, but its memory scales with the full scenario.
 
 ### Reporter and UI updates
 

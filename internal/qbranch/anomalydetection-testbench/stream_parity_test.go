@@ -28,7 +28,11 @@ func TestHeadlessStreamParquetMatchesBatchOutput(t *testing.T) {
 	writeParityLogParquet(t, filepath.Join(parquetDir, "observer-logs-000000.parquet"))
 	writeParityMetricParquet(t, filepath.Join(parquetDir, "observer-metrics-000000.parquet"))
 
-	settings := observerimpl.ComponentSettings{Baseline: observerimpl.BaselineConfig{Enabled: false}}
+	settings := observerimpl.ComponentSettings{Baseline: observerimpl.BaselineConfig{
+		Enabled:          true,
+		DurationSec:      60,
+		MuteNoisyMetrics: true,
+	}}
 	batchOutput := filepath.Join(t.TempDir(), "batch.json")
 	streamOutput := filepath.Join(t.TempDir(), "stream.json")
 
@@ -85,7 +89,7 @@ func writeParityLogParquet(t *testing.T, path string) {
 	tagsBuilder := builder.Field(5).(*array.ListBuilder)
 	tagValueBuilder := tagsBuilder.ValueBuilder().(*array.StringBuilder)
 
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 300; i++ {
 		runIDBuilder.Append("run")
 		timeBuilder.Append(int64(1_000_000 + i*1_000))
 		contentBuilder.Append([]byte("request failed while connecting to database"))
@@ -126,7 +130,7 @@ func writeParityMetricParquet(t *testing.T, path string) {
 	tagValueBuilder := tagsBuilder.ValueBuilder().(*array.StringBuilder)
 	droppedBuilder := builder.Field(5).(*array.BooleanBuilder)
 
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 300; i++ {
 		runIDBuilder.Append("run")
 		timeBuilder.Append(int64(1_000_000 + i*1_000))
 		metricNameBuilder.Append("system.cpu.user")
