@@ -10,6 +10,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
+use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use std::time::Instant;
@@ -213,6 +214,7 @@ impl From<ProcessState> for proto::ProcessState {
 
 fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     let cfg = proc.config();
+    let (profile, user) = process_identity(proc);
     proto::Process {
         uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
@@ -223,6 +225,8 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile,
+        user,
     }
 }
 
@@ -306,6 +310,11 @@ fn resolve_process<'a>(
 
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
+    let (profile, user) = process_identity(proc);
+    let runtime_user = proc
+        .pid()
+        .and_then(platform::runtime_user_for_pid)
+        .unwrap_or_default();
     proto::ProcessDetail {
         uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
@@ -326,7 +335,14 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile,
+        user,
+        runtime_user,
     }
+}
+
+fn process_identity(proc: &ManagedProcess) -> (String, String) {
+    (proc.profile().as_str().to_string(), proc.user().to_string())
 }
 
 #[cfg(test)]
@@ -408,6 +424,8 @@ mod tests {
         assert!(!detail.auto_start);
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
+        assert_eq!(detail.profile, "agent");
+        assert!(!detail.user.is_empty());
     }
 
     #[tokio::test]

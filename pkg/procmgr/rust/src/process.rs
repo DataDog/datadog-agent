@@ -143,6 +143,8 @@ pub struct ManagedProcess {
     name: String,
     uuid: String,
     config: ProcessConfig,
+    profile: spawn::SpawnProfile,
+    user: String,
     state: ProcessState,
     pid: Option<u32>,
     handle: Option<ProcessHandle>,
@@ -170,11 +172,15 @@ impl ManagedProcess {
     }
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
+        let profile = spawn::profile_for(&name);
+        let user = spawn::spawn_user_for(&name, profile);
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
             uuid,
             config,
+            profile,
+            user,
             state: ProcessState::Created,
             pid: None,
             handle: None,
@@ -305,6 +311,14 @@ impl ManagedProcess {
         }
     }
 
+    pub fn profile(&self) -> spawn::SpawnProfile {
+        self.profile
+    }
+
+    pub fn user(&self) -> &str {
+        &self.user
+    }
+
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
     }
@@ -321,6 +335,11 @@ impl ManagedProcess {
     #[cfg(test)]
     pub(crate) fn config_mut(&mut self) -> &mut ProcessConfig {
         &mut self.config
+    }
+
+    /// Re-resolve the intended spawn account from current installer/platform state.
+    fn refresh_intended_user(&mut self) {
+        self.user = spawn::spawn_user_for(&self.name, self.profile);
     }
 
     fn transition_to(&mut self, next: ProcessState) {
@@ -453,6 +472,7 @@ impl ManagedProcess {
         );
 
         self.handle = Some(handle);
+        self.user = spawn::spawn_user_for(&self.name, self.profile);
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
