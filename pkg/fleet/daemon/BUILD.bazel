@@ -17,6 +17,7 @@ go_library(
         "//pkg/api/middleware",
         "//pkg/config/remote/client",
         "//pkg/config/utils",
+        "//pkg/fips",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/bootstrap",
         "//pkg/fleet/installer/config",

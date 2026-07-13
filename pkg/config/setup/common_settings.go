@@ -1565,7 +1565,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
-	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "true")
+	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "datadog_only")
 	config.BindEnvAndSetDefault("use_v3_api.series.endpoints", map[string]string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
