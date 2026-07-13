@@ -9,6 +9,7 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Bundle the `process` check in the AIX package so operators can monitor processes by name without any manual install step; the check uses the `psutil` library already included in the embedded Python
 - Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host
 - Remove the obsolete packaged integration constraints artifact from the AIX BFF package
 - Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)

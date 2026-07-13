@@ -90,7 +90,7 @@ fi
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 
-PYTHON_CHECKS="lparstats openmetrics ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
+PYTHON_CHECKS="lparstats openmetrics process ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
 
 log "Installing Python checks: $PYTHON_CHECKS"
 
