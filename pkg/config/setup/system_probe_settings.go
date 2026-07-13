@@ -57,6 +57,7 @@ func initMainSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
 		"linux":   "${run_path}/sysprobe.sock",
 		"darwin":  "${run_path}/sysprobe.sock",
+		"aix":     "${run_path}/sysprobe.sock",
 		"windows": `\\.\pipe\dd_system_probe`,
 	}), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)

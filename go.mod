@@ -342,7 +342,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f
 	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.18.1
+	github.com/open-policy-agent/opa v1.18.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.156.0

@@ -1266,8 +1266,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -2222,6 +2223,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
   dogstatsd_origin_detection:
     node_type: setting
