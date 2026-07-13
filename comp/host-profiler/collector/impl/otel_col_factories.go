@@ -26,6 +26,7 @@ import (
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/dockerattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
@@ -127,6 +128,7 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
 		resourceprocessor.NewFactory(),
+		dockerattributesprocessor.NewFactory(),
 	}
 }
 
@@ -182,6 +184,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
 		ddhostnameprocessor.NewFactory(),
+		dockerattributesprocessor.NewFactory(),
 	}
 }
 

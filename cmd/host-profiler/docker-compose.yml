@@ -16,6 +16,9 @@ services:
     secrets:
       - dd-api-key
     entrypoint: [ '/bin/sh', '-c', 'export DD_API_KEY=$$(cat /run/secrets/dd-api-key) ; /bin/entrypoint.sh' ]
+    labels:
+      theo.supercool: yeah
+      theo.crazylabel: this one crazy fr
 
   host-profiler:
     build:
@@ -42,6 +45,8 @@ services:
     secrets:
       - dd-api-key
       - dd-app-key
+    labels:
+      super.important: smells like updog in here
 
 volumes:
   agent-ipc:

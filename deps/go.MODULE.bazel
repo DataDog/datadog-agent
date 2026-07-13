@@ -305,6 +305,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_dockerattributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_groupbyattrsprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",

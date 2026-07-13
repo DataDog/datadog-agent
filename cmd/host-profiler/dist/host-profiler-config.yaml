@@ -10,6 +10,11 @@ receivers:
         - site: ${env:DD_SITE}
           api_key: ${env:DD_API_KEY}
 processors:
+  docker_attributes:
+    endpoint: unix:///var/run/docker.sock
+    extract:
+      labels:
+        - key_regex: ".*"
   cumulativetodelta: {}
   resourcedetection:
     detectors: ["system"]
@@ -32,9 +37,9 @@ service:
   pipelines:
     profiles:
       receivers: [profiling]
-      processors: [resourcedetection]
+      processors: [resourcedetection, docker_attributes]
       exporters: [otlp_http]
     metrics:
       receivers: [otlp]
-      processors: [cumulativetodelta]
+      processors: [cumulativetodelta, docker_attributes]
       exporters: [otlp_http]
