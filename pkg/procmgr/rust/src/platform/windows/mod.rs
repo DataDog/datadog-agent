@@ -5,6 +5,8 @@
 
 mod agent_credentials;
 mod agent_service_sid;
+mod local_account;
+mod managed_service_account;
 mod pipe_security;
 mod sid;
 mod spawn;

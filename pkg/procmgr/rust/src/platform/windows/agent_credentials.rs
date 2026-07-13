@@ -19,6 +19,9 @@ use windows_sys::Win32::Security::{
     IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
 };
 
+use super::account_name::AccountName;
+use super::local_account::is_local_account;
+use super::managed_service_account::{ManagedServiceAccountState, query_managed_service_account};
 use super::sid::lookup_account_sid;
 use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
@@ -87,7 +90,56 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
             user,
             password,
         }),
-        _ => Ok(AgentAccount::ServiceAccountLogon { domain, user }),
+        _ => resolve_without_lsa_password(domain, user, &sid),
+    }
+}
+
+fn resolve_without_lsa_password(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
+    let display = AccountName::new(&domain, &user).display();
+    let is_local =
+        is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
+    let msa = query_managed_service_account(&domain, &user)?;
+    passwordless_agent_account(domain, user, is_local, msa)
+}
+
+fn passwordless_agent_account(
+    domain: String,
+    user: String,
+    is_local: bool,
+    msa: ManagedServiceAccountState,
+) -> Result<AgentAccount> {
+    let display = AccountName::new(&domain, &user).display();
+    if is_local {
+        bail!(
+            "agent user password is not available for local account {display}; \
+             reinstall the Agent with the password provided"
+        );
+    }
+
+    match msa {
+        ManagedServiceAccountState::Installed => {
+            Ok(AgentAccount::ServiceAccountLogon { domain, user })
+        }
+        ManagedServiceAccountState::NotService
+        | ManagedServiceAccountState::AssumeRegularDomainAccount => {
+            if user.ends_with('$') {
+                bail!(
+                    "account {display} ends with '$' but is not recognized as a valid gMSA account; \
+                     reinstall the Agent with the password provided if this is a normal account"
+                );
+            }
+            bail!(
+                "agent user password is not available for {display}; \
+                 reinstall the Agent with the password provided"
+            );
+        }
+        ManagedServiceAccountState::NotExist => bail!("account {display} does not exist"),
+        ManagedServiceAccountState::CannotInstall => {
+            bail!("account {display} is a gMSA account but cannot be installed on this host")
+        }
+        ManagedServiceAccountState::CanInstall => {
+            bail!("unexpected gMSA install state for account {display}")
+        }
     }
 }
 
@@ -255,5 +307,68 @@ mod tests {
         let account =
             resolve_agent_account().expect("unit tests should fall back without registry");
         assert_eq!(account, AgentAccount::LocalSystem);
+    }
+
+    #[test]
+    fn passwordless_local_account_requires_password() {
+        let err = passwordless_agent_account(
+            String::new(),
+            "ddagentuser".to_string(),
+            true,
+            ManagedServiceAccountState::NotService,
+        )
+        .expect_err("local accounts without LSA password should fail");
+        assert!(
+            err.to_string().contains("local account"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn passwordless_gmsa_uses_service_account_logon() {
+        let account = passwordless_agent_account(
+            "CORP".to_string(),
+            "gmsa$".to_string(),
+            false,
+            ManagedServiceAccountState::Installed,
+        )
+        .expect("installed gMSA should allow passwordless logon");
+        assert_eq!(
+            account,
+            AgentAccount::ServiceAccountLogon {
+                domain: "CORP".to_string(),
+                user: "gmsa$".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn passwordless_domain_account_requires_password() {
+        let err = passwordless_agent_account(
+            "CORP".to_string(),
+            "ddagent".to_string(),
+            false,
+            ManagedServiceAccountState::NotService,
+        )
+        .expect_err("regular domain accounts should require a password");
+        assert!(
+            err.to_string().contains("password is not available"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn passwordless_domain_account_with_dollar_suffix_requires_valid_gmsa() {
+        let err = passwordless_agent_account(
+            "CORP".to_string(),
+            "notgmsa$".to_string(),
+            false,
+            ManagedServiceAccountState::NotService,
+        )
+        .expect_err("accounts ending with $ should be rejected when not gMSA");
+        assert!(
+            err.to_string().contains("ends with '$'"),
+            "unexpected error: {err:#}"
+        );
     }
 }
