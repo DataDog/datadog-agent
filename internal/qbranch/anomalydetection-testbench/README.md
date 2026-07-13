@@ -341,9 +341,11 @@ Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an
 extreme number of results can therefore still require significant memory.
 
-Streaming requires rows to be globally ordered within each input type. Equal
-timestamps are supported. Unordered local recordings fail with a descriptive
-error instead of silently producing late points.
+Streaming keeps metric rows in a bounded five-second reorder window because
+concurrent GenSim collection can write slightly late samples. Log ordering is
+validated at the Observer's one-second scheduling resolution. Recordings with
+disorder beyond those bounds fail descriptively instead of silently producing
+late points.
 
 Interactive runs, and headless runs with `--batch-parquet`, use the retained
 replay pipeline:

@@ -10,6 +10,7 @@ package bench
 // main agent module — so this file must stay in internal/qbranch/.
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"os"
@@ -35,6 +36,11 @@ const (
 	FormatAuto ParquetFormat = ""   // detect: v2 if contexts.parquet present, else v1
 	FormatV1   ParquetFormat = "v1" // observer-metrics-*.parquet / observer-logs-*.parquet (inline tags)
 	FormatV2   ParquetFormat = "v2" // contexts.parquet + metrics-*.parquet / logs-*.parquet
+
+	// GenSim recordings can contain a small amount of metric timestamp disorder
+	// from concurrent collection. Keep a bounded look-ahead instead of retaining
+	// and sorting the complete scenario.
+	parquetMetricReorderWindowSeconds int64 = 5
 )
 
 // detectParquetFormat returns FormatV2 if contexts.parquet exists in dir, else FormatV1.
@@ -366,8 +372,46 @@ func metricDataFromFGM(metric fgmMetric) recorderdef.MetricData {
 	}
 }
 
+type queuedMetric struct {
+	value    recorderdef.MetricData
+	sequence uint64
+}
+
+type metricMinHeap []queuedMetric
+
+func (h metricMinHeap) Len() int { return len(h) }
+func (h metricMinHeap) Less(i, j int) bool {
+	if h[i].value.Timestamp == h[j].value.Timestamp {
+		return h[i].sequence < h[j].sequence
+	}
+	return h[i].value.Timestamp < h[j].value.Timestamp
+}
+func (h metricMinHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *metricMinHeap) Push(value any) {
+	*h = append(*h, value.(queuedMetric))
+}
+func (h *metricMinHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	value := old[last]
+	old[last] = queuedMetric{}
+	*h = old[:last]
+	return value
+}
+
+func cloneMetricData(metric recorderdef.MetricData) recorderdef.MetricData {
+	metric.Source = strings.Clone(metric.Source)
+	metric.Name = strings.Clone(metric.Name)
+	metric.Tags = append([]string(nil), metric.Tags...)
+	for i := range metric.Tags {
+		metric.Tags[i] = strings.Clone(metric.Tags[i])
+	}
+	return metric
+}
+
 // streamOrderedMetrics reads metric parquet files in filename and row order
-// without retaining the full dataset. Equal timestamps are allowed.
+// without retaining the full dataset. A bounded look-ahead restores timestamp
+// order when concurrent GenSim collection produces slightly late rows.
 func streamOrderedMetrics(dir string, format ParquetFormat, fn func(recorderdef.MetricData) error) (int, error) {
 	return streamOrderedMetricsWithContexts(dir, format, nil, fn)
 }
@@ -379,24 +423,43 @@ func streamOrderedMetricsWithContexts(
 	fn func(recorderdef.MetricData) error,
 ) (int, error) {
 	var (
-		count        int
-		previousTime int64
-		havePrevious bool
+		count       int
+		maxSeen     int64
+		haveMaxSeen bool
+		sequence    uint64
+		pending     metricMinHeap
 	)
+	heap.Init(&pending)
 
-	consume := func(filePath string, metric recorderdef.MetricData) error {
-		if havePrevious && metric.Timestamp < previousTime {
-			return fmt.Errorf(
-				"metric timestamps are not globally ordered: %s contains %d after %d",
-				filepath.Base(filePath), metric.Timestamp, previousTime,
-			)
-		}
+	emit := func() error {
+		metric := heap.Pop(&pending).(queuedMetric).value
 		if err := fn(metric); err != nil {
 			return err
 		}
-		previousTime = metric.Timestamp
-		havePrevious = true
 		count++
+		return nil
+	}
+
+	consume := func(filePath string, metric recorderdef.MetricData) error {
+		if haveMaxSeen && metric.Timestamp < maxSeen-parquetMetricReorderWindowSeconds {
+			return fmt.Errorf(
+				"metric timestamp disorder exceeds %ds: %s contains %d after %d",
+				parquetMetricReorderWindowSeconds, filepath.Base(filePath), metric.Timestamp, maxSeen,
+			)
+		}
+		if !haveMaxSeen || metric.Timestamp > maxSeen {
+			maxSeen = metric.Timestamp
+			haveMaxSeen = true
+		}
+		heap.Push(&pending, queuedMetric{value: cloneMetricData(metric), sequence: sequence})
+		sequence++
+
+		watermark := maxSeen - parquetMetricReorderWindowSeconds
+		for pending.Len() > 0 && pending[0].value.Timestamp <= watermark {
+			if err := emit(); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -412,6 +475,11 @@ func streamOrderedMetricsWithContexts(
 	}
 	if err != nil {
 		return count, err
+	}
+	for pending.Len() > 0 {
+		if err := emit(); err != nil {
+			return count, err
+		}
 	}
 	return count, nil
 }
@@ -435,7 +503,8 @@ func streamAllMetricsV1(dir string, fn func(string, recorderdef.MetricData) erro
 
 // streamOrderedLogs reads log parquet files in filename and row order without
 // retaining the full dataset. The caller must provide parquet files whose rows
-// are globally ordered by timestamp; equal timestamps are allowed.
+// are globally ordered at the Observer's one-second scheduling resolution.
+// Millisecond-level disorder within a second is allowed.
 func streamOrderedLogs(dir string, format ParquetFormat, fn func(recorderdef.LogData) error) (int, error) {
 	return streamOrderedLogsWithContexts(dir, format, nil, fn)
 }
@@ -453,7 +522,7 @@ func streamOrderedLogsWithContexts(
 	)
 
 	consume := func(filePath string, entry recorderdef.LogData) error {
-		if havePrevious && entry.TimestampMs < previousTime {
+		if havePrevious && entry.TimestampMs/1000 < previousTime/1000 {
 			return fmt.Errorf(
 				"log timestamps are not globally ordered: %s contains %d after %d",
 				filepath.Base(filePath), entry.TimestampMs, previousTime,

@@ -521,7 +521,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 }
 
 func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) error {
-	fmt.Printf("  Streaming globally ordered parquet observations\n")
+	fmt.Printf("  Streaming timestamp-ordered parquet observations\n")
 	tb.debug.SetReplayPhase("detecting")
 	tb.streamInputMetricCardinality = newCardinalityCounter()
 	cloneTags := func(tags []string) []string {
@@ -565,7 +565,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 		entry.Hostname = strings.Clone(entry.Hostname)
 		entry.Tags = cloneTags(entry.Tags)
 		tb.streamInputLogsCount++
-		tb.extendStreamBounds(entry.TimestampMs/1000, (entry.TimestampMs+999)/1000)
+		tb.extendStreamBounds(entry.TimestampMs/1000, entry.TimestampMs/1000)
 		view := logDataView{data: &entry}
 		tb.debug.IngestLogSync("parquet", &view)
 		return nil

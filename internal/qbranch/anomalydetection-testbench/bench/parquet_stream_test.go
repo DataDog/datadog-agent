@@ -51,24 +51,44 @@ func TestStreamOrderedLogsV1RejectsDisorder(t *testing.T) {
 	t.Run("within a file", func(t *testing.T) {
 		dir := t.TempDir()
 		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{
-			{TimestampMs: 1001},
+			{TimestampMs: 2001},
 			{TimestampMs: 1000},
 		}, 1)
 
 		count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return nil })
 		require.Equal(t, 1, count)
-		require.ErrorContains(t, err, "observer-logs-000000.parquet contains 1000 after 1001")
+		require.ErrorContains(t, err, "observer-logs-000000.parquet contains 1000 after 2001")
 	})
 
 	t.Run("across files", func(t *testing.T) {
 		dir := t.TempDir()
-		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 1001}}, 1)
+		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 2001}}, 1)
 		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000001.parquet"), []recorderdef.LogData{{TimestampMs: 1000}}, 1)
 
 		count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return nil })
 		require.Equal(t, 1, count)
-		require.ErrorContains(t, err, "observer-logs-000001.parquet contains 1000 after 1001")
+		require.ErrorContains(t, err, "observer-logs-000001.parquet contains 1000 after 2001")
 	})
+}
+
+func TestStreamOrderedLogsV1AllowsDisorderWithinObserverSecond(t *testing.T) {
+	dir := t.TempDir()
+	want := []recorderdef.LogData{
+		{TimestampMs: 1999},
+		{TimestampMs: 1000},
+		{TimestampMs: 1500},
+		{TimestampMs: 2000},
+	}
+	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), want, 1)
+
+	var got []recorderdef.LogData
+	count, err := streamOrderedLogs(dir, FormatV1, func(entry recorderdef.LogData) error {
+		got = append(got, entry)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, len(want), count)
+	require.Equal(t, want, got)
 }
 
 func TestStreamOrderedMetricsV1MatchesBatchReader(t *testing.T) {
@@ -95,14 +115,34 @@ func TestStreamOrderedMetricsV1MatchesBatchReader(t *testing.T) {
 	require.Equal(t, batch, got)
 }
 
-func TestStreamOrderedMetricsV1RejectsDisorderAcrossFiles(t *testing.T) {
+func TestStreamOrderedMetricsV1ReordersBoundedDisorderAcrossFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), []recorderdef.MetricData{{Timestamp: 1001}}, 1)
-	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000001.parquet"), []recorderdef.MetricData{{Timestamp: 1000}}, 1)
+	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000001.parquet"), []recorderdef.MetricData{
+		{Timestamp: 1000},
+		{Timestamp: 1007},
+	}, 1)
+
+	var got []int64
+	count, err := streamOrderedMetrics(dir, FormatV1, func(metric recorderdef.MetricData) error {
+		got = append(got, metric.Timestamp)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+	require.Equal(t, []int64{1000, 1001, 1007}, got)
+}
+
+func TestStreamOrderedMetricsV1RejectsDisorderBeyondWindow(t *testing.T) {
+	dir := t.TempDir()
+	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), []recorderdef.MetricData{
+		{Timestamp: 1006},
+		{Timestamp: 1000},
+	}, 1)
 
 	count, err := streamOrderedMetrics(dir, FormatV1, func(recorderdef.MetricData) error { return nil })
-	require.Equal(t, 1, count)
-	require.ErrorContains(t, err, "observer-metrics-000001.parquet contains 1000 after 1001")
+	require.Zero(t, count)
+	require.ErrorContains(t, err, "metric timestamp disorder exceeds 5s")
 }
 
 func TestStreamOrderedObservationsMergesMetricsAndLogs(t *testing.T) {
