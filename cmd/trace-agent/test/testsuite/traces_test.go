@@ -338,32 +338,39 @@ func spansEqual(s1 *pb.Span, toStrings []string, s2 *idx.Span) bool {
 		s1.Type != idxStr(toStrings, s2.TypeRef) {
 		return false
 	}
-	for k := range s1.Meta {
+	for k, v := range s1.Meta {
 		// env/version/component are promoted out of the attribute map into
 		// dedicated span fields during conversion.
 		switch k {
 		case "env":
-			if idxStr(toStrings, s2.EnvRef) == "" {
+			if idxStr(toStrings, s2.EnvRef) != v {
 				return false
 			}
 			continue
 		case "version":
-			if idxStr(toStrings, s2.VersionRef) == "" {
+			if idxStr(toStrings, s2.VersionRef) != v {
 				return false
 			}
 			continue
 		case "component":
-			if idxStr(toStrings, s2.ComponentRef) == "" {
+			if idxStr(toStrings, s2.ComponentRef) != v {
+				return false
+			}
+			continue
+		case "credit_card_number":
+			// credit card obfuscation may rewrite this value; tests that care
+			// about the obfuscated value assert on it explicitly.
+			if !idxHasAttr(toStrings, s2.Attributes, k) {
 				return false
 			}
 			continue
 		}
-		if !idxHasAttr(toStrings, s2.Attributes, k) {
+		if got, ok := idxStrAttr(toStrings, s2.Attributes, k); !ok || got != v {
 			return false
 		}
 	}
-	for k := range s1.Metrics {
-		if !idxHasAttr(toStrings, s2.Attributes, k) {
+	for k, v := range s1.Metrics {
+		if got, ok := idxNumAttr(toStrings, s2.Attributes, k); !ok || got != v {
 			return false
 		}
 	}
