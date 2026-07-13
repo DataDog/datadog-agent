@@ -45,7 +45,7 @@ type catalog struct {
 }
 
 type packageStatus struct {
-	States       map[string]stableExperimentStatus `json:"states"`
+	States       map[string]stableExperimentStatus `json:"package_states"`
 	ConfigStates map[string]stableExperimentStatus `json:"config_states"`
 }
 
