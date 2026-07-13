@@ -31,6 +31,8 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -336,6 +338,42 @@ func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 
 type agentServiceDisabledProcessAgentSuite struct {
 	agentServiceDisabledSuite
+}
+
+// TestProcessAgentNotRunningUnderProcmgrWhenDisabled ensures dd-procmgr does not keep
+// process-agent.exe running when all process-agent config triggers are off. Legacy SCM
+// already stays stopped; this covers the procmgr supervision path.
+func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+
+	processBin := installPath + `\bin\agent\process-agent.exe`
+	procmgrCfg := installPath + `\processes.d\datadog-agent-process.yaml`
+	procmgrCLI := installPath + `\bin\agent\dd-procmgr.exe`
+
+	if _, err := host.Execute(psLiteralPathMustExist(processBin)); err != nil {
+		s.T().Skip("process-agent.exe not installed; skipping procmgr process-agent assertion")
+	}
+	if _, err := host.Execute(psLiteralPathMustExist(procmgrCfg)); err != nil {
+		s.T().Skip("process-agent processes.d config not installed; skipping procmgr process-agent assertion")
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		_, err := host.Execute(psWin32ProcessAbsent("process-agent.exe"))
+		assert.NoError(ct, err, "process-agent.exe should not be running under dd-procmgr when disabled in config")
+	}, (2*s.timeoutScale)*time.Minute, 3*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(fmt.Sprintf(`& "%s" describe datadog-agent-process`, procmgrCLI))
+		assert.NoError(ct, err)
+		state := procmgrDescribeField(out, "State")
+		assert.NotEmpty(ct, state)
+		assert.NotEqual(ct, "Running", state, "dd-procmgr should not supervise a running process-agent when disabled")
+	}, (2*s.timeoutScale)*time.Minute, 3*time.Second)
 }
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
@@ -971,6 +1009,31 @@ func (s *baseStartStopSuite) filterLegacySCMServices(services []string) []string
 	return slices.DeleteFunc(slices.Clone(services), func(svc string) bool {
 		return slices.Contains(s.legacySCMServices(), svc)
 	})
+}
+
+func escapePSSingleQuotedLiteral(s string) string {
+	return strings.ReplaceAll(s, `'`, `''`)
+}
+
+func psLiteralPathMustExist(path string) string {
+	return fmt.Sprintf(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, escapePSSingleQuotedLiteral(path))
+}
+
+func psWin32ProcessAbsent(processName string) string {
+	return fmt.Sprintf(
+		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 0 } else { exit 1 }`,
+		escapePSSingleQuotedLiteral(processName),
+	)
+}
+
+func procmgrDescribeField(output, label string) string {
+	prefix := label + ":"
+	for _, line := range strings.Split(output, "\n") {
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			return strings.TrimSpace(line[idx+len(prefix):])
+		}
+	}
+	return ""
 }
 
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
