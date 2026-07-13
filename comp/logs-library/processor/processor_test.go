@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 
@@ -626,5 +627,177 @@ func TestRemapSource_EscapedDotPath(t *testing.T) {
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.True(shouldProcess)
 		assert.Equal("fallback", msg.Origin.Source())
+	})
+}
+
+// VRL rule tests
+// --------------
+//
+// These tests build ProcessingRule values directly with hand-set
+// VRLFilter/VRLTransform closures rather than going through
+// config.CompileProcessingRules, since the real VRL compiler is only
+// available when the agent is built with the `vrl` build tag. This lets the
+// applyRedactingRules wiring (fail-open for filters, fail-closed for the
+// mask transform) be verified in every build, including the default stub.
+
+func newVRLFilterSource(ruleType string, filter func([]byte) (bool, error)) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:      ruleType,
+		Name:      ruleName,
+		Pattern:   "<test>",
+		VRLFilter: filter,
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+func newVRLMaskSource(transform func([]byte) ([]byte, error)) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:         config.MaskVRLTransform,
+		Name:         ruleName,
+		Pattern:      "<test>",
+		VRLTransform: transform,
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+var errVRLRuntime = errors.New("simulated VRL runtime error")
+
+func TestVRLExclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		filter        func([]byte) (bool, error)
+		shouldProcess bool
+	}{
+		{
+			name:          "drops matching content",
+			filter:        func([]byte) (bool, error) { return true, nil },
+			shouldProcess: false,
+		},
+		{
+			name:          "keeps non-matching content",
+			filter:        func([]byte) (bool, error) { return false, nil },
+			shouldProcess: true,
+		},
+		{
+			name:          "fails open on runtime error",
+			filter:        func([]byte) (bool, error) { return false, errVRLRuntime },
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newVRLFilterSource(config.ExcludeAtVRLMatch, tc.filter)
+			msg := newMessage([]byte("hello"), &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestVRLInclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		filter        func([]byte) (bool, error)
+		shouldProcess bool
+	}{
+		{
+			name:          "keeps matching content",
+			filter:        func([]byte) (bool, error) { return true, nil },
+			shouldProcess: true,
+		},
+		{
+			name:          "drops non-matching content",
+			filter:        func([]byte) (bool, error) { return false, nil },
+			shouldProcess: false,
+		},
+		{
+			name:          "fails open on runtime error",
+			filter:        func([]byte) (bool, error) { return false, errVRLRuntime },
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newVRLFilterSource(config.IncludeAtVRLMatch, tc.filter)
+			msg := newMessage([]byte("hello"), &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestVRLMask(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("redacts content and records the rule", func(t *testing.T) {
+		src := newVRLMaskSource(func([]byte) ([]byte, error) { return []byte("[REDACTED]"), nil })
+		msg := newMessage([]byte("secret value"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("[REDACTED]"), msg.GetContent())
+		assert.Equal(t, int64(1), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskVRLTransform+":"+ruleName))
+	})
+
+	t.Run("does not record the rule when content is unchanged", func(t *testing.T) {
+		src := newVRLMaskSource(func(input []byte) ([]byte, error) { return input, nil })
+		msg := newMessage([]byte("nothing to redact"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("nothing to redact"), msg.GetContent())
+		assert.Equal(t, int64(0), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskVRLTransform+":"+ruleName))
+	})
+
+	t.Run("fails closed and drops the message on a runtime error", func(t *testing.T) {
+		src := newVRLMaskSource(func([]byte) ([]byte, error) { return nil, errVRLRuntime })
+		msg := newMessage([]byte("secret value"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+	})
+}
+
+func TestVRLMaskAndExcludeOrdering(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("mask before exclude sees the masked content", func(t *testing.T) {
+		var seen []byte
+		maskRule := &config.ProcessingRule{
+			Type:         config.MaskVRLTransform,
+			Name:         ruleName,
+			VRLTransform: func([]byte) ([]byte, error) { return []byte("masked"), nil },
+		}
+		excludeRule := &config.ProcessingRule{
+			Type: config.ExcludeAtVRLMatch,
+			Name: ruleName,
+			VRLFilter: func(input []byte) (bool, error) {
+				seen = input
+				return false, nil
+			},
+		}
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{maskRule, excludeRule}})
+		msg := newMessage([]byte("original"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("masked"), seen)
+	})
+
+	t.Run("exclude before mask short-circuits the mask", func(t *testing.T) {
+		maskCalled := false
+		excludeRule := &config.ProcessingRule{
+			Type:      config.ExcludeAtVRLMatch,
+			Name:      ruleName,
+			VRLFilter: func([]byte) (bool, error) { return true, nil },
+		}
+		maskRule := &config.ProcessingRule{
+			Type: config.MaskVRLTransform,
+			Name: ruleName,
+			VRLTransform: func(input []byte) ([]byte, error) {
+				maskCalled = true
+				return input, nil
+			},
+		}
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{excludeRule, maskRule}})
+		msg := newMessage([]byte("original"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+		assert.False(t, maskCalled)
 	})
 }

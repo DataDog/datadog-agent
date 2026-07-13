@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "vrl",
+    srcs = [
+        "vrl.go",
+        "vrl_stub.go",
+    ],
+    cgo = True,
+    clinkopts = ["-Lpkg/logs/vrl/pkg/logs/vrl/rust -lvrl_filter -ldl -lpthread -lm"],
+    copts = ["-Ipkg/logs/vrl/pkg/logs/vrl/rust/include"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/vrl",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "vrl_test",
+    srcs = ["vrl_stub_test.go"],
+    embed = [":vrl"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

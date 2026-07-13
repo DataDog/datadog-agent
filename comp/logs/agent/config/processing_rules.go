@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/vrl"
 )
 
 // Processing rule types
@@ -19,6 +21,16 @@ const (
 	MultiLine        = "multi_line"
 	ExcludeTruncated = "exclude_truncated"
 	RemapSource      = "remap_source"
+	// ExcludeAtVRLMatch drops log lines for which the VRL expression evaluates to true.
+	// The pattern must be a valid VRL boolean expression (e.g. `.status == "debug"`).
+	ExcludeAtVRLMatch = "exclude_at_vrl_match"
+	// IncludeAtVRLMatch keeps only log lines for which the VRL expression evaluates to true.
+	IncludeAtVRLMatch = "include_at_vrl_match"
+	// MaskVRLTransform mutates the log line's content using a VRL transform
+	// (e.g. `.message = redact(.message, [...])`). Unlike MaskSequences, the
+	// replacement logic lives entirely in the VRL source, not in a separate
+	// placeholder field.
+	MaskVRLTransform = "mask_vrl"
 )
 
 // SourceMatchEntry defines a single attribute-value-to-source match
@@ -39,6 +51,14 @@ type ProcessingRule struct {
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
+	// VRLFilter is set for ExcludeAtVRLMatch and IncludeAtVRLMatch rules after compilation.
+	// It returns (true, nil) when the VRL expression matches the given input,
+	// (false, nil) when it doesn't, and (false, err) on a compile/runtime error.
+	VRLFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// VRLTransform is set for MaskVRLTransform rules after compilation.
+	// It returns the (possibly mutated) message content, or an error if the
+	// VRL program failed to run.
+	VRLTransform func(input []byte) ([]byte, error) `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -60,6 +80,13 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			_, err := regexp.Compile(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
+			}
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch, MaskVRLTransform:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			if _, err := vrl.Compile(rule.Pattern); err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
 		case ExcludeTruncated:
 			break
@@ -87,10 +114,25 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rule regular expressions.
+// CompileProcessingRules compiles all processing rule regular expressions and VRL programs.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
+		switch rule.Type {
+		case ExcludeTruncated, RemapSource:
+			continue
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch:
+			prog, err := vrl.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.VRLFilter = prog.Filter
+			continue
+		case MaskVRLTransform:
+			prog, err := vrl.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.VRLTransform = prog.Transform
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)

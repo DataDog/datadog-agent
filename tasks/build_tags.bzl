@@ -66,6 +66,7 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
+    "vrl",  # used by the logs agent to compile/evaluate VRL processing rules via a cgo bridge to a Rust static library
     "wmi",
     "zk",
     "zlib",
