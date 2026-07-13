@@ -20,6 +20,11 @@ cc_library(
 rust_shared_library(
     name = "datasecurity",
     srcs = glob(["src/**/*.rs"]),
+    # `shlib_core`/`dd_sds` match the Cargo `package =`/rename in Cargo.toml.
+    aliases = {
+        "//pkg/collector/sharedlibrary/rustchecks/core:core": "shlib_core",
+        "@rustchecks_crates//:dd-sensitive-data-scanner": "dd_sds",
+    },
     crate_features = [
         "engine-all",
         "engine-postgres",
@@ -30,11 +35,6 @@ rust_shared_library(
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
-    # `shlib_core`/`dd_sds` match the Cargo `package =`/rename in Cargo.toml.
-    aliases = {
-        "//pkg/collector/sharedlibrary/rustchecks/core:core": "shlib_core",
-        "@rustchecks_crates//:dd-sensitive-data-scanner": "dd_sds",
-    },
     deps = [
         "//pkg/collector/sharedlibrary/rustchecks/core",
         # Crate name exposed to Rust is `sds_proto` (the proto_library name).
