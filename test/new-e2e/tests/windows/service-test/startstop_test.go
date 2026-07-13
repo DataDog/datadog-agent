@@ -99,10 +99,12 @@ func (s *installerWithRemoteConfigSuite) SetupSuite() {
 
 	// With remote_configuration enabled, the installer should run even in FIPS mode
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		return s.filterLegacySCMServices(s.getInstalledUserServices())
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		user := s.filterLegacySCMServices(s.getInstalledUserServices())
+		kernel := s.getInstalledKernelServices()
+		return append(slices.Clone(user), kernel...)
 	}
 }
 
@@ -373,7 +375,7 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
-		for _, service := range s.getInstalledUserServices() {
+		for _, service := range s.filterLegacySCMServices(s.getInstalledUserServices()) {
 			if !slices.Contains(s.disabledServices, service) {
 				runningServices = append(runningServices, service)
 			}
@@ -381,13 +383,12 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 		return runningServices
 	}
 	s.runningServices = func() []string {
-		runningServices := []string{}
-		for _, service := range s.getInstalledServices() {
-			if !slices.Contains(s.disabledServices, service) {
-				runningServices = append(runningServices, service)
-			}
-		}
-		return runningServices
+		user := s.runningUserServices()
+		kernel := s.getInstalledKernelServices()
+		runningServices := append(slices.Clone(user), kernel...)
+		return slices.DeleteFunc(runningServices, func(service string) bool {
+			return slices.Contains(s.disabledServices, service)
+		})
 	}
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
