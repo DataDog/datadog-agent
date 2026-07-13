@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -366,8 +367,6 @@ func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerD
 	// pkglog.Debugf("ncm: store eviction config applied")
 }
 
-// NeedsEviction reports whether the store's current size exceeds the maxRawConfigStoreBytes
-// threshold set by UpdateStoreConfig.
 func (cs *configStore) NeedsEviction() (bool, error) {
 	size, err := cs.Size()
 	if err != nil {
@@ -386,6 +385,7 @@ func (cs *configStore) EvictConfigs() ([]string, error) {
 
 	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, cs.maxConfigsPerDevice)
 	for _, uuid := range candidates {
+		log.Debugf("NCM config store: evicting config %s (max_configs_per_device=%d exceeded)", uuid, cs.maxConfigsPerDevice)
 		if err := cs.DeleteConfig(uuid); err != nil {
 			return evicted, err
 		}
@@ -398,26 +398,34 @@ func (cs *configStore) EvictConfigs() ([]string, error) {
 		return evicted, err
 	}
 
+	sizeEvicted := 0
 	for size > cs.maxRawConfigStoreBytes {
 		candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, cs.minConfigsPerDevice)
 		if candidate == "" {
 			break
 		}
+		log.Debugf("NCM config store: evicting config %s (size=%d exceeds limit=%d)", candidate, size, cs.maxRawConfigStoreBytes)
 		if err := cs.DeleteConfig(candidate); err != nil {
 			return evicted, err
 		}
 		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
 		evicted = append(evicted, candidate)
+		sizeEvicted++
 
 		size, err = cs.Size()
 		if err != nil {
 			return evicted, err
 		}
 	}
+	if sizeEvicted > 0 {
+		log.Infof("NCM config store: evicted %d config(s) to bring store size to %d bytes (limit=%d)", sizeEvicted, size, cs.maxRawConfigStoreBytes)
+	}
 
 	if size > cs.maxRawConfigStoreBytes {
-		return evicted, errors.New("failed to evict configs: DB size still exceeds the limit")
+		err := errors.New("failed to evict configs: DB size still exceeds the limit")
+		return evicted, err
 	}
+
 	return evicted, nil
 }
 

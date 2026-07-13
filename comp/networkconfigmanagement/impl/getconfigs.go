@@ -11,6 +11,7 @@ import (
 
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -22,7 +23,7 @@ import (
 // local store was changed as a result of this (this will be false if the local
 // store is nil, or if the store detects that this config is identical to one
 // already present).
-func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, configStore ncmstore.ConfigStore, confType ncmtypes.ConfigType) (*ncmreport.NetworkDeviceConfig, bool, error) {
+func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, configStore ncmstore.ConfigStore, confType ncmtypes.ConfigType, ncmSender *ncmsender.NCMSender) (*ncmreport.NetworkDeviceConfig, bool, error) {
 	logger := LoggerFromContext(ctx)
 	getConfig := conn.RetrieveRunningConfig
 	mode := "running"
@@ -51,8 +52,12 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 			if needsEviction, err := configStore.NeedsEviction(); err != nil {
 				logger.Warnf("unable to check store size: %v", err)
 			} else if needsEviction {
-				if _, err := configStore.EvictConfigs(); err != nil {
+				evicted, err := configStore.EvictConfigs()
+				if err != nil {
 					logger.Warnf("unable to evict configs: %v", err)
+				}
+				if ncmSender != nil {
+					ncmSender.SendStoreEvictionMetrics(len(evicted), err)
 				}
 			}
 		}
@@ -67,9 +72,9 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 // of errors that happened during processing. Note that if either the startup or
 // the running config fails, the other will still be attempted; thus, configs
 // may be nonempty and storeChanged may be true even if errors is also nonempty.
-func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, store ncmstore.ConfigStore) (configs []ncmreport.NetworkDeviceConfig, storeChanged bool, errors []error) {
+func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, store ncmstore.ConfigStore, ncmSender *ncmsender.NCMSender) (configs []ncmreport.NetworkDeviceConfig, storeChanged bool, errors []error) {
 	logger := LoggerFromContext(ctx)
-	if runningConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.RUNNING); err != nil {
+	if runningConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.RUNNING, ncmSender); err != nil {
 		logger.Warnf("unable to retrieve running config, will not send: %v", err)
 		errors = append(errors, fmt.Errorf("failed to retrieve running config: %w", err))
 	} else {
@@ -77,7 +82,7 @@ func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn nc
 		configs = append(configs, *runningConfig)
 	}
 
-	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP); err != nil {
+	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP, ncmSender); err != nil {
 		logger.Warnf("unable to retrieve startup config, will not send: %v", err)
 		errors = append(errors, fmt.Errorf("failed to retrieve startup config: %w", err))
 	} else {
