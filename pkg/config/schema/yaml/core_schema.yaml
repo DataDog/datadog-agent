@@ -490,7 +490,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'true'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the non-distribution metrics intake version. Accepted values:
