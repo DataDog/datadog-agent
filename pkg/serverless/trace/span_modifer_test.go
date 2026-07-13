@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
@@ -35,6 +36,36 @@ var (
 	_ agent.SpanModifier   = (*spanModifier)(nil)
 	_ agent.SpanModifierV1 = (*spanModifier)(nil)
 )
+
+func TestSpanModifierSetsOrigin(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "cloudrun"}
+
+	t.Run("sets span tag and chunk origin when empty", func(t *testing.T) {
+		span := &pb.Span{}
+		chunk := &pb.TraceChunk{Spans: []*pb.Span{span}}
+
+		sm.ModifySpan(chunk, span)
+
+		assert.Equal(t, "cloudrun", span.Meta[ddOriginTagName])
+		assert.Equal(t, "cloudrun", chunk.Origin, "chunk origin should be populated when empty")
+	})
+
+	t.Run("does not overwrite an existing span tag or chunk origin", func(t *testing.T) {
+		span := &pb.Span{Meta: map[string]string{ddOriginTagName: "existing-span"}}
+		chunk := &pb.TraceChunk{Origin: "existing-chunk", Spans: []*pb.Span{span}}
+
+		sm.ModifySpan(chunk, span)
+
+		assert.Equal(t, "existing-span", span.Meta[ddOriginTagName])
+		assert.Equal(t, "existing-chunk", chunk.Origin, "chunk origin should not be overwritten")
+	})
+
+	t.Run("tolerates a nil chunk", func(t *testing.T) {
+		span := &pb.Span{}
+		assert.NotPanics(t, func() { sm.ModifySpan(nil, span) })
+		assert.Equal(t, "cloudrun", span.Meta[ddOriginTagName])
+	})
+}
 
 func TestSpanModifierV1SetsOrigin(t *testing.T) {
 	sm := &spanModifier{ddOrigin: "cloudrun"}

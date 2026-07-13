@@ -509,6 +509,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
+	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
@@ -692,6 +693,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
+	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpansV1(p)
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
