@@ -203,9 +203,7 @@ impl ManagedProcess {
                 return false;
             }
         }
-        if !self.config.condition_config_any.is_empty()
-            && !crate::config_gate::condition_config_any_met(&self.config.condition_config_any)
-        {
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
             info!(
                 "[{}] condition_config_any not met: {}",
                 self.name,
