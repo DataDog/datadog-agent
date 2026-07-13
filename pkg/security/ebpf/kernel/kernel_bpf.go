@@ -14,10 +14,11 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
+
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 )
 
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
@@ -201,7 +202,7 @@ func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
 
 // SupportCORE returns is CORE is supported
 func (k *Version) SupportCORE() bool {
-	_, err := btf.LoadKernelSpec()
+	_, err := ddbtf.GetKernelSpec()
 	return err == nil
 }
 

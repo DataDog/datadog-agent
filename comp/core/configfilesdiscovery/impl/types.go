@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -32,9 +33,16 @@ type target struct {
 
 // ConfigFile is the content read from a runtime-specific config file path.
 type ConfigFile struct {
-	Path      string
-	Content   []byte
-	Truncated bool
+	Path          string
+	Content       []byte
+	Truncated     bool
+	PayloadFormat agentdiscovery.AgentDiscoveryConfigFilePayloadFormat
+}
+
+// ConfigEnvVar is an environment variable relevant to a collected integration.
+type ConfigEnvVar struct {
+	Name  string
+	Value string
 }
 
 // TargetCommandline is the command line used to start the target service.

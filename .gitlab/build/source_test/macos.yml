@@ -9,7 +9,7 @@ include:
     - .macos_gitlab
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
+    - !reference [.fast_tests_mergequeue_mandatory_manual_on_dev_branch]
   variables:
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     TEST_OUTPUT_FILE: test_output
