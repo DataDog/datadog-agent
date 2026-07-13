@@ -1,5 +1,6 @@
 """Tests for dd_collect_dependencies and dd_cc_packaged."""
 
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -62,15 +63,20 @@ _duplicate_destinations = rule(
 
 def _tree_artifact_impl(ctx):
     tree = ctx.actions.declare_directory("tree_dir")
-    ctx.actions.run_shell(
-        outputs = [tree],
-        command = "mkdir -p $1 && touch $1/file",
-        arguments = [tree.path],
+    placeholder = ctx.actions.declare_file("tree_artifact_placeholder/file")
+    ctx.actions.write(placeholder, "")
+    copy_to_directory_bin_action(
+        ctx,
+        name = ctx.label.name,
+        dst = tree,
+        copy_to_directory_bin = ctx.toolchains["@bazel_lib//lib:copy_to_directory_toolchain_type"].copy_to_directory_info.bin,
+        files = [placeholder],
     )
     return DefaultInfo(files = depset([tree]))
 
 _tree_artifact = rule(
     implementation = _tree_artifact_impl,
+    toolchains = ["@bazel_lib//lib:copy_to_directory_toolchain_type"],
 )
 
 # ── Test cases ───────────────────────────────────────────────────────────────
