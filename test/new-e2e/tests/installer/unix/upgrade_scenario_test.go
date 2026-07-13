@@ -45,13 +45,23 @@ type catalog struct {
 }
 
 type packageStatus struct {
-	States       map[string]stableExperimentStatus `json:"package_states"`
+	States       map[string]packageVersionStatus   `json:"package_states"`
 	ConfigStates map[string]stableExperimentStatus `json:"config_states"`
 }
 
 type stableExperimentStatus struct {
 	Stable     string `json:"Stable"`
 	Experiment string `json:"Experiment"`
+}
+
+type packageVersionStatus struct {
+	Stable     versionState `json:"stable"`
+	Experiment versionState `json:"experiment"`
+}
+
+type versionState struct {
+	Version    string   `json:"version"`
+	Extensions []string `json:"extensions,omitempty"`
 }
 
 type installerStatus struct {
@@ -120,7 +130,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable
+	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable.Version
 	// Assert stable symlink exists properly
 	state := s.host.State()
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/run/datadog-agent/"+currentVersion, "root", "root")
@@ -217,7 +227,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	// Temporary catalog to wait for the installer to be ready
 	s.setCatalog(s.testCatalog())
 
-	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable
+	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable.Version
 	newCatalog := catalog{
 		Packages: []packageEntry{
 			{
@@ -477,7 +487,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp ho
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages.States["datadog-agent"].Experiment)
+	require.Equal(s.T(), version, installerStatus.Packages.States["datadog-agent"].Experiment.Version)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -496,8 +506,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp 
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages.States["datadog-agent"].Stable)
-	require.Equal(s.T(), "", installerStatus.Packages.States["datadog-agent"].Experiment)
+	require.Equal(s.T(), version, installerStatus.Packages.States["datadog-agent"].Stable.Version)
+	require.Equal(s.T(), "", installerStatus.Packages.States["datadog-agent"].Experiment.Version)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp host.JournaldTimestamp) {
@@ -514,7 +524,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), "", installerStatus.Packages.States["datadog-agent"].Experiment)
+	require.Equal(s.T(), "", installerStatus.Packages.States["datadog-agent"].Experiment.Version)
 }
 
 // getInstallerStatusLegacy retrieves the status of older installers
@@ -554,14 +564,14 @@ func (s *upgradeScenarioSuite) getInstallerStatusLegacy() installerStatus {
 	status := installerStatus{
 		Version: statusLegacy.Version,
 		Packages: packageStatus{
-			States: make(map[string]stableExperimentStatus),
+			States: make(map[string]packageVersionStatus),
 		},
 	}
 
 	for k, pkg := range statusLegacy.Packages {
-		status.Packages.States[k] = stableExperimentStatus{
-			Stable:     pkg.Version.Stable,
-			Experiment: pkg.Version.Experiment,
+		status.Packages.States[k] = packageVersionStatus{
+			Stable:     versionState{Version: pkg.Version.Stable},
+			Experiment: versionState{Version: pkg.Version.Experiment},
 		}
 	}
 

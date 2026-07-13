@@ -66,28 +66,28 @@ type RemoteWindowsInstallerPackageAssertions struct {
 // WithStableVersionEqual verifies the stable version of a package matches what's expected.
 func (d *RemoteWindowsInstallerPackageAssertions) WithStableVersionEqual(version string) *RemoteWindowsInstallerPackageAssertions {
 	d.context.T().Helper()
-	d.require.Equal(version, d.status.Packages.States[d.name].Stable, "expected matching stable version for package %s", d.name)
+	d.require.Equal(version, d.status.Packages.States[d.name].Stable.Version, "expected matching stable version for package %s", d.name)
 	return d
 }
 
 // WithExperimentVersionEqual verifies the experiment version of a package matches what's expected.
 func (d *RemoteWindowsInstallerPackageAssertions) WithExperimentVersionEqual(version string) *RemoteWindowsInstallerPackageAssertions {
 	d.context.T().Helper()
-	d.require.Equal(version, d.status.Packages.States[d.name].Experiment, "expected matching experiment version for package %s", d.name)
+	d.require.Equal(version, d.status.Packages.States[d.name].Experiment.Version, "expected matching experiment version for package %s", d.name)
 	return d
 }
 
 // WithStableVersionMatchPredicate verifies the stable version of a package by using a predicate function.
 func (d *RemoteWindowsInstallerPackageAssertions) WithStableVersionMatchPredicate(predicate func(version string)) *RemoteWindowsInstallerPackageAssertions {
 	d.context.T().Helper()
-	predicate(d.status.Packages.States[d.name].Stable)
+	predicate(d.status.Packages.States[d.name].Stable.Version)
 	return d
 }
 
 // WithExperimentVersionMatchPredicate verifies the experiment version of a package by using a predicate function.
 func (d *RemoteWindowsInstallerPackageAssertions) WithExperimentVersionMatchPredicate(predicate func(version string)) *RemoteWindowsInstallerPackageAssertions {
 	d.context.T().Helper()
-	predicate(d.status.Packages.States[d.name].Experiment)
+	predicate(d.status.Packages.States[d.name].Experiment.Version)
 	return d
 }
 
@@ -122,13 +122,23 @@ func (d *RemoteWindowsInstallerConfigStateAssertions) WithExperimentConfigEqual(
 }
 
 type packageStatus struct {
-	States       map[string]stableExperimentStatus `json:"package_states"`
+	States       map[string]packageVersionStatus   `json:"package_states"`
 	ConfigStates map[string]stableExperimentStatus `json:"config_states"`
 }
 
 type stableExperimentStatus struct {
 	Stable     string `json:"Stable"`
 	Experiment string `json:"Experiment"`
+}
+
+type packageVersionStatus struct {
+	Stable     versionState `json:"stable"`
+	Experiment versionState `json:"experiment"`
+}
+
+type versionState struct {
+	Version    string   `json:"version"`
+	Extensions []string `json:"extensions,omitempty"`
 }
 
 type installerStatus struct {
