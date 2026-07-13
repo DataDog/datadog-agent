@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -45,7 +45,7 @@ func (ioa InsertOneAction) Run(ctx context.Context, task *types.Task, credential
 		return nil, err
 	}
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to MongoDB: %w", err)
 	}
@@ -63,9 +63,9 @@ func (ioa InsertOneAction) Run(ctx context.Context, task *types.Task, credential
 		return nil, fmt.Errorf("failed to insert document: %w", err)
 	}
 
-	objectID, ok := result.InsertedID.(primitive.ObjectID)
+	objectID, ok := result.InsertedID.(bson.ObjectID)
 	if !ok {
-		return nil, errors.New("inserted ID is not a primitive.ObjectID")
+		return nil, errors.New("inserted ID is not a bson.ObjectID")
 	}
 	insertedID := objectID.Hex()
 

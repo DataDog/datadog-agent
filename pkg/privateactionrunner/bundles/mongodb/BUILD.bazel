@@ -23,9 +23,9 @@ go_library(
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/util/hostport",
-        "@org_mongodb_go_mongo_driver//bson/primitive",
-        "@org_mongodb_go_mongo_driver//mongo",
-        "@org_mongodb_go_mongo_driver//mongo/options",
-        "@org_mongodb_go_mongo_driver//x/mongo/driver/connstring",
+        "@org_mongodb_go_mongo_driver_v2//bson",
+        "@org_mongodb_go_mongo_driver_v2//mongo",
+        "@org_mongodb_go_mongo_driver_v2//mongo/options",
+        "@org_mongodb_go_mongo_driver_v2//x/mongo/driver/connstring",
     ],
 )
