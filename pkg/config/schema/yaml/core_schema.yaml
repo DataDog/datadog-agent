@@ -7019,8 +7019,10 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
-        comment: Data Plane
+        default: true
+        comment: "Data Plane\nNOTE: default temporarily flipped to true to run the\
+          \ full e2e suite with\nADP enabled (DADP-72). Do NOT merge \u2014 throwaway\
+          \ CI exploration only."
       log_file:
         node_type: setting
         type: string

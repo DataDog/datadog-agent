@@ -41,7 +41,8 @@ new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64:
     - .new-e2e_install_script
     - .new-e2e_centos_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_install_script_tests]
+  rules:
+    - when: never  # DADP-72: iot/heroku don't bundle ADP; excluded from ADP sweep
   variables:
     FLAVOR: datadog-iot-agent
 
@@ -79,7 +80,8 @@ new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
     - .new-e2e_install_script
     - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_install_script_tests]
+  rules:
+    - when: never  # DADP-72: iot/heroku don't bundle ADP; excluded from ADP sweep
   variables:
     FLAVOR: datadog-iot-agent
 
@@ -135,6 +137,8 @@ new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
     - .new-e2e_script_upgrade7
     - .new-e2e_centos_a7_x86_64
     - .new-e2e_agent_a7
+  rules:
+    - when: never  # DADP-72: iot/heroku don't bundle ADP; excluded from ADP sweep
   variables:
     FLAVOR: datadog-iot-agent
   parallel:
@@ -148,6 +152,8 @@ new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64:
     - .new-e2e_script_upgrade7
     - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
+  rules:
+    - when: never  # DADP-72: iot/heroku don't bundle ADP; excluded from ADP sweep
   variables:
     FLAVOR: datadog-iot-agent
   parallel:
