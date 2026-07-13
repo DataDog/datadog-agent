@@ -4,6 +4,7 @@ members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
+    "pkg/privateactionrunner/rust",
     "pkg/procmgr/rust",
 ]
 
@@ -14,6 +15,7 @@ rust-version = "1.91"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
+base64 = "0.22"
 cap-std = "4.0"
 caps = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
@@ -32,8 +34,10 @@ protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
 lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
+native-tls = "0.2"
 nom = "8.0"
 normalize-path = "0.2"
+p256 = { version = "0.13", default-features = false }
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
 xml-rs = "1.0"
@@ -46,6 +50,7 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 thiserror = "2.0.12"
 tokio = "1"
 tokio-stream = "0.1"
+tokio-native-tls = "0.3"
 tonic = "0.14"
 tonic-build = "0.14"
 tonic-prost = "0.14"
