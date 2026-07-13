@@ -240,6 +240,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 		return &workloadmeta.KubernetesKueueResourceFlavor{
 			EntityID: entityID,
 		}, nil
+
+	case workloadmeta.KindKubernetesKueueWorkload:
+		return &workloadmeta.KubernetesKueueWorkload{
+			EntityID: entityID,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("unsupported entity kind: %s", entityID.Kind)

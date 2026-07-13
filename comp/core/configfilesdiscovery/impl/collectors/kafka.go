@@ -10,11 +10,15 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const KafkaIntegrationName = "kafka"
+const (
+	KafkaIntegrationName     = "kafka"
+	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
+)
 
 type kafkaConfigCollector struct{}
 
@@ -38,6 +42,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 	if err != nil {
 		return nil, fmt.Errorf("read kafka config file %q: %w", configPath, err)
 	}
+	file.PayloadFormat = kafkaConfigPayloadFormat
 
 	return []configfilesdiscoveryimpl.ConfigFile{file}, nil
 }

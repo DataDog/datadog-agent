@@ -206,15 +206,17 @@ func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
 		envVars := pulumi.Map{
-			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
-			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
-			"DD_APM_DD_URL":                              pulumi.Sprintf("%s", url),
-			"DD_SKIP_SSL_VALIDATION":                     shouldSkipSSLValidation,
-			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":  shouldSkipSSLValidation,
-			"DD_LOGS_CONFIG_FORCE_USE_HTTP":              pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
-			"DD_LOGS_CONFIG_LOGS_DD_URL":                 pulumi.Sprintf("%s", url),
-			"DD_LOGS_CONFIG_LOGS_NO_SSL":                 shouldSkipSSLValidation,
-			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_DD_URL":                                       pulumi.Sprintf("%s", url),
+			"DD_PROCESS_CONFIG_PROCESS_DD_URL":                pulumi.Sprintf("%s", url),
+			"DD_APM_DD_URL":                                   pulumi.Sprintf("%s", url),
+			"DD_SKIP_SSL_VALIDATION":                          shouldSkipSSLValidation,
+			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":       shouldSkipSSLValidation,
+			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
+			"DD_LOGS_CONFIG_LOGS_DD_URL":                      pulumi.Sprintf("%s", url),
+			"DD_LOGS_CONFIG_LOGS_NO_SSL":                      shouldSkipSSLValidation,
+			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL":      pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_NO_SSL": shouldSkipSSLValidation,
 			// Host and container image SBOMs ship through the event platform
 			// forwarder; redirect those endpoints to the fakeintake as well.
 			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),
@@ -236,8 +238,7 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 }
 
 // WithV3MetricsDisabled forces the Agent onto the V2 series intake API by setting
-// DD_USE_V3_API_SERIES_ENABLED=false. V3 is the default, so this opts back out in order to
-// exercise the V2 wire format and /api/v2/series routing.
+// DD_USE_V3_API_SERIES_ENABLED=false.
 func WithV3MetricsDisabled() func(*Params) error {
 	return func(p *Params) error {
 		return WithAgentServiceEnvVariable(
