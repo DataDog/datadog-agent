@@ -182,6 +182,15 @@ chown -vR "$DDAGENT_USER:admin" $CONF_DIR
 chmod -v 770 $CONF_DIR
 find $CONF_DIR -type f -exec chmod 660 {} \;
 
+# Shared-library checks rely on strict loader permissions:
+# - owner must be trusted (handled by chown above)
+# - group/others must have no access (mode bits)
+if [ -d "$CONF_DIR/checks.d" ]; then
+  find "$CONF_DIR/checks.d" -maxdepth 1 -type f \
+    \( -name 'libdatadog-agent-*.dylib' -o -name 'libdatadog-agent-*.so' \) \
+    -exec chmod 0500 {} \; 2>/dev/null || true
+fi
+
 # Ensure _dd-agent can read/write config even after a user edits a file with
 # an editor that replaces the file (TextEdit, VS Code, vim, etc.), changing
 # Unix ownership.  macOS editors use atomic save (write temp + rename), which

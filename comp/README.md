@@ -858,6 +858,12 @@ Package queryactions provides the Data Observability query actions component
 
 Package etw provides an ETW tracing interface
 
+### [comp/exampletaskmanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/exampletaskmanager)
+
+*Datadog Team*: sensitive-data-scanner
+
+Package exampletaskmanager provides a minimal RC-to-check task bridge.
+
 ### [comp/filterlist](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/filterlist)
 
 *Datadog Team*: agent-metric-pipelines

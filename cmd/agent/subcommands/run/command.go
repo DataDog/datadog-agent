@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
+	exampletaskmanagerfx "github.com/DataDog/datadog-agent/comp/exampletaskmanager/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
@@ -586,6 +587,7 @@ func getSharedFxOption() fx.Option {
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
 		doqueryactionsfx.Module(),
+		exampletaskmanagerfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),

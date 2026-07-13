@@ -91,7 +91,18 @@ build do
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
-            mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
+            staged_checks_d = "#{install_dir}/etc/datadog-agent/checks.d"
+            target_checks_d = "#{output_config_dir}/etc/datadog-agent/checks.d"
+
+            if Dir.exist?(staged_checks_d) && !Dir.children(staged_checks_d).empty?
+              move staged_checks_d, target_checks_d, :force => true
+            else
+              mkdir target_checks_d
+            end
+
+            # Rust shared-library checks must be owner-only (group/others no access)
+            # so the shared library loader permission checks pass.
+            command "chmod 0500 #{target_checks_d}/libdatadog-agent-*.so 2>/dev/null || true"
             mkdir "/var/log/datadog"
 
             # Process manager config directory (read-only, under install dir)
