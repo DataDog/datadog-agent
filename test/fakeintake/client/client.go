@@ -45,7 +45,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -131,6 +130,7 @@ type Client struct {
 	// Get retry parameters
 	getBackoffRetries uint
 	getBackoffDelay   time.Duration
+	getHTTPClient     *http.Client
 
 	metricAggregator               aggregator.MetricAggregator
 	metricAggregatorV3             aggregator.MetricAggregator
@@ -168,6 +168,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		fakeintakeIDMutex:              sync.RWMutex{},
 		getBackoffRetries:              4,
 		getBackoffDelay:                5 * time.Second,
+		getHTTPClient:                  http.DefaultClient,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		metricAggregatorV3:             aggregator.NewMetricAggregatorV3(),
@@ -1106,7 +1107,7 @@ func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestP
 
 func (c *Client) get(route string) ([]byte, error) {
 	body, err := backoff.Retry(context.Background(), func() ([]byte, error) {
-		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		tmpResp, err := c.getHTTPClient.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err != nil {
 			return nil, err
 		}
@@ -1140,9 +1141,6 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		return io.ReadAll(tmpResp.Body)
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(c.getBackoffDelay)), backoff.WithMaxTries(c.getBackoffRetries))
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
-	}
 	return body, err
 }
 

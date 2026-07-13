@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -79,6 +80,20 @@ func NewServer(handler http.Handler) *httptest.Server {
 
 	return httptest.NewServer(handlerWitHeader)
 }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+var _ net.Error = timeoutError{}
 
 func newAgentDiscoveryPayloadData(t *testing.T, payloads ...*agentdiscovery.AgentDiscoveryPayload) []byte {
 	t.Helper()
@@ -781,6 +796,19 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.get("fakeintake/health")
 		require.NoError(t, err)
+	})
+
+	t.Run("test get returns timeout errors", func(t *testing.T) {
+		client := NewClient("http://fakeintake", WithGetBackoffRetries(1), WithGetBackoffDelay(10*time.Millisecond))
+		client.getHTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, timeoutError{}
+		})}
+
+		_, err := client.get("fakeintake/toto")
+		require.Error(t, err)
+		var netErr net.Error
+		require.ErrorAs(t, err, &netErr)
+		require.True(t, netErr.Timeout())
 	})
 
 	t.Run("getAgentHealth", func(t *testing.T) {
