@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"slices"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -159,16 +158,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					dimKeys := make([]string, 0, len(src.Identifier.Dimensions))
-					for key := range src.Identifier.Dimensions {
-						dimKeys = append(dimKeys, key)
-					}
-					slices.Sort(dimKeys)
-					tags := make([]string, 0, len(dimKeys))
-					for _, key := range dimKeys {
-						tags = append(tags, key+":"+src.Identifier.Dimensions[key])
-					}
-					c.ConsumeTagSet("azurecontainerapps", tags)
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.Identifier.Dimensions))
 				}
 			}
 		}

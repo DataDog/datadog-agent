@@ -387,6 +387,20 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
+// tagsFromDimensions converts an Source.Identifier.Dimensions map into a sorted "key:value" tag slice
+func tagsFromDimensions(dims map[string]string) []string {
+	keys := make([]string, 0, len(dims))
+	for k := range dims {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	tags := make([]string, 0, len(keys))
+	for _, k := range keys {
+		tags = append(tags, k+":"+dims[k])
+	}
+	return tags
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
@@ -618,16 +632,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					dimKeys := make([]string, 0, len(src.Identifier.Dimensions))
-					for key := range src.Identifier.Dimensions {
-						dimKeys = append(dimKeys, key)
-					}
-					slices.Sort(dimKeys)
-					tags := make([]string, 0, len(dimKeys))
-					for _, key := range dimKeys {
-						tags = append(tags, key+":"+src.Identifier.Dimensions[key])
-					}
-					c.ConsumeTagSet("azurecontainerapps", tags)
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.Identifier.Dimensions))
 				}
 			}
 		}
