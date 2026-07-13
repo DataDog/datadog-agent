@@ -72,6 +72,46 @@ $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
 $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
 
+# EUDM: Trajectory cleanup. Per-user marker (~/.trajectory/.dd-agent-eudm.state)
+# records whether the Agent installed Trajectory (remove it, including per-client
+# instrumentation) or it pre-existed (leave it, remove only our config block).
+# The marker lives in the user's home, so it is independent of /opt/datadog-agent.
+printf "${BLUE}\n    - Removing Agent-managed Trajectory (EUDM)...\n${NC}"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    u=$(basename "$user_home")
+    [ "$u" = "Shared" ] && continue
+    id -u "$u" >/dev/null 2>&1 || continue
+
+    traj_home="$user_home/.trajectory"
+    marker="$traj_home/.dd-agent-eudm.state"
+    [ -f "$marker" ] || continue
+
+    traj_owner=$(grep '^trajectory=' "$marker" 2>/dev/null | cut -d= -f2- || true)
+    config_state=$(grep '^config=' "$marker" 2>/dev/null | cut -d= -f2- || true)
+
+    if [ "$traj_owner" = "agent" ]; then
+        # Agent installed Trajectory for this user: fully remove it. uninstall.sh
+        # deregisters the per-client hooks it added (running as the user).
+        if [ -f "$traj_home/uninstall.sh" ]; then
+            sudo -u "$u" -H /bin/bash "$traj_home/uninstall.sh" -y --remove-config --remove-data 2>/dev/null || true
+        fi
+        sudo -u "$u" rm -rf "$traj_home" 2>/dev/null || true
+    else
+        # Trajectory pre-existed: leave it installed; remove only what we added.
+        dest="$traj_home/config.defaults.yaml"
+        if [ "$config_state" = "created" ]; then
+            sudo -u "$u" rm -f "$dest" 2>/dev/null || true
+        elif [ -f "$dest" ]; then
+            cfg_tmp=$(mktemp /tmp/ddagent-traj-cfg.XXXXXX)
+            sed '/# --- BEGIN datadog-agent-eudm ---/,/# --- END datadog-agent-eudm ---/d' "$dest" > "$cfg_tmp" 2>/dev/null || true
+            sudo -u "$u" cp "$cfg_tmp" "$dest" 2>/dev/null || true
+            rm -f "$cfg_tmp"
+        fi
+        sudo -u "$u" rm -f "$marker" 2>/dev/null || true
+    fi
+done
+
 printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
 $sudo_cmd rm -rf "/Applications/Datadog Agent.app"
 $sudo_cmd rm -rf /opt/datadog-agent
