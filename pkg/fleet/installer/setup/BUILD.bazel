@@ -1,8 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "setup",
-    srcs = ["setup.go"],
+    srcs = [
+        "setup.go",
+        "setup_nonwindows.go",
+        "setup_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup",
     visibility = ["//visibility:public"],
     deps = [
@@ -12,5 +16,27 @@ go_library(
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/defaultscript",
         "//pkg/fleet/installer/setup/djm",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/bootstrap",
+            "//pkg/fleet/installer/oci",
+            "@com_github_google_go_containerregistry//pkg/v1/remote/transport",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "setup_test",
+    srcs = ["setup_windows_test.go"],
+    embed = [":setup"],
+    gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )

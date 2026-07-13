@@ -6,6 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "corechecks",
     srcs = [
+        "catalog_test_util.go",
         "checkbase.go",
         "loader.go",
         "longrunning.go",
@@ -28,6 +29,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/metrics/servicecheck",
+        "//pkg/util/infratags",
         "//pkg/util/log",
         "//pkg/util/option",
         "@in_yaml_go_yaml_v2//:yaml",

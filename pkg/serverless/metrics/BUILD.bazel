@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metrics",
+    srcs = ["metric.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/metrics",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "metrics_test",
+    srcs = [
+        "metric_add_test.go",
+        "metric_test.go",
+    ],
+    embed = [":metrics"],
+    gotags = ["test"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/aggregator/demultiplexer/impl",
+        "//comp/core",
+        "//comp/core/delegatedauth/mock",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/tagger/impl-noop",
+        "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/noop-impl",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/haagent/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/aggregator",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/metrics",
+        "//pkg/serverless/metrics/metricstest",
+        "//pkg/util/cache",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

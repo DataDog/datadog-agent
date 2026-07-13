@@ -86,13 +86,11 @@ Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go c
 
 - **`BindEnvAndSetDefault(key, default, envVars...)`** — Preferred. Registers key, sets default, binds `DD_*` env var.
 - **`SetDefault(key, value)`** — Default without env binding.
-- **`BindEnv(key, envVars...)`** — Env binding without default.
 
 `BindEnvAndSetDefault("my_feature.timeout", 30)` auto-creates `DD_MY_FEATURE_TIMEOUT`. Custom alias: `BindEnvAndSetDefault("my_feature.timeout", 30, "DD_MY_TIMEOUT")`.
 
 ## Important Notes
 
-- Do NOT use `SetKnown` for new fields — it's deprecated. Use `BindEnvAndSetDefault`.
 - Config priority: `default < file < env-var < fleet-policies < agent-runtime < remote-config < cli`.
 - Define exported string constants for keys when creating a dedicated setup file.
 

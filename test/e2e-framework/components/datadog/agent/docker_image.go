@@ -28,6 +28,18 @@ const (
 	linuxOnlySuffix                  = "-linux"
 )
 
+// DockerAgentFullImagePath resolves the node-agent image using the standard
+// environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerAgentFullImagePath(e config.Env) string {
+	return dockerAgentFullImagePath(e, "", "", false, false, false, false)
+}
+
+// DockerClusterAgentFullImagePath resolves the cluster-agent image using the
+// standard environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerClusterAgentFullImagePath(e config.Env) string {
+	return dockerClusterAgentFullImagePath(e, "", false)
+}
+
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
 	// return agent image path if defined
 	if e.AgentFullImagePath() != "" {

@@ -205,16 +205,16 @@ namespace WixSetup.Datadog_Agent
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
@@ -704,7 +704,8 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "LocalSystem");
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {
@@ -715,9 +716,11 @@ namespace WixSetup.Datadog_Agent
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
+
             // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
-            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_prompt_logger_native_host].
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiPromptLoggerNativeHostId, _agentBinaries.AiPromptLoggerNativeHost));
+            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_usage_agent_native_host].
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiUsageAgentNativeHostId, _agentBinaries.AiUsageAgentNativeHost));
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),

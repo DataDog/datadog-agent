@@ -158,16 +158,16 @@ func TestWorkerInit(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	senderManager := aggregator.NewNoOpSenderManager()
-	_, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, 2, nil, checksTracker, mockShouldAddStatsFunc, 0)
+	_, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, 2, nil, checksTracker, mockShouldAddStatsFunc, 0)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc, 0)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc, 0)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, 2, pendingChecksChan, checksTracker, nil, 0)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, 2, pendingChecksChan, checksTracker, nil, 0)
 	require.NotNil(t, err)
 
-	worker, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	assert.Nil(t, err)
 	assert.NotNil(t, worker)
 }
@@ -189,7 +189,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			assert.Nil(t, err)
 
 			worker.Run(context.Background())
@@ -211,7 +211,7 @@ func TestWorkerName(t *testing.T) {
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
-		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
@@ -264,7 +264,7 @@ func TestWorker(t *testing.T) {
 	pendingChecksChan <- testCheck1
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	wg.Add(1)
@@ -326,9 +326,10 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
 		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
+		healthplatformmock.New(t),
 		100*time.Millisecond,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -402,7 +403,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	}
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -449,7 +450,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	pendingChecksChan <- testCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	worker.Run(context.Background())
@@ -505,7 +506,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan <- squelchedStatsCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.New(t), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	worker.Run(context.Background())
@@ -547,7 +548,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	pendingChecksChan <- checkWithError
 	close(pendingChecksChan)
 
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	worker, err := newWorkerWithOptions(
 		100,
@@ -559,9 +560,10 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 			return mockSender, nil
 		},
 		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
+		healthplatformmock.New(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -611,6 +613,45 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 3)
 }
 
+func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
+	expvars.Reset()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("hostname", "myhost")
+	mockConfig.SetInTest("integration_check_status_enabled", "true")
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 1)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	pendingChecksChan <- newCheck(t, "shadowcheck:123:shadow", false, nil)
+	close(pendingChecksChan)
+
+	mockSender := mocksender.NewMockSender(t, "")
+
+	worker, err := newWorkerWithOptions(
+		100,
+		200,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		func() (sender.Sender, error) {
+			return mockSender, nil
+		},
+		haagentmock.NewMockHaAgent(),
+		healthplatformmock.New(t),
+		pollingInterval,
+		10*time.Second,
+		true,
+	)
+	require.NoError(t, err)
+
+	worker.Run(context.Background())
+
+	assert.Equal(t, 1, int(expvars.GetRunsCount()))
+	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
 func TestWorkerSenderNil(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
@@ -633,9 +674,10 @@ func TestWorkerSenderNil(t *testing.T) {
 			return nil, errors.New("testerr")
 		},
 		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
+		healthplatformmock.New(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -665,7 +707,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	pendingChecksChan <- longRunningCheck
 	close(pendingChecksChan)
 
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	worker, err := newWorkerWithOptions(
 		100,
@@ -677,9 +719,10 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 			return mockSender, nil
 		},
 		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
+		healthplatformmock.New(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -762,7 +805,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, healthplatformmock.New(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			require.Nil(t, err)
 
 			wg.Add(1)
@@ -856,9 +899,10 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 				func(checkid.ID) bool { return true },
 				func() (sender.Sender, error) { return nil, nil },
 				haagentmock.NewMockHaAgent(),
-				healthplatformmock.Mock(t),
+				healthplatformmock.New(t),
 				100*time.Millisecond,
 				tt.watchdogTimeout,
+				false,
 			)
 			require.NoError(t, err)
 
@@ -919,7 +963,7 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 	worker, err := NewWorker(
 		aggregator.NewNoOpSenderManager(),
 		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
+		healthplatformmock.New(t),
 		100, 200,
 		pendingChecksChan,
 		checksTracker,

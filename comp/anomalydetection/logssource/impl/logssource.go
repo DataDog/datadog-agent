@@ -10,6 +10,8 @@ import (
 	"context"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -78,7 +80,7 @@ type logssourceComponent struct{}
 //
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
-//   - anomaly_detection.enabled is false and anomaly_detection.recording.enabled is false
+//   - no observer-requiring gate is enabled and anomaly_detection.recording.enabled is false
 //   - anomaly_detection.logs.enabled is false and anomaly_detection.recording.enabled is false
 //   - only container sources are enabled and workloadmeta is unavailable
 //   - all source-specific gates are disabled
@@ -93,18 +95,25 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
-	analysisEnabled := deps.Config.GetBool("anomaly_detection.enabled")
+	observerRequired := anomalydetectionconfig.ObserverRequired(deps.Config)
 	logSourceSettings := newLogSourceSettings(deps.Config)
-	recordingEnabled := deps.Config.GetBool("anomaly_detection.recording.enabled")
+	recordingEnabled := anomalydetectionconfig.RecordingEnabled(deps.Config)
 
 	// Skip when the observer is absent, neither logs ingestion nor recording is
 	// requested, or no enabled source can start.
-	if !logSourceSettings.shouldStart(obsOk, wmetaOk, analysisEnabled, recordingEnabled) {
+	if !logSourceSettings.shouldStart(obsOk, wmetaOk, observerRequired, recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk
 
 	observerHandle := obs.GetHandle("logs")
+
+	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
+	logsRules, err := logsfilter.LoadRules(deps.Config, logsProcessingRulesKey)
+	if err != nil {
+		deps.Log.Warnf("[observer/logssource] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logsRules = &logsfilter.Rules{}
+	}
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
@@ -122,7 +131,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		samplerOnDropped = obs.RecordSamplerDropped
 	}
 	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
-	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler)
+	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler, logsRules)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)

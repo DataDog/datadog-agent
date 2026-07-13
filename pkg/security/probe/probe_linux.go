@@ -88,10 +88,8 @@ func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 }
 
 // IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
-// override_creds/restore_creds kernel functions must not be inlined
-// https://github.com/torvalds/linux/commit/6771e004b40962402d0e973fc7d2e0e61364fdfb
 func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
-	return kv.HasBPFForEachMapElemHelper() && kv.Code != 0 && kv.Code < kernel.Kernel6_14
+	return kv.HasBPFForEachMapElemHelper() && kv.Code != 0
 }
 
 // NewAgentContainerContext returns the agent container context

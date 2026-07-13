@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -78,7 +79,7 @@ func getTelemetryData() (string, error) {
 }
 
 func TestNewStats(t *testing.T) {
-	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	stats := NewStats(newMockCheck(), healthplatformmock.New(t))
 
 	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
@@ -94,7 +95,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
-	NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	NewStats(newMockCheck(), healthplatformmock.New(t))
 
 	tlmData, err := getTelemetryData()
 	require.NoError(t, err)
@@ -108,6 +109,36 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 		t,
 		tlmData,
 		"checks__runs{check_name=\"checkString\",state=\"ok\"} 0",
+	)
+}
+
+func TestFirstExecutionTimeMetric(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("telemetry.checks", "*")
+
+	stats := NewStats(newMockCheck(), healthplatformmock.New(t))
+	haagent := haagentmock.NewMockHaAgent()
+
+	stats.Add(100*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+
+	tlmData, err := getTelemetryData()
+	require.NoError(t, err)
+	// first run goes only to checks.first_execution_time
+	assert.Contains(t, tlmData,
+		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
+	)
+	assert.NotContains(t, tlmData, `checks__execution_time{check_loader="mockLoader",check_name="checkString"}`)
+
+	stats.Add(50*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+
+	tlmData, err = getTelemetryData()
+	require.NoError(t, err)
+	// subsequent runs go only to checks.execution_time, first_execution_time stays frozen
+	assert.Contains(t, tlmData,
+		`checks__execution_time{check_loader="mockLoader",check_name="checkString"} 50`,
+	)
+	assert.Contains(t, tlmData,
+		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
 	)
 }
 

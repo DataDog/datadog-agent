@@ -9,7 +9,7 @@
 // store, and returns the set of IssueIds that were reported.
 package runner
 
-// team: agent-health
+// team: agent-health fleet-remediation
 
 // IssueReport is the lightweight value that HealthCheckFunc implementations
 // return. The runner translates each IssueReport into a proto Issue using the
@@ -22,7 +22,7 @@ type IssueReport struct {
 	IssueID string
 
 	// IssueName is the issue name looked up in the issue registry.
-	// Examples: "check_execution_failure", "docker_file_tailing_disabled"
+	// Examples: "Check Execution Failure", "Docker File Tailing Disabled"
 	IssueName string
 
 	// Source is the reporting integration or component name.

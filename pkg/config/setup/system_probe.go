@@ -8,14 +8,10 @@ package setup
 import (
 	"os"
 	"path"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
@@ -33,7 +29,7 @@ const (
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
 	// info for Dynamic Instrumentation. This is the directory where the DWARF
 	// data from analyzed binaries is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	defaultDynamicInstrumentationDebugInfoDir = "${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
@@ -48,11 +44,6 @@ const (
 
 	// defaultEnvoyPath is the default path for envoy binary
 	defaultEnvoyPath = "/bin/envoy"
-)
-
-var (
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
@@ -73,7 +64,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// logging
 	cfg.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	cfg.BindEnvAndSetDefault("system_probe_config.log_level", "")
-	cfg.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultSystemProbeLogFile())
+	cfg.BindEnvAndSetDefault("log_file", "${log_path}/system-probe.log")
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)
@@ -98,7 +89,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetDefault("system_probe_config.adjusted", false)
 
-	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultpaths.GetDefaultSystemProbeAddress(), "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
+		"linux":   "${run_path}/sysprobe.sock",
+		"darwin":  "${run_path}/sysprobe.sock",
+		"windows": `\\.\pipe\dd_system_probe`,
+	}), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
@@ -130,7 +125,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault("system_probe_config.bpf_debug", false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
-	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
+	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", "${install_path}/embedded/share/system-probe/ebpf", "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.excluded_linux_versions", []string{})
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_tracepoints", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_co_re", true, "DD_ENABLE_CO_RE")
@@ -224,7 +219,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// authoritative source; deprecateBool only forwards this deprecated alias
 	// when it is explicitly configured.
 	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", runtime.GOOS == "windows")
+	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", GetPlatformDefault(map[string]interface{}{
+		"windows": true,
+		"other":   false,
+	}))
 
 	// For backward compatibility. Default is false because the canonical key
 	// (system_probe_config.process_service_inference.use_windows_service_name,
@@ -366,10 +364,20 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux" && !pkgconfigenv.IsECSFargate())
-	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
+		"fargate": false,
+		"linux":   true,
+		"other":   false,
+	}))
+	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
+		"linux": true,
+		"other": false,
+	}))
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
+	cfg.BindEnvAndSetDefault("discovery.service_collection_max_consecutive_timeouts", 5)
+	cfg.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
 	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
