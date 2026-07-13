@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = [
         "devicecontext.go",
+        "devicemap.go",
         "getconfigs.go",
         "logwrapper.go",
         "map.go",
@@ -41,7 +42,10 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["networkdeviceconfig_test.go"],
+    srcs = [
+        "devicemap_test.go",
+        "networkdeviceconfig_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [

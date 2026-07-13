@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "generator.go",
+        "parsers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/clusteragent/metricsstore",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/util/errors",
+    ],
+)
+
+dd_agent_go_test(
+    name = "metrics_test",
+    srcs = [
+        "generator_test.go",
+        "parsers_test.go",
+    ],
+    embed = [":metrics"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/clusteragent/metricsstore",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/pointer",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

@@ -111,6 +111,10 @@ const (
 	KueueClusterQueue = "kueue_cluster_queue"
 	// KueueResourceFlavor is the tag for the Kueue ResourceFlavor name
 	KueueResourceFlavor = "kueue_resource_flavor"
+	// KueueWorkload is the tag for the Kueue Workload name
+	KueueWorkload = "kueue_workload"
+	// KueueWorkloadUID is the tag for the Kueue Workload UID
+	KueueWorkloadUID = "kueue_workload_uid"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
 	// KubeStaticCPUsTag is the tag that describes a container's cpu management
@@ -149,6 +153,8 @@ const (
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUParentGPUUUID is the tag for the parent GPU UUID
 	GPUParentGPUUUID = "gpu_parent_uuid"
+	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
+	GPUPCIBusID = "gpu_pci_bus_id"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

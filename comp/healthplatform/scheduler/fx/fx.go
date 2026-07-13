@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the scheduler component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(checkrunnerimpl.New),
+		fxutil.ProvideComponentConstructor(checkrunnerimpl.NewComponent),
 	)
 }

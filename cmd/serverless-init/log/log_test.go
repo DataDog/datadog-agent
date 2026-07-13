@@ -13,15 +13,17 @@ import (
 )
 
 func TestCreateConfig(t *testing.T) {
-	config := CreateConfig("fake-logs-source")
-	assert.Equal(t, 5*time.Second, config.FlushTimeout)
+	const wantTimeout = 5 * time.Second
+	config := CreateConfig("fake-logs-source", wantTimeout)
+	assert.Equal(t, wantTimeout, config.FlushTimeout)
 	assert.Equal(t, "fake-logs-source", config.source)
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
 	t.Setenv("DD_SOURCE", "python")
-	config := CreateConfig("cloudrun")
-	assert.Equal(t, 5*time.Second, config.FlushTimeout)
+	const wantTimeout = 2 * time.Second
+	config := CreateConfig("cloudrun", wantTimeout)
+	assert.Equal(t, wantTimeout, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
 }
 
