@@ -530,7 +530,6 @@ use_repo(
     "org_golang_x_text",
     "org_golang_x_time",
     "org_golang_x_tools",
-    "org_mongodb_go_mongo_driver",
     "org_mongodb_go_mongo_driver_v2",
     "org_uber_go_atomic",
     "org_uber_go_automaxprocs",

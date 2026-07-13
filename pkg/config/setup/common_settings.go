@@ -7,11 +7,9 @@
 package setup
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -2016,7 +2014,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", "${log_path}/streamlogs_info/streamlogs.log")
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
-	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write",
+		GetPlatformDefault(map[string]interface{}{
+			"fargate": false,
+			"other":   true,
+		}),
+	)
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
@@ -2028,8 +2031,18 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 // vector integration
 func vector(config pkgconfigmodel.Setup) {
-	bindVectorOptions(config, Metrics)
-	bindVectorOptions(config, Logs)
+	// metrics options
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
+	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
+	config.BindEnvAndSetDefault("vector.metrics.url", "")
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.use_v3_api.series", false)
+	config.BindEnvAndSetDefault("vector.metrics.use_v3_api.series", false)
+	// logs options
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.url", "")
+	config.BindEnvAndSetDefault("vector.logs.enabled", false)
+	config.BindEnvAndSetDefault("vector.logs.url", "")
 
 	// dual_ship is logs-only: there is no equivalent dual-shipping code path for metrics, so
 	// these keys live outside bindVectorOptions to avoid registering an unused metrics variant.
@@ -2049,19 +2062,6 @@ func vector(config pkgconfigmodel.Setup) {
 	// dual_ship=true silently dropped when the fallback in obsPipelineWorkerDualShip reads these keys.
 	config.BindEnvAndSetDefault("vector.logs.dual_ship", false)
 	config.BindEnvAndSetDefault("vector.logs.dual_ship_reliable", false)
-}
-
-func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
-
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
-
-	if datatype == Metrics {
-		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.use_v3_api.series", datatype), false)
-		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.use_v3_api.series", datatype), false)
-	}
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

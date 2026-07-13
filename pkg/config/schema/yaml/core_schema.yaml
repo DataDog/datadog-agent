@@ -1115,6 +1115,7 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
+            comment: metrics options
           url:
             node_type: setting
             type: string
@@ -1146,6 +1147,7 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
+            comment: logs options
           url:
             node_type: setting
             type: string
@@ -1540,6 +1542,7 @@ properties:
     example: <COMMAND_PATH>
     tags:
     - template_section:Agent
+    comment: secrets backend
   secret_backend_arguments:
     node_type: setting
     type: array
@@ -2203,6 +2206,7 @@ properties:
     example: localhost
     tags:
     - template_section:Dogstatsd
+    comment: statsd
   dogstatsd_socket:
     node_type: setting
     type: string
@@ -8244,7 +8248,7 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Directory to store fleet policies
+    comment: Fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: integer
@@ -9217,7 +9221,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration (EUDM)
+        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
