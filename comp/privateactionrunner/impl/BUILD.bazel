@@ -37,6 +37,8 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/util/http",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
     ],
 )
 

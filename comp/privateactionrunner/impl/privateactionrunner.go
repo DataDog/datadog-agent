@@ -8,11 +8,15 @@ package privateactionrunnerimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -310,9 +314,17 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		// which is the normal termination path.
 		OrphanIdleTimeout: 5 * time.Minute,
 	}
+	// Secure the control<->executor channel with mTLS, reusing the agent IPC
+	// certificate infrastructure: the server presents the IPC cert and requires a
+	// client cert signed by the same authority, so only the legitimate control
+	// plane can dispatch actions to the (possibly privileged) executor.
+	tlsConfig := p.ipc.GetTLSServerConfig()
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
+
 	go func() {
 		defer close(p.executorDone)
-		if serveErr := executor.Serve(ctx, lis, p.executorServer, serveOpts); serveErr != nil {
+		if serveErr := executor.Serve(ctx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
 			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
 		}
 	}()

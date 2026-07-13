@@ -7,9 +7,16 @@ package executor
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"path/filepath"
 	"testing"
@@ -18,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -334,4 +342,104 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("serve did not return after drain")
 	}
+}
+
+// --- mTLS (slice 7) -------------------------------------------------------
+
+func newTestCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "par-test-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+	return cert, key
+}
+
+func newLeafCert(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, cn string, usage x509.ExtKeyUsage) tls.Certificate {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{usage},
+		DNSNames:     []string{"localhost"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca, &key.PublicKey, caKey)
+	require.NoError(t, err)
+	leaf, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}
+}
+
+func TestServeMTLSRequiresValidClientCert(t *testing.T) {
+	ca, caKey := newTestCA(t)
+	caPool := x509.NewCertPool()
+	caPool.AddCert(ca)
+	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageServerAuth)
+	clientCert := newLeafCert(t, ca, caKey, "par-control", x509.ExtKeyUsageClientAuth)
+
+	// Server presents its cert and requires a client cert signed by the CA
+	// (mirrors the agent IPC server TLS config the component uses).
+	serverTLS := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caPool,
+	}
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.SetReady(true)
+
+	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(ctx, lis, srv, ServeOptions{}, grpc.Creds(credentials.NewTLS(serverTLS)))
+	}()
+	t.Cleanup(func() { cancel(); <-served })
+
+	dial := func(tlsCfg *tls.Config) pb.ExecutorClient {
+		conn, err := grpc.NewClient(
+			"passthrough:///"+socketPath,
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+			grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
+				return Dial(dialCtx, socketPath, 2*time.Second)
+			}),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = conn.Close() })
+		return pb.NewExecutorClient(conn)
+	}
+
+	// A client presenting a CA-signed cert completes the mTLS handshake.
+	authed := dial(&tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caPool,
+		ServerName:   "localhost",
+	})
+	_, err = authed.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err, "client with a valid IPC-style cert should be accepted")
+
+	// A client with no client cert is rejected at the TLS layer.
+	anon := dial(&tls.Config{RootCAs: caPool, ServerName: "localhost"})
+	shortCtx, shortCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer shortCancel()
+	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
+	require.Error(t, err, "client without a valid cert must be rejected")
 }
