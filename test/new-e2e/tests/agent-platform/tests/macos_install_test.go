@@ -6,6 +6,7 @@
 package agentplatform
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -99,19 +100,90 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
 }
 
+// macosStatusAndConfigSanityTag is a distinctive value round-tripped through the config
+// file, the running agent's runtime config, and its status output, to prove the full
+// config-reload pipeline works end to end rather than just checking commands don't error.
+const macosStatusAndConfigSanityTag = "e2e-sanity:macos"
+
+// macosStatusAndConfigMarker delimits the block TestAgentStatusAndConfig appends to
+// datadog.yaml, so it can be identified and removed again during cleanup.
+const macosStatusAndConfigMarker = "# added by e2e TestAgentStatusAndConfig"
+
 func (m *macosInstallSuite) TestAgentStatusAndConfig() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 
+	// Set a distinctive, verifiable config value and reload the agent to pick it up.
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ntags:\n  - %s\n' | sudo tee -a %s`,
+		macosStatusAndConfigMarker, confFilePath, macosStatusAndConfigMarker, macosStatusAndConfigSanityTag, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+2d" %s`, macosStatusAndConfigMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy after the config change.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 20*time.Second, 1*time.Second)
+
+	// Status: functional signals, not just "the command didn't error".
 	statusOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status")
 	assert.NoError(m.T(), err)
-	assert.Contains(m.T(), statusOutput, macosConfDefaultConfPath)
+	statusOutput = common.SanitizeStatusOutputForKnownNoise(statusOutput)
+	assert.NotContains(m.T(), statusOutput, "ERROR")
+	assert.Contains(m.T(), statusOutput, "Forwarder")
+	assert.Contains(m.T(), statusOutput, "Host Info")
+	assert.Contains(m.T(), statusOutput, "DogStatsD")
+	assert.Contains(m.T(), statusOutput, macosStatusAndConfigSanityTag)
 
-	_, err = macosTestClient.Execute("sudo /usr/local/bin/datadog-agent version")
-	assert.NoError(m.T(), err)
+	// Checks are actually scheduled/running, not just that the status command ran.
+	// Right after the restart above, the first check run cycle may not have completed
+	// yet, so poll instead of asserting once (mirrors CheckAgentBehaviour on Linux/Windows).
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		jsonStatus, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status -j")
+		if !assert.NoError(c, err) {
+			return
+		}
+		var statusMap map[string]any
+		if !assert.NoError(c, json.Unmarshal([]byte(jsonStatus), &statusMap)) {
+			return
+		}
+		runnerStats, ok := statusMap["runnerStats"].(map[string]any)
+		if !assert.True(c, ok, "status JSON should contain runnerStats") {
+			return
+		}
+		checks, ok := runnerStats["Checks"].(map[string]any)
+		if !assert.True(c, ok, "runnerStats should contain Checks") {
+			return
+		}
+		assert.NotEmpty(c, checks, "at least one check should be running")
+	}, 20*time.Second, 1*time.Second)
 
-	confFile, err := macosTestClient.Execute("sudo test -f " + macosConfDefaultConfPath + "/datadog.yaml")
+	// agent config get/set: exercises the runtime settings API directly. tags isn't a
+	// registered runtime setting (only specific settings like log_level are gettable via
+	// `agent config get`), so use log_level for this round trip instead.
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), "sudo /usr/local/bin/datadog-agent config set log_level info")
+	})
+	_, err = macosTestClient.Execute("sudo /usr/local/bin/datadog-agent config set log_level debug")
 	assert.NoError(m.T(), err)
-	assert.Empty(m.T(), strings.TrimSpace(confFile))
+	logLevelOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent config get log_level")
+	assert.NoError(m.T(), err)
+	assert.Contains(m.T(), logLevelOutput, "debug")
+
+	// agent version: content check, not just exit code.
+	versionOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent version")
+	assert.NoError(m.T(), err)
+	assert.Regexp(m.T(), `Agent \d+\.\d+\.\d+`, versionOutput)
 }
 
 func (m *macosInstallSuite) TestAgentRestart() {
