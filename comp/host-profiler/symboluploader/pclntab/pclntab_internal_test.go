@@ -13,7 +13,6 @@ import (
 	"testing"
 )
 
-
 // moduleDataOf builds a fake moduledata from a list of pointer-sized words.
 func moduleDataOf(words ...uint64) []byte {
 	b := make([]byte, len(words)*ptrSize)
@@ -78,8 +77,8 @@ func syntheticPclntab116(numFuncs uint64) []byte {
 	b := make([]byte, hdrSize)
 	binary.NativeEndian.PutUint32(b[0:], magicGo1_16)
 	// pad (2 bytes) = 0, quantum (1 byte) = 0
-	b[7] = ptrSize                                    // ptrSize field
-	binary.NativeEndian.PutUint64(b[8:], numFuncs)   // numFuncs
+	b[7] = ptrSize                                 // ptrSize field
+	binary.NativeEndian.PutUint64(b[8:], numFuncs) // numFuncs
 	// nfiles at offset 16 = 0 (unused by bound check)
 	// all five uintptr offsets point to hdrSize so no "corrupt" error fires
 	for _, off := range []int{24, 32, 40, 48, 56} {
