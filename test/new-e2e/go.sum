@@ -398,8 +398,8 @@ github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJ
 github.com/mattn/go-localereader v0.0.1 h1:ygSAOl7ZXTx4RdPYinUpg6W99U8jWvWi9Ye2JC/oIi4=
 github.com/mattn/go-localereader v0.0.1/go.mod h1:8fBrzywKY7BI3czFoHkuzRoWE9C+EiG4R1k4Cjx5p88=
 github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
-github.com/mattn/go-runewidth v0.0.23 h1:7ykA0T0jkPpzSvMS5i9uoNn2Xy3R383f9HDx3RybWcw=
-github.com/mattn/go-runewidth v0.0.23/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
+github.com/mattn/go-runewidth v0.0.24 h1:cpokDiIn0MGnhdHwuWnJBITySJ20QyNGnY2kR/ay2DU=
+github.com/mattn/go-runewidth v0.0.24/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/minio/highwayhash v1.0.4 h1:asJizugGgchQod2ja9NJlGOWq4s7KsAWr5XUc9Clgl4=
 github.com/minio/highwayhash v1.0.4/go.mod h1:GGYsuwP/fPD6Y9hMiXuapVvlIUEhFhMTh0rxU3ik1LQ=
 github.com/minio/simdjson-go v0.4.5 h1:r4IQwjRGmWCQ2VeMc7fGiilu1z5du0gJ/I/FsKwgo5A=
@@ -532,8 +532,8 @@ github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 h1:XcPRW3UTtepkS9hH0czw2pzuuYDgx0FePz
 github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0/go.mod h1:dQCjEUDAsgGdgF4vaYgadAG96eCgJdJ4cZ21Wyca2tU=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.29.0 h1:Iuge/kZ7CrpQ8IHGa61nelS4/kmhI/kC9Fdao7MpXJU=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.29.0/go.mod h1:d60JuN+7L+PscwZK++AlFyrfia1s1fWsO1EiSzbrelw=
-github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.32.0 h1:QwJzM3PseaorfASUlDXxsyntVGac7ZSYjqjxa038uoU=
-github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.32.0/go.mod h1:MtckkCd6mzQQ3AYw+qjdt6ROfdBB3dr8dI/dE5/jxrM=
+github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0 h1:fFP72Q6/GfyI7BII3hUS7vn45Eg16zKIIS3I3R9bNEY=
+github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0/go.mod h1:sIZVlvi6oFQMEgTa+XkYfr/sAXRfrprPo3Ja6UYpGEU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4/go.mod h1:HPx6S9mhaHpSHTKDVERTMaziKEpSqY8Trm+m2z1iJ3k=
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 h1:j6LtoXue77y16trYOR40iqCUxXxv8TnxvOCOP/a0zVI=
