@@ -502,6 +502,17 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: coat-metric-reminder-smoke-test
+  # Temporary profile used only to exercise the PR reminder bot from
+  # https://github.com/DataDog/datadog-agent/pull/53565. Not meant to be merged.
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: coat_smoke_test.reminder_bot_check
+  schedule:
+    start_after: 30
+    iterations: 1
 - name: ebpf
   metric:
     exclude:
