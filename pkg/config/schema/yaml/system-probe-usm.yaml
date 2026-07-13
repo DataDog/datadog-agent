@@ -1,0 +1,288 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe-usm.yaml.schema.json
+node_type: section
+title: System Probe Universal Service monitoring Configuration
+type: object
+visibility: public
+description: Configuration for the Universal Service Monitoring (USM) module.
+tags: []
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED
+    visibility: public
+    description: |-
+      Set to true to enable the Universal Service Monitoring Module of the System Probe
+
+      Please note that, on Windows, enabling the Universal Service Monitoring
+      Module of the System Probe will result in a kernel driver
+      being loaded.
+  data_channel_size:
+    node_type: setting
+    type: integer
+    default: 100
+  direct_consumer:
+    node_type: section
+    type: object
+    properties:
+      buffer_wakeup_count_per_cpu:
+        node_type: setting
+        type: integer
+        default: 8
+      channel_size:
+        node_type: setting
+        type: integer
+        default: 1000
+      kernel_buffer_size_per_cpu:
+        node_type: setting
+        type: integer
+        default: 65536
+  disable_map_preallocation:
+    node_type: setting
+    type: boolean
+    default: true
+  enable_connection_rollup:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_event_stream:
+    node_type: setting
+    type: boolean
+    default: true
+  enable_go_tls_support:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_http2_monitoring:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_http_monitoring:
+    node_type: setting
+    type: boolean
+    default: true
+  enable_kafka_monitoring:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_quantization:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_ring_buffers:
+    node_type: setting
+    type: boolean
+    default: true
+  http:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      idle_connection_ttl_seconds:
+        node_type: setting
+        type: integer
+        default: 30
+      map_cleaner_interval_seconds:
+        node_type: setting
+        type: integer
+        default: 300
+      max_request_fragment:
+        node_type: setting
+        type: integer
+        default: 512
+      max_stats_buffered:
+        node_type: setting
+        type: integer
+        default: 100000
+      max_tracked_connections:
+        node_type: setting
+        type: integer
+        default: 1024
+      notification_threshold:
+        node_type: setting
+        type: integer
+        default: 512
+      replace_rules:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          additionalProperties:
+            type: string
+          type: object
+      use_direct_consumer:
+        node_type: setting
+        type: boolean
+        default: true
+  http2:
+    node_type: section
+    type: object
+    properties:
+      dynamic_table_map_cleaner_interval_seconds:
+        node_type: setting
+        type: integer
+        default: 30
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  http2_dynamic_table_map_cleaner_interval_seconds:
+    node_type: setting
+    type: integer
+    default: 30
+  http_idle_connection_ttl_in_s:
+    node_type: setting
+    type: integer
+    default: 30
+  http_map_cleaner_interval_in_s:
+    node_type: setting
+    type: integer
+    default: 300
+  http_max_request_fragment:
+    node_type: setting
+    type: integer
+    default: 512
+  http_notification_threshold:
+    node_type: setting
+    type: integer
+    default: 512
+  http_replace_rules:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json
+    items:
+      additionalProperties:
+        type: string
+      type: object
+  kafka:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      max_stats_buffered:
+        node_type: setting
+        type: integer
+        default: 100000
+  kernel_buffer_pages:
+    node_type: setting
+    type: integer
+    default: 16
+  max_concurrent_requests:
+    node_type: setting
+    type: integer
+    default: 0
+  max_http_stats_buffered:
+    node_type: setting
+    type: integer
+    default: 100000
+  max_kafka_stats_buffered:
+    node_type: setting
+    type: integer
+    default: 100000
+  max_tracked_http_connections:
+    node_type: setting
+    type: integer
+    default: 1024
+  postgres:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      max_stats_buffered:
+        node_type: setting
+        type: integer
+        default: 100000
+      max_telemetry_buffer:
+        node_type: setting
+        type: integer
+        default: 160
+  process_service_inference:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED
+      use_windows_service_name:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME
+  redis:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      max_stats_buffered:
+        node_type: setting
+        type: integer
+        default: 100000
+      track_resources:
+        node_type: setting
+        type: boolean
+        default: false
+  tls:
+    node_type: section
+    type: object
+    properties:
+      go:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          exclude_self:
+            node_type: setting
+            type: boolean
+            default: true
+      istio:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          envoy_path:
+            node_type: setting
+            type: string
+            default: /bin/envoy
+      native:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+      nodejs:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
