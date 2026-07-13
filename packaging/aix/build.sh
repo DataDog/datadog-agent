@@ -133,6 +133,7 @@ STAGES="
 02-python
 03-rtloader
 04-agent
+04-agent-data-plane
 05-python-extensions
 06-pydantic
 07-checks-base
@@ -169,6 +170,7 @@ log "=== Datadog Agent AIX package build ==="
 log "    AGENT_VERSION = $AGENT_VERSION"
 log "    AGENT_BUILD   = $AGENT_BUILD"
 log "    AGENT_VRMF    = $AGENT_VRMF"
+log "    ADP_VERSION   = $AGENT_DATA_PLANE_VERSION"
 log "    BUILD_DIR     = $BUILD_DIR"
 log "    STAGING       = $STAGING"
 log "    Started at    = $BUILD_START"
