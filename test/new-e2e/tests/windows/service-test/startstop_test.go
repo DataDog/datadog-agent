@@ -203,7 +203,7 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
 		"datadog-trace-agent",
-		"datadog-process-agent",
+		"dd-procmgr-service",
 		"datadog-security-agent",
 		"datadog-system-probe",
 		// stop core agent last since it will trigger stop of other services
@@ -524,8 +524,8 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
-		// skip the installer since it doesn't have a registered provider
-		if providerName == "Datadog Installer" {
+		// skip services that don't register an Application event log provider
+		if providerName == "Datadog Installer" || providerName == "dd-procmgr-service" {
 			continue
 		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
@@ -626,7 +626,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		services := s.getInstalledUserServices()
+		services := s.filterLegacySCMServices(s.getInstalledUserServices())
 		if s.Env().Agent.FIPSEnabled {
 			// TODO: This service is not supported in FIPS mode yet
 			services = slices.DeleteFunc(services, func(svc string) bool {
@@ -636,7 +636,9 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return services
 	}
 	s.runningServices = func() []string {
-		services := s.getInstalledServices()
+		user := s.runningUserServices()
+		kernel := s.getInstalledKernelServices()
+		services := append(slices.Clone(user), kernel...)
 		if s.Env().Agent.FIPSEnabled {
 			// TODO: This service is not supported in FIPS mode yet
 			services = slices.DeleteFunc(services, func(svc string) bool {
@@ -956,11 +958,26 @@ func (s *baseStartStopSuite) stopAllServices() {
 	}
 }
 
+// legacySCMServices are SCM shells superseded by dd-procmgr; they stay Stopped while
+// dd-procmgr-service supervises the workload.
+func (s *baseStartStopSuite) legacySCMServices() []string {
+	return []string{
+		"datadog-process-agent",
+	}
+}
+
+func (s *baseStartStopSuite) filterLegacySCMServices(services []string) []string {
+	return slices.DeleteFunc(slices.Clone(services), func(svc string) bool {
+		return slices.Contains(s.legacySCMServices(), svc)
+	})
+}
+
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
+		"dd-procmgr-service",
 		"datadog-security-agent",
 		"datadog-system-probe",
 		"Datadog Installer",
@@ -985,10 +1002,9 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
-	// remove the Datadog Installer service from the list of provider names
-	// we do not have an event log for it
+	// remove services that do not register an Application event log provider
 	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
-		return s == "Datadog Installer"
+		return s == "Datadog Installer" || s == "dd-procmgr-service"
 	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
