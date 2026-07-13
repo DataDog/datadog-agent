@@ -297,7 +297,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/gosnmp/gosnmp v1.43.2
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api/v2 v2.0.0
 	github.com/hashicorp/go-multierror v1.1.1
@@ -745,7 +745,6 @@ require (
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/graph-gophers/graphql-go v1.10.2 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
