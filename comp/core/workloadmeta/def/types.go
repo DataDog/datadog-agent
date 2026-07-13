@@ -1267,6 +1267,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
@@ -2248,6 +2250,9 @@ type GPU struct {
 
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
+
+	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
+	PCIBusID string
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
