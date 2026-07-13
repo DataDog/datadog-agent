@@ -40,8 +40,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/opms/testing",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
     ],
 )
