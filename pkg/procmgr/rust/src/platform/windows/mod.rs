@@ -354,6 +354,36 @@ pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
+/// Resolve the fleet policies directory for config gating.
+///
+/// Mirrors `cmd/otel-agent/subcommands/run/command.go` and
+/// `pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess`: `DD_FLEET_POLICIES_DIR`
+/// when set, otherwise registry `fleet_policies_dir`, otherwise the stable managed path.
+pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
+    if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR") {
+        if !dir.is_empty() {
+            return Some(PathBuf::from(dir));
+        }
+    }
+    fleet_policies_dir_from_registry()
+        .map(PathBuf::from)
+        .or_else(default_stable_fleet_policies_dir)
+}
+
+fn fleet_policies_dir_from_registry() -> Option<String> {
+    open_datadog_agent_key().and_then(|k| registry_nonempty_string(&k, "fleet_policies_dir"))
+}
+
+fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
+    Some(
+        program_data_root()
+            .join("Installer")
+            .join("managed")
+            .join("datadog-agent")
+            .join("stable"),
+    )
+}
+
 /// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
 /// stop request relayed through [`shutdown_notify()`].
 pub async fn shutdown_signal() {

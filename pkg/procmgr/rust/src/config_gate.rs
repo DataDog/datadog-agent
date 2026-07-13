@@ -8,11 +8,12 @@
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. Resolution order matches agent config:
-//! environment override, explicit YAML value, then agent default.
+//! environment override, fleet policy YAML, explicit base YAML value, then agent default.
 
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::path::Path;
 use std::str::FromStr;
 
 /// A YAML file and dotted config keys; any key set to true satisfies the gate.
@@ -27,6 +28,8 @@ struct GatedKeySpec {
     key: &'static str,
     default: bool,
     env_vars: &'static [&'static str],
+    /// Basename under `fleet_policies_dir` when fleet policy overrides apply.
+    fleet_policy_file: Option<&'static str>,
 }
 
 /// Single source of truth for gated keys (mirrors `pkg/config/setup/process_settings.go`
@@ -36,6 +39,7 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         key: "process_config.enabled",
         default: false,
         env_vars: &["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"],
+        fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.process_collection.enabled",
@@ -44,6 +48,7 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
             "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
             "DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED",
         ],
+        fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.container_collection.enabled",
@@ -52,6 +57,7 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
             "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
             "DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED",
         ],
+        fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.process_discovery.enabled",
@@ -62,16 +68,19 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
             "DD_PROCESS_CONFIG_DISCOVERY_ENABLED",
             "DD_PROCESS_AGENT_DISCOVERY_ENABLED",
         ],
+        fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "network_config.enabled",
         default: false,
         env_vars: &["DD_SYSTEM_PROBE_NETWORK_ENABLED"],
+        fleet_policy_file: Some("system-probe.yaml"),
     },
     GatedKeySpec {
         key: "system_probe_config.enabled",
         default: false,
         env_vars: &["DD_SYSTEM_PROBE_ENABLED"],
+        fleet_policy_file: Some("system-probe.yaml"),
     },
 ];
 
@@ -80,10 +89,25 @@ impl GatedKeySpec {
         if let Some(enabled) = self.env_override() {
             return Ok(enabled);
         }
+        if let Some(enabled) = self.fleet_policy_bool(yaml)? {
+            return Ok(enabled);
+        }
         if let Some(enabled) = yaml.optional_bool_key(path, self.key)? {
             return Ok(enabled);
         }
         Ok(self.default)
+    }
+
+    fn fleet_policy_bool(&self, yaml: &mut YamlCache) -> anyhow::Result<Option<bool>> {
+        let Some(filename) = self.fleet_policy_file else {
+            return Ok(None);
+        };
+        let Some(dir) = resolve_fleet_policies_dir() else {
+            return Ok(None);
+        };
+        let path = Path::new(&dir).join(filename);
+        let path = path.to_string_lossy();
+        yaml.optional_bool_key_if_exists(&path, self.key)
     }
 
     fn env_override(&self) -> Option<bool> {
@@ -91,6 +115,23 @@ impl GatedKeySpec {
             .iter()
             .filter_map(|name| std::env::var(name).ok())
             .find_map(|value| parse_bool_string(&value))
+    }
+}
+
+fn resolve_fleet_policies_dir() -> Option<String> {
+    if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
+        && !dir.is_empty()
+    {
+        return Some(dir);
+    }
+    #[cfg(windows)]
+    {
+        return crate::platform::windows::resolve_fleet_policies_dir()
+            .map(|path| path.to_string_lossy().into_owned());
+    }
+    #[cfg(not(windows))]
+    {
+        None
     }
 }
 
@@ -117,6 +158,13 @@ impl YamlCache {
                 .map(Some),
             None => Ok(None),
         }
+    }
+
+    fn optional_bool_key_if_exists(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
+        if !Path::new(path).is_file() {
+            return Ok(None);
+        }
+        self.optional_bool_key(path, key)
     }
 
     #[cfg(test)]
@@ -222,6 +270,8 @@ mod tests {
     }
 
     fn clear_gated_env_vars() {
+        // SAFETY: callers must hold ENV_TEST_LOCK.
+        unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
         for spec in GATED_KEY_SPECS {
             for env_name in spec.env_vars {
                 // SAFETY: callers must hold ENV_TEST_LOCK.
@@ -333,6 +383,80 @@ mod tests {
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policy_disables_default_enabled_keys() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policy_enables_when_base_config_is_all_false() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn env_override_beats_fleet_policy() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: true\n",
+            );
+            let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let _discovery =
+                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
+            let _collection =
+                EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 
