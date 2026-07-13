@@ -5,7 +5,7 @@
 
 //go:build test
 
-package run
+package metriclookbackimpl
 
 import (
 	"context"
@@ -37,6 +37,26 @@ func TestMetricLookbackDogStatsDFactoryDisabled(t *testing.T) {
 	lookback := factory(serializermocks.NewMetricSerializer(t))
 
 	require.Nil(t, lookback)
+}
+
+func TestMetricLookbackComponentProvidesDogStatsDFactory(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"metric_lookback.enabled":                true,
+		"metric_lookback.capacity":               256,
+		"metric_lookback.shard_count":            1,
+		"metric_lookback.dogstatsd.metric_names": []string{"target.metric"},
+		"metric_lookback.monitor.mode":           "disabled",
+	})
+
+	provides, err := NewComponent(Requires{Config: cfg, Log: logmock.New(t)})
+
+	require.NoError(t, err)
+	require.NotNil(t, provides.Comp)
+	require.NotNil(t, provides.DogStatsDLookbackFactory)
+	lookback := provides.DogStatsDLookbackFactory(serializermocks.NewMetricSerializer(t))
+	require.NotNil(t, lookback)
+	stopLookbackOnCleanup(t, lookback)
+	require.True(t, lookback.WantsDogStatsDMetric("target.metric"))
 }
 
 func TestMetricLookbackDogStatsDFactoryMetricNamesEnableDogStatsDLookback(t *testing.T) {

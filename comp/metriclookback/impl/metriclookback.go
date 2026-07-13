@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+// Package metriclookbackimpl implements metric lookback wiring for the Agent.
+package metriclookbackimpl
 
 import (
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metriclookback"
 	metriclookbackdogstatsd "github.com/DataDog/datadog-agent/pkg/metriclookback/dogstatsd"
@@ -19,6 +21,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
+
+// Requires defines the metric lookback component dependencies.
+type Requires struct {
+	Config config.Component
+	Log    log.Component
+}
+
+// Provides defines the values provided by the metric lookback component.
+type Provides struct {
+	Comp                     metriclookbackdef.Component
+	DogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory
+}
+
+type component struct{}
+
+// NewComponent creates the metric lookback component.
+func NewComponent(req Requires) (Provides, error) {
+	retention := newMetricLookbackRetention(req.Config)
+	factory, err := newMetricLookbackDogStatsDFactory(req.Config, req.Log, retention)
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: component{}, DogStatsDLookbackFactory: factory}, nil
+}
 
 const (
 	metricLookbackMonitorModeDisabled = "disabled"
