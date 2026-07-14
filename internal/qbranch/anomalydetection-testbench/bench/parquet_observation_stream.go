@@ -16,9 +16,8 @@ import (
 // parquetObservation is one item in the globally ordered replay stream.
 // Exactly one of metric or log is set.
 type parquetObservation struct {
-	metric   *recorderdef.MetricData
-	log      *recorderdef.LogData
-	consumed chan struct{}
+	metric *recorderdef.MetricData
+	log    *recorderdef.LogData
 }
 
 func (o parquetObservation) timestampSec() int64 {
@@ -28,31 +27,61 @@ func (o parquetObservation) timestampSec() int64 {
 	return o.log.TimestampMs / 1000
 }
 
-type parquetMetricStreamResult struct {
+type parquetStreamResult struct {
 	count int
 	err   error
 }
 
-type parquetLogStreamResult struct {
-	count int
-	err   error
+type parquetStream[T any] struct {
+	values <-chan T
+	result <-chan parquetStreamResult
 }
 
-type parquetMetricStreamItem struct {
-	value    recorderdef.MetricData
-	consumed chan struct{}
+func (s parquetStream[T]) next(head **T, done *bool, result *parquetStreamResult) error {
+	if *done || *head != nil {
+		return nil
+	}
+	value, ok := <-s.values
+	if ok {
+		*head = &value
+		return nil
+	}
+	*result = <-s.result
+	*done = true
+	return result.err
 }
 
-type parquetLogStreamItem struct {
-	value    recorderdef.LogData
-	consumed chan struct{}
+func (s parquetStream[T]) drain(result *parquetStreamResult) {
+	for range s.values {
+	}
+	*result = <-s.result
+}
+
+// startParquetStream adapts a callback-based reader into a pull-like stream.
+// The unbuffered channel keeps at most one unread value in each producer.
+func startParquetStream[T any](ctx context.Context, read func(func(T) error) (int, error)) parquetStream[T] {
+	values := make(chan T)
+	result := make(chan parquetStreamResult, 1)
+	go func() {
+		count, err := read(func(value T) error {
+			select {
+			case values <- value:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		result <- parquetStreamResult{count: count, err: err}
+		close(values)
+	}()
+	return parquetStream[T]{values: values, result: result}
 }
 
 // streamOrderedObservations performs a bounded two-way merge of the metric and
-// log parquet streams. Each producer is back-pressured to one decoded row, so
-// the merge does not retain either input dataset. Rows within the same second
-// may be emitted in either source order; the Observer scheduler does not
-// analyze that second until a later timestamp arrives or the stream is flushed.
+// log parquet streams. Each producer is back-pressured by an unbuffered channel,
+// so the merge does not retain either input dataset. Rows within the same second
+// may be emitted in either source order; the Observer scheduler does not analyze
+// that second until a later timestamp arrives or the stream is flushed.
 func streamOrderedObservations(
 	dir string,
 	format ParquetFormat,
@@ -61,6 +90,7 @@ func streamOrderedObservations(
 ) (metricCount, logCount int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	var v2Contexts map[uint64]contextEntryV2
 	if format == FormatV2 {
 		var contextsErr error
@@ -70,99 +100,33 @@ func streamOrderedObservations(
 		}
 	}
 
-	metricCh := make(chan parquetMetricStreamItem)
-	metricResultCh := make(chan parquetMetricStreamResult, 1)
-	if logsOnly {
-		close(metricCh)
-		metricResultCh <- parquetMetricStreamResult{}
-	} else {
-		go func() {
-			count, streamErr := streamOrderedMetricsWithContexts(dir, format, v2Contexts, func(metric recorderdef.MetricData) error {
-				item := parquetMetricStreamItem{value: metric, consumed: make(chan struct{})}
-				select {
-				case metricCh <- item:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-				// Arrow-backed strings remain valid only while the producer's
-				// callback is active. Wait until Observer ingestion has copied them.
-				select {
-				case <-item.consumed:
-					return nil
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			})
-			metricResultCh <- parquetMetricStreamResult{count: count, err: streamErr}
-			close(metricCh)
-		}()
-	}
-
-	logCh := make(chan parquetLogStreamItem)
-	logResultCh := make(chan parquetLogStreamResult, 1)
-	go func() {
-		count, streamErr := streamOrderedLogsWithContexts(dir, format, v2Contexts, func(entry recorderdef.LogData) error {
-			item := parquetLogStreamItem{value: entry, consumed: make(chan struct{})}
-			select {
-			case logCh <- item:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-			select {
-			case <-item.consumed:
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+	var metricStream parquetStream[recorderdef.MetricData]
+	if !logsOnly {
+		metricStream = startParquetStream(ctx, func(fn func(recorderdef.MetricData) error) (int, error) {
+			return streamOrderedMetricsWithContexts(dir, format, v2Contexts, fn)
 		})
-		logResultCh <- parquetLogStreamResult{count: count, err: streamErr}
-		close(logCh)
-	}()
+	}
+	logStream := startParquetStream(ctx, func(fn func(recorderdef.LogData) error) (int, error) {
+		return streamOrderedLogsWithContexts(dir, format, v2Contexts, fn)
+	})
 
 	var (
-		metricHead    *parquetMetricStreamItem
-		logHead       *parquetLogStreamItem
-		metricDone    bool
+		metricHead    *recorderdef.MetricData
+		logHead       *recorderdef.LogData
+		metricDone    = logsOnly
 		logDone       bool
-		metricResult  parquetMetricStreamResult
-		logResult     parquetLogStreamResult
+		metricResult  parquetStreamResult
+		logResult     parquetStreamResult
 		streamFailure error
 	)
 
-	nextMetric := func() {
-		if metricDone || metricHead != nil {
-			return
-		}
-		metric, ok := <-metricCh
-		if !ok {
-			metricResult = <-metricResultCh
-			metricDone = true
-			if metricResult.err != nil && streamFailure == nil {
-				streamFailure = fmt.Errorf("streaming parquet metrics: %w", metricResult.err)
-			}
-			return
-		}
-		metricHead = &metric
-	}
-	nextLog := func() {
-		if logDone || logHead != nil {
-			return
-		}
-		entry, ok := <-logCh
-		if !ok {
-			logResult = <-logResultCh
-			logDone = true
-			if logResult.err != nil && streamFailure == nil {
-				streamFailure = fmt.Errorf("streaming parquet logs: %w", logResult.err)
-			}
-			return
-		}
-		logHead = &entry
-	}
-
 	for !metricDone || !logDone || metricHead != nil || logHead != nil {
-		nextMetric()
-		nextLog()
+		if err := metricStream.next(&metricHead, &metricDone, &metricResult); err != nil {
+			streamFailure = fmt.Errorf("streaming parquet metrics: %w", err)
+		}
+		if err := logStream.next(&logHead, &logDone, &logResult); err != nil && streamFailure == nil {
+			streamFailure = fmt.Errorf("streaming parquet logs: %w", err)
+		}
 		if streamFailure != nil {
 			cancel()
 			break
@@ -172,46 +136,32 @@ func streamOrderedObservations(
 		switch {
 		case metricHead == nil && logHead == nil:
 			continue
-		case logHead == nil || (metricHead != nil && metricHead.value.Timestamp <= logHead.value.TimestampMs/1000):
-			observation.metric = &metricHead.value
-			observation.consumed = metricHead.consumed
+		case logHead == nil || (metricHead != nil && metricHead.Timestamp <= logHead.TimestampMs/1000):
+			observation.metric = metricHead
 			metricHead = nil
-		case metricHead == nil || logHead.value.TimestampMs/1000 < metricHead.value.Timestamp:
-			observation.log = &logHead.value
-			observation.consumed = logHead.consumed
+		case metricHead == nil || logHead.TimestampMs/1000 < metricHead.Timestamp:
+			observation.log = logHead
 			logHead = nil
 		}
 
 		if err := fn(observation); err != nil {
-			close(observation.consumed)
 			streamFailure = err
 			cancel()
 			break
 		}
-		close(observation.consumed)
 	}
 
-	// Cancellation makes each producer's callback return, but it may have one
-	// buffered row left. Drain both channels so no goroutine is left behind.
+	// A canceled producer may still be blocked sending its next value. Drain
+	// both channels before returning so no goroutine is left behind.
 	if !metricDone {
-		for range metricCh {
-		}
-		metricResult = <-metricResultCh
+		metricStream.drain(&metricResult)
 	}
 	if !logDone {
-		for range logCh {
-		}
-		logResult = <-logResultCh
+		logStream.drain(&logResult)
 	}
 
 	if streamFailure != nil {
 		return metricResult.count, logResult.count, streamFailure
-	}
-	if metricResult.err != nil {
-		return metricResult.count, logResult.count, fmt.Errorf("streaming parquet metrics: %w", metricResult.err)
-	}
-	if logResult.err != nil {
-		return metricResult.count, logResult.count, fmt.Errorf("streaming parquet logs: %w", logResult.err)
 	}
 	return metricResult.count, logResult.count, nil
 }

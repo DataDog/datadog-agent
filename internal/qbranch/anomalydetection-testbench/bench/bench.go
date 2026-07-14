@@ -192,12 +192,12 @@ type Bench struct {
 
 	replayStats *ReplayStats
 
-	streamInputMetricsCount      int64
-	streamInputMetricCardinality *cardinalityCounter
-	streamInputLogsCount         int
-	streamScenarioStartSec       int64
-	streamScenarioEndSec         int64
-	hasStreamScenarioBounds      bool
+	streamInputMetricsCount int64
+	streamInputMetricSeries map[uint64]struct{}
+	streamInputLogsCount    int
+	streamScenarioStartSec  int64
+	streamScenarioEndSec    int64
+	hasStreamScenarioBounds bool
 
 	// baselineMu protects baseline fields. Separate from tb.mu because the
 	// callback fires from the engine run goroutine while tb.mu may already be
@@ -362,7 +362,7 @@ func (tb *Bench) LoadScenario(name string) error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.liveAdvanceTimes = nil
 	tb.streamInputMetricsCount = 0
-	tb.streamInputMetricCardinality = nil
+	tb.streamInputMetricSeries = nil
 	tb.streamInputLogsCount = 0
 	tb.streamScenarioStartSec = 0
 	tb.streamScenarioEndSec = 0
@@ -523,14 +523,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) error {
 	fmt.Printf("  Streaming timestamp-ordered parquet observations\n")
 	tb.debug.SetReplayPhase("detecting")
-	tb.streamInputMetricCardinality = newCardinalityCounter()
-	cloneTags := func(tags []string) []string {
-		stable := make([]string, len(tags))
-		for i, tag := range tags {
-			stable[i] = strings.Clone(tag)
-		}
-		return stable
-	}
+	tb.streamInputMetricSeries = make(map[uint64]struct{})
 
 	_, _, err := streamOrderedObservations(dir, format, tb.config.LogsOnly, func(observation parquetObservation) error {
 		if observation.metric != nil {
@@ -542,31 +535,24 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				return nil
 			}
 
-			name := strings.Clone(metric.Name)
-			tags := cloneTags(metric.Tags)
-			sort.Strings(tags)
-			tb.streamInputMetricCardinality.Add(metricSeriesHash(name, tags))
+			sort.Strings(metric.Tags)
+			tb.streamInputMetricSeries[metricSeriesHash(metric.Name, metric.Tags)] = struct{}{}
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
 			view := parquetMetricView{
-				name:      name,
+				name:      metric.Name,
 				value:     metric.Value,
-				tags:      tags,
+				tags:      metric.Tags,
 				timestamp: metric.Timestamp,
 			}
 			tb.debug.IngestMetricSync("parquet", &view)
 			return nil
 		}
 
-		entry := *observation.log
-		entry.Source = strings.Clone(entry.Source)
-		entry.Status = strings.Clone(entry.Status)
-		entry.Hostname = strings.Clone(entry.Hostname)
-		entry.Tags = cloneTags(entry.Tags)
 		tb.streamInputLogsCount++
-		tb.extendStreamBounds(entry.TimestampMs/1000, entry.TimestampMs/1000)
-		view := logDataView{data: &entry}
+		tb.extendStreamBounds(observation.log.TimestampMs/1000, observation.log.TimestampMs/1000)
+		view := logDataView{data: observation.log}
 		tb.debug.IngestLogSync("parquet", &view)
 		return nil
 	})
@@ -645,6 +631,27 @@ type parquetMetricView struct {
 	timestamp int64
 }
 
+func metricSeriesHash(name string, sortedTags []string) uint64 {
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	add := func(value string) {
+		for i := 0; i < len(value); i++ {
+			hash ^= uint64(value[i])
+			hash *= prime64
+		}
+		hash ^= 0
+		hash *= prime64
+	}
+	add(name)
+	for _, tag := range sortedTags {
+		add(tag)
+	}
+	return hash
+}
+
 func (m *parquetMetricView) GetName() string         { return m.name }
 func (m *parquetMetricView) GetValue() float64       { return m.value }
 func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
@@ -719,23 +726,6 @@ func (tb *Bench) GetStatus() StatusResponse {
 			}
 		}
 	}
-	if tb.hasStreamScenarioBounds {
-		startSec := tb.streamScenarioStartSec
-		endSec := tb.streamScenarioEndSec
-		if !hasBounds {
-			scenarioStart = startSec
-			scenarioEnd = endSec
-			hasBounds = true
-		} else {
-			if startSec < scenarioStart {
-				scenarioStart = startSec
-			}
-			if endSec > scenarioEnd {
-				scenarioEnd = endSec
-			}
-		}
-	}
-
 	var scenarioStartPtr *int64
 	var scenarioEndPtr *int64
 	if hasBounds {
@@ -863,22 +853,22 @@ func (tb *Bench) collectReplayResultsLocked() {
 	// Compute replay stats.
 	detectorStats := computeDetectorProcessingStatsFromStateView(sv)
 	enrichDetectorStatsKind(detectorStats, tb.debug.CatalogEntries())
-	inputMetricCardinality := newCardinalityCounter()
+	inputMetricSeries := make(map[uint64]struct{})
 	for _, metric := range tb.rawMetrics {
 		tags := append([]string(nil), metric.tags...)
 		sort.Strings(tags)
-		inputMetricCardinality.Add(metricSeriesHash(metric.name, tags))
+		inputMetricSeries[metricSeriesHash(metric.name, tags)] = struct{}{}
 	}
 	replayStats := &ReplayStats{
 		DetectorStats:           detectorStats,
 		InputMetricsCount:       int64(len(tb.rawMetrics)),
-		InputMetricsCardinality: inputMetricCardinality.Count(),
+		InputMetricsCardinality: len(inputMetricSeries),
 		InputLogsCount:          len(tb.rawLogs),
 		InputAnomaliesCount:     len(sv.Anomalies()),
 	}
 	if tb.config.StreamParquet {
 		replayStats.InputMetricsCount = tb.streamInputMetricsCount
-		replayStats.InputMetricsCardinality = tb.streamInputMetricCardinality.Count()
+		replayStats.InputMetricsCardinality = len(tb.streamInputMetricSeries)
 		replayStats.InputLogsCount = tb.streamInputLogsCount
 	}
 	tb.replayStats = replayStats

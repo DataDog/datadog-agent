@@ -43,8 +43,7 @@ type ReplayStats struct {
 	// excludes virtual metrics derived from logs and filtered/dropped samples.
 	InputMetricsCount int64 `json:"input_metrics_count"`
 	// InputMetricsCardinality is the number of unique accepted parquet metric
-	// series (name + tag combinations), excluding log-derived series. It is
-	// estimated with fixed memory above 65,536 unique series.
+	// series (name + tag combinations), excluding log-derived series.
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.
 	InputLogsCount int `json:"input_logs_count"`

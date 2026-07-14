@@ -409,6 +409,18 @@ func cloneMetricData(metric recorderdef.MetricData) recorderdef.MetricData {
 	return metric
 }
 
+func cloneLogData(entry recorderdef.LogData) recorderdef.LogData {
+	entry.Source = strings.Clone(entry.Source)
+	entry.Content = append([]byte(nil), entry.Content...)
+	entry.Status = strings.Clone(entry.Status)
+	entry.Hostname = strings.Clone(entry.Hostname)
+	entry.Tags = append([]string(nil), entry.Tags...)
+	for i := range entry.Tags {
+		entry.Tags[i] = strings.Clone(entry.Tags[i])
+	}
+	return entry
+}
+
 // streamOrderedMetrics reads metric parquet files in filename and row order
 // without retaining the full dataset. A bounded look-ahead restores timestamp
 // order when concurrent GenSim collection produces slightly late rows.
@@ -528,7 +540,7 @@ func streamOrderedLogsWithContexts(
 				filepath.Base(filePath), entry.TimestampMs, previousTime,
 			)
 		}
-		if err := fn(entry); err != nil {
+		if err := fn(cloneLogData(entry)); err != nil {
 			return err
 		}
 		previousTime = entry.TimestampMs
