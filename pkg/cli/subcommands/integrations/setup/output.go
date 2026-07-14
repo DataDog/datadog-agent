@@ -75,13 +75,13 @@ func statusPrefix(s OperationStatus) string {
 
 // jsonResult is the JSON-serialisable form of SetupResult for --output json.
 type jsonResult struct {
-	Flavor         string     `json:"flavor"`
-	PGVersion      int        `json:"pg_version"`
-	RestartNeeded  bool       `json:"restart_needed"`
-	ManualSteps    bool       `json:"manual_steps"`
-	Outcome        string     `json:"outcome"`
-	Operations     []jsonOp   `json:"operations"`
-	ManualStepList []string   `json:"manual_step_list,omitempty"`
+	Flavor         string   `json:"flavor"`
+	PGVersion      int      `json:"pg_version"`
+	RestartNeeded  bool     `json:"restart_needed"`
+	ManualSteps    bool     `json:"manual_steps"`
+	Outcome        string   `json:"outcome"`
+	Operations     []jsonOp `json:"operations"`
+	ManualStepList []string `json:"manual_step_list,omitempty"`
 }
 
 type jsonOp struct {

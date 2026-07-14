@@ -9,6 +9,7 @@ go_library(
         "integrations_nix.go",
         "integrations_nix_helpers.go",
         "integrations_windows.go",
+        "setup.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations",
     visibility = ["//visibility:public"],
@@ -17,6 +18,7 @@ go_library(
         "//comp/core",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//pkg/cli/subcommands/integrations/setup",
         "//pkg/config/setup",
         "//pkg/util/executable",
         "//pkg/util/fxutil",
@@ -37,6 +39,7 @@ go_test(
     srcs = [
         "command_test.go",
         "integrations_test.go",
+        "setup_test.go",
     ],
     embed = [":integrations"],
     gotags = ["test"],

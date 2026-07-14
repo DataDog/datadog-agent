@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -67,7 +68,7 @@ of the DBM setup docs for self-hosted Postgres, RDS, Aurora, Cloud SQL, and Azur
 				}
 			}
 			if params.allDatabases && len(params.databases) > 0 {
-				return fmt.Errorf("--all-databases and --databases are mutually exclusive")
+				return errors.New("--all-databases and --databases are mutually exclusive")
 			}
 			return nil
 		},
@@ -214,7 +215,7 @@ func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useS
 	}
 
 	if result.Outcome == "failure" {
-		return fmt.Errorf("setup did not complete — check the output above for details")
+		return errors.New("setup did not complete — check the output above for details")
 	}
 	if result.RestartNeeded {
 		fmt.Fprintln(os.Stderr, "\nNext steps: restart PostgreSQL, then re-run to apply remaining settings.")
