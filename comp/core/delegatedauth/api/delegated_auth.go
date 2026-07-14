@@ -43,7 +43,7 @@ const (
 // Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com
 var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
 
-// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., app.datad0g.com)
+// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)
 // for known Datadog domains. This ensures API operations use the correct subdomain.
 // If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
 func getAPIDomain(endpoint string) string {
