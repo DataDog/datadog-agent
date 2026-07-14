@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    On macOS, the Agent installer can now bootstrap
+    `Trajectory <https://github.com/datadog-labs/trajectory>`_ to enable AI
+    coding-agent skill observability. Pass ``DD_INSTALL_TRAJECTORY=true`` to
+    the install script to opt in; when set, the Agent installs Trajectory for
+    each user account that does not already have it and routes skill events
+    through the Agent's ``evp_proxy``. Installs run without the flag are
+    unaffected, and a pre-existing Trajectory that the Agent did not install is
+    left untouched on uninstall.
