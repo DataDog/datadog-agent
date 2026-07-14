@@ -312,7 +312,8 @@ func isRetryableFlareError(err error) bool {
 	if errors.As(err, &opErr) {
 		return opErr.Op == "dial"
 	}
-	return false
+	// net/http's TLS handshake timeout error is unexported, so match on its message.
+	return strings.Contains(err.Error(), "net/http: TLS handshake timeout")
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.

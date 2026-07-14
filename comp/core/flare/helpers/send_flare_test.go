@@ -445,6 +445,12 @@ func TestIsRetryableFlareError(t *testing.T) {
 			expected: true,
 		},
 		{
+			// TLS handshake failed after dial succeeded; no request bytes were written.
+			name:     "tls handshake timeout",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("net/http: TLS handshake timeout")},
+			expected: true,
+		},
+		{
 			// Request was sent, so it may have been processed.
 			name:     "read connection reset not retryable",
 			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")},
