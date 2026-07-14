@@ -1,6 +1,6 @@
-ARG BASE_IMAGE_UBUNTU_VERSION=24.04
-ARG BASE_IMAGE_UBUNTU_NAME=noble
-ARG BASE_IMAGE_REGISTRY=docker.io
+ARG BASE_IMAGE_UBUNTU_VERSION=26.04
+ARG BASE_IMAGE_UBUNTU_NAME=resolute
+ARG BASE_IMAGE_REGISTRY=docker.io/library
 
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
@@ -244,7 +244,7 @@ RUN if [ ! -f /opt/datadog-agent/embedded/bin/agent-data-plane ]; then \
   rm -rf /etc/services.d/data-plane ; \
 fi
 
-RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
+RUN find /etc /var/lib/pebble -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 # Add Debian snapshot date for debugging
 RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date

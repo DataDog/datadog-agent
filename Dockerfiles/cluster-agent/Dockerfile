@@ -1,6 +1,6 @@
-ARG BASE_IMAGE_UBUNTU_VERSION=24.04
-ARG BASE_IMAGE_UBUNTU_NAME=noble
-ARG BASE_IMAGE_REGISTRY=docker.io
+ARG BASE_IMAGE_UBUNTU_VERSION=26.04
+ARG BASE_IMAGE_UBUNTU_NAME=resolute
+ARG BASE_IMAGE_REGISTRY=docker.io/library
 
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
 ARG CI
@@ -22,8 +22,8 @@ COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
-ARG BASE_IMAGE_UBUNTU_VERSION=24.04
-ARG BASE_IMAGE_UBUNTU_NAME=noble
+ARG BASE_IMAGE_UBUNTU_VERSION=26.04
+ARG BASE_IMAGE_UBUNTU_NAME=resolute
 LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
