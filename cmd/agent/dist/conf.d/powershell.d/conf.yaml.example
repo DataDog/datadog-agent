@@ -77,7 +77,9 @@ instances:
     #   - [Id, Get-ClusterGroup, OwnerNode, Name AS owner_group]
 
     ## @param timeout - integer - optional - default: 30
-    ## Maximum seconds to wait for the cmdlet before killing it.
+    ## Maximum seconds to wait for a single cmdlet invocation before killing it.
+    ## Applies per cmdlet run, so an instance that also uses `tag_queries` allows
+    ## this many seconds for the main cmdlet and for each join cmdlet separately.
     #
     # timeout: 30
 

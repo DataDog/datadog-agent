@@ -107,7 +107,9 @@ func (c *PowershellCheck) Run() error {
 	for _, row := range rows {
 		tags := buildTags(c.instance, row, joins)
 		for i := range c.instance.Metrics {
-			c.submitMetric(s, &c.instance.Metrics[i], row, tags)
+			if err := c.submitMetric(s, &c.instance.Metrics[i], row, tags); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -144,20 +146,25 @@ func (c *PowershellCheck) runTagQueries() []map[string]string {
 }
 
 // submitMetric coerces a row property to a float and submits it under the
-// configured metric type. Virtual (literal 0) metrics always submit 0.
-func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[string]interface{}, tags []string) {
+// configured metric type. Virtual (literal 1) metrics always submit 1.
+//
+// A non-virtual metric whose property is missing from the output or whose value
+// is not numeric is a configuration error: there is no point running a check
+// that cannot produce a metric value. It returns an error in that case so the
+// whole run fails loudly (logged at error level and surfaced in `agent status`)
+// rather than silently emitting nothing.
+func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[string]interface{}, tags []string) error {
 	var value float64
 	if m.isVirtual() {
 		value = 1
 	} else {
 		raw, ok := row[m.Property]
 		if !ok {
-			return
+			return fmt.Errorf("metric %q: property %q is not present in the output of cmdlet %q", m.Name, m.Property, c.instance.Cmdlet)
 		}
 		f, ok := toFloat(raw)
 		if !ok {
-			log.Debugf("powershell check: property %q value %v is not numeric, skipping metric %q", m.Property, raw, m.Name)
-			return
+			return fmt.Errorf("metric %q: property %q value %v is not numeric", m.Name, m.Property, raw)
 		}
 		value = f
 	}
@@ -177,6 +184,7 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 	default:
 		s.Gauge(name, value, "", tags)
 	}
+	return nil
 }
 
 // runCmdlet builds the injection-safe command, spawns a one-shot powershell.exe

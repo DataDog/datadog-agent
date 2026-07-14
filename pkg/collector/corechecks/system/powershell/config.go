@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "go.yaml.in/yaml/v2"
 )
 
@@ -253,6 +254,11 @@ func parseInstanceConfig(data []byte) (*instanceConfig, error) {
 	}
 	if len(inst.Metrics) == 0 {
 		return nil, errors.New("at least one entry in 'metrics' is required")
+	}
+	// timeout is optional and defaults to defaultTimeout. A negative value is
+	// invalid; warn and fall back to the default rather than failing the check.
+	if inst.Timeout < 0 {
+		log.Warnf("powershell check: 'timeout' must be a positive number of seconds, got %d; using default of %ds", inst.Timeout, defaultTimeout)
 	}
 	if inst.Timeout <= 0 {
 		inst.Timeout = defaultTimeout
