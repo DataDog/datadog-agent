@@ -263,12 +263,44 @@ func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
 		log.Warnf("Failed to start services %s: %s", procmgr.name, err.Error())
 		return false
 	}
-	if !waitForServiceRunning(procmgr.serviceName) {
-		log.Warnf("Failed to start services %s: service did not reach running state", procmgr.name)
+	if waitForServiceRunning(procmgr.serviceName) {
+		log.Debugf("Started service %s", procmgr.name)
+		return true
+	}
+	if procmgrStartSucceededAfterWait(procmgr.serviceName) {
+		log.Debugf("Started service %s", procmgr.name)
+		return true
+	}
+	log.Warnf("Failed to start services %s: service did not reach running state", procmgr.name)
+	return false
+}
+
+// procmgrStartSucceededAfterWait handles the case where StartService returned while SCM
+// was still in StartPending. Wait for that transition to finish; only suppress legacy
+// services if procmgr reaches Running. If the start fails (e.g. transitions to Stopped),
+// return false so the agent can fall back to legacy SCM services.
+func procmgrStartSucceededAfterWait(serviceName string) bool {
+	state, err := winutil.GetServiceState(serviceName)
+	if err != nil {
+		log.Warnf("Failed to query service %s after start wait: %v", serviceName, err)
 		return false
 	}
-	log.Debugf("Started service %s", procmgr.name)
-	return true
+	if state == svc.Running {
+		return true
+	}
+	if state != svc.StartPending {
+		return false
+	}
+
+	log.Warnf("Service %s is still in StartPending after initial wait; waiting for SCM transition", serviceName)
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+	finalState, err := winutil.WaitForPendingStateChange(ctx, serviceName, svc.StartPending)
+	if err != nil {
+		log.Warnf("Service %s did not finish starting: %v", serviceName, err)
+		return false
+	}
+	return finalState == svc.Running
 }
 
 func waitForServiceRunning(serviceName string) bool {
