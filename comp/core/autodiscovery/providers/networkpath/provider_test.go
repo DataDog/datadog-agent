@@ -7,6 +7,7 @@ package networkpath
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -465,6 +468,58 @@ func TestParseConfigValidation(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectedErr)
 		})
 	}
+}
+
+// TestParseConfigRoundTripsThroughCheckConfig marshals a fully-populated RC endpoint through the
+// provider and back through the check's own NewCheckConfig, pinning the YAML contract between the
+// provider's networkPathInstanceConfig and the check's InstanceConfig. Field-level asserts on the
+// resulting CheckConfig catch tag drift on *either* struct — including a rename on the check side,
+// which the map-based assertions in TestParseConfigValidBoundariesAndNormalization cannot see.
+func TestParseConfigRoundTripsThroughCheckConfig(t *testing.T) {
+	configmock.New(t).SetInTest("network_devices.namespace", "my-namespace")
+
+	configs, err := parseConfig(rawScheduledConfig(
+		"test-config-a",
+		`{"hostname":"api.example.com","port":443,"protocol":"tcp","max_ttl":64,"timeout_ms":500,`+
+			`"interval_sec":30,"source_service":"frontend","destination_service":"api","tcp_method":"sack",`+
+			`"traceroute_queries":5,"e2e_queries":10,"tags":["env:prod","team:net"]}`,
+	))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Instances, 1)
+
+	// Feed the provider's emitted instance YAML through the check's own parser and compare the whole
+	// resulting CheckConfig. A rename of any yaml tag on either networkPathInstanceConfig (provider)
+	// or InstanceConfig (check) breaks this, as does the provider unexpectedly populating a field the
+	// RC path is not meant to set.
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], integration.Data{})
+	require.NoError(t, err)
+
+	expected := &networkpathcheck.CheckConfig{
+		TestConfigID:          "test-config-a",
+		DestHostname:          "api.example.com",
+		DestPort:              443,
+		SourceService:         "frontend",
+		DestinationService:    "api",
+		MaxTTL:                64,
+		Protocol:              payload.ProtocolTCP,
+		TCPMethod:             payload.TCPConfigSACK,
+		Timeout:               500 * time.Millisecond,
+		MinCollectionInterval: 30 * time.Second,
+		TracerouteQueries:     5,
+		E2eQueries:            10,
+		Tags:                  []string{"env:prod", "team:net"},
+		Namespace:             "my-namespace",
+	}
+	assert.Equal(t, expected, checkConfig)
+
+	// Tripwire: the round trip above exercises every field the provider translates today. If you add
+	// a field to the RC wire format or the emitted instance, these counts change — extend the payload
+	// and expected CheckConfig above so the new field is covered end to end, then bump the count here.
+	assert.Equal(t, 12, reflect.TypeOf(endpointConfig{}).NumField(),
+		"endpointConfig gained/lost a field; extend TestParseConfigRoundTripsThroughCheckConfig to cover it")
+	assert.Equal(t, 13, reflect.TypeOf(networkPathInstanceConfig{}).NumField(),
+		"networkPathInstanceConfig gained/lost a field; extend TestParseConfigRoundTripsThroughCheckConfig to cover it")
 }
 
 type statusRecorder struct {
