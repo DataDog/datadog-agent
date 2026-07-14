@@ -7,33 +7,15 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "otool_dir_action", "patchelf_dir_action", "rewrite_rpath", "rewrite_rpaths_for_files")
-
-def _is_os(ctx, constraint):
-    return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
-    is_linux = _is_os(ctx, ctx.attr._linux_constraint)
-    is_macos = _is_os(ctx, ctx.attr._macos_constraint)
-
     rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
     dest_src_map = {}
 
     for src, prefix in ctx.attr.srcs.items():
-        for f in src.files.to_list():
-            if f.is_directory:
-                if is_linux:
-                    out = ctx.actions.declare_directory("patched_dirs/" + f.basename)
-                    patchelf_dir_action(ctx, f, out, rpath)
-                elif is_macos:
-                    out = ctx.actions.declare_directory("patched_dirs/" + f.basename)
-                    otool_dir_action(ctx, f, out, rpath)
-                else:
-                    out = f
-                dest = prefix
-            else:
-                out = rewrite_rpaths_for_files(ctx, inputs = [f], rpath = rpath)[0]
-                dest = (prefix + "/" + f.basename) if prefix else f.basename
+        for out in rewrite_rpaths(ctx, inputs = src.files.to_list(), rpath = rpath):
+            dest = (prefix + "/" + out.basename) if prefix else out.basename
             dest_src_map[dest] = out
 
     return [PackageFilesInfo(
@@ -51,29 +33,10 @@ _dd_packaged_files_rule = rule(
         "rpath": attr.string(
             default = "{install_dir}/embedded/lib",
         ),
-        "_linux_constraint": attr.label(default = "@platforms//os:linux"),
-        "_macos_constraint": attr.label(default = "@platforms//os:macos"),
-        "_script": attr.label(
-            default = "@@//bazel/rules/rewrite_rpath:macos.sh",
-            allow_single_file = True,
-            cfg = "exec",
-        ),
-        "_dir_script": attr.label(
-            default = "@@//bazel/rules/rewrite_rpath:macos_dir.sh",
-            allow_single_file = True,
-            cfg = "exec",
-        ),
-        "_install_name_tool": attr.label(
-            default = "@@//bazel/tools:install_name_tool",
-            executable = True,
-            cfg = "exec",
-        ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
     },
     toolchains = [
         "//bazel/toolchains/rpath_rewriter",
-        "@@//bazel/toolchains/patchelf:patchelf_toolchain_type",
-        "@@//bazel/toolchains/otool:otool_toolchain_type",
     ],
 )
 
@@ -175,10 +138,9 @@ dd_cc_packaged = macro(
     depends, directly or indirectly, on the wrapped binary.
 
     If installed_executables is provided, each entry is rpath-patched and
-    installed with mode 0755. Individual files are installed as prefix/basename;
-    directory artifacts are installed as the prefix itself (contents copied into it).
-    Use this instead of wrapping files in pkg_files and passing them via
-    installed_files, so that rpath rewriting is not skipped.
+    installed with mode 0755. Files and directory artifacts are installed as
+    prefix/basename. Use this instead of wrapping files in pkg_files and passing
+    them via installed_files, so that rpath rewriting is not skipped.
 
     If a version is provided and the input is a cc_shared_library, the library
     will be installed along with the versioned symlink (see so_symlink).
