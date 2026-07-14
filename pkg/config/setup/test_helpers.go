@@ -32,9 +32,3 @@ func newTestConf(t *testing.T) pkgconfigmodel.BuildableConfig {
 	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	return conf
 }
-
-// allSettingsWithoutDefaultForAssertion returns settings for YAML equality checks,
-// omitting platform runtime overrides unrelated to the scenario under test.
-func allSettingsWithoutDefaultForAssertion(config pkgconfigmodel.Config) map[string]interface{} {
-	return stripAssertionIrrelevantRuntimeOverrides(config.AllSettingsWithoutDefault())
-}

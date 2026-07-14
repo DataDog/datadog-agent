@@ -5,8 +5,6 @@ go_library(
     name = "setup",
     srcs = [
         "apm_settings.go",
-        "assertion_settings_nix.go",
-        "assertion_settings_windows.go",
         "common_settings.go",
         "config.go",
         "config_accessor.go",

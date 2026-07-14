@@ -36,16 +36,6 @@ func FleetConfigOverride(config pkgconfigmodel.Config) {
 	config.Set("fleet_policies_dir", val, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// fleetPoliciesDirFromOverride returns the fleet policies directory FleetConfigOverride
-// would set when the key is not already configured.
-func fleetPoliciesDirFromOverride() string {
-	val := winutil.ReadFleetPoliciesDirFromRegistry()
-	if val == "" {
-		val = defaultStableFleetPoliciesDir()
-	}
-	return val
-}
-
 // defaultStableFleetPoliciesDir matches pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess
 // stable fallback without importing fleet/installer (circular dependency with config/setup).
 func defaultStableFleetPoliciesDir() string {
