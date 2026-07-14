@@ -19,6 +19,7 @@ dd_agent_go_test(
     srcs = ["delegated_auth_test.go"],
     embed = [":api"],
     deps = [
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
