@@ -320,19 +320,6 @@
         }
       }
     },
-    "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
-      "general": {
-        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
-        "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
-        "recordedInputs": [],
-        "generatedRepoSpecs": {
-          "otool": {
-            "repoRuleId": "@@//bazel/toolchains/otool:otool_configure.bzl%build_repo_for_otool_toolchain",
-            "attributes": {}
-          }
-        }
-      }
-    },
     "//bazel/tools:bazelisk_check.bzl%bazelisk_check": {
       "general": {
         "bzlTransitiveDigest": "vIQYQXzy/Q+owB/yz0XcUOwOyn9G0aQIpTxYlBfiCcQ=",
