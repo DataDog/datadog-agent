@@ -1448,7 +1448,7 @@ process_config:
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
-	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	yamlConf, err := yaml.Marshal(allSettingsWithoutDefaultForAssertion(config))
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
@@ -1521,7 +1521,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
 `
-	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	yamlConf, err := yaml.Marshal(allSettingsWithoutDefaultForAssertion(config))
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
@@ -1569,7 +1569,7 @@ use_proxy_for_cloud_metadata: true
 	err = resolveSecrets(config, resolver, "unit_test")
 	require.NoError(t, err)
 
-	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	yamlConf, err := yaml.Marshal(allSettingsWithoutDefaultForAssertion(config))
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
@@ -1579,7 +1579,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// verify that the original config was not changed because origin is different
-	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	yamlConf, err = yaml.Marshal(allSettingsWithoutDefaultForAssertion(config))
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
@@ -1589,7 +1589,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// now the original config was modified because of the origin match
-	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	yamlConf, err = yaml.Marshal(allSettingsWithoutDefaultForAssertion(config))
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(yamlConf))
 }
