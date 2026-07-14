@@ -11,14 +11,25 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
 
 func makeCollector(bufferSize int) *EventCollector {
 	return &EventCollector{
 		events:       make(chan *v1.Event, bufferSize),
+		dropped:      atomic.NewUint64(0),
+		lastRV:       atomic.NewUint64(0),
+		maxDrainedRV: atomic.NewUint64(0),
+	}
+}
+
+func makeUnboundedCollector() *EventCollector {
+	return &EventCollector{
+		unbounded:    true,
 		dropped:      atomic.NewUint64(0),
 		lastRV:       atomic.NewUint64(0),
 		maxDrainedRV: atomic.NewUint64(0),
@@ -68,6 +79,35 @@ func TestEnqueue(t *testing.T) {
 		ec.events <- ev // fill the buffer
 		ec.enqueue(ev)
 		assert.Equal(t, uint64(1), ec.DrainDropped())
+	})
+
+	t.Run("unbounded: events beyond any bounded capacity are never dropped", func(t *testing.T) {
+		ec := makeUnboundedCollector()
+		for i := 0; i < 100; i++ {
+			ec.enqueue(ev)
+		}
+		assert.Equal(t, uint64(0), ec.DrainDropped())
+		assert.Len(t, ec.Drain(), 100)
+		assert.Nil(t, ec.Drain())
+	})
+}
+
+// TestNewEventCollector verifies bufferSize validation is skipped when unbounded is requested.
+func TestNewEventCollector(t *testing.T) {
+	c := &APIClient{InformerCl: fakeclientset.NewSimpleClientset()}
+
+	t.Run("bounded, bufferSize zero: rejected", func(t *testing.T) {
+		assert.Nil(t, c.NewEventCollector("", 0, false))
+	})
+
+	t.Run("bounded, bufferSize positive: accepted", func(t *testing.T) {
+		assert.NotNil(t, c.NewEventCollector("", 1, false))
+	})
+
+	t.Run("unbounded, bufferSize zero: accepted, bufferSize ignored", func(t *testing.T) {
+		ec := c.NewEventCollector("", 0, true)
+		require.NotNil(t, ec)
+		assert.True(t, ec.unbounded)
 	})
 }
 

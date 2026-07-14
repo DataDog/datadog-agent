@@ -87,12 +87,12 @@ type KubeASConfig struct {
 	UseComponentStatus  bool `yaml:"use_component_status"`
 
 	// Event collection configuration
-	CollectEvent              bool   `yaml:"collect_events"`
-	MaxEventCollection        int    `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
-	EventCollectionTimeoutMs  int    `yaml:"kubernetes_event_read_timeout_ms"`
-	ResyncPeriodEvents        int    `yaml:"kubernetes_event_resync_period_s"`
-	UnbundleEvents            bool   `yaml:"unbundle_events"`
-	BundleUnspecifiedEvents   bool   `yaml:"bundle_unspecified_events"`
+	CollectEvent                   bool   `yaml:"collect_events"`
+	MaxEventCollection             int    `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
+	EventCollectionTimeoutMs       int    `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents             int    `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents                 bool   `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents        bool   `yaml:"bundle_unspecified_events"`
 	EventCollectionMode            string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
 	EventCollectionBufferSize      int    `yaml:"event_collection_buffer_size"`
 	EventCollectionUnboundedBuffer bool   `yaml:"event_collection_unbounded_buffer"` // no dropped events, unbounded memory growth
@@ -216,7 +216,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	if k.instance.EventCollectionBufferSize < 1 {
 		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
 	}
-	if k.instance.EventCollectionUnboundedBuffer {
+	if k.instance.EventCollectionUnboundedBuffer && k.instance.CollectEvent && k.instance.useEventWatchCollection() {
 		log.Warn("event_collection_unbounded_buffer is enabled: event buffer memory is now unbounded")
 	}
 
