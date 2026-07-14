@@ -182,12 +182,16 @@ mod tests {
     #[test]
     fn local_account_lookup_normalizes_computer_domain() {
         let username = std::env::var("USERNAME").expect("USERNAME");
-        let sid = lookup_account_sid("", &username).expect("local user SID");
-        let computer_domain = std::env::var("USERDOMAIN").unwrap_or_default();
-        assert!(
-            !computer_domain.is_empty(),
-            "USERDOMAIN should name the local machine for interactive logons"
-        );
+        let sid = lookup_account_sid("", &username).expect("user SID");
+        if !super::super::local_account::is_local_account(&sid).unwrap_or(false) {
+            // Domain-joined CI runners log on with a domain account; this
+            // normalization only applies to local SAM users.
+            return;
+        }
+
+        // LookupAccountSidW returns the computer name as the domain for local
+        // users, not USERDOMAIN (which names the logon domain on joined hosts).
+        let computer_domain = std::env::var("COMPUTERNAME").expect("COMPUTERNAME");
 
         let account =
             account_name_from_sid_lookup(&sid, computer_domain, username.clone()).expect("account");
