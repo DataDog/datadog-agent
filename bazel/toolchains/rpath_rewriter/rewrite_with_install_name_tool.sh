@@ -28,7 +28,7 @@ new_id="$PREFIX/$dylib_name"
 # vanish after the build, so rewrite them to $PREFIX/<basename> so the dynamic
 # linker can find them via the rpath we just added. Leave everything else
 # (system libraries, @rpath/... references) untouched.
-${OTOOL} -L "$OUTPUT" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+"$OTOOL" -L "$OUTPUT" | tail -n +2 | awk '{print $1}' | while read -r dep; do
     if [[ "$dep" == *"sandbox"* ]] || [[ "$dep" == *"bazel-out"* ]]; then
         dep_name=$(basename "$dep")
         new_dep="$PREFIX/$dep_name"
@@ -38,4 +38,4 @@ done
 
 # Re-sign with an ad-hoc signature after modification as install_name_tool invalidates
 # any existing code signature.
-codesign --sign - --force "$OUTPUT"
+/usr/bin/codesign --sign - --force "$OUTPUT"

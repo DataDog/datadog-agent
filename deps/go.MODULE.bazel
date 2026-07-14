@@ -556,6 +556,23 @@ go_deps.module_override(
     path = "github.com/tinylib/msgp",
 )
 
+# zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to
+# the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
+# makes zstd.a non-reproducible build-to-build, so every test linking it always misses
+# the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
+# path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
+# (a separate module pulled in by the OTel collector components) need the same treatment.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+    path = "github.com/DataDog/zstd",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
+    path = "github.com/DataDog/zstd_0",
+)
+
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
 # time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
 # Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
