@@ -240,6 +240,7 @@ properties:
     platform_default:
       linux: ${install_path}/bin/agent/agent
       darwin: ${install_path}/bin/agent/agent
+      aix: ${install_path}/bin/agent/agent
       windows: ${install_path}/bin/agent.exe
   dd_agent_env:
     node_type: setting

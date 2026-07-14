@@ -354,8 +354,10 @@ func buildConfigURIs(params *cliParams) []string {
 	// Apply overrides
 	uris := append([]string{}, params.ConfPaths...)
 
-	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
-	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+	// Add fleet policy config when a fleet policies directory is configured.
+	// On Windows, managed procmgr children omit DD_FLEET_POLICIES_DIR from processes.d and
+	// resolve the directory via registry with a stable managed-path fallback (see paths.FleetPoliciesDirForManagedProcess).
+	if fleetPoliciesDir := resolveFleetPoliciesDir(); fleetPoliciesDir != "" {
 		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -392,4 +394,13 @@ func buildConfigURIs(params *cliParams) []string {
 	uris = append(uris, params.Sets...)
 
 	return uris
+}
+
+// resolveFleetPoliciesDir returns DD_FLEET_POLICIES_DIR when set, otherwise a
+// platform-specific fleet policies directory (registry or stable managed dir on Windows).
+func resolveFleetPoliciesDir() string {
+	if v := os.Getenv("DD_FLEET_POLICIES_DIR"); v != "" {
+		return v
+	}
+	return fleetPoliciesDirFromPlatform()
 }

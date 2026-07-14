@@ -29,8 +29,8 @@ type Requires struct {
 	Store    storedef.Component
 }
 
-// New creates a new runner instance.
-func New(reqs Requires) runnerdef.Component {
+// NewComponent creates a new runner instance.
+func NewComponent(reqs Requires) runnerdef.Component {
 	return &runner{
 		log:      reqs.Log,
 		registry: reqs.Registry,

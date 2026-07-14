@@ -1,17 +1,19 @@
 import os
 import re
 
-func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
-declare_regex = r'^config.BindEnvAndSetDefault\((.*)\)'
-set_default_regex = r'^config.SetDefault\((.*)\)'
-proc_declare_regex = r'^procBindEnvAndSetDefault\(config, (.*)\)'
+func_start_regex = r'^func (\w+)\(\w+ pkgconfigmodel.Setup\)'
+declare_regex = r'^c\w+g\.BindEnvAndSetDefault\((.*)\)'
+set_default_regex = r'^c\w+g\.SetDefault\((.*)\)'
+proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
 # `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
 # parentheses balance and only then match the joined statement against the single-line regexes above.
 DECL_START_PREFIXES = (
     'config.BindEnvAndSetDefault(',
+    'cfg.BindEnvAndSetDefault(',
     'config.SetDefault(',
+    'cfg.SetDefault',
     'procBindEnvAndSetDefault(',
 )
 
@@ -56,7 +58,7 @@ MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover_settings.go")
 PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner_settings.go")
 PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process_settings.go")
 # system probe
-SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
+SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe_settings.go")
 
 
 def extract_imperative_code_hints():
@@ -199,6 +201,9 @@ class Processor:
         if text.startswith('//'):
             text = text[2:]
         text = text.strip()
+        # ignore this common case:
+        if re.match(r'^TODO: replace by .SetDefaultAndBindEnv.', text):
+            return
         self.internal_comment.append(text)
 
     def clean_param(self, params, index):

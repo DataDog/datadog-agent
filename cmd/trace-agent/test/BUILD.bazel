@@ -36,7 +36,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/testutil",
         "@com_github_datadog_zstd//:zstd",
-        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_v2//interceptors/auth",
         "@com_github_tinylib_msgp//msgp",
         "@in_yaml_go_yaml_v2//:yaml",
         "@org_golang_google_grpc//:grpc",

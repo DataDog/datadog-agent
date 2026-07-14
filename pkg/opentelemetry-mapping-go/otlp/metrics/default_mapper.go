@@ -93,7 +93,8 @@ func (m *defaultMapper) MapHistogramMetrics(
 
 		histInfo := histogramInfo{ok: true}
 
-		countDims := pointDims.WithSuffix("count")
+		// `.count` counts observations, so we drop the unit.
+		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		if delta {
 			histInfo.count = p.Count()
 		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
@@ -181,7 +182,8 @@ func (m *defaultMapper) MapSummaryMetrics(
 		// and sum as a non-monotonic metric
 		// https://prometheus.io/docs/practices/histograms/#count-and-sum-of-observations
 		{
-			countDims := pointDims.WithSuffix("count")
+			// `.count` counts observations, so we drop the unit.
+			countDims := pointDims.WithSuffix("count").WithoutUnit()
 			val := float64(p.Count())
 			dx, isFirstPoint, shouldDropPoint := m.prevPts.MonotonicDiff(countDims, startTs, ts, val)
 			if !shouldDropPoint && !isSkippable(m.logger, countDims.name, dx) {
@@ -246,7 +248,8 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 
 		histInfo := histogramInfo{ok: true}
 
-		countDims := pointDims.WithSuffix("count")
+		// `.count` counts observations, so we drop the unit.
+		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		if delta {
 			histInfo.count = p.Count()
 		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
@@ -493,7 +496,8 @@ func (m *defaultMapper) getLegacyBuckets(
 		return fmt.Errorf("histogram %q has %d bucket counts but %d explicit bounds (expected counts == bounds+1)",
 			pointDims.name, p.BucketCounts().Len(), p.ExplicitBounds().Len())
 	}
-	baseBucketDims := pointDims.WithSuffix("bucket")
+	// `.bucket` counts observations, so we drop the unit.
+	baseBucketDims := pointDims.WithSuffix("bucket").WithoutUnit()
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p.ExplicitBounds(), idx)
 		bucketDims := baseBucketDims.AddTags(

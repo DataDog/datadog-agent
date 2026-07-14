@@ -13,10 +13,15 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 	"github.com/spf13/cobra"
 )
+
+func fleetPoliciesDirFromPlatform() string {
+	return paths.FleetPoliciesDirForManagedProcess()
+}
 
 // TryToGetDefaultParamsIfMissing fills missing config paths with ProgramData defaults on Windows.
 // It does not override values already provided via flags or environment.

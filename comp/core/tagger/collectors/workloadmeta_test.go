@@ -3843,9 +3843,10 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:  "nvidia",
-				Device:  "tesla-v100",
-				GPUType: "v100",
+				Vendor:   "nvidia",
+				Device:   "tesla-v100",
+				GPUType:  "v100",
+				PCIBusID: "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3860,6 +3861,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 					},
 					StandardTags: []string{},
 				},
@@ -3875,9 +3877,10 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor:  "Nvidia",
-				Device:  "Tesla v100",
-				GPUType: "V100",
+				Vendor:   "Nvidia",
+				Device:   "Tesla v100",
+				GPUType:  "V100",
+				PCIBusID: "0000:00:1E.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3892,6 +3895,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 					},
 					StandardTags: []string{},
 				},
@@ -3915,6 +3919,7 @@ func TestHandleGPU(t *testing.T) {
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
+				PCIBusID:           "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3930,6 +3935,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
+						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -3956,6 +3962,7 @@ func TestHandleGPU(t *testing.T) {
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
 				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+				PCIBusID:           "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3971,6 +3978,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:mig-parent",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -4369,6 +4377,7 @@ func TestHandleProcess(t *testing.T) {
 		Device:             gpuDevice,
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
+		PCIBusID:           "0000:00:1e.0",
 	})
 
 	cfg := configmock.New(t)
@@ -4700,6 +4709,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
@@ -4740,6 +4750,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_pci_bus_id:0000:00:1e.0",
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
