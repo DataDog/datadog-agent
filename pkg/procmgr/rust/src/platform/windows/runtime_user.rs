@@ -181,23 +181,23 @@ mod tests {
 
     #[test]
     fn local_account_lookup_normalizes_computer_domain() {
-        let username = std::env::var("USERNAME").expect("USERNAME");
-        let sid = lookup_account_sid("", &username).expect("user SID");
-        if !super::super::local_account::is_local_account(&sid).unwrap_or(false) {
-            // Domain-joined CI runners log on with a domain account; this
-            // normalization only applies to local SAM users.
-            return;
-        }
-
-        // LookupAccountSidW returns the computer name as the domain for local
-        // users, not USERDOMAIN (which names the logon domain on joined hosts).
+        // Use a built-in local SAM account so this stays deterministic on
+        // domain-joined CI hosts (where USERNAME is a domain principal).
+        let username = "Administrator";
         let computer_domain = std::env::var("COMPUTERNAME").expect("COMPUTERNAME");
+        let sid = lookup_account_sid(&computer_domain, username)
+            .or_else(|_| lookup_account_sid("", username))
+            .expect("Administrator SID");
 
-        let account =
-            account_name_from_sid_lookup(&sid, computer_domain, username.clone()).expect("account");
+        let account = account_name_from_sid_lookup(
+            &sid,
+            computer_domain,
+            username.to_string(),
+        )
+        .expect("account");
         assert_eq!(
             account.display(),
-            AccountName::new("", &username).display(),
+            AccountName::new("", username).display(),
             "runtime lookup should match registry-style local account display"
         );
     }
