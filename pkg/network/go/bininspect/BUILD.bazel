@@ -52,14 +52,10 @@ go_test(
         "pclntab_test.go",
         "symbols_test.go",
     ],
+    data = ["//pkg/network/usm/testdata/site-packages/ddtrace:testdata"],
     embed = [":bininspect"],
     gotags = ["test"],
-    # The symbols_test.go tests read fixtures from ../../usm/testdata/ at
-    # runtime. pkg/network/usm is still gazelle:exclude-d, so we can't
-    # express the data dep in bazel yet. Skip the test by default; it
-    # still runs under `dda inv test` (which uses the source tree
-    # directly).
-    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/network/protocols/http/testutil",
