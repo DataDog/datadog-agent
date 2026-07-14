@@ -209,6 +209,14 @@ fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
     }
 }
 
+/// Canonical operator-facing name for built-in service SIDs.
+///
+/// `LookupAccountSidW` spells LocalService and NetworkService with spaces; installer
+/// state and spawn display use the compact forms instead.
+pub(crate) fn canonical_account_name_for_well_known_sid(sid: &[u8]) -> Option<AccountName> {
+    well_known_from_sid(sid).map(|account| account.account_name())
+}
+
 fn is_local_system_name(domain: &str, user: &str) -> bool {
     user.eq_ignore_ascii_case("LocalSystem")
         || (domain.eq_ignore_ascii_case("NT AUTHORITY") && user.eq_ignore_ascii_case("SYSTEM"))
