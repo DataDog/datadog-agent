@@ -72,7 +72,7 @@ $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
 $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
 
-printf "${BLUE}\n    - Removing Agent-managed Trajectory (EUDM)...\n${NC}"
+printf "${BLUE}\n    - Removing Agent-managed Trajectory...\n${NC}"
 for user_home in /Users/*; do
     [ -d "$user_home" ] || continue
     u=$(basename "$user_home")

@@ -138,6 +138,7 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
     dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_ai_usage_chrome_extension_id=$(grep '^DD_AI_USAGE_CHROME_EXTENSION_ID=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_install_trajectory=$(grep '^DD_INSTALL_TRAJECTORY=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
 
     if [ -n "$dd_ai_usage_chrome_extension_id" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
         if grep -qE '^[[:space:]]*#?[[:space:]]*chrome_extension_id:' "$CONF_DIR/ai_usage_native_host.yaml"; then
@@ -249,29 +250,24 @@ elif [ -n "$CHROME_EXT_ID" ]; then
 fi
 
 # ==========================================================================
-# EUDM: bootstrap Trajectory (AI coding-agent skill observability)
+# Bootstrap Trajectory (AI coding-agent skill observability)
 #
-# Per human account under /Users: if Trajectory is absent, install it
-# (--clients all), lay down the managed config.defaults.yaml, and write an
-# ownership marker (~/.trajectory/.dd-agent-eudm.state). If the Agent owns an
-# existing install, refresh the config; a foreign install is left alone with a
-# note logged on adding the aiusage destination by hand. Best-effort: failures
-# are logged, never fail the Agent install. The uninstaller uses the marker to
-# remove only Agent-installed Trajectory.
+# Opt-in via the DD_INSTALL_TRAJECTORY=true install flag (forwarded by the
+# install script through the staging env file). Per human account under /Users:
+# if Trajectory is absent, install it (--clients all), lay down the managed
+# config.defaults.yaml, and write an ownership marker
+# (~/.trajectory/.dd-agent-eudm.state). If the Agent owns an existing install,
+# refresh the config; a foreign install is left alone with a note logged on
+# adding the aiusage destination by hand. Best-effort: failures are logged,
+# never fail the Agent install. The uninstaller uses the marker to remove only
+# Agent-installed Trajectory.
 # ==========================================================================
 TRAJECTORY_INSTALL_URL="${DD_TRAJECTORY_INSTALL_URL:-https://raw.githubusercontent.com/datadog-labs/trajectory/main/install.sh}"
 TRAJECTORY_CONFIG_DEFAULTS_URL="${DD_TRAJECTORY_CONFIG_DEFAULTS_URL:-https://raw.githubusercontent.com/DataDog/datadog-agent/main/cmd/agent/macos/trajectory/config.defaults.yaml}"
 TRAJECTORY_MARKER_NAME=".dd-agent-eudm.state"
 
-traj_is_eudm=false
-if [ "$dd_infra_mode" = "end_user_device" ]; then
-    traj_is_eudm=true
-elif grep -Eq '^[[:space:]]*infrastructure_mode:[[:space:]]*"?end_user_device"?' "$CONF_DIR/datadog.yaml" 2>/dev/null; then
-    traj_is_eudm=true
-fi
-
-if [ "$traj_is_eudm" = true ]; then
-    echo "# EUDM mode detected: bootstrapping Trajectory for AI skill observability"
+if [ "$dd_install_trajectory" = "true" ]; then
+    echo "# DD_INSTALL_TRAJECTORY=true: bootstrapping Trajectory for AI skill observability"
 
     # Download the installer and managed defaults once (best-effort, --fail/
     # --retry). mktemp creates them root-only (0600); chmod 644 so the per-user

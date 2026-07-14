@@ -105,6 +105,14 @@ if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
     infrastructure_mode="$DD_INFRASTRUCTURE_MODE"
 fi
 
+# Optional: opt into bootstrapping Trajectory (AI coding-agent skill
+# observability) for every human account. postinst reads this flag; when unset
+# no Trajectory install happens.
+install_trajectory=false
+if [ "$DD_INSTALL_TRAJECTORY" = "true" ]; then
+    install_trajectory=true
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20        = defaults to highest patch version x.20.2
@@ -236,6 +244,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
     [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
     [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
+    [ "$install_trajectory" = true ] && echo "DD_INSTALL_TRAJECTORY=true"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
