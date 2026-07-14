@@ -1353,6 +1353,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
+	// Data Security (sensitive-data-scanner results) event platform forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
 }
 
 func fleet(config pkgconfigmodel.Setup) {

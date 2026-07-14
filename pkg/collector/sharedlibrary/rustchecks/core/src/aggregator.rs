@@ -264,19 +264,27 @@ impl Aggregator {
         &self,
         check_id: &str,
         raw_event: &str,
-        raw_event_size: c_int,
+        _raw_event_size: c_int,
+        event_type: &str,
+    ) -> Result<()> {
+        self.submit_event_platform_event_bytes(check_id, raw_event.as_bytes(), event_type)
+    }
+
+    pub fn submit_event_platform_event_bytes(
+        &self,
+        check_id: &str,
+        raw_event: &[u8],
         event_type: &str,
     ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
-        let cstr_raw_event = CStringGuard::new(raw_event)?;
         let cstr_event_type = CStringGuard::new(event_type)?;
 
-        // submit the event platform event
+        // submit the event platform event (raw_event may contain arbitrary bytes)
         (self.cb_submit_event_platform_event)(
             cstr_check_id.as_ptr(),
-            cstr_raw_event.as_ptr(),
-            raw_event_size,
+            raw_event.as_ptr() as *mut c_char,
+            raw_event.len() as c_int,
             cstr_event_type.as_ptr(),
         );
 

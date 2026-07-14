@@ -1,4 +1,9 @@
 checks:
+  - id: datasecurity
+    crate: datasecurity
+    include_in_build: true
+    platforms:
+      - linux
   - id: example
     crate: example
     include_in_build: false
