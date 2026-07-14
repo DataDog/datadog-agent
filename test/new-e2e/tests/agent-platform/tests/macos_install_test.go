@@ -612,6 +612,94 @@ EOF`, macosAPMSentinelService))
 	}, 2*time.Minute, 10*time.Second)
 }
 
+// macosNPMConfigMarker delimits the network_config block TestNPMTracesConnection appends to
+// system-probe.yaml, so it can be identified and removed again during cleanup.
+const macosNPMConfigMarker = "# added by e2e TestNPMTracesConnection"
+
+// macosNPMProcessConfigMarker delimits the block TestNPMTracesConnection appends to
+// datadog.yaml. The connections check runs inside the same standalone process-agent binary
+// spawned for process collection (see TestProcessAgentReportsProcessData) and submits over
+// the same process_config.process_dd_url, so that setup is duplicated here rather than shared,
+// to keep this test independent of whether TestProcessAgentReportsProcessData already ran.
+const macosNPMProcessConfigMarker = "# added by e2e TestNPMTracesConnection process config"
+
+// TestNPMTracesConnection documents macOS's NPM architecture, which is unlike Linux: there is
+// no eBPF on Darwin, so the darwin-only NetworkTracer module
+// (cmd/system-probe/modules/network_tracer_darwin.go) always falls back to a libpcap-based,
+// ebpf-less connection tracer (pkg/network/tracer/connection/tracer_darwin.go) that has no
+// per-socket process attribution (unlike Linux, a captured connection's PID is always zero on
+// Darwin). It also never captures loopback traffic at all: isEligibleInterface explicitly
+// skips any interface with net.FlagLoopback (pkg/network/filter/packet_source_darwin.go), so a
+// connection to 127.0.0.1 is invisible to it. Enabling network_config.enabled isn't enough to
+// prove connections actually reach the backend anyway, so this test opens a real connection to
+// fakeintake's own remote address -- guaranteed to cross a real, captured interface -- and
+// asserts it shows up in the connection payloads fakeintake receives.
+func (m *macosInstallSuite) TestNPMTracesConnection() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	sysprobeConfFilePath := macosConfDefaultConfPath + "/system-probe.yaml"
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	parsedFakeIntakeURL, err := url.Parse(fakeIntakeURL)
+	require.NoError(m.T(), err)
+	fakeIntakeHost := parsedFakeIntakeURL.Hostname()
+	fakeIntakePort, err := strconv.Atoi(parsedFakeIntakeURL.Port())
+	require.NoError(m.T(), err)
+
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\nnetwork_config:\n  enabled: true\n' | sudo tee -a %s`,
+		macosNPMConfigMarker, sysprobeConfFilePath, macosNPMConfigMarker, sysprobeConfFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ndd_url: %s\nprocess_config:\n  process_dd_url: %s\n  process_collection:\n    enabled: true\n' | sudo tee -a %s`,
+		macosNPMProcessConfigMarker, confFilePath, macosNPMProcessConfigMarker, fakeIntakeURL, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.sysprobe")
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+2d" %s`, macosNPMConfigMarker, sysprobeConfFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+5d" %s`, macosNPMProcessConfigMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.sysprobe")
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for sysprobe and the agent to come back healthy after the config changes.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosLaunchdPID(c, macosTestClient, "system/com.datadoghq.sysprobe")
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 30*time.Second, 2*time.Second)
+
+	// A one-shot connection could close and age out of the tracer's state before the
+	// connections check next polls it, so keep opening fresh connections while polling
+	// fakeintake rather than connecting once up front.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "curl -s -o /dev/null --max-time 2 "+fakeIntakeURL)
+
+		payloads, err := m.Env().FakeIntake.Client().GetConnections()
+		if !assert.NoError(c, err, "failed to get connection payloads from fakeintake") {
+			return
+		}
+
+		var found bool
+		payloads.ForeachHostnameConnections(func(cnx *aggregator.Connections, _ string) {
+			for _, conn := range cnx.Connections {
+				if conn.Raddr != nil && conn.Raddr.Ip == fakeIntakeHost && conn.Raddr.Port == int32(fakeIntakePort) {
+					found = true
+				}
+			}
+		})
+		assert.True(c, found, "connection to fakeintake (%s:%d) should be collected in connection payloads", fakeIntakeHost, fakeIntakePort)
+	}, 3*time.Minute, 10*time.Second)
+}
+
 func (m *macosInstallSuite) TestAgentRestart() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 
