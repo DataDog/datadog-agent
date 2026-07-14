@@ -108,16 +108,16 @@ if [ ! -f "$ADP_AIX_BINARY_PATH" ]; then
     exit 1
 fi
 
-# ─── Step 2: Install binary ───────────────────────────────────────────────────
+# ─── Step 2: Stage binary ─────────────────────────────────────────────────────
 
-log "Installing agent-data-plane binary"
+log "Staging agent-data-plane binary"
 mkdir -p "$(dirname "$ADP_BIN_DEST")"
 cp "$ADP_AIX_BINARY_PATH" "$ADP_BIN_DEST"
 strip -X64 "$ADP_BIN_DEST"
 chmod 755 "$ADP_BIN_DEST"
-log "agent-data-plane binary installed at $ADP_BIN_DEST"
+log "agent-data-plane binary staged at $ADP_BIN_DEST"
 
-# ─── Step 3: Install license artifacts ────────────────────────────────────────
+# ─── Step 3: Stage license artifacts ──────────────────────────────────────────
 
 ADP_LICENSE_3RDPARTY=${ADP_LICENSE_3RDPARTY:-}
 if [ -z "$ADP_LICENSE_3RDPARTY" ]; then
@@ -172,7 +172,7 @@ fi
 mkdir -p "$ADP_LICENSES_DEST"
 cp "$ADP_LICENSE_3RDPARTY" "$ADP_LICENSES_DEST/LICENSE-agent-data-plane-3rdparty.csv"
 cp -R "$ADP_THIRD_PARTY_SRC"/THIRD-PARTY-* "$ADP_LICENSES_DEST/"
-log "ADP license artifacts installed to $ADP_LICENSES_DEST"
+log "ADP license artifacts staged under $ADP_LICENSES_DEST"
 
 # ─── Step 4: Verify XCOFF64 magic bytes ───────────────────────────────────────
 
