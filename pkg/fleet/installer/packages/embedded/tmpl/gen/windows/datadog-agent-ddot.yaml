@@ -1,13 +1,5 @@
 description: Datadog Distribution of OpenTelemetry Collector
 command: __DDOT_INSTALL_ROOT__/ext/ddot/embedded/bin/otel-agent.exe
-args:
-  - run
-  - --sync-delay
-  - 90s
-  - --config
-  - __DDOT_ETC_ROOT__/otel-config.yaml
-  - --core-config
-  - __DDOT_ETC_ROOT__/datadog.yaml
 auto_start: true
 condition_path_exists: __DDOT_INSTALL_ROOT__/ext/ddot/embedded/bin/otel-agent.exe
 restart: on-failure
@@ -15,8 +7,6 @@ restart_sec: 2
 start_limit_interval_sec: 10
 start_limit_burst: 5
 env:
-  DD_OTELCOLLECTOR_ENABLED: "true"
-  DD_FLEET_POLICIES_DIR: __DDOT_FLEET_POLICIES_DIR__
   DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
 stdout: inherit
 stderr: inherit

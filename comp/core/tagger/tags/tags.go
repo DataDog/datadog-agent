@@ -153,6 +153,8 @@ const (
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUParentGPUUUID is the tag for the parent GPU UUID
 	GPUParentGPUUUID = "gpu_parent_uuid"
+	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
+	GPUPCIBusID = "gpu_pci_bus_id"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

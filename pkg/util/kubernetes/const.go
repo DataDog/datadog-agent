@@ -100,6 +100,8 @@ const (
 	CronJobKind = "CronJob"
 	// ServiceKind represents the ServiceKind object kind
 	ServiceKind = "Service"
+	// ConfigMapKind represents the ConfigMap object kind
+	ConfigMapKind = "ConfigMap"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind

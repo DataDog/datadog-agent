@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -427,13 +428,22 @@ func TestServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T) {
 	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
 	c.mockClock.Set(baseTime)
 
-	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
-		time.Sleep(50 * time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t, c, maxConsecutiveTimeouts)
+	})
+}
+
+func testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T, c collectorTest, maxConsecutiveTimeouts int) {
+	transport, requests := startInProcessScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		select {
+		case <-t.Context().Done():
+		case <-time.After(50 * time.Millisecond):
+		}
 		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
 	})
-	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(socketPath),
-		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
+	c.collector.sysProbeClient = sysprobeclient.NewCheckClient(
+		&http.Client{Timeout: 5 * time.Millisecond, Transport: transport},
+		&http.Client{Transport: transport},
 	)
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
@@ -544,11 +554,20 @@ func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPrev
 	c.collector.store = c.mockStore
 	c.collector.consecutiveServiceDiscoveryTimeouts = 4
 
+	synctest.Test(t, func(t *testing.T) {
+		testServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPreviousTimeouts(t, c)
+	})
+}
+
+func testServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPreviousTimeouts(t *testing.T, c collectorTest) {
 	var requestMux sync.Mutex
 	var successfulRequestPIDs []int32
-	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(call int, params core.Params) serviceDiscoveryTestResponse {
+	transport, requests := startInProcessScriptedServiceDiscoveryServer(t, func(call int, params core.Params) serviceDiscoveryTestResponse {
 		if call == 1 {
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-t.Context().Done():
+			case <-time.After(50 * time.Millisecond):
+			}
 			return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
 		}
 
@@ -564,9 +583,9 @@ func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPrev
 			Services: services,
 		}}
 	})
-	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(socketPath),
-		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
+	c.collector.sysProbeClient = sysprobeclient.NewCheckClient(
+		&http.Client{Timeout: 5 * time.Millisecond, Transport: transport},
+		&http.Client{Transport: transport},
 	)
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
@@ -1330,7 +1349,7 @@ type serviceDiscoveryTestResponse struct {
 	status   int
 }
 
-func startScriptedServiceDiscoveryServer(t *testing.T, handler func(call int, params core.Params) serviceDiscoveryTestResponse) (string, func() int) {
+func newScriptedServiceDiscoveryHandler(t *testing.T, handler func(call int, params core.Params) serviceDiscoveryTestResponse) (http.Handler, func() int) {
 	t.Helper()
 
 	var mux sync.Mutex
@@ -1392,6 +1411,13 @@ func startScriptedServiceDiscoveryServer(t *testing.T, handler func(call int, pa
 		w.Write(responseBytes)
 	})
 
+	return httpHandler, requestCount
+}
+
+func startScriptedServiceDiscoveryServer(t *testing.T, handler func(call int, params core.Params) serviceDiscoveryTestResponse) (string, func() int) {
+	t.Helper()
+
+	httpHandler, requestCount := newScriptedServiceDiscoveryHandler(t, handler)
 	socketPath := testutil.SystemProbeSocketPath(t, "")
 	server, err := testutil.NewSystemProbeTestServer(httpHandler, socketPath)
 	require.NoError(t, err)
@@ -1400,6 +1426,31 @@ func startScriptedServiceDiscoveryServer(t *testing.T, handler func(call int, pa
 	t.Cleanup(server.Close)
 
 	return socketPath, requestCount
+}
+
+func startInProcessScriptedServiceDiscoveryServer(t *testing.T, handler func(call int, params core.Params) serviceDiscoveryTestResponse) (http.RoundTripper, func() int) {
+	t.Helper()
+
+	httpHandler, requestCount := newScriptedServiceDiscoveryHandler(t, handler)
+	return handlerTransport(httpHandler.ServeHTTP), requestCount
+}
+
+type handlerTransport http.HandlerFunc
+
+func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	done := make(chan *http.Response, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		tr(rec, req)
+		done <- rec.Result()
+	}()
+
+	select {
+	case resp := <-done: // handler finished first
+		return resp, nil
+	case <-req.Context().Done(): // client's timeout fired first
+		return nil, req.Context().Err()
+	}
 }
 
 func makeSequentialPIDs(count int, start int32) []int32 {

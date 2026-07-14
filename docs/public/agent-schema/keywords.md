@@ -70,24 +70,28 @@ default but could be change by the users. For example, the default configuration
 
 Path are all express using `/` and will be translated to the correct OS version.
 
-Existing variagbles:
+Existing variables:
 
 - Configuration directory (`${conf_path}`):
   - `windows`: `c:/programdata/datadog`
-  - `linux`; `/etc/datadog-agent`
+  - `linux`: `/etc/datadog-agent`
   - `darwin`: `/opt/datadog-agent/etc`
+  - `aix`: `/etc/datadog-agent`
 - Installation directory (`${install_path}`):
   - `windows`: `c:/program files/datadog/datadog agent`
-  - `linux`; `/opt/datadog-agent`
+  - `linux`: `/opt/datadog-agent`
   - `darwin`: `/opt/datadog-agent`
+  - `aix`: `/opt/datadog-agent`
 - Log directory (`${log_path}`):
   - `windows`: `c:/programdata/datadog/logs`
-  - `linux`; `/var/log/datadog`
+  - `linux`: `/var/log/datadog`
   - `darwin`: `/opt/datadog-agent/logs`
+  - `aix`: `/var/log/datadog`
 - Run directory, where the Agent starts from (`${run_path}`):
-  - `windows`: `/opt/datadog-agent/run`
-  - `linux`; `c:/programdata/datadog/run`
+  - `windows`: `c:/programdata/datadog/run`
+  - `linux`: `/opt/datadog-agent/run`
   - `darwin`: `/opt/datadog-agent/run`
+  - `aix`: `/opt/datadog-agent/run`
 
 
 The above variables are available for `default` and `platform_default` keywords.
@@ -318,10 +322,13 @@ Sets per-platform default value overrides. Mutually exclusive with `default` (On
 
 - **Available on:** setting nodes only.
 - **Mandatory:** yes, unless `default` is specified. `platform_default` must cover every platform — either by listing
-  `linux`, `windows`, and `darwin` explicitly, or by including an `other` catch-all.
+  `linux`, `windows`, `darwin`, and `aix` explicitly, or by including an `other` catch-all.
 - **Validation:** values must match the `type` of the setting.
 
-Supported platform keys: `linux`, `windows`, `darwin`, `container`, 'fargate', `other`.
+Supported platform keys: `linux`, `windows`, `darwin`, `aix`, `container`, `fargate`, `other`.
+
+As much as possible, avoid assuming all platforms are known, and don't use `other` for a value which is specific to
+a given OS just because the other OSes have been set explicitly.
 
 **Container fallback logic:** because container environments currently share many
 defaults with Linux, `container`/`fargate` is optional. When resolving the default for a
@@ -341,6 +348,7 @@ confd_path:
     windows: "C:\\ProgramData\\Datadog\\conf.d"
     linux: "/etc/datadog-agent/conf.d"
     darwin: "/opt/datadog-agent/etc/conf.d"
+    aix: "/etc/datadog-agent/conf.d"
     container: "/conf.d"
 
 # Using 'other' as a catch-all:
@@ -348,8 +356,9 @@ gui_port:
   node_type: setting
   type: number
   platform_default:
-    linux: -1
-    other: 5002             # covers windows and darwin
+    darwin: 5002
+    windows: 5002
+    other: -1             # currently covers linux and aix
 ```
 
 > **Note**: [Relative Path](keywords.md#relative-defaults) is also available for `platform_default`.

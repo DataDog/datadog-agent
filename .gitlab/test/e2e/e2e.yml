@@ -432,7 +432,7 @@ new-e2e-agent-health:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
 
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64

@@ -13,7 +13,7 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 // Component is the health-platform scheduler component.
 type Component interface {

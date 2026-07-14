@@ -29,7 +29,7 @@ import (
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 // findInvalidConfigIssue returns the invalid-config issue among a health
 // report's issues, if any. The issue's map key is IssueID scoped with a

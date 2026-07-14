@@ -123,7 +123,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Datadog security agent (runtime)
+    comment: CWS - general config
   endpoints:
     node_type: section
     type: object
@@ -234,6 +234,11 @@ properties:
     platform_default:
       windows: localhost:3335
       other: ${install_path}/run/runtime-security.sock
+    comment: |-
+      CWS - general config
+      the following entries are platform specific
+      - runtime_security_config.policies.dir
+      - runtime_security_config.socket
   use_secruntime_track:
     node_type: setting
     type: boolean

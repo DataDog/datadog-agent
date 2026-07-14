@@ -16,6 +16,13 @@ import (
 //go:embed mappings.json
 var mappingsJSON []byte
 
+const (
+	// SourceEmbedded marks a registry loaded from the embedded mappings.json.
+	SourceEmbedded = "embedded"
+	// SourceRemoteConfig marks a registry delivered via Remote Configuration.
+	SourceRemoteConfig = "remote-config"
+)
+
 type registryMetadata struct {
 	ContentHash string `json:"content_hash"`
 }
@@ -30,6 +37,7 @@ type registryData struct {
 type EmbeddedRegistry struct {
 	version  string
 	hash     string
+	source   string
 	mappings map[Concept][]TagInfo
 }
 
@@ -63,7 +71,7 @@ func UpdateRegistry(r Registry) {
 // NewRegistryFromJSON constructs a Registry from raw JSON without affecting the live registry.
 // Returns an error if the JSON is malformed, contains no concepts, or is missing metadata.content_hash.
 func NewRegistryFromJSON(data []byte) (Registry, error) {
-	r := &EmbeddedRegistry{}
+	r := &EmbeddedRegistry{source: SourceRemoteConfig}
 	if err := r.loadFromJSON(data); err != nil {
 		return nil, err
 	}
@@ -72,7 +80,7 @@ func NewRegistryFromJSON(data []byte) (Registry, error) {
 
 // NewEmbeddedRegistry creates a registry from embedded JSON mappings.
 func NewEmbeddedRegistry() (*EmbeddedRegistry, error) {
-	r := &EmbeddedRegistry{}
+	r := &EmbeddedRegistry{source: SourceEmbedded}
 	if err := r.loadFromJSON(mappingsJSON); err != nil {
 		return nil, fmt.Errorf("failed to load embedded mappings: %w", err)
 	}
@@ -122,6 +130,11 @@ func (r *EmbeddedRegistry) Version() string {
 // ContentHash returns the content-bound hash of the registry's concept mappings.
 func (r *EmbeddedRegistry) ContentHash() string {
 	return r.hash
+}
+
+// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
+func (r *EmbeddedRegistry) Source() string {
+	return r.source
 }
 
 // RegistryEqual reports whether two registries carry the same concept

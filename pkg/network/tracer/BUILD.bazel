@@ -217,6 +217,7 @@ go_test(
         "@rules_go//go/platform:android": [
             "//pkg/config/env",
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/telemetry",
             "//pkg/network/config/sysctl",
             "//pkg/network/protocols",
@@ -296,6 +297,7 @@ go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/config/env",
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/telemetry",
             "//pkg/network/config/sysctl",
             "//pkg/network/protocols",
