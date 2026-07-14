@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/DataDog/dd-trace-go/v2/llmobs"
 
@@ -149,7 +151,21 @@ var (
 	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
 	llmTotalTokRe  = regexp.MustCompile(`"total_tokens"\s*:\s*(\d+)`)
+
+	// A response whose finish/stop reason indicates a tool call. This lives in
+	// the response tail (alongside usage), which is reliably captured, unlike
+	// the head where the tool_calls array can be lost on multi-read responses.
+	llmFinishToolRe  = regexp.MustCompile(`"finish_reason"\s*:\s*"tool_calls"`) // OpenAI
+	llmStopToolUseRe = regexp.MustCompile(`"stop_reason"\s*:\s*"tool_use"`)     // Anthropic
 )
+
+// isToolCallGen reports whether a response tail is a tool-call generation.
+func isToolCallGen(raw []byte, provider string) bool {
+	if provider == providerAnthropic {
+		return llmStopToolUseRe.Match(raw)
+	}
+	return llmFinishToolRe.Match(raw)
+}
 
 // llmMessage is one chat message (role + content) parsed from the request body.
 type llmMessage struct {
@@ -173,6 +189,13 @@ type llmToolResult struct {
 	content string
 }
 
+// llmUsage is provider-neutral token usage (input/output/total).
+type llmUsage struct {
+	input  int64
+	output int64
+	total  int64
+}
+
 // llmSpanInfo holds everything parsed from the captured request/response
 // bodies to enrich an LLM span.
 type llmSpanInfo struct {
@@ -190,6 +213,10 @@ type llmSpanInfo struct {
 	inputTokens  int64
 	outputTokens int64
 	totalTokens  int64
+	// firstGenUsage is the token usage of the tool_call generation (turn 1),
+	// recovered from the previous-response maps and matched to reqToolCalls by
+	// tool_call id, so the workflow's first llm span carries its cost.
+	firstGenUsage llmUsage
 }
 
 // detectProvider infers the LLM provider from the model name. Anthropic models
@@ -545,7 +572,15 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 		llmobs.WithModelProvider(info.provider),
 		llmobs.WithStartTime(start),
 	)
-	llm1.AnnotateLLMIO(baseInput, []llmobs.LLMMessage{toolCallMsg}, llmobs.WithAnnotatedTags(tags))
+	llm1Annotations := []llmobs.AnnotateOption{llmobs.WithAnnotatedTags(tags)}
+	if info.firstGenUsage.total > 0 {
+		llm1Annotations = append(llm1Annotations, llmobs.WithAnnotatedMetrics(map[string]float64{
+			llmobs.MetricKeyInputTokens:  float64(info.firstGenUsage.input),
+			llmobs.MetricKeyOutputTokens: float64(info.firstGenUsage.output),
+			llmobs.MetricKeyTotalTokens:  float64(info.firstGenUsage.total),
+		}))
+	}
+	llm1.AnnotateLLMIO(baseInput, []llmobs.LLMMessage{toolCallMsg}, llm1Annotations...)
 	llm1.Finish(llmobs.WithFinishTime(t1))
 
 	// Child 2 (tool): one span per call, output = the matching result (by id).
@@ -638,32 +673,60 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.toolResults = parseToolResults(reqBody.Data[:n], info.provider)
 	}
 
-	// Response body tail -> token usage (parsed per provider).
-	if h.llmRespBodyMap != nil {
-		var respBody llmBody
-		if err := h.llmRespBodyMap.Lookup(&key, &respBody); err == nil {
-			n := respBody.Len
-			if n > llmBodyBufferSize {
-				n = llmBodyBufferSize
-			}
-			info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(respBody.Data[:n], info.provider)
-		}
+	// Response body tail -> token usage (parsed per provider). Also cache the
+	// usage of a tool-call generation, detected via finish_reason in the tail,
+	// keyed by connection — from both the current and previous tail, so a
+	// follow-up recovers it regardless of response-slot churn between turns.
+	if data, ok := h.lookupBody(h.llmRespBodyMap, &key); ok {
+		info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(data, info.provider)
+		h.maybeCacheGenUsage(key, data, info.provider)
+	}
+	if data, ok := h.lookupBody(h.llmRespBodyPrevMap, &key); ok {
+		h.maybeCacheGenUsage(key, data, info.provider)
 	}
 
 	// Response body head -> assistant message content (the AI's answer).
-	if h.llmRespHeadMap != nil {
-		var respHead llmBody
-		if err := h.llmRespHeadMap.Lookup(&key, &respHead); err == nil {
-			n := respHead.Len
-			if n > llmBodyBufferSize {
-				n = llmBodyBufferSize
-			}
-			info.response = parseResponseText(respHead.Data[:n], info.provider)
-			info.toolCalls = parseToolCalls(respHead.Data[:n], info.provider)
+	if data, ok := h.lookupBody(h.llmRespHeadMap, &key); ok {
+		info.response = parseResponseText(data, info.provider)
+		info.toolCalls = parseToolCalls(data, info.provider)
+	}
+
+	// Follow-up request: recover the tool_call generation's usage (cached by
+	// connection) so the workflow's first llm span carries its cost.
+	if len(info.reqToolCalls) > 0 {
+		if u, ok := h.lookupGenUsage(key); ok {
+			info.firstGenUsage = u
 		}
 	}
 
 	return info
+}
+
+// maybeCacheGenUsage caches a response tail's token usage, keyed by connection,
+// when the tail is a tool-call generation.
+func (h *StatKeeper) maybeCacheGenUsage(key llmConnKey, tail []byte, provider string) {
+	if !isToolCallGen(tail, provider) {
+		return
+	}
+	in, out, tot := parseLLMUsage(tail, provider)
+	h.cacheGenUsage(key, llmUsage{input: in, output: out, total: tot})
+}
+
+// lookupBody reads a captured body from an LLMO map and returns its valid
+// prefix. ok is false when the map is unset or has no entry for the key.
+func (h *StatKeeper) lookupBody(m *ebpf.Map, key *llmConnKey) ([]byte, bool) {
+	if m == nil {
+		return nil, false
+	}
+	var body llmBody
+	if err := m.Lookup(key, &body); err != nil {
+		return nil, false
+	}
+	n := body.Len
+	if n > llmBodyBufferSize {
+		n = llmBodyBufferSize
+	}
+	return body.Data[:n], true
 }
 
 // resolveLLMService resolves the service name for a client PID using the same

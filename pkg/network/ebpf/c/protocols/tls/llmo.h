@@ -43,6 +43,13 @@ BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
 // Latest captured response body HEAD per LLM connection. The assistant's
 // message content lives near the start of the response JSON.
 BPF_HASH_MAP(llm_response_heads, llm_conn_key_t, llm_body_t, 1024)
+// PREVIOUS response tail/head per LLM connection: on each new response we shift
+// the current entry here first. A tool-using turn spans two responses on one
+// connection (turn 1's tool_call, turn 2's answer); the second overwrites the
+// first in the "current" maps before userspace reads it, so keeping the
+// previous one lets userspace recover turn 1's token usage for the workflow.
+BPF_HASH_MAP(llm_response_bodies_prev, llm_conn_key_t, llm_body_t, 1024)
+BPF_HASH_MAP(llm_response_heads_prev, llm_conn_key_t, llm_body_t, 1024)
 // Per-CPU scratch to build the body off-stack (avoids the 512B stack limit).
 BPF_PERCPU_ARRAY_MAP(llm_body_scratch, llm_body_t, 1)
 
@@ -133,6 +140,19 @@ static __always_inline void llmo_maybe_capture_response(conn_tuple_t *t, char *b
     }
 
     body->len = len < LLM_BODY_BUFFER_SIZE ? len : LLM_BODY_BUFFER_SIZE;
+
+    // Shift the current response (previous turn) into the *_prev maps before we
+    // overwrite it, so userspace can still recover the earlier turn's usage.
+    // The kernel copies the whole value from the looked-up pointer, so no
+    // manual byte copy (and no extra unrolled loop) is needed.
+    llm_body_t *cur_tail = bpf_map_lookup_elem(&llm_response_bodies, &key);
+    if (cur_tail != NULL) {
+        bpf_map_update_with_telemetry(llm_response_bodies_prev, &key, cur_tail, BPF_ANY);
+    }
+    llm_body_t *cur_head = bpf_map_lookup_elem(&llm_response_heads, &key);
+    if (cur_head != NULL) {
+        bpf_map_update_with_telemetry(llm_response_heads_prev, &key, cur_head, BPF_ANY);
+    }
 
     // TAIL capture (token usage lives near the end of the response JSON).
     __u64 off = len > LLM_BODY_BUFFER_SIZE ? len - LLM_BODY_BUFFER_SIZE : 0;

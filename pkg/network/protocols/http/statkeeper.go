@@ -60,27 +60,65 @@ type StatKeeper struct {
 
 	// LLMO PoC: eBPF maps used to capture decrypted LLM request/response bodies.
 	// nil unless EnableLLMO has been called (only wired up for HTTP/2).
-	llmConnMap     *ebpf.Map
-	llmBodyMap     *ebpf.Map
-	llmRespBodyMap *ebpf.Map
-	llmRespHeadMap *ebpf.Map
+	llmConnMap         *ebpf.Map
+	llmBodyMap         *ebpf.Map
+	llmRespBodyMap     *ebpf.Map
+	llmRespHeadMap     *ebpf.Map
+	llmRespBodyPrevMap *ebpf.Map
+	llmRespHeadPrevMap *ebpf.Map
 	// llmServiceExtractor resolves the span service name from the client PID in
 	// userspace, using the same inference as USM (process_service_inference).
 	llmServiceExtractor *parser.ServiceExtractor
+	// llmGenUsage caches, per connection, the token usage of the most recent
+	// tool-call generation seen on it (detected via finish_reason in the
+	// response tail, which — unlike the head — is reliably captured). A
+	// follow-up request on the same connection reads it back to give the
+	// workflow's first llm span its cost, surviving response-slot churn.
+	llmGenUsage   map[llmConnKey]llmUsage
+	llmGenUsageMu sync.Mutex
 }
 
 // EnableLLMO wires up the eBPF maps used to capture decrypted LLM request and
 // response bodies. When set, LLM-detected transactions are enriched with the
 // model and prompt (from the request body), token usage + response content
 // (from the response body), and a service name resolved from the client PID.
-func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap, respHeadMap *ebpf.Map) {
+func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap, respHeadMap, respBodyPrevMap, respHeadPrevMap *ebpf.Map) {
 	h.llmConnMap = connMap
 	h.llmBodyMap = bodyMap
 	h.llmRespBodyMap = respBodyMap
 	h.llmRespHeadMap = respHeadMap
+	h.llmRespBodyPrevMap = respBodyPrevMap
+	h.llmRespHeadPrevMap = respHeadPrevMap
 	// Same inference USM uses for service names (enabled, non-Windows,
 	// improved algorithm).
 	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
+	h.llmGenUsage = make(map[llmConnKey]llmUsage)
+}
+
+// cacheGenUsage records, per connection, the token usage of a tool-call
+// generation, for later attribution to a workflow's first llm span.
+func (h *StatKeeper) cacheGenUsage(key llmConnKey, u llmUsage) {
+	if h.llmGenUsage == nil || u.total == 0 {
+		return
+	}
+	h.llmGenUsageMu.Lock()
+	defer h.llmGenUsageMu.Unlock()
+	// Bound the map; this is a PoC-sized cache.
+	if len(h.llmGenUsage) > 4096 {
+		h.llmGenUsage = make(map[llmConnKey]llmUsage)
+	}
+	h.llmGenUsage[key] = u
+}
+
+// lookupGenUsage returns the cached tool-call-generation usage for a connection.
+func (h *StatKeeper) lookupGenUsage(key llmConnKey) (llmUsage, bool) {
+	if h.llmGenUsage == nil {
+		return llmUsage{}, false
+	}
+	h.llmGenUsageMu.Lock()
+	defer h.llmGenUsageMu.Unlock()
+	u, ok := h.llmGenUsage[key]
+	return u, ok
 }
 
 // NewStatkeeper returns a new StatKeeper.
