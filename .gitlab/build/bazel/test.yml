@@ -116,6 +116,14 @@ bazel:test:linux-arm64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
   variables:
     FLAVOR: base
+  script:
+    - !reference [.bazel:test:reporting:ci_links]
+    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_event_json_file=$BEP_FILE --execution_log_compact_file=bazel-exec-linux-arm64-base.log --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+  artifacts:
+    paths:
+      - junit-*.tgz
+      - bazel-bep-*.json
+      - bazel-exec-linux-arm64-base.log
 
 bazel:test:linux-arm64:dogstatsd:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
