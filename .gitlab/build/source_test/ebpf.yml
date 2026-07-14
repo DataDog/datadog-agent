@@ -40,6 +40,7 @@ tests_ebpf_x64:
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
+  timeout: 25m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   needs: ["go_deps", "go_tools_deps_arm64"]
