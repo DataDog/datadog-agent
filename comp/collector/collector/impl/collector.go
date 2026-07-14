@@ -176,7 +176,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	defer c.m.Unlock()
 
 	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
-	sched := scheduler.NewScheduler(run.GetChan())
+	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)
@@ -229,15 +229,20 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
-	c.checkInstances++
-	if ch.Interval() == 0 {
+	if check.IsShadow(ch) {
+		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
+		c.runner.AddShadowWorker()
+	} else if ch.Interval() == 0 {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
 	} else {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		c.runner.UpdateNumWorkers(c.checkInstances)
 	}
 
@@ -249,8 +254,6 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	var ch check.Check
-	var collectorScheduler *scheduler.Scheduler
-	var collectorRunner *runner.Runner
 
 	// This lock is needed because stop() can be called concurrently and sets
 	// c.runner and c.scheduler to nil
@@ -266,9 +269,9 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
-	// These two are not nil because we checked that the collector is started
-	collectorScheduler = c.scheduler
-	collectorRunner = c.runner
+	// These two are not nil because we checked that the collector is started.
+	collectorScheduler := c.scheduler
+	collectorRunner := c.runner
 	c.m.RUnlock()
 
 	// unschedule the instance

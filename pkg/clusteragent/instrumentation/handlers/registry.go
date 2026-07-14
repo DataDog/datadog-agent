@@ -31,6 +31,7 @@ type Deps struct {
 // DefaultHandlers returns the product handlers registered for the shared controller.
 func DefaultHandlers(deps *Deps) []instrumentation.Handler {
 	return []instrumentation.Handler{
-		NewAutodiscoveryHandler(deps),
+		NewChecksHandler(deps),
+		NewLogsHandler(deps),
 	}
 }

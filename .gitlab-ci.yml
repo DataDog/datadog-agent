@@ -60,9 +60,10 @@
   - cmd/otel-agent/**/*
 
 # Bazel build system paths - single source of truth for all Bazel-related change detection.
-# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion,
+# including nested BUILD.bazel files (a single "*" does not cross "/" in GitLab's changes:paths glob).
 .bazel_paths: &bazel_paths
-  - "*.bazel*"
+  - "**/*.bazel*"
   - deps/**/*
   - bazel/**/*
   - tasks/build_tags.bzl
@@ -117,6 +118,9 @@
   - test/new-e2e/tests/sysprobe-functional/**/*
   - test/new-e2e/tests/process/**/*
   - test/new-e2e/tests/agent-runtimes/**/*
+
+  # E2E framework
+  - test/e2e-framework/components/activedirectory/**/*
 
 # Process manager
 .windows_path_4: &windows_path_4
@@ -279,8 +283,6 @@ variables:
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
-  ## comment out the line below to disable integration wheels cache
-  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
@@ -292,21 +294,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v120029388-43933fee
+  CI_IMAGE_BTF_GEN: v123467524-627631bf
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v120029388-43933fee
+  CI_IMAGE_DOCKER_X64: v123467524-627631bf
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v120029388-43933fee
+  CI_IMAGE_DOCKER_ARM64: v123467524-627631bf
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v120029388-43933fee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v123467524-627631bf
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v120029388-43933fee
+  CI_IMAGE_LINUX: v123467524-627631bf
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v120029388-43933fee
+  CI_IMAGE_RPM_X64: v123467524-627631bf
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v120029388-43933fee
+  CI_IMAGE_RPM_ARM64: v123467524-627631bf
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v120029388-43933fee
+  CI_IMAGE_RPM_ARMHF: v123467524-627631bf
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -1338,7 +1340,12 @@ workflow:
   - changes:
       paths:
         - pkg/security/**/*
-        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+        - pkg/compliance/**/*
+        - test/new-e2e/tests/cspm/**/*
+        # The host-benchmark suite validates the bundled benchmark content, whose
+        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
+        # policy bump must run the suite before it can break the main pipeline.
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1388,8 +1395,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/agent/subcommands/run/**/*
         - comp/core/agenttelemetry/**/*
+        - pkg/util/log/setup/**/*
         - pkg/util/log/errortracking/**/*
+        - test/new-e2e/tests/agent-telemetry/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1470,12 +1480,20 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_fakeintake_changes_with_image_override:
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+
 .on_fakeintake_changes_on_main:
   - changes:
       <<: *fakeintake_paths
     <<: *if_main_branch
 
-.fast_on_dev_branch_only:
+.fast_tests_variables_named_branches:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
@@ -1497,10 +1515,28 @@ workflow:
     variables:
       FAST_TESTS: "false"
       COVERAGE_CACHE_FLAG: ""
+
+.fast_on_dev_branch_only:
+  - !reference [.fast_tests_variables_named_branches]
   - variables:
       FAST_TESTS: "true"
       # Pull coverage cache on dev branches
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+
+# macOS runners are scarce and queue for tens of minutes under load. These jobs stay
+# mandatory wherever they gate a merge (main/release/mergequeue/forced runs), but on
+# regular dev branches they become manual so they don't contend for runners on every push.
+.fast_tests_mergequeue_mandatory_manual_on_dev_branch:
+  - !reference [.fast_tests_variables_named_branches]
+  - <<: *if_mergequeue
+    variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+  - variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+    when: manual
+    allow_failure: true
 
 .on_gitlab_changes:
   changes:
@@ -1563,6 +1599,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_rtloader_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

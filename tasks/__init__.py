@@ -14,11 +14,13 @@ from tasks import (
     ami,
     anomalydetection,
     auth,
+    bazel,
     bench,
     buildimages,
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    code_review,
     collector,
     components,
     coverage,
@@ -200,12 +202,14 @@ ns.add_task(lint_go)
 # add namespaced tasks to the root
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
+ns.add_collection(bazel)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(ai_sandbox)
 ns.add_collection(buildimages)
 ns.add_collection(claude)
+ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)

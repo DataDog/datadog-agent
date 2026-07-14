@@ -13,6 +13,7 @@ if (-not (($acl = Get-Acl $diskCache).Access | Where-Object { -not $_.IsInherite
     Get-ChildItem $diskCache -Recurse | ForEach-Object { Set-Acl $_.FullName $acl }
 }
 & docker run --rm `
+    --storage-opt "size=100GB" `
     --env=BAZELISK_HOME `
     --env=BUILDBARN_ID_TOKEN `
     --env=CI `

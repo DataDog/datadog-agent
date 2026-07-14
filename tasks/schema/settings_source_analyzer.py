@@ -1,13 +1,21 @@
 import os
 import re
 
-func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
-declare_regex = r'^config.BindEnvAndSetDefault\((.*)\)'
-declare_multiline_regex = r'^config.BindEnvAndSetDefault\(([^)]+){$'
-bindenv_regex = r'^config.BindEnv\((.*)\)'
-set_known_regex = r'^config.SetKnown\((.*)\)'
-set_default_regex = r'^config.SetDefault\((.*)\)'
-proc_declare_regex = r'^procBindEnvAndSetDefault\(config, (.*)\)'
+func_start_regex = r'^func (\w+)\(\w+ pkgconfigmodel.Setup\)'
+declare_regex = r'^c\w+g\.BindEnvAndSetDefault\((.*)\)'
+set_default_regex = r'^c\w+g\.SetDefault\((.*)\)'
+proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
+
+# Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
+# `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
+# parentheses balance and only then match the joined statement against the single-line regexes above.
+DECL_START_PREFIXES = (
+    'config.BindEnvAndSetDefault(',
+    'cfg.BindEnvAndSetDefault(',
+    'config.SetDefault(',
+    'cfg.SetDefault',
+    'procBindEnvAndSetDefault(',
+)
 
 
 def analyze_file(sourcefile):
@@ -43,14 +51,14 @@ SETTINGS_DIR = os.path.join("pkg", "config", "setup")
 # initCoreAgentFull + commonConfigComponents
 COMMON_SETTINGS = os.path.join(SETTINGS_DIR, "common_settings.go")
 # declared in commonConfigComponents
-APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm.go")
-OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp.go")
-MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover.go")
+APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm_settings.go")
+OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp_settings.go")
+MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover_settings.go")
 # called from functions in initCoreAgentFull
-PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner.go")
-PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process.go")
+PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner_settings.go")
+PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process_settings.go")
 # system probe
-SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
+SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe_settings.go")
 
 
 def extract_imperative_code_hints():
@@ -74,7 +82,6 @@ class Processor:
         self.internal_comment = []
         self.within_multiline = False
         self.accum_multiline = []
-        self.begin_multiline = None
 
     def startfilename(self, filename):
         self.currfile = os.path.basename(filename)
@@ -101,6 +108,29 @@ class Processor:
         )
         self._clear()
 
+    @staticmethod
+    def _paren_balance(text):
+        """Net count of unbalanced '(' in text, ignoring parentheses inside string and raw-string literals."""
+        depth = 0
+        in_str = None  # '"' for interpreted strings, '`' for raw strings
+        i = 0
+        while i < len(text):
+            c = text[i]
+            if in_str == '"' and c == '\\':
+                i += 2
+                continue
+            if in_str:
+                if c == in_str:
+                    in_str = None
+            elif c in '"`':
+                in_str = c
+            elif c == '(':
+                depth += 1
+            elif c == ')':
+                depth -= 1
+            i += 1
+        return depth
+
     def process(self, line, num):
         line = line.strip()
         if line.startswith('//'):
@@ -111,14 +141,17 @@ class Processor:
         if comment_pos >= 0:
             comment_text = line[comment_pos:]
             self.append_internal_comment(comment_text)
-            line = line[:comment_pos]
+            line = line[:comment_pos].rstrip()
 
+        # A declaration started on a previous line: keep accumulating until the parentheses balance, then
+        # dispatch the joined single-line statement.
         if self.within_multiline:
-            if line.startswith('}'):
-                self.complete_multiline()
-                self.within_multiline = False
-                return
             self.accum_multiline.append(line)
+            joined = ' '.join(self.accum_multiline)
+            if self._paren_balance(joined) <= 0:
+                self.within_multiline = False
+                self.accum_multiline = []
+                self.dispatch(joined)
             return
 
         # TODO: Handle these functions
@@ -135,26 +168,22 @@ class Processor:
         if line.startswith('setupPrivateActionRunner'):
             return
 
+        if not line.startswith(DECL_START_PREFIXES):
+            return
+
+        # A declaration whose parentheses don't close on this line continues onto the following lines (split
+        # arguments, a multi-line `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value).
+        if self._paren_balance(line) > 0:
+            self.accum_multiline = [line]
+            self.within_multiline = True
+            return
+
+        self.dispatch(line)
+
+    def dispatch(self, line):
         m = re.match(declare_regex, line)
         if m:
             self.register_setting('declare', m.group(1))
-            return
-
-        m = re.match(declare_multiline_regex, line)
-        if m:
-            self.accum_multiline = []
-            self.within_multiline = True
-            self.register_setting('declare_multiline', m.group(1))
-            return
-
-        m = re.match(bindenv_regex, line)
-        if m:
-            self.register_setting('env', m.group(1))
-            return
-
-        m = re.match(set_known_regex, line)
-        if m:
-            self.register_setting('known', m.group(1))
             return
 
         m = re.match(set_default_regex, line)
@@ -182,16 +211,6 @@ class Processor:
             return None
         return params[index].strip('" \'')
 
-    def clean_env_vars(self, params, index):
-        if index >= len(params):
-            return None
-        elems = params[index:]
-        elems = [elems.strip('" \'') for elems in elems]
-        for ev in elems:
-            if not ev.startswith('DD_'):
-                return []
-        return elems
-
     def register_setting(self, kind, params):
         if not self.currfunc:
             raise RuntimeError('not currently in a function')
@@ -202,40 +221,21 @@ class Processor:
 
         keyname = ''
         _unused_default = None
-        envvars = []
         internal_comment = '\n'.join(self.internal_comment)
         self.internal_comment = []
 
         if kind == 'declare':
             keyname = self.clean_param(parts, 0)
             _unused_default = self.clean_param(parts, 1)
-            envvars = self.clean_env_vars(parts, 2)
-        elif kind == 'env':
-            keyname = self.clean_param(parts, 0)
-            envvars = self.clean_env_vars(parts, 1)
-        elif kind == 'known':
-            keyname = self.clean_param(parts, 0)
         elif kind == 'default':
             keyname = self.clean_param(parts, 0)
             _unused_default = self.clean_param(parts, 1)
-        elif kind == 'declare_multiline':
-            keyname = self.clean_param(parts, 0)
-            self.begin_multiline = {'keyname': keyname, 'kind': kind, 'envvars': envvars}
-            return
         elif kind == 'proc':
             keyname = self.clean_param(parts, 0)
             _unused_default = self.clean_param(parts, 1)
         else:
             raise RuntimeError('unknown kind: %s' % kind)
-        # unused: envvars
         self.settings.append([keyname, kind, internal_comment])
-
-    def complete_multiline(self):
-        keyname = self.begin_multiline['keyname']
-        kind = self.begin_multiline['kind']
-        _envvars = self.begin_multiline['envvars']
-        # unused: envvars
-        self.settings.append([keyname, kind, ''])
 
     def finish(self):
         return

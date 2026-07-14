@@ -134,7 +134,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 

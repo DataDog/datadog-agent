@@ -36,15 +36,7 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfig(deviceID string) error {
-	if _, ok := m.devices[deviceID]; ok {
-		return nil
-	}
-	return fmt.Errorf("unrecognized device %s", deviceID)
-}
-
-// ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfigWithSender(deviceID string, _ sender.Sender) error {
+func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
 		return nil
 	}
