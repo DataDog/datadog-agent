@@ -140,6 +140,14 @@ func TestParseLLMMessages(t *testing.T) {
 			want: []llmMessage{{role: "user", content: "hi"}},
 		},
 		{
+			name: "role-first field order (raw API)",
+			raw:  []byte(`{"model":"gpt-4o-mini","messages":[{"role":"system","content":"be terse"},{"role":"user","content":"what is eBPF?"}]}`),
+			want: []llmMessage{
+				{role: "system", content: "be terse"},
+				{role: "user", content: "what is eBPF?"},
+			},
+		},
+		{
 			name: "trailing message truncated at buffer boundary is dropped",
 			raw:  []byte(`{"messages":[{"content":"sys","role":"system"},{"content":"partial user`),
 			want: []llmMessage{{role: "system", content: "sys"}},
@@ -268,6 +276,22 @@ func TestParseToolCalls(t *testing.T) {
 			assert.Equal(t, tt.want, parseToolCalls(tt.raw, tt.provider))
 		})
 	}
+}
+
+func TestParseToolResults(t *testing.T) {
+	// OpenAI follow-up request history: a {"role":"tool",...} message.
+	openai := []byte(`{"messages":[{"role":"user","content":"weather?"},` +
+		`{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},` +
+		`{"role":"tool","tool_call_id":"call_1","content":"18C sunny"}]}`)
+	anthropic := []byte(`{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"18C sunny"}]}]}`)
+
+	got := parseToolResults(openai, providerOpenAI)
+	assert.Equal(t, []llmToolResult{{id: "call_1", content: "18C sunny"}}, got)
+
+	gotA := parseToolResults(anthropic, providerAnthropic)
+	assert.Equal(t, []llmToolResult{{id: "toolu_1", content: "18C sunny"}}, gotA)
+
+	assert.Nil(t, parseToolResults([]byte(`{"messages":[{"role":"user","content":"hi"}]}`), providerOpenAI))
 }
 
 func TestParseLLMUsage(t *testing.T) {

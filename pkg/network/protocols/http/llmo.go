@@ -108,11 +108,13 @@ var (
 	llmModelRe   = regexp.MustCompile(`"model"\s*:\s*"([^"]*)"`)
 	llmContentRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"`)
 
-	// llmMessageRe captures each OpenAI request message as a (content, role)
-	// pair. The OpenAI SDK serializes chat messages as {"content":"...","role":
-	// "..."} (content before role), so a single pass yields every message —
-	// system, user, assistant — in order.
-	llmMessageRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"\s*,\s*"role"\s*:\s*"([^"]*)"`)
+	// OpenAI chat messages are {"content":"...","role":"..."} objects, but the
+	// field order depends on the serializer: the openai-go SDK emits content
+	// before role, while the raw API / other SDKs emit role before content. We
+	// try both orders (a given body is internally consistent, so only one
+	// matches) so every message — system, user, assistant — is captured in order.
+	llmMessageRe          = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"\s*,\s*"role"\s*:\s*"([^"]*)"`)
+	llmMessageRoleFirstRe = regexp.MustCompile(`"role"\s*:\s*"([^"]*)"\s*,\s*"content"\s*:\s*"([^"]*)"`)
 
 	// Anthropic request messages carry content as an array of text blocks:
 	// "content":[{"text":"...","type":"text"}],"role":"user". Capture the block
@@ -136,6 +138,13 @@ var (
 	// JSON object (flat inputs only for this PoC regex).
 	llmAnthropicToolRe = regexp.MustCompile(`"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"([^"]*)"\s*,\s*"name"\s*:\s*"([^"]*)"\s*,\s*"input"\s*:\s*(\{[^{}]*\})`)
 
+	// Tool-result extractors (from the *request* history of a follow-up call):
+	// the app runs the tool in-process and feeds the result back. OpenAI uses a
+	// {"role":"tool","tool_call_id":..,"content":..} message; Anthropic a
+	// tool_result block. These pair a result back to its tool call by id.
+	llmOpenAIToolResultRe    = regexp.MustCompile(`"role"\s*:\s*"tool"\s*,\s*"tool_call_id"\s*:\s*"([^"]*)"\s*,\s*"content"\s*:\s*"([^"]*)"`)
+	llmAnthropicToolResultRe = regexp.MustCompile(`"type"\s*:\s*"tool_result"\s*,\s*"tool_use_id"\s*:\s*"([^"]*)"\s*,\s*"content"\s*:\s*"([^"]*)"`)
+
 	// OpenAI token usage extractors (from the response body).
 	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
 	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
@@ -157,6 +166,13 @@ type llmToolCall struct {
 	arguments string // JSON arguments object
 }
 
+// llmToolResult is the result the app fed back for a tool call, parsed from the
+// message history of a follow-up request. Paired to its call by id.
+type llmToolResult struct {
+	id      string
+	content string
+}
+
 // llmSpanInfo holds everything parsed from the captured request/response
 // bodies to enrich an LLM span.
 type llmSpanInfo struct {
@@ -168,7 +184,9 @@ type llmSpanInfo struct {
 	messages     []llmMessage
 	prompt       string
 	response     string
-	toolCalls    []llmToolCall
+	toolCalls    []llmToolCall // tool calls in the response (this turn's output)
+	reqToolCalls []llmToolCall // tool calls in the request history (a prior turn)
+	toolResults  []llmToolResult
 	inputTokens  int64
 	outputTokens int64
 	totalTokens  int64
@@ -252,18 +270,25 @@ func parseLLMMessages(raw []byte, provider string) []llmMessage {
 	return parseOpenAIMessages(raw)
 }
 
-// parseOpenAIMessages extracts (content, role) pairs from an OpenAI chat request
-// body, where each message is {"content":"...","role":"..."}.
+// parseOpenAIMessages extracts messages from an OpenAI chat request body,
+// handling both field orders ({"content":..,"role":..} and {"role":..,
+// "content":..}). Only one order matches a given body.
 func parseOpenAIMessages(raw []byte) []llmMessage {
-	matches := llmMessageRe.FindAllSubmatch(raw, -1)
-	if matches == nil {
-		return nil
+	if matches := llmMessageRe.FindAllSubmatch(raw, -1); matches != nil {
+		msgs := make([]llmMessage, 0, len(matches))
+		for _, m := range matches {
+			msgs = append(msgs, llmMessage{content: string(m[1]), role: string(m[2])})
+		}
+		return msgs
 	}
-	msgs := make([]llmMessage, 0, len(matches))
-	for _, m := range matches {
-		msgs = append(msgs, llmMessage{content: string(m[1]), role: string(m[2])})
+	if matches := llmMessageRoleFirstRe.FindAllSubmatch(raw, -1); matches != nil {
+		msgs := make([]llmMessage, 0, len(matches))
+		for _, m := range matches {
+			msgs = append(msgs, llmMessage{role: string(m[1]), content: string(m[2])})
+		}
+		return msgs
 	}
-	return msgs
+	return nil
 }
 
 // parseAnthropicMessages extracts messages from an Anthropic request body. The
@@ -324,6 +349,24 @@ func parseToolCalls(raw []byte, provider string) []llmToolCall {
 	return calls
 }
 
+// parseToolResults extracts tool results from a captured request body window
+// (present on follow-up calls where the app fed a tool's output back to the
+// model), per provider. Each result carries the id of the tool call it answers.
+func parseToolResults(raw []byte, provider string) []llmToolResult {
+	if len(raw) == 0 {
+		return nil
+	}
+	re := llmOpenAIToolResultRe
+	if provider == providerAnthropic {
+		re = llmAnthropicToolResultRe
+	}
+	var results []llmToolResult
+	for _, m := range re.FindAllSubmatch(raw, -1) {
+		results = append(results, llmToolResult{id: string(m[1]), content: string(m[2])})
+	}
+	return results
+}
+
 // parseLLMUsage extracts token usage from a captured response body window,
 // using the field names for the given provider. Returned counts are
 // provider-neutral (input, output, total) mapping to the LLM Observability
@@ -367,6 +410,13 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	// was captured), the span would be noise — the request is still counted in
 	// USM's HTTP metrics.
 	if info.service == "" {
+		return
+	}
+	// A follow-up request that completed a tool round-trip (assistant tool_call
+	// + tool result in its history) is emitted as a workflow with child llm +
+	// tool spans instead of a single flat span.
+	if len(info.reqToolCalls) > 0 && len(info.toolResults) > 0 {
+		emitWorkflowSpan(path, connKey, latencyNs, info)
 		return
 	}
 	if info.model == "" && info.prompt == "" && info.response == "" && len(info.toolCalls) == 0 {
@@ -446,6 +496,72 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	span.Finish(finishOpts...)
 }
 
+// emitWorkflowSpan reconstructs a tool-using turn as an LLM Observability
+// workflow: a root "llm.conversation" span with two kinds of child span — an
+// llm span (the model's decision to call the tool) and one tool span per call
+// (arguments in, result out). The spans are linked because we own the tracer
+// context here and thread it ourselves; the parent/child structure the SDK
+// would build from the app's context.Context is not on the wire. Timings are
+// approximate: the tool "executes" in-process between the two network calls, so
+// we split the follow-up request's latency into an llm half and a tool half.
+func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
+	if !ensureLLMOTracer() {
+		return
+	}
+	end := time.Now()
+	start := end.Add(-time.Duration(latencyNs))
+	mid := start.Add(time.Duration(latencyNs / 2))
+
+	wf, wctx := llmobs.StartWorkflowSpan(context.Background(), "llm.conversation",
+		llmobs.WithMLApp(info.service),
+		llmobs.WithStartTime(start),
+	)
+
+	// Child: the LLM generation that decided to call the tool(s).
+	llmSpan, _ := llmobs.StartLLMSpan(wctx, llmoSpanName,
+		llmobs.WithMLApp(info.service),
+		llmobs.WithModelName(info.model),
+		llmobs.WithModelProvider(info.provider),
+		llmobs.WithStartTime(start),
+	)
+	var input []llmobs.LLMMessage
+	for _, m := range info.messages {
+		input = append(input, llmobs.LLMMessage{Role: m.role, Content: m.content})
+	}
+	out := llmobs.LLMMessage{Role: "assistant"}
+	for _, tc := range info.reqToolCalls {
+		out.ToolCalls = append(out.ToolCalls, llmobs.ToolCall{
+			Name:      tc.name,
+			Arguments: json.RawMessage(tc.arguments),
+			ToolID:    tc.id,
+			Type:      "function",
+		})
+	}
+	llmSpan.AnnotateLLMIO(input, []llmobs.LLMMessage{out}, llmobs.WithAnnotatedTags(map[string]string{
+		"http.url":   path,
+		"llm.source": "apm-lite-ebpf",
+	}))
+	llmSpan.Finish(llmobs.WithFinishTime(mid))
+
+	// Child: one tool span per call, output = the matching result (by id).
+	results := make(map[string]string, len(info.toolResults))
+	for _, r := range info.toolResults {
+		results[r.id] = r.content
+	}
+	for _, tc := range info.reqToolCalls {
+		toolSpan, _ := llmobs.StartToolSpan(wctx, tc.name,
+			llmobs.WithMLApp(info.service),
+			llmobs.WithStartTime(mid),
+		)
+		toolSpan.AnnotateTextIO(tc.arguments, results[tc.id])
+		toolSpan.Finish(llmobs.WithFinishTime(end))
+	}
+
+	// The workflow's own I/O: the user prompt in, the model's final answer out.
+	wf.AnnotateTextIO(info.prompt, info.response)
+	wf.Finish(llmobs.WithFinishTime(end))
+}
+
 // captureLLMBody marks the connection as LLM traffic (so the eBPF write hook
 // captures bodies for subsequent requests) and reads back the most recently
 // captured request body for this connection, returning the parsed model and
@@ -486,6 +602,10 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 				break
 			}
 		}
+		// A follow-up request carries a prior turn's tool call + result in its
+		// history; parse them to reconstruct a workflow (llm + tool spans).
+		info.reqToolCalls = parseToolCalls(reqBody.Data[:n], info.provider)
+		info.toolResults = parseToolResults(reqBody.Data[:n], info.provider)
 	}
 
 	// Response body tail -> token usage (parsed per provider).
