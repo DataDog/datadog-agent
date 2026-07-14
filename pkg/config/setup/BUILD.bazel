@@ -66,6 +66,7 @@ dd_agent_go_test(
         "config_change_checker_test.go",
         "config_secret_test.go",
         "config_test.go",
+        "config_windows_test.go",
         "ipc_address_test.go",
         "privateactionrunner_test.go",
         "process_test.go",
