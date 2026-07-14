@@ -8,6 +8,7 @@ go_library(
         "collector.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/impl",
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common",
