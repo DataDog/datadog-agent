@@ -14,6 +14,7 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use super::account_name::AccountName;
+use super::agent_credentials::canonical_account_name_for_well_known_sid;
 use super::local_account::is_local_account;
 use super::wide;
 
@@ -137,6 +138,9 @@ fn lookup_account_name(sid: &[u8]) -> Result<AccountName> {
 /// `LookupAccountSidW` returns the computer name as the domain for local users;
 /// installer state stores an empty domain and displays `.\user` instead.
 fn account_name_from_sid_lookup(sid: &[u8], domain: String, user: String) -> Result<AccountName> {
+    if let Some(account) = canonical_account_name_for_well_known_sid(sid) {
+        return Ok(account);
+    }
     let domain = if is_local_account(sid).unwrap_or(false) {
         String::new()
     } else {
@@ -201,5 +205,27 @@ mod tests {
             account_name_from_sid_lookup(&sid, "NT AUTHORITY".to_string(), "SYSTEM".to_string())
                 .expect("account");
         assert_eq!(account.display(), r"NT AUTHORITY\SYSTEM");
+    }
+
+    #[test]
+    fn well_known_service_account_lookup_normalizes_spaced_names() {
+        let sid = lookup_account_sid("NT AUTHORITY", "LOCAL SERVICE").expect("LocalService SID");
+        let account = account_name_from_sid_lookup(
+            &sid,
+            "NT AUTHORITY".to_string(),
+            "LOCAL SERVICE".to_string(),
+        )
+        .expect("account");
+        assert_eq!(account.display(), r"NT AUTHORITY\LocalService");
+
+        let sid =
+            lookup_account_sid("NT AUTHORITY", "NETWORK SERVICE").expect("NetworkService SID");
+        let account = account_name_from_sid_lookup(
+            &sid,
+            "NT AUTHORITY".to_string(),
+            "NETWORK SERVICE".to_string(),
+        )
+        .expect("account");
+        assert_eq!(account.display(), r"NT AUTHORITY\NetworkService");
     }
 }
