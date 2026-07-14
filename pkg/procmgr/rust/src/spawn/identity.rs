@@ -28,7 +28,7 @@ fn resolve_spawn_user(process_name: &str, profile: SpawnProfile) -> anyhow::Resu
     #[cfg(unix)]
     {
         let _ = (process_name, profile);
-        Ok(crate::platform::spawn_user_display().to_string())
+        crate::platform::spawn_user_for_supervisor()
     }
     #[cfg(not(any(windows, unix)))]
     {
@@ -58,10 +58,17 @@ mod tests {
 
     #[cfg(not(windows))]
     #[test]
-    fn spawn_user_is_dd_agent_on_unix() {
+    fn spawn_user_matches_supervisor_on_unix() {
+        use nix::unistd::{User, getuid};
+
+        let expected = User::from_uid(getuid())
+            .ok()
+            .flatten()
+            .map(|u| u.name)
+            .unwrap_or_else(|| "unknown".to_string());
         assert_eq!(
             spawn_user_for("datadog-agent-trace", SpawnProfile::Agent),
-            "dd-agent"
+            expected
         );
     }
 }

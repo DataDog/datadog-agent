@@ -10,14 +10,6 @@ use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gon
 use std::path::Path;
 use std::time::Duration;
 
-fn expected_spawn_user() -> &'static str {
-    if cfg!(windows) {
-        r"NT AUTHORITY\SYSTEM"
-    } else {
-        "dd-agent"
-    }
-}
-
 #[cfg(unix)]
 fn current_runtime_user() -> String {
     nix::unistd::User::from_uid(nix::unistd::getuid())
@@ -291,7 +283,7 @@ fn test_cli_list_one_running() {
             &[
                 ("STATE", "Running"),
                 ("PROFILE", "agent"),
-                ("USER", expected_spawn_user()),
+                ("USER", &test_helpers::expected_spawn_user("sleeper")),
                 ("COMMAND", test_helpers::sleep_cmd(300).0),
             ],
         )
@@ -412,7 +404,7 @@ fn test_cli_list_json() {
     assert_eq!(entry["name"], "sleeper");
     assert_eq!(entry["state"], "Running");
     assert_eq!(entry["profile"], "agent");
-    assert_eq!(entry["user"], expected_spawn_user());
+    assert_eq!(entry["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(entry["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(entry["args"], test_helpers::sleep_args_json());
     assert_eq!(entry["restart_count"], 0);
@@ -530,7 +522,7 @@ fn test_cli_describe_shows_all_fields() {
         .assert_field("Name", "full")
         .assert_field("State", "Running")
         .assert_field("Profile", "agent")
-        .assert_field("User", expected_spawn_user())
+        .assert_field("User", &test_helpers::expected_spawn_user("full"))
         .assert_field("Runtime User", &current_runtime_user())
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
         .assert_field("Args", &test_helpers::sleep_args_display())
@@ -560,7 +552,7 @@ fn test_cli_describe_after_exit() {
         .assert_field("State", "Failed")
         .assert_field("PID", "-")
         .assert_field("Profile", "agent")
-        .assert_field("User", expected_spawn_user())
+        .assert_field("User", &test_helpers::expected_spawn_user("quick"))
         .assert_field("Last Exit", "exit 1");
 }
 
@@ -610,7 +602,7 @@ fn test_cli_describe_json() {
     assert_eq!(json["name"], "sleeper");
     assert_eq!(json["state"], "Running");
     assert_eq!(json["profile"], "agent");
-    assert_eq!(json["user"], expected_spawn_user());
+    assert_eq!(json["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(json["runtime_user"], current_runtime_user());
     assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(json["args"], test_helpers::sleep_args_json());
