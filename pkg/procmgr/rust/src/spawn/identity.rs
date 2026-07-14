@@ -59,9 +59,9 @@ mod tests {
     #[cfg(not(windows))]
     #[test]
     fn spawn_user_matches_supervisor_on_unix() {
-        use nix::unistd::{User, getuid};
+        use nix::unistd::{User, geteuid};
 
-        let expected = User::from_uid(getuid())
+        let expected = User::from_uid(geteuid())
             .ok()
             .flatten()
             .map(|u| u.name)
