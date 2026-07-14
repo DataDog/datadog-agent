@@ -18,7 +18,6 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     } else {
         format!("{domain}\\{user}")
     };
-    let system_w = wide::null_terminated("");
     let account_w = wide::null_terminated(&account);
 
     unsafe {
@@ -27,7 +26,7 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut sid_type = 0i32;
 
         let _ = LookupAccountNameW(
-            system_w.as_ptr(),
+            ptr::null(),
             account_w.as_ptr(),
             ptr::null_mut(),
             &mut sid_size,
@@ -39,7 +38,7 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut sid = vec![0u8; sid_size as usize];
         let mut _domain_buf = vec![0u16; domain_size as usize];
         let ok = LookupAccountNameW(
-            system_w.as_ptr(),
+            ptr::null(),
             account_w.as_ptr(),
             sid.as_mut_ptr() as *mut _,
             &mut sid_size,
