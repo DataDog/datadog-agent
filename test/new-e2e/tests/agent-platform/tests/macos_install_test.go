@@ -415,6 +415,8 @@ func (m *macosInstallSuite) TestEssentialChecksLoaded() {
 // TestCpuReportsSignalMetrics proves the cpu check not only runs (TestEssentialChecksLoaded)
 // but forwards real data: redirects dd_url to fakeintake and asserts a cpu metric arrives.
 func (m *macosInstallSuite) TestCpuReportsSignalMetrics() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 	fakeIntakeURL := m.Env().FakeIntake.URL
@@ -435,6 +437,8 @@ func (m *macosInstallSuite) TestCpuReportsSignalMetrics() {
 // TestDogstatsdListening proves DogStatsD's UDP listener not only binds 8125 but receives,
 // aggregates, and forwards a real metric.
 func (m *macosInstallSuite) TestDogstatsdListening() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 	fakeIntakeURL := m.Env().FakeIntake.URL
@@ -463,6 +467,8 @@ func (m *macosInstallSuite) TestDogstatsdListening() {
 // TestDogstatsdMetricEndToEnd extends TestDogstatsdListening to gauge/count/histogram metric
 // types and tag propagation over UDP. Does not cover the dogstatsd_socket (Unix socket) transport.
 func (m *macosInstallSuite) TestDogstatsdMetricEndToEnd() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 	fakeIntakeURL := m.Env().FakeIntake.URL
@@ -524,6 +530,8 @@ func (m *macosInstallSuite) TestDogstatsdMetricEndToEnd() {
 // process_collection.enabled is set. Enables that setting, starts a recognizable long-lived
 // process, and asserts it appears in fakeintake's process payloads.
 func (m *macosInstallSuite) TestProcessAgentReportsProcessData() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 	fakeIntakeURL := m.Env().FakeIntake.URL
@@ -582,6 +590,8 @@ func (m *macosInstallSuite) TestProcessAgentReportsProcessData() {
 // default (no opt-in needed). Posts a trace directly to the receiver and asserts it reaches
 // fakeintake's trace payloads.
 func (m *macosInstallSuite) TestAPMTraceEndToEnd() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
 	fakeIntakeURL := m.Env().FakeIntake.URL
@@ -630,6 +640,8 @@ EOF`, macosAPMSentinelService))
 // TestNPMTracesConnection opens a real connection to fakeintake's remote address and asserts
 // it shows up in fakeintake's connection payloads.
 func (m *macosInstallSuite) TestNPMTracesConnection() {
+	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	sysprobeConfFilePath := macosConfDefaultConfPath + "/system-probe.yaml"
 	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
