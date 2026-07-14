@@ -136,6 +136,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", GetPlatformDefault(map[string]interface{}{
 		"linux": defaultpaths.GetDefaultReceiverSocket(),
+		"aix":   defaultpaths.GetDefaultReceiverSocket(),
 		"other": "",
 	}), "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")

@@ -83,20 +83,75 @@ func idxHasAttr(strings []string, attrs map[uint32]*idx.AnyValue, key string) bo
 	return false
 }
 
+// tracerPayloadHasService reports whether the tracer payload contains at least
+// one span for the given service.
+func tracerPayloadHasService(tp *idx.TracerPayload, service string) bool {
+	for _, chunk := range tp.Chunks {
+		for _, sp := range chunk.Spans {
+			if idxStr(tp.Strings, sp.ServiceRef) == service {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// tracePayloadHasService reports whether any tracer payload in the agent payload
+// contains a span for the given service.
+func tracePayloadHasService(p *aggregator.TracePayload, service string) bool {
+	for _, tp := range p.IdxTracerPayloads {
+		if tracerPayloadHasService(tp, service) {
+			return true
+		}
+	}
+	return false
+}
+
+// clientStatsHasService reports whether the client stats payload contains stats
+// for the given service.
+func clientStatsHasService(s *trace.ClientStatsPayload, service string) bool {
+	if s.Service == service {
+		return true
+	}
+	for _, bucket := range s.Stats {
+		for _, gs := range bucket.Stats {
+			if gs.Service == service {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	if !assert.NotEmpty(c, traces) {
 		return
 	}
-	trace := traces[0]
-	assert.Equal(c, agent.Hostname(), trace.HostName)
-	assert.Equal(c, "none", trace.Env)
-	if !assert.NotEmpty(c, trace.IdxTracerPayloads) {
+	// The fakeintake accumulates every payload it receives, and a leaked
+	// environment whose agent keeps posting to a recycled intake IP can inject
+	// unrelated payloads (e.g. another suite's traces). Select the payload for
+	// our own tracegen service instead of blindly taking traces[0].
+	var tp *idx.TracerPayload
+	var hostName, env string
+	for _, tr := range traces {
+		for _, p := range tr.IdxTracerPayloads {
+			if tracerPayloadHasService(p, service) {
+				tp, hostName, env = p, tr.HostName, tr.Env
+				break
+			}
+		}
+		if tp != nil {
+			break
+		}
+	}
+	if !assert.NotNil(c, tp, "no trace payload found for service %s", service) {
 		return
 	}
-	tp := trace.IdxTracerPayloads[0]
 	strs := tp.Strings
+	assert.Equal(c, agent.Hostname(), hostName)
+	assert.Equal(c, "none", env)
 	assert.Equal(c, "go", idxStr(strs, tp.LanguageNameRef))
 	assert.False(c, idxHasAttr(strs, tp.Attributes, "_dd.apm_mode"))
 	if !assert.NotEmpty(c, tp.Chunks) {
@@ -122,16 +177,24 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 }
 
-func testTPS(c *assert.CollectT, intake *components.FakeIntake, tps float64) {
+func testTPS(c *assert.CollectT, intake *components.FakeIntake, service string, tps float64) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	if !assert.NotEmpty(c, traces) {
 		return
 	}
 
+	// Only assert on payloads produced by our own tracegen service; the intake
+	// may hold unrelated payloads with a different TargetTPS.
+	found := false
 	for _, p := range traces {
+		if !tracePayloadHasService(p, service) {
+			continue
+		}
+		found = true
 		assert.Equal(c, tps, p.TargetTPS, "invalid TargetTPS found in traces")
 	}
+	assert.True(c, found, "no trace payload found for service %s", service)
 }
 
 func testStatsForService(t *testing.T, c *assert.CollectT, service string, expectedPeerTag string, intake *components.FakeIntake) {
@@ -222,27 +285,33 @@ func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string
 	}
 }
 
-func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
+	found := false
 	for _, tr := range traces {
 		for _, tp := range tr.IdxTracerPayloads {
+			if !tracerPayloadHasService(tp, service) {
+				continue
+			}
+			found = true
 			containerTags, _ := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 			t.Log("Tracer Payload Tags:", containerTags)
 			ctags, ok := getContainerTags(t, tp)
-			assert.True(t, ok, "expected to find container tags at _dd.tags.container")
+			assert.True(c, ok, "expected to find container tags at _dd.tags.container")
 			imageTag, ok := ctags["image_tag"]
-			assert.True(t, ok, "expected to find image_tag in container tags")
+			assert.True(c, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
-			assert.Equal(t, apps.Version, imageTag)
+			assert.Equal(c, apps.Version, imageTag)
 		}
 	}
+	assert.True(c, found, "no trace payload found for service %s", service)
 }
 
-func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
@@ -252,51 +321,69 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 	// chunk attribute: it is promoted to the dedicated SamplingMechanism chunk field.
 	// The probabilistic sampler sets mechanism 9 (the legacy "_dd.p.dm: -9" tag).
 	const probabilitySamplingMechanism = 9
+	found := false
 	for _, p := range traces {
 		for _, tp := range p.IdxTracerPayloads {
+			if !tracerPayloadHasService(tp, service) {
+				continue
+			}
 			for _, chunk := range tp.Chunks {
+				found = true
 				if chunk.SamplingMechanism != probabilitySamplingMechanism {
 					t.Errorf("Expected chunk SamplingMechanism == %d, but got %d for service %s", probabilitySamplingMechanism, chunk.SamplingMechanism, idxStr(tp.Strings, chunk.Spans[0].ServiceRef))
 				}
 			}
 		}
 	}
+	assert.True(c, found, "no trace chunks found for service %s", service)
 }
 
-func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func testAutoVersionStats(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
+	found := false
 	for _, p := range stats {
 		for _, s := range p.StatsPayload.Stats {
+			if !clientStatsHasService(s, service) {
+				continue
+			}
+			found = true
 			t.Log("Client Payload:", spew.Sdump(s))
 			t.Logf("Got image Tag: %v", s.GetImageTag())
-			assert.Equal(t, apps.Version, s.GetImageTag())
+			assert.Equal(c, apps.Version, s.GetImageTag())
 			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
-			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
+			assert.Equal(c, "abcd1234", s.GetGitCommitSha())
 		}
 	}
+	assert.True(c, found, "no stats payload found for service %s", service)
 }
 
-func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func testIsTraceRootTag(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
+	found := false
 	for _, p := range stats {
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
 			for _, b := range s.Stats {
 				for _, cs := range b.Stats {
+					if cs.Service != service {
+						continue
+					}
+					found = true
 					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
-					assert.Equal(t, trace.Trilean_TRUE, cs.GetIsTraceRoot())
+					assert.Equal(c, trace.Trilean_TRUE, cs.GetIsTraceRoot())
 				}
 			}
 		}
 	}
+	assert.True(c, found, "no stats found for service %s", service)
 }
 
 func getContainerTags(t *testing.T, tp *idx.TracerPayload) (map[string]string, bool) {
@@ -516,22 +603,26 @@ func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	return hasTraceForResource(traces, "poison_pill")
 }
 
-func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMMode string) {
+func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, service string, expectedAPMMode string) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	if !assert.NotEmpty(c, traces) {
 		return
 	}
-	if expectedAPMMode == "" {
-		for _, p := range traces {
-			// assert that apm mod tag does not exist
+	found := false
+	for _, p := range traces {
+		if !tracePayloadHasService(p, service) {
+			continue
+		}
+		found = true
+		if expectedAPMMode == "" {
+			// assert that apm mode tag does not exist
 			v, ok := p.Tags["_dd.apm_mode"]
 			assert.False(c, ok)
 			assert.Empty(c, v)
+			continue
 		}
-		return
-	}
-	for _, p := range traces {
 		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
 	}
+	assert.True(c, found, "no trace payload found for service %s", service)
 }

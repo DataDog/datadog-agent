@@ -7,11 +7,9 @@
 package setup
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -264,6 +262,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.netflow_monitoring.enabled", false)
+	config.BindEnvAndSetDefault("network_path.remote_config.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
@@ -1100,6 +1099,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.logs.enabled", true)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
+	// ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+	// (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+	// more efficient than the Agent. Forwarded to ADP over the config stream.
+	config.BindEnvAndSetDefault("data_plane.serializer_zstd_compressor_level", 3)
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
@@ -1328,8 +1331,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
-		"linux": -1,
-		"other": 5002,
+		"darwin":  5002,
+		"windows": 5002,
+		"other":   -1,
 	}))
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
@@ -1565,7 +1569,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
-	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "true")
+	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "datadog_only")
 	config.BindEnvAndSetDefault("use_v3_api.series.endpoints", map[string]string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
@@ -1693,6 +1697,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
 		"linux": defaultpaths.GetDefaultStatsdSocket(),
+		"aix":   defaultpaths.GetDefaultStatsdSocket(),
 		"other": "",
 	}))
 
@@ -2016,7 +2021,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", "${log_path}/streamlogs_info/streamlogs.log")
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
-	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write",
+		GetPlatformDefault(map[string]interface{}{
+			"fargate": false,
+			"other":   true,
+		}),
+	)
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
@@ -2028,8 +2038,18 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 // vector integration
 func vector(config pkgconfigmodel.Setup) {
-	bindVectorOptions(config, Metrics)
-	bindVectorOptions(config, Logs)
+	// metrics options
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
+	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
+	config.BindEnvAndSetDefault("vector.metrics.url", "")
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.use_v3_api.series", false)
+	config.BindEnvAndSetDefault("vector.metrics.use_v3_api.series", false)
+	// logs options
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.url", "")
+	config.BindEnvAndSetDefault("vector.logs.enabled", false)
+	config.BindEnvAndSetDefault("vector.logs.url", "")
 
 	// dual_ship is logs-only: there is no equivalent dual-shipping code path for metrics, so
 	// these keys live outside bindVectorOptions to avoid registering an unused metrics variant.
@@ -2049,19 +2069,6 @@ func vector(config pkgconfigmodel.Setup) {
 	// dual_ship=true silently dropped when the fallback in obsPipelineWorkerDualShip reads these keys.
 	config.BindEnvAndSetDefault("vector.logs.dual_ship", false)
 	config.BindEnvAndSetDefault("vector.logs.dual_ship_reliable", false)
-}
-
-func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
-
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
-
-	if datatype == Metrics {
-		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.use_v3_api.series", datatype), false)
-		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.use_v3_api.series", datatype), false)
-	}
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

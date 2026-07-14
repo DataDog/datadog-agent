@@ -104,6 +104,10 @@ type StartServerlessTraceAgentArgs struct {
 	AdditionalProfileTags map[string]string
 	FunctionTags          string
 	RCService             *remoteconfig.CoreAgentService
+
+	// StopTimeout bounds Stop()'s wait for the trace agent's Run loop to exit.
+	// If zero, defaults to 3 seconds.
+	StopTimeout time.Duration
 }
 
 // Start starts the agent
@@ -147,10 +151,15 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			ta.DiscardSpan = filterSpan
 			ta.DiscardSpanV1 = filterSpanV1
 			startTraceAgentConfigEndpoint(args.RCService, tc)
+			stopTimeout := args.StopTimeout
+			if stopTimeout == 0 {
+				stopTimeout = 3 * time.Second
+			}
 			go ta.Run()
 			return &serverlessTraceAgent{
-				ta:     ta,
-				cancel: cancel,
+				ta:          ta,
+				cancel:      cancel,
+				stopTimeout: stopTimeout,
 			}
 		}
 	} else {
@@ -174,8 +183,9 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 }
 
 type serverlessTraceAgent struct {
-	ta     *agent.Agent
-	cancel context.CancelFunc
+	ta          *agent.Agent
+	cancel      context.CancelFunc
+	stopTimeout time.Duration
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -206,7 +216,7 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 // all writers and components.
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), t.stopTimeout)
 	defer cancel()
 	if err := t.ta.WaitForStopped(ctx); err != nil {
 		log.Warnf("Trace agent did not stop in time, continuing shutdown: %v", err)
