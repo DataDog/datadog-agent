@@ -32,7 +32,13 @@ end
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: [
+           "**/.cache/**/*",
+           "**/testdata/**/*",
+           # Git's fsmonitor daemon creates a Unix socket that breaks builds both
+           # on the host and in a container with a bind-mounted repo.
+           "**/.git/fsmonitor--daemon.ipc",
+         ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
