@@ -135,13 +135,13 @@ STAGES="
 02-python
 03-rtloader
 04-agent
-04-agent-data-plane
-05-python-extensions
-06-pydantic
-07-checks-base
-08-integrations
-09-strip-bytecode
-10-assemble
+05-agent-data-plane
+06-python-extensions
+07-pydantic
+08-checks-base
+09-integrations
+10-strip-bytecode
+11-assemble
 "
 
 # ── Helper: run one stage script ──────────────────────────────────────────────

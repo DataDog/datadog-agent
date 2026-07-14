@@ -18,10 +18,10 @@ class TestADPAIXPackaging(unittest.TestCase):
     def test_aix_build_runs_agent_data_plane_stage_after_agent_stage(self):
         build_sh = (AIX_ROOT / "build.sh").read_text()
 
-        self.assertIn("04-agent\n04-agent-data-plane\n05-python-extensions", build_sh)
+        self.assertIn("04-agent\n05-agent-data-plane\n06-python-extensions", build_sh)
 
     def test_agent_data_plane_stage_builds_with_saluki_aix_target_and_installs_artifacts(self):
-        stage = (AIX_ROOT / "stages/04-agent-data-plane.sh").read_text()
+        stage = (AIX_ROOT / "stages/05-agent-data-plane.sh").read_text()
 
         self.assertIn('ADP_AIX_BUILD_COMMAND="make build-adp-aix"', stage)
         self.assertIn('if [ "${ADP_AIX_BUILD_COMMAND+x}" = x ]; then', stage)
