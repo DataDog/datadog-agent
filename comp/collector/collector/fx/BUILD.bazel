@@ -1,11 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-#gazelle:dd_agent_go_test on
-
 go_library(
-    name = "collector",
-    srcs = ["bundle.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/collector",
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/fx",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/collector/collector/impl",

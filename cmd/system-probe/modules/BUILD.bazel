@@ -39,6 +39,7 @@ go_library(
         "usm_endpoints_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/modules",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/system-probe/api/module",
@@ -253,7 +254,11 @@ go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/dbconfig",
