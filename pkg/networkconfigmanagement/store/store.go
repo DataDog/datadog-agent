@@ -360,11 +360,9 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 }
 
 func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
-	// pkglog.Debugf("ncm: store config read from datadog.yaml — min_configs_per_device=%d max_configs_per_device=%d max_raw_config_store_bytes=%d", minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
 	cs.minConfigsPerDevice = minConfigsPerDevice
 	cs.maxConfigsPerDevice = maxConfigsPerDevice
 	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
-	// pkglog.Debugf("ncm: store eviction config applied")
 }
 
 func (cs *configStore) NeedsEviction() (bool, error) {
@@ -422,7 +420,7 @@ func (cs *configStore) EvictConfigs() ([]string, error) {
 	}
 
 	if size > cs.maxRawConfigStoreBytes {
-		err := errors.New("failed to evict configs: DB size still exceeds the limit")
+		err := errors.New("partial eviction: DB size still exceeds the limit")
 		return evicted, err
 	}
 
