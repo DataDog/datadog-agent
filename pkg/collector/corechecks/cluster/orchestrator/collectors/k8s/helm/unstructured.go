@@ -82,9 +82,11 @@ func ReleaseToUnstructured(clusterID string, r *Release) *unstructured.Unstructu
 	}
 
 	// Keep manifests structured so the scrubber can inspect nested fields.
-	if resources := parseManifest(r.Manifest); len(resources) > 0 {
+	resources := parseManifest(r.Manifest)
+	if len(resources) > 0 {
 		spec["resources"] = resources
 	}
+	spec["resourceCount"] = int64(len(resources))
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -96,13 +98,14 @@ func ReleaseToUnstructured(clusterID string, r *Release) *unstructured.Unstructu
 				"uid":             releaseUID(clusterID, r),
 				"resourceVersion": r.ResourceVersion,
 				"labels": map[string]interface{}{
-					"helm_release":       r.Name,
-					"helm_revision":      strconv.Itoa(r.Version),
-					"helm_status":        status,
-					"helm_chart":         chart,
-					"helm_chart_version": chartVersion,
-					"helm_app_version":   appVersion,
-					"helm_last_deployed": lastDeployed,
+					"helm_release":        r.Name,
+					"helm_revision":       strconv.Itoa(r.Version),
+					"helm_status":         status,
+					"helm_chart":          chart,
+					"helm_chart_version":  chartVersion,
+					"helm_app_version":    appVersion,
+					"helm_last_deployed":  lastDeployed,
+					"helm_resource_count": strconv.Itoa(len(resources)),
 				},
 			},
 			"spec": spec,
