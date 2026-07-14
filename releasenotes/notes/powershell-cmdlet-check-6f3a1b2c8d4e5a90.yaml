@@ -8,12 +8,5 @@
 ---
 features:
   - |
-    Added a new Windows ``powershell`` core check that runs admin-allowlisted,
-    read-only PowerShell ``Get-*`` cmdlets and maps their output objects to
-    metrics and tags, modeled on the WMI check's data model (``metrics``,
-    ``tag_by``, ``tags``, ``filters``, and ``tag_queries``). Only cmdlets and
-    parameters approved in the admin-owned allowlist at
-    ``C:\ProgramData\Datadog\protected\powershell_allowlist.yaml`` are permitted;
-    the check fails closed if the allowlist is missing, malformed, or not owned
-    by an administrator. Parameter values are bound to the cmdlet as data, never
-    interpolated into the command, so untrusted values cannot inject PowerShell.
+    Added a new Windows ``powershell`` check that runs admin-allowlisted,
+    read-only PowerShell cmdlets and maps their output objects to metrics and tags.
