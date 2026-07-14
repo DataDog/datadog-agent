@@ -18,6 +18,8 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     spawn_child(process.name(), request, profile)
 }
 
+/// Spawn a managed child. On Unix, children inherit procmgr's effective user; both profiles
+/// use the supervisor identity until a distinct host-privileged child is needed.
 fn spawn_child(
     process_name: &str,
     request: SpawnRequest,
