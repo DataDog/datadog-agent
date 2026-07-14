@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -739,4 +741,43 @@ func (m *macosInstallSuite) TestAgentRestart() {
 
 	m.enableSysprobeForRestartTest(macosTestClient)
 	m.testAgentRestart(macosTestClient)
+}
+
+// TestZZUninstallAgent runs cmd/agent/macos/uninstall_mac_os.sh against the suite's installed
+// agent and asserts every service and file it manages is actually gone. The ZZ prefix makes
+// this run last among this file's Test methods (tests run in alphabetical order within a
+// suite), since the agent must stay installed for the others to use.
+func (m *macosInstallSuite) TestZZUninstallAgent() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+
+	_, thisFile, _, _ := runtime.Caller(0)
+	localScriptPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..", "cmd", "agent", "macos", "uninstall_mac_os.sh")
+	const remoteScriptPath = "/tmp/uninstall_mac_os.sh"
+
+	m.Env().RemoteHost.CopyFile(localScriptPath, remoteScriptPath)
+	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
+	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
+
+	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
+		_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
+		assert.Error(m.T(), err, "service %s should no longer be registered with launchd", service)
+	}
+
+	removedPaths := []string{
+		"/Library/LaunchDaemons/com.datadoghq.agent.plist",
+		"/Library/LaunchDaemons/com.datadoghq.sysprobe.plist",
+		"/Library/LaunchDaemons/com.datadoghq.data-plane.plist",
+		"/Library/LaunchAgents/com.datadoghq.gui.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
+		"/Applications/Datadog Agent.app",
+		"/opt/datadog-agent",
+		"/usr/local/bin/datadog-agent",
+		"/var/log/datadog",
+		"/private/var/root/datadog-install",
+	}
+	for _, path := range removedPaths {
+		_, err := macosTestClient.Execute(fmt.Sprintf("test -e %q", path))
+		assert.Error(m.T(), err, "%s should have been removed by uninstall_mac_os.sh", path)
+	}
 }
