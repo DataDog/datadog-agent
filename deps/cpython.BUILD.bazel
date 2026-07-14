@@ -470,7 +470,7 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
-        ":python_lib_dir_group_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
+        ":python_lib_dir_group_unix": "lib",
     } | select({
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},

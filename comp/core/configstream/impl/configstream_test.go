@@ -8,6 +8,7 @@ package configstreamimpl
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -481,7 +482,7 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
 	})
 
-	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
+	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {
 		provides, configComp := buildComponent(t)
 
 		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-discontinuity"})
@@ -515,6 +516,9 @@ func TestConfigStream(t *testing.T) {
 
 		// verify the snapshot contains the dropped setting
 		require.Equal(t, "dropped_value", configComp.Get("dropped.setting"))
+	}
+	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
+		synctest.Test(t, resyncsWithSnapshotOnDiscontinuity)
 	})
 
 	t.Run("unsubscribe closes channel", func(t *testing.T) {
