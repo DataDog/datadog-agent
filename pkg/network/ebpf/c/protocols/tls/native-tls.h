@@ -9,9 +9,7 @@
 
 SEC("uprobe/SSL_do_handshake")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_do_handshake, void *ssl_ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%p", pid_tgid, ssl_ctx);
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    // SUSM-146: Disable fallback — see tup_from_ssl_ctx comment in https.h
     return 0;
 }
 
@@ -25,9 +23,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_do_handshake) {
 
 SEC("uprobe/SSL_connect")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_connect, void *ssl_ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%p", pid_tgid, ssl_ctx);
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    // SUSM-146: Disable fallback — see tup_from_ssl_ctx comment in https.h
     return 0;
 }
 
@@ -378,8 +374,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
 
 SEC("uprobe/gnutls_handshake")
 int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_handshake, void *ssl_ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    // SUSM-146: Disable fallback — see tup_from_ssl_ctx comment in https.h
     return 0;
 }
 
