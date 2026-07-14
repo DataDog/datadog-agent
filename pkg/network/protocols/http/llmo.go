@@ -497,56 +497,36 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 }
 
 // emitWorkflowSpan reconstructs a tool-using turn as an LLM Observability
-// workflow: a root "llm.conversation" span with a tool span per call and a
-// single llm span for the generation that produced the final answer (carrying
-// the response text and token usage). The tool call itself is shown on the tool
-// span, so there is no separate llm span for the tool-call decision (its token
-// usage lives in turn 1's response, which is not on this follow-up request
-// anyway). The spans are linked because we own the tracer context here and
-// thread it ourselves; the parent/child structure the SDK would build from the
-// app's context.Context is not on the wire. Timings are approximate: the tool
-// "executes" in-process, so we split the follow-up request's latency in half.
+// agent trace, matching how the SDK would present model-driven tool use: a root
+// "agent" span with three children in sequence — the llm call that requested
+// the tool, the tool call, and the llm call that produced the final answer.
+// Each llm span is one model API call (as the SDK models it). The spans are
+// linked because we own the tracer context here and thread it ourselves.
+//
+// Two things can't match the SDK, for data (not structural) reasons: the first
+// llm span carries no token usage — turn 1's usage lives in turn 1's response,
+// which our single-slot-per-connection capture has overwritten by the time the
+// follow-up is processed — and the tool span's timing is approximate (the tool
+// runs in-process, so we split the follow-up request's latency into thirds).
 func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
 	if !ensureLLMOTracer() {
 		return
 	}
 	end := time.Now()
 	start := end.Add(-time.Duration(latencyNs))
-	mid := start.Add(time.Duration(latencyNs / 2))
+	t1 := start.Add(time.Duration(latencyNs / 3))
+	t2 := start.Add(time.Duration(2 * latencyNs / 3))
 	tags := map[string]string{"http.url": path, "llm.source": "apm-lite-ebpf"}
 
-	wf, wctx := llmobs.StartWorkflowSpan(context.Background(), "llm.conversation",
+	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
 		llmobs.WithMLApp(info.service),
 		llmobs.WithStartTime(start),
 	)
 
-	// Tool span per call, output = the matching result (by id).
-	results := make(map[string]string, len(info.toolResults))
-	for _, r := range info.toolResults {
-		results[r.id] = r.content
-	}
-	for _, tc := range info.reqToolCalls {
-		toolSpan, _ := llmobs.StartToolSpan(wctx, tc.name,
-			llmobs.WithMLApp(info.service),
-			llmobs.WithStartTime(start),
-		)
-		toolSpan.AnnotateTextIO(tc.arguments, results[tc.id])
-		toolSpan.Finish(llmobs.WithFinishTime(mid))
-	}
-
-	// The LLM generation that produced the final answer. Its input is the full
-	// conversation so far (system+user, the assistant tool_call, the tool
-	// result); its output + token usage come from the captured follow-up
-	// response.
-	llmSpan, _ := llmobs.StartLLMSpan(wctx, llmoSpanName,
-		llmobs.WithMLApp(info.service),
-		llmobs.WithModelName(info.model),
-		llmobs.WithModelProvider(info.provider),
-		llmobs.WithStartTime(mid),
-	)
-	var input []llmobs.LLMMessage
+	// Base input messages (system + user), shared by both generations.
+	var baseInput []llmobs.LLMMessage
 	for _, m := range info.messages {
-		input = append(input, llmobs.LLMMessage{Role: m.role, Content: m.content})
+		baseInput = append(baseInput, llmobs.LLMMessage{Role: m.role, Content: m.content})
 	}
 	toolCallMsg := llmobs.LLMMessage{Role: "assistant"}
 	for _, tc := range info.reqToolCalls {
@@ -557,9 +537,44 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 			Type:      "function",
 		})
 	}
-	input = append(input, toolCallMsg)
+
+	// Child 1 (llm): the model API call that decided to call the tool(s).
+	llm1, _ := llmobs.StartLLMSpan(actx, llmoSpanName,
+		llmobs.WithMLApp(info.service),
+		llmobs.WithModelName(info.model),
+		llmobs.WithModelProvider(info.provider),
+		llmobs.WithStartTime(start),
+	)
+	llm1.AnnotateLLMIO(baseInput, []llmobs.LLMMessage{toolCallMsg}, llmobs.WithAnnotatedTags(tags))
+	llm1.Finish(llmobs.WithFinishTime(t1))
+
+	// Child 2 (tool): one span per call, output = the matching result (by id).
+	results := make(map[string]string, len(info.toolResults))
 	for _, r := range info.toolResults {
-		input = append(input, llmobs.LLMMessage{Role: "tool", Content: r.content})
+		results[r.id] = r.content
+	}
+	for _, tc := range info.reqToolCalls {
+		toolSpan, _ := llmobs.StartToolSpan(actx, tc.name,
+			llmobs.WithMLApp(info.service),
+			llmobs.WithStartTime(t1),
+		)
+		toolSpan.AnnotateTextIO(tc.arguments, results[tc.id])
+		toolSpan.Finish(llmobs.WithFinishTime(t2))
+	}
+
+	// Child 3 (llm): the model API call that produced the final answer. Its
+	// input is the full conversation so far; its output + token usage come from
+	// the captured follow-up response.
+	llm2, _ := llmobs.StartLLMSpan(actx, llmoSpanName,
+		llmobs.WithMLApp(info.service),
+		llmobs.WithModelName(info.model),
+		llmobs.WithModelProvider(info.provider),
+		llmobs.WithStartTime(t2),
+	)
+	finalInput := append([]llmobs.LLMMessage{}, baseInput...)
+	finalInput = append(finalInput, toolCallMsg)
+	for _, r := range info.toolResults {
+		finalInput = append(finalInput, llmobs.LLMMessage{Role: "tool", Content: r.content})
 	}
 	annotations := []llmobs.AnnotateOption{llmobs.WithAnnotatedTags(tags)}
 	if info.totalTokens > 0 {
@@ -569,12 +584,12 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 			llmobs.MetricKeyTotalTokens:  float64(info.totalTokens),
 		}))
 	}
-	llmSpan.AnnotateLLMIO(input, []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}, annotations...)
-	llmSpan.Finish(llmobs.WithFinishTime(end))
+	llm2.AnnotateLLMIO(finalInput, []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}, annotations...)
+	llm2.Finish(llmobs.WithFinishTime(end))
 
-	// The workflow's own I/O: the user prompt in, the model's final answer out.
-	wf.AnnotateTextIO(info.prompt, info.response)
-	wf.Finish(llmobs.WithFinishTime(end))
+	// The agent's own I/O: the user prompt in, the model's final answer out.
+	agent.AnnotateTextIO(info.prompt, info.response)
+	agent.Finish(llmobs.WithFinishTime(end))
 }
 
 // captureLLMBody marks the connection as LLM traffic (so the eBPF write hook
