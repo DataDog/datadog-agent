@@ -443,8 +443,11 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 		return nil, fmt.Errorf("failed to generate auth proof: %w", err)
 	}
 
-	// Exchange the proof for an API key from Datadog
-	key, err := api.GetAPIKey(d.config, authProof)
+	// Exchange the proof for an API key from Datadog. For a dual-shipping additional_endpoints
+	// instance, additionalEndpointDomain is the actual site to exchange against - it is very
+	// often a different site than the agent's primary dd_url/site (that's the whole point of
+	// dual-shipping), so it must not be left to fall back to the primary site.
+	key, err := api.GetAPIKey(d.config, authProof, instance.additionalEndpointDomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}

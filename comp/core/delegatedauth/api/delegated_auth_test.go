@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -232,6 +233,24 @@ func TestGetAPIDomain(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestResolveTokenURL(t *testing.T) {
+	// Regression test: dual-shipping additional_endpoints instances must exchange their proof
+	// against their OWN target site, not the agent's primary dd_url/site - those are very often
+	// different sites (e.g. staging ships to datad0g.com + datadoghq.com, but dd_url only names
+	// one of them).
+	cfg := mock.NewFromYAML(t, `dd_url: "https://agent.datadoghq.com"`)
+
+	t.Run("empty targetSite falls back to the agent's primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "")
+		assert.Equal(t, "https://api.datadoghq.com/api/v2/intake-key", got)
+	})
+
+	t.Run("non-empty targetSite overrides the primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "https://agent.datad0g.com")
+		assert.Equal(t, "https://api.datad0g.com/api/v2/intake-key", got)
+	})
 }
 
 func TestErrorDetail(t *testing.T) {
