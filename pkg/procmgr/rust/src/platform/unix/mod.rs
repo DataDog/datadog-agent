@@ -16,11 +16,11 @@ pub(crate) use runtime_user::runtime_user_for_pid;
 pub(crate) use spawn::spawn_child_handle;
 
 use anyhow::{Context, Result};
-use nix::unistd::{User, getuid};
+use nix::unistd::{User, geteuid};
 
 /// Return the passwd name for procmgr's effective user (the account Unix children inherit).
 pub(crate) fn spawn_user_for_supervisor() -> Result<String> {
-    User::from_uid(getuid())
+    User::from_uid(geteuid())
         .context("getpwuid")?
         .map(|u| u.name)
         .context("no passwd entry for supervisor uid")
