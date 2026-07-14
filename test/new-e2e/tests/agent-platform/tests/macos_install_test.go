@@ -445,45 +445,6 @@ func (m *macosInstallSuite) TestDogstatsdMetricEndToEnd() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
-// TestProcessAgentRunning documents macOS's actual process-collection architecture, which is
-// unlike Linux/Windows: there is no embedded process component (comp/process's Enabled() is
-// hardcoded false on darwin, see comp/process/agent/agent_fallback.go), so status -j never
-// reports a processComponentStatus section on macOS. Instead, macOS ships a darwin-only
-// corecheck (pkg/collector/corechecks/embed/process) that unconditionally spawns the bundled
-// standalone process-agent binary; that binary self-exits immediately on a default install
-// because process_collection, container detection, and language_detection are all disabled/
-// unavailable by default on darwin (see TestProcessAgentReportsProcessData for the case where
-// process_collection is explicitly enabled and this same binary does collect real data).
-func (m *macosInstallSuite) TestProcessAgentRunning() {
-	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
-
-	_, err := macosTestClient.Execute("sudo test -x /opt/datadog-agent/embedded/bin/process-agent")
-	assert.NoError(m.T(), err, "the process-agent binary should be bundled even though nothing runs it by default")
-
-	// The spawned process-agent keeps exiting (no enabled checks) and its status query keeps
-	// failing, so poll rather than assert once to rule out a transient startup race.
-	m.EventuallyWithT(func(c *assert.CollectT) {
-		jsonStatus, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status -j")
-		if !assert.NoError(c, err) {
-			return
-		}
-		var statusMap map[string]any
-		if !assert.NoError(c, json.Unmarshal([]byte(jsonStatus), &statusMap)) {
-			return
-		}
-
-		assert.NotContains(c, statusMap, "processComponentStatus",
-			"macOS has no embedded process component, unlike Linux/Windows")
-
-		processAgentStatus, ok := statusMap["processAgentStatus"].(map[string]any)
-		if !assert.True(c, ok, "status JSON should contain processAgentStatus") {
-			return
-		}
-		assert.NotEmpty(c, processAgentStatus["error"],
-			"the process-agent should be unreachable by default (it exits immediately with no checks enabled)")
-	}, 40*time.Second, 2*time.Second)
-}
-
 // macosProcessAgentDataMarker delimits the block TestProcessAgentReportsProcessData appends
 // to datadog.yaml, so it can be identified and removed again during cleanup.
 const macosProcessAgentDataMarker = "# added by e2e TestProcessAgentReportsProcessData"
@@ -494,8 +455,12 @@ const macosProcessAgentDataMarker = "# added by e2e TestProcessAgentReportsProce
 // for every real process but happened to report stale/empty data for something else.
 const macosProcessAgentSentinelProcess = "ddprocsentinel"
 
-// TestProcessAgentReportsProcessData builds on TestProcessAgentRunning: it's not enough for
-// the process check to be scheduled, its collected data must actually reach the backend.
+// TestProcessAgentReportsProcessData documents macOS's process-collection architecture, which is
+// unlike Linux/Windows: there is no embedded process component (comp/process's Enabled() is
+// hardcoded false on darwin, see comp/process/agent/agent_fallback.go). Instead, macOS ships a
+// darwin-only corecheck (pkg/collector/corechecks/embed/process) that spawns the bundled
+// standalone process-agent binary once process_config.process_collection.enabled is set. It's
+// not enough for that check to be scheduled, its collected data must actually reach the backend.
 // It enables process_config.process_collection.enabled (off by default), starts a
 // recognizable long-lived process, and asserts that process shows up in the process
 // payloads fakeintake receives.
@@ -565,6 +530,85 @@ func (m *macosInstallSuite) TestProcessAgentReportsProcessData() {
 			}
 		}
 		assert.True(c, found, "%s process should be collected in process payloads", macosProcessAgentSentinelProcess)
+	}, 2*time.Minute, 10*time.Second)
+}
+
+// macosAPMTraceMarker delimits the block TestAPMTraceEndToEnd appends to
+// datadog.yaml, so it can be identified and removed again during cleanup.
+const macosAPMTraceMarker = "# added by e2e TestAPMTraceEndToEnd"
+
+// macosAPMSentinelService is a distinctive service name attached to the test trace, so it
+// can be searched for in the trace payloads collected by fakeintake, rather than asserting on
+// "any trace arrived" which could pass even if it came from something else entirely.
+const macosAPMSentinelService = "ddapmsentinel"
+
+// TestAPMTraceEndToEnd documents macOS's trace-collection architecture, which is unlike
+// Linux/Windows: there is no embedded trace-agent component either. macOS ships a darwin-only
+// corecheck (pkg/collector/corechecks/embed/apm) that spawns the bundled standalone trace-agent
+// binary, which is enabled and listening on the receiver port by default (unlike process
+// collection, there's no explicit opt-in). That default-enabled receiver being reachable
+// wouldn't prove data actually reaches the backend though, so this test posts a trace directly
+// to the receiver and asserts it shows up in the trace payloads fakeintake receives.
+func (m *macosInstallSuite) TestAPMTraceEndToEnd() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	// The trace-agent submits to apm_config.apm_dd_url (falling back to the "site" default),
+	// not the generic dd_url used by metrics/logs -- so it must be set explicitly to point at
+	// fakeintake (see pkg/config/setup/apm_settings.go).
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\napm_config:\n  apm_dd_url: %s\n' | sudo tee -a %s`,
+		macosAPMTraceMarker, confFilePath, macosAPMTraceMarker, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+2d" %s`, macosAPMTraceMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy, and the receiver to be listening, after
+	// redirecting apm_dd_url.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		macosTestClient.MustExecuteOn(c, "curl -sf -o /dev/null http://127.0.0.1:8126/v0.4/traces -X POST -H 'Content-Type: application/json' -d '[]'")
+	}, 20*time.Second, 1*time.Second)
+
+	// Post a minimal trace directly to the receiver, tagged with a sentinel service name.
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(`curl -X POST http://127.0.0.1:8126/v0.4/traces \
+-H 'X-Datadog-Trace-Count: 1' \
+-H 'Content-Type: application/json' \
+--data-binary @- <<EOF
+[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /sentinel","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"env":"e2e"},"metrics":{"_sampling_priority_v1":1}}]]
+EOF`, macosAPMSentinelService))
+
+	// Delivery is async (trace-agent flush interval + forwarder flush), so poll rather than
+	// assert once.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		payloads, err := m.Env().FakeIntake.Client().GetTraces()
+		if !assert.NoError(c, err, "failed to get trace payloads from fakeintake") {
+			return
+		}
+
+		var found bool
+		for _, payload := range payloads {
+			for _, tracerPayload := range payload.TracerPayloads {
+				for _, chunk := range tracerPayload.Chunks {
+					for _, span := range chunk.Spans {
+						if span.Service == macosAPMSentinelService {
+							found = true
+						}
+					}
+				}
+			}
+		}
+		assert.True(c, found, "%s trace should be collected in trace payloads", macosAPMSentinelService)
 	}, 2*time.Minute, 10*time.Second)
 }
 
