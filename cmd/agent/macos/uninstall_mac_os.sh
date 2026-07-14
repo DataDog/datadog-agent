@@ -105,6 +105,10 @@ for user_home in /Users/*; do
         elif [ -f "$dest" ]; then
             cfg_tmp=$(mktemp /tmp/ddagent-traj-cfg.XXXXXX)
             sed '/# --- BEGIN datadog-agent-eudm ---/,/# --- END datadog-agent-eudm ---/d' "$dest" > "$cfg_tmp" 2>/dev/null || true
+            # mktemp made this 0600 owned by the uninstaller (root); make it
+            # readable so the per-user `cp` below does not fail silently and
+            # leave the managed block behind.
+            chmod 644 "$cfg_tmp"
             sudo -u "$u" cp "$cfg_tmp" "$dest" 2>/dev/null || true
             rm -f "$cfg_tmp"
         fi

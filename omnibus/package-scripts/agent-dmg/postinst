@@ -288,11 +288,17 @@ if [ "$traj_is_eudm" = true ]; then
 
     # Download the installer and managed defaults once (best-effort). Mirrors the
     # curl hygiene used by install_mac_os.sh (--fail, --retry).
+    # postinst runs as root and mktemp creates these files mode 0600/root-owned.
+    # The per-user `sudo -u` steps below run wholly as the unprivileged user and
+    # cannot read a root-only file, so make each download world-readable once it
+    # succeeds (public installer / non-secret defaults, no credentials).
     traj_install_tmp=$(mktemp /tmp/trajectory-install.XXXXXX)
     if ! curl --fail --location --retry 2 --silent --show-error -o "$traj_install_tmp" "$TRAJECTORY_INSTALL_URL"; then
         echo "WARNING: could not download Trajectory installer from $TRAJECTORY_INSTALL_URL; skipping Trajectory bootstrap"
         rm -f "$traj_install_tmp"
         traj_install_tmp=""
+    else
+        chmod 644 "$traj_install_tmp"
     fi
 
     traj_defaults_tmp=$(mktemp /tmp/trajectory-config-defaults.XXXXXX)
@@ -300,6 +306,8 @@ if [ "$traj_is_eudm" = true ]; then
         echo "WARNING: could not download Trajectory managed defaults from $TRAJECTORY_CONFIG_DEFAULTS_URL"
         rm -f "$traj_defaults_tmp"
         traj_defaults_tmp=""
+    else
+        chmod 644 "$traj_defaults_tmp"
     fi
 
     if [ -n "$traj_install_tmp" ]; then
@@ -374,6 +382,8 @@ if [ "$traj_is_eudm" = true ]; then
                         cp "$dest" "$merged_tmp"
                         { printf '\nrequired_destinations:\n'; printf '%s\n' "$traj_block"; } >> "$merged_tmp"
                     fi
+                    # Root/mktemp made this 0600; let the per-user `cp` read it.
+                    chmod 644 "$merged_tmp"
                     if sudo -u "$u" cp "$merged_tmp" "$dest"; then
                         config_state="appended"
                     fi
