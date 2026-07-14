@@ -139,6 +139,25 @@ func TestParseInstanceConfigRequiresCmdletAndMetrics(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParseInstanceConfigTimeout(t *testing.T) {
+	base := "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\n"
+
+	// an explicit positive value is honored
+	inst, err := parseInstanceConfig([]byte(base + "timeout: 45\n"))
+	require.NoError(t, err)
+	assert.Equal(t, 45, inst.Timeout)
+
+	// a non-positive value is invalid: fall back to the default (with a warning)
+	inst, err = parseInstanceConfig([]byte(base + "timeout: -5\n"))
+	require.NoError(t, err)
+	assert.Equal(t, defaultTimeout, inst.Timeout)
+
+	// omitted defaults
+	inst, err = parseInstanceConfig([]byte(base))
+	require.NoError(t, err)
+	assert.Equal(t, defaultTimeout, inst.Timeout)
+}
+
 func TestSplitAS(t *testing.T) {
 	p, a := splitAS("Name AS node")
 	assert.Equal(t, "Name", p)
