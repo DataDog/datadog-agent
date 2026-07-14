@@ -74,7 +74,10 @@ if [ -n "$ADP_AIX_BUILD_COMMAND" ]; then
     log "Building agent-data-plane via $ADP_AIX_BUILD_COMMAND"
     cd "$SALUKI_SRC"
     unset ARFLAGS
-    BUILD_PROFILE="$ADP_AIX_BUILD_PROFILE" sh -c "$ADP_AIX_BUILD_COMMAND"
+    # AWS-LC's CPU-jitter entropy collector aborts during initialization on AIX.
+    # Use its supported OS-entropy fallback for the AIX ADP binary.
+    AWS_LC_SYS_NO_JITTER_ENTROPY=1 \
+        BUILD_PROFILE="$ADP_AIX_BUILD_PROFILE" sh -c "$ADP_AIX_BUILD_COMMAND"
     if [ -z "$ADP_AIX_BINARY_PATH" ]; then
         ADP_AIX_BINARY_PATH="$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane"
     fi
