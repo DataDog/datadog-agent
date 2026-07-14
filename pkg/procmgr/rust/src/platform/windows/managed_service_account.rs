@@ -76,6 +76,7 @@ fn map_query_status(status: NTSTATUS) -> Result<ManagedServiceAccountState> {
     }
 }
 
+#[allow(non_upper_case_globals)] // windows-sys NetManagement constants use PascalCase
 fn map_msa_info_state(state: i32) -> Result<ManagedServiceAccountState> {
     match state {
         MsaInfoInstalled => Ok(ManagedServiceAccountState::Installed),
