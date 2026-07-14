@@ -19,6 +19,12 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 )
 
+// ContentType constants for format detection.
+const (
+	ContentTypeOpenMetrics = "application/openmetrics-text"
+	ContentTypeText        = "text/plain"
+)
+
 // Metric is a set of labels for a sample.
 type Metric map[string]string
 
@@ -85,6 +91,34 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 	st := labels.NewSymbolTable()
 	parser := textparse.NewPromParser(data, st, false)
 
+	return parseWithParser(parser)
+}
+
+// ParseMetrics parses prometheus-formatted metrics from the input data.
+func ParseMetrics(data []byte) ([]MetricFamily, error) {
+	return ParseMetricsWithFilter(data, nil)
+}
+
+// ParseMetricsFromResponse parses metrics using the appropriate parser based on
+// the HTTP Content-Type header. If contentType contains "application/openmetrics-text",
+// the OpenMetrics parser is used; otherwise the Prometheus text parser is used.
+func ParseMetricsFromResponse(data []byte, contentType string, filter []string) ([]MetricFamily, error) {
+	data = preprocessData(data, filter)
+
+	st := labels.NewSymbolTable()
+
+	var parser textparse.Parser
+	if strings.Contains(contentType, ContentTypeOpenMetrics) {
+		parser = textparse.NewOpenMetricsParser(data, st)
+	} else {
+		parser = textparse.NewPromParser(data, st, false)
+	}
+
+	return parseWithParser(parser)
+}
+
+// parseWithParser extracts MetricFamily slices from any textparse.Parser.
+func parseWithParser(parser textparse.Parser) ([]MetricFamily, error) {
 	var result []MetricFamily
 	var lbls labels.Labels
 
@@ -131,7 +165,6 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 
 				// If still no match, create a new UNTYPED family
 				if len(result) == 0 || result[len(result)-1].Name != name {
-					// Discard previous family if it has no samples
 					if len(result) > 0 && len(result[len(result)-1].Samples) == 0 {
 						result = result[:len(result)-1]
 					}
@@ -143,13 +176,11 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 				}
 			}
 
-			// Convert labels to Metric
 			metric := make(Metric, lbls.Len())
 			lbls.Range(func(l labels.Label) {
 				metric[l.Name] = l.Value
 			})
 
-			// Create sample
 			sample := Sample{
 				Metric: metric,
 				Value:  value,
@@ -168,9 +199,4 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 	}
 
 	return result, nil
-}
-
-// ParseMetrics parses prometheus-formatted metrics from the input data.
-func ParseMetrics(data []byte) ([]MetricFamily, error) {
-	return ParseMetricsWithFilter(data, nil)
 }
