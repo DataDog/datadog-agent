@@ -29,7 +29,7 @@ go_library(
         "//pkg/util/grpc/context",
         "//pkg/util/log",
         "//pkg/util/system/socket",
-        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_v2//interceptors/auth",
         "@com_github_mdlayher_vsock//:vsock",
         "@com_google_cloud_go_compute//apiv1",
         "@org_golang_google_grpc//:grpc",

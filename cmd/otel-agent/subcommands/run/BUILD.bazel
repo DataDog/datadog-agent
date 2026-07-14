@@ -32,6 +32,7 @@ go_library(
         "//comp/core/pid/def",
         "//comp/core/pid/fx",
         "//comp/core/pid/impl",
+        "//comp/core/secrets/def",
         "//comp/core/secrets/fx",
         "//comp/core/secrets/fx-noop",
         "//comp/core/tagger/def",
@@ -47,6 +48,7 @@ go_library(
         "//comp/dogstatsd/statsd/otel",
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/fx",
+        "//comp/forwarder/defaultforwarder/impl",
         "//comp/forwarder/orchestrator/orchestratorinterface",
         "//comp/logs/agent/config",
         "//comp/metadata/host/fx",
@@ -73,11 +75,13 @@ go_library(
         "//comp/trace/config/impl",
         "//comp/trace/payload-modifier/fx",
         "//pkg/config/env",
+        "//pkg/config/utils",
         "//pkg/serializer",
         "//pkg/trace/telemetry",
         "//pkg/util/compression",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "//pkg/util/http",
         "//pkg/util/option",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@io_opentelemetry_go_collector_confmap//:confmap",
@@ -129,6 +133,7 @@ go_library(
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/util/winutil",
             "//pkg/util/winutil/servicemain",
             "@com_github_spf13_cobra//:cobra",
@@ -139,7 +144,12 @@ go_library(
 
 dd_agent_go_test(
     name = "run_test",
-    srcs = ["command_test.go"],
+    srcs = [
+        "command_test.go",
+        "fleet_policies_dir_nix_test.go",
+        "fleet_policies_dir_test.go",
+        "fleet_policies_dir_windows_test.go",
+    ],
     data = [
         "test_config.yaml",
         "test_config_no_dd.yaml",
@@ -155,5 +165,10 @@ dd_agent_go_test(
         "//cmd/otel-agent/subcommands",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
 )

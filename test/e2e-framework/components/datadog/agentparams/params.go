@@ -302,6 +302,8 @@ sbom.logs_dd_url: %[1]s:%[2]d
 sbom.logs_no_ssl: true
 service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
 service_discovery.forwarder.logs_no_ssl: true
+config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+config_files_discovery.forwarder.logs_no_ssl: true
 software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
 software_inventory.forwarder.logs_no_ssl: true
 data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
@@ -407,8 +409,7 @@ func WithHostname(hostname string) func(*Params) error {
 }
 
 // WithV3MetricsDisabled forces the agent onto the V2 series intake API by setting
-// use_v3_api.series.enabled=false. V3 is the default, so this opts back out in order to
-// exercise the V2 wire format and /api/v2/series routing.
+// use_v3_api.series.enabled=false.
 func WithV3MetricsDisabled() func(*Params) error {
 	return func(p *Params) error {
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig,

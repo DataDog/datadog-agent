@@ -369,32 +369,3 @@ func unescapeCEFValue(s string) string {
 func isKeyChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
-
-// BuildSIEMFields converts a SIEMHeader and parsed extension into the map
-// stored under the "siem" key in BasicStructuredContent.
-//
-// Mandatory header fields (device_vendor, device_product, device_version,
-// event_id) are always emitted, even when the source header contains empty
-// values (e.g. "||"). This mirrors the CEF/LEEF spec requirement that all
-// header positions are present and lets downstream consumers distinguish
-// "field was empty in the original message" from "field was not parsed".
-func BuildSIEMFields(header SIEMHeader, extension map[string]string) map[string]interface{} {
-	fields := map[string]interface{}{
-		"format":         header.Format,
-		"version":        header.Version,
-		"device_vendor":  header.DeviceVendor,
-		"device_product": header.DeviceProduct,
-		"device_version": header.DeviceVersion,
-		"event_id":       header.EventID,
-	}
-	if header.Name != "" {
-		fields["name"] = header.Name
-	}
-	if header.Severity != "" {
-		fields["severity"] = header.Severity
-	}
-	if len(extension) > 0 {
-		fields["extension"] = extension
-	}
-	return fields
-}

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
@@ -61,14 +62,14 @@ func StartWorkloadAutoscaling(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
 	// Open the gate the first time a DPA enters the store. This catches every
 	// path that creates a DPA: Kubernetes informer, remote config, and the
 	// profile syncer.
-	store.RegisterObserver(autoscaling.Observer{
-		SetFunc: func(string, autoscaling.SenderID) { gate.Enable() },
+	store.RegisterObserver(autoscalingstore.Observer{
+		SetFunc: func(string, autoscalingstore.SenderID) { gate.Enable() },
 	})
 
 	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
@@ -105,7 +106,7 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
 
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 	profileController, err := profile.NewController(
 		clock,
 		apiCl.DynamicCl,
