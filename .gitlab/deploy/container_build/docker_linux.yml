@@ -549,7 +549,7 @@ docker_build_secret_generic_connector_arm64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
 
 # FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
-# runtime — it cannot run on scratch. Build it against the FIPS distroless base via a dedicated build
+# runtime - it cannot run on scratch. Build it against the public Ubuntu glibc base via a dedicated build
 # context (Dockerfiles/secret-generic-connector-fips). The nm check fails the build if the binary is
 # not boringcrypto-linked, rather than publishing a non-FIPS image.
 .docker_build_secret_generic_connector_fips:
