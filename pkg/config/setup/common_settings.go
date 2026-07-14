@@ -295,7 +295,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.config_management.rollback.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.config_management.store.min_configs_per_device", 3)
-	config.BindEnvAndSetDefault("network_devices.config_management.store.max_configs_per_device", 25)
+	config.BindEnvAndSetDefault("network_devices.config_management.store.max_configs_per_device", 50)
 	config.BindEnvAndSetDefault("network_devices.config_management.store.max_raw_config_store_bytes", int64(2000000000))
 
 	// HA Agent
