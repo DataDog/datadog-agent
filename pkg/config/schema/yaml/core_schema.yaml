@@ -5893,6 +5893,13 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              correlation_event_threshold:
+                node_type: setting
+                type: string
+                default: high
+                comment: |-
+                  Lowest anomaly scorer severity that opens a correlation episode.
+                  Supported values are medium and high.
               logs:
                 node_type: setting
                 type: boolean

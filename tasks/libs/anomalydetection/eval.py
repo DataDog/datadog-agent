@@ -46,6 +46,11 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
 CORRELATORS = ["anomaly_scorer"]
 
+# Components excluded from this study that must still be present in generated
+# configs. time_cluster defaults on in the testbench when omitted, so leaving it
+# out would silently mix its correlation periods into scorer-only trials.
+HARD_DISABLED_COMPONENTS = ["time_cluster"]
+
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
 # always enables all of them unless force-disabled.
 EXTRACTORS = [
@@ -459,7 +464,7 @@ def _combo_to_config(
     force_disable_set = set(force_disable or [])
     enabled_set = set(detectors + correlators)
     components = {}
-    for name in DETECTORS + CORRELATORS:
+    for name in DETECTORS + CORRELATORS + HARD_DISABLED_COMPONENTS:
         components[name] = _component_base_config(name, name in enabled_set)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
@@ -547,7 +552,7 @@ def _build_optuna_config(
     active_set = set(components)
     result = {}
 
-    for name in DETECTORS + CORRELATORS + EXTRACTORS:
+    for name in DETECTORS + CORRELATORS + EXTRACTORS + HARD_DISABLED_COMPONENTS:
         if name not in active_set:
             result[name] = _component_base_config(name, False)
 

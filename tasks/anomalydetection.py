@@ -663,6 +663,34 @@ def eval_combinations(
 # --- Bayesian Optimization ---
 
 
+def _load_completed_bayesian_report(
+    output_dir: str,
+    *,
+    components: list[str],
+    n_trials: int,
+    seed: int,
+    eval_backend: str,
+) -> dict | None:
+    """Load a completed Bayesian report only when it matches the requested run."""
+    report_path = os.path.join(output_dir, "report.json")
+    try:
+        with open(report_path) as f:
+            report = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+    if (
+        report.get("n_trials") != n_trials
+        or report.get("completed_trials") != n_trials
+        or report.get("failed_trials") != 0
+        or report.get("seed") != seed
+        or sorted(report.get("components", [])) != sorted(components)
+        or report.get("eval_backend") != eval_backend
+    ):
+        return None
+    return report
+
+
 def _run_bayesian_runs(
     ctx,
     components_list: list,
@@ -679,6 +707,7 @@ def _run_bayesian_runs(
     ddeval_options: _DDEvalOptions | None = None,
     run_logger: StepLogger | None = None,
     step_label_prefix: str = "",
+    resume: bool = False,
 ) -> dict:
     """Run M independent Bayesian optimisations on a fixed component set.
 
@@ -702,24 +731,37 @@ def _run_bayesian_runs(
             run_logger.step(step_title)
             run_logger.detail(f"components: {', '.join(components_list)}")
 
-        trial_logger = run_logger.child(n_trials, "Trial") if run_logger else None
-        report = eval_bayesian(
-            ctx,
-            components=",".join(components_list),
-            lock=lock,
-            n_trials=n_trials,
-            output_dir=run_dir,
-            scenarios_dir=scenarios_dir,
-            sigma=sigma,
-            seed=run_seed,
-            build=False,
-            overwrite=True,
-            timeout=timeout,
-            scenarios=scenarios,
-            eval_backend=eval_backend,
-            **_ddeval_options_kwargs(ddeval_options),
-            _logger=trial_logger,
-        )
+        report = None
+        if resume:
+            report = _load_completed_bayesian_report(
+                run_dir,
+                components=components_list,
+                n_trials=n_trials,
+                seed=run_seed,
+                eval_backend=eval_backend,
+            )
+            if report is not None and run_logger:
+                run_logger.detail(f"reusing completed {run_label}", Color.GREEN)
+
+        if report is None:
+            trial_logger = run_logger.child(n_trials, "Trial") if run_logger else None
+            report = eval_bayesian(
+                ctx,
+                components=",".join(components_list),
+                lock=lock,
+                n_trials=n_trials,
+                output_dir=run_dir,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                seed=run_seed,
+                build=False,
+                overwrite=True,
+                timeout=timeout,
+                scenarios=scenarios,
+                eval_backend=eval_backend,
+                **_ddeval_options_kwargs(ddeval_options),
+                _logger=trial_logger,
+            )
 
         run_failed = report is None or report.get("completed_trials", 0) == 0
         if run_failed and run_logger:
@@ -1010,6 +1052,12 @@ def eval_bayesian(
                     _logger=trial_logger.child(len(scenarios_list), "Scenario"),
                 )
         except Exception as e:
+            if eval_backend == "ddeval":
+                trial_logger.detail(
+                    f"DDEval failed; aborting optimization to avoid biased results: {type(e).__name__}: {e}",
+                    Color.RED,
+                )
+                raise
             failure_reason = f"{eval_backend} eval raised {type(e).__name__}: {e}"
 
         if failure_reason is None and report is None:
@@ -1439,6 +1487,7 @@ def eval_pipeline(
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
+    resume: bool = False,
     force_enable: str = "",
     force_disable: str = "",
     timeout: int = 0,
@@ -1482,6 +1531,8 @@ def eval_pipeline(
         m_runs: Independent Bayesian runs per combination (default: 1).
         output_dir: Root output directory.
         overwrite: Allow replacing an existing output_dir that contains report.json.
+        resume: Reuse fully completed matching Bayesian runs in an existing output_dir.
+            Requires an explicit seed so component combinations and run seeds are reproducible.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Base seed for deterministic reproducibility.
@@ -1545,6 +1596,10 @@ def eval_pipeline(
     if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
 
+    if resume and seed is None:
+        print(color_message("Error: --resume requires an explicit --seed.", Color.RED))
+        return
+
     if seed is not None:
         seed = int(seed)
     else:
@@ -1560,7 +1615,11 @@ def eval_pipeline(
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
         return
 
-    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+    if resume:
+        if not os.path.isdir(output_dir):
+            print(color_message(f"Error: resume output directory does not exist: {output_dir}", Color.RED))
+            return
+    elif not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
     full_combo = _full_stack_combo(force_disable=force_disable_list)
@@ -1605,6 +1664,7 @@ def eval_pipeline(
     print(color_message(f"  seed:                {seed}", Color.BLUE))
     print(color_message(f"  output_dir:          {output_dir}", Color.BLUE))
     print(color_message(f"  backend:             {eval_backend}", Color.BLUE))
+    print(color_message(f"  resume:              {resume}", Color.BLUE))
     if force_enable_list:
         print(color_message(f"  force-enabled:       {', '.join(force_enable_list)}", Color.BLUE))
     if force_disable_list:
@@ -1653,6 +1713,7 @@ def eval_pipeline(
             ddeval_options=ddeval_options,
             run_logger=run_logger,
             step_label_prefix=combo_label,
+            resume=resume,
         )
 
         combo_results.append(
@@ -1697,21 +1758,34 @@ def eval_pipeline(
     print(color_message(f"  Components: {', '.join(best_combo['components'])}", Color.BLUE))
 
     tune_dir = os.path.join(output_dir, "tune")
-    tune_result = eval_bayesian(
-        ctx,
-        components=",".join(best_combo["components"]),
-        n_trials=n_trials_tune,
-        output_dir=tune_dir,
-        scenarios_dir=scenarios_dir,
-        sigma=sigma,
-        seed=tune_seed,
-        build=False,
-        overwrite=True,
-        timeout=timeout,
-        scenarios=scenarios,
-        eval_backend=eval_backend,
-        **_ddeval_options_kwargs(ddeval_options),
-    )
+    tune_result = None
+    if resume:
+        tune_result = _load_completed_bayesian_report(
+            tune_dir,
+            components=best_combo["components"],
+            n_trials=n_trials_tune,
+            seed=tune_seed,
+            eval_backend=eval_backend,
+        )
+        if tune_result is not None:
+            print(color_message("  Reusing completed fine-tuning run.", Color.GREEN))
+
+    if tune_result is None:
+        tune_result = eval_bayesian(
+            ctx,
+            components=",".join(best_combo["components"]),
+            n_trials=n_trials_tune,
+            output_dir=tune_dir,
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            seed=tune_seed,
+            build=False,
+            overwrite=True,
+            timeout=timeout,
+            scenarios=scenarios,
+            eval_backend=eval_backend,
+            **_ddeval_options_kwargs(ddeval_options),
+        )
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:
         print(color_message("Error: fine-tuning produced no results.", Color.RED))
@@ -1728,6 +1802,7 @@ def eval_pipeline(
         "n_combos": actual_n_combos,
         "n_trials_search": n_trials_search,
         "n_trials_tune": n_trials_tune,
+        "resumed": resume,
         "best_combo": best_combo,
         "tune": {
             "components": best_combo["components"],

@@ -141,8 +141,10 @@ lives inside each correlator via the shared `correlationEmitter` helper
 `ReportOutput.CorrelatorEvents` carries three event kinds:
 - `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
   `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
-- `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` on High entry
-- `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` on High exit
+- `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` when severity enters
+  the configured correlation threshold (`medium` or `high`)
+- `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` when severity exits
+  the configured correlation threshold
 
 See `reporter/reporter.allium` for the payload contract.
 
@@ -154,6 +156,7 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 |-----|---------|---------|
 | `anomaly_detection.reporting.events.enabled` | `false` | Active gate for Datadog event reporting |
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
+| `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |

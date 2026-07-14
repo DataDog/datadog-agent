@@ -264,7 +264,7 @@ func normalizeCorrelationEventThreshold(value string) (string, error) {
 	case "medium":
 		return "medium", nil
 	case "low":
-		return "", fmt.Errorf("must be \"medium\" or \"high\"; \"low\" is the baseline state")
+		return "", errors.New("must be \"medium\" or \"high\"; \"low\" is the baseline state")
 	default:
 		return "", fmt.Errorf("must be \"medium\" or \"high\", got %q", value)
 	}
@@ -304,7 +304,7 @@ func correlationEventSeverity(threshold string) severityeventsdef.SeverityLevel 
 //	                   compute saturation + EWMA from window,
 //	                   derive the raw severity level, push ewmaGauge, and
 //	                   feed the severityevents dispatcher.
-//	ActiveCorrelations → returns closed High-severity episodes when enabled.
+//	ActiveCorrelations → returns the open configured-threshold episode when enabled.
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state for reanalysis.
 type anomalyScorer struct {
@@ -347,12 +347,12 @@ type anomalyScorer struct {
 	// filter/cooldown state machine.
 	dispatchers []*severityeventsimpl.Dispatcher
 
-	// Internal watcher fields (non-nil only when constructed with telemetry).
+	// Internal watcher fields (gauges may be nil when replay only needs episodes).
 	ewmaGauge  telemetry.Gauge // may be nil; set on every Advance tick
 	stateGauge telemetry.Gauge // may be nil; set on severity transitions
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
-	// openEpisode is the currently open High-severity period; nil when Low/Medium.
+	// openEpisode is the currently open configured-threshold severity period.
 	// Closed episodes are no longer buffered here — they are emitted as EpisodeEnded
 	// CorrelatorEvents via PendingEvents() and accumulated by the engine from there.
 	openEpisode *observerdef.ActiveCorrelation
@@ -511,7 +511,7 @@ func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 // ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
 // If the anomaly's timestamp is in the past (already advanced past), it is
 // clamped to lastAdvancedSec+1 so it participates in the next Advance call.
-// Also appends to the open High-severity episode if one is active.
+// Also appends to the open scorer episode if one is active.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

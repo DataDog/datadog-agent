@@ -62,12 +62,23 @@ func TestNormalizeCorrelationEventThreshold(t *testing.T) {
 
 func TestParseSettingsFromJSONCorrelationEventThreshold(t *testing.T) {
 	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"enabled":true}`),
+	})
+	if err != nil {
+		t.Fatalf("ParseSettingsFromJSON() returned error for omitted threshold: %v", err)
+	}
+	cfg := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	if cfg.CorrelationEventThreshold != "high" {
+		t.Errorf("default CorrelationEventThreshold = %q, want high", cfg.CorrelationEventThreshold)
+	}
+
+	settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
 		"anomaly_scorer": json.RawMessage(`{"enabled":true,"correlation_event_threshold":"medium"}`),
 	})
 	if err != nil {
 		t.Fatalf("ParseSettingsFromJSON() returned error: %v", err)
 	}
-	cfg := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	cfg = settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
 	if cfg.CorrelationEventThreshold != "medium" {
 		t.Errorf("CorrelationEventThreshold = %q, want medium", cfg.CorrelationEventThreshold)
 	}
