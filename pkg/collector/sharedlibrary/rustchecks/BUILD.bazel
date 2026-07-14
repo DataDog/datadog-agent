@@ -1,0 +1,26 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+
+# Built-in Rust shared-library checks shipped with the Agent. To enable a check,
+# add its `:checks_d_files` target here; to disable it, remove the line. This is
+# the single source of truth for which checks get staged into `checks.d` by the
+# `:install` target that omnibus and `agent.build` invoke.
+ENABLED_CHECKS = [
+    "//pkg/collector/sharedlibrary/rustchecks/checks/example:checks_d_files",
+]
+
+pkg_filegroup(
+    name = "enabled_checks",
+    srcs = ENABLED_CHECKS,
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# `bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>`
+# stages every enabled check into <dir>/checks.d with owner-only (0500) perms.
+pkg_install(
+    name = "install",
+    srcs = [":enabled_checks"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
