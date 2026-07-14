@@ -94,6 +94,10 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
+
+	// hash caches — populated once at the end of LoadPolicies
+	hashCache       string
+	policyHashCache map[string]string
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -1364,6 +1368,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 	if err := rs.AddRules(allRules); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
+
+	rs.computeHashes()
 
 	return filteredRules, errs
 }
