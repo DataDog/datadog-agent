@@ -12,7 +12,7 @@ use std::time::Duration;
 
 #[cfg(unix)]
 fn current_runtime_user() -> String {
-    nix::unistd::User::from_uid(nix::unistd::getuid())
+    nix::unistd::User::from_uid(nix::unistd::geteuid())
         .ok()
         .flatten()
         .map(|u| u.name)
