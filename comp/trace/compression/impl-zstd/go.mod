@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.81.0
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.81.1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 )
 

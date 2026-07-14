@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.81.0
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.81.0
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.81.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.81.1
 )
 
 require (
