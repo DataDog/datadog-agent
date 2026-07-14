@@ -297,6 +297,20 @@ LDFLAGS="$LDFLAGS -L${MQ_HOME}/lib64 -L${MQ_HOME}/lib -Wl,-brtl -lmqm" \
     $PIP install --no-binary pymqi "pymqi==$PYMQI_VERSION"
 log "pymqi==$PYMQI_VERSION installed successfully"
 
+# pymqi's CMQC.py was generated on Linux (x86_64) and hardcodes MQENC_NATIVE=0x222
+# (little-endian). On AIX (big-endian) the correct value is 0x111 (MQENC_NORMAL).
+# Without this patch MQMD.Encoding=0x222 on every PCF PUT, which tells the AIX
+# command server the message is little-endian while the data is actually big-endian
+# (Python struct uses native byte order) → MQRCCF_CFH_LENGTH_ERROR (reason 3002).
+PYMQI_CMQC="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/site-packages/pymqi/CMQC.py"
+if [ ! -f "$PYMQI_CMQC" ]; then
+    log "ERROR: pymqi CMQC.py not found at expected path: $PYMQI_CMQC"
+    exit 1
+fi
+patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
+log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
+
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #
 # pyodbc is a C++ extension wrapping unixODBC. It is required by the ibm_i

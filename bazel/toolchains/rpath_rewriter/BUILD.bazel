@@ -1,7 +1,9 @@
 """toolchains for rpath-patching"""
 
-load(":install_name_tool.bzl", "macos_rpath_rewriter")
-load(":patchelf.bzl", "patchelf_rpath_rewriter")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":install_name_tool.bzl", "macos_rpath_rewriter", "macos_tree_rpath_rewriter")
+load(":patchelf.bzl", "patchelf_rpath_rewriter", "patchelf_tree_rpath_rewriter")
 load(":toolchain.bzl", "noop_toolchain", "rpath_rewriter_toolchain")
 
 # Provides rpath rewriting toolchains. Rewriters either expose a `rewriter_tool`
@@ -17,9 +19,15 @@ patchelf_rpath_rewriter(
     patchelf = "@patchelf//:patchelf",
 )
 
+patchelf_tree_rpath_rewriter(
+    name = "patchelf_tree_rpath_rewriter",
+    patchelf = "@patchelf//:patchelf",
+)
+
 rpath_rewriter_toolchain(
     name = "patchelf_rpath_rewriter_toolchain",
     rewriter_tool = ":patchelf_rpath_rewriter",
+    tree_rewriter_tool = ":patchelf_tree_rpath_rewriter",
 )
 
 macos_rpath_rewriter(
@@ -27,9 +35,15 @@ macos_rpath_rewriter(
     install_name_tool = "//bazel/tools:install_name_tool",
 )
 
+macos_tree_rpath_rewriter(
+    name = "install_name_tool_tree_rpath_rewriter",
+    install_name_tool = "//bazel/tools:install_name_tool",
+)
+
 rpath_rewriter_toolchain(
     name = "install_name_tool_rpath_rewriter_toolchain",
     rewriter_tool = ":install_name_tool_rpath_rewriter",
+    tree_rewriter_tool = ":install_name_tool_tree_rpath_rewriter",
 )
 
 noop_toolchain(
@@ -57,4 +71,46 @@ toolchain(
     target_compatible_with = ["@platforms//os:windows"],
     toolchain = ":noop_rpath_rewriter_toolchain",
     toolchain_type = ":rpath_rewriter",
+)
+
+cc_binary(
+    name = "foo",
+    srcs = ["foo.c"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+cc_binary(
+    name = "bar",
+    srcs = [
+        "bar.c",
+        "foo.c",
+    ],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+# Python extension modules on macOS are Mach-O bundles named `.so`. Reuse foo's
+# binary content under a `.so` name to exercise that branch of the tree rewriter.
+genrule(
+    name = "baz_so",
+    srcs = [":foo"],
+    outs = ["baz.so"],
+    cmd = "cp $(location :foo) $@",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+sh_test(
+    name = "macos_dir_test",
+    srcs = ["macos_dir_test.sh"],
+    args = ["$(location @llvm_toolchain_llvm//:install-name-tool)"],
+    data = [
+        ":bar",
+        ":baz_so",
+        ":foo",
+        ":rewrite_tree_with_install_name_tool.sh",
+        ":rewrite_with_install_name_tool.sh",
+        "@llvm_toolchain_llvm//:install-name-tool",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
 )

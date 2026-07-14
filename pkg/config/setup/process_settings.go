@@ -49,6 +49,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", GetPlatformDefault(map[string]interface{}{
 		"linux":   "${install_path}/bin/agent/agent",
 		"darwin":  "${install_path}/bin/agent/agent",
+		"aix":     "${install_path}/bin/agent/agent",
 		"windows": "${install_path}/bin/agent.exe",
 	}))
 
