@@ -146,7 +146,9 @@ dd_agent_go_test(
     name = "run_test",
     srcs = [
         "command_test.go",
+        "fleet_policies_dir_nix_test.go",
         "fleet_policies_dir_test.go",
+        "fleet_policies_dir_windows_test.go",
     ],
     data = [
         "test_config.yaml",
