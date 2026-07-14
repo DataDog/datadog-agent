@@ -451,13 +451,16 @@ single-machine-performance-regression_detector-manual:
         exit 1
       fi
       echo "Reading experiment selection from PR #${PR_NUMBER}"
-    # Read the "SMP Manual Experiment Runner" comment (found by hidden marker)
-    # and parse the ticked experiments into a CSV. This sed is identical to
-    # smp-manual-runner-poc/parse_selected_experiments.sh.
+    # Read the "SMP Manual Experiment Runner" comment and parse the ticked
+    # experiments into a CSV. We match on BOTH the pr-commenter bot author and
+    # the hidden marker: the "Gitlab CI Configuration Changes" comment quotes
+    # this job's YAML (which contains the marker literal), so a marker-only
+    # match would also select that comment and find no ticked boxes. This sed
+    # is identical to smp-manual-runner-poc/parse_selected_experiments.sh.
     - |
       COMMENT_BODY=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
         "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100" \
-        | jq -r 'map(select(.body | contains("<!-- smp-manual-runner:experiments -->"))) | last | .body // empty')
+        | jq -r 'map(select((.user.login | contains("pr-commenter")) and (.body | contains("<!-- smp-manual-runner:experiments -->")))) | last | .body // empty')
       export EXPERIMENT_FILTER=$(printf '%s\n' "${COMMENT_BODY}" \
         | sed -n -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+([^[:space:]]+).*/\1/p' \
         | paste -sd, -)
