@@ -136,11 +136,7 @@ fn lookup_account_name(sid: &[u8]) -> Result<AccountName> {
 ///
 /// `LookupAccountSidW` returns the computer name as the domain for local users;
 /// installer state stores an empty domain and displays `.\user` instead.
-fn account_name_from_sid_lookup(
-    sid: &[u8],
-    domain: String,
-    user: String,
-) -> Result<AccountName> {
+fn account_name_from_sid_lookup(sid: &[u8], domain: String, user: String) -> Result<AccountName> {
     let domain = if is_local_account(sid).unwrap_or(false) {
         String::new()
     } else {
@@ -201,12 +197,9 @@ mod tests {
     #[test]
     fn well_known_account_lookup_keeps_nt_authority_domain() {
         let sid = lookup_account_sid("NT AUTHORITY", "SYSTEM").expect("SYSTEM SID");
-        let account = account_name_from_sid_lookup(
-            &sid,
-            "NT AUTHORITY".to_string(),
-            "SYSTEM".to_string(),
-        )
-        .expect("account");
+        let account =
+            account_name_from_sid_lookup(&sid, "NT AUTHORITY".to_string(), "SYSTEM".to_string())
+                .expect("account");
         assert_eq!(account.display(), r"NT AUTHORITY\SYSTEM");
     }
 }
