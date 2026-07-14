@@ -24,7 +24,7 @@ class TestADPAIXPackaging(unittest.TestCase):
         stage = (AIX_ROOT / "stages/05-agent-data-plane.sh").read_text()
 
         self.assertIn('ADP_AIX_BUILD_COMMAND="make build-adp-aix"', stage)
-        self.assertIn('if [ "${ADP_AIX_BUILD_COMMAND+x}" = x ]; then', stage)
+        self.assertIn('if [ "${ADP_AIX_BUILD_COMMAND+x}" != x ]; then', stage)
         self.assertIn("ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}", stage)
         self.assertIn("CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}", stage)
         self.assertIn("$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane", stage)
@@ -33,7 +33,7 @@ class TestADPAIXPackaging(unittest.TestCase):
         self.assertIn("ADP_RELEASE_TARBALL_PATH", stage)
         self.assertIn("Prebuilt artifacts must be explicit", stage)
         self.assertIn("license-list-data/archive/refs/tags/v$ADP_SPDX_LICENSES_VERSION.tar.gz", stage)
-        self.assertIn("gzip -dc", stage)
+        self.assertIn("gunzip -c", stage)
         self.assertNotIn("fetch-spdx-licenses.sh", stage)
         self.assertIn("collect-third-party-licenses.sh", stage)
         self.assertNotIn('ADP_THIRD_PARTY_SRC="$SALUKI_SRC/LICENSES"', stage)

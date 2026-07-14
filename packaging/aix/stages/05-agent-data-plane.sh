@@ -15,6 +15,10 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
+# No completion sentinel: this stage always runs so the packaged ADP binary and
+# license artifacts stay in sync with the pinned saluki checkout. Cargo caches
+# compiled crates, so rebuilds with no changes mostly reuse prior work.
+
 # --- Input validation ---
 : "${AGENT_DATA_PLANE_VERSION:?AGENT_DATA_PLANE_VERSION must be set}"
 : "${SALUKI_SRC:?SALUKI_SRC must be set}"
@@ -26,9 +30,7 @@ CARGO_HOME=${CARGO_HOME:-$BUILD_DIR/cargo-home}
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}
 export CARGO_HOME CARGO_TARGET_DIR
 
-if [ "${ADP_AIX_BUILD_COMMAND+x}" = x ]; then
-    ADP_AIX_BUILD_COMMAND=$ADP_AIX_BUILD_COMMAND
-else
+if [ "${ADP_AIX_BUILD_COMMAND+x}" != x ]; then
     ADP_AIX_BUILD_COMMAND="make build-adp-aix"
 fi
 ADP_AIX_BINARY_PATH=${ADP_AIX_BINARY_PATH:-}
@@ -56,7 +58,10 @@ cleanup() {
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
         rm -f "$ADP_BIN_DEST"
         rm -f "$ADP_LICENSES_DEST/LICENSE-agent-data-plane-3rdparty.csv"
+        rm -f "$ADP_SPDX_LICENSES_ARCHIVE"
         rm -rf "$ADP_LICENSES_DEST"/THIRD-PARTY-*
+        rm -rf "$ADP_RELEASE_TARBALL_DIR" "$ADP_SPDX_LICENSES_EXTRACT_DIR" \
+            "$ADP_SPDX_LICENSES_DIR" "$ADP_THIRD_PARTY_GENERATED_DIR"
     fi
 }
 trap cleanup EXIT
@@ -89,7 +94,7 @@ if [ -n "$ADP_RELEASE_TARBALL_PATH" ]; then
     fi
     log "Extracting ADP release tarball: $ADP_RELEASE_TARBALL_PATH"
     mkdir -p "$ADP_RELEASE_TARBALL_DIR"
-    gzip -dc "$ADP_RELEASE_TARBALL_PATH" | tar -xf - -C "$ADP_RELEASE_TARBALL_DIR"
+    gunzip -c "$ADP_RELEASE_TARBALL_PATH" | tar xf - -C "$ADP_RELEASE_TARBALL_DIR"
 fi
 
 ADP_TARBALL_BIN="$ADP_RELEASE_TARBALL_DIR/opt/datadog-agent/embedded/bin/agent-data-plane"
@@ -143,7 +148,7 @@ if [ -z "$ADP_THIRD_PARTY_SRC" ]; then
     curl -sSfL -o "$ADP_SPDX_LICENSES_ARCHIVE" \
         "https://github.com/spdx/license-list-data/archive/refs/tags/v$ADP_SPDX_LICENSES_VERSION.tar.gz"
     mkdir -p "$ADP_SPDX_LICENSES_EXTRACT_DIR"
-    gzip -dc "$ADP_SPDX_LICENSES_ARCHIVE" | tar -xf - -C "$ADP_SPDX_LICENSES_EXTRACT_DIR"
+    gunzip -c "$ADP_SPDX_LICENSES_ARCHIVE" | tar xf - -C "$ADP_SPDX_LICENSES_EXTRACT_DIR"
     mv "$ADP_SPDX_LICENSES_EXTRACT_DIR/license-list-data-$ADP_SPDX_LICENSES_VERSION" \
         "$ADP_SPDX_LICENSES_DIR"
     sh "$SALUKI_SRC/ci/tooling/collect-third-party-licenses.sh" \
