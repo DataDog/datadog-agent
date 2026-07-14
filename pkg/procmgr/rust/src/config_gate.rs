@@ -234,17 +234,17 @@ fn legacy_process_enabled_mode(
     if let Some(mode) = legacy_enabled_env_mode() {
         return Ok(Some(mode));
     }
-    if let Some(filename) = fleet_policy_file {
-        if let Some(dir) = resolve_fleet_policies_dir() {
-            let fleet_path = Path::new(&dir).join(filename);
-            let fleet_path = fleet_path.to_string_lossy();
-            if Path::new(fleet_path.as_ref()).is_file()
-                && let Some(value) =
-                    lookup_dotted_key(yaml.load(fleet_path.as_ref())?, "process_config.enabled")
-                && let Some(mode) = legacy_enabled_mode(value)
-            {
-                return Ok(Some(mode));
-            }
+    if let Some(filename) = fleet_policy_file
+        && let Some(dir) = resolve_fleet_policies_dir()
+    {
+        let fleet_path = Path::new(&dir).join(filename);
+        let fleet_path = fleet_path.to_string_lossy();
+        if Path::new(fleet_path.as_ref()).is_file()
+            && let Some(value) =
+                lookup_dotted_key(yaml.load(fleet_path.as_ref())?, "process_config.enabled")
+            && let Some(mode) = legacy_enabled_mode(value)
+        {
+            return Ok(Some(mode));
         }
     }
     if let Some(value) = lookup_dotted_key(yaml.load(path)?, "process_config.enabled") {
