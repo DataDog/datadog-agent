@@ -1759,6 +1759,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
+			name:         "aix preserves true",
+			goos:         "aix",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
 			name:                  "windows procmgr disabled resets true to false",
 			goos:                  "windows",
 			processManagerEnabled: boolPtr(false),
