@@ -42,7 +42,7 @@ variables:
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
     --submission-metadata submission_metadata \
-    --tags ${SMP_TAGS} || {
+    --tags ${SMP_TAGS} ${EXPERIMENT_FILTER_ARG} || {
       exit_code=$?
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
@@ -151,6 +151,11 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    # Optional experiment subset filter. Empty for every normal job (they never
+    # set EXPERIMENT_FILTER), so their submit command is unchanged. The manual
+    # runner job sets EXPERIMENT_FILTER in its before_script.
+    - EXPERIMENT_FILTER_ARG=""
+    - if [ -n "${EXPERIMENT_FILTER}" ]; then EXPERIMENT_FILTER_ARG="--experiment-name-allow-filter ${EXPERIMENT_FILTER}"; fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
     - else
@@ -385,6 +390,113 @@ single-machine-performance-regression_detector-pr-comment:
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
     # and gracefully handle the case when the commit being tested is not a PR
+    - |
+      set +e
+      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
+          -H "$(authanywhere)" \
+          -H "X-DdOrigin: curl" \
+          -X PATCH \
+          -d "${PR_COMMENT_JSON_PAYLOAD}")
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo $out
+        else
+          echo $out >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode
+
+# =============================================================================
+# SMP Manual Experiment Runner (POC)
+#
+# A manually-triggered variant of the regression detector that runs ONLY the
+# subset of experiments a developer ticked in the "SMP Manual Experiment
+# Runner" PR comment. It reuses the same baseline/comparison images and deps as
+# the normal agent-team run by extending the shared run template.
+# =============================================================================
+single-machine-performance-regression_detector-manual:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  when: manual
+  allow_failure: true
+  # Child pipelines cannot !reference .dd_octo_sts from .gitlab-ci.yml, so the
+  # octo-sts id_token is declared inline (same aud as .dd_octo_sts).
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    SMP_TEAM_NAME: agent
+    SMP_API_URL: api_url
+    SMP_VERSION: v0.27.0
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
+    CONFIG_DIR: test/regression
+  before_script:
+    # Replicate the run template's before_script (overridden when we set our own).
+    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
+    # Mint a GitHub token scoped to PR comments (write implies read).
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
+    # Resolve the PR associated with this commit.
+    - |
+      PR_NUMBER=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/DataDog/datadog-agent/commits/${CI_COMMIT_SHA}/pulls" \
+        | jq -r '.[0].number // empty')
+      if [ -z "${PR_NUMBER}" ]; then
+        echo "ERROR: no PR found for commit ${CI_COMMIT_SHA}; cannot read experiment selection."
+        exit 1
+      fi
+      echo "Reading experiment selection from PR #${PR_NUMBER}"
+    # Read the "SMP Manual Experiment Runner" comment (found by hidden marker)
+    # and parse the ticked experiments into a CSV. This sed is identical to
+    # smp-manual-runner-poc/parse_selected_experiments.sh.
+    - |
+      COMMENT_BODY=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100" \
+        | jq -r 'map(select(.body | contains("<!-- smp-manual-runner:experiments -->"))) | last | .body // empty')
+      export EXPERIMENT_FILTER=$(printf '%s\n' "${COMMENT_BODY}" \
+        | sed -n -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+([^[:space:]]+).*/\1/p' \
+        | paste -sd, -)
+      if [ -z "${EXPERIMENT_FILTER}" ]; then
+        echo "ERROR: no experiments ticked in the 'SMP Manual Experiment Runner' comment; nothing to run."
+        exit 1
+      fi
+      echo "Selected experiments: ${EXPERIMENT_FILTER}"
+
+# Comment 2: post the manual run's report under a DISTINCT header so it never
+# clobbers the checkbox selection comment. Mirrors the normal pr-comment job.
+single-machine-performance-regression_detector-manual-pr-comment:
+  stage: functional_test
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
+    entrypoint: [""] # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: single-machine-performance-regression_detector-manual
+  artifacts:
+    expire_in: 1 weeks
+    paths:
+      - report_as_json_string.txt
+      - pr_comment_payload.json
+  variables:
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  allow_failure: true
+  script:
+    - |
+      if [[ ! -s "outputs/report.md" ]]
+      then
+          echo "ERROR: Regression Detector report not found -- no PR comment posted"
+          exit 1
+      fi
+    - cat outputs/report.md outputs/decision_record.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
+    - cat report_as_json_string.txt
+    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"SMP Manual Experiment Results", "message":"'"$(cat report_as_json_string.txt)"'"}'
+    - printf "%s\n" "PR comment JSON payload:${PR_COMMENT_JSON_PAYLOAD}"
+    - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
     - |
       set +e
       out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
