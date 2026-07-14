@@ -51,7 +51,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/run/*.go
 # gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
-# gazelle:exclude cmd/cluster-agent/api/*.go
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
@@ -64,11 +63,7 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/serverless-init/*.go
-# gazelle:exclude cmd/serverless-init/mode
-# gazelle:exclude comp/collector/bundle.go
-# gazelle:exclude comp/collector/collector/fx
 # gazelle:exclude comp/core/gui/fx
-# gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
 # gazelle:exclude comp/process/agent/*.go
