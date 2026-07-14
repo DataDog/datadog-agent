@@ -4,6 +4,7 @@ Schema generation tasks
 
 import json
 import os
+import shutil
 import tempfile
 
 import yaml
@@ -301,4 +302,4 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
 
     if not keeptmp:
-        return
+        shutil.rmtree(tmpdir)

@@ -504,7 +504,7 @@ def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
     Entry point for code generation.
     schema          - loaded schema object (dict with schema['properities'])
     filename_filter - optional function to filter output filenames (or None)
-    hints           - hints object
+    hints           - hints object, used for func order (if keep_orig_order) and comments (always)
     keep_orig_order - bool, whether to use order from the hints object
     outsource_dir   - the directory to output source code to
     """
