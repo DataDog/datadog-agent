@@ -89,14 +89,11 @@ func (p *windowsToolhelpProbe) StatsForPIDs(_ []int32, now time.Time) (map[int32
 }
 
 func (p *windowsToolhelpProbe) ProcessFromPID(pid int32) (*Process, error) {
-	if cp, ok := p.cachedProcesses[pid]; ok {
-		return cp, nil
-	}
-	procs, err := p.ProcessesByPID(now, true)
+	procs, err := p.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
 	}
-	if cp, ok := p.cachedProcesses[pid]; ok {
+	if cp, ok := procs[pid]; ok {
 		return cp, nil
 	}
 	return nil, nil
