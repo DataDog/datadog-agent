@@ -60,6 +60,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			apiKey:           endpoint.APIKey,
 			refreshFn:        cfg.SecretsRefreshFn,
 			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
+			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
@@ -177,6 +178,9 @@ type apiKeyManager struct {
 	// refreshFn triggers blocking API key refresh from the secrets backend
 	refreshFn func() (string, error)
 
+	// isFromSecret reports whether the current key is secret-backed (nil = unknown, treated as yes)
+	isFromSecret func(apiKey string) bool
+
 	// throttleInterval specifies minimum time between refresh calls
 	throttleInterval time.Duration
 
@@ -200,6 +204,11 @@ func (m *apiKeyManager) Update(newKey string) {
 // mechanism is available (false = disabled, so a 403 must not be retried).
 func (m *apiKeyManager) refresh() bool {
 	if m.refreshFn == nil || m.throttleInterval == 0 {
+		return false
+	}
+	// A refresh can only change a secret-backed key; a static/plaintext key
+	// won't change, so don't retry the 403.
+	if m.isFromSecret != nil && !m.isFromSecret(m.Get()) {
 		return false
 	}
 

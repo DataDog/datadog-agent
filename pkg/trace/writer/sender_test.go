@@ -367,6 +367,28 @@ func TestSender(t *testing.T) {
 		assert.False(callbackInvoked, "refresh must not run when disabled")
 	})
 
+	t.Run("403_not_retried_when_key_not_from_secret", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
+		// Refresh enabled, but the key isn't secret-backed: refresh can't change it, so no retry.
+		callbackInvoked := false
+		s.apiKeyManager.refreshFn = func() (string, error) { callbackInvoked = true; return "", nil }
+		s.apiKeyManager.throttleInterval = 100 * time.Millisecond
+		s.apiKeyManager.isFromSecret = func(string) bool { return false }
+
+		s.Push(expectResponses(403, 403, 403, 403, 200))
+		s.Stop()
+
+		assert.Equal(1, server.Total(), "403 must not be retried when key is not secret-backed")
+		assert.False(callbackInvoked, "refresh must not run when key is not secret-backed")
+	})
+
 	t.Run("403_retries_with_backoff", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()

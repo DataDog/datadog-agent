@@ -632,6 +632,10 @@ type AgentConfig struct {
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.
 	SecretsRefreshFn func() (string, error) `json:"-"`
+
+	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
+	// secret handle (and can therefore be changed by a refresh).
+	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
