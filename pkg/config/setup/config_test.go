@@ -956,6 +956,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.Equal(t, 3, cfg.GetInt("data_plane.serializer_zstd_compressor_level"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))

@@ -281,7 +281,9 @@ properties:
   atomic_registry_write:
     node_type: setting
     type: boolean
-    default: true
+    platform_default:
+      fargate: false
+      other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
   auditor_ttl:
@@ -572,6 +574,58 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      smart_severity_profiles:
+        node_type: section
+        type: object
+        properties:
+          cooldown:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          medium:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean

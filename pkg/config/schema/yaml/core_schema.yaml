@@ -490,7 +490,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'true'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the non-distribution metrics intake version. Accepted values:
@@ -1115,6 +1115,7 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
+            comment: metrics options
           url:
             node_type: setting
             type: string
@@ -1146,6 +1147,7 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
+            comment: logs options
           url:
             node_type: setting
             type: string
@@ -1264,8 +1266,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -1540,6 +1543,7 @@ properties:
     example: <COMMAND_PATH>
     tags:
     - template_section:Agent
+    comment: secrets backend
   secret_backend_arguments:
     node_type: setting
     type: array
@@ -2203,6 +2207,7 @@ properties:
     example: localhost
     tags:
     - template_section:Dogstatsd
+    comment: statsd
   dogstatsd_socket:
     node_type: setting
     type: string
@@ -2218,6 +2223,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
   dogstatsd_origin_detection:
     node_type: setting
@@ -5838,10 +5844,14 @@ properties:
             default: 0.014
             tags:
             - golang_type:float64
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
+          dry_run:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           high_threshold:
             node_type: setting
             type: number
@@ -5864,10 +5874,13 @@ properties:
             node_type: section
             type: object
             properties:
-              cooldown_secs:
+              cooldown:
                 node_type: setting
-                type: integer
-                default: 300
+                type: string
+                default: 5m0s
+                format: duration
+                tags:
+                - golang_type:duration
               correlation_events:
                 node_type: setting
                 type: boolean
@@ -5886,10 +5899,13 @@ properties:
             default: 5
             tags:
             - golang_type:float64
-          window_secs:
+          window:
             node_type: setting
-            type: integer
-            default: 15
+            type: string
+            default: 15s
+            format: duration
+            tags:
+            - golang_type:duration
       baseline_analysis:
         node_type: section
         type: object
@@ -6041,12 +6057,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        comment: Master switch. When false the entire anomaly detection subsystem
-          is a no-op.
       logs:
         node_type: section
         type: object
@@ -6256,10 +6266,13 @@ properties:
             type: integer
             default: 50000
             comment: Storage tuning. See storageConfig in the observer component.
-          point_retention_secs:
+          point_retention:
             node_type: setting
-            type: integer
-            default: 120
+            type: string
+            default: 2m0s
+            format: duration
+            tags:
+            - golang_type:duration
   appsec:
     node_type: section
     type: object
@@ -7081,6 +7094,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      serializer_zstd_compressor_level:
+        node_type: setting
+        type: integer
+        default: 3
+        comment: |-
+          ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+          (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+          more efficient than the Agent. Forwarded to ADP over the config stream.
       stop_timeout:
         node_type: setting
         type: integer
@@ -8237,7 +8258,7 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Directory to store fleet policies
+    comment: Fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: integer
@@ -9210,7 +9231,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration (EUDM)
+        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
