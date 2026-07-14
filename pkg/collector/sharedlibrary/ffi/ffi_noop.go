@@ -5,6 +5,10 @@
 
 //go:build !sharedlibrarycheck
 
+// Package ffi handles shared libraries through cgo.
 package ffi
 
+/*
+#cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
+*/
 import "C"
