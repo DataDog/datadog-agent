@@ -23,7 +23,7 @@ pub fn spawn_user_for(process_name: &str, profile: SpawnProfile) -> String {
 fn resolve_spawn_user(process_name: &str, profile: SpawnProfile) -> anyhow::Result<String> {
     #[cfg(windows)]
     {
-        return crate::platform::spawn_user_for_profile(process_name, profile);
+        crate::platform::spawn_user_for_profile(process_name, profile)
     }
     #[cfg(unix)]
     {
