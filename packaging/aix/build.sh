@@ -116,8 +116,9 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/lib/env.sh"
 
 # Rust SDK cargo — checked after env.sh so RUST_VERSION is available.
-# Required by stage 05 (cryptography, ~15 min), stage 06 (pydantic-core,
-# ~52 min), and stage 07 (jellyfish). Failing here avoids wasting that time.
+# Required by stage 05 (ADP), stage 06 (cryptography, ~15 min), stage 07
+# (pydantic-core, ~52 min), and stage 08 (jellyfish). Failing here avoids
+# wasting that time.
 check_tool "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" \
     "rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
 
