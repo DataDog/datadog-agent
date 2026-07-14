@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -698,6 +699,50 @@ func (m *macosInstallSuite) TestNPMTracesConnection() {
 		})
 		assert.True(c, found, "connection to fakeintake (%s:%d) should be collected in connection payloads", fakeIntakeHost, fakeIntakePort)
 	}, 3*time.Minute, 10*time.Second)
+}
+
+// macosBaseIntegrationPackage is the pip package every check integration depends on
+// (datadog_checks_base), so it's always installed alongside the Agent and is safe to
+// query without any network/CDN access, unlike integration install/remove.
+const macosBaseIntegrationPackage = "datadog-checks-base"
+
+// TestIntegrationsCommand exercises the embedded Python/pip plumbing the `integration`
+// command relies on. It's read-only and offline by design: integration install/remove
+// hit the public TUF/pip CDN (see persisting_integrations_test.go's retry-backoff
+// wrapper for that flakiness), so this only covers freeze and show, which never touch
+// the network.
+func (m *macosInstallSuite) TestIntegrationsCommand() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+
+	// integration freeze: lists installed datadog-* pip packages, one per line as
+	// "name==version". Running pip under sudo can print unrelated warnings (e.g. a
+	// disabled pip cache due to directory ownership) to the same stream, so only
+	// validate lines that actually look like freeze entries rather than every
+	// non-empty line, and assert datadog-checks-base specifically appears among them,
+	// since a build that broke default check-package discovery entirely would still
+	// print a non-empty, correctly-formatted list containing unrelated packages.
+	freezeOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent integration freeze")
+	assert.NoError(m.T(), err)
+	freezeEntry := regexp.MustCompile(`^([a-zA-Z0-9._-]+)==`)
+	var sawFreezeEntry, sawBasePackage bool
+	for _, line := range strings.Split(freezeOutput, "\n") {
+		matches := freezeEntry.FindStringSubmatch(strings.TrimSpace(line))
+		if matches == nil {
+			continue
+		}
+		sawFreezeEntry = true
+		assert.True(m.T(), strings.HasPrefix(matches[1], "datadog-"), "unexpected non-datadog package in freeze output: %q", line)
+		if matches[1] == macosBaseIntegrationPackage {
+			sawBasePackage = true
+		}
+	}
+	assert.True(m.T(), sawFreezeEntry, "integration freeze should list at least one package")
+	assert.True(m.T(), sawBasePackage, "%s should be present in integration freeze output", macosBaseIntegrationPackage)
+
+	// integration show: exercises the single-package read path independently of freeze.
+	showOutput, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent integration show " + macosBaseIntegrationPackage)
+	assert.NoError(m.T(), err)
+	assert.Regexp(m.T(), `\d+\.\d+\.\d+`, showOutput, "integration show should report a version for %s", macosBaseIntegrationPackage)
 }
 
 func (m *macosInstallSuite) TestAgentRestart() {
