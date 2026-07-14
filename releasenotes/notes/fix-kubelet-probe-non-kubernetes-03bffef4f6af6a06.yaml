@@ -4,5 +4,5 @@ fixes:
     Stop the Agent from repeatedly attempting to connect to a Kubelet on hosts
     that are not running on Kubernetes. This removes the recurring
     ``Impossible to reach Kubelet through HTTPS, fallback to HTTP`` warning
-    logged by host-based (non-Kubernetes) installations. There is no change in
+    logged by host-based and non-Kubernetes containerized installations. There is no change in
     behavior on Kubernetes nodes.
