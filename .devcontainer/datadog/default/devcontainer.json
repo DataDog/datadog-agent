@@ -1,14 +1,5 @@
+// This devcontainer directs workspaces to use a pre-built image. To make
+// configuration changes, edit prebuild-devcontainer.json in this folder instead
 {
-    "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v122334418-7f30d1b9",
-    "features": {
-        "registry.ddbuild.io/workspaces/features/base:0.4.0-agent-base-feature-poc.20260714": {
-            "installDeveloperTools": false
-        },
-        "./features/datadog-agent": {}
-    },
-    "forwardPorts": [22],
-    "containerUser": "root",
-    "remoteUser": "bits",
-    "waitFor": "postStartCommand"
+    "image": "registry.ddbuild.io/workspaces/prebuilt/datadog-agent-base-poc:20260714202850"
 }
