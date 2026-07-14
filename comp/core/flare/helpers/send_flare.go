@@ -278,7 +278,7 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 			// A response (even 5xx) means the server received the non-idempotent POST, so
 			// don't retry; only a transport failure with no response is a retry candidate.
 			responseReceived := r != nil
-			if r != nil {
+			if responseReceived {
 				r.Body.Close()
 			}
 			lastErr = err
