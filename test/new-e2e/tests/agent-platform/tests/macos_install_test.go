@@ -50,10 +50,6 @@ const (
 	macosConfDefaultConfPath = "/opt/datadog-agent/etc"
 )
 
-// macosSharedStackName pins every macOS E2E suite in this package to the same shared/devmode
-// host; new suites should use e2e.WithStackName(macosSharedStackName) + e2e.WithDevMode().
-const macosSharedStackName = "e2e-macosInstallSuite-d46bf3fab209fab6"
-
 // Markers delimit each test's appended config block for removal during cleanup.
 const (
 	macosStatusAndConfigMarker  = "# added by e2e TestAgentStatusAndConfig"
@@ -106,13 +102,11 @@ func TestMacosInstallScript(t *testing.T) {
 			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
-		e2e.WithStackName(macosSharedStackName),
-		e2e.WithDevMode(),
 	)
 }
 
-// SetupSuite installs the agent once for all Test methods. The suite reuses a shared/devmode
-// host (macosSharedStackName), so removePreInstalledAgent wipes any stale prior install first.
+// SetupSuite installs the agent once for all Test methods, so removePreInstalledAgent wipes
+// any stale prior install first.
 func (m *macosInstallSuite) SetupSuite() {
 	m.BaseSuite.SetupSuite()
 
