@@ -2027,6 +2027,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
