@@ -13,15 +13,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // Stable fleet policies layout under the managed configs root when registry is unset.
 const expectedStableFleetPoliciesRel = "datadog-agent/stable"
 
-func TestResolveFleetPoliciesDir_FallsBackToStableFleetPoliciesDirWhenUnset(t *testing.T) {
+func TestResolveFleetPoliciesDir_PlatformFallbackWhenEnvUnset(t *testing.T) {
 	t.Setenv("DD_FLEET_POLICIES_DIR", "")
+
 	dir := resolveFleetPoliciesDir()
 	assert.NotEmpty(t, dir)
+
+	if registryDir := winutil.ReadFleetPoliciesDirFromRegistry(); registryDir != "" {
+		assert.Equal(t, filepath.Clean(registryDir), filepath.Clean(dir))
+		return
+	}
+
 	normalized := filepath.ToSlash(filepath.Clean(dir))
 	assert.True(t, strings.HasSuffix(normalized, expectedStableFleetPoliciesRel), normalized)
 }
