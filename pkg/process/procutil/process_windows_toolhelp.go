@@ -88,6 +88,20 @@ func (p *windowsToolhelpProbe) StatsForPIDs(_ []int32, now time.Time) (map[int32
 	return stats, nil
 }
 
+func (p *windowsToolhelpProbe) ProcessFromPID(pid int32) (*Process, error) {
+	if cp, ok := p.cachedProcesses[pid]; ok {
+		return cp, nil
+	}
+	procs, err := p.ProcessesByPID(now, true)
+	if err != nil {
+		return nil, err
+	}
+	if cp, ok := p.cachedProcesses[pid]; ok {
+		return cp, nil
+	}
+	return nil, nil
+}
+
 // StatsWithPermByPID is currently not implemented in non-linux environments
 func (p *windowsToolhelpProbe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
 	return nil, errors.New("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
