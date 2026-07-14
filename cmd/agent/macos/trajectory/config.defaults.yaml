@@ -1,35 +1,17 @@
-# Trajectory managed defaults, installed by the Datadog Agent on End-User Device
-# Monitoring (EUDM) macOS installs.
-#
-# The Agent postinstall curls this file and lays it down (or reversibly appends
-# the sentinel-delimited block below) at ~/.trajectory/config.defaults.yaml for
-# each user. It configures Trajectory to publish ONLY the AI-usage skill
-# observability events (trajectory.ai_usage.skill.v1) to the `aiusage` track,
-# ROUTED THROUGH the local Datadog Agent's evp_proxy so the Agent owns egress
-# and credentials (no per-device Datadog API key for this path). The Agent
-# relays to `<subdomain>.<agent-site>/api/v2/<track>` — i.e. the EUDM intake.
-#
-# Requires a Trajectory release with datadog_agent support in the AI-usage
-# publisher (authority.go / ai_usage.go). See the datadog-agent EUDM design doc.
-#
-# `required_destinations` is an authoritative managed field: a user config.yaml
-# cannot override or remove it. `export.traces: off` + `export.metrics: false`
-# suppress the implicit direct-Datadog destination so nothing else publishes.
+# Trajectory defaults installed by the Datadog Agent on EUDM macOS hosts.
+# Publishes AI-usage skill events to the `aiusage` track through the Agent's
+# evp_proxy, which owns egress and credentials (no local Datadog API key).
 
 export:
-  traces: off        # no trace detail — only aiusage skill events
+  traces: off
   metrics: false
 
 required_destinations:
-  # --- BEGIN datadog-agent-eudm ---
-  # Managed by the Datadog Agent. Do not edit inside this block; it is removed
-  # verbatim when the Agent is uninstalled (only if the Agent added it).
   - name: eudm-aiusage
-    type: datadog_agent   # route through the local Datadog Agent's evp_proxy
+    type: datadog_agent
     ml_app: coding-agents
-    level: off            # publish no trace detail; only the aiusage events
+    level: off
     ai_usage:
       enabled: true
       track: aiusage
-      subdomain: eudm-intake   # EVP intake subdomain; Agent evp_proxy forwards to eudm-intake.<site>
-  # --- END datadog-agent-eudm ---
+      subdomain: eudm-intake
