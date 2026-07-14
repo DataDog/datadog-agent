@@ -451,7 +451,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.6.1")
+bazel_dep(name = "apple_support", version = "2.7.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

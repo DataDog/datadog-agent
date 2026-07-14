@@ -34,13 +34,13 @@ bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-amd64 ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --build_tests_only --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --build_tests_only --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-arm64 ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --build_tests_only --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --build_tests_only --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-amd64 ]
