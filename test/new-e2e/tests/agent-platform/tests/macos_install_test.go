@@ -445,6 +445,129 @@ func (m *macosInstallSuite) TestDogstatsdMetricEndToEnd() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
+// TestProcessAgentRunning documents macOS's actual process-collection architecture, which is
+// unlike Linux/Windows: there is no embedded process component (comp/process's Enabled() is
+// hardcoded false on darwin, see comp/process/agent/agent_fallback.go), so status -j never
+// reports a processComponentStatus section on macOS. Instead, macOS ships a darwin-only
+// corecheck (pkg/collector/corechecks/embed/process) that unconditionally spawns the bundled
+// standalone process-agent binary; that binary self-exits immediately on a default install
+// because process_collection, container detection, and language_detection are all disabled/
+// unavailable by default on darwin (see TestProcessAgentReportsProcessData for the case where
+// process_collection is explicitly enabled and this same binary does collect real data).
+func (m *macosInstallSuite) TestProcessAgentRunning() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+
+	_, err := macosTestClient.Execute("sudo test -x /opt/datadog-agent/embedded/bin/process-agent")
+	assert.NoError(m.T(), err, "the process-agent binary should be bundled even though nothing runs it by default")
+
+	// The spawned process-agent keeps exiting (no enabled checks) and its status query keeps
+	// failing, so poll rather than assert once to rule out a transient startup race.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		jsonStatus, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status -j")
+		if !assert.NoError(c, err) {
+			return
+		}
+		var statusMap map[string]any
+		if !assert.NoError(c, json.Unmarshal([]byte(jsonStatus), &statusMap)) {
+			return
+		}
+
+		assert.NotContains(c, statusMap, "processComponentStatus",
+			"macOS has no embedded process component, unlike Linux/Windows")
+
+		processAgentStatus, ok := statusMap["processAgentStatus"].(map[string]any)
+		if !assert.True(c, ok, "status JSON should contain processAgentStatus") {
+			return
+		}
+		assert.NotEmpty(c, processAgentStatus["error"],
+			"the process-agent should be unreachable by default (it exits immediately with no checks enabled)")
+	}, 40*time.Second, 2*time.Second)
+}
+
+// macosProcessAgentDataMarker delimits the block TestProcessAgentReportsProcessData appends
+// to datadog.yaml, so it can be identified and removed again during cleanup.
+const macosProcessAgentDataMarker = "# added by e2e TestProcessAgentReportsProcessData"
+
+// macosProcessAgentSentinelProcess is a distinctive, long-lived process started by this test
+// so it can be searched for by name in the process payloads collected by fakeintake, rather
+// than asserting on "any process data arrived" which could pass even if collection were broken
+// for every real process but happened to report stale/empty data for something else.
+const macosProcessAgentSentinelProcess = "ddprocsentinel"
+
+// TestProcessAgentReportsProcessData builds on TestProcessAgentRunning: it's not enough for
+// the process check to be scheduled, its collected data must actually reach the backend.
+// It enables process_config.process_collection.enabled (off by default), starts a
+// recognizable long-lived process, and asserts that process shows up in the process
+// payloads fakeintake receives.
+func (m *macosInstallSuite) TestProcessAgentReportsProcessData() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	confFilePath := macosConfDefaultConfPath + "/datadog.yaml"
+	fakeIntakeURL := m.Env().FakeIntake.URL
+
+	// The process check submits to process_config.process_dd_url (falling back to the "site"
+	// default), not the generic dd_url used by metrics/logs -- so it must be set explicitly to
+	// point at fakeintake (see pkg/process/runner/endpoint/endpoints.go's GetAPIEndpoints).
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		`sudo grep -qF %q %s || printf '\n%s\ndd_url: %s\nprocess_config:\n  process_dd_url: %s\n  process_collection:\n    enabled: true\n' | sudo tee -a %s`,
+		macosProcessAgentDataMarker, confFilePath, macosProcessAgentDataMarker, fakeIntakeURL, fakeIntakeURL, confFilePath,
+	))
+	macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+
+	// "sleep" itself wouldn't be a distinctive enough name to search for in process payloads,
+	// so run it through a symlink named after the sentinel constant instead. `nohup ... &`
+	// over a non-interactive SSH exec proved unreliable (the backgrounded job never actually
+	// showed up), so hand it to launchd instead, which is designed to keep a job running
+	// fully independent of the SSH session that submitted it.
+	macosTestClient.MustExecuteOn(m.T(), "ln -sf /bin/sleep /tmp/"+macosProcessAgentSentinelProcess)
+	macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+		"sudo launchctl submit -l %s -- /tmp/%s 300", macosProcessAgentSentinelProcess, macosProcessAgentSentinelProcess,
+	))
+
+	m.T().Cleanup(func() {
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf("sudo launchctl remove %s 2>/dev/null || true", macosProcessAgentSentinelProcess))
+		macosTestClient.MustExecuteOn(m.T(), fmt.Sprintf(
+			`sudo sed -i '' "/%s/,+5d" %s`, macosProcessAgentDataMarker, confFilePath,
+		))
+		macosTestClient.MustExecuteOn(m.T(), "sudo launchctl kickstart -k system/com.datadoghq.agent")
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+		}, 20*time.Second, 1*time.Second)
+	})
+
+	// Wait for the agent to come back healthy after enabling process collection.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
+	}, 20*time.Second, 1*time.Second)
+
+	// Delivery is async (collection interval + forwarder flush), and a process must be seen
+	// across two check runs before it's reported, so poll rather than assert once. This mirrors
+	// the Linux precedent in test/new-e2e/tests/process/linux_test.go's TestProcessCheck.
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		payloads, err := m.Env().FakeIntake.Client().GetProcesses()
+		if !assert.NoError(c, err, "failed to get process payloads from fakeintake") {
+			return
+		}
+		if !assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 process payloads received") {
+			return
+		}
+
+		var found bool
+		for _, payload := range payloads {
+			for _, proc := range payload.Processes {
+				if proc.Command == nil {
+					continue
+				}
+				if strings.Contains(proc.Command.Comm, macosProcessAgentSentinelProcess) ||
+					strings.Contains(proc.Command.Exe, macosProcessAgentSentinelProcess) ||
+					(len(proc.Command.Args) > 0 && strings.Contains(proc.Command.Args[0], macosProcessAgentSentinelProcess)) {
+					found = true
+				}
+			}
+		}
+		assert.True(c, found, "%s process should be collected in process payloads", macosProcessAgentSentinelProcess)
+	}, 2*time.Minute, 10*time.Second)
+}
+
 func (m *macosInstallSuite) TestAgentRestart() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 
