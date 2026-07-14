@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path"
 	"strconv"
 	"strings"
@@ -199,6 +200,13 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	// WebSocket handshake.
 	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
 	if err != nil {
+		// TEMP DEBUG: gorilla/websocket returns resp alongside ErrBadHandshake
+		// so callers can diagnose non-101 responses
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("failed to open websocket connection: %s (status=%d body=%q)", err, resp.StatusCode, body)
+		}
 		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
 	}
 	_ = resp.Body.Close()
