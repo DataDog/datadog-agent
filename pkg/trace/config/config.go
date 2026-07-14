@@ -691,11 +691,12 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:                   new(WriterConfig),
-		TraceWriter:                   new(WriterConfig),
-		ConnectionResetInterval:       0, // disabled
-		MaxSenderRetries:              4,
-		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
+		// opt in via secret_refresh_on_api_key_failure_interval (0 = disabled)
+		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
