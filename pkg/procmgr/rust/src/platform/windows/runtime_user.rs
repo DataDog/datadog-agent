@@ -14,6 +14,7 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use super::account_name::AccountName;
+use super::local_account::is_local_account;
 use super::wide;
 
 /// Return `DOMAIN\user` for the primary token of `pid`, if readable.
@@ -127,8 +128,25 @@ fn lookup_account_name(sid: &[u8]) -> Result<AccountName> {
         domain.truncate(domain_size as usize);
         let user = wide::from_ptr(name.as_ptr());
         let domain = wide::from_ptr(domain.as_ptr());
-        Ok(AccountName::new(domain, user))
+        account_name_from_sid_lookup(sid, domain, user)
     }
+}
+
+/// Match registry-backed `AccountName` display for local SAM accounts.
+///
+/// `LookupAccountSidW` returns the computer name as the domain for local users;
+/// installer state stores an empty domain and displays `.\user` instead.
+fn account_name_from_sid_lookup(
+    sid: &[u8],
+    domain: String,
+    user: String,
+) -> Result<AccountName> {
+    let domain = if is_local_account(sid).unwrap_or(false) {
+        String::new()
+    } else {
+        domain
+    };
+    Ok(AccountName::new(domain, user))
 }
 
 struct ProcessHandle(windows_sys::Win32::Foundation::HANDLE);
@@ -152,5 +170,43 @@ impl Drop for TokenHandle {
                 CloseHandle(self.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::account_name::AccountName;
+    use super::super::sid::lookup_account_sid;
+    use super::*;
+
+    #[test]
+    fn local_account_lookup_normalizes_computer_domain() {
+        let username = std::env::var("USERNAME").expect("USERNAME");
+        let sid = lookup_account_sid("", &username).expect("local user SID");
+        let computer_domain = std::env::var("USERDOMAIN").unwrap_or_default();
+        assert!(
+            !computer_domain.is_empty(),
+            "USERDOMAIN should name the local machine for interactive logons"
+        );
+
+        let account =
+            account_name_from_sid_lookup(&sid, computer_domain, username.clone()).expect("account");
+        assert_eq!(
+            account.display(),
+            AccountName::new("", &username).display(),
+            "runtime lookup should match registry-style local account display"
+        );
+    }
+
+    #[test]
+    fn well_known_account_lookup_keeps_nt_authority_domain() {
+        let sid = lookup_account_sid("NT AUTHORITY", "SYSTEM").expect("SYSTEM SID");
+        let account = account_name_from_sid_lookup(
+            &sid,
+            "NT AUTHORITY".to_string(),
+            "SYSTEM".to_string(),
+        )
+        .expect("account");
+        assert_eq!(account.display(), r"NT AUTHORITY\SYSTEM");
     }
 }
