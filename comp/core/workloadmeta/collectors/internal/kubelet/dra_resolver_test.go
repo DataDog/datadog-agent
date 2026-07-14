@@ -148,7 +148,7 @@ func TestResolveDRAResourceFromSlices(t *testing.T) {
 	}
 }
 
-func resourceSlice(name, driver, pool string, generation, count int64, devices ...resourcev1.Device) *resourcev1.ResourceSlice {
+func resourceSlice(_ string, driver, pool string, generation, count int64, devices ...resourcev1.Device) *resourcev1.ResourceSlice {
 	return &resourcev1.ResourceSlice{
 		Spec: resourcev1.ResourceSliceSpec{
 			Driver: driver,
