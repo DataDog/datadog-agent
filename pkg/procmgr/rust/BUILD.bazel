@@ -168,6 +168,7 @@ rust_test(
     name = "dd-procmgrd_test",
     crate = ":dd-procmgrd-lib",
     edition = "2024",
+    size = "large",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
