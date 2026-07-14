@@ -33,13 +33,13 @@ class TestCodegenInitSettings(unittest.TestCase):
 
     def test_basic_codegen(self):
         with open(fixture('basic_schema.yaml')) as f:
-           schema = yaml.safe_load(f)
+            schema = yaml.safe_load(f)
         codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
         self.validate_generated_code(fixture('basic_settings.gen'))
 
     def test_codegen_full_agent_setting(self):
         with open(fixture('basic_full_agent_schema.yaml')) as f:
-           schema = yaml.safe_load(f)
+            schema = yaml.safe_load(f)
         codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
 
