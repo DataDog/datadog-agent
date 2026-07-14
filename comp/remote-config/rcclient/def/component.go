@@ -21,6 +21,11 @@ type Component interface {
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	// GetConfigs returns the current configs applied for a product.
+	GetConfigs(product data.Product) map[string]state.RawConfig
+	// UpdateApplyStatus updates the apply status of a config in the RC repository.
+	// Use this to report acknowledgement or errors for configs obtained via GetConfigs.
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Params is the input parameter struct for the RC client Component.

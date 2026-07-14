@@ -58,6 +58,12 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 func (k *keysManager) Start(ctx context.Context) {
 	log.FromContext(ctx).Info("Subscribing to remote config updates")
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
+
+	// Seed from any configs already fetched before this subscription was registered.
+	if existing := k.rcClient.GetConfigs(state.ProductActionPlatformRunnerKeys); len(existing) > 0 {
+		log.FromContext(ctx).Info("Seeding keys from previously fetched remote config")
+		k.AgentConfigUpdateCallback(existing, k.rcClient.UpdateApplyStatus)
+	}
 }
 
 func (k *keysManager) GetKey(keyId string) types.DecodedKey {
