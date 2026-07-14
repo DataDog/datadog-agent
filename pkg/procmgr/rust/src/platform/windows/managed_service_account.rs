@@ -9,33 +9,15 @@
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
+use windows_sys::Win32::Foundation::{
+    NTSTATUS, STATUS_INVALID_ACCOUNT_NAME, STATUS_NAME_TOO_LONG, STATUS_OPEN_FAILED,
+};
+use windows_sys::Win32::NetworkManagement::NetManagement::{
+    MsaInfoCanInstall, MsaInfoCannotInstall, MsaInfoInstalled, MsaInfoNotExist, MsaInfoNotService,
+    NetApiBufferFree, NetQueryServiceAccount,
+};
 
 use super::wide;
-
-const MSA_INFO_NOT_EXIST: u32 = 1;
-const MSA_INFO_NOT_SERVICE: u32 = 2;
-const MSA_INFO_CANNOT_INSTALL: u32 = 3;
-const MSA_INFO_CAN_INSTALL: u32 = 4;
-const MSA_INFO_INSTALLED: u32 = 5;
-
-const STATUS_OPEN_FAILED: u32 = 0xC000_0136;
-const STATUS_INVALID_ACCOUNT_NAME: u32 = 0xC000_0064;
-const STATUS_NAME_TOO_LONG: u32 = 0xC000_0106;
-
-#[link(name = "logoncli")]
-unsafe extern "system" {
-    fn NetQueryServiceAccount(
-        servername: *const u16,
-        accountname: *const u16,
-        infolevel: u32,
-        buffer: *mut *mut u8,
-    ) -> u32;
-}
-
-#[link(name = "netapi32")]
-unsafe extern "system" {
-    fn NetApiBufferFree(buffer: *mut u8) -> u32;
-}
 
 /// Result of querying whether an account is an installed gMSA.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +48,8 @@ pub(crate) fn query_managed_service_account(
         if info.is_null() {
             bail!("NetQueryServiceAccount({account}) returned a null buffer");
         }
-        let state = *(info as *const u32);
-        let _ = NetApiBufferFree(info);
+        let state = *(info as *const i32);
+        let _ = NetApiBufferFree(info as _);
         map_msa_info_state(state)
     }
     .with_context(|| format!("NetQueryServiceAccount({account})"))
@@ -81,7 +63,7 @@ fn qualified_account_name(domain: &str, user: &str) -> String {
     }
 }
 
-fn map_query_status(status: u32) -> Result<ManagedServiceAccountState> {
+fn map_query_status(status: NTSTATUS) -> Result<ManagedServiceAccountState> {
     match status {
         STATUS_INVALID_ACCOUNT_NAME | STATUS_NAME_TOO_LONG => {
             Ok(ManagedServiceAccountState::AssumeRegularDomainAccount)
@@ -94,13 +76,13 @@ fn map_query_status(status: u32) -> Result<ManagedServiceAccountState> {
     }
 }
 
-fn map_msa_info_state(state: u32) -> Result<ManagedServiceAccountState> {
+fn map_msa_info_state(state: i32) -> Result<ManagedServiceAccountState> {
     match state {
-        MSA_INFO_INSTALLED => Ok(ManagedServiceAccountState::Installed),
-        MSA_INFO_NOT_SERVICE => Ok(ManagedServiceAccountState::NotService),
-        MSA_INFO_NOT_EXIST => Ok(ManagedServiceAccountState::NotExist),
-        MSA_INFO_CANNOT_INSTALL => Ok(ManagedServiceAccountState::CannotInstall),
-        MSA_INFO_CAN_INSTALL => Ok(ManagedServiceAccountState::CanInstall),
+        MsaInfoInstalled => Ok(ManagedServiceAccountState::Installed),
+        MsaInfoNotService => Ok(ManagedServiceAccountState::NotService),
+        MsaInfoNotExist => Ok(ManagedServiceAccountState::NotExist),
+        MsaInfoCannotInstall => Ok(ManagedServiceAccountState::CannotInstall),
+        MsaInfoCanInstall => Ok(ManagedServiceAccountState::CanInstall),
         other => bail!("unknown MSA_INFO_STATE value: {other}"),
     }
 }
@@ -130,7 +112,7 @@ mod tests {
     #[test]
     fn map_msa_info_state_maps_installed_gmsa() {
         assert_eq!(
-            map_msa_info_state(MSA_INFO_INSTALLED).unwrap(),
+            map_msa_info_state(MsaInfoInstalled).unwrap(),
             ManagedServiceAccountState::Installed
         );
     }

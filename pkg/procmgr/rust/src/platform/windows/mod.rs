@@ -360,10 +360,10 @@ pub fn default_config_dir() -> PathBuf {
 /// `pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess`: `DD_FLEET_POLICIES_DIR`
 /// when set, otherwise registry `fleet_policies_dir`, otherwise the stable managed path.
 pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR") {
-        if !dir.is_empty() {
-            return Some(PathBuf::from(dir));
-        }
+    if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
+        && !dir.is_empty()
+    {
+        return Some(PathBuf::from(dir));
     }
     fleet_policies_dir_from_registry()
         .map(PathBuf::from)

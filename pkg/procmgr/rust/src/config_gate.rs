@@ -158,8 +158,8 @@ fn resolve_fleet_policies_dir() -> Option<String> {
     }
     #[cfg(windows)]
     {
-        return crate::platform::resolve_fleet_policies_dir()
-            .map(|path| path.to_string_lossy().into_owned());
+        crate::platform::resolve_fleet_policies_dir()
+            .map(|path| path.to_string_lossy().into_owned())
     }
     #[cfg(not(windows))]
     {

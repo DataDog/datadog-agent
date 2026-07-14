@@ -92,8 +92,6 @@ fn is_non_account_or_domain_sid(err: &anyhow::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::io::ErrorKind;
-
     use super::*;
 
     #[test]
@@ -106,7 +104,7 @@ mod tests {
 
     #[test]
     fn unrelated_io_errors_are_not_recognized() {
-        let err = std::io::Error::new(ErrorKind::Other, "nope");
+        let err = std::io::Error::other("nope");
         assert!(!is_non_account_or_domain_sid(&anyhow::Error::new(err)));
     }
 }

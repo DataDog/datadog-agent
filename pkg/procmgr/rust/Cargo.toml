@@ -59,6 +59,7 @@ windows-sys = { workspace = true, features = [
     "Win32_System_SystemInformation",
     "Win32_System_WindowsProgramming",
     "Win32_Storage_FileSystem",
+    "Win32_NetworkManagement_NetManagement",
 ] }
 
 [target.'cfg(unix)'.dev-dependencies]
