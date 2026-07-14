@@ -38,6 +38,12 @@ type ContainerKey struct {
 	ContainerName string
 }
 
+// ContainerPodResources contains all PodResources allocations for one container.
+type ContainerPodResources struct {
+	Devices          []*podresourcesv1.ContainerDevices
+	DynamicResources []ContainerDynamicResource
+}
+
 // NewPodResourcesClient creates a new PodResourcesClient using the socket path
 // from the configuration. Will fail if the socket path is not set.
 func NewPodResourcesClient(config config.Component) (*PodResourcesClient, error) {
@@ -87,16 +93,36 @@ func (c *PodResourcesClient) ListPodResources(ctx context.Context) ([]*podresour
 // GetContainerToDevicesMap returns a map that contains all the containers and
 // the devices assigned to them. Only containers with devices are included
 func (c *PodResourcesClient) GetContainerToDevicesMap(ctx context.Context) (map[ContainerKey][]*podresourcesv1.ContainerDevices, error) {
-	pods, err := c.ListPodResources(ctx)
+	containerResourcesMap, err := c.GetContainerResourcesMap(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	containerResourceMap := make(map[ContainerKey][]*podresourcesv1.ContainerDevices)
+	for key, resources := range containerResourcesMap {
+		if len(resources.Devices) > 0 {
+			containerResourceMap[key] = resources.Devices
+		}
+	}
+
+	return containerResourceMap, nil
+}
+
+// GetContainerResourcesMap returns the PodResources allocations assigned to each container.
+func (c *PodResourcesClient) GetContainerResourcesMap(ctx context.Context) (map[ContainerKey]ContainerPodResources, error) {
+	pods, err := c.ListPodResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	containerResourceMap := make(map[ContainerKey]ContainerPodResources)
 	for _, pod := range pods {
 		for _, container := range pod.GetContainers() {
-			devices := container.GetDevices()
-			if len(devices) == 0 {
+			resources := ContainerPodResources{
+				Devices:          container.GetDevices(),
+				DynamicResources: extractDynamicResources(container.GetDynamicResources()),
+			}
+			if len(resources.Devices) == 0 && len(resources.DynamicResources) == 0 {
 				continue
 			}
 
@@ -105,9 +131,45 @@ func (c *PodResourcesClient) GetContainerToDevicesMap(ctx context.Context) (map[
 				PodName:       pod.GetName(),
 				ContainerName: container.GetName(),
 			}
-			containerResourceMap[key] = devices
+			containerResourceMap[key] = resources
 		}
 	}
 
 	return containerResourceMap, nil
+}
+
+func extractDynamicResources(dynamicResources []*podresourcesv1.DynamicResource) []ContainerDynamicResource {
+	resources := make([]ContainerDynamicResource, 0, len(dynamicResources))
+	for _, dynamicResource := range dynamicResources {
+		resource := ContainerDynamicResource{
+			ClaimName:      dynamicResource.GetClaimName(),
+			ClaimNamespace: dynamicResource.GetClaimNamespace(),
+			ClaimResources: extractClaimResources(dynamicResource.GetClaimResources()),
+		}
+		resources = append(resources, resource)
+	}
+	return resources
+}
+
+func extractClaimResources(claimResources []*podresourcesv1.ClaimResource) []ContainerClaimResource {
+	resources := make([]ContainerClaimResource, 0, len(claimResources))
+	for _, claimResource := range claimResources {
+		resource := ContainerClaimResource{
+			DriverName: claimResource.GetDriverName(),
+			PoolName:   claimResource.GetPoolName(),
+			DeviceName: claimResource.GetDeviceName(),
+			ShareID:    claimResource.GetShareId(),
+			CDIDevices: extractCDIDevices(claimResource.GetCdiDevices()),
+		}
+		resources = append(resources, resource)
+	}
+	return resources
+}
+
+func extractCDIDevices(cdiDevices []*podresourcesv1.CDIDevice) []string {
+	devices := make([]string, 0, len(cdiDevices))
+	for _, cdiDevice := range cdiDevices {
+		devices = append(devices, cdiDevice.GetName())
+	}
+	return devices
 }

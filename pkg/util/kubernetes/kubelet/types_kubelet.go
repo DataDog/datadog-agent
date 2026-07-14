@@ -254,6 +254,7 @@ type ContainerStatus struct {
 	State                      ContainerState               `json:"state"`
 	LastState                  ContainerState               `json:"lastState"`
 	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
+	DynamicAllocatedResources  []ContainerDynamicResource   `json:"dynamicAllocatedResources,omitempty"`
 
 	// Resources may not be the same as spec due to in-place vertical sizing
 	Resources *ResourcesSpec `json:"resources,omitempty"`
@@ -266,6 +267,22 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of that resource. The format will depend on the resource provider
 	ID string `json:"id,omitempty"`
+}
+
+// ContainerDynamicResource contains the fields for a DRA claim assigned to a container.
+type ContainerDynamicResource struct {
+	ClaimName      string                   `json:"claimName,omitempty"`
+	ClaimNamespace string                   `json:"claimNamespace,omitempty"`
+	ClaimResources []ContainerClaimResource `json:"claimResources,omitempty"`
+}
+
+// ContainerClaimResource contains per-driver DRA allocation details.
+type ContainerClaimResource struct {
+	DriverName string   `json:"driverName,omitempty"`
+	PoolName   string   `json:"poolName,omitempty"`
+	DeviceName string   `json:"deviceName,omitempty"`
+	ShareID    string   `json:"shareID,omitempty"`
+	CDIDevices []string `json:"cdiDevices,omitempty"`
 }
 
 // IsPending returns if the container doesn't have an ID

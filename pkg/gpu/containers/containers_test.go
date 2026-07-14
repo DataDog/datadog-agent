@@ -51,6 +51,26 @@ func TestMatchContainerDevices(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
+	t.Run("ContainerWithNvidiaDRAGPU", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dra-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   testutil.GPUUUIDs[2],
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[2], filteredDevices[0])
+	})
+
 	t.Run("ContainerWithMultipleNvidiaGPUs", func(t *testing.T) {
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
@@ -322,6 +342,27 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 4)
 		assert.ElementsMatch(t, filteredDevices, expectedDevices)
+	})
+
+	t.Run("KubernetesContainerWithDRAMIGDevice", func(t *testing.T) {
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dra-mig-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   testutil.MIGChildrenUUIDs[5][0],
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		require.Equal(t, testutil.MIGChildrenUUIDs[5][0], filteredDevices[0].GetDeviceInfo().UUID)
 	})
 }
 

@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "kubelet",
     srcs = [
+        "dra_resolver.go",
+        "dra_resolver_nocompile.go",
         "kubelet.go",
         "kubelet_nop.go",
         "stub.go",
@@ -16,15 +18,25 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
         "//pkg/errors",
+        "//pkg/util/kubernetes/apiserver",
         "//pkg/util/containers",
         "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "@io_k8s_api//resource/v1:resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
+        "@io_k8s_client_go//informers/resource/v1:resource",
+        "@io_k8s_client_go//tools/cache",
         "@org_uber_go_fx//:fx",
     ],
 )
 
 dd_agent_go_test(
     name = "kubelet_test",
-    srcs = ["kubelet_test.go"],
+    srcs = [
+        "dra_resolver_test.go",
+        "kubelet_test.go",
+    ],
     embed = [":kubelet"],
     flavors = [
         "base",
@@ -44,6 +56,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_api//resource/v1:resource",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@org_uber_go_fx//:fx",
     ],
