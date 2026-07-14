@@ -12,7 +12,6 @@ go_library(
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@org_golang_x_crypto//nacl/box",
     ],
 )
 
@@ -25,6 +24,5 @@ go_test(
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
         "@com_github_stretchr_testify//require",
-        "@org_golang_x_crypto//nacl/box",
     ],
 )

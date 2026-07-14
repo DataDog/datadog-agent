@@ -25,6 +25,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -87,7 +88,7 @@ func FlushBTF() {
 	if loader != nil {
 		loader.btfLoader.Flush()
 	} else {
-		loadKernelSpec.Flush()
+		ddbtf.Flush()
 	}
 }
 
@@ -184,7 +185,7 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telem
 			rcErrors:  telemetrycomp.NewCounter("ebpf", "core_remoteconfig_error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
 		},
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, ddbtf.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader, nil
 }
@@ -243,7 +244,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadKernel(_ context.Context) (*returnBTF, error) {
-	spec, err := GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -511,14 +512,6 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
-}
-
-var loadKernelSpec = funcs.CacheWithCallback[btf.Spec](btf.LoadKernelSpec, btf.FlushKernelSpec)
-
-// GetKernelSpec returns a possibly cached version of the running kernel BTF spec
-// it's very important that the caller of this function does not modify the returned value
-func GetKernelSpec() (*btf.Spec, error) {
-	return loadKernelSpec.Do()
 }
 
 // copyFileMkdir copies file path `src` to file path `dst`.

@@ -84,6 +84,12 @@
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["major"],
+        "dependencyDashboardApproval": true
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": [
           "github.com/DataDog/datadog-agent/**",

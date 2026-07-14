@@ -23,3 +23,7 @@ func requestedAgentVersion(_ *env.Env) (string, error) { return "", nil }
 func runAgentInstaller(_ context.Context, _ *env.Env, _, _ string) error {
 	return nil
 }
+
+// applyAgentDistChannel is a no-op on non-Windows; DD_AGENT_DIST_CHANNEL
+// is handled upstream by the Linux/macOS install scripts.
+func applyAgentDistChannel(_ *env.Env) error { return nil }

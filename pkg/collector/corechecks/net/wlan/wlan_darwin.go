@@ -426,7 +426,7 @@ func launchGUIApp(uid string) error {
 	// Fallback: Try to open the app directly
 	// This works even if the LaunchAgent isn't loaded
 	log.Debug("Using fallback method: launching GUI app directly")
-	cmd := exec.Command("/bin/launchctl", "asuser", uid, "/usr/bin/open", "-a", "Datadog Agent")
+	cmd := exec.Command("/bin/launchctl", "asuser", uid, "/usr/bin/open", "-g", "-j", "-a", "Datadog Agent")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to open GUI app: %w, output: %s", err, string(output))

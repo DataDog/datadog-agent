@@ -128,8 +128,8 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 		option(config)
 	}
 
-	return &CheckClient{
-		checkClient: &http.Client{
+	return NewCheckClient(
+		&http.Client{
 			Timeout: config.checkRequestTimeout,
 			Transport: &http.Transport{
 				MaxIdleConns:          2,
@@ -140,7 +140,7 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
-		startupClient: &http.Client{
+		&http.Client{
 			Timeout: config.startupCheckRequestTimeout,
 			Transport: &http.Transport{
 				MaxIdleConns:          2,
@@ -151,6 +151,14 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
+	)
+}
+
+// NewCheckClient builds a check client with the given HTTP clients.
+func NewCheckClient(checkClient, startupClient *http.Client) *CheckClient {
+	return &CheckClient{
+		checkClient:    checkClient,
+		startupClient:  startupClient,
 		startupChecker: getStartChecker(),
 	}
 }

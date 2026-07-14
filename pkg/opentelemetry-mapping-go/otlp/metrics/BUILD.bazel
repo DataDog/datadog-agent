@@ -64,6 +64,7 @@ go_test(
         "summary_test.go",
         "testhelper_test.go",
         "ttlcache_test.go",
+        "units_test.go",
     ],
     data = glob(["test/**"]),
     embed = [":metrics"],

@@ -175,6 +175,10 @@ class TestCheckPlatformDefaultKeys(unittest.TestCase):
             any("missing_windows" in e for e in errors), f"Expected error for missing_windows, got: {errors}"
         )
 
+    def test_missing_aix_platform_key(self):
+        errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")
+        self.assertTrue(any("missing_aix" in e for e in errors), f"Expected error for missing_aix, got: {errors}")
+
     def test_unknown_platform_key(self):
         errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")
         self.assertTrue(any("unknown_key" in e for e in errors), f"Expected error for unknown_key, got: {errors}")

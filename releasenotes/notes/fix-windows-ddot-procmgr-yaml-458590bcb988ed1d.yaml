@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, align the DDOT ``processes.d`` definition with the legacy **datadog-otel-agent** SCM service: run ``otel-agent.exe`` without CLI arguments and set only ``DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal``. The collector resolves ``otel-config.yaml`` and ``datadog.yaml`` from ProgramData when paths are omitted, and reads fleet policies from the registry (with a stable managed-path fallback) when ``DD_FLEET_POLICIES_DIR`` is not set in the process environment. This fixes DDOT failing to start under **dd-procmgr** when the baked ``processes.d`` invocation or fleet policy handling did not match that SCM path (including an unsubstituted ``DD_FLEET_POLICIES_DIR`` placeholder).

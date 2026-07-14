@@ -10,12 +10,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 )
+
+// recordingStatsdClient records Gauge calls so tests can assert on emitted metrics.
+type recordingStatsdClient struct {
+	statsd.NoOpClient
+	gaugeCalls chan string
+}
+
+func (r *recordingStatsdClient) Gauge(name string, _ float64, _ []string, _ float64) error {
+	r.gaugeCalls <- name
+	return nil
+}
 
 // TestHealthCheckLoop_HonorsRetryAfterMs verifies that the health check loop
 // uses the X-Retry-After-Ms value from the server response as the next
@@ -35,7 +48,7 @@ func TestHealthCheckLoop_HonorsRetryAfterMs(t *testing.T) {
 				return &opms.HealthCheckData{RetryAfter: retryAfterMs * time.Millisecond}, nil
 			},
 		},
-		config: &config.Config{HealthCheckInterval: defaultIntervalMs},
+		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -73,7 +86,7 @@ func TestHealthCheckLoop_DefaultIntervalWhenRetryAfterIsZero(t *testing.T) {
 				return &opms.HealthCheckData{RetryAfter: 0}, nil
 			},
 		},
-		config: &config.Config{HealthCheckInterval: defaultIntervalMs},
+		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -92,4 +105,31 @@ func TestHealthCheckLoop_DefaultIntervalWhenRetryAfterIsZero(t *testing.T) {
 		"gap should reflect the default HealthCheckInterval")
 	assert.Less(t, gap, 500*time.Millisecond,
 		"gap should not be excessively long")
+}
+
+// TestHealthCheckLoop_EmitsHealthCheckMetric verifies that every health check
+// tick reports the RunnerRunningMetric gauge, regardless of outcome.
+func TestHealthCheckLoop_EmitsHealthCheckMetric(t *testing.T) {
+	const defaultIntervalMs = 5
+
+	metricsClient := &recordingStatsdClient{gaugeCalls: make(chan string, 10)}
+
+	runner := &CommonRunner{
+		opmsClient: &testopms.FakeOpmsClient{
+			HealthCheckFn: func(_ context.Context) (*opms.HealthCheckData, error) {
+				return &opms.HealthCheckData{}, nil
+			},
+		},
+		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: metricsClient},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	go runner.healthCheckLoop(ctx)
+
+	metricName := <-metricsClient.gaugeCalls
+	cancel()
+
+	assert.Equal(t, observability.RunnerRunningMetric, metricName)
 }

@@ -42,6 +42,9 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	if !ok {
 		return fmt.Errorf("unknown flavor \"%s\"", flavor)
 	}
+	if err := applyAgentDistChannel(env); err != nil {
+		return err
+	}
 	// If the user has requested a specific Agent version and we are not
 	// ourselves the result of a prior handoff, fetch the matching
 	// installer.exe and re-exec from it.

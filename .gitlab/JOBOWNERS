@@ -207,7 +207,7 @@ new-e2e-cleanup-on-failure              @DataDog/agent-devx
 new-e2e-agent-configuration*            @DataDog/agent-configuration
 new-e2e-agent-subcommands*              @DataDog/agent-configuration
 new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
-new-e2e-agent-health                    @DataDog/agent-health @DataDog/fleet-remediation
+new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---

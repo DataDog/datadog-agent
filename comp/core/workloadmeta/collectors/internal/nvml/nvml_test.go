@@ -63,6 +63,7 @@ func TestPull(t *testing.T) {
 		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_MEM], gpu.MaxClockRates[workloadmeta.GPUMemory])
 		require.ElementsMatch(t, expectedGPUActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
+		require.Equal(t, "0000:00:1e.0", gpu.PCIBusID)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
@@ -73,6 +74,39 @@ func TestPull(t *testing.T) {
 		for _, migChildUUID := range migChildrenUUIDs {
 			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
 		}
+	}
+}
+
+func TestPCIBusIDFromNVMLInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		pciInfo  nvml.PciInfo
+		expected string
+	}{
+		{
+			name: "typical linux BDF",
+			pciInfo: nvml.PciInfo{
+				Domain: 0,
+				Bus:    0x65,
+				Device: 0,
+			},
+			expected: "0000:65:00.0",
+		},
+		{
+			name: "domain wider than four hex digits",
+			pciInfo: nvml.PciInfo{
+				Domain: 0x12345,
+				Bus:    0xab,
+				Device: 0x1e,
+			},
+			expected: "12345:ab:1e.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, pciBusIDFromNVMLInfo(tt.pciInfo))
+		})
 	}
 }
 

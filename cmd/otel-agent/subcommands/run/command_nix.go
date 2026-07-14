@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func fleetPoliciesDirFromPlatform() string {
+	return ""
+}
+
 // MakeCommand creates the `run` command
 func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
 	params := &cliParams{}

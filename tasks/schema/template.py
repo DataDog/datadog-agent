@@ -35,6 +35,12 @@ default_path = {
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/opt/datadog-agent/logs",
     },
+    "aix": {
+        "${conf_path}": "/etc/datadog-agent",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
+    },
 }
 
 # Maps env_parser schema values to their human-readable env var type descriptions.

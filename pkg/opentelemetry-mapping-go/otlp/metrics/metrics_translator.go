@@ -107,6 +107,7 @@ type defaultTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
@@ -147,6 +148,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
+		unitMapper:           attributes.NewUnitMapper(),
 	}
 	// Use custom mapper if provided, otherwise create a defaultMapper
 	if cfg.customMapper != nil {
@@ -627,6 +629,11 @@ func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProduct:       t.cfg.originProduct,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
 	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:

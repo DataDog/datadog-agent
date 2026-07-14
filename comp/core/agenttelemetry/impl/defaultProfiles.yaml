@@ -77,23 +77,30 @@ profiles:
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
       - name: point.sent
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
+          - emitter
       - name: point.dropped
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
+          - emitter
       - name: transactions.input_count
-      - name: transactions.input_bytes
-        aggregate_tags:
+        preserve_tags:
+          - domain
           - endpoint
+          - emitter
+      - name: transactions.input_bytes
+        preserve_tags:
+          - domain
+          - endpoint
+          - emitter
       - name: transactions.requeued
       - name: transactions.retries
       - name: transactions.http_errors
         preserve_tags:
           - code
           - endpoint
+          - emitter
   schedule:
     start_after: 30
     iterations: 0

@@ -55,7 +55,7 @@ tonic-reflection = "0.14"
 ureq = { version = "3.0", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
-saphyr-parser = "0.0.6"
+saphyr-parser = "0.0.9"
 yaml-rust2 = "0.11"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"

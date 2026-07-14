@@ -26,6 +26,8 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/mock",
+        "//comp/core/status",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

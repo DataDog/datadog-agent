@@ -244,6 +244,14 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
 }
 
+func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetPciInfo")); err != nil {
+		return nvml.PciInfo{}, err
+	}
+	pciInfo, ret := d.nvmlDevice.GetPciInfo()
+	return pciInfo, NewNvmlAPIErrorOrNil("GetPciInfo", ret)
+}
+
 func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
 	if err := d.lib.lookup(toNativeName("GetPcieThroughput")); err != nil {
 		return 0, err

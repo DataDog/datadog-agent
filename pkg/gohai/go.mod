@@ -9,7 +9,7 @@ require (
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 )
 
 require (

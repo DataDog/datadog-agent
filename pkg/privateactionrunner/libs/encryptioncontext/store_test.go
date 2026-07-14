@@ -6,6 +6,8 @@
 package encryptioncontext
 
 import (
+	"crypto/ecdh"
+	"crypto/hpke"
 	"sync"
 	"testing"
 	"time"
@@ -13,12 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newPrivateKey(seed byte) *[32]byte {
-	var key [32]byte
-	for index := range key {
-		key[index] = seed
-	}
-	return &key
+func newPrivateKey(t *testing.T) hpke.PrivateKey {
+	t.Helper()
+	privateKey, err := hpke.DHKEM(ecdh.P256()).GenerateKey()
+	require.NoError(t, err)
+	return privateKey
 }
 
 func TestStoreGetAndDelete(t *testing.T) {
@@ -45,7 +46,7 @@ func TestStoreGetAndDelete(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			store := NewStoreWithTTL(time.Minute)
 
-			privateKey := newPrivateKey(0x42)
+			privateKey := newPrivateKey(t)
 			store.Set(testCase.setContextID, privateKey)
 
 			retrieved, found := store.GetAndDelete(testCase.takeContextID)
@@ -64,24 +65,27 @@ func TestStoreGetAndDelete(t *testing.T) {
 
 func TestStoreSetOverwritesExistingContextID(t *testing.T) {
 	store := NewStoreWithTTL(time.Minute)
-	store.Set("ctx-1", newPrivateKey(0x01))
-	store.Set("ctx-1", newPrivateKey(0x02))
+	first := newPrivateKey(t)
+	second := newPrivateKey(t)
+	store.Set("ctx-1", first)
+	store.Set("ctx-1", second)
 
 	retrieved, found := store.GetAndDelete("ctx-1")
 	require.True(t, found)
-	require.Equal(t, newPrivateKey(0x02), retrieved)
+	require.Equal(t, second, retrieved)
 }
 
 func TestStoreConcurrentAccess(t *testing.T) {
 	store := NewStoreWithTTL(time.Minute)
 
 	const goroutineCount = 100
+	privateKey := newPrivateKey(t)
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(goroutineCount)
 	for index := range goroutineCount {
 		go func(index int) {
 			defer waitGroup.Done()
-			store.Set(string(rune('a'+index%26)), newPrivateKey(byte(index)))
+			store.Set(string(rune('a'+index%26)), privateKey)
 		}(index)
 	}
 	waitGroup.Wait()

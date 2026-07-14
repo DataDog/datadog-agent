@@ -30,6 +30,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/security/ebpf",
             "//pkg/security/ebpf/kernel",
             "//pkg/security/ebpf/probes",
@@ -42,6 +43,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/security/ebpf",
             "//pkg/security/ebpf/kernel",
             "//pkg/security/ebpf/probes",

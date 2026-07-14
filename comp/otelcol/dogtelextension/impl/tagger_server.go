@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 

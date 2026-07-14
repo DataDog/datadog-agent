@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "btf",
+    srcs = ["cache.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/btf",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_cilium_ebpf//btf"],
+)
