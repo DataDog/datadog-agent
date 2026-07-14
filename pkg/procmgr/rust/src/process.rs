@@ -270,7 +270,7 @@ impl ManagedProcess {
         );
 
         self.handle = Some(handle);
-        self.user = spawn::spawn_user_for(&self.name, self.profile);
+        self.refresh_intended_user();
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
