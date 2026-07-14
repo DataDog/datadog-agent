@@ -165,5 +165,10 @@ dd_agent_go_test(
         "//cmd/otel-agent/subcommands",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
 )
