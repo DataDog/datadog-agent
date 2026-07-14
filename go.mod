@@ -246,7 +246,7 @@ require (
 	github.com/cilium/ebpf v0.22.0
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
-	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
+	github.com/cloudfoundry-community/go-cfclient/v3 v3.0.0-alpha.21
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
 	github.com/containerd/containerd/v2 v2.2.5
