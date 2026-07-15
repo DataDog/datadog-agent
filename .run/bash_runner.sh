@@ -17,7 +17,7 @@ fi
 
 if [ "$INCLUDE_AWS_ECR_LOGIN_PASSWORD" = true ]; then
     # Get AWS ECR login password
-    AWS_ECR_LOGIN_PASSWORD=$(aws-vault exec sso-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1)
+    AWS_ECR_LOGIN_PASSWORD=$(aws-vault exec sso-sandbox-account-admin -- aws ecr get-login-password --region us-east-1)
 fi
 
 if [[ -z $REMOTE_MACHINE_IP ]]; then

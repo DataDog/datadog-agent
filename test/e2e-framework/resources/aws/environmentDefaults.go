@@ -109,7 +109,7 @@ func sandboxDefault() environmentDefault {
 	return environmentDefault{
 		aws: awsProvider{
 			region:  string(aws.RegionUSEast1),
-			profile: "exec-sso-sandbox-account-admin-8h",
+			profile: "exec-sso-sandbox-account-admin",
 		},
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-d1aac1a8",
