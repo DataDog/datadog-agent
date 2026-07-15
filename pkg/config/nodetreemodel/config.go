@@ -67,7 +67,7 @@ type ntmConfig struct {
 	allowDynamicSchema *atomic.Bool
 	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
 	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
-	lastEnvVarState string
+	lastRawEnv []string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -488,18 +488,31 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Avoid taking the write lock and sorting in the common case where the raw
+		// environment snapshot is identical to the previous one.
+		rawEnv := os.Environ()
+		c.RLock()
+		unchanged := slices.Equal(c.lastRawEnv, rawEnv)
+		c.RUnlock()
+		if unchanged {
+			return
+		}
+
+		sortedEnv := slices.Clone(rawEnv)
+		slices.Sort(sortedEnv)
+
 		// Write-lock because the root will be written to in order to rebuild the state
 		c.Lock()
 		defer c.Unlock()
 
-		// Only need to rebuild if env vars have different state than last rebuild
-		envs := os.Environ()
-		sort.Strings(envs)
-		envVarState := strings.Join(envs, "$")
-		if c.lastEnvVarState == envVarState {
+		// Avoid an expensive rebuild if only the environment order changed while the
+		// environment content stayed the same.
+		slices.Sort(c.lastRawEnv)
+		unchanged = slices.Equal(c.lastRawEnv, sortedEnv)
+		c.lastRawEnv = rawEnv
+		if unchanged {
 			return
 		}
-		c.lastEnvVarState = envVarState
 
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
