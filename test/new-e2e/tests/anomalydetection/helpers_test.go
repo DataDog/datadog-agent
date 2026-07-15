@@ -163,6 +163,17 @@ func waitForScorerHelperReady(s observerTestSuite) {
 	s.T().Log("anomaly scorer helper registered")
 }
 
+// sendGauge sends one DogStatsD gauge over UDP to the local agent.
+// Uses Execute rather than MustExecute: a transient SSH error in a background
+// goroutine would otherwise propagate as an unrecovered panic, terminating the
+// test process and tearing down the DEV_MODE stack before assertions complete.
+func sendGauge(s observerTestSuite, name string, value float64) {
+	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
+	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
+		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
+	}
+}
+
 func waitForReportsTelemetry(s observerTestSuite) {
 	s.T().Helper()
 	s.T().Log("waiting for observer reports telemetry...")

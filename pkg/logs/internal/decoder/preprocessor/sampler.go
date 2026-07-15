@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -117,6 +118,23 @@ type AdaptiveSamplerConfig struct {
 	// message through without rate-limiting. Using a closure lets the check track
 	// ReplaceableSource swaps and future Remote Config updates.
 	IsSourceDisabled func() bool
+	// SmartSeverityProfilesEnabled switches RateLimit/BurstSize based on the level
+	// read from SeverityProvider (see Profiles). Profiles[SeverityLow] must match
+	// RateLimit/BurstSize above.
+	SmartSeverityProfilesEnabled bool
+	// Profiles holds the RateLimit/BurstSize pair per SeverityLevel.
+	// Only consulted when SmartSeverityProfilesEnabled is true.
+	Profiles [severityeventsdef.NumSeverityLevels]SamplerProfile
+	// SeverityProvider returns the current anomaly-detection severity level, or false
+	// when no reader is registered yet. Only consulted when SmartSeverityProfilesEnabled
+	// is true. Left nil in tests that don't exercise smart severity profiles.
+	SeverityProvider func() (severityeventsdef.SeverityLevel, bool)
+}
+
+// SamplerProfile is a RateLimit/BurstSize pair for one SeverityLevel.
+type SamplerProfile struct {
+	RateLimit float64
+	BurstSize float64
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
@@ -148,6 +166,13 @@ type AdaptiveSampler struct {
 	source            string // used as a telemetry tag
 	now               func() time.Time
 	baseBytesEstimate int
+
+	// appliedLevel tracks the last severity profile applied by
+	// applyProfileIfChanged. appliedLevelInitialized stays false until a real
+	// reader is registered, so the sampler does not treat the no-reader case as
+	// an implicit Low profile.
+	appliedLevel            severityeventsdef.SeverityLevel
+	appliedLevelInitialized bool
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
@@ -219,6 +244,37 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 	}
 }
 
+// applyProfileIfChanged switches RateLimit/BurstSize to the currently published
+// level, when SmartSeverityProfilesEnabled is set. Escalation grants every
+// pattern a fresh burst immediately; de-escalation leaves credits untouched,
+// letting the refill-time clamp in processMatchedEntry shrink them naturally.
+func (s *AdaptiveSampler) applyProfileIfChanged() {
+	if s.config.SeverityProvider == nil {
+		return
+	}
+	level, ok := s.config.SeverityProvider()
+	if !ok {
+		return
+	}
+	if s.appliedLevelInitialized && level == s.appliedLevel {
+		return
+	}
+
+	profile := s.config.Profiles[level]
+	escalation := s.appliedLevelInitialized && level > s.appliedLevel
+	s.config.RateLimit = profile.RateLimit
+	s.config.BurstSize = profile.BurstSize
+
+	if escalation {
+		for i := range s.entries {
+			s.entries[i].credits = s.config.BurstSize
+		}
+	}
+
+	s.appliedLevel = level
+	s.appliedLevelInitialized = true
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
@@ -226,6 +282,9 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	// space in the pattern table for them.
 	if !msg.HasContent() {
 		return msg
+	}
+	if s.config.SmartSeverityProfilesEnabled {
+		s.applyProfileIfChanged()
 	}
 	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
 		return msg
