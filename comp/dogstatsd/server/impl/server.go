@@ -366,10 +366,8 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	return s
 }
 
-// errNoListeners is returned by start when no listener could be created, leaving
-// DogStatsD with no way to receive metrics. It is the only startup failure that
-// dogstatsd_require_listener treats as fatal. The message is preserved verbatim
-// because operators may match on it; add context by wrapping rather than editing.
+// errNoListeners is the only startup failure that dogstatsd_require_listener
+// treats as fatal.
 var errNoListeners = errors.New("listening on neither udp nor socket, please check your configuration")
 
 func (s *dsdServer) startHook(context context.Context) error {

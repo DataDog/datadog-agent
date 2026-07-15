@@ -49,7 +49,7 @@ func TestStartHookNoListenerRequireListener(t *testing.T) {
 	cfg["dogstatsd_require_listener"] = true
 
 	_, s := fulfillDepsWithInactiveServer(t, cfg)
-	require.Error(t, s.startHook(context.Background()), "startHook should return an error when no listener could be created and dogstatsd_require_listener is set")
+	require.ErrorIs(t, s.startHook(context.Background()), errNoListeners, "startHook should return errNoListeners when no listener could be created and dogstatsd_require_listener is set")
 }
 
 func TestStartHookNoListenerDefault(t *testing.T) {
