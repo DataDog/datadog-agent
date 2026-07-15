@@ -256,7 +256,7 @@ fi
 # install script through the staging env file). Per human account under /Users:
 # if Trajectory is absent, install it (--clients all), lay down the managed
 # config.defaults.yaml, and write an ownership marker
-# (~/.trajectory/.dd-agent-eudm.state). If the Agent owns an existing install,
+# (~/.trajectory/state/dd-agent-eudm). If the Agent owns an existing install,
 # refresh the config; a foreign install is left alone with a note logged on
 # adding the aiusage destination by hand. Best-effort: failures are logged,
 # never fail the Agent install. The uninstaller uses the marker to remove only
@@ -264,7 +264,7 @@ fi
 # ==========================================================================
 TRAJECTORY_INSTALL_URL="${DD_TRAJECTORY_INSTALL_URL:-https://raw.githubusercontent.com/datadog-labs/trajectory/main/install.sh}"
 TRAJECTORY_CONFIG_DEFAULTS_URL="${DD_TRAJECTORY_CONFIG_DEFAULTS_URL:-https://raw.githubusercontent.com/DataDog/datadog-agent/main/cmd/agent/macos/trajectory/config.defaults.yaml}"
-TRAJECTORY_MARKER_NAME=".dd-agent-eudm.state"
+TRAJECTORY_MARKER_RELPATH="state/dd-agent-eudm"
 
 if [ "$dd_install_trajectory" = "true" ]; then
     echo "# DD_INSTALL_TRAJECTORY=true: bootstrapping Trajectory for AI skill observability"
@@ -298,7 +298,7 @@ if [ "$dd_install_trajectory" = "true" ]; then
             id -u "$u" >/dev/null 2>&1 || continue
 
             traj_home="$user_home/.trajectory"
-            marker="$traj_home/$TRAJECTORY_MARKER_NAME"
+            marker="$traj_home/$TRAJECTORY_MARKER_RELPATH"
 
             # Already installed: don't reinstall the binary. If the Agent owns
             # it (marker), refresh the managed config; if foreign, leave it and
@@ -321,19 +321,17 @@ if [ "$dd_install_trajectory" = "true" ]; then
             fi
 
             echo "# Installing Trajectory for user $u"
-            # Run as the user (-H → their HOME) so Trajectory installs to
-            # ~/.trajectory; --clients all auto-instruments detected CLIs.
             if ! sudo -u "$u" -H /bin/bash "$traj_install_tmp" --non-interactive --clients all; then
                 echo "WARNING: Trajectory install failed for user $u; skipping"
                 continue
             fi
 
-            # Just installed by the Agent: lay down the managed config and the
-            # ownership marker (both under ~/.trajectory, removed on uninstall).
             if [ -n "$traj_defaults_tmp" ]; then
                 sudo -u "$u" cp "$traj_defaults_tmp" "$traj_home/config.defaults.yaml" \
                     || echo "WARNING: could not write config.defaults.yaml for user $u"
             fi
+
+            sudo -u "$u" mkdir -p "$traj_home/state" 2>/dev/null || true
             printf 'trajectory=agent\n' | sudo -u "$u" tee "$marker" >/dev/null 2>&1 || true
         done
     fi

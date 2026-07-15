@@ -80,7 +80,7 @@ for user_home in /Users/*; do
     id -u "$u" >/dev/null 2>&1 || continue
 
     traj_home="$user_home/.trajectory"
-    marker="$traj_home/.dd-agent-eudm.state"
+    marker="$traj_home/state/dd-agent-eudm"
     [ -f "$marker" ] || continue
 
     traj_owner=$(grep '^trajectory=' "$marker" 2>/dev/null | cut -d= -f2- || true)
