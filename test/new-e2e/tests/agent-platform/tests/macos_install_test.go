@@ -365,7 +365,9 @@ func (m *macosInstallSuite) TestAgentStatusAndConfig() {
 
 	// exercises runtime settings API; tags isn't a gettable setting, so use log_level instead
 	m.T().Cleanup(func() {
-		macosTestClient.MustExecuteOn(m.T(), macosAgentBinary+" config set log_level info")
+		if _, err := macosTestClient.Execute(macosAgentBinary + " config set log_level info"); err != nil {
+			m.T().Logf("cleanup: failed to reset log_level: %v", err)
+		}
 	})
 	_, err = macosTestClient.Execute(macosAgentBinary + " config set log_level debug")
 	assert.NoError(m.T(), err)
@@ -771,7 +773,7 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 		"/private/var/root/datadog-install",
 	}
 	for _, path := range removedPaths {
-		_, err := macosTestClient.Execute(fmt.Sprintf("test -e %q", path))
+		_, err := macosTestClient.Execute(fmt.Sprintf("sudo test -e %q", path))
 		assert.Error(m.T(), err, "%s should have been removed by uninstall_mac_os.sh", path)
 	}
 }
