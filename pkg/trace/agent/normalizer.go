@@ -437,6 +437,20 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
+	// Normalize the TraceID to exactly 16 bytes once here so every downstream slice is
+	// bounds-safe. The TraceID is a big-endian 128-bit value, so a short ID is
+	// right-aligned (missing high-order bytes are zero) and an over-long ID keeps its
+	// low-order 16 bytes.
+	if len(t.TraceID) != 16 {
+		var buf [16]byte
+		if len(t.TraceID) > 16 {
+			copy(buf[:], t.TraceID[len(t.TraceID)-16:])
+		} else {
+			copy(buf[16-len(t.TraceID):], t.TraceID)
+		}
+		t.TraceID = buf[:]
+	}
+
 	spanIDs := make(map[uint64]struct{})
 	firstSpan := t.Spans[0]
 

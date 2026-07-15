@@ -144,7 +144,9 @@ func TestProbabilisticSampler(t *testing.T) {
 		assert.False(t, sampled)
 	})
 	t.Run("keep-dd-128-v1", func(t *testing.T) {
-		tid := []byte{9, 10, 11, 12, 13, 14, 15, 16}
+		// The caller passes the full 16-byte chunk TraceID; the meaningful low-order
+		// 64 bits (the legacy trace ID) live in the low-order half, tid[8:].
+		tid := []byte{0, 0, 0, 0, 0, 0, 0, 0, 9, 10, 11, 12, 13, 14, 15, 16}
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
@@ -156,7 +158,7 @@ func TestProbabilisticSampler(t *testing.T) {
 	})
 	t.Run("drop-dd-128-v1", func(t *testing.T) {
 		tid := make([]byte, 16)
-		binary.BigEndian.PutUint64(tid[:8], 555)
+		binary.BigEndian.PutUint64(tid[8:], 555)
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
