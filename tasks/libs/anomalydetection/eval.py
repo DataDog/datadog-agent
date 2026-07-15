@@ -38,18 +38,16 @@ except (OSError, json.JSONDecodeError, KeyError):
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
 
-# All available detectors and correlators for ablation / combination search.
+# Components included in ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
-# not for Gaussian F1 eval (eval_scenarios / eval_combinations). cross_signal and
-# time_cluster are intentionally excluded: this study evaluates scorer-produced
-# correlation periods only.
+# not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
+# evaluates scorer-produced correlation periods only.
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
 CORRELATORS = ["anomaly_scorer"]
 
-# Components excluded from this study that must still be present in generated
-# configs. time_cluster defaults on in the testbench when omitted, so leaving it
-# out would silently mix its correlation periods into scorer-only trials.
-HARD_DISABLED_COMPONENTS = ["time_cluster"]
+# All correlators represented in generated configs. time_cluster defaults on in
+# the testbench, so scorer-only trials must explicitly disable it.
+ALL_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
 # always enables all of them unless force-disabled.
@@ -464,7 +462,7 @@ def _combo_to_config(
     force_disable_set = set(force_disable or [])
     enabled_set = set(detectors + correlators)
     components = {}
-    for name in DETECTORS + CORRELATORS + HARD_DISABLED_COMPONENTS:
+    for name in DETECTORS + ALL_CORRELATORS:
         components[name] = _component_base_config(name, name in enabled_set)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
@@ -485,10 +483,11 @@ def _sample_component_params(trial, component: str) -> dict:
         high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
         high_threshold = min(0.45, low_threshold + high_threshold_gap)
         # The scorer applies HighThreshold * MarginPct to both downward
-        # transitions. Sample that effective margin as a safe fraction of the
-        # Low boundary so Medium always has a reachable exit threshold.
-        hysteresis_fraction_of_low = trial.suggest_float("anomaly_scorer.hysteresis_fraction_of_low", 0.05, 0.9)
-        margin_pct = hysteresis_fraction_of_low * low_threshold / high_threshold
+        # transitions. Keep the effective margin below both the Low boundary
+        # and the Low-to-High gap so every severity transition remains reachable.
+        max_margin = min(low_threshold, high_threshold - low_threshold)
+        hysteresis_fraction = trial.suggest_float("anomaly_scorer.hysteresis_fraction", 0.05, 0.9)
+        margin_pct = hysteresis_fraction * max_margin / high_threshold
         return {
             "correlation_events": True,
             "correlation_event_threshold": trial.suggest_categorical(
@@ -552,7 +551,7 @@ def _build_optuna_config(
     active_set = set(components)
     result = {}
 
-    for name in DETECTORS + CORRELATORS + EXTRACTORS + HARD_DISABLED_COMPONENTS:
+    for name in DETECTORS + ALL_CORRELATORS + EXTRACTORS:
         if name not in active_set:
             result[name] = _component_base_config(name, False)
 

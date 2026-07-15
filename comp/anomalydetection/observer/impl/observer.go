@@ -265,8 +265,8 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
-	// enabled so the live observer gets full telemetry while the testbench
-	// replay keeps using the parameterless path.
+	// enabled so the live observer gets full telemetry. Replay enables the same
+	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)

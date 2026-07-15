@@ -1345,6 +1345,7 @@ def _ddeval_experiment_config(
         experiment_config = {}
 
     input_parameters = dict(experiment_config.get("input_parameters") or {})
+    # The DDEval worker reads generated component settings from testbench_config.
     input_parameters["testbench_config"] = trial_config
     input_parameters["trial_metadata"] = {
         **dict(input_parameters.get("trial_metadata") or {}),
