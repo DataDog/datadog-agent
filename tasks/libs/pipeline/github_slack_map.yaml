@@ -293,6 +293,13 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/fleet-automation':
+  notification:
+    name: '#fleet-automation-monitoring'
+    id: 'C06TZ0APY6Q'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
 '@datadog/gpu-monitoring-agent':
   notification:
     name: '#gpu-monitoring-agent-ops'

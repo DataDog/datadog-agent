@@ -405,7 +405,7 @@ new-e2e-agent-configuration:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-configuration
-    TEAM: agent-configuration
+    TEAM: fleet-automation
     EXTRA_PARAMS: --skip "Windows"
 
 new-e2e-agent-runtimes:
@@ -427,7 +427,7 @@ new-e2e-agent-subcommands:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
-    TEAM: agent-configuration
+    TEAM: fleet-remediation
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip "Windows"
 
