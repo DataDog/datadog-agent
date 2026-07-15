@@ -65,7 +65,7 @@ type Requires struct {
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
 	Statsd        statsdcomp.Component
-    HelmActions   helmactions.Component
+	HelmActions   helmactions.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -86,8 +86,7 @@ type PrivateActionRunner struct {
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
 	ownsMetricsClient bool
-    ha             helmactions.Component
-
+	ha                helmactions.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -138,7 +137,7 @@ func NewPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
 	metricsClient statsdclient.ClientInterface,
-    ha helmactions.Component,
+	ha helmactions.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,

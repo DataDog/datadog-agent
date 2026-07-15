@@ -188,6 +188,6 @@ func (w *jobWatcher) captureLogs(parent context.Context, rec PodRecord) {
 	log.Infof("[HelmActions] Captured %d bytes of logs from failed pod %s/%s", len(buf), rec.Namespace, rec.Name)
 }
 
-func (h *jobWatcher) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
-	h.store.TrackJob(job, in)
+func (w *jobWatcher) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
+	w.store.TrackJob(job, in)
 }

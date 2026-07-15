@@ -809,7 +809,7 @@ func startPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipc ipc.Component,
 	demux demultiplexer.Component,
-    ha helmactions.Component,
+	ha helmactions.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
