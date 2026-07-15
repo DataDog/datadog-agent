@@ -6,6 +6,9 @@ fixes:
     16 bytes during normalization instead of panicking on an out-of-bounds
     slice in the score and probabilistic samplers.
   - |
+    APM: ProbabilisticSampler now properly uses the lower order bits of the
+    trace ID on v1 traces.
+  - |
     APM: Fix a trace-agent crash from unbounded recursion when decoding deeply
     nested attribute values; nesting depth is now bounded.
   - |
