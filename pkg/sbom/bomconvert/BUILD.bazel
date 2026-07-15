@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "bomconvert",
@@ -122,14 +123,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "bomconvert_test",
     srcs = ["convert_test.go"],
     embed = [":bomconvert"],
-    gotags = [
-        "test",
-        "trivy",
-    ],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
