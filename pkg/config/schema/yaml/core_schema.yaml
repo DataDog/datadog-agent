@@ -5889,17 +5889,14 @@ properties:
                 format: duration
                 tags:
                 - golang_type:duration
-              correlation_events:
-                node_type: setting
-                type: boolean
-                default: false
               correlation_event_threshold:
                 node_type: setting
                 type: string
                 default: high
-                comment: |-
-                  Lowest anomaly scorer severity that opens a correlation episode.
-                  Supported values are medium and high.
+              correlation_events:
+                node_type: setting
+                type: boolean
+                default: false
               logs:
                 node_type: setting
                 type: boolean
