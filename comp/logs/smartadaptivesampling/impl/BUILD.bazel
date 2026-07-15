@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "smartadaptivesampling.go",
+        "smartadaptivesampling_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/config",
+        "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/severityevents/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/logs/smartadaptivesampling/def",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["smartadaptivesampling_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/anomalydetection/config",
+        "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/severityevents/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
