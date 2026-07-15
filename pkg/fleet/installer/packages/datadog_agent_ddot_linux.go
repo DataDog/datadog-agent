@@ -334,6 +334,21 @@ func removeDDOTProcmgrConfig(installRoot string) error {
 	return nil
 }
 
+// setDDOTProcmgrConfigForConfigExperiment rewrites the DDOT dd-procmgr config so the process
+// manager relaunches the collector against the experiment (isExperiment=true) or stable
+// (isExperiment=false) config directory during a config experiment. It resolves the install root
+// for both the OCI fleet layout (ctx.PackagePath, whose experiment symlink points at stable during
+// a config experiment) and the deb/rpm layout (/opt/datadog-agent). No-op when DDOT is absent.
+func setDDOTProcmgrConfigForConfigExperiment(ctx HookContext, isExperiment bool) error {
+	for _, root := range []string{ctx.PackagePath, "/opt/datadog-agent"} {
+		if _, err := os.Stat(filepath.Join(root, "ext", "ddot", "embedded", "bin", "otel-agent")); err != nil {
+			continue
+		}
+		return writeDDOTProcmgrConfig(root, isExperiment)
+	}
+	return nil
+}
+
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
 // for backwards compatibility. For OCI packages, it also replaces "/opt/datadog-packages/datadog-agent" with
 // "/opt/datadog-packages/datadog-agent-ddot".

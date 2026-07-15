@@ -519,6 +519,11 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 
 // postStartConfigExperimentDatadogAgent performs post-start steps for the config experiment.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	// Point the DDOT dd-procmgr config at the experiment config dir before the experiment
+	// procmgr starts, so the collector is relaunched reading the experiment otel-config.yaml.
+	if err := setDDOTProcmgrConfigForConfigExperiment(ctx, true); err != nil {
+		return fmt.Errorf("failed to set DDOT experiment procmgr config: %w", err)
+	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -532,6 +537,11 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
+	// Restore the stable DDOT dd-procmgr config before stopping the experiment, so the stable
+	// procmgr (restarted via OnFailure) reads the stable otel-config.yaml on rollback.
+	if err := setDDOTProcmgrConfigForConfigExperiment(ctx, false); err != nil {
+		return fmt.Errorf("failed to restore DDOT stable procmgr config: %w", err)
+	}
 	if err := agentService.StopExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to stop experiment unit: %s", err)
 	}
@@ -545,6 +555,11 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
+	// The config dir swap already promoted the experiment config into the stable dir, so the
+	// stable DDOT dd-procmgr config now points at the promoted otel-config.yaml.
+	if err := setDDOTProcmgrConfigForConfigExperiment(ctx, false); err != nil {
+		return fmt.Errorf("failed to restore DDOT stable procmgr config: %w", err)
+	}
 	err := agentService.RestartStable(ctx)
 	if err != nil {
 		return err

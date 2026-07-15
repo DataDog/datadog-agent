@@ -60,3 +60,36 @@ func TestWriteDDOTProcmgrConfig(t *testing.T) {
 	_, err = os.Stat(configPath)
 	assert.True(t, os.IsNotExist(err))
 }
+
+// TestSetDDOTProcmgrConfigForConfigExperiment verifies the config-experiment helper resolves the
+// package install root from the hook context, toggles the procmgr config between the experiment and
+// stable config directories, and is a no-op when DDOT is not installed.
+func TestSetDDOTProcmgrConfigForConfigExperiment(t *testing.T) {
+	installRoot := t.TempDir()
+	ctx := HookContext{PackagePath: installRoot}
+	configPath := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
+
+	// No-op when DDOT is not installed under ctx.PackagePath (and /opt/datadog-agent is absent in CI).
+	require.NoError(t, setDDOTProcmgrConfigForConfigExperiment(ctx, true))
+	_, err := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(err), "must not write a procmgr config when DDOT is not installed")
+
+	// Simulate an installed DDOT extension so the writer runs.
+	otelAgentDir := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin")
+	require.NoError(t, os.MkdirAll(otelAgentDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(otelAgentDir, "otel-agent"), []byte("#!/bin/true\n"), 0755))
+
+	// Experiment: the collector is pointed at the experiment config directory.
+	require.NoError(t, setDDOTProcmgrConfigForConfigExperiment(ctx, true))
+	expContent, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(expContent), "/etc/datadog-agent-exp/otel-config.yaml")
+	assert.Contains(t, string(expContent), "/etc/datadog-agent-exp/datadog.yaml")
+
+	// Stable: the collector is pointed back at the stable config directory.
+	require.NoError(t, setDDOTProcmgrConfigForConfigExperiment(ctx, false))
+	stableContent, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(stableContent), "/etc/datadog-agent/otel-config.yaml")
+	assert.NotContains(t, string(stableContent), "/etc/datadog-agent-exp")
+}
