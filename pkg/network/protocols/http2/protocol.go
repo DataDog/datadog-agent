@@ -67,8 +67,7 @@ const (
 	llmRequestBodiesMap        = "llm_request_bodies"
 	llmResponseBodiesMap       = "llm_response_bodies"
 	llmResponseHeadsMap        = "llm_response_heads"
-	llmResponseBodiesPrevMap   = "llm_response_bodies_prev"
-	llmResponseHeadsPrevMap    = "llm_response_heads_prev"
+	llmResponseEventsMap       = "llm_response_events"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -321,9 +320,14 @@ func (p *Protocol) PreStart() (err error) {
 		if bodyMap, _, errBody := p.mgr.GetMap(llmRequestBodiesMap); errBody == nil {
 			if respMap, _, errResp := p.mgr.GetMap(llmResponseBodiesMap); errResp == nil {
 				if headMap, _, errHead := p.mgr.GetMap(llmResponseHeadsMap); errHead == nil {
-					respPrev, _, _ := p.mgr.GetMap(llmResponseBodiesPrevMap)
-					headPrev, _, _ := p.mgr.GetMap(llmResponseHeadsPrevMap)
-					p.statkeeper.EnableLLMO(connMap, bodyMap, respMap, headMap, respPrev, headPrev)
+					p.statkeeper.EnableLLMO(connMap, bodyMap, respMap, headMap)
+					if evMap, _, errEv := p.mgr.GetMap(llmResponseEventsMap); errEv == nil {
+						if err := p.statkeeper.StartLLMOResponseConsumer(evMap); err != nil {
+							log.Warnf("LLMO: response-event consumer not started: %v", err)
+						}
+					} else {
+						log.Warnf("LLMO: response events map not found: %v", errEv)
+					}
 				}
 			}
 		}

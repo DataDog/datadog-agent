@@ -8,7 +8,9 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"os"
 	"regexp"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/DataDog/dd-trace-go/v2/llmobs"
@@ -673,16 +676,9 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.toolResults = parseToolResults(reqBody.Data[:n], info.provider)
 	}
 
-	// Response body tail -> token usage (parsed per provider). Also cache the
-	// usage of a tool-call generation, detected via finish_reason in the tail,
-	// keyed by connection — from both the current and previous tail, so a
-	// follow-up recovers it regardless of response-slot churn between turns.
+	// Response body tail -> token usage (parsed per provider).
 	if data, ok := h.lookupBody(h.llmRespBodyMap, &key); ok {
 		info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(data, info.provider)
-		h.maybeCacheGenUsage(key, data, info.provider)
-	}
-	if data, ok := h.lookupBody(h.llmRespBodyPrevMap, &key); ok {
-		h.maybeCacheGenUsage(key, data, info.provider)
 	}
 
 	// Response body head -> assistant message content (the AI's answer).
@@ -691,8 +687,9 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.toolCalls = parseToolCalls(data, info.provider)
 	}
 
-	// Follow-up request: recover the tool_call generation's usage (cached by
-	// connection) so the workflow's first llm span carries its cost.
+	// Follow-up request: recover the tool_call generation's usage — cached by
+	// the response-event consumer as each response streams in, so it survives
+	// poll-batched transaction processing — for the workflow's first llm span.
 	if len(info.reqToolCalls) > 0 {
 		if u, ok := h.lookupGenUsage(key); ok {
 			info.firstGenUsage = u
@@ -700,16 +697,6 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 	}
 
 	return info
-}
-
-// maybeCacheGenUsage caches a response tail's token usage, keyed by connection,
-// when the tail is a tool-call generation.
-func (h *StatKeeper) maybeCacheGenUsage(key llmConnKey, tail []byte, provider string) {
-	if !isToolCallGen(tail, provider) {
-		return
-	}
-	in, out, tot := parseLLMUsage(tail, provider)
-	h.cacheGenUsage(key, llmUsage{input: in, output: out, total: tot})
 }
 
 // lookupBody reads a captured body from an LLMO map and returns its valid
@@ -727,6 +714,66 @@ func (h *StatKeeper) lookupBody(m *ebpf.Map, key *llmConnKey) ([]byte, bool) {
 		n = llmBodyBufferSize
 	}
 	return body.Data[:n], true
+}
+
+// llmRespEvent mirrors the eBPF llm_resp_event_t: a connection key plus a
+// captured response tail, streamed once per response.
+type llmRespEvent struct {
+	Key  llmConnKey
+	Len  uint32
+	Pad  uint32
+	Data [llmBodyBufferSize]byte
+}
+
+// startLLMOResponseConsumer consumes response-tail events from the ring buffer
+// and caches, per connection, the token usage of tool-call generations
+// (detected via finish_reason/stop_reason). Because it runs continuously, it
+// observes every turn's response in order — so a tool-call generation's usage
+// is cached before its follow-up is processed, unlike the poll-batched map
+// reads that only ever see the latest response.
+// StartLLMOResponseConsumer is exported so the HTTP/2 protocol can start it.
+func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
+	reader, err := ringbuf.NewReader(m)
+	if err != nil {
+		return err
+	}
+	h.llmRespReader = reader
+	go func() {
+		for {
+			rec, err := reader.Read()
+			if err != nil {
+				return // reader closed on shutdown
+			}
+			h.processLLMResponseEvent(rec.RawSample)
+		}
+	}()
+	return nil
+}
+
+// processLLMResponseEvent parses one response-tail event and, if it is a
+// tool-call generation, caches its token usage keyed by connection.
+func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
+	var ev llmRespEvent
+	if err := binary.Read(bytes.NewReader(sample), binary.LittleEndian, &ev); err != nil {
+		return
+	}
+	n := ev.Len
+	if n > llmBodyBufferSize {
+		n = llmBodyBufferSize
+	}
+	tail := ev.Data[:n]
+
+	var provider string
+	switch {
+	case isToolCallGen(tail, providerOpenAI):
+		provider = providerOpenAI
+	case isToolCallGen(tail, providerAnthropic):
+		provider = providerAnthropic
+	default:
+		return // not a tool-call generation; nothing to attribute
+	}
+	in, out, tot := parseLLMUsage(tail, provider)
+	h.cacheGenUsage(ev.Key, llmUsage{input: in, output: out, total: tot})
 }
 
 // resolveLLMService resolves the service name for a client PID using the same
