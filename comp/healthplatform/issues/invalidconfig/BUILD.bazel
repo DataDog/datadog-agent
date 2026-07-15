@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "invalidconfig",
@@ -11,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/schema",
@@ -22,13 +24,14 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "invalidconfig_test",
     srcs = ["invalidconfig_test.go"],
     embed = [":invalidconfig"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//pkg/config/schema",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

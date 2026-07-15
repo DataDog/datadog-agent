@@ -197,6 +197,185 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	}
 }
 
+// fakeGoLang stubs the embedded Go extension so GenerateRules can be tested
+// against a chosen GenerateResult without a real source-file scan.
+type fakeGoLang struct {
+	language.BaseLang
+	result language.GenerateResult
+}
+
+func (f *fakeGoLang) Kinds() map[string]rule.KindInfo {
+	return map[string]rule.KindInfo{
+		"go_test": {
+			MergeableAttrs: map[string]bool{"srcs": true, "embed": true},
+			ResolveAttrs:   map[string]bool{"deps": true},
+		},
+	}
+}
+
+func (f *fakeGoLang) GenerateRules(language.GenerateArgs) language.GenerateResult {
+	return f.result
+}
+
+// TestGenerateRules_OffDirectiveRevertsExistingConversion reproduces the
+// observed bug: a package that was previously converted to dd_agent_go_test
+// (an on-disk dd_agent_go_test rule exists) has its directive flipped back to
+// "off". GenerateRules is Gazelle's real entry point; running its output
+// through the same two-phase merge Gazelle itself performs must leave the
+// package with a plain go_test, not a stale dd_agent_go_test rule that the
+// merge can't reconcile because the kinds differ.
+func TestGenerateRules_OffDirectiveRevertsExistingConversion(t *testing.T) {
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected go_test after reverting, got %s", file.Rules[0].Kind())
+	}
+}
+
+// TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion guards the
+// already-working case (e.g. cmd/cluster-agent/subcommands/coverage): a
+// package that was never converted keeps its plain go_test untouched when
+// "off" is (still) in effect.
+func TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion(t *testing.T) {
+	existing := rule.NewRule("go_test", "pkg_test")
+	existing.SetAttr("srcs", []string{"pkg_test.go"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	existing.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 || file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected the untouched go_test to survive, got %v", file.Rules)
+	}
+}
+
+// TestGenerateRules_OffDirectiveRespectsKeptRule guards against deleting a
+// whole-rule `# keep` dd_agent_go_test out from under the user: the direct
+// Delete() used to revert a stale rule bypasses MergeFile's own ShouldKeep()
+// check, so without an explicit guard a hand-protected rule would vanish the
+// moment its package's directive flips to off.
+func TestGenerateRules_OffDirectiveRespectsKeptRule(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["pkg_test.go"],
+    embed = [":pkg"],
+)  # keep
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+	if !file.Rules[0].ShouldKeep() {
+		t.Fatalf("expected fixture rule to be marked keep")
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 || file.Rules[0].Kind() != "dd_agent_go_test" {
+		t.Errorf("expected the kept dd_agent_go_test rule to survive untouched, got %v", file.Rules)
+	}
+}
+
+// TestGenerateRules_OffDirectiveSurvivesResolveWithKeptDep replays the full
+// three-step pipeline (PreResolve merge, Resolve, PostResolve merge) against
+// an existing dd_agent_go_test rule with a `# keep`-marked dep, the same
+// scenario TestDepsMerge_KeptItemSurvivesResolveUpdate guards for a package
+// that stays dd_agent_go_test. Deleting the old rule during GenerateRules (as
+// opposed to mutating it in place) removes it before the PostResolve merge
+// ever runs, so whatever the real Go resolver's DelAttr("deps")+SetAttr does
+// to the freshly-inserted go_test candidate has no prior rule to reconcile
+// kept deps against.
+func TestGenerateRules_OffDirectiveSurvivesResolveWithKeptDep(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["pkg_test.go"],
+    embed = [":pkg"],
+    deps = [
+        "//kept/dep",  # keep
+        "//stale/dep",
+    ],
+)
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after PreResolve merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	// Simulate Resolve(): it operates on the generated candidate (fresh), not
+	// the existing file rule -- see the real pipeline in cmd/gazelle/update.go,
+	// which calls Resolve on v.rules (the GenerateRules output) and only later
+	// merges that back into the file at PostResolve.
+	fresh.SetAttr("deps", []string{"//fresh/dep"})
+
+	merger.MergeFile(file, nil, []*rule.Rule{fresh}, merger.PostResolve, l.Kinds(), nil)
+
+	got := file.Rules[0].AttrStrings("deps")
+	want := []string{"//kept/dep", "//fresh/dep"}
+	if !stringSlicesEqual(got, want) {
+		t.Errorf("deps after full pipeline: got %v, want %v", got, want)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected go_test after reverting, got %s", file.Rules[0].Kind())
+	}
+}
+
 func TestLoads(t *testing.T) {
 	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
 	if !ok {

@@ -47,26 +47,6 @@ var (
 
 const (
 
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -116,9 +96,6 @@ const (
 	// in situations where we have a high value for `GOMAXPROCS`.
 	DefaultZstdCompressionLevel = 1
 
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -133,10 +110,6 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
-
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
@@ -311,6 +284,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCoreAgentFull(config)
 	// Settings associated with a feature / product that only appear in the full agent, not in serverless
 	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
 // settings shared by full agent and serverless
@@ -331,6 +306,12 @@ func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 	for _, f := range comps {
 		f(config)
 	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -905,6 +886,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
@@ -939,7 +921,6 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 }
 
 func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
@@ -1530,7 +1511,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                // Default level for the gzip algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
@@ -1545,13 +1526,6 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
-
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault(prefix+"use_http", false)
-	config.BindEnvAndSetDefault(prefix+"force_use_http", false)
-	// DEPRECATED in favor of `logs_config.force_use_tcp`.
-	config.BindEnvAndSetDefault(prefix+"use_tcp", false)
-	config.BindEnvAndSetDefault(prefix+"force_use_tcp", false)
 }
 
 // pathExists returns true if the given path exists

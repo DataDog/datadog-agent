@@ -12,6 +12,28 @@ locally.
 
 ## How the commands fit together
 
+## `schema.add-setting`
+
+Interactive wizard to add a new setting to the schema. It prompts for the
+setting name (dotted path), type, default, visibility, and description, then
+inserts the node into the correct schema file under `pkg/config/schema/yaml/`
+(routing split sections such as `apm_config` to their sub-file automatically).
+
+```bash
+dda inv schema.add-setting
+```
+
+| Argument | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--schema` | no | `core` | Which schema to target: `core` or `system-probe`. |
+
+The wizard preserves the file's existing ordering, asks for the element type of
+`array` settings, and — for `public` settings — makes every parent section
+public with a description. It runs `schema.lint` at the end so any remaining
+problems are visible.
+
+---
+
 ## `schema.generate`
 
 Generate the enriched schema files for the core Agent and system-probe.
@@ -108,6 +130,44 @@ dda inv schema.template-all \
 
 ---
 
+## `schema.locate`
+
+Find where a setting or section is defined in the schema source and print its
+node plus the exact file and line.
+
+```bash
+dda inv -- schema.locate apm_config.enabled
+```
+
+| Argument | Required | Description |
+| --- | --- | --- | --- |
+| `setting` | yes | A dotted config path (`api_key`, `proxy.https`, `apm_config.enabled`) **or** a pattern (see below). Positional — use `--` so invoke does not treat a leading `-` or `*` as a flag. |
+| `--target` | no | Restrict the search to a single schema: `core` or `system-probe`. |
+| `--json` | no | Emit a JSON array of `{schema, path, file, line, node}` instead of human-readable text. |
+
+**Exact paths** print the full node with a `[<schema>] <file>:<line>` header. A setting inside a split section (e.g.
+`apm_config.enabled`) is reported in its sub-file (`pkg/config/schema/yaml/apm_config.yaml:<line>`) — the file you would
+edit. A bare split section is reported at its `$ref:` line in `core_schema.yaml`, with its `properties` collapsed to the
+sorted list of child key names.
+
+**Patterns** — any argument containing a character outside `[A-Za-z0-9_.]` is matched against *every* full dotted path
+in the schema instead of looked up exactly. The pattern is treated as a regular expression (`re.search`); if it is not
+valid regex it falls back to shell-style glob (`fnmatch`). Pattern matches print as a compact, sorted `[<schema>] <path>
+-> <file>:<line>` list (one line per match); use `--json` for the full node array.
+
+```bash
+# Exact: setting inside a split section → resolves into the sub-file
+dda inv -- schema.locate apm_config.enabled
+
+# Pattern (glob): every setting whose full path ends with "enabled"
+dda inv -- schema.locate '*enabled'
+
+# Pattern (regex): every path under apm_config ending in "enabled", as JSON
+dda inv -- schema.locate 'apm_config\..*enabled' --json
+```
+
+---
+
 ## Typical workflows
 
 **I edited a setting in `pkg/config/setup` and want the schema to reflect it:**
@@ -124,6 +184,13 @@ dda inv schema.lint                                  # validate it
 dda inv schema.template \
   --schema=./pkg/config/schema/yaml/core_schema.yaml \
   --build-type=agent-py3 --os-target=linux --output=/tmp/datadog.yaml.example
+```
+
+**I want to find where a setting is defined, or list every setting matching a pattern:**
+
+```bash
+dda inv -- schema.locate apm_config.enabled   # exact: node + file:line
+dda inv -- schema.locate '*enabled'           # pattern: all paths ending in "enabled"
 ```
 
 ## See also

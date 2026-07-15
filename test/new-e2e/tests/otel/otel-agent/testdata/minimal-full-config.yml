@@ -144,6 +144,7 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
+    trace_container_tag_promotion: "off"
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: ignore
     log_conditions: []
@@ -205,13 +206,17 @@ receivers:
   prometheus/dd-autoconfigured:
     api_server:
       enabled: false
+      max_connections: 512
       server_config:
         cors: null
-        idle_timeout: 0s
-        read_header_timeout: 0s
+        endpoint: 127.0.0.1:9090
+        idle_timeout: 1m0s
+        keep_alives_enabled: true
+        read_header_timeout: 1m0s
+        read_timeout: 10m0s
         tls: null
         transport: tcp
-        write_timeout: 0s
+        write_timeout: 30s
     config:
       global:
         evaluation_interval: 1m

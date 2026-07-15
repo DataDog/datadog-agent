@@ -6,12 +6,14 @@
 package clusteragent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -43,9 +45,17 @@ func HandleRCFlareTask(
 		return errors.New("user_handle not provided in flare agent task")
 	}
 
-	if task.Config.TaskArgs["enable_profiling"] == "true" {
-		log.Infof("[RemoteFlare] enable_profiling is not yet supported for the cluster-agent flare")
+	flareArgs := flaretypes.FlareArgs{}
+	switch enableProfiling := task.Config.TaskArgs["enable_profiling"]; enableProfiling {
+	case "true":
+		flareArgs.ProfileDuration = cfg.GetDuration("flare.rc_profiling.profile_duration")
+		flareArgs.ProfileBlockingRate = cfg.GetInt("flare.rc_profiling.blocking_rate")
+		flareArgs.ProfileMutexFraction = cfg.GetInt("flare.rc_profiling.mutex_fraction")
+	case "false", "":
+	default:
+		log.Infof("[RemoteFlare] Unrecognized enable_profiling value %q, creating flare without profiling", enableProfiling)
 	}
+
 	if task.Config.TaskArgs["enable_streamlogs"] == "true" {
 		log.Infof("[RemoteFlare] enable_streamlogs is not yet supported for the cluster-agent flare")
 	}
@@ -55,12 +65,24 @@ func HandleRCFlareTask(
 		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 
-	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, statusComp, diagnoseComp, ipcComp)
+	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster-agent flare: %w", err)
 	}
 
 	log.Infof("[RemoteFlare] Cluster-agent flare created at %s (UUID=%s)", filePath, task.Config.UUID)
+
+	flareSource := task.Config.TaskArgs["source"]
+
+	var tags []string
+	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
+		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
+			log.Infof("[RemoteFlare] Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			tags = nil
+		}
+	}
+
+	rcSource := flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
 
 	_, err = sendFlareFunc(
 		cfg,
@@ -69,7 +91,7 @@ func HandleRCFlareTask(
 		userHandle,
 		cfg.GetString("api_key"),
 		configUtils.GetInfraEndpoint(cfg),
-		flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID),
+		rcSource,
 	)
 	if err != nil {
 		return err

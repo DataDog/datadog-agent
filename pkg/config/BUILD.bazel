@@ -15,6 +15,7 @@ _OS_TARGET = select({
     "@platforms//os:linux": "linux",
     "@platforms//os:windows": "windows",
     "@platforms//os:macos": "darwin",
+    "@platforms//os:aix": "aix",
 })
 
 schema_template_config(
@@ -43,5 +44,15 @@ schema_template_config(
     top_schema = "//pkg/config/schema:yaml/system-probe_schema.yaml",
 )
 
-# TODO: Add targets for each package, as needed: dogstatsd, dca, dcacf.
+schema_template_config(
+    name = "dogstatsd_config",
+    srcs = ["//pkg/config/schema:core_schema_subfiles"],
+    out = "dogstatsd.yaml.example",
+    build_type = "dogstatsd",
+    # dogstatsd ships on Linux containers; always render Linux defaults.
+    os_target = "linux",
+    top_schema = "//pkg/config/schema:yaml/core_schema.yaml",
+)
+
+# TODO: Add targets for each package, as needed: dca, dcacf.
 # That would get easier if we auto-pick the schema based on the build type.

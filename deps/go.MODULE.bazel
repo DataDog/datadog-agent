@@ -93,6 +93,10 @@ go_deps.gazelle_override(
     path = "google.golang.org/grpc",
 )
 go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=retrynotrace"],
+    path = "github.com/grpc-ecosystem/go-grpc-middleware/v2",
+)
+go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )
@@ -146,7 +150,6 @@ use_repo(
     "com_github_bhmj_jsonslice",
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
-    "com_github_cenkalti_backoff_v5",
     "com_github_cenkalti_backoff_v6",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
@@ -222,7 +225,6 @@ use_repo(
     "com_github_golang_groupcache",
     "com_github_golang_jwt_jwt_v5",
     "com_github_golang_mock",
-    "com_github_golang_protobuf",
     "com_github_golangci_golangci_lint_v2",
     "com_github_google_btree",
     "com_github_google_cel_go",
@@ -235,10 +237,10 @@ use_repo(
     "com_github_gorilla_websocket",
     "com_github_gosnmp_gosnmp",
     "com_github_goware_modvendor",
-    "com_github_grpc_ecosystem_go_grpc_middleware",
+    "com_github_grpc_ecosystem_go_grpc_middleware_v2",
     "com_github_h2non_filetype",
     "com_github_hairyhenderson_go_codeowners",
-    "com_github_hashicorp_consul_api",
+    "com_github_hashicorp_consul_api_v2",
     "com_github_hashicorp_go_multierror",
     "com_github_hashicorp_go_retryablehttp",
     "com_github_hashicorp_go_version",
@@ -303,6 +305,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
@@ -461,6 +464,7 @@ use_repo(
     "io_opentelemetry_go_collector_connector",
     "io_opentelemetry_go_collector_connector_connectortest",
     "io_opentelemetry_go_collector_consumer",
+    "io_opentelemetry_go_collector_consumer_consumererror",
     "io_opentelemetry_go_collector_consumer_consumertest",
     "io_opentelemetry_go_collector_consumer_xconsumer",
     "io_opentelemetry_go_collector_exporter",
@@ -529,7 +533,6 @@ use_repo(
     "org_golang_x_text",
     "org_golang_x_time",
     "org_golang_x_tools",
-    "org_mongodb_go_mongo_driver",
     "org_mongodb_go_mongo_driver_v2",
     "org_uber_go_atomic",
     "org_uber_go_automaxprocs",
@@ -556,6 +559,35 @@ go_deps.module_override(
     patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
     path = "github.com/tinylib/msgp",
 )
+
+# zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to
+# the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
+# makes zstd.a non-reproducible build-to-build, so every test linking it always misses
+# the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
+# path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
+# (a separate module pulled in by the OTel collector components) need the same treatment.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+    path = "github.com/DataDog/zstd",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
+    path = "github.com/DataDog/zstd_0",
+)
+
+# sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
+# time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
+# Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
+# The patch runs after Gazelle generates the BUILD file (see go_repository patches).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
+    path = "github.com/coreos/go-systemd/v22",
+)
+
+inject_repo(go_deps, "systemd")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

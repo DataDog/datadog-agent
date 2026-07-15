@@ -6,9 +6,11 @@ import glob
 import json
 import os
 import random
+import re
 import shlex
 import shutil
 import time
+from dataclasses import dataclass
 
 from invoke import Exit, task
 
@@ -34,6 +36,25 @@ from tasks.libs.anomalydetection.eval import (
     random_component_combinations,
 )
 from tasks.libs.common.color import Color, color_message
+
+
+@dataclass(frozen=True)
+class _DDEvalOptions:
+    config_template: str
+    ddsource_dir: str
+    command: str
+    service: str
+    project: str
+    dataset: str
+    env: str
+    test_drive: str
+    jobs: int
+    max_attempts: int
+    limit: int
+    where_in: str
+    testbench_binary_s3_uri: str
+    scorer_binary_s3_uri: str
+
 
 # --- Build ---
 
@@ -75,6 +96,7 @@ def launch_testbench(
     disable: str = "",
     timeout: int = 0,
     logs_only: bool = False,
+    retain_parquet: bool = False,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -91,6 +113,7 @@ def launch_testbench(
         disable: Comma-separated components to disable (passed as --disable).
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
+        retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
     """
     if build:
         print("Building anomalydetection-testbench...")
@@ -101,6 +124,8 @@ def launch_testbench(
         flags += " --verbose"
     if logs_only:
         flags += " --logs-only"
+    if retain_parquet:
+        flags += " --retain-parquet"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
@@ -654,6 +679,8 @@ def _run_bayesian_runs(
     timeout: int,
     scenarios: str,
     lock: str = "",
+    eval_backend: str = "local",
+    ddeval_options: _DDEvalOptions | None = None,
     run_logger: StepLogger | None = None,
     step_label_prefix: str = "",
 ) -> dict:
@@ -693,6 +720,8 @@ def _run_bayesian_runs(
             overwrite=True,
             timeout=timeout,
             scenarios=scenarios,
+            eval_backend=eval_backend,
+            **_ddeval_options_kwargs(ddeval_options),
             _logger=trial_logger,
         )
 
@@ -745,6 +774,21 @@ def eval_bayesian(
     overwrite: bool = False,
     timeout: int = 0,
     scenarios: str = "",
+    eval_backend: str = "local",
+    ddeval_config_template: str = "",
+    ddeval_ddsource_dir: str = "",
+    ddeval_command: str = "",
+    ddeval_service: str = "eval_worker_observer_log_ad",
+    ddeval_project: str = "observer-log-ad",
+    ddeval_dataset: str = "observer-log-ad-gensim-store-working",
+    ddeval_env: str = "staging",
+    ddeval_test_drive: str = "observer-log-ad-ddeval-worker",
+    ddeval_jobs: int = 6,
+    ddeval_max_attempts: int = 1,
+    ddeval_limit: int = 0,
+    ddeval_where_in: str = "",
+    ddeval_testbench_binary_s3_uri: str = "",
+    ddeval_scorer_binary_s3_uri: str = "",
     _logger: StepLogger | None = None,
 ):
     """
@@ -776,12 +820,38 @@ def eval_bayesian(
         build: Whether to build testbench and scorer first.
         timeout: Per-scenario time budget in seconds (rolling). 0 = no limit.
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        eval_backend: Evaluation backend. "local" runs eval_scenarios; "ddeval" submits
+            each trial to the remote ddeval workflow and optimizes the returned mean F1.
+        ddeval_config_template: Optional JSON experiment config template for ddeval. When omitted, the task
+            builds a minimal config from the generated trial config and binary artifact URIs.
+        ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
+            Defaults to $DDSOURCE_DIR or $DD_SOURCE_DIR when --ddeval-command is not set.
+        ddeval_command: Installed ddeval command or wrapper. When set, this is used
+            instead of running the ddeval Bazel target from dd-source.
+        ddeval_service: ddeval executor service name.
+        ddeval_project: LLMObs/ddEval project name.
+        ddeval_dataset: ddEval dataset name.
+        ddeval_env: ddEval environment.
+        ddeval_test_drive: Rapid Test Drive name for the Atlas worker.
+        ddeval_jobs: Scenario concurrency passed to ddeval (-j).
+        ddeval_max_attempts: Max attempts per scenario.
+        ddeval_limit: Optional dataset limit for smoke tests.
+        ddeval_where_in: Optional ddeval --where-in filter, e.g. metadata.record_id=a,b.
+        ddeval_testbench_binary_s3_uri: S3 URI for the anomalydetection-testbench binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI.
+        ddeval_scorer_binary_s3_uri: S3 URI for the anomalydetection-scorer binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-bayesian
         dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
         dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
         dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
+        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \
+            --ddeval-command ddeval \
+            --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
+            --ddeval-scorer-binary-s3-uri s3://.../anomalydetection-scorer \
+            --n-trials 3
     """
     import pickle
 
@@ -843,10 +913,35 @@ def eval_bayesian(
     else:
         seed = random.randint(0, 2**32 - 1)
 
+    try:
+        eval_backend, ddeval_options = _resolve_ddeval_options(
+            eval_backend=eval_backend,
+            ddeval_config_template=ddeval_config_template,
+            ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_command=ddeval_command,
+            ddeval_service=ddeval_service,
+            ddeval_project=ddeval_project,
+            ddeval_dataset=ddeval_dataset,
+            ddeval_env=ddeval_env,
+            ddeval_test_drive=ddeval_test_drive,
+            ddeval_jobs=ddeval_jobs,
+            ddeval_max_attempts=ddeval_max_attempts,
+            ddeval_limit=ddeval_limit,
+            ddeval_where_in=ddeval_where_in,
+            ddeval_testbench_binary_s3_uri=ddeval_testbench_binary_s3_uri,
+            ddeval_scorer_binary_s3_uri=ddeval_scorer_binary_s3_uri,
+        )
+    except ValueError as e:
+        print(color_message(f"Error: {e}", Color.RED))
+        return
+
+    if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
+        return
+
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
-    if build:
+    if build and eval_backend == "local":
         build_testbench(ctx)
         build_scorer(ctx)
 
@@ -864,6 +959,10 @@ def eval_bayesian(
         print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
         print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
         print(color_message(f"  seed:        {seed}", Color.BLUE))
+        print(color_message(f"  backend:     {eval_backend}", Color.BLUE))
+        if ddeval_options:
+            print(color_message(f"  ddeval data: {ddeval_options.project}/{ddeval_options.dataset}", Color.BLUE))
+            print(color_message(f"  ddeval jobs: {ddeval_options.jobs}", Color.BLUE))
 
     completed_trials: list[dict] = []
     failed_trials: list[dict] = []
@@ -881,6 +980,7 @@ def eval_bayesian(
         trial_logger.step(trial_label)
         for key, val in sorted(trial.params.items()):
             trial_logger.detail(f"{key}: {val}")
+        _log_trial_config(trial_logger, config_data)
 
         report_path = os.path.join(trial_dir, "report.json")
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
@@ -889,24 +989,35 @@ def eval_bayesian(
         failure_reason: str | None = None
         report = None
         try:
-            scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
-            report = eval_scenarios(
-                ctx,
-                scenarios_dir=scenarios_dir,
-                sigma=sigma,
-                config=config_path,
-                build=False,
-                main_report_path=report_path,
-                scenario_output_dir=scenario_output_dir,
-                timeout=timeout,
-                scenarios=scenarios,
-                _logger=trial_logger.child(len(scenarios_list), "Scenario"),
-            )
+            if eval_backend == "ddeval":
+                report = _run_ddeval_trial(
+                    ctx,
+                    trial_config_path=config_path,
+                    report_path=report_path,
+                    trial_dir=trial_dir,
+                    options=ddeval_options,
+                    sigma=sigma,
+                    logger=trial_logger,
+                )
+            else:
+                scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
+                report = eval_scenarios(
+                    ctx,
+                    scenarios_dir=scenarios_dir,
+                    sigma=sigma,
+                    config=config_path,
+                    build=False,
+                    main_report_path=report_path,
+                    scenario_output_dir=scenario_output_dir,
+                    timeout=timeout,
+                    scenarios=scenarios,
+                    _logger=trial_logger.child(len(scenarios_list), "Scenario"),
+                )
         except Exception as e:
-            failure_reason = f"eval_scenarios raised {type(e).__name__}: {e}"
+            failure_reason = f"{eval_backend} eval raised {type(e).__name__}: {e}"
 
         if failure_reason is None and report is None:
-            failure_reason = "eval_scenarios returned None (no report produced)"
+            failure_reason = f"{eval_backend} eval returned None (no report produced)"
 
         if failure_reason is not None:
             trial_logger.detail(f"Trial failed: {failure_reason}", Color.RED)
@@ -925,6 +1036,13 @@ def eval_bayesian(
                 "params": dict(trial.params),
                 "config_path": config_path,
                 "report_path": report_path,
+                "experiment_url": report.get("experiment_url") or report.get("experimentUrl"),
+                "workflow_id": report.get("workflow_id"),
+                "workflow_run_id": report.get("workflow_run_id"),
+                "duration_s": report.get("duration_s"),
+                "metrics": report.get("metrics"),
+                "experiment_config_path": report.get("experiment_config_path"),
+                "workflow_log_path": report.get("workflow_log_path"),
             }
         )
         return score
@@ -969,6 +1087,7 @@ def eval_bayesian(
         "seed": seed,
         "components": components_list,
         "locked": sorted(locked_set),
+        "eval_backend": eval_backend,
         "best_combination": best,
         "trials": completed_trials,
         "failures": failed_trials,
@@ -989,6 +1108,328 @@ def eval_bayesian(
     return final_report
 
 
+def _resolve_ddeval_options(
+    *,
+    eval_backend: str,
+    ddeval_config_template: str,
+    ddeval_ddsource_dir: str,
+    ddeval_command: str,
+    ddeval_service: str,
+    ddeval_project: str,
+    ddeval_dataset: str,
+    ddeval_env: str,
+    ddeval_test_drive: str,
+    ddeval_jobs: int,
+    ddeval_max_attempts: int,
+    ddeval_limit: int,
+    ddeval_where_in: str,
+    ddeval_testbench_binary_s3_uri: str,
+    ddeval_scorer_binary_s3_uri: str,
+) -> tuple[str, _DDEvalOptions | None]:
+    eval_backend = eval_backend.strip().lower()
+    if eval_backend not in {"local", "ddeval"}:
+        raise ValueError(f"unknown eval backend: {eval_backend}")
+    if eval_backend == "local":
+        return eval_backend, None
+
+    config_template = (ddeval_config_template or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")).strip()
+    testbench_binary_s3_uri = (
+        ddeval_testbench_binary_s3_uri or os.environ.get("OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI", "")
+    ).strip()
+    scorer_binary_s3_uri = (
+        ddeval_scorer_binary_s3_uri or os.environ.get("OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI", "")
+    ).strip()
+    command = (ddeval_command or os.environ.get("DDEVAL_COMMAND", "")).strip()
+    if command:
+        ddsource_dir = os.path.abspath(ddeval_ddsource_dir) if ddeval_ddsource_dir else ""
+    else:
+        ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
+
+    if not command and not ddsource_dir:
+        raise ValueError(
+            "--ddeval-command, $DDEVAL_COMMAND, --ddeval-ddsource-dir, or $DDSOURCE_DIR is required for "
+            "--eval-backend=ddeval"
+        )
+    if ddsource_dir:
+        ddsource_dir = os.path.abspath(ddsource_dir)
+    if config_template:
+        config_template = os.path.abspath(config_template)
+
+    if ddsource_dir and not os.path.isdir(ddsource_dir):
+        raise ValueError(f"dd-source directory not found: {ddsource_dir}")
+    if config_template and not os.path.isfile(config_template):
+        raise ValueError(f"ddeval config template not found: {config_template}")
+    if not config_template and (not testbench_binary_s3_uri or not scorer_binary_s3_uri):
+        raise ValueError(
+            "--ddeval-testbench-binary-s3-uri and --ddeval-scorer-binary-s3-uri "
+            "are required when --ddeval-config-template is not set"
+        )
+
+    return eval_backend, _DDEvalOptions(
+        config_template=config_template,
+        ddsource_dir=ddsource_dir,
+        command=command,
+        service=ddeval_service,
+        project=ddeval_project,
+        dataset=ddeval_dataset,
+        env=ddeval_env,
+        test_drive=ddeval_test_drive,
+        jobs=ddeval_jobs,
+        max_attempts=ddeval_max_attempts,
+        limit=ddeval_limit,
+        where_in=ddeval_where_in,
+        testbench_binary_s3_uri=testbench_binary_s3_uri,
+        scorer_binary_s3_uri=scorer_binary_s3_uri,
+    )
+
+
+def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
+    if options is None:
+        return {}
+    return {
+        "ddeval_config_template": options.config_template,
+        "ddeval_ddsource_dir": options.ddsource_dir,
+        "ddeval_command": options.command,
+        "ddeval_service": options.service,
+        "ddeval_project": options.project,
+        "ddeval_dataset": options.dataset,
+        "ddeval_env": options.env,
+        "ddeval_test_drive": options.test_drive,
+        "ddeval_jobs": options.jobs,
+        "ddeval_max_attempts": options.max_attempts,
+        "ddeval_limit": options.limit,
+        "ddeval_where_in": options.where_in,
+        "ddeval_testbench_binary_s3_uri": options.testbench_binary_s3_uri,
+        "ddeval_scorer_binary_s3_uri": options.scorer_binary_s3_uri,
+    }
+
+
+def _validate_ddeval_scenario_filter(eval_backend: str, scenarios: str) -> bool:
+    if eval_backend != "ddeval" or not scenarios:
+        return True
+    print(
+        color_message(
+            "Error: --scenarios only filters local scenario directories. "
+            "Use --ddeval-where-in to filter remote ddeval dataset records.",
+            Color.RED,
+        )
+    )
+    return False
+
+
+def _log_trial_config(logger: StepLogger, config: dict) -> None:
+    logger.detail("component config:")
+    for line in json.dumps(config, indent=2, sort_keys=True).splitlines():
+        logger.detail(f"  {line}")
+
+
+def _ddeval_experiment_config(
+    *,
+    options: _DDEvalOptions,
+    trial_config: dict,
+    trial_config_path: str,
+    sigma: float,
+) -> dict:
+    if options.config_template:
+        with open(options.config_template) as f:
+            experiment_config = json.load(f)
+    else:
+        experiment_config = {}
+
+    input_parameters = dict(experiment_config.get("input_parameters") or {})
+    input_parameters["component_config"] = trial_config
+    input_parameters["trial_metadata"] = {
+        **dict(input_parameters.get("trial_metadata") or {}),
+        "trial_config_path": trial_config_path,
+        "eval_source": "anomalydetection.eval-bayesian",
+    }
+    experiment_config["input_parameters"] = input_parameters
+
+    executor_config = dict(experiment_config.get("executor_config") or {})
+    if options.testbench_binary_s3_uri or options.scorer_binary_s3_uri:
+        binary_artifacts = dict(executor_config.get("binary_artifacts") or {})
+        if options.testbench_binary_s3_uri:
+            binary_artifacts["testbench"] = {"s3_uri": options.testbench_binary_s3_uri}
+        if options.scorer_binary_s3_uri:
+            binary_artifacts["scorer"] = {"s3_uri": options.scorer_binary_s3_uri}
+        executor_config["binary_artifacts"] = binary_artifacts
+    executor_config["sigma"] = sigma
+    experiment_config["executor_config"] = executor_config
+
+    return experiment_config
+
+
+def _run_ddeval_trial(
+    ctx,
+    *,
+    trial_config_path: str,
+    report_path: str,
+    trial_dir: str,
+    options: _DDEvalOptions | None,
+    sigma: float,
+    logger: StepLogger,
+) -> dict[str, object]:
+    """Run one Optuna trial through the remote ddeval workflow and return a local report."""
+    if options is None:
+        raise RuntimeError("ddeval options were not resolved")
+
+    with open(trial_config_path) as f:
+        trial_config = json.load(f)
+    experiment_config = _ddeval_experiment_config(
+        options=options,
+        trial_config=trial_config,
+        trial_config_path=trial_config_path,
+        sigma=sigma,
+    )
+
+    trial_experiment_config_path = os.path.abspath(os.path.join(trial_dir, "ddeval-experiment-config.json"))
+    with open(trial_experiment_config_path, "w") as f:
+        json.dump(experiment_config, f, indent=4)
+
+    result_log_path = os.path.abspath(os.path.join(trial_dir, "ddeval-workflow.log"))
+    cmd = _ddeval_workflow_command(
+        config_path=trial_experiment_config_path,
+        options=options,
+    )
+    logger.detail(f"ddeval config: {trial_experiment_config_path}")
+    logger.detail(f"ddeval log: {result_log_path}")
+
+    started_at = time.monotonic()
+    result = ctx.run(cmd, hide=True, warn=True)
+    duration_s = time.monotonic() - started_at
+    stdout = result.stdout or ""
+    stderr = result.stderr or ""
+    with open(result_log_path, "w") as f:
+        f.write(stdout)
+        if stderr:
+            f.write("\n--- stderr ---\n")
+            f.write(stderr)
+
+    if result.failed:
+        raise RuntimeError(f"ddeval workflow command failed; see {result_log_path}")
+
+    workflow_result = _parse_ddeval_workflow_result(stdout)
+    metrics_json = workflow_result.get("metricsJson") or workflow_result.get("metrics_json") or "{}"
+    try:
+        metrics = json.loads(metrics_json) if isinstance(metrics_json, str) else dict(metrics_json)
+    except (TypeError, json.JSONDecodeError) as e:
+        raise RuntimeError(f"ddeval metricsJson was not valid JSON: {e}") from e
+
+    score = _ddeval_score(metrics)
+    report = {
+        "score": score,
+        "metadata": {},
+        "metrics": metrics,
+        "experiment_url": workflow_result.get("experimentUrl") or workflow_result.get("experiment_url"),
+        "workflow_id": _parse_ddeval_workflow_id(stdout),
+        "workflow_run_id": _parse_ddeval_workflow_run_id(stdout),
+        "duration_s": duration_s,
+        "ddeval_result": workflow_result,
+        "component_configs": trial_config,
+        "experiment_config_path": trial_experiment_config_path,
+        "workflow_log_path": result_log_path,
+        "workflow_command": cmd,
+    }
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=4)
+
+    if report["experiment_url"]:
+        logger.detail(f"experiment: {report['experiment_url']}")
+    if report["workflow_id"]:
+        run_id_part = f" run_id={report['workflow_run_id']}" if report["workflow_run_id"] else ""
+        logger.detail(f"workflow: {report['workflow_id']}{run_id_part}")
+    logger.detail(
+        "F1={:.4f}  prec={:.4f}  rec={:.4f}  duration={}".format(
+            score,
+            float(metrics.get("precision", metrics.get("summary:mean_precision", 0.0)) or 0.0),
+            float(metrics.get("recall", metrics.get("summary:mean_recall", 0.0)) or 0.0),
+            _fmt_wall_dur(duration_s),
+        )
+    )
+    return report
+
+
+def _ddeval_workflow_command(
+    *,
+    config_path: str,
+    options: _DDEvalOptions,
+) -> str:
+    # ddeval workflow run can prompt on test-drive drift and does not expose --yes
+    # in the current dd-source CLI.
+    if options.command:
+        command = _quote_command(options.command)
+        prefix = f"printf 'y\\n' | {command} workflow run"
+        cd_part = ""
+    else:
+        prefix = "printf 'y\\n' | bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run"
+        cd_part = f"cd {shlex.quote(options.ddsource_dir)}"
+
+    parts = [
+        prefix,
+        f"-s {shlex.quote(options.service)}",
+        f"-p {shlex.quote(options.project)}",
+        f"-d {shlex.quote(options.dataset)}",
+        f"--env {shlex.quote(options.env)}",
+        f"--workflow-test-drive {shlex.quote(options.test_drive)}",
+        f"-f {shlex.quote(config_path)}",
+        f"-j {int(options.jobs)}",
+        f"--max-attempts {int(options.max_attempts)}",
+    ]
+    if options.limit:
+        parts.append(f"--limit {int(options.limit)}")
+    if options.where_in:
+        parts.append(f"--where-in {shlex.quote(options.where_in)}")
+    command = " ".join(parts)
+    return " && ".join([cd_part, command]) if cd_part else command
+
+
+def _quote_command(command: str) -> str:
+    """Quote a command string while preserving intentional wrapper arguments."""
+    return " ".join(shlex.quote(part) for part in shlex.split(command))
+
+
+def _parse_ddeval_workflow_result(stdout: str) -> dict[str, object]:
+    marker = "Result:"
+    idx = stdout.rfind(marker)
+    if idx < 0:
+        raise RuntimeError("ddeval output did not include a Result block")
+    payload = stdout[idx + len(marker) :].lstrip()
+    try:
+        parsed, _ = json.JSONDecoder().raw_decode(payload)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"could not parse ddeval Result JSON: {e}") from e
+    if not isinstance(parsed, dict):
+        raise RuntimeError(f"ddeval Result JSON was not an object: {type(parsed).__name__}")
+    return parsed
+
+
+def _parse_ddeval_workflow_id(stdout: str) -> str | None:
+    match = re.search(r"Workflow Id\s*:\s*([0-9a-fA-F-]{36})", stdout)
+    if not match:
+        match = re.search(r"wfId:\s*([0-9a-fA-F-]{36})", stdout)
+    if not match:
+        match = re.search(r"ID:\s*([0-9a-fA-F-]{36})", stdout)
+    return match.group(1) if match else None
+
+
+def _parse_ddeval_workflow_run_id(stdout: str) -> str | None:
+    match = re.search(r"Workflow Run Id\s*:\s*([0-9a-fA-F-]{36})", stdout)
+    if not match:
+        match = re.search(r"runId:\s*([0-9a-fA-F-]{36})", stdout)
+    return match.group(1) if match else None
+
+
+def _ddeval_score(metrics: dict[str, object]) -> float:
+    for key in ("summary:mean_f1", "f1"):
+        if key not in metrics:
+            continue
+        try:
+            return float(metrics[key])
+        except (TypeError, ValueError):
+            continue
+    raise RuntimeError(f"ddeval metrics did not include a numeric F1 score: {metrics}")
+
+
 @task
 def eval_pipeline(
     ctx,
@@ -1006,6 +1447,21 @@ def eval_pipeline(
     force_disable: str = "",
     timeout: int = 0,
     scenarios: str = "",
+    eval_backend: str = "local",
+    ddeval_config_template: str = "",
+    ddeval_ddsource_dir: str = "",
+    ddeval_command: str = "",
+    ddeval_service: str = "eval_worker_observer_log_ad",
+    ddeval_project: str = "observer-log-ad",
+    ddeval_dataset: str = "observer-log-ad-gensim-store-working",
+    ddeval_env: str = "staging",
+    ddeval_test_drive: str = "observer-log-ad-ddeval-worker",
+    ddeval_jobs: int = 6,
+    ddeval_max_attempts: int = 1,
+    ddeval_limit: int = 0,
+    ddeval_where_in: str = "",
+    ddeval_testbench_binary_s3_uri: str = "",
+    ddeval_scorer_binary_s3_uri: str = "",
 ):
     """
     Full pipeline fine-tuning: Bayesian search over component combinations, then deep tuning on the winner.
@@ -1038,14 +1494,59 @@ def eval_pipeline(
         force_disable: Comma-separated components never included.
         timeout: Per-scenario time budget in seconds (0 = no limit).
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        eval_backend: Evaluation backend for each Bayesian trial ("local" or "ddeval").
+        ddeval_config_template: Optional JSON experiment config template for ddeval.
+        ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
+        ddeval_command: Installed ddeval command or wrapper. When set, this is used
+            instead of running the ddeval Bazel target from dd-source.
+        ddeval_service: ddeval executor service name.
+        ddeval_project: LLMObs/ddEval project name.
+        ddeval_dataset: ddEval dataset name.
+        ddeval_env: ddEval environment.
+        ddeval_test_drive: Rapid Test Drive name for the Atlas worker.
+        ddeval_jobs: Scenario concurrency passed to ddeval (-j).
+        ddeval_max_attempts: Max attempts per scenario.
+        ddeval_limit: Optional dataset limit for smoke tests.
+        ddeval_where_in: Optional ddeval --where-in filter.
+        ddeval_testbench_binary_s3_uri: S3 URI for the anomalydetection-testbench binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI.
+        ddeval_scorer_binary_s3_uri: S3 URI for the anomalydetection-scorer binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-pipeline
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
+        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
+            --ddeval-command ddeval \
+            --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
+            --ddeval-scorer-binary-s3-uri s3://.../anomalydetection-scorer \
+            --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
-    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+    try:
+        eval_backend, ddeval_options = _resolve_ddeval_options(
+            eval_backend=eval_backend,
+            ddeval_config_template=ddeval_config_template,
+            ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_command=ddeval_command,
+            ddeval_service=ddeval_service,
+            ddeval_project=ddeval_project,
+            ddeval_dataset=ddeval_dataset,
+            ddeval_env=ddeval_env,
+            ddeval_test_drive=ddeval_test_drive,
+            ddeval_jobs=ddeval_jobs,
+            ddeval_max_attempts=ddeval_max_attempts,
+            ddeval_limit=ddeval_limit,
+            ddeval_where_in=ddeval_where_in,
+            ddeval_testbench_binary_s3_uri=ddeval_testbench_binary_s3_uri,
+            ddeval_scorer_binary_s3_uri=ddeval_scorer_binary_s3_uri,
+        )
+    except ValueError as e:
+        print(color_message(f"Error: {e}", Color.RED))
+        return
+
+    if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
 
     if seed is not None:
@@ -1061,6 +1562,9 @@ def eval_pipeline(
     unknown = set(force_enable_list + force_disable_list) - set(all_known)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
     full_combo = _full_stack_combo(force_disable=force_disable_list)
@@ -1086,11 +1590,12 @@ def eval_pipeline(
     total_search_runs = actual_n_combos * m_runs
     total_testbench_runs = total_search_runs * n_trials_search * n_scenarios
 
-    if build:
+    if build and eval_backend == "local":
         build_testbench(ctx)
         build_scorer(ctx)
 
-    download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
+    if eval_backend == "local":
+        download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Pipeline Eval", Color.BLUE))
@@ -1103,6 +1608,7 @@ def eval_pipeline(
     print(color_message(f"  total testbench:     {total_testbench_runs}", Color.BLUE))
     print(color_message(f"  seed:                {seed}", Color.BLUE))
     print(color_message(f"  output_dir:          {output_dir}", Color.BLUE))
+    print(color_message(f"  backend:             {eval_backend}", Color.BLUE))
     if force_enable_list:
         print(color_message(f"  force-enabled:       {', '.join(force_enable_list)}", Color.BLUE))
     if force_disable_list:
@@ -1147,6 +1653,8 @@ def eval_pipeline(
             sigma=sigma,
             timeout=timeout,
             scenarios=scenarios,
+            eval_backend=eval_backend,
+            ddeval_options=ddeval_options,
             run_logger=run_logger,
             step_label_prefix=combo_label,
         )
@@ -1205,6 +1713,8 @@ def eval_pipeline(
         overwrite=True,
         timeout=timeout,
         scenarios=scenarios,
+        eval_backend=eval_backend,
+        **_ddeval_options_kwargs(ddeval_options),
     )
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:

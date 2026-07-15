@@ -48,8 +48,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DecompressPythonDistributions { get; }
 
-        public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
-
         public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
@@ -295,26 +293,12 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
-                    Return.check,
-                    When.After,
-                    new Step(CleanupOnRollback.Id),
-                    Conditions.FirstInstall
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
-
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
+                    new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
@@ -660,7 +644,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);

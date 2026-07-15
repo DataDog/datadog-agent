@@ -62,6 +62,11 @@ class Arch:
             return f"{self.gcc_arch}-linux-gnu"
         elif platform == "windows":
             return f"{self.gcc_arch}-w64-mingw32"
+        elif platform == "aix":
+            # AIX cross-compiler triplet uses "powerpc" (not "powerpc64"); 64-bit mode
+            # is selected at compile time via -maix64. Target AIX 7.3 by default —
+            # match the version baked into the toolchain built by build-aix-cross.sh.
+            return "powerpc-ibm-aix7.3.0.0"
         else:
             raise ValueError(f"Unknown platform: {platform}")
 

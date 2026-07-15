@@ -14,7 +14,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/impl",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",
@@ -32,6 +32,7 @@ go_library(
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
+        "//pkg/util/infratags",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
@@ -40,9 +41,13 @@ go_library(
 
 dd_agent_go_test(
     name = "mocksender_test",
-    srcs = ["asserts_test.go"],
+    srcs = [
+        "asserts_test.go",
+        "mocksender_test.go",
+    ],
     embed = [":mocksender"],
     deps = [
+        "//pkg/collector/check/id",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "@com_github_stretchr_testify//assert",

@@ -1,0 +1,125 @@
+name: "Agent telemetry metric reminder"
+
+on:
+  # Runs in the context of the base branch (with a writable GITHUB_TOKEN) so it
+  # also works for PRs from forks, which otherwise only get a read-only token.
+  # Safe here since the job never checks out or executes the PR's code.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+    paths:
+      - comp/core/agenttelemetry/impl/defaultProfiles.yaml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  # write permissions are needed to create/update/delete the comment
+  pull-requests: write
+
+jobs:
+  remind:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const marker = '<!-- coat-metric-reminder -->';
+            const targetFile = 'comp/core/agenttelemetry/impl/defaultProfiles.yaml';
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            // Extract the set of metric names declared under any `metrics:` list in the
+            // profiles file, tracking indentation so we don't also match the `- name:`
+            // used for profile entries themselves.
+            function extractMetricNames(content) {
+              const names = new Set();
+              let metricsIndent = null;
+              for (const line of content.split('\n')) {
+                if (line.trim() === '') continue;
+                const indent = line.length - line.trimStart().length;
+                if (metricsIndent !== null && indent <= metricsIndent) {
+                  metricsIndent = null;
+                }
+                const metricsKey = line.match(/^(\s*)metrics:\s*$/);
+                if (metricsKey) {
+                  metricsIndent = metricsKey[1].length;
+                  continue;
+                }
+                if (metricsIndent !== null) {
+                  const nameEntry = line.match(/^\s*-\s*name:\s*(\S+)/);
+                  if (nameEntry) names.add(nameEntry[1]);
+                }
+              }
+              return names;
+            }
+
+            async function getFileContentAt(ref) {
+              try {
+                const res = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: targetFile,
+                  ref,
+                });
+                return Buffer.from(res.data.content, 'base64').toString('utf-8');
+              } catch (e) {
+                if (e.status === 404) return '';
+                throw e;
+              }
+            }
+
+            const baseNames = extractMetricNames(await getFileContentAt(context.payload.pull_request.base.sha));
+            const headNames = extractMetricNames(await getFileContentAt(context.payload.pull_request.head.sha));
+            const addedMetrics = [...headNames].filter((n) => !baseNames.has(n));
+            const removedMetrics = [...baseNames].filter((n) => !headNames.has(n));
+            const asName = (n) => `\`${n}\``;
+
+            let ticketLine;
+            if (addedMetrics.length > 0 && removedMetrics.length === 0) {
+              ticketLine = `- [ ] Filed a **new** tracking ticket on the [ASUP Jira board](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889) using the [template](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889?selectedIssue=ASUP-46) for the added metric(s): ${addedMetrics.map(asName).join(', ')}`;
+            } else if (removedMetrics.length > 0 && addedMetrics.length === 0) {
+              ticketLine = `- [ ] **Updated** the existing tracking ticket on the [ASUP Jira board](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889) for the removed metric(s): ${removedMetrics.map(asName).join(', ')}`;
+            } else if (addedMetrics.length > 0 && removedMetrics.length > 0) {
+              ticketLine = `- [ ] Filed a **new** ticket for the added metric(s) (${addedMetrics.map(asName).join(', ')}) and **updated** the existing ticket for the removed metric(s) (${removedMetrics.map(asName).join(', ')}) on the [ASUP Jira board](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889)`;
+            } else {
+              // Couldn't confidently detect an add/remove (e.g. only schedule/tag edits) — cover both cases.
+              ticketLine = `- [ ] Filed a **new** tracking ticket on the [ASUP Jira board](https://datadoghq.atlassian.net/jira/software/c/projects/ASUP/boards/8889) if you added a metric, or **updated** the existing one if you removed a metric`;
+            }
+
+            const body = `${marker}
+            ## COAT metric reminder
+
+            This PR changes \`${targetFile}\`, which reports metrics via Cross-Org Agent Telemetry (COAT). Per the [COAT: Report a telemetry metric](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Report-a-telemetry-metric) guide, please confirm before merging:
+
+            - [ ] Validated the metric via e2e tests or a dev VM, and checked it appears correctly in ddcoat (see [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry) — a ready-to-run VM command will be posted in a separate comment once this pipeline's build finishes)
+            - [ ] Updated the public docs in [DataDog/documentation](https://github.com/DataDog/documentation/blob/master/content/en/data_security/agent.md)
+            ${ticketLine}
+            - [ ] After merge: noted the target Agent release and will confirm GA before considering the metric live
+
+            _Automated reminder — does not block merging. Updates automatically if this file changes again._`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

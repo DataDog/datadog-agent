@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/resources/aws/ec2",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
+    ],
+)

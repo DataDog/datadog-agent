@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agentprofiling",
+    srcs = ["agentprofiling.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/signals",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/flare",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/size",
+        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_shirou_gopsutil_v4//cpu",
+        "@com_github_shirou_gopsutil_v4//process",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agentprofiling_test",
+    srcs = ["agentprofiling_test.go"],
+    embed = [":agentprofiling"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/flare",
+        "//comp/core/flare/flareimpl",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks",
+        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

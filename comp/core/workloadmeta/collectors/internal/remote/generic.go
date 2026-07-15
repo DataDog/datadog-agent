@@ -180,6 +180,9 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
+			// Cancel the context created for this failed attempt so it is not
+			// leaked when the next retry overwrites c.streamCancel.
+			c.streamCancel()
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return nil, err
 		}

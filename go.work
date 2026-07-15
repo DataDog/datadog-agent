@@ -9,6 +9,7 @@ use (
 	.
 	comp/anomalydetection/observer/def
 	comp/anomalydetection/recorder/def
+	comp/anomalydetection/severityevents/def
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
