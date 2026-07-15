@@ -99,10 +99,9 @@ func (e *WorkflowTaskExecutor) ResolveTimeout(task *types.Task) *int32 {
 	return e.config.TaskTimeoutSeconds
 }
 
-// RunPrepared runs a prepared task under its effective per-task timeout and returns the
-// action output on success, or an error on failure. A timeout is surfaced as a timeout
-// error. This is the single run+timeout seam shared by the single-process OPMS loop and
-// the on-demand executor gRPC handler, so action behavior cannot diverge between them.
+// RunPrepared runs a prepared task under its effective per-task timeout, returning the
+// action output or an error (timeouts surface as a timeout error). It is the single
+// run+timeout seam shared by the OPMS loop and the executor gRPC handler.
 func (e *WorkflowTaskExecutor) RunPrepared(
 	ctx context.Context,
 	preparedTask *PreparedWorkflowTask,

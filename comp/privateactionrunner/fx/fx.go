@@ -25,9 +25,8 @@ func Module() fxutil.Module {
 	)
 }
 
-// ExecutorModule defines the fx options for the on-demand executor mode of the
-// split deployment model. It serves the local control<->executor gRPC service
-// instead of polling OPMS.
+// ExecutorModule defines the fx options for the on-demand executor mode, which
+// serves the local control<->executor gRPC service instead of polling OPMS.
 func ExecutorModule() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(

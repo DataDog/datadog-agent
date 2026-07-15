@@ -94,7 +94,7 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	// executor-mode state (split deployment model; on-demand par-executor).
+	// executor-mode state (on-demand par-executor).
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
 	executorDone    chan struct{}
@@ -134,10 +134,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: runner}, nil
 }
 
-// NewExecutorComponent creates a privateactionrunner component that runs in the
-// on-demand executor mode of the split deployment model: instead of polling OPMS,
-// it serves the local control<->executor gRPC service (dispatched to by par-control).
-// It shares identity/enrollment/config resolution with the single-process runner.
+// NewExecutorComponent creates a privateactionrunner component in on-demand executor
+// mode: it serves the local control<->executor gRPC service instead of polling OPMS.
 func NewExecutorComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
@@ -248,7 +246,7 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 }
 
 // StartExecutor starts the on-demand executor gRPC server instead of the OPMS
-// polling loop (split deployment model). It is idempotent via startOnce.
+// polling loop. It is idempotent via startOnce.
 func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 	var err error
 	p.started = true
@@ -260,8 +258,7 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	// Keep the parent context's deadline for the startup phase but allow Stop() to
-	// cancel it; cancelling it also triggers the gRPC server's graceful stop.
+	// Cancelling this context (via Stop) also triggers the gRPC server's graceful stop.
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 
@@ -292,7 +289,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	go p.encryptionStore.Start()
 	keysManager.Start(ctx)
-	// Gate dispatch on signing keys being ready (the control plane polls Health).
+	// Signal readiness only once signing keys are loaded.
 	go func() {
 		keysManager.WaitForReady()
 		p.executorServer.SetReady(true)
@@ -307,17 +304,13 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	p.executorDone = make(chan struct{})
 	serveOpts := executor.ServeOptions{
-		// Bound graceful drain so a wedged action cannot block shutdown forever.
 		DrainTimeout: 30 * time.Second,
-		// Orphan safety net: self-exit if the control plane vanishes without
-		// stopping us. Generously larger than the control plane's idle timeout,
-		// which is the normal termination path.
+		// Orphan safety net; larger than the control plane's idle timeout, which is
+		// the normal termination path.
 		OrphanIdleTimeout: 5 * time.Minute,
 	}
-	// Secure the control<->executor channel with mTLS, reusing the agent IPC
-	// certificate infrastructure: the server presents the IPC cert and requires a
-	// client cert signed by the same authority, so only the legitimate control
-	// plane can dispatch actions to the (possibly privileged) executor.
+	// mTLS via the agent IPC cert: only a client with a cert signed by the same
+	// authority can dispatch actions to the executor.
 	tlsConfig := p.ipc.GetTLSServerConfig()
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))

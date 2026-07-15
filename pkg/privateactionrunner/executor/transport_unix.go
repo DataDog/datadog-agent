@@ -15,12 +15,11 @@ import (
 )
 
 // DefaultSocketPath is the default local socket the executor listens on and the
-// control plane dials. It is baked into the process-manager process definition
-// (out of scope here) rather than passed at start time.
+// control plane dials.
 const DefaultSocketPath = "/opt/datadog-agent/run/par-executor.sock"
 
-// Listen creates the executor's listening socket. On Unix this is a Unix domain
-// socket; a stale socket file from a previous run is removed first.
+// Listen creates the executor's listening Unix domain socket, removing any stale
+// socket file from a previous run first.
 func Listen(address string) (net.Listener, error) {
 	if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -28,8 +27,7 @@ func Listen(address string) (net.Listener, error) {
 	return net.Listen("unix", address)
 }
 
-// Dial connects to the executor's socket. Used by the control plane's gRPC client
-// (and by tests) to reach the executor.
+// Dial connects to the executor's socket.
 func Dial(ctx context.Context, address string, timeout time.Duration) (net.Conn, error) {
 	d := net.Dialer{Timeout: timeout}
 	return d.DialContext(ctx, "unix", address)

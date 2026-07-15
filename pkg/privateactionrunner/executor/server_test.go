@@ -35,9 +35,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
 
-// fakeExecutor stands in for the execute-one-action core so these tests exercise
-// only the gRPC streaming/serialization/error-mapping plumbing (PRD testing seam 3),
-// not real bundle execution (that is covered at the core seam, testing seam 1).
+// fakeExecutor stands in for the execute-one-action core so these tests exercise only
+// the gRPC streaming/serialization/error-mapping plumbing, not real bundle execution.
 type fakeExecutor struct {
 	prepared   *runners.PreparedWorkflowTask
 	prepareErr error
@@ -136,8 +135,7 @@ func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
 	rawTask := []byte(`{"data":{"id":"task-1","attributes":{"job_id":"job-1"}}}`)
 	result := runAction(t, client, rawTask)
 
-	// The executor forwards the raw task bytes to the core unmodified so signature
-	// verification sees the original envelope.
+	// Raw task bytes must reach the core unmodified (signature verification).
 	assert.Equal(t, rawTask, fake.gotRawTask)
 
 	require.NotNil(t, result.GetOutput(), "expected a success output, got error: %v", result.GetError())
@@ -167,9 +165,8 @@ func TestServeRunActionReturnsStructuredErrorOnFailure(t *testing.T) {
 }
 
 func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
-	// Each failure category the core can produce must reach the control plane with
-	// its structured error code intact (PRD testing seam: verification, credential,
-	// allowlist, timeout). Plain (uncoded) errors default to INTERNAL_ERROR.
+	// Each structured error code must reach the control plane intact; plain
+	// (uncoded) errors default to INTERNAL_ERROR.
 	cases := []struct {
 		name     string
 		err      error
@@ -184,8 +181,7 @@ func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Most failures surface from PrepareTask (verify/credentials); the
-			// allowlist case surfaces from RunPrepared — cover both entry points.
+			// Most failures surface from PrepareTask; the allowlist case from RunPrepared.
 			fake := &fakeExecutor{prepareErr: tc.err}
 			if tc.wantCode == aperrorpb.ActionPlatformErrorCode_ACTION_ERROR {
 				fake = &fakeExecutor{
@@ -393,8 +389,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageServerAuth)
 	clientCert := newLeafCert(t, ca, caKey, "par-control", x509.ExtKeyUsageClientAuth)
 
-	// Server presents its cert and requires a client cert signed by the CA
-	// (mirrors the agent IPC server TLS config the component uses).
+	// Server presents its cert and requires a client cert signed by the CA.
 	serverTLS := &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,

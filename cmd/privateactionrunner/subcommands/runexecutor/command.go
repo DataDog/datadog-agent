@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package runexecutor is the run-executor private-action-runner subcommand: it runs
-// the on-demand Go executor of the split deployment model, serving the local
-// control<->executor gRPC service instead of polling OPMS.
+// Package runexecutor implements the run-executor subcommand, which runs the
+// on-demand Go executor serving the local control<->executor gRPC service.
 package runexecutor
 
 import (

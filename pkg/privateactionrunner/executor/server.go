@@ -4,11 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package executor implements the on-demand Go executor half of the split Private
-// Action Runner. It exposes a local gRPC server (Executor service) that the
-// always-on Rust control plane (par-control) dials to run a single action and
-// stream the outcome back. The executor never talks to OPMS; it only verifies and
-// runs actions via the shared execute-one-action core and reports structured
-// results/errors over the RunAction stream.
+// Action Runner: a local gRPC server that the Rust control plane dials to run a
+// single action and stream the outcome back.
 package executor
 
 import (
@@ -30,12 +27,10 @@ import (
 )
 
 // ProtocolVersion is the control<->executor gRPC contract version reported by Health.
-// Bump it on incompatible changes so the control plane can negotiate compatibility.
 const ProtocolVersion uint32 = 1
 
-// actionExecutor is the execute-one-action core the server dispatches to. It is
-// satisfied by *runners.WorkflowTaskExecutor; tests inject a fake to exercise the
-// gRPC streaming/error plumbing without running a real bundle.
+// actionExecutor is the execute-one-action core the server dispatches to,
+// satisfied by *runners.WorkflowTaskExecutor.
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
 	RunPrepared(ctx context.Context, prepared *runners.PreparedWorkflowTask) (interface{}, error)
@@ -50,8 +45,7 @@ type Server struct {
 
 	ready  atomic.Bool
 	active atomic.Int32
-	// lastActivity is the unix-nanos timestamp of the last Health/RunAction, used
-	// by the orphan watchdog to self-exit if the control plane disappears.
+	// lastActivity is the unix-nanos timestamp of the last Health/RunAction.
 	lastActivity atomic.Int64
 }
 
@@ -74,9 +68,7 @@ func (s *Server) idleFor() time.Duration {
 	return time.Since(time.Unix(0, s.lastActivity.Load()))
 }
 
-// SetReady marks the executor ready (or not) to accept actions. The lifecycle
-// owner flips this to true once signing keys are loaded (RunAction is gated on it,
-// and the control plane also gates dispatch on Health.ready).
+// SetReady marks the executor ready (or not) to accept actions; RunAction is gated on it.
 func (s *Server) SetReady(ready bool) {
 	s.ready.Store(ready)
 }
@@ -92,11 +84,9 @@ func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthRespo
 	}, nil
 }
 
-// RunAction verifies and runs a single action, streaming a terminal ActionResult
-// back. Verification, credential, allowlist, and timeout failures are returned as
-// a structured ActionPlatformError in the result rather than a gRPC-level error, so
-// the control plane can publish them to OPMS verbatim. A gRPC-level error is
-// reserved for transport/protocol problems.
+// RunAction verifies and runs a single action, streaming a terminal ActionResult back.
+// Action failures are returned as a structured ActionPlatformError in the result; a
+// gRPC-level error is reserved for transport/protocol problems.
 func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActionServer) error {
 	ctx := stream.Context()
 	logger := log.FromContext(ctx)
@@ -115,8 +105,7 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		s.touch()
 	}()
 
-	// Parse the raw task bytes exactly as the OPMS dequeue path does; keep the raw
-	// bytes on the task so signature verification sees the unmodified envelope.
+	// Keep the raw bytes on the task so signature verification sees the unmodified envelope.
 	task := &types.Task{Raw: req.GetTask()}
 	if err := json.Unmarshal(req.GetTask(), task); err != nil {
 		logger.Error("could not parse task", log.ErrorField(err))
@@ -168,22 +157,18 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 // ServeOptions tunes drain and orphan-safety behavior. Zero values disable the
 // corresponding bound (wait forever to drain; never self-exit).
 type ServeOptions struct {
-	// DrainTimeout bounds graceful drain on stop: in-flight actions finish, but
-	// after this long any still-running action is force-stopped so a wedged action
-	// cannot block shutdown forever. 0 waits indefinitely.
+	// DrainTimeout bounds graceful drain on stop; 0 waits indefinitely.
 	DrainTimeout time.Duration
-	// OrphanIdleTimeout: if > 0, the executor self-exits after this long with no
-	// activity and no in-flight actions — an orphan safety net for when the control
-	// plane disappears without calling Stop, so no stray process lingers.
+	// OrphanIdleTimeout, if > 0, self-exits after this long idle with no in-flight
+	// actions, so a stray executor cannot linger if the control plane disappears.
 	OrphanIdleTimeout time.Duration
 	// PollInterval is how often the orphan watchdog checks (default 5s).
 	PollInterval time.Duration
 }
 
 // Serve registers the Executor service on a fresh gRPC server and serves it on lis
-// until ctx is cancelled (control-plane-owned stop) or the orphan watchdog fires,
-// then stops gracefully bounded by the drain timeout. mTLS is layered on in a later
-// slice; this uses a plaintext local socket.
+// until ctx is cancelled or the orphan watchdog fires, then stops gracefully bounded
+// by the drain timeout. Pass grpcOpts (e.g. TLS creds) to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
