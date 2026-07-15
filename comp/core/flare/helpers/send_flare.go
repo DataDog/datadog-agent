@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -274,15 +275,15 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	for attempt := 3; attempt > 0; attempt-- {
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
-			// Always close the response body if it exists
-			statusCode := 0
-			if r != nil {
-				statusCode = r.StatusCode
+			// A response (even 5xx) means the server received the non-idempotent POST, so
+			// don't retry; only a transport failure with no response is a retry candidate.
+			responseReceived := r != nil
+			if responseReceived {
 				r.Body.Close()
 			}
 			lastErr = err
 
-			if !isRetryableFlareError(err, statusCode) {
+			if responseReceived || !isRetryableFlareError(err) {
 				return "", err
 			}
 			log.Warn("Failed to send flare, retrying in 1 second")
@@ -297,22 +298,22 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }
 
-func isRetryableFlareError(err error, statusCode int) bool {
+// isRetryableFlareError reports whether a transport failure (no HTTP response) is safe to
+// retry: only DNS- and dial-phase failures, where the non-idempotent POST never left.
+func isRetryableFlareError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	if statusCode >= 500 && statusCode < 600 {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
 		return true
 	}
-
-	errStr := strings.ToLower(err.Error())
-
-	return strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "network unreachable") ||
-		strings.Contains(errStr, "temporary failure")
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return opErr.Op == "dial"
+	}
+	// net/http's TLS handshake timeout error is unexported, so match on its message.
+	return strings.Contains(err.Error(), "net/http: TLS handshake timeout")
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
