@@ -37,8 +37,8 @@ func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 		detectors: []observerdef.Detector{detector},
 	})}
 
-	obs.IngestLogSync("parquet", &mockLogView{timestampMs: 10_000})
-	obs.IngestLogSync("parquet", &mockLogView{timestampMs: 12_000})
+	obs.IngestLogAndAdvance("parquet", &mockLogView{timestampMs: 10_000})
+	obs.IngestLogAndAdvance("parquet", &mockLogView{timestampMs: 12_000})
 	obs.FinishReplayStream()
 
 	require.Equal(t, []int64{9, 11, 12}, detector.times)
@@ -53,7 +53,7 @@ func TestSynchronousLogStreamUsesBoundedStorage(t *testing.T) {
 	})}
 
 	for second := int64(0); second < 500; second++ {
-		obs.IngestLogSync("parquet", &mockLogView{timestampMs: second * 1000})
+		obs.IngestLogAndAdvance("parquet", &mockLogView{timestampMs: second * 1000})
 	}
 	obs.FinishReplayStream()
 

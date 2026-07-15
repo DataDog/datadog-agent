@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
 )
 
-func TestHeadlessStreamParquetMatchesBatchOutput(t *testing.T) {
+func TestHeadlessStreamParquetMatchesRetainedOutput(t *testing.T) {
 	scenariosDir := t.TempDir()
 	parquetDir := filepath.Join(scenariosDir, "scenario", "parquet")
 	require.NoError(t, os.MkdirAll(parquetDir, 0o755))
@@ -33,14 +33,14 @@ func TestHeadlessStreamParquetMatchesBatchOutput(t *testing.T) {
 		DurationSec:      60,
 		MuteNoisyMetrics: true,
 	}}
-	batchOutput := filepath.Join(t.TempDir(), "batch.json")
+	retainedOutput := filepath.Join(t.TempDir(), "retained.json")
 	streamOutput := filepath.Join(t.TempDir(), "stream.json")
 
 	runFxApp(t, CLIParams{
 		ScenariosDir:      scenariosDir,
 		Headless:          "scenario",
-		Output:            batchOutput,
-		BatchParquet:      true,
+		Output:            retainedOutput,
+		RetainParquet:     true,
 		ComponentSettings: settings,
 	})
 	runFxApp(t, CLIParams{
@@ -50,12 +50,12 @@ func TestHeadlessStreamParquetMatchesBatchOutput(t *testing.T) {
 		ComponentSettings: settings,
 	})
 
-	batch := readObserverOutput(t, batchOutput)
+	retained := readObserverOutput(t, retainedOutput)
 	stream := readObserverOutput(t, streamOutput)
 	// Processing durations vary between runs; counts and observer results must match.
-	batch.Metadata.Stats.DetectorStats = nil
+	retained.Metadata.Stats.DetectorStats = nil
 	stream.Metadata.Stats.DetectorStats = nil
-	require.Equal(t, batch, stream)
+	require.Equal(t, retained, stream)
 }
 
 func readObserverOutput(t *testing.T, path string) bench.ObserverOutput {

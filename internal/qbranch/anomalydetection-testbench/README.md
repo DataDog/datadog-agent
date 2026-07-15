@@ -73,7 +73,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
-| `--batch-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
+| `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
 
 ## Components
 
@@ -150,7 +150,7 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 # Fall back to retained loading and global sorting for unordered local recordings
-dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --batch-parquet
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --retain-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/anomalydetection-testbench \
@@ -347,7 +347,7 @@ validated at the Observer's one-second scheduling resolution. Recordings with
 disorder beyond those bounds fail descriptively instead of silently producing
 late points.
 
-Interactive runs, and headless runs with `--batch-parquet`, use the retained
+Interactive runs, and headless runs with `--retain-parquet`, use the retained
 replay pipeline:
 
 1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.

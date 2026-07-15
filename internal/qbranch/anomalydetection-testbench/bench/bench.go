@@ -553,7 +553,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 		tb.streamInputLogsCount++
 		tb.extendStreamBounds(observation.log.TimestampMs/1000, observation.log.TimestampMs/1000)
 		view := logDataView{data: observation.log}
-		tb.debug.IngestLogSync("parquet", &view)
+		tb.debug.IngestLogAndAdvance("parquet", &view)
 		return nil
 	})
 	if err != nil {
@@ -799,7 +799,7 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// are written to storage. Detectors and correlators are deferred to the
 	// subsequent ReplayStoredData call, matching the original single-pass approach.
 	for _, logEntry := range tb.rawLogs {
-		tb.debug.IngestTestbenchLog("parquet", logEntry)
+		tb.debug.IngestLogForReplay("parquet", logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}

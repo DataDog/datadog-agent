@@ -68,13 +68,13 @@ func testbenchFXOptions(params CLIParams) []fx.Option {
 }
 
 func TestValidateCLIParams(t *testing.T) {
-	t.Run("batch override requires headless mode", func(t *testing.T) {
-		err := validateCLIParams(CLIParams{BatchParquet: true})
-		require.EqualError(t, err, "--batch-parquet requires --headless")
+	t.Run("retain override requires headless mode", func(t *testing.T) {
+		err := validateCLIParams(CLIParams{RetainParquet: true})
+		require.EqualError(t, err, "--retain-parquet requires --headless")
 	})
 
-	t.Run("batch override is accepted in headless mode", func(t *testing.T) {
-		err := validateCLIParams(CLIParams{BatchParquet: true, Headless: "scenario"})
+	t.Run("retain override is accepted in headless mode", func(t *testing.T) {
+		err := validateCLIParams(CLIParams{RetainParquet: true, Headless: "scenario"})
 		require.NoError(t, err)
 	})
 }

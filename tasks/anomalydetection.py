@@ -96,7 +96,7 @@ def launch_testbench(
     disable: str = "",
     timeout: int = 0,
     logs_only: bool = False,
-    batch_parquet: bool = False,
+    retain_parquet: bool = False,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -113,7 +113,7 @@ def launch_testbench(
         disable: Comma-separated components to disable (passed as --disable).
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
-        batch_parquet: Pass --batch-parquet for unordered recordings (headless mode only).
+        retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
     """
     if build:
         print("Building anomalydetection-testbench...")
@@ -124,8 +124,8 @@ def launch_testbench(
         flags += " --verbose"
     if logs_only:
         flags += " --logs-only"
-    if batch_parquet:
-        flags += " --batch-parquet"
+    if retain_parquet:
+        flags += " --retain-parquet"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:

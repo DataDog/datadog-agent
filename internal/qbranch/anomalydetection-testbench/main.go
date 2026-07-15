@@ -60,8 +60,8 @@ type CLIParams struct {
 	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
 	ParquetFormat bench.ParquetFormat
 
-	// BatchParquet retains and sorts raw metric and log rows in headless mode.
-	BatchParquet bool
+	// RetainParquet retains and sorts raw metric and log rows in headless mode.
+	RetainParquet bool
 }
 
 func main() {
@@ -79,7 +79,7 @@ func main() {
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
-	batchParquet := flag.Bool("batch-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
+	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
 	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
@@ -208,7 +208,7 @@ func main() {
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
 			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
-			BatchParquet:       *batchParquet,
+			RetainParquet:      *retainParquet,
 		}),
 	)
 	if err != nil {
@@ -242,7 +242,7 @@ func run(
 		SkipDroppedMetrics: params.SkipDroppedMetrics,
 		LogsOnly:           params.LogsOnly,
 		ParquetFormat:      params.ParquetFormat,
-		StreamParquet:      params.Headless != "" && !params.BatchParquet,
+		StreamParquet:      params.Headless != "" && !params.RetainParquet,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
@@ -348,8 +348,8 @@ func run(
 }
 
 func validateCLIParams(params CLIParams) error {
-	if params.BatchParquet && params.Headless == "" {
-		return fmt.Errorf("--batch-parquet requires --headless")
+	if params.RetainParquet && params.Headless == "" {
+		return fmt.Errorf("--retain-parquet requires --headless")
 	}
 	return nil
 }
