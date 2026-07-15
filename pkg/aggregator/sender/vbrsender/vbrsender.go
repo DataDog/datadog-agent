@@ -5,13 +5,15 @@
 
 // Package vbrsender decorates a sender.SenderManager/sender.Sender to apply
 // streaming, bounded-error compression (variable bit rate storage) to a
-// check's Gauge/Count/Rate/MonotonicCount metrics, entirely on the sender
-// side. This works for any check loader (Go, Python, ...), since every
-// loader reaches the aggregator exclusively through this same interface.
+// check's Gauge/Count/Rate/MonotonicCount/GaugeWithTimestamp/
+// CountWithTimestamp metrics, entirely on the sender side. This works for
+// any check loader (Go, Python, ...), since every loader reaches the
+// aggregator exclusively through this same interface.
 package vbrsender
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -233,6 +235,14 @@ const (
 	kindCount
 	kindRate
 	kindMonotonicCount
+	// kindGaugeWithTimestamp/kindCountWithTimestamp mirror kindGauge/
+	// kindCount for compression purposes (see reduce/ship's pendingSum
+	// handling) but are kept distinct so forwardRaw knows to re-forward
+	// via the *WithTimestamp sender methods, preserving the caller's own
+	// timestamp instead of silently replacing it with nowSeconds() — see
+	// GaugeWithTimestamp's doc comment.
+	kindGaugeWithTimestamp
+	kindCountWithTimestamp
 )
 
 // contextState holds one context's VBR compressor plus whatever extra
@@ -373,6 +383,32 @@ func (s *Sender) compressMonotonicCount(metric string, value float64, hostname s
 	s.compressAt(kindMonotonicCount, metric, value, hostname, tags, nowSeconds(), flushFirstValue)
 }
 
+// GaugeWithTimestamp compresses metric instead of forwarding every call.
+// Unlike Gauge, the caller supplies its own timestamp — some checks' samples
+// carry a meaningful collection time that can lag real time slightly (e.g.
+// GPU metrics collected via eBPF, see pkg/collector/corechecks/gpu). That
+// timestamp is fed to the compressor as the sample's own Ts (not
+// nowSeconds()) and threaded through to forwardRaw for dry-run/shadow mode,
+// so it's never silently replaced by "whenever vbrsender happened to
+// process this call".
+func (s *Sender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	if timestamp <= 0 {
+		return errors.New("invalid timestamp")
+	}
+	s.compressAt(kindGaugeWithTimestamp, metric, value, hostname, tags, timestamp, false)
+	return nil
+}
+
+// CountWithTimestamp compresses metric instead of forwarding every call;
+// see GaugeWithTimestamp for why the caller-provided timestamp matters.
+func (s *Sender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	if timestamp <= 0 {
+		return errors.New("invalid timestamp")
+	}
+	s.compressAt(kindCountWithTimestamp, metric, value, hostname, tags, timestamp, false)
+	return nil
+}
+
 func contextKeyFor(metric, hostname string, tags []string) string {
 	sorted := make([]string, len(tags))
 	copy(sorted, tags)
@@ -398,8 +434,9 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		// while ship() below additionally ships the compressed breakpoint
 		// under a different hostname. Either way, the compressor below only
 		// measures (dry-run) or additionally produces (shadow) what
-		// compression would do.
-		s.forwardRaw(kind, metric, rawValue, hostname, tags, flushFirstValue)
+		// compression would do. now is only used for the *WithTimestamp
+		// kinds, to preserve the caller's own timestamp when re-forwarding.
+		s.forwardRaw(kind, metric, rawValue, hostname, tags, now, flushFirstValue)
 	}
 
 	key := contextKeyFor(metric, hostname, tags)
@@ -425,7 +462,7 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	value, ok := reduce(ctx, rawValue, now, flushFirstValue)
 	if ok {
 		ctx.tlmSamples.Inc()
-		if ctx.kind == kindCount || ctx.kind == kindMonotonicCount {
+		if ctx.kind == kindCount || ctx.kind == kindMonotonicCount || ctx.kind == kindCountWithTimestamp {
 			// Accumulate before Update(), unconditionally: whether or not
 			// this call causes a breakpoint, the value must count toward
 			// whatever eventually ships next. See pendingSum's doc comment.
@@ -448,9 +485,12 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 
 // forwardRaw calls the same method the check originally called, on the
 // real underlying sender, with the raw value as given — used only in
-// dry-run mode, letting the real sender's own aggregation (e.g. Rate's own
-// derivative) run exactly as if this decorator weren't present.
-func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+// dry-run/shadow mode, letting the real sender's own aggregation (e.g.
+// Rate's own derivative) run exactly as if this decorator weren't present.
+// ts is only used for the *WithTimestamp kinds, to preserve the caller's
+// own timestamp instead of losing it by re-forwarding via the plain
+// (no-timestamp) sender methods.
+func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostname string, tags []string, ts float64, flushFirstValue bool) {
 	switch kind {
 	case kindGauge:
 		s.Sender.Gauge(metric, value, hostname, tags)
@@ -464,6 +504,14 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 		// implementation), so always use this one form regardless of
 		// which method the check originally called.
 		s.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, tags, flushFirstValue)
+	case kindGaugeWithTimestamp:
+		if err := s.Sender.GaugeWithTimestamp(metric, value, hostname, tags, ts); err != nil {
+			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", metric, err)
+		}
+	case kindCountWithTimestamp:
+		if err := s.Sender.CountWithTimestamp(metric, value, hostname, tags, ts); err != nil {
+			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", metric, err)
+		}
 	}
 }
 
@@ -477,7 +525,7 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 // kindMonotonicCount.
 func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (float64, bool) {
 	switch ctx.kind {
-	case kindGauge, kindCount:
+	case kindGauge, kindCount, kindGaugeWithTimestamp, kindCountWithTimestamp:
 		return rawValue, true
 
 	case kindRate:
@@ -538,7 +586,7 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 	// simulated state (and this bookkeeping) advances identically whether
 	// or not anything actually gets forwarded.
 	shipValue := bp.Value
-	if ctx.kind == kindCount || ctx.kind == kindMonotonicCount {
+	if ctx.kind == kindCount || ctx.kind == kindMonotonicCount || ctx.kind == kindCountWithTimestamp {
 		shipValue = ctx.pendingSum
 		ctx.pendingSum = 0
 	}
@@ -559,11 +607,11 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 		return
 	}
 	switch ctx.kind {
-	case kindGauge, kindRate:
+	case kindGauge, kindRate, kindGaugeWithTimestamp:
 		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
-	case kindCount, kindMonotonicCount:
+	case kindCount, kindMonotonicCount, kindCountWithTimestamp:
 		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
