@@ -93,6 +93,10 @@ go_deps.gazelle_override(
     path = "google.golang.org/grpc",
 )
 go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=retrynotrace"],
+    path = "github.com/grpc-ecosystem/go-grpc-middleware/v2",
+)
+go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )

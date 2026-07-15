@@ -28,7 +28,7 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
-	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
+	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", float64(100),
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 

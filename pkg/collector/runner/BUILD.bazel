@@ -12,7 +12,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/haagent/def",
-        "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
@@ -32,7 +31,6 @@ dd_agent_go_test(
     embed = [":runner"],
     deps = [
         "//comp/haagent/mock",
-        "//comp/healthplatform/store/mock",
         "//pkg/aggregator",
         "//pkg/collector/check",
         "//pkg/collector/check/id",

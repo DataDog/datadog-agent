@@ -22,6 +22,9 @@ const (
 	// IssueName is the identifier for admission controller connectivity issues,
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "Admission Controller Unreachable"
+	// IssueType is the snake_case type key for admission controller connectivity
+	// issues: IssueName lowercased with spaces replaced by underscores.
+	IssueType = "admission_controller_unreachable"
 	// IssueID is the unique instance id used when reporting this issue.
 	// Note: kept separate from IssueName — probe.go and E2E tests use this value for issue.Id.
 	IssueID = "admission-controller-connectivity-failure"
@@ -40,6 +43,10 @@ func NewModule(issues.ModuleDeps) issues.Module {
 
 func (m *admissionProbeModule) IssueName() string {
 	return IssueName
+}
+
+func (m *admissionProbeModule) IssueType() string {
+	return IssueType
 }
 
 func (m *admissionProbeModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {

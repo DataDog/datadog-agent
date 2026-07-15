@@ -1354,6 +1354,7 @@ workflow:
   - changes:
       paths:
         - pkg/sbom/**/*
+        - pkg/security/resolvers/sbom/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

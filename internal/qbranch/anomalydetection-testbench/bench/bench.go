@@ -90,6 +90,10 @@ type Config struct {
 
 	// ParquetFormat selects the parquet layout. Empty string = auto-detect.
 	ParquetFormat ParquetFormat
+
+	// StreamParquet ingests globally ordered parquet data without retaining raw rows.
+	// It is intended for one-shot headless runs, which do not need interactive reruns.
+	StreamParquet bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -187,6 +191,13 @@ type Bench struct {
 	api *BenchAPI
 
 	replayStats *ReplayStats
+
+	streamInputMetricsCount int64
+	streamInputMetricSeries map[uint64]struct{}
+	streamInputLogsCount    int
+	streamScenarioStartSec  int64
+	streamScenarioEndSec    int64
+	hasStreamScenarioBounds bool
 
 	// baselineMu protects baseline fields. Separate from tb.mu because the
 	// callback fires from the engine run goroutine while tb.mu may already be
@@ -350,6 +361,12 @@ func (tb *Bench) LoadScenario(name string) error {
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.liveAdvanceTimes = nil
+	tb.streamInputMetricsCount = 0
+	tb.streamInputMetricSeries = nil
+	tb.streamInputLogsCount = 0
+	tb.streamScenarioStartSec = 0
+	tb.streamScenarioEndSec = 0
+	tb.hasStreamScenarioBounds = false
 	tb.ready = false
 	tb.loadedScenario = name
 	tb.debug.SetReplayPhase("loading")
@@ -410,14 +427,20 @@ func (tb *Bench) LoadScenario(name string) error {
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
 	analysisStart := time.Now()
-	tb.rerunDetectorsLocked()
+	if tb.config.StreamParquet {
+		// Detection advanced while parquet rows were read. Flush the final
+		// timestamp without resetting or walking retained storage.
+		tb.finishStreamLocked()
+	} else {
+		tb.rerunDetectorsLocked()
+	}
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 
 	sv := tb.debug.StateView()
 	rs := tb.replayStats
 	fmt.Printf("Scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
-		rs.InputMetricsCount, rs.InputMetricsCardinality, sv.TotalAnomalyCount(), len(tb.rawLogs), len(tb.logAnomalies))
+		rs.InputMetricsCount, rs.InputMetricsCardinality, sv.TotalAnomalyCount(), rs.InputLogsCount, len(tb.logAnomalies))
 
 	close(progressDone)
 	tb.mu.Unlock()
@@ -433,6 +456,9 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		format = detectParquetFormat(dir)
 	}
 	fmt.Printf("  Parquet format: %s\n", format)
+	if tb.config.StreamParquet {
+		return tb.streamParquetObservations(dir, format)
+	}
 
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
@@ -473,8 +499,10 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		tb.feedRawMetrics()
 	}
 
-	var parquetLogs []recorderdef.LogData
-	var logsErr error
+	var (
+		parquetLogs []recorderdef.LogData
+		logsErr     error
+	)
 	if format == FormatV2 {
 		parquetLogs, logsErr = readAllLogsV2(dir)
 	} else {
@@ -490,6 +518,65 @@ func (tb *Bench) loadParquetDir(dir string) error {
 	}
 
 	return nil
+}
+
+func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) error {
+	fmt.Printf("  Streaming timestamp-ordered parquet observations\n")
+	tb.debug.SetReplayPhase("detecting")
+	tb.streamInputMetricSeries = make(map[uint64]struct{})
+
+	_, _, err := streamOrderedObservations(dir, format, tb.config.LogsOnly, func(observation parquetObservation) error {
+		if observation.metric != nil {
+			metric := observation.metric
+			if strings.HasPrefix(metric.Name, "datadog.") {
+				return nil
+			}
+			if tb.config.SkipDroppedMetrics && metric.Dropped {
+				return nil
+			}
+
+			sort.Strings(metric.Tags)
+			tb.streamInputMetricSeries[metricSeriesHash(metric.Name, metric.Tags)] = struct{}{}
+			tb.streamInputMetricsCount++
+			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
+
+			view := parquetMetricView{
+				name:      metric.Name,
+				value:     metric.Value,
+				tags:      metric.Tags,
+				timestamp: metric.Timestamp,
+			}
+			tb.debug.IngestMetricSync("parquet", &view)
+			return nil
+		}
+
+		tb.streamInputLogsCount++
+		tb.extendStreamBounds(observation.log.TimestampMs/1000, observation.log.TimestampMs/1000)
+		view := logDataView{data: observation.log}
+		tb.debug.IngestLogAndAdvance("parquet", &view)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Streamed %d metric rows and %d log rows\n", tb.streamInputMetricsCount, tb.streamInputLogsCount)
+	return nil
+}
+
+func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
+	if !tb.hasStreamScenarioBounds {
+		tb.streamScenarioStartSec = startSec
+		tb.streamScenarioEndSec = endSec
+		tb.hasStreamScenarioBounds = true
+		return
+	}
+	if startSec < tb.streamScenarioStartSec {
+		tb.streamScenarioStartSec = startSec
+	}
+	if endSec > tb.streamScenarioEndSec {
+		tb.streamScenarioEndSec = endSec
+	}
 }
 
 // feedRawMetrics feeds tb.rawMetrics synchronously into the engine and re-adds
@@ -544,6 +631,27 @@ type parquetMetricView struct {
 	timestamp int64
 }
 
+func metricSeriesHash(name string, sortedTags []string) uint64 {
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	add := func(value string) {
+		for i := 0; i < len(value); i++ {
+			hash ^= uint64(value[i])
+			hash *= prime64
+		}
+		hash ^= 0
+		hash *= prime64
+	}
+	add(name)
+	for _, tag := range sortedTags {
+		add(tag)
+	}
+	return hash
+}
+
 func (m *parquetMetricView) GetName() string         { return m.name }
 func (m *parquetMetricView) GetValue() float64       { return m.value }
 func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
@@ -562,6 +670,15 @@ func unboundedStorageCfg() observerimpl.StorageConfig {
 	return cfg
 }
 
+// streamingStorageCfg uses the production point-retention and series limits,
+// while retaining complete correlation history required by headless output.
+func streamingStorageCfg() observerimpl.StorageConfig {
+	cfg := observerimpl.DefaultStorageConfig()
+	cfg.MaxCorrelations = -1
+	cfg.TrackCorrelationHistory = true
+	return cfg
+}
+
 // resetAllState resets engine state via DebugView.Reset.
 func (tb *Bench) resetAllState() {
 	tb.baselineMu.Lock()
@@ -569,7 +686,11 @@ func (tb *Bench) resetAllState() {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	tb.debug.Reset(tb.settings, unboundedStorageCfg())
+	storageCfg := unboundedStorageCfg()
+	if tb.config.StreamParquet {
+		storageCfg = streamingStorageCfg()
+	}
+	tb.debug.Reset(tb.settings, storageCfg)
 }
 
 // GetStatus returns the current status.
@@ -605,7 +726,6 @@ func (tb *Bench) GetStatus() StatusResponse {
 			}
 		}
 	}
-
 	var scenarioStartPtr *int64
 	var scenarioEndPtr *int64
 	if hasBounds {
@@ -679,16 +799,33 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// are written to storage. Detectors and correlators are deferred to the
 	// subsequent ReplayStoredData call, matching the original single-pass approach.
 	for _, logEntry := range tb.rawLogs {
-		tb.debug.IngestTestbenchLog("parquet", logEntry)
+		tb.debug.IngestLogForReplay("parquet", logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}
 
+	tb.finishReplayLocked()
+}
+
+// finishReplayLocked runs analysis over data already loaded into observer storage
+// and refreshes all derived testbench output. Caller must hold tb.mu.
+func (tb *Bench) finishReplayLocked() {
 	// Run the full batch replay: reset analysis state (not storage), advance
 	// through every stored timestamp so detectors see the full accumulated
 	// dataset at each step. This matches what the old testbench achieved via
 	// engine.ReplayStoredData() after pre-loading all data into storage.
 	tb.debug.ReplayStoredData()
+	tb.collectReplayResultsLocked()
+}
+
+// finishStreamLocked flushes the last timestamp and collects output from the
+// already-advanced streaming run. Caller must hold tb.mu.
+func (tb *Bench) finishStreamLocked() {
+	tb.debug.FinishReplayStream()
+	tb.collectReplayResultsLocked()
+}
+
+func (tb *Bench) collectReplayResultsLocked() {
 
 	sv := tb.debug.StateView()
 
@@ -705,18 +842,36 @@ func (tb *Bench) rerunDetectorsLocked() {
 	tb.corrGeneration++
 
 	// Build reported events from correlation history.
-	tb.reportedEvents = buildReportedEvents(sv.CorrelationHistory(), tb.debug.StorageReader())
+	storage := tb.debug.StorageReader()
+	if tb.config.StreamParquet {
+		// Old windows may already have been evicted. BuildChangeMessage has a
+		// context-based fallback when storage is nil.
+		storage = nil
+	}
+	tb.reportedEvents = buildReportedEvents(sv.CorrelationHistory(), storage)
 
 	// Compute replay stats.
 	detectorStats := computeDetectorProcessingStatsFromStateView(sv)
 	enrichDetectorStatsKind(detectorStats, tb.debug.CatalogEntries())
-	tb.replayStats = &ReplayStats{
+	inputMetricSeries := make(map[uint64]struct{})
+	for _, metric := range tb.rawMetrics {
+		tags := append([]string(nil), metric.tags...)
+		sort.Strings(tags)
+		inputMetricSeries[metricSeriesHash(metric.name, tags)] = struct{}{}
+	}
+	replayStats := &ReplayStats{
 		DetectorStats:           detectorStats,
-		InputMetricsCount:       sv.TotalSampleCount(observerdef.TelemetryNamespace),
-		InputMetricsCardinality: sv.TotalSeriesCount(observerdef.TelemetryNamespace),
-		InputLogsCount:          sumStoredTelemetryCounter(sv, telemetryTbInputLogsCount),
+		InputMetricsCount:       int64(len(tb.rawMetrics)),
+		InputMetricsCardinality: len(inputMetricSeries),
+		InputLogsCount:          len(tb.rawLogs),
 		InputAnomaliesCount:     len(sv.Anomalies()),
 	}
+	if tb.config.StreamParquet {
+		replayStats.InputMetricsCount = tb.streamInputMetricsCount
+		replayStats.InputMetricsCardinality = len(tb.streamInputMetricSeries)
+		replayStats.InputLogsCount = tb.streamInputLogsCount
+	}
+	tb.replayStats = replayStats
 
 	tb.ready = true
 }

@@ -41,6 +41,7 @@ dd_agent_go_test(
         "common_header_provider_test.go",
         "status_api_endpoints_test.go",
         "status_test.go",
+        "tz_test.go",
     ],
     embed = [":statusimpl"],
     deps = [

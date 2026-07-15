@@ -124,6 +124,7 @@ func reportConfigurationError(hp healthplatformdef.Component, entityName string,
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: admisconfig.AnnotationIssueName,
+			IssueType: admisconfig.AnnotationIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
 			Source:    admisconfig.Source,
 		}

@@ -43,8 +43,10 @@ type flareResponse struct {
 
 // FlareSource has metadata about why the flare was sent
 type FlareSource struct {
-	sourceType string
-	rcTaskUUID string
+	sourceType  string
+	rcTaskUUID  string
+	flareSource string
+	tags        []string
 }
 
 // NewLocalFlareSource returns a flare source struct for local flares
@@ -60,6 +62,14 @@ func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
 		sourceType: "remote-config",
 		rcTaskUUID: rcTaskUUID,
 	}
+}
+
+// WithFlareSourceTags returns a copy of the FlareSource with the given flare source and tags attached.
+// These come from the AGENT_TASK config args ("source" and "tags") and are forwarded to the support upload.
+func (s FlareSource) WithFlareSourceTags(flareSource string, tags []string) FlareSource {
+	s.flareSource = flareSource
+	s.tags = tags
+	return s
 }
 
 func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
@@ -87,6 +97,14 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		if source.rcTaskUUID != "" {
 			// UUID of the remote-config task sending the flare
 			writer.WriteField("rc_task_uuid", source.rcTaskUUID) //nolint:errcheck
+		}
+		if source.flareSource != "" {
+			// Source provided by the AGENT_TASK config (describes what triggered the flare)
+			writer.WriteField("flare_source", source.flareSource) //nolint:errcheck
+		}
+		for _, tag := range source.tags {
+			// Tags provided by the AGENT_TASK config, one field per tag
+			writer.WriteField("tags", tag) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))

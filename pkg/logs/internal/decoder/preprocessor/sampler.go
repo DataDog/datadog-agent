@@ -222,6 +222,11 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	// tailers skip no-content messages via HasContent() before the processor, don't use
+	// space in the pattern table for them.
+	if !msg.HasContent() {
+		return msg
+	}
 	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
 		return msg
 	}

@@ -64,8 +64,9 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 			Metric: r.Name(),
 			Tags:   append([]string{}, r.Tags()...),
 			// MetricType numeric values are identical between the two proto packages.
-			Type: metricspb.MetricPayload_MetricType(metricType),
-			Unit: r.Unit(),
+			Type:     metricspb.MetricPayload_MetricType(metricType),
+			Unit:     r.Unit(),
+			Interval: int64(r.Interval()),
 		}
 		for _, res := range r.Resources() {
 			if res == nil {

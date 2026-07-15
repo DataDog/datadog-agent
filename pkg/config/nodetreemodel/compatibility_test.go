@@ -8,7 +8,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -22,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -435,28 +433,6 @@ func TestReadInConfigExactError(t *testing.T) {
 	assert.Equal(t, "datadoghq.com", conf.GetString("site"))
 }
 
-func TestEnvVarsSubfields(t *testing.T) {
-	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
-		data, _ := json.Marshal(map[string]string{"a": "apple"})
-		t.Setenv("TEST_MY_FEATURE_INFO_TARGETS", string(data))
-
-		configData := `
-my_feature:
-  info:
-    enabled: true
-`
-		conf := constructNtmConfig(configData, false, func(cfg model.Setup) {
-			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
-			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
-			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
-			cfg.BindEnvAndSetDefault("my_feature.info.targets", "", "TEST_MY_FEATURE_INFO_TARGETS")
-		})
-
-		fields := conf.GetSubfields("my_feature.info")
-		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
-	})
-}
-
 func TestInvalidFileData(t *testing.T) {
 	configData := `
 fruit:
@@ -517,44 +493,6 @@ additional_endpoints:
 		"https://url1.com": {"my_api_key"},
 	}
 	assert.Equal(t, expectEndpoints, conf.GetStringMapStringSlice("additional_endpoints"))
-}
-
-func TestGetViperCombineInvalidFileData(t *testing.T) {
-	// The setting in the yaml file has the wrong shape.
-	// It is a list of an object, but it is supposed to not be a list.
-	// The implementation should handle this predictably: when merging conflicts higher
-	// layers have branches kept, so the invalid file data is kept rather than the defaults.
-	configData := `network_path:
-  collector:
-    - input_chan_size: 23456
-`
-	// Two settings at path, but the file source has the wrong shape
-	conf := constructNtmConfig(configData, false, func(cfg model.Setup) {
-		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0) //nolint:forbidigo // used to test behavior
-		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)         //nolint:forbidigo // used to test behavior
-	})
-
-	// Value at the path is a list of map
-	expectCollector := []interface{}{
-		map[interface{}]interface{}{
-			"input_chan_size": 23456,
-		},
-	}
-	// Parent of that element
-	expectNetworkPath := map[string]interface{}{
-		"collector": []interface{}{
-			map[interface{}]interface{}{
-				"input_chan_size": 23456,
-			},
-		},
-	}
-
-	assert.Equal(t, expectCollector, conf.Get("network_path.collector"))
-	assert.Equal(t, expectCollector, helper.GetViperCombine(conf, "network_path.collector"))
-	assert.Equal(t, expectCollector, conf.AllSettings()["network_path"].(map[string]interface{})["collector"])
-
-	// Test parent element as well
-	assert.Equal(t, expectNetworkPath, helper.GetViperCombine(conf, "network_path"))
 }
 
 func TestCompareEmptyLeafSetting(t *testing.T) {

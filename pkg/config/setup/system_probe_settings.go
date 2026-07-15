@@ -125,8 +125,8 @@ func initMainSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.debug_info_disk_cache.required_disk_space_bytes", int64(512<<20 /* 512MiB */))
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.debug_info_disk_cache.required_disk_space_percent", float64(0.0))
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interval", 1*time.Second)
-	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.per_probe_cpu_limit", 0.1)
-	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", 0.5)
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.per_probe_cpu_limit", float64(0.1))
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", float64(0.5))
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings

@@ -469,6 +469,9 @@ func (g *GoPCLnTabInfo) funcTabSize() int {
 
 	nfuncdata := getUint8(g.funcdata, maxFuncOffset+g.funcNfuncdataOffset)
 	npcdata := getUInt32(g.funcdata, maxFuncOffset+g.funcNpcdataOffset)
+	if nfuncdata == -1 || npcdata == -1 {
+		return -1
+	}
 	return maxFuncOffset + g.funcSize + npcdata*4 + nfuncdata*g.fieldSize
 }
 
@@ -617,6 +620,13 @@ func parseGoPCLnTab(data []byte) (*GoPCLnTabInfo, error) {
 	}
 	if hdr.pad != 0 || hdr.ptrSize != ptrSize {
 		return nil, fmt.Errorf(".gopclntab header: %x, %x", hdr.pad, hdr.ptrSize)
+	}
+
+	// functab holds (2*numFuncs + 1) fields: numFuncs (pc, funcoff) pairs plus a trailing sentinel pc. Without this
+	// bound a header-supplied numFuncs can spin those loops for an unbounded time (otel-ebpf-profiler#1602 class).
+	if hdr.numFuncs > uint64((len(functab)/fieldSize-1)/2) {
+		return nil, fmt.Errorf(".gopclntab numFuncs %d exceeds functab capacity (%d bytes, fieldSize %d)",
+			hdr.numFuncs, len(functab), fieldSize)
 	}
 
 	// nfuncdata is the last field in _func struct

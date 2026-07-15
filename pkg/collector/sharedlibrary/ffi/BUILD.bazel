@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "ffi.c",
         "ffi.h",
+        "ffi_noop.go",
         "library_loader.go",
         "library_loader_test_util.go",
     ],
