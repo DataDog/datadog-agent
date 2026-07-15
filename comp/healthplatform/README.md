@@ -2,7 +2,7 @@
 
 ## Issue identity fields
 
-Every health issue has three identity fields. Follow these rules when adding a new issue module.
+Every health issue has four identity fields. Follow these rules when adding a new issue module.
 
 ### `id`
 
@@ -19,6 +19,13 @@ Every health issue has three identity fields. Follow these rules when adding a n
 - **Examples**: `"Read-Only Filesystem Error"`, `"Invalid Config"`, `"Autodiscovery Misconfiguration"`
 
 > The registry panics at startup if `IssueName()` does not match `^[A-Z][a-zA-Z0-9 -]*$`.
+
+### `issue_type` (`IssueType`)
+
+- **Format**: `issue_name` lowercased with spaces replaced by underscores (hyphens are preserved) — e.g. `"Check Execution Failure"` → `"check_execution_failure"`
+- **Scope**: stable per issue *type*, same scope as `issue_name` — a machine-friendly key for grouping/filtering in the backend
+- **Caller-set, not derived**: the agent never computes this at runtime — that would duplicate logic the backend already owns. Each module exports a `const IssueType` next to `IssueName` (same lowercasing/underscore rule, written by hand) and sets it explicitly in `BuildIssue`, exactly like `IssueName`. `store.ReportIssue` passes it through unmodified.
+- **Examples**: `"check_execution_failure"`, `"invalid_config"`, `"read-only_filesystem_error"`
 
 ### `title`
 
@@ -51,24 +58,27 @@ On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store 
 
 ## Current issues
 
-| Package | `id` | `issue_name` | `title` |
-|---|---|---|---|
-| `admisconfig` | set by caller | `Autodiscovery Misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` |
-| `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `"Agent cannot write to: <directories>"` |
-| `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `"Admission Controller Unreachable"` |
-| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `"Docker log tailing disabled for '<dockerDir>'"` |
+| Package | `id` | `issue_name` | `issue_type` | `title` |
+|---|---|---|---|---|
+| `admisconfig` (annotation) | set by caller | `Autodiscovery Annotation Misconfiguration` | `autodiscovery_annotation_misconfiguration` | `"<subtype> Misconfiguration on '<entityName>'"` |
+| `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` |
+| `invalidconfig` | `invalid-config` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` |
+| `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` |
+| `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` |
+| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` |
 
 ## Adding a new issue module
 
 1. Pick an `id`: kebab-case, unique across all modules.
 2. Pick an `issue_name`: Title Case, describes the *class* of issue (not a specific instance).
-3. Export both as constants in `module.go`:
+3. Derive `issue_type` by hand from `issue_name`: lowercase it and replace spaces with underscores (keep hyphens as-is).
+4. Export all three as constants in `module.go`:
    ```go
    const (
        IssueName = "My New Issue"          // Title Case, stable
+       IssueType = "my_new_issue"          // IssueName lowercased, spaces -> underscores
        IssueID   = "my-new-issue"          // kebab-case, unique
    )
    ```
-4. In `BuildIssue`, set `Title` to a string that embeds the instance-specific value from `context`.
-5. Register the module via `issues.RegisterModuleFactory(NewModule)` in an `init()` function.
+5. In `BuildIssue`, set both `IssueName` and `IssueType` to the fixed constants, and set `Title` to a string that embeds the instance-specific value from `context`.
+6. Register the module via `issues.RegisterModuleFactory(NewModule)` in an `init()` function.
