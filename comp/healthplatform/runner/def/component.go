@@ -17,12 +17,12 @@ package runner
 type IssueReport struct {
 	// IssueID is the unique instance id, used as the store's map key.
 	// Examples:
-	//   "check-execution-failure:mysql:0123abcd"
+	//   "rofs-permissions:mysql:0123abcd"
 	//   "ad-template:redis:svc-foo:deadbeef"
 	IssueID string
 
 	// IssueName is the issue name looked up in the issue registry.
-	// Examples: "Check Execution Failure", "Docker File Tailing Disabled"
+	// Examples: "Read-Only Filesystem Error", "Docker File Tailing Disabled"
 	IssueName string
 
 	// Source is the reporting integration or component name.
