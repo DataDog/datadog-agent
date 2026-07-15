@@ -350,12 +350,13 @@ def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
 # --- Combo helpers ---
 
 
-def _full_stack_combo(force_disable: list | None = None) -> dict:
-    """All detectors and correlators not in force_disable (for eval baseline)."""
+def _full_stack_combo(force_disable: list | None = None, force_enable: list | None = None) -> dict:
+    """All ablation components plus force-enabled supported components."""
     fd = set(force_disable or [])
+    fe_cors = {c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd}
     return {
         "detectors": sorted(d for d in DETECTORS if d not in fd),
-        "correlators": sorted(c for c in ABLATION_CORRELATORS if c not in fd),
+        "correlators": sorted({c for c in ABLATION_CORRELATORS if c not in fd} | fe_cors),
     }
 
 
@@ -363,7 +364,7 @@ def _anchor_combos(force_disable: list | None = None, force_enable: list | None 
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
     fd = set(force_disable or [])
     fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
-    fe_cors = sorted(c for c in (force_enable or []) if c in ABLATION_CORRELATORS and c not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd)
     anchors = []
     seen_keys: set = set()
     for combo in ANCHOR_COMBOS:
@@ -396,8 +397,8 @@ def random_component_combinations(
 
     det_pool = [d for d in DETECTORS if d not in force_disable]
     cor_pool = [c for c in ABLATION_CORRELATORS if c not in force_disable]
-    forced_dets = sorted(d for d in force_enable if d in DETECTORS)
-    forced_cors = sorted(c for c in force_enable if c in ABLATION_CORRELATORS)
+    forced_dets = sorted(d for d in force_enable if d in DETECTORS and d not in force_disable)
+    forced_cors = sorted(c for c in force_enable if c in SUPPORTED_CORRELATORS and c not in force_disable)
 
     rng = random.Random(seed)
     combos = []
@@ -465,6 +466,9 @@ def _combo_to_config(
     components = {}
     for name in DETECTORS + CONFIGURED_CORRELATORS:
         components[name] = _component_base_config(name, name in enabled_set)
+    for name in correlators:
+        if name in SUPPORTED_CORRELATORS and name not in components:
+            components[name] = _component_base_config(name, True)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
     return {"components": components}

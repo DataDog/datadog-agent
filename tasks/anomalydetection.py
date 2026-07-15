@@ -544,7 +544,7 @@ def eval_combinations(
     if force_disable_list:
         print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
 
-    full_combo = _full_stack_combo(force_disable_list)
+    full_combo = _full_stack_combo(force_disable_list, force_enable_list)
     full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
     random_count = max(0, n - 1)
     random_combos = random_component_combinations(
@@ -1693,7 +1693,7 @@ def eval_pipeline(
     elif not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
-    full_combo = _full_stack_combo(force_disable=force_disable_list)
+    full_combo = _full_stack_combo(force_disable=force_disable_list, force_enable=force_enable_list)
     anchor_list = _anchor_combos(force_disable=force_disable_list, force_enable=force_enable_list)
     fixed_combos = [full_combo] + anchor_list
     fixed_keys = {(tuple(c["detectors"]), tuple(c["correlators"])) for c in fixed_combos}
@@ -2018,7 +2018,7 @@ def eval_component(
     is_extractor = component in EXTRACTORS
     force_disable_subsets: list[str] = sorted(set(([] if is_extractor else [component]) + force_disable_extra_list))
 
-    full_stack = _full_stack_combo(force_disable=force_disable_subsets)
+    full_stack = _full_stack_combo(force_disable=force_disable_subsets, force_enable=force_enable_list)
     anchor_subsets = _anchor_combos(force_disable=force_disable_subsets, force_enable=force_enable_list)
     fixed_subsets = [full_stack] + anchor_subsets
     fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}

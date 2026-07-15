@@ -10,8 +10,11 @@ from tasks.anomalydetection import (
 from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
     SUPPORTED_CORRELATORS,
+    _anchor_combos,
     _build_optuna_config,
     _combo_to_config,
+    _full_stack_combo,
+    random_component_combinations,
 )
 
 
@@ -43,6 +46,20 @@ class TestAblationConfig(unittest.TestCase):
         self.assertTrue(manual["cross_signal"]["enabled"])
         self.assertTrue(manual["time_cluster"]["enabled"])
         self.assertFalse(manual["anomaly_scorer"]["enabled"])
+
+    def test_force_enabled_manual_correlators_are_preserved(self):
+        for correlator in ("cross_signal", "time_cluster"):
+            with self.subTest(correlator=correlator):
+                combos = [
+                    _full_stack_combo(force_enable=[correlator]),
+                    *_anchor_combos(force_enable=[correlator]),
+                    *random_component_combinations(5, seed=42, force_enable=[correlator]),
+                ]
+                self.assertTrue(combos)
+                self.assertTrue(all(correlator in combo["correlators"] for combo in combos))
+
+                config = _combo_to_config(detectors=["bocpd"], correlators=[correlator])
+                self.assertTrue(config["components"][correlator]["enabled"])
 
 
 class TestPipelineResume(unittest.TestCase):
