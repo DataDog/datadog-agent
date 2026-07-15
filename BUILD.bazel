@@ -52,7 +52,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
 # gazelle:exclude cmd/cluster-agent/api/*.go
-# gazelle:exclude cmd/cluster-agent/api/agent
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
@@ -64,17 +63,13 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
-# gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/serverless-init/*.go
-# cloudservice imports mode and log directly; excluded alongside them until that
-# chain (mode -> log -> pkg/serverless/logs -> comp/logs/agent/impl and its
-# launchers) is migrated, then drop this exclude too.
+# cloudservice imports mode directly; excluded until mode is migrated,
+# then drop this exclude too.
 # gazelle:exclude cmd/serverless-init/cloudservice
-# gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
-# gazelle:exclude comp/collector/collector/impl/*.go
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/metadata/clusteragent/fx

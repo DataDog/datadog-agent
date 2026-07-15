@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/aws/aws-sdk-go-v2 v1.42.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.26
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
 	github.com/stretchr/testify v1.11.1
 )
 
