@@ -16,8 +16,7 @@ use super::stdio_setting::{self, StdioSetting};
 /// Platform-agnostic spawn inputs for procmgr managed processes.
 ///
 /// The platform backend is responsible for translating this into the OS-
-/// specific spawn mechanism (Unix: `Command::spawn`; Windows: impersonation or
-/// primary-token APIs).
+/// specific spawn mechanism (Unix: `Command::spawn`; Windows: `CreateProcessAsUserW`).
 pub struct SpawnRequest {
     pub command: String,
     pub args: Vec<String>,

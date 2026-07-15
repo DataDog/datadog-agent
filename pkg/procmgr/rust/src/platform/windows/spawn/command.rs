@@ -4,7 +4,6 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::info;
 use tokio::process::Command;
 
 use crate::handle::ProcessHandle;
@@ -12,12 +11,7 @@ use crate::platform;
 use crate::spawn::SpawnRequest;
 use crate::spawn_context;
 
-use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::super::{child_baseline_env_vars, merge_env_overrides, setup_process_group};
-use super::logon::{
-    LogonUserCredentials, TokenHandle, logon_user_credentials, logon_user_token,
-    with_impersonated_token,
-};
 use super::stdio;
 
 pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> {
@@ -54,60 +48,15 @@ pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> 
     Ok((command, cmd))
 }
 
+/// Privileged fallback only: dd-procmgr-service runs as LocalSystem and the child inherits SYSTEM.
 pub(super) fn spawn_as_local_system(
     process_name: &str,
     command: &str,
     cmd: &mut Command,
 ) -> Result<ProcessHandle> {
-    // dd-procmgr-service runs as LocalSystem; privileged children inherit SYSTEM.
-    exec_spawn(process_name, command, cmd)
-}
-
-pub(super) fn spawn_as_agent_user(
-    process_name: &str,
-    command: &str,
-    cmd: &mut Command,
-) -> Result<ProcessHandle> {
-    let account = resolve_agent_account()
-        .with_context(|| format!("[{process_name}] resolve agent service account for spawn"))?;
-
-    match account {
-        AgentAccount::LocalSystem => {
-            info!("[{process_name}] agent account is LocalSystem; inheriting supervisor token");
-            exec_spawn(process_name, command, cmd)
-        }
-        _ => {
-            let creds = logon_user_credentials(&account);
-            spawn_with_impersonation(process_name, command, cmd, &creds)
-        }
-    }
-}
-
-fn exec_spawn(process_name: &str, command: &str, cmd: &mut Command) -> Result<ProcessHandle> {
     setup_process_group(cmd);
     let child = cmd
         .spawn()
         .with_context(|| spawn_context::failed_message(process_name, command))?;
     Ok(ProcessHandle::from_child(child))
-}
-
-fn spawn_with_token_impersonation(
-    process_name: &str,
-    command: &str,
-    cmd: &mut Command,
-    token: TokenHandle,
-) -> Result<ProcessHandle> {
-    with_impersonated_token(process_name, token.raw(), || {
-        exec_spawn(process_name, command, cmd)
-    })
-}
-
-fn spawn_with_impersonation(
-    process_name: &str,
-    command: &str,
-    cmd: &mut Command,
-    creds: &LogonUserCredentials<'_>,
-) -> Result<ProcessHandle> {
-    let logon_token = logon_user_token(process_name, creds)?;
-    spawn_with_token_impersonation(process_name, command, cmd, logon_token)
 }
