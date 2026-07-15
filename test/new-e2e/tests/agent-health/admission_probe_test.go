@@ -118,6 +118,8 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 
 		require.NotNil(t, detectedIssue)
 		assert.Equal(t, admissionProbeIssueID, detectedIssue.Id)
+		assert.Equal(t, "Admission Controller Unreachable", detectedIssue.IssueName)
+		assert.Equal(t, "admission_controller_unreachable", detectedIssue.IssueType)
 		assert.Equal(t, "availability", detectedIssue.Category)
 		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, detectedIssue.Severity)
 		assert.Equal(t, "cluster-agent", detectedIssue.Source)

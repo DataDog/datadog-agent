@@ -9,6 +9,12 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+
+
+---
+
+## 7.83.0-devel.git.104.a0e68a4-1 (2026-07-15)
+
 - Bundle the `process` check in the AIX package so operators can monitor processes by name without any manual install step; the check uses the `psutil` library already included in the embedded Python
 - Fix `ibm_mq` check queue discovery on AIX: patch `pymqi`'s `MQENC_NATIVE` constant from `0x222` (little-endian) to `0x111` (big-endian) after install. The constant is generated from Linux headers and caused `MQRCCF_CFH_LENGTH_ERROR` when the check sent PCF commands to a local MQ queue manager.
 - Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host

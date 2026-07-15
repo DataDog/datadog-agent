@@ -16,6 +16,9 @@ import (
 const (
 	// IssueName is the human-readable issue name for GPU environment issues.
 	IssueName = "GPU Environment Issue"
+	// IssueType is the snake_case type key for GPU environment issues:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "gpu_environment_issue"
 	// IssueID is the issue ID prefix for GPU environment issues.
 	// External reporters append a reason-specific suffix: IssueID + ":nvml-unavailable".
 	IssueID = "gpu-environment-issue"
@@ -26,6 +29,7 @@ const (
 	ReasonNvmlUnavailable = "nvml-unavailable"
 
 	issueName  = IssueName
+	issueType  = IssueType
 	category   = "availability"
 	location   = "gpu"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
@@ -67,6 +71,7 @@ func (t *GPUEnvironmentIssue) BuildIssue(context map[string]string) (*healthplat
 
 	return &healthplatform.Issue{
 		IssueName:   issueName,
+		IssueType:   issueType,
 		Title:       content.title,
 		Description: content.description,
 		Category:    category,

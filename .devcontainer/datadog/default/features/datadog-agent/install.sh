@@ -17,7 +17,7 @@ install -m 755 "$featureDir/lifecycle/postCreate.sh" /opt/doghome/devcontainer/f
 rm -rf /var/config/dd
 mv /var/config/dd-defaults /var/config/dd
 
-
+cp /var/config/dd/dd-agent-workspace-env.sh /etc/profile.d/50-agent-workspace-env.sh
 # Configure PATH for interactive shells.
 # File name convention *-workspace-env.sh is important:
 # /etc/zsh/zshenv sources these files.

@@ -1,0 +1,12 @@
+# Validate ordinary anchor fragments and text fragments to maximize coverage.
+include_fragments = "full"
+
+# Resolve directory URLs such as setup/required/ to their generated index.html.
+# This is necessary because the deployed site uses directory URLs.
+index_files = ["index.html"]
+
+# Zensical's 404 page uses root-relative URLs because it can be served at any
+# missing path. Exclude that generated page because its links cannot be resolved
+# against the local site directory without special root mapping.
+# See https://github.com/zensical/zensical/issues/764.
+exclude_path = ['^site(/|\\)404\.html$']

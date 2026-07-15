@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -34,8 +33,8 @@ func newTestCheck(id string) *stubCheck {
 	return &stubCheck{id: id}
 }
 
-func addExpvarsCheckStats(t testing.TB, c check.Check) {
-	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent(), healthplatformmock.New(t))
+func addExpvarsCheckStats(c check.Check) {
+	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 }
 
 func setUp(cfg model.Config) {
@@ -70,7 +69,7 @@ func TestShouldLogLastVerboseLog(t *testing.T) {
 			// When I start the check
 			checkLogger.CheckStarted()
 			// And increment the CheckStats
-			addExpvarsCheckStats(t, testCheck)
+			addExpvarsCheckStats(testCheck)
 			// And the check finishes
 			checkLogger.CheckFinished()
 
@@ -103,7 +102,7 @@ func TestShouldLogInitialCheckLoggingSeries(t *testing.T) {
 			// When I start the check
 			checkLogger.CheckStarted()
 			// And increment the CheckStats
-			addExpvarsCheckStats(t, testCheck)
+			addExpvarsCheckStats(testCheck)
 			// And the check finishes
 			checkLogger.CheckFinished()
 

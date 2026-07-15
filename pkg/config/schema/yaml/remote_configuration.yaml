@@ -19,7 +19,6 @@ properties:
       Set to true to enable Remote Configuration. Enabled by default.
       Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
       and must be explicitly enabled.
-    comment: Remote config
   agent_config:
     node_type: section
     type: object
