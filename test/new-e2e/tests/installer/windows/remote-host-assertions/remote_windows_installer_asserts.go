@@ -197,10 +197,7 @@ func fromLegacyStatus(legacy installerStatusLegacy) installerStatus {
 	}
 	configStates := make(map[string]stableExperimentStatus, len(legacy.Packages.ConfigStates))
 	for name, s := range legacy.Packages.ConfigStates {
-		configStates[name] = stableExperimentStatus{
-			Stable:     s.Stable,
-			Experiment: s.Experiment,
-		}
+		configStates[name] = stableExperimentStatus(s)
 	}
 	return installerStatus{
 		Version: legacy.Version,
