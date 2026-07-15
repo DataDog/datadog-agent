@@ -65,8 +65,13 @@ func fixupContainerSyspath(config pkgconfigmodel.Config) {
 // This runs as an override func (at config-load time) rather than as the registered default so that
 // generated config schemas/templates stay environment-independent. Values are set at SourceDefault,
 // so a config file or env var still takes precedence and IsConfigured stays false.
+//
+// The DD_EKS_FARGATE check mirrors the container entrypoint (cont-init.d/50-eks.sh), which selects
+// datadog-kubernetes.yaml on that variable alone. The EKS Fargate agent sidecar sets DD_EKS_FARGATE
+// (not KUBERNETES); covering it here guarantees jmx_use_container_support — which has no
+// consumption-side fallback, unlike apm_non_local_traffic — still gets the Kubernetes default there.
 func applyKubernetesContainerDefaults(config pkgconfigmodel.Config) {
-	if !pkgconfigenv.IsKubernetes() {
+	if !pkgconfigenv.IsKubernetes() && os.Getenv("DD_EKS_FARGATE") == "" {
 		return
 	}
 	for _, key := range []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"} {

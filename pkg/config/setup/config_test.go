@@ -1851,6 +1851,7 @@ func TestApplyKubernetesContainerDefaults(t *testing.T) {
 	t.Run("non-kubernetes leaves defaults false", func(t *testing.T) {
 		t.Setenv("KUBERNETES", "")
 		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
 		config := newTestConf(t)
 		applyKubernetesContainerDefaults(config)
 		for _, k := range keys {
@@ -1860,6 +1861,7 @@ func TestApplyKubernetesContainerDefaults(t *testing.T) {
 
 	t.Run("kubernetes enables defaults", func(t *testing.T) {
 		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
 		t.Setenv("KUBERNETES", "yes")
 		config := newTestConf(t)
 		applyKubernetesContainerDefaults(config)
@@ -1868,6 +1870,19 @@ func TestApplyKubernetesContainerDefaults(t *testing.T) {
 			// Kept at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
 			// containerized fallback) keep their existing behavior.
 			assert.False(t, config.IsConfigured(k), k)
+		}
+	})
+
+	t.Run("eks fargate enables defaults without kubernetes service env", func(t *testing.T) {
+		// The EKS Fargate sidecar sets DD_EKS_FARGATE but not KUBERNETES; the defaults must
+		// still apply (jmx_use_container_support has no consumption-side fallback).
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
 		}
 	})
 
