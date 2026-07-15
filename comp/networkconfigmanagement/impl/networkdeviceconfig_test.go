@@ -252,26 +252,28 @@ func TestCheck_Run_Success(t *testing.T) {
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "running",
-				ConfigSource: "cli",
-				Timestamp:    1754043600,
-				Tags:         expectedTags,
-				Content:      runningOutput,
-				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				ConfigHash:   hashConfigForTest(runningOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "running",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600,
+				Tags:          expectedTags,
+				Content:       runningOutput,
+				ID:            "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigHash:    hashConfigForTest(runningOutput),
 			},
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "startup",
-				ConfigSource: "cli",
-				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
-				Tags:         expectedTags,
-				Content:      startupOutput,
-				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				ConfigHash:   hashConfigForTest(startupOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "startup",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600, // timestamp taken from agent collection (could not be extracted from config)
+				Tags:          expectedTags,
+				Content:       startupOutput,
+				ID:            "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigHash:    hashConfigForTest(startupOutput),
 			},
 		},
 		Inventories: []report.InventoryEntry{
@@ -423,7 +425,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	assert.True(t, reqs.connFactory.conn.Closed)
 
 	if assert.NotNil(t, dc.profile) {
-		assert.Equal(t, "p2", dc.profile.Name, "Device profile should be detected as p2")
+		assert.Equal(t, "p2", string(dc.profile.Name), "Device profile should be detected as p2")
 	}
 
 	t.Run("reloading config resets detected profile", func(t *testing.T) {
@@ -447,7 +449,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	actual, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.True(t, ok)
 	if assert.NotNil(t, actual) {
-		assert.Equal(t, "p2", actual.Name)
+		assert.Equal(t, "p2", string(actual.Name))
 	}
 }
 
