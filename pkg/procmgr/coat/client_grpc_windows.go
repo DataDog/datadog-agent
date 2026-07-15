@@ -13,7 +13,7 @@ import (
 	"net"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/Microsoft/go-winio/fs"
+	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -26,7 +26,7 @@ func dialProcmgrGRPC(socketPath string) (*grpc.ClientConn, error) {
 			return winio.DialPipeAccessImpLevel(
 				context.Background(),
 				socketPath,
-				uint32(fs.GENERIC_READ|fs.GENERIC_WRITE),
+				uint32(windows.GENERIC_READ|windows.GENERIC_WRITE),
 				winio.PipeImpLevelIdentification,
 			)
 		}),
