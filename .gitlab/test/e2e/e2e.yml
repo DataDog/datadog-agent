@@ -288,6 +288,7 @@ new-e2e-containers-k8s-rc-latest:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
     - when: never # disabled — RC not newer than latest stable
+    - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   variables:
