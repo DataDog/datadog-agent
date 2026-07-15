@@ -77,12 +77,12 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/security/resolvers/sbom",
             "//pkg/util/kernel",
-            "@com_github_containerd_containerd//protobuf/proto",
+            "@com_github_containerd_containerd_v2//pkg/protobuf/proto",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/resolvers/sbom",
             "//pkg/util/kernel",
-            "@com_github_containerd_containerd//protobuf/proto",
+            "@com_github_containerd_containerd_v2//pkg/protobuf/proto",
         ],
         "//conditions:default": [],
     }),

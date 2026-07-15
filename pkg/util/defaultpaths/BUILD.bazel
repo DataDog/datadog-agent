@@ -1,8 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "defaultpaths",
     srcs = [
+        "common_nix.go",
         "docs.go",
         "path_darwin.go",
         "path_freebsd.go",
@@ -46,6 +48,36 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "defaultpaths_test",
+    srcs = ["path_nix_test.go"],
+    embed = [":defaultpaths"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

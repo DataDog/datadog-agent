@@ -22,8 +22,8 @@ EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml"
 
 VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
-VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
-REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
+VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "fargate", "other"}
+REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux", "aix"}
 VALID_ENV_PARSERS = {
     "comma_separated",
     "space_separated",

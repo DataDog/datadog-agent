@@ -132,11 +132,11 @@ module Omnibus
       begin
         attempts += 1
         cmd = Array.new.tap do |arr|
-          arr << "dd-wcs"
+          arr << "C:/devtools/windows-code-signer.exe"
           arr << "sign"
           if ENV['WINDOWS_SIGNING_CERT'] && ENV['WINDOWS_SIGNING_CONFIG']
             arr << "--cert" << ENV['WINDOWS_SIGNING_CERT']
-            arr << "--config" << ENV['WINDOWS_SIGNING_CONFIG']
+            arr << "--key-info" << ENV['WINDOWS_SIGNING_CONFIG']
           end
           arr << "\"#{file}\""
         end.join(" ")
@@ -145,7 +145,7 @@ module Omnibus
         if status.exitstatus != 0
           log.warn(self.class.name) do
             <<-EOH.strip
-              Failed to sign with dd-wcs (Attempt #{attempts} of #{max_retries})
+              Failed to sign with windows-code-signer.exe (Attempt #{attempts} of #{max_retries})
 
               STDOUT
               ------
@@ -156,9 +156,9 @@ module Omnibus
               #{status.stderr}
             EOH
           end
-          raise "Failed to sign with dd-wcs"
+          raise "Failed to sign with windows-code-signer.exe"
         else
-          log.info(self.class.name) { "Successfully signed #{file} after #{attempts} attempt(s)" }
+          log.info(self.class.name) { "Successfully signed #{file} using windows-code-signer.exe after #{attempts} attempt(s)" }
         end
       rescue => e
         # Retry logic: raise error after 3 attempts
@@ -167,7 +167,7 @@ module Omnibus
           sleep(delay)
           retry
         end
-        raise "Failed to sign with dd-wcs: #{e.message}"
+        raise "Failed to sign with windows-code-signer.exe: #{e.message}"
       end
     end
 
@@ -286,17 +286,31 @@ module Omnibus
   # those synthetic parents are emitted as %dir entries, so our RPM starts
   # owning distro-owned directories like /usr/lib/systemd or /lib/systemd/system.
   #
-  # Keep explicit extra_package_file entries, but drop only the parent
-  # directories that were created to stage external extra_package_file paths.
+  # Keep explicit extra_package_file entries, with metadata overrides for shared
+  # external directories that must match other Datadog RPMs, but drop only the
+  # parent directories created to stage external extra_package_file paths.
   module PackagerRPMExtraPackageParentFilter
+    SHARED_EXTERNAL_DIRECTORY_ATTRIBUTES = {
+      "/var/log/datadog" => "0755,root,root",
+    }.freeze
+
     def build_filepath(path, debug = false)
       filepath = "/" + path.gsub("#{build_dir(debug)}/", "")
+      shared_directory_entry = shared_external_directory_entry(path, filepath)
+      return shared_directory_entry if shared_directory_entry
       return "" if extra_package_parent_directory?(filepath)
 
       super
     end
 
     private
+
+    def shared_external_directory_entry(path, filepath)
+      attributes = SHARED_EXTERNAL_DIRECTORY_ATTRIBUTES[File.expand_path(filepath)]
+      return unless attributes && File.directory?(path)
+
+      "%dir %attr(#{attributes}) #{rpm_safe(filepath)}"
+    end
 
     def extra_package_parent_directory?(filepath)
       extra_package_parent_directories.include?(File.expand_path(filepath))

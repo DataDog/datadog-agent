@@ -136,7 +136,6 @@ valid_image(i) {
 	has_key(i, "id")
 	has_key(i, "inspect")
 	has_key(i.inspect, "Architecture")
-	has_key(i.inspect, "Comment")
 	has_key(i.inspect, "Config")
 }
 

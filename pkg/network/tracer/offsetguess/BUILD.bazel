@@ -53,6 +53,9 @@ dd_agent_go_test(
     srcs = ["offsetguess_types_linux_test.go"],
     embed = [":offsetguess"],
     deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf/ebpftest:cgo_align",
         ],

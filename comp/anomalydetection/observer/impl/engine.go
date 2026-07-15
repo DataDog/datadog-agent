@@ -338,7 +338,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		lo.ProcessLog(view)
 	}
 	dataTimeSec := l.timestampMs / 1000
-	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }

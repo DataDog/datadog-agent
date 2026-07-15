@@ -16,7 +16,7 @@ go_library(
             "//pkg/util/crio",
             "//pkg/util/docker",
             "//pkg/util/trivy",
-            "@com_github_containerd_containerd//:containerd",
+            "@com_github_containerd_containerd_v2//client",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:linux": [
@@ -26,7 +26,7 @@ go_library(
             "//pkg/util/crio",
             "//pkg/util/docker",
             "//pkg/util/trivy",
-            "@com_github_containerd_containerd//:containerd",
+            "@com_github_containerd_containerd_v2//client",
             "@com_github_spf13_cobra//:cobra",
         ],
         "//conditions:default": [],

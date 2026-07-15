@@ -5,9 +5,16 @@ Given a dotted config path (e.g. ``api_key``, ``proxy.https``,
 ``apm_config.enabled``), find where it is defined in the YAML schema source
 files under ``pkg/config/schema/yaml`` and print the matching schema node.
 
+The argument can also be a pattern instead of an exact path: anything containing
+a character outside ``[A-Za-z0-9_.]`` (e.g. ``*``, ``$``, ``[``) is treated as a
+pattern and matched against every full dotted path in the schema. The pattern is
+interpreted as a regular expression (``re.search``); if it is not a valid regex
+it falls back to shell-style glob matching (``fnmatch``). So ``'*enabled'`` lists
+every setting whose full path ends with ``enabled``.
+
 Run with:
 
-    dda inv -- schema.locate <setting>
+    dda inv -- schema.locate <setting-or-pattern>
 
 The core schema is split across a top file (``core_schema.yaml``) and
 per-section sub-files referenced via ``$ref``. This module reads the YAML
@@ -16,8 +23,11 @@ locations point at editable source, and reuses ``resolve_schema`` to inline
 ``$ref``s when extracting the node content.
 """
 
+import fnmatch
 import json as _json
 import os
+import re
+from functools import lru_cache
 
 import yaml
 from invoke import task
@@ -42,8 +52,15 @@ SCHEMAS = [
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=None)
 def _compose(path):
-    """Return the root composed node of a YAML file (carries ``start_mark``)."""
+    """Return the root composed node of a YAML file (carries ``start_mark``).
+
+    Memoized by path: the composed tree is only read (walked for line numbers,
+    never mutated), and pattern matching calls this once per match — without the
+    cache, locating a pattern with hundreds of hits re-parses the multi-thousand
+    line schema files hundreds of times.
+    """
     with open(path) as f:
         return yaml.compose(f)
 
@@ -189,6 +206,80 @@ def locate_setting(setting, schemas=SCHEMAS):
 
 
 # ---------------------------------------------------------------------------
+# Pattern matching (regex / glob over full dotted paths)
+# ---------------------------------------------------------------------------
+
+
+def is_pattern(setting):
+    """True if *setting* should be treated as a regex/glob pattern, not an exact path.
+
+    Exact config paths are dotted identifiers — only ``[A-Za-z0-9_.]``. Any other
+    character (``*``, ``$``, ``[``, ``^``, ...) marks the argument as a pattern.
+    """
+    return re.search(r"[^A-Za-z0-9_.]", setting) is not None
+
+
+def _compile_matcher(pattern):
+    """Return a ``predicate(path) -> bool`` for *pattern*.
+
+    The pattern is treated as a regular expression matched with ``re.search``. If
+    it is not a valid regex (e.g. a glob like ``*enabled``), fall back to
+    shell-style glob matching via ``fnmatch`` so common glob syntax still works.
+    """
+    try:
+        regex = re.compile(pattern)
+    except re.error:
+        return lambda path: fnmatch.fnmatch(path, pattern)
+    return lambda path: regex.search(path) is not None
+
+
+def _walk_paths(merged, prefix=()):
+    """Yield ``(dotted_path, parts, node)`` for every setting/section descendant.
+
+    Walks named ``properties`` children recursively, depth-first, yielding each
+    node (both leaf settings and intermediate sections).
+    """
+    if not isinstance(merged, dict):
+        return
+    props = merged.get("properties")
+    if not isinstance(props, dict):
+        return
+    for key, child in props.items():
+        parts = (*prefix, key)
+        yield ".".join(parts), list(parts), child
+        yield from _walk_paths(child, parts)
+
+
+def locate_pattern(pattern, schemas=SCHEMAS):
+    """Locate every path matching *pattern* across *schemas*.
+
+    Returns a list of match dicts ``{schema, path, file, line, node}``, one per
+    matching path per schema, sorted by ``(path, schema)``.
+    """
+    match = _compile_matcher(pattern)
+    matches = []
+    for label, top_file in schemas:
+        for dotted, parts, node in _walk_paths(resolve_schema(top_file)):
+            if not match(dotted):
+                continue
+            physical = _locate_physical(top_file, parts)
+            if physical is None:
+                continue
+            file_path, line = physical
+            matches.append(
+                {
+                    "schema": label,
+                    "path": dotted,
+                    "file": file_path,
+                    "line": line,
+                    "node": _display_node(node),
+                }
+            )
+    matches.sort(key=lambda m: (m["path"], m["schema"]))
+    return matches
+
+
+# ---------------------------------------------------------------------------
 # Rendering + task entry point
 # ---------------------------------------------------------------------------
 
@@ -199,10 +290,18 @@ def _str_presenter(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
-def _render(matches, as_json):
-    """Render *matches* as a string: a JSON array if *as_json*, else human text."""
+def _render(matches, as_json, compact=False):
+    """Render *matches* as a string: a JSON array if *as_json*, else human text.
+
+    When *compact* (used for pattern matches, which can be numerous), each match
+    is rendered as a single ``[schema] path  ->  file:line`` line instead of the
+    full node block.
+    """
     if as_json:
         return _json.dumps(matches, indent=2, sort_keys=False)
+
+    if compact:
+        return "\n".join(f"[{m['schema']}] {m['path']}  ->  {m['file']}:{m['line']}" for m in matches)
 
     yaml.add_representer(str, _str_presenter)
     blocks = []
@@ -227,19 +326,26 @@ def _select_schemas(schemas, target):
 def run_locate(setting, target=None, as_json=False, schemas=SCHEMAS):
     """Locate *setting* and return the rendered output string.
 
-    Raises ``Exit(code=1)`` if *target* is invalid or the path is not found.
+    *setting* may be an exact dotted path or a regex/glob pattern (see
+    :func:`is_pattern`). Raises ``Exit(code=1)`` if *target* is invalid or nothing
+    matches.
     """
     selected = _select_schemas(schemas, target)
-    matches = locate_setting(setting, selected)
+    pattern = is_pattern(setting)
+    matches = locate_pattern(setting, selected) if pattern else locate_setting(setting, selected)
     if not matches:
         scope = f" in schema '{target}'" if target else ""
-        raise Exit(f"Setting or section '{setting}' not found{scope}.", code=1)
-    return _render(matches, as_json)
+        what = f"pattern '{setting}'" if pattern else f"Setting or section '{setting}'"
+        raise Exit(f"No match for {what}{scope}.", code=1)
+    return _render(matches, as_json, compact=pattern)
 
 
 @task(
     help={
-        "setting": "Dotted config path to locate, e.g. 'api_key', 'proxy.https', 'apm_config.enabled'.",
+        "setting": (
+            "Dotted config path to locate (e.g. 'api_key', 'apm_config.enabled'), "
+            "or a regex/glob pattern matched against every full path (e.g. '*enabled')."
+        ),
         "target": "Restrict the search to a single schema: 'core' or 'system-probe' (default: both).",
         "json": "Emit a JSON array of matches instead of human-readable text.",
     },
@@ -251,5 +357,9 @@ def locate(_ctx, setting, target=None, json=False):
 
     Prints the schema node and the source file + line where it is defined,
     searching both the core and system-probe schemas.
+
+    If *setting* is a pattern (contains a character outside [A-Za-z0-9_.]) it is
+    matched against every full dotted path, so 'schema.locate "*enabled"' lists
+    every setting whose path ends with 'enabled'.
     """
     print(run_locate(setting, target=target, as_json=json))

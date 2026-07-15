@@ -17,8 +17,7 @@ jobs:
       contents: read
       issues: write
       actions: write
-      id-token: write
-    uses: DataDog/issue-triage-action/.github/workflows/issue-triage.yml@ee200860ba35ba6ed3ad565e918afb16811fe975 # v1.0.0
+    uses: DataDog/issue-triage-action/.github/workflows/issue-triage.yml@b39f0bc12abc52fe8aa70dc9b9353bf307a13219 # v1.0.1
     with:
       slack_map_path: tasks/libs/pipeline/github_slack_map.yaml
       environment_name: main

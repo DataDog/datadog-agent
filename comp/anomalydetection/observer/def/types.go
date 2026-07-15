@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -319,8 +321,8 @@ type CorrelatorEvent struct {
 	Correlation ActiveCorrelation
 	// FromLevel and ToLevel carry the scorer severity transition.
 	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
-	FromLevel SeverityLevel
-	ToLevel   SeverityLevel
+	FromLevel severityeventsdef.SeverityLevel
+	ToLevel   severityeventsdef.SeverityLevel
 }
 
 // Correlator accumulates anomaly events and produces correlated patterns.
@@ -392,74 +394,6 @@ type AnomalyScoreBucket struct {
 	WeightSum float64 `json:"weight_sum"`
 	// Ewma is the EWMA value after processing this bucket.
 	Ewma float64 `json:"ewma"`
-}
-
-// SeverityLevel represents one of three severity states: Low, Medium, High.
-type SeverityLevel int
-
-const (
-	SeverityLow    SeverityLevel = 0
-	SeverityMedium SeverityLevel = 1
-	SeverityHigh   SeverityLevel = 2
-)
-
-// AnomalyScorerEventDirection describes whether a severity transition is an
-// escalation or de-escalation.
-type AnomalyScorerEventDirection int
-
-const (
-	// AnomalyScorerEventBoth delivers transitions in either direction (default zero value).
-	AnomalyScorerEventBoth AnomalyScorerEventDirection = 0
-	// AnomalyScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
-	AnomalyScorerEventEscalation AnomalyScorerEventDirection = 1
-	// AnomalyScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
-	AnomalyScorerEventDeescalation AnomalyScorerEventDirection = 2
-)
-
-// SeverityEvent records a severity state-machine transition.
-type SeverityEvent struct {
-	// Timestamp is the data time (unix seconds) when the transition occurred.
-	Timestamp int64 `json:"timestamp"`
-	// FromLevel is the state before the transition.
-	FromLevel SeverityLevel `json:"from_level"`
-	// ToLevel is the state after the transition.
-	ToLevel SeverityLevel `json:"to_level"`
-	// Direction is AnomalyScorerEventEscalation when ToLevel > FromLevel, and
-	// AnomalyScorerEventDeescalation when ToLevel < FromLevel.
-	Direction AnomalyScorerEventDirection `json:"direction"`
-}
-
-// AnomalyScorerListener receives severity state-machine transitions from the scorer.
-type AnomalyScorerListener interface {
-	OnSeverityTransition(event SeverityEvent)
-}
-
-// AnomalyScorerEventFilter selects which SeverityEvents are delivered to a listener.
-// All conditions are ANDed; a nil or empty slice means "any value".
-// The zero value AnomalyScorerEventFilter{} matches every transition.
-type AnomalyScorerEventFilter struct {
-	// FromLevels restricts to events whose FromLevel is in the set.
-	FromLevels []SeverityLevel
-	// ToLevels restricts to events whose ToLevel is in the set.
-	ToLevels []SeverityLevel
-	// Direction restricts by escalation or de-escalation.
-	Direction AnomalyScorerEventDirection
-}
-
-// AnomalyScorerConfiguration is the single object passed to Subscribe
-// when registering a listener. It bundles who to call (Listener), which
-// transitions to deliver (Filter), and per-subscription state-machine tuning.
-type AnomalyScorerConfiguration struct {
-	// Listener is called for each matching severity transition. Required.
-	Listener AnomalyScorerListener
-	// Filter controls which transitions are delivered.
-	// Zero value AnomalyScorerEventFilter{} delivers all transitions.
-	Filter AnomalyScorerEventFilter
-	// CooldownSecs is the minimum number of seconds that must elapse after a
-	// delivered transition before a downward (de-escalation) transition can be
-	// delivered again.
-	// Zero means no cooldown (every matching transition is delivered).
-	CooldownSecs int64
 }
 
 // AnomalyScoreState is the accumulated telemetry snapshot from the scorer.

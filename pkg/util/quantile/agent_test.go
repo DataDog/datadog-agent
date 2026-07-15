@@ -6,7 +6,9 @@
 package quantile
 
 import (
+	"math"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -119,6 +121,18 @@ func TestAgentFinish(t *testing.T) {
 	})
 }
 
+// TestAgentNaNSampleRate guards against a NaN sample rate corrupting the sketch
+// count. See SMPTNG-761.
+func TestAgentNaNSampleRate(t *testing.T) {
+	a := &Agent{}
+	a.Insert(1, math.NaN())
+	a.Insert(1, math.NaN())
+
+	s := a.Finish()
+	require.NotNil(t, s, "an even count of NaN-sample-rate inserts must not yield a nil sketch")
+	require.EqualValues(t, 2, s.Basic.Cnt, "two samples must count as two observations")
+}
+
 func TestAgentInterpolation(t *testing.T) {
 	a := &Agent{}
 
@@ -188,5 +202,76 @@ func TestAgentInterpolation(t *testing.T) {
 		a.InsertInterpolate(tt.lower, tt.upper, tt.count)
 		tt.count = tt.count * 2
 		check(t, tt)
+	}
+}
+
+// TestAgentInterpolationBoundedKeys exercises the bounds enforced by
+// InsertInterpolate. Before bounds were enforced, an upper bound large enough
+// to saturate key() at uvinf made the loop counter (int16 Key) overflow when
+// incremented past 32767, producing an unbounded slice and an effectively
+// infinite loop. Each case must complete in well under the watchdog budget.
+func TestAgentInterpolationBoundedKeys(t *testing.T) {
+	// 1e300 is finite but large enough that agentConfig.key(±1e300) saturates
+	// at ±uvinf. The pre-fix code would loop forever on these inputs.
+	const (
+		bigPos = 1e300
+		bigNeg = -1e300
+	)
+
+	cases := []struct {
+		name    string
+		lower   float64
+		upper   float64
+		count   uint
+		wantErr string // empty = no error expected
+		wantCnt int64  // only checked when wantErr is empty
+	}{
+		{name: "saturating upper bound", lower: 1, upper: bigPos, count: 10, wantCnt: 10},
+		{name: "saturating both bounds", lower: bigNeg, upper: bigPos, count: 100, wantCnt: 100},
+		{name: "saturating lower bound only", lower: bigNeg, upper: 1, count: 50, wantCnt: 50},
+		// Both bounds finite but past the sketch's representable range: key(lower)
+		// and key(upper) both saturate to uvinf. Pre-clamp, binLow(uvinf) returned
+		// +Inf and poisoned Sketch.Basic.
+		{name: "both bounds saturate positive", lower: 1e300, upper: 1e301, count: 10, wantCnt: 10},
+		{name: "both bounds saturate negative", lower: -1e301, upper: -1e300, count: 10, wantCnt: 10},
+		{name: "non-monotonic bounds", lower: 100, upper: 1, count: 5, wantErr: ErrNonMonotonicBoundaries},
+		{name: "equal bounds", lower: 42, upper: 42, count: 7, wantCnt: 7},
+		{name: "zero count", lower: 1, upper: 100, count: 0, wantCnt: 0},
+	}
+
+	// Generous budget; a correctly bounded call iterates at most ~65535 keys.
+	const budget = 5 * time.Second
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Agent{}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- a.InsertInterpolate(tt.lower, tt.upper, tt.count)
+			}()
+
+			select {
+			case err := <-done:
+				if tt.wantErr != "" {
+					require.EqualError(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tt.wantCnt, a.Sketch.Basic.Cnt)
+				if tt.count > 0 {
+					// Sketch.Basic stats must stay finite even when the input
+					// bounds saturate key() to ±uvinf.
+					b := a.Sketch.Basic
+					require.False(t, math.IsInf(b.Min, 0), "Min must be finite, got %v", b.Min)
+					require.False(t, math.IsInf(b.Max, 0), "Max must be finite, got %v", b.Max)
+					require.False(t, math.IsInf(b.Sum, 0), "Sum must be finite, got %v", b.Sum)
+					require.False(t, math.IsInf(b.Avg, 0), "Avg must be finite, got %v", b.Avg)
+				}
+			case <-time.After(budget):
+				t.Fatalf("InsertInterpolate(%v, %v, %d) did not complete within %v",
+					tt.lower, tt.upper, tt.count, budget)
+			}
+		})
 	}
 }

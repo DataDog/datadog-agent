@@ -101,6 +101,8 @@ def run_golangci_lint(
                         instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
                     elif goos == "windows":
                         instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                    elif goos == "aix":
+                        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
                     else:
                         instr = "the appropriate cross-compilation toolchain"
                     print(
