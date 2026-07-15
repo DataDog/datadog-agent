@@ -263,9 +263,14 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 	if arrayValue == nil {
 		return &idx.ArrayValue{}
 	}
-	values := make([]*idx.AnyValue, len(arrayValue.Values))
-	for i, value := range arrayValue.Values {
-		values[i] = convertAttributeArrayValue(value, stringTable)
+	// Drop nil/unconvertible elements rather than storing nil AnyValue entries:
+	// several V1 paths (AnyValue.AsString, Msgsize, MarshalMsg) dereference every
+	// array element and would panic on a nil entry.
+	values := make([]*idx.AnyValue, 0, len(arrayValue.Values))
+	for _, value := range arrayValue.Values {
+		if converted := convertAttributeArrayValue(value, stringTable); converted != nil {
+			values = append(values, converted)
+		}
 	}
 	return &idx.ArrayValue{
 		Values: values,
@@ -274,7 +279,8 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 
 func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, stringTable *idx.StringTable) *idx.AnyValue {
 	// A nil element is a valid decode result (the msgpack decoder stores nil for
-	// a nil array element); represent it as a nil AnyValue rather than panicking.
+	// a nil array element); return nil so the caller can drop it instead of
+	// storing an unusable nil AnyValue in the array.
 	if arrayValue == nil {
 		return nil
 	}

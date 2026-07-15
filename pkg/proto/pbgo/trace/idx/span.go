@@ -1395,7 +1395,6 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 				spanEvent.Attributes = make(map[uint32]*AnyValue, numAttributes)
 			}
 			for numAttributes > 0 {
-				var value *AnyValue
 				numAttributes--
 				var keyRef uint32
 				keyRef, bts, err = parseStringBytesRef(strings, bts)
@@ -1404,18 +1403,20 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 					return
 				}
 				if msgp.IsNil(bts) {
+					// Drop the key rather than storing a nil AnyValue: consumers
+					// (getAttributeAsString, SpanEvent.Msgsize/MarshalMsg) dereference
+					// every attribute value.
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					value = nil
-				} else {
-					value = new(AnyValue)
-					bts, err = value.UnmarshalMsgConverted(strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Attributes", keyRef)
-						return
-					}
+					continue
+				}
+				value := new(AnyValue)
+				bts, err = value.UnmarshalMsgConverted(strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Attributes", keyRef)
+					return
 				}
 				spanEvent.Attributes[keyRef] = value
 			}
@@ -1523,28 +1524,29 @@ func (av *AnyValue) unmarshalMsgConverted(strings *StringTable, bts []byte, dept
 							err = msgp.WrapError(err, "ArrayValue", "Values")
 							return
 						}
+						// Reuse the backing array but build with append: nil elements are
+						// dropped rather than stored as unusable nil AnyValue entries, which
+						// several consumers (AnyValue.AsString/Msgsize/MarshalMsg) dereference.
 						if cap(arrayValue) >= int(numArrayElems) {
-							arrayValue = (arrayValue)[:numArrayElems]
+							arrayValue = (arrayValue)[:0]
 						} else {
-							arrayValue = make([]*AnyValue, numArrayElems)
+							arrayValue = make([]*AnyValue, 0, numArrayElems)
 						}
-						for i := range arrayValue {
+						for i := uint32(0); i < numArrayElems; i++ {
 							if msgp.IsNil(bts) {
 								bts, err = msgp.ReadNilBytes(bts)
 								if err != nil {
 									return
 								}
-								arrayValue[i] = nil
-							} else {
-								if arrayValue[i] == nil {
-									arrayValue[i] = new(AnyValue)
-								}
-								bts, err = arrayValue[i].unmarshalMsgConverted(strings, bts, depth+1)
-								if err != nil {
-									err = msgp.WrapError(err, "ArrayValue", "Values", i)
-									return
-								}
+								continue
 							}
+							elem := new(AnyValue)
+							bts, err = elem.unmarshalMsgConverted(strings, bts, depth+1)
+							if err != nil {
+								err = msgp.WrapError(err, "ArrayValue", "Values", i)
+								return
+							}
+							arrayValue = append(arrayValue, elem)
 						}
 					default:
 						bts, err = msgp.Skip(bts)

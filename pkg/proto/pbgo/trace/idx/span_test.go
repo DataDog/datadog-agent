@@ -291,3 +291,75 @@ func TestUnmarshalAnyValueDeepNestingReturnsError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "depth")
 }
+
+// v0StringAnyValue builds a v0.x msgpack AttributeAnyValue holding a string.
+func v0StringAnyValue(s string) []byte {
+	b := msgp.AppendMapHeader(nil, 2)
+	b = msgp.AppendString(b, "type")
+	b = msgp.AppendInt32(b, 0) // stringValueType
+	b = msgp.AppendString(b, "string_value")
+	b = msgp.AppendString(b, s)
+	return b
+}
+
+// TestSpanEventUnmarshalMsgConvertedDropsNilEntries ensures the v0.x -> idx
+// converted unmarshal never stores nil AnyValue entries: a nil array element and
+// a nil attribute-map value are dropped rather than kept. Several consumers
+// (getAttributeAsString, SpanEvent.Msgsize/MarshalMsg, AnyValue.AsString) iterate
+// every entry and would panic on a nil.
+func TestSpanEventUnmarshalMsgConvertedDropsNilEntries(t *testing.T) {
+	// array_value AttributeAnyValue whose values are [nil, "x", nil].
+	arrayAV := msgp.AppendMapHeader(nil, 2)
+	arrayAV = msgp.AppendString(arrayAV, "type")
+	arrayAV = msgp.AppendInt32(arrayAV, 4) // arrayValueType
+	arrayAV = msgp.AppendString(arrayAV, "array_value")
+	arrayAV = msgp.AppendMapHeader(arrayAV, 1)
+	arrayAV = msgp.AppendString(arrayAV, "values")
+	arrayAV = msgp.AppendArrayHeader(arrayAV, 3)
+	arrayAV = msgp.AppendNil(arrayAV)
+	arrayAV = append(arrayAV, v0StringAnyValue("x")...)
+	arrayAV = msgp.AppendNil(arrayAV)
+
+	// Span event map with a single "attributes" map holding three keys:
+	// a kept string, a nil value, and the array-with-nil-elements above.
+	bts := msgp.AppendMapHeader(nil, 1)
+	bts = msgp.AppendString(bts, "attributes")
+	bts = msgp.AppendMapHeader(bts, 3)
+	bts = msgp.AppendString(bts, "keepStr")
+	bts = append(bts, v0StringAnyValue("keep")...)
+	bts = msgp.AppendString(bts, "nilAttr")
+	bts = msgp.AppendNil(bts)
+	bts = msgp.AppendString(bts, "arr")
+	bts = append(bts, arrayAV...)
+
+	strings := NewStringTable()
+	spanEvent := &SpanEvent{}
+	var err error
+	assert.NotPanics(t, func() {
+		_, err = spanEvent.UnmarshalMsgConverted(strings, bts)
+	})
+	assert.NoError(t, err)
+
+	// The nil attribute value is dropped; only "keepStr" and "arr" remain.
+	assert.Len(t, spanEvent.Attributes, 2)
+	nilKey := strings.Lookup("nilAttr")
+	if nilKey != 0 {
+		_, present := spanEvent.Attributes[nilKey]
+		assert.False(t, present, "nil attribute value must not be stored")
+	}
+
+	// The array retains only its non-nil element.
+	arrAV := spanEvent.Attributes[strings.Lookup("arr")]
+	arr, ok := arrAV.Value.(*AnyValue_ArrayValue)
+	assert.True(t, ok)
+	assert.Len(t, arr.ArrayValue.Values, 1)
+
+	// Consumers that iterate every entry must not panic and must round-trip.
+	assert.NotPanics(t, func() {
+		_ = spanEvent.Msgsize()
+		serStrings := NewSerializedStrings(uint32(strings.Len()))
+		_, err = spanEvent.MarshalMsg(nil, strings, serStrings)
+		assert.NoError(t, err)
+		_ = arrAV.AsString(strings)
+	})
+}
