@@ -40,6 +40,9 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
+	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
+	TestConfigID string `yaml:"test_config_id"`
+
 	DestHostname string `yaml:"hostname"`
 
 	DestPort uint16 `yaml:"port"`
@@ -71,6 +74,7 @@ type InstanceConfig struct {
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
+	TestConfigID       string
 	DestHostname       string
 	DestPort           uint16
 	SourceService      string
@@ -114,6 +118,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c := &CheckConfig{}
 
+	c.TestConfigID = instance.TestConfigID
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
 	c.SourceService = instance.SourceService
