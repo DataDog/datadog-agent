@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:dd_agent_go_test off
 
 go_library(
     name = "pclntab",
@@ -21,15 +22,12 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
-    name = "pclntab_internal_test",
-    srcs = ["pclntab_internal_test.go"],
-    embed = [":pclntab"],
-)
-
-dd_agent_go_test(
+# TODO: This test can not run under bazel yet because it depends on direct
+# access to the go compiler executable.
+go_test(
     name = "pclntab_test",
     srcs = ["pclntab_test.go"],
+    gotags = ["test"],
     tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -50,4 +48,11 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
+)
+
+go_test(
+    name = "pclntab_internal_test",
+    srcs = ["pclntab_internal_test.go"],
+    embed = [":pclntab"],
+    gotags = ["test"],
 )
