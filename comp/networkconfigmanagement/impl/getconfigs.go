@@ -48,7 +48,7 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 			logger.Warnf("unable to store %s config: %v", mode, err)
 		}
 	}
-	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, result.Metadata, dc.GetTags(), result.Redacted, configID, configHash)
+	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, string(dc.profile.Name), result.Metadata, dc.GetTags(), result.Redacted, configID, configHash)
 	return &conf, stored, nil
 }
 

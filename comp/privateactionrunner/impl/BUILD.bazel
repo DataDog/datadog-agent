@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test off
+
 go_library(
     name = "impl",
     srcs = ["privateactionrunner.go"],
