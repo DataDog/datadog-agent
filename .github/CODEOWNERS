@@ -415,7 +415,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
-/comp/logs/smartadaptivesampling @DataDog/agent-log-pipelines @DataDog/q-branch
+/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/q-branch
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/network-device-monitoring-core
