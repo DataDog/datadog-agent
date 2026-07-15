@@ -12,7 +12,6 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
     INVALID_HANDLE_VALUE, SetHandleInformation,
 };
-use windows_sys::Win32::Security::ImpersonateLoggedOnUser;
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_ALWAYS, OPEN_EXISTING,
@@ -24,7 +23,7 @@ use crate::spawn::StdioSetting;
 
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
-use super::logon::{ImpersonationGuard, logon_user_credentials, logon_user_token};
+use super::logon::{logon_user_credentials, logon_user_token, with_impersonated_token};
 
 /// Resolve portable stdio settings for `tokio::process::Command` fallback spawns.
 pub(super) fn to_command_stdio(setting: &StdioSetting, inheritable: bool) -> Stdio {
@@ -124,16 +123,9 @@ fn open_stdio_file_as_account(
     }
     let creds = logon_user_credentials(account);
     let token = logon_user_token(process_name, &creds)?;
-    unsafe {
-        if ImpersonateLoggedOnUser(token.raw()) == 0 {
-            bail!(
-                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        let _impersonation = ImpersonationGuard::new(token);
+    with_impersonated_token(process_name, token.raw(), || {
         Ok(MappedStdioHandle(open_append_file(path)?))
-    }
+    })
 }
 
 fn open_append_file(path: &str) -> Result<HANDLE> {

@@ -7,7 +7,8 @@ use anyhow::{Result, bail};
 use std::ptr;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::Security::{
-    LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW, RevertToSelf,
+    ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
+    RevertToSelf,
 };
 
 use super::super::agent_credentials::AgentAccount;
@@ -119,27 +120,40 @@ impl Drop for TokenHandle {
     }
 }
 
-pub(super) struct ImpersonationGuard {
-    _token: TokenHandle,
-}
-
-impl ImpersonationGuard {
-    pub(super) fn new(token: TokenHandle) -> Self {
-        Self { _token: token }
+/// Run `f` while impersonating `token`, then revert the calling thread.
+///
+/// Does not duplicate or close `token`. When calling [`CreateProcessAsUserW`], pass the
+/// same `hToken` so executable and working-directory ACL checks run as the target user.
+pub(super) fn with_impersonated_token<T>(
+    process_name: &str,
+    token: HANDLE,
+    f: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    unsafe {
+        if ImpersonateLoggedOnUser(token) == 0 {
+            bail!(
+                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
     }
-}
 
-impl Drop for ImpersonationGuard {
-    fn drop(&mut self) {
-        unsafe {
-            if RevertToSelf() == 0 {
-                log::warn!(
-                    "RevertToSelf failed after impersonated spawn: {}",
-                    std::io::Error::last_os_error()
-                );
+    struct RevertGuard;
+    impl Drop for RevertGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if RevertToSelf() == 0 {
+                    log::warn!(
+                        "RevertToSelf failed after impersonation: {}",
+                        std::io::Error::last_os_error()
+                    );
+                }
             }
         }
     }
+
+    let _revert = RevertGuard;
+    f()
 }
 
 #[cfg(test)]

@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use log::info;
 use tokio::process::Command;
-use windows_sys::Win32::Security::ImpersonateLoggedOnUser;
 
 use crate::handle::ProcessHandle;
 use crate::platform;
@@ -16,7 +15,8 @@ use crate::spawn_context;
 use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::super::{child_baseline_env_vars, merge_env_overrides, setup_process_group};
 use super::logon::{
-    ImpersonationGuard, LogonUserCredentials, TokenHandle, logon_user_credentials, logon_user_token,
+    LogonUserCredentials, TokenHandle, logon_user_credentials, logon_user_token,
+    with_impersonated_token,
 };
 use super::stdio;
 
@@ -97,17 +97,9 @@ fn spawn_with_token_impersonation(
     cmd: &mut Command,
     token: TokenHandle,
 ) -> Result<ProcessHandle> {
-    unsafe {
-        if ImpersonateLoggedOnUser(token.raw()) == 0 {
-            bail!(
-                "[{process_name}] ImpersonateLoggedOnUser failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-
-        let _impersonation = ImpersonationGuard::new(token);
+    with_impersonated_token(process_name, token.raw(), || {
         exec_spawn(process_name, command, cmd)
-    }
+    })
 }
 
 fn spawn_with_impersonation(

@@ -23,7 +23,9 @@ use crate::spawn::SpawnRequest;
 
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
-use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
+use super::logon::{
+    TokenHandle, logon_user_credentials, logon_user_token, with_impersonated_token,
+};
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 
 pub(super) fn spawn_as_primary_token(
@@ -76,45 +78,46 @@ pub(super) fn spawn_as_primary_token(
     si.hStdOutput = stdout_handle.raw();
     si.hStdError = stderr_handle.raw();
 
-    let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let dw_creation_flags = CREATE_NEW_PROCESS_GROUP
         | CREATE_NEW_CONSOLE
         | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT;
 
-    let ok = unsafe {
-        CreateProcessAsUserW(
-            primary_token_guard.raw(),
-            // Null application name: resolve the image from the command line (including PATH),
-            // matching `Command::new` / legacy spawn behavior for bare names like powershell.exe.
-            std::ptr::null(),
-            command_line_w.as_mut_ptr(),
-            std::ptr::null(),
-            std::ptr::null(),
-            1,
-            dw_creation_flags,
-            env_block_ptr,
-            current_dir_w
-                .as_ref()
-                .map(|w| w.as_ptr())
-                .unwrap_or(std::ptr::null()),
-            &si,
-            &mut pi,
-        )
-    };
+    with_impersonated_token(process_name, primary_token_guard.raw(), || {
+        let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+        let ok = unsafe {
+            CreateProcessAsUserW(
+                primary_token_guard.raw(),
+                // Null application name: resolve the image from the command line (including PATH),
+                // matching `Command::new` / legacy spawn behavior for bare names like powershell.exe.
+                std::ptr::null(),
+                command_line_w.as_mut_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                dw_creation_flags,
+                env_block_ptr,
+                current_dir_w
+                    .as_ref()
+                    .map(|w| w.as_ptr())
+                    .unwrap_or(std::ptr::null()),
+                &si,
+                &mut pi,
+            )
+        };
+        if ok == 0 {
+            bail!(
+                "[{process_name}] CreateProcessAsUserW failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
 
-    if ok == 0 {
-        bail!(
-            "[{process_name}] CreateProcessAsUserW failed: {}",
-            std::io::Error::last_os_error()
-        );
-    }
+        unsafe {
+            let _ = CloseHandle(pi.hThread);
+        }
 
-    unsafe {
-        let _ = CloseHandle(pi.hThread);
-    }
-
-    Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+        Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+    })
 }
 
 fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
