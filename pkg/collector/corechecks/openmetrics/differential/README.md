@@ -37,6 +37,10 @@ All six share the same Python sidecar, payload server, and diff machinery.
   pass `-integrations-core=/path/to/integrations-core` or set
   `DD_INTEGRATIONS_CORE`. The harness asks `uv` to install the checkout's
   `datadog-checks-base[deps,json]` package when it starts the sidecar.
+- a Lading release binary containing commit
+  `576129489df44ae0e71c4871c51910837c919b90` or newer at
+  `~/dd/lading/target/release/lading`; alternatively pass
+  `-lading-binary=/path/to/lading` or set `LADING_BINARY`.
 
 ## How to run
 
@@ -107,23 +111,33 @@ seed by moving it into a `f.Add(...)` call in `fuzz_test.go`.
 
 ## How it works
 
-```
-         single httptest.Server (atomic payload swap)
-        /               \
-       /                 \
-  Go scraper          Python sidecar (long-lived subprocess)
-      |                    |
-  RecordingSender      patched OpenMetricsBaseCheckV2
-      |                    |
-      \------ diff --------/
+```text
+                    Lading HTTP blackhole
+              generated OpenMetrics 1.0 response
+                         /       \
+                        /         \
+                  Go scraper   Python sidecar
+                      |             |
+                RecordingSender   patched base check
+                      |             |
+                      \---- diff ---/
+
+Payload mutation / fuzz / adversarial only:
+                  mutable httptest.Server
 ```
 
 Key design points:
 
-- **One server, one sidecar, many iterations.** The payload server uses
-  `atomic.Pointer[[]byte]` so per-iteration payload swap is contention-free.
-  The sidecar process spans the whole test — first-run uv environment
-  creation is amortized across thousands of iterations.
+- **Lading owns baseline/config fixtures.** A release Lading process generates
+  one deterministic OpenMetrics body at startup and serves it with
+  `application/openmetrics-text; version=1.0.0`. Baseline and config-axis tests
+  point both production scrapers at this process.
+- **The mutable server is payload-axis-only.** Lading precomputes its body and
+  has no runtime replacement API. Mutation, adversarial, fuzz, and payload-
+  changing stateful tests therefore retain the atomic in-process server rather
+  than restarting Lading for every iteration.
+- **One sidecar, many iterations.** The Python process spans the whole test, so
+  first-run uv environment creation is amortized across thousands of cases.
 - **Python sidecar re-applies the namespace prefix** that we bypass by
   monkey-patching `OpenMetricsBaseCheckV2.gauge` directly (the patch skips
   `AgentCheck._format_namespace`). The patch honors `raw=True` for callers

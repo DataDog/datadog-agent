@@ -22,9 +22,10 @@ var fuzzInstance = map[string]interface{}{
 	"metrics":   []interface{}{".+"},
 }
 
-// fuzzHarness holds the long-lived Python sidecar + httptest.Server used by
-// every f.Fuzz iteration. testing.F doesn't give us a Setup hook, so we lazy
-// init under a sync.Once and rely on the test process exiting to clean up.
+// fuzzHarness holds the long-lived Python sidecar + mutable payload server used
+// by every f.Fuzz iteration. Lading is intentionally not used here because its
+// generated response body is immutable. testing.F doesn't give us a Setup
+// hook, so we lazy init under a sync.Once and rely on process exit for cleanup.
 type fuzzHarness struct {
 	sidecar *pythonSidecar
 	ps      *payloadServer

@@ -1,7 +1,44 @@
-## Resolution
+## Reopened: Lading-generated OpenMetrics interaction
 
-Closed after correcting the config-axis harness and rerunning the ticket's
-verification sweep.
+Reopened after replacing the config-axis HTTP fixture with Lading's generated
+OpenMetrics HTTP blackhole (Lading commit
+`576129489df44ae0e71c4871c51910837c919b90`). The richer native OpenMetrics
+payload exposes one interaction that the KSM/MSK fixtures did not.
+
+Both knobs agree independently across a 500-iteration, one-knob seed-42 sweep.
+The following combination diverges:
+
+```yaml
+namespace: diff
+metrics: [".+"]
+raw_metric_prefix: diff_lading_
+share_labels:
+  diff_lading_target_info:
+    match: [service, region]
+    labels: [shard]
+```
+
+Focused composition evidence (seed 42, 100 configs, 4 knobs/config):
+
+```text
+agree=97 divergent=3
+```
+
+All three divergent configs include both `raw_metric_prefix` and
+`share_labels`; other knobs vary. Go and Python each emit 51 submissions, but
+49 are only in Go and 49 only in Python. This points to operation ordering or
+source-family naming during the shared-label prepass rather than dropped data.
+
+Next step: minimize to the two knobs above and compare whether each
+implementation applies `raw_metric_prefix` before or after locating the
+`share_labels` source metric.
+
+---
+
+## Previous resolution
+
+Previously closed after correcting the config-axis harness and rerunning its
+KSM/MSK verification sweep.
 
 The previously reported transformer-knob correlations were downstream of an
 invalid `share_labels` generator, not evidence of independent transformer bugs.

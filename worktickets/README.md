@@ -42,13 +42,15 @@ echo 'task body' | taskmd new --slug some-slug --priority p2 \
 | 07005 | p2 | ready | conflicting-type-declaration |
 | 07006 | p3 | ready | spec-strictness-divergences-informational |
 | 07007 | p1 | done | share-labels-divergence |
-| 07008 | p2 | done | transformer-knob-divergences |
+| 07008 | p2 | ready | transformer-knob-divergences |
 
 07001-07006 came from the payload-axis harness (parser-level bugs).
 07007-07008 came from the config-axis harness (transformer/matcher
 pipeline bugs).
-They were closed after correcting an inverted `share_labels` generator and
-rerunning 2,000 fixture-aware comparisons with no divergences.
+They were initially closed after correcting an inverted `share_labels`
+generator. 07008 was reopened when a Lading-generated native OpenMetrics
+fixture exposed a reproducible `raw_metric_prefix` + `share_labels` ordering
+interaction; 07007 remains closed.
 
 Post-rebase parser triage confirmed 07003-07005 remain reproducible. In
 particular, 07003 is now scoped to content-type parser selection: Ali's

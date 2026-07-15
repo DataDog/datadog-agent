@@ -54,7 +54,7 @@ func (ps *payloadServer) set(payload []byte) {
 }
 
 func (ps *payloadServer) endpoint() string { return ps.srv.URL + "/metrics" }
-func (ps *payloadServer) Close()            { ps.srv.Close() }
+func (ps *payloadServer) Close()           { ps.srv.Close() }
 
 // iterationOutcome captures one Go-vs-Python parity check. It's the unit of
 // work for both TestOpenMetricsMutation and FuzzOpenMetricsDifferential.
@@ -85,24 +85,29 @@ func (o iterationOutcome) Verdict() string {
 	}
 }
 
-// runIteration drives one Go scrape + one Python scrape against `payload`
-// served from `ps`, then diffs. Errors on either side are returned in the
-// outcome, not via Go's error — the caller decides whether they're fatal or
-// signal.
+// runIteration drives one Go scrape + one Python scrape against a mutable
+// payload server. Mutation, adversarial, fuzz, and stateful tests use this
+// path because Lading precomputes its response body at startup.
 func runIteration(ps *payloadServer, sidecar *pythonSidecar, payload []byte, instance map[string]interface{}) iterationOutcome {
 	ps.set(payload)
+	return runEndpointIteration(ps.endpoint(), sidecar, instance)
+}
 
+// runEndpointIteration compares Go and Python against an already-running
+// scrape endpoint. Baseline and config-axis tests use a Lading OpenMetrics HTTP
+// blackhole here rather than an in-process HTTP fixture.
+func runEndpointIteration(endpoint string, sidecar *pythonSidecar, instance map[string]interface{}) iterationOutcome {
 	instanceWithEndpoint := map[string]interface{}{}
 	for k, v := range instance {
 		instanceWithEndpoint[k] = v
 	}
-	instanceWithEndpoint["openmetrics_endpoint"] = ps.endpoint()
+	instanceWithEndpoint["openmetrics_endpoint"] = endpoint
 
 	goSubs, goErr := runGoScrape(instanceWithEndpoint)
 
 	// The sidecar fills in openmetrics_endpoint itself — pass the unmodified
 	// instance config so we don't end up with the field set twice.
-	pyResp, err := sidecar.run(ps.endpoint(), instance)
+	pyResp, err := sidecar.run(endpoint, instance)
 	if err != nil {
 		// Sidecar protocol failure is fatal: it means the Python process is
 		// wedged, not that the *check* rejected the payload. Surface as a

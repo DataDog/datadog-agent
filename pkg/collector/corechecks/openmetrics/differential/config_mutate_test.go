@@ -21,6 +21,10 @@ func TestConfigMutatorUsesFixtureVocabulary(t *testing.T) {
 	msk := NewConfigMutatorForFixture(1, "msk_jmx/wildcard")
 	require.Contains(t, mskMetricNames, msk.pickMetricName())
 	require.Contains(t, mskLabelNames, msk.pickLabelName())
+
+	lading := NewConfigMutatorForFixture(1, ladingFixtureName)
+	require.Contains(t, ladingMetricNames, lading.pickMetricName())
+	require.Contains(t, ladingLabelNames, lading.pickLabelName())
 }
 
 func TestShareLabelsKnobUsesSourceMetricAndJoinLabels(t *testing.T) {
@@ -39,4 +43,9 @@ func TestShareLabelsKnobUsesSourceMetricAndJoinLabels(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, []interface{}{"clientId", "name"}, mskSource["match"])
 	require.Equal(t, []interface{}{"brokerHost", "brokerPort"}, mskSource["labels"])
+
+	ladingSource, ok := shareLabels["diff_lading_target_info"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"service", "region"}, ladingSource["match"])
+	require.Equal(t, []interface{}{"shard"}, ladingSource["labels"])
 }

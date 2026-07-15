@@ -66,25 +66,23 @@ func TestOpenMetricsDifferential(t *testing.T) {
 	}
 	t.Cleanup(sidecar.Close)
 
-	ps := newPayloadServer()
-	t.Cleanup(ps.Close)
-
-	for _, tc := range fixtureCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			runOneCase(t, ps, sidecar, tc)
-		})
+	lading, err := newLadingServer()
+	if err != nil {
+		t.Skipf("Lading unavailable, skipping generated OpenMetrics differential: %v", err)
 	}
+	t.Cleanup(lading.Close)
+
+	runLadingCase(t, lading, sidecar)
 }
 
-func runOneCase(t *testing.T, ps *payloadServer, sidecar *pythonSidecar, tc fixtureCase) {
-	payload, err := loadGzipped(tc.payloadPath)
+func runLadingCase(t *testing.T, lading *ladingServer, sidecar *pythonSidecar) {
+	payload, err := lading.body()
 	if err != nil {
-		t.Fatalf("load payload: %v", err)
+		t.Fatalf("read Lading payload: %v", err)
 	}
-	t.Logf("payload bytes: %d", len(payload))
+	t.Logf("Lading payload bytes: %d", len(payload))
 
-	out := runIteration(ps, sidecar, payload, tc.instance)
+	out := runEndpointIteration(lading.endpoint, sidecar, baseConfig())
 	if out.GoErr != nil {
 		t.Fatalf("go scrape: %v", out.GoErr)
 	}
@@ -201,7 +199,10 @@ func startPythonSidecar(t *testing.T) (*pythonSidecar, error) {
 
 	cmd := exec.Command(uvPath, "run", "--quiet", "--with", checksBase, sidecarPath)
 	sourcePath := filepath.Join(integrationsCore, "datadog_checks_base")
-	cmd.Env = append(os.Environ(), "PYTHONPATH="+sourcePath+string(os.PathListSeparator)+os.Getenv("PYTHONPATH"))
+	cmd.Env = append(os.Environ(),
+		"PYTHONPATH="+sourcePath+string(os.PathListSeparator)+os.Getenv("PYTHONPATH"),
+		"DDEV_SKIP_GENERIC_TAGS_CHECK=true",
+	)
 	cmd.Stderr = os.Stderr // surface Python tracebacks during development
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

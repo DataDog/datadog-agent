@@ -93,6 +93,34 @@ for _kind in ("gauge", "count", "rate", "histogram", "historate"):
     setattr(OpenMetricsBaseCheckV2, _kind, _mk(_kind))
 
 
+def _histogram_bucket(
+    self,
+    name,
+    value,
+    lower_bound,
+    upper_bound,
+    monotonic,
+    hostname,
+    tags,
+    flush_first_value=False,
+    raw=False,
+    **kw,
+):
+    entry = {
+        "kind": "histogram_bucket",
+        "name": _format_name(self, name, raw),
+        "value": value,
+        "tags": sorted(tags or []),
+        "hostname": hostname or "",
+    }
+    if flush_first_value:
+        entry["flush_first_value"] = True
+    _captured.append(entry)
+
+
+OpenMetricsBaseCheckV2.submit_histogram_bucket = _histogram_bucket
+
+
 # monotonic_count gets a dedicated handler that records the
 # `flush_first_value` kwarg — stateful tests use it to verify the flag
 # toggles correctly across scrapes.

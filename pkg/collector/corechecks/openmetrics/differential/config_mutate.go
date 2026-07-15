@@ -25,6 +25,7 @@ import (
 // which knob produced the diverging config.
 type ConfigMutator struct {
 	rng         *rand.Rand
+	fixtureName string
 	metricNames []string
 	labelNames  []string
 }
@@ -40,11 +41,16 @@ func NewConfigMutator(seed int64) *ConfigMutator {
 func NewConfigMutatorForFixture(seed int64, fixtureName string) *ConfigMutator {
 	metricNames := kubeStateMetricNames
 	labelNames := kubeStateLabelNames
-	if fixtureName == "msk_jmx/wildcard" {
+	switch fixtureName {
+	case "msk_jmx/wildcard":
 		metricNames = mskMetricNames
 		labelNames = mskLabelNames
+	case ladingFixtureName:
+		metricNames = ladingMetricNames
+		labelNames = ladingLabelNames
 	}
 	return &ConfigMutator{
+		fixtureName: fixtureName,
 		rng:         rand.New(rand.NewSource(seed)),
 		metricNames: metricNames,
 		labelNames:  labelNames,
@@ -166,6 +172,20 @@ var mskLabelNames = []string{
 	"error", "request", "version",
 }
 
+var ladingMetricNames = []string{
+	"diff_lading_target_info",
+	"diff_lading_requests",
+	"diff_lading_queue_depth",
+	"diff_lading_request_duration_seconds",
+	"diff_lading_payload_bytes",
+	"diff_lading_build_info",
+}
+
+var ladingLabelNames = []string{
+	"service", "region", "method", "status_class", "route", "series",
+	"queue", "priority", "consumer", "version", "revision", "runtime", "shard",
+}
+
 func (c *ConfigMutator) pickMetricName() string {
 	return c.metricNames[c.rng.Intn(len(c.metricNames))]
 }
@@ -206,6 +226,10 @@ func knobMixedMatchers(c *ConfigMutator, cfg map[string]interface{}) {
 }
 
 func knobNarrowRegex(c *ConfigMutator, cfg map[string]interface{}) {
+	if c.fixtureName == ladingFixtureName {
+		cfg["metrics"] = []interface{}{"diff_lading_(requests|queue_depth)", "diff_lading_.*_seconds"}
+		return
+	}
 	cfg["metrics"] = []interface{}{"kube_pod_.*", "kube_node_.*"}
 }
 
@@ -216,8 +240,12 @@ func knobExcludeByName(c *ConfigMutator, cfg map[string]interface{}) {
 }
 
 func knobExcludeByLabel(c *ConfigMutator, cfg map[string]interface{}) {
+	values := []interface{}{"kube-system", "default"}
+	if c.fixtureName == ladingFixtureName {
+		values = []interface{}{"checkout", "payments", "us-east-1", "GET", "2xx"}
+	}
 	cfg["exclude_metrics_by_labels"] = map[string]interface{}{
-		c.pickLabelName(): []interface{}{"kube-system", "default"},
+		c.pickLabelName(): values,
 	}
 }
 
@@ -273,7 +301,11 @@ func knobTypeOverrides(c *ConfigMutator, cfg map[string]interface{}) {
 }
 
 func knobRawMetricPrefix(c *ConfigMutator, cfg map[string]interface{}) {
-	cfg["raw_metric_prefix"] = "prom."
+	prefix := "prom."
+	if c.fixtureName == ladingFixtureName {
+		prefix = "diff_lading_"
+	}
+	cfg["raw_metric_prefix"] = prefix
 }
 
 func knobNoHistogramBuckets(c *ConfigMutator, cfg map[string]interface{}) {
@@ -314,6 +346,10 @@ func knobShareLabels(c *ConfigMutator, cfg map[string]interface{}) {
 		"kafka_server_FetcherStats_FiveMinuteRate": map[string]interface{}{
 			"match":  []interface{}{"clientId", "name"},
 			"labels": []interface{}{"brokerHost", "brokerPort"},
+		},
+		"diff_lading_target_info": map[string]interface{}{
+			"match":  []interface{}{"service", "region"},
+			"labels": []interface{}{"shard"},
 		},
 	}
 }

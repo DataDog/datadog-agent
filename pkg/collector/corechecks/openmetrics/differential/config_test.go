@@ -31,10 +31,10 @@ var (
 	configMutPayload = flag.Bool("config.mutate.payload", false, "also apply payload mutations on top of config variation")
 )
 
-// TestOpenMetricsConfigDifferential runs the diff harness over a
-// Cartesian-ish product of (config knob combos) x (corpus payloads). Unlike
-// the payload-mutation test, this targets the transformer / matcher / label
-// pipeline rather than the parser. Bugs found here are usually subtle
+// TestOpenMetricsConfigDifferential runs config knob combinations against a
+// deterministic OpenMetrics 1.0 response generated and served by Lading.
+// Unlike the payload-mutation test, this targets the transformer / matcher /
+// label pipeline rather than the parser. Bugs found here are usually subtle
 // per-submission divergences (wrong tags, wrong metric name, dropped
 // submission) rather than total scrape failure.
 //
@@ -45,7 +45,8 @@ var (
 //	        -config.iters=50 -config.knobs=2 -config.seed=1
 //
 // Each iteration logs the applied knob names so divergences attribute
-// directly to the responsible config change.
+// directly to the responsible config change. Payload mutation stays on the
+// mutable payload-axis harness because Lading precomputes its body at startup.
 func TestOpenMetricsConfigDifferential(t *testing.T) {
 	t.Parallel()
 
@@ -55,8 +56,18 @@ func TestOpenMetricsConfigDifferential(t *testing.T) {
 	}
 	t.Cleanup(sidecar.Close)
 
-	ps := newPayloadServer()
-	t.Cleanup(ps.Close)
+	if *configMutPayload {
+		t.Fatal("-config.mutate.payload requires the mutable payload-axis harness; Lading bodies are immutable")
+	}
+	lading, err := newLadingServer()
+	if err != nil {
+		t.Skipf("Lading unavailable, skipping config differential: %v", err)
+	}
+	t.Cleanup(lading.Close)
+	payload, err := lading.body()
+	if err != nil {
+		t.Fatalf("read Lading payload: %v", err)
+	}
 
 	seed := *configSeed
 	if seed == 0 {
@@ -69,77 +80,60 @@ func TestOpenMetricsConfigDifferential(t *testing.T) {
 	knobTally := map[string]map[string]int{} // verdict -> knob -> count
 	var interestingCount int
 
-	for _, fx := range fixtureCases {
-		payload, err := loadGzipped(fx.payloadPath)
-		if err != nil {
-			t.Fatalf("load %s: %v", fx.payloadPath, err)
+	cm := NewConfigMutatorForFixture(seed, ladingFixtureName)
+	for i := 0; i < *configIters; i++ {
+		gc := cm.NewConfig(*configKnobs)
+
+		out := runEndpointIteration(lading.endpoint, sidecar, gc.Config)
+		verdict := out.Verdict()
+		total.inc(verdict)
+
+		// Attribute non-agreement outcomes to each applied knob.
+		if verdict != "agree" {
+			for _, knob := range gc.AppliedKnobs {
+				if knobTally[verdict] == nil {
+					knobTally[verdict] = map[string]int{}
+				}
+				knobTally[verdict][knob]++
+			}
 		}
 
-		cm := NewConfigMutatorForFixture(seed, fx.name)
-		var pm *Mutator
-		if *configMutPayload {
-			pm = NewMutator(seed ^ 0xDEADBEEF) // independent RNG stream
+		switch verdict {
+		case "agree", "both_rejected":
+			continue
 		}
 
-		for i := 0; i < *configIters; i++ {
-			gc := cm.NewConfig(*configKnobs)
+		// Suppress known divergences so signal stays clean. Same list the
+		// fuzz target uses.
+		if known, name := IsKnownDivergence(out); known {
+			total.inc("known/" + name)
+			continue
+		}
 
-			currentPayload := payload
-			if pm != nil {
-				currentPayload = pm.Mutate(payload, 2)
+		interestingCount++
+		path, _ := dumpConfigRegression(ladingFixtureName, i, gc, payload, out)
+		t.Errorf("[%s iter %d] %s  knobs=%v  go=%d py=%d diffs=%d  saved=%s",
+			ladingFixtureName, i, verdict, gc.AppliedKnobs,
+			len(out.GoSubs), len(out.PySubs), len(out.Diffs), path)
+		if verdict == "divergent" {
+			// Only show the breakdown by kind; full per-diff dump is too
+			// noisy for log scanning. Repro file has full payload + config.
+			byKind := map[string]int{}
+			for _, d := range out.Diffs {
+				byKind[d.Kind]++
 			}
+			t.Logf("  divergence breakdown: %s", summarizeKinds(byKind))
+		}
+		if out.GoErr != nil {
+			t.Logf("  go err: %v", out.GoErr)
+		}
+		if out.PyErr != "" {
+			t.Logf("  py err first-line: %s", firstLine(out.PyErr))
+		}
 
-			out := runIteration(ps, sidecar, currentPayload, gc.Config)
-			verdict := out.Verdict()
-			total.inc(verdict)
-
-			// Attribute non-agreement outcomes to each applied knob.
-			if verdict != "agree" {
-				for _, knob := range gc.AppliedKnobs {
-					if knobTally[verdict] == nil {
-						knobTally[verdict] = map[string]int{}
-					}
-					knobTally[verdict][knob]++
-				}
-			}
-
-			switch verdict {
-			case "agree", "both_rejected":
-				continue
-			}
-
-			// Suppress known divergences so signal stays clean. Same list the
-			// fuzz target uses.
-			if known, name := IsKnownDivergence(out); known {
-				total.inc("known/" + name)
-				continue
-			}
-
-			interestingCount++
-			path, _ := dumpConfigRegression(fx.name, i, gc, currentPayload, out)
-			t.Errorf("[%s iter %d] %s  knobs=%v  go=%d py=%d diffs=%d  saved=%s",
-				fx.name, i, verdict, gc.AppliedKnobs,
-				len(out.GoSubs), len(out.PySubs), len(out.Diffs), path)
-			if verdict == "divergent" {
-				// Only show the breakdown by kind; full per-diff dump is too
-				// noisy for log scanning. Repro file has full payload + config.
-				byKind := map[string]int{}
-				for _, d := range out.Diffs {
-					byKind[d.Kind]++
-				}
-				t.Logf("  divergence breakdown: %s", summarizeKinds(byKind))
-			}
-			if out.GoErr != nil {
-				t.Logf("  go err: %v", out.GoErr)
-			}
-			if out.PyErr != "" {
-				t.Logf("  py err first-line: %s", firstLine(out.PyErr))
-			}
-
-			if *configFailFast {
-				t.Logf("--failfast: stopping after first interesting result")
-				return
-			}
+		if *configFailFast {
+			t.Logf("--failfast: stopping after first interesting result")
+			return
 		}
 	}
 
@@ -188,22 +182,15 @@ func TestOpenMetricsShareLabelsDifferential(t *testing.T) {
 	}
 	t.Cleanup(sidecar.Close)
 
-	ps := newPayloadServer()
-	t.Cleanup(ps.Close)
+	lading, err := newLadingServer()
+	require.NoError(t, err)
+	t.Cleanup(lading.Close)
 
-	for _, fixture := range fixtureCases {
-		fixture := fixture
-		t.Run(fixture.name, func(t *testing.T) {
-			payload, err := loadGzipped(fixture.payloadPath)
-			require.NoError(t, err)
-
-			config := baseConfig()
-			knobShareLabels(NewConfigMutatorForFixture(1, fixture.name), config)
-			out := runIteration(ps, sidecar, payload, config)
-			requireNoErr(t, fixture.name, out)
-			requireAgree(t, fixture.name, out)
-		})
-	}
+	config := baseConfig()
+	knobShareLabels(NewConfigMutatorForFixture(1, ladingFixtureName), config)
+	out := runEndpointIteration(lading.endpoint, sidecar, config)
+	requireNoErr(t, ladingFixtureName, out)
+	requireAgree(t, ladingFixtureName, out)
 }
 
 // dumpConfigRegression writes a divergent (config, payload) pair to disk.
