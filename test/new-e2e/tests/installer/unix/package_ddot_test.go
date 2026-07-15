@@ -61,7 +61,7 @@ func (s *packageDDOTSuite) RunInstallScript(params ...string) {
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	default:
-		s.T().Fatal("unsupported install method")
+		s.Require().FailNow("unsupported install method")
 	}
 }
 
@@ -143,7 +143,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	case "zypper":
 		s.Env().RemoteHost.MustExecute("sudo zypper remove -y datadog-agent")
 	default:
-		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
+		s.Require().FailNow("unsupported package manager", "%s", s.host.GetPkgManager())
 	}
 
 	// Step 3: move datadog.yaml out of the way so the reinstall has no yaml.
@@ -165,7 +165,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	case "zypper":
 		s.Env().RemoteHost.MustExecute("sudo -E zypper --non-interactive install datadog-agent", client.WithEnvVariables(env))
 	default:
-		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
+		s.Require().FailNow("unsupported package manager", "%s", s.host.GetPkgManager())
 	}
 
 	// Step 5: ddot must NOT have started — there is no datadog.yaml to enable it.
@@ -250,7 +250,7 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 
@@ -277,7 +277,7 @@ func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 

@@ -223,7 +223,7 @@ func (s *baseAgentMSISuite) installAgentPackageWithOptions(vm *components.Remote
 			s.Require().NoError(err, "service should be running after install")
 		}
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	return remoteMSIPath

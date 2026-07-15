@@ -61,13 +61,13 @@ func (s *testUpgradeSuite) TestUpgrade() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
 	t := s.newTester(vm)
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -99,7 +99,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -114,7 +114,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -124,7 +124,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -163,7 +163,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// TODO: we shouldn't have to start the agent manually after rollback
@@ -226,7 +226,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// TODO: we shouldn't have to start the agent manually after rollback
@@ -285,7 +285,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests, checking for new user
@@ -293,7 +293,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 		WithExpectedAgentUserName(newUserName),
 	)
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// old user shouldn't be deleted, so Identity should still exist
@@ -371,7 +371,7 @@ func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// migrate config and verify agent is running
@@ -414,7 +414,7 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 	s.Assert().True(exists, "datadog.conf should exist")
 
 	if s.T().Failed() {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 }
 

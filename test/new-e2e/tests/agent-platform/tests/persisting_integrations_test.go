@@ -57,7 +57,7 @@ func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
 		is.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent/")
 		is.Env().RemoteHost.Execute("sudo rm -rf /var/log/datadog/")
 	} else {
-		is.T().Fatal("Unsupported platform for cleanup")
+		is.Require().FailNow("unsupported platform for cleanup")
 	}
 }
 
