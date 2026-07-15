@@ -49,8 +49,7 @@ def rtloader_go_test(**kwargs):
                    "@platforms//os:macos": unix_data,
                    "@platforms//os:windows": [
                        "//rtloader/test:dir_with_three",
-                       "@cpython//:python_win",
-                       "@cpython//:python_win_lib",
+                       "//rtloader/test:dir_with_python_home",
                    ],
                }),
         env = kwargs.pop("env", {}) |
@@ -60,7 +59,7 @@ def rtloader_go_test(**kwargs):
                   "@platforms//os:macos": unix_env,
                   "@platforms//os:windows": {
                       "THREE_PATH": "$(rlocationpath //rtloader/test:dir_with_three)",
-                      "PYTHON_LIB": "$(rlocationpath @cpython//:python_win_lib)",
+                      "PYTHON_HOME": "$(rlocationpath //rtloader/test:dir_with_python_home)",
                   },
               }),
         **kwargs

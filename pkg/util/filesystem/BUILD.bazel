@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "filesystem",
@@ -11,7 +12,8 @@ go_library(
         "file.go",
         "open_nix.go",
         "open_windows.go",
-        "permission_nowindows.go",
+        "permission_check.go",
+        "permission_nix.go",
         "permission_windows.go",
         "rights_nix.go",
         "rights_nix_test_util.go",
@@ -87,7 +89,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@com_github_hectane_go_acl//:go-acl",
+            "@com_github_datadog_go_acl//:go-acl",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
@@ -95,19 +97,18 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "filesystem_test",
     srcs = [
         "concurrent_write_test.go",
         "file_test.go",
-        "permission_nowindows_test.go",
+        "permission_nix_test.go",
         "permission_windows_test.go",
         "rights_nix_test.go",
         "rights_windows_test.go",
     ],
     data = ["test/setAcl.ps1"],
     embed = [":filesystem"],
-    gotags = ["test"],
     deps = [
         "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//assert",
@@ -115,6 +116,7 @@ go_test(
         "@org_golang_x_sync//errgroup",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

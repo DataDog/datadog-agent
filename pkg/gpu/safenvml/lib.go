@@ -81,7 +81,12 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
 		toNativeName("GetNumFans"),
+		toNativeName("GetPciInfo"),
 		toNativeName("GetPcieThroughput"),
+		toNativeName("GetCurrPcieLinkGeneration"),
+		toNativeName("GetMaxPcieLinkGeneration"),
+		toNativeName("GetCurrPcieLinkWidth"),
+		toNativeName("GetMaxPcieLinkWidth"),
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
@@ -97,6 +102,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
 		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetSramEccErrorStatus"),
 		toNativeName("GetRunningProcessDetailList"),
 	}
 }

@@ -12,17 +12,24 @@ import (
 
 // parser implements parsers.Parser for syslog-formatted input.
 // It converts each newline-framed line into a StateStructured message,
-// preserving all syslog metadata in a BasicStructuredContent.
+// preserving all syslog metadata in a SyslogStructuredContent.
 //
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
 // parsed as a plain BSD line without PRI (e.g., traditional /var/log/syslog).
-type parser struct{}
+type parser struct {
+	debugRender bool
+}
 
 // NewParser returns a parsers.Parser for syslog-formatted input.
-// PRI headers are auto-detected per line; no configuration is needed.
-func NewParser() parsers.Parser {
-	return &parser{}
+// PRI headers are auto-detected per line. CEF/LEEF headers in the message
+// body are always detected and extracted into structured SIEM fields.
+//
+// When debugRender is true, Render() on the resulting structured content
+// produces a JSON envelope with syslog/siem keys instead of the raw log
+// line. This is controlled by the debug_attr_parsing config option.
+func NewParser(debugRender bool) parsers.Parser {
+	return &parser{debugRender: debugRender}
 }
 
 // Parse implements parsers.Parser. It parses the unstructured line content
@@ -43,19 +50,20 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		parsed, err = ParseBSDLine(content)
 	}
 
-	// On error, always preserve the full original content so malformed lines
-	// are reconstructable from output. parsed.Msg may be a truncated fragment
-	// (e.g. line[pos:] after a PRI header) which would silently drop the prefix.
-	msgBody := string(parsed.Msg)
 	if err != nil {
-		msgBody = string(content)
+		parsed.Msg = content
 	}
 
-	sc := &message.BasicStructuredContent{
-		Data: map[string]interface{}{
-			"message": msgBody,
-			"syslog":  BuildSyslogFields(&parsed),
-		},
+	sc := NewSyslogStructuredContent(parsed)
+	// The full original log line is always the transmitted content; parsed
+	// syslog/CEF fields are exposed alongside it (via the structured envelope
+	// when debug rendering is enabled), never as a replacement for it.
+	sc.msg = string(content)
+	sc.debugRender = p.debugRender
+	if err != nil {
+		// Syslog parsing failed: any CEF/LEEF "detected" inside a malformed
+		// fragment must not be trusted.
+		sc.siem = nil
 	}
 
 	structured := message.NewStructuredMessage(
@@ -67,11 +75,6 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	structured.RawDataLen = msg.RawDataLen
 	structured.ParsingExtra = msg.ParsingExtra
 	structured.ParsingExtra.Timestamp = parsed.Timestamp
-
-	if parsed.AppName != "" && parsed.AppName != nilvalue {
-		structured.ParsingExtra.SourceOverride = parsed.AppName
-		structured.ParsingExtra.ServiceOverride = parsed.AppName
-	}
 
 	return structured, err
 }

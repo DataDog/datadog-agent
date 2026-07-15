@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "htlhash",
+    srcs = ["htlhash.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/htlhash",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/sync"],
+)
+
+go_test(
+    name = "htlhash_test",
+    srcs = ["htlhash_test.go"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":htlhash",
+        "//pkg/dyninst/testprogs",
+        "@com_github_stretchr_testify//require",
+    ],
+)

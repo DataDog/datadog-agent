@@ -1,4 +1,3 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load(":template_expand_test.bzl", "template_test_suite")
 
@@ -10,37 +9,18 @@ sh_binary(
             "--patchelf",
             "$(location @patchelf)",
         ],
+        "@platforms//os:macos": [
+            "--install-name-tool",
+            "$(location @llvm_toolchain_llvm//:install-name-tool)",
+        ],
         "//conditions:default": [],
     }),
     data = select({
         "@platforms//os:linux": ["@patchelf"],
+        "@platforms//os:macos": ["@llvm_toolchain_llvm//:install-name-tool"],
         "//conditions:default": [],
     }),
     tags = ["manual"],
-)
-
-bzl_library(
-    name = "dd_agent_expand_template_bzl",
-    srcs = ["dd_agent_expand_template.bzl"],
-    visibility = ["//visibility:public"],
-)
-
-bzl_library(
-    name = "dd_agent_pkg_mklink_bzl",
-    srcs = ["dd_agent_pkg_mklink.bzl"],
-    visibility = ["//visibility:public"],
-)
-
-bzl_library(
-    name = "preprocessor_bzl",
-    srcs = ["preprocessor.bzl"],
-    visibility = ["//visibility:public"],
-)
-
-bzl_library(
-    name = "so_symlink_bzl",
-    srcs = ["so_symlink.bzl"],
-    visibility = ["//visibility:public"],
 )
 
 template_test_suite(name = "_dd_agent_expand_template_tests")

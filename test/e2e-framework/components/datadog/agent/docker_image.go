@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	defaultAgentImageRepo            = "gcr.io/datadoghq/agent"
-	defaultClusterAgentImageRepo     = "gcr.io/datadoghq/cluster-agent"
-	defaultOTelAgentGatewayImageRepo = "gcr.io/datadoghq/ddot-collector"
+	defaultAgentImageRepo            = "registry.datadoghq.com/agent"
+	defaultClusterAgentImageRepo     = "registry.datadoghq.com/cluster-agent"
+	defaultOTelAgentGatewayImageRepo = "registry.datadoghq.com/ddot-collector"
 	defaultAgentImageTag             = "latest"
 	defaultAgent6ImageTag            = "6"
 	defaultDevAgentImageRepo         = "datadog/agent-dev" // Used as default repository for images that are not stable and released yet, should not be used in the CI
@@ -27,6 +27,18 @@ const (
 	fipsSuffix                       = "-fips"
 	linuxOnlySuffix                  = "-linux"
 )
+
+// DockerAgentFullImagePath resolves the node-agent image using the standard
+// environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerAgentFullImagePath(e config.Env) string {
+	return dockerAgentFullImagePath(e, "", "", false, false, false, false)
+}
+
+// DockerClusterAgentFullImagePath resolves the cluster-agent image using the
+// standard environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerClusterAgentFullImagePath(e config.Env) string {
+	return dockerClusterAgentFullImagePath(e, "", false)
+}
 
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
 	// return agent image path if defined

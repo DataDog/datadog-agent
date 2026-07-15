@@ -10,8 +10,14 @@ package executors
 
 import (
 	"context"
+	"time"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+)
+
+const (
+	// default timeout for all executors, can be overridden by individual executors if needed
+	defaultExecutorTimeout = 10 * time.Second
 )
 
 // Executor is the interface that all executors in this package implement

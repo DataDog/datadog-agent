@@ -1,12 +1,58 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "crio",
     srcs = [
+        "containers.go",
+        "crio.go",
         "crio_nop.go",
+        "image.go",
+        "image_sbom_stub.go",
+        "image_sbom_trivy.go",
+        "mock.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/crio",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
-    deps = ["@org_uber_go_fx//:fx"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/errors",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/sbom/collectors/crio",
+        "//pkg/sbom/scanner",
+        "//pkg/util/crio",
+        "//pkg/util/log",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "crio_test",
+    srcs = [
+        "crio_test.go",
+        "image_test.go",
+    ],
+    embed = [":crio"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/util/pointer",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
 )

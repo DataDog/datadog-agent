@@ -9,7 +9,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/core/log/def",
             "//comp/def",
-            "//comp/etw",
+            "//comp/etw/def",
             "//comp/trace/etwtracer/def",
             "@com_github_alecthomas_units//:units",
             "@com_github_microsoft_go_winio//:go-winio",

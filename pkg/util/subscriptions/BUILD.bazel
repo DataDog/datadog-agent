@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "subscriptions",
@@ -13,11 +14,10 @@ go_library(
     deps = ["@org_uber_go_fx//:fx"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "subscriptions_test",
     srcs = ["subscriptions_test.go"],
     embed = [":subscriptions"],
-    gotags = ["test"],  # keep - uses fxutil.Test which is behind //go:build test
     deps = [
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

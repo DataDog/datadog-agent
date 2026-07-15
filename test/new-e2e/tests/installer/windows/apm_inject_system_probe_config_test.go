@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"

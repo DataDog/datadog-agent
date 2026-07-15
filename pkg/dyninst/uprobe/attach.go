@@ -96,6 +96,46 @@ func Attach(
 		)
 	}
 
+	if loaded.UseMultiAttach {
+		return attachMulti(loaded, linkExe, textSection, processID)
+	}
+	return attachSingle(loaded, linkExe, textSection, processID)
+}
+
+func attachMulti(
+	loaded *loader.Program,
+	linkExe *link.Executable,
+	textSection *safeelf.Section,
+	processID process.ID,
+) (*AttachedProgram, error) {
+	addresses := make([]uint64, len(loaded.Attachpoints))
+	cookies := make([]uint64, len(loaded.Attachpoints))
+	for i, ap := range loaded.Attachpoints {
+		addresses[i] = ap.PC - textSection.Addr + textSection.Offset
+		cookies[i] = ap.Cookie
+	}
+	l, err := linkExe.UprobeMulti(nil, loaded.BpfProgram, &link.UprobeMultiOptions{
+		Addresses: addresses,
+		Cookies:   cookies,
+		PID:       uint32(processID.PID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to attach uprobe multi: %w", err)
+	}
+	return &AttachedProgram{
+		processID:    processID,
+		loader:       loaded,
+		executable:   linkExe,
+		attachpoints: []link.Link{l},
+	}, nil
+}
+
+func attachSingle(
+	loaded *loader.Program,
+	linkExe *link.Executable,
+	textSection *safeelf.Section,
+	processID process.ID,
+) (*AttachedProgram, error) {
 	attached := make([]link.Link, 0, len(loaded.Attachpoints))
 	for _, attachpoint := range loaded.Attachpoints {
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset

@@ -63,11 +63,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: defaultVersion,
 	}
 	prefixedAPPKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9]{28}_[a-zA-Z0-9]([a-zA-Z0-9]{4})`),
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9_]{30}([a-zA-Z0-9_]{4})`),
 		Hints: []string{"ddapp_"},
 		Repl:  []byte(`************************************$1`),
 
-		LastUpdated: parseVersion("7.78.0"),
+		LastUpdated: parseVersion("7.78.5"),
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
@@ -238,6 +238,39 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	appKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
 
+	// additional_endpoints has two schemas in the codebase:
+	//
+	//   Format A: map[string][]string keyed by endpoint URL
+	//     - Top-level  `additional_endpoints`, `process_config.additional_endpoints`, etc.
+	//     - Sub-values are endpoint URLs
+	//     - Each URL maps to an array of API keys
+	//
+	//   Format B: []map[string]interface{} a list of structured endpoints with well-defined fields
+	//     - Fields include `api_key` which should be scrubbed, and `host`, `port`, etc. which shouldn't
+	//     - Used by `logs_config.additional_endpoints`
+	//
+	// For A we scrub all leaf nodes aggressively. For B we re-enter the scrubber on the subtree so
+	// the existing key-based replacers (apiKeyYaml, passwordReplacer, ...) handle the sensitive
+	// fields (just api_key right now, maybe more in the future) while preserving host / port / etc.
+	//
+	// (We have to manually recurse in the case of Format B because otherwise matching the top-level
+	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
+	additionalEndpointsYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^additional_endpoints$`),
+		ProcessValue: func(data any) any {
+			switch data.(type) {
+			case map[string]interface{}, map[interface{}]interface{}:
+				return scrubAllLeafValues(data)
+			case []interface{}:
+				wrapped := data
+				scrubber.ScrubDataObj(&wrapped)
+				return wrapped
+			}
+			return data
+		},
+		LastUpdated: parseVersion("7.78.5"),
+	}
+
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
@@ -276,8 +309,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Exact key matches for specific API keys and auth tokens
 	exactKeyReplacer := matchYAMLKey(
-		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
-		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|dd-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "dd-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
 		[]byte(`$1 "********"`),
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -317,6 +350,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
+	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -333,7 +367,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:).+`, part)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:)\s+.+`, part)),
 		YAMLKeyRegex: regexp.MustCompile(part),
 		Hints:        hints,
 		Repl:         repl,
@@ -342,7 +376,7 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s+.+`, key)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
@@ -351,7 +385,7 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:).+`, ending)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:)\s+.+`, ending)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
@@ -360,7 +394,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:).+`, prefix, suffix)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:)\s+.+`, prefix, suffix)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,
@@ -482,6 +516,42 @@ func ScrubLine(url string) string {
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func ScrubDataObj(data *interface{}) {
 	DefaultScrubber.ScrubDataObj(data)
+}
+
+// scrubAllLeafValues recursively walks data and replaces every leaf value with
+// defaultReplacement while preserving the surrounding map and slice structure.
+// Nil values are preserved so YAML round-trips don't materialize "********" in
+// place of an absent value. ENC[] secret-backend placeholders are also preserved
+// so they remain useful in flare output.
+func scrubAllLeafValues(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for k, vv := range v {
+			v[k] = scrubAllLeafValues(vv)
+		}
+		return v
+	case map[interface{}]interface{}:
+		for k, vv := range v {
+			v[k] = scrubAllLeafValues(vv)
+		}
+		return v
+	case []interface{}:
+		for i, vv := range v {
+			v[i] = scrubAllLeafValues(vv)
+		}
+		return v
+	case nil:
+		return nil
+	case string:
+		// Preserve ENC[] secret-backend placeholders, matching ScrubDataObj's
+		// handling of ENC values elsewhere so flares keep useful diagnostics.
+		if IsEnc(v) {
+			return v
+		}
+		return defaultReplacement
+	default:
+		return defaultReplacement
+	}
 }
 
 // HideKeyExceptLastChars replaces all characters in the key with "*", except

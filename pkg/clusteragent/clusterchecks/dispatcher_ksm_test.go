@@ -195,8 +195,8 @@ func createTestKSMConfig(collectors []string) integration.Config {
 
 func TestNewDispatcher_KSMShardingNonNilWhenAdvancedDispatchingDisabled(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_checks.advanced_dispatching_enabled", false)
-	mockConfig.SetWithoutSource("cluster_checks.ksm_sharding_enabled", true)
+	mockConfig.SetInTest("cluster_checks.advanced_dispatching_enabled", false)
+	mockConfig.SetInTest("cluster_checks.ksm_sharding_enabled", true)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	d := newDispatcher(fakeTagger)

@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from io import UnsupportedOperation
-from typing import Protocol
+from typing import Any, Protocol
 
 import yaml
 from invoke import Context
@@ -103,6 +103,21 @@ def read_byte_input(byte_input: str | int) -> int:
         return string_to_byte(byte_input)
     else:
         return byte_input
+
+
+def _sum_manifest_sizes(node: Any) -> int:
+    """Recursively sum every `size` field found in a manifest tree."""
+    if isinstance(node, list):
+        return sum(_sum_manifest_sizes(item) for item in node)
+    if isinstance(node, dict):
+        total = 0
+        for key, value in node.items():
+            if key == "size":
+                total += value
+            else:
+                total += _sum_manifest_sizes(value)
+        return total
+    return 0
 
 
 class StaticQualityGateError(Exception):
@@ -203,6 +218,34 @@ class GateResult:
         """Remaining disk size capacity in bytes"""
         return max(0, self.config.max_on_disk_size - self.measurement.on_disk_size)
 
+    @property
+    def violation_message(self) -> str | None:
+        if self.success:
+            return None
+        violation_messages = []
+        for violation in self.violations:
+            current_mb = violation.current_size / (1024 * 1024)
+            max_mb = violation.max_size / (1024 * 1024)
+            excess_mb = violation.excess_bytes / (1024 * 1024)
+            if excess_mb < 1:
+                excess_kb = violation.excess_bytes / 1024
+                excess_str = f"{excess_kb:.1f} KB"
+            else:
+                excess_str = f"{excess_mb:.1f} MB"
+            violation_messages.append(
+                f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+            )
+        return f"{self.config.gate_name} failed!\n" + "\n".join(violation_messages)
+
+
+@dataclass(frozen=True)
+class GateExecutionError:
+    """Represents an unexpected exception that prevented a gate from running."""
+
+    name: str
+    traceback: str
+
 
 class ArtifactMeasurer(Protocol):
     """
@@ -294,6 +337,9 @@ class PackageArtifactMeasurer:
         package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         if config.os == "windows":
             package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
+        elif config.os == "suse":
+            # SUSE producer jobs relocate their RPM to OMNIBUS_PACKAGE_DIR_SUSE.
+            package_dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
 
         # Map architecture for certain OSes
         arch = config.arch
@@ -361,7 +407,9 @@ class DockerArtifactMeasurer:
         Generate Docker image URL based on gate configuration.
         """
         # Extract flavor from gate name
-        if "cluster" in config.gate_name:
+        if "host_profiler" in config.gate_name:
+            flavor = "ddot-ebpf"
+        elif "cluster" in config.gate_name:
             flavor = "cluster-agent"
         elif "dogstatsd" in config.gate_name:
             flavor = "dogstatsd"
@@ -376,7 +424,8 @@ class DockerArtifactMeasurer:
         jmx = "-jmx" if "jmx" in config.gate_name else ""
 
         # Handle image suffix
-        image_suffix = ("-7" if flavor == "agent" else "") + jmx
+        # ddot-ebpf uses TAG_SUFFIX: -7 in its CI build job, same as agent
+        image_suffix = ("-7" if flavor in ("agent", "ddot-ebpf") else "") + jmx
 
         # Handle nightly builds
         if os.environ.get("BUCKET_BRANCH") == "nightly" and flavor != "dogstatsd":
@@ -396,13 +445,16 @@ class DockerArtifactMeasurer:
     def _calculate_image_wire_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image compressed size using manifest inspection"""
         manifest_output = ctx.run(
-            "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
-            + image_url
-            + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
-            hide=True,
+            f"DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v {image_url}",
+            hide="out",
+            warn=True,
         )
-
-        return int(manifest_output.stdout)
+        if manifest_output.exited != 0:
+            raise InfraError(f"Docker manifest inspect failed to retrieve {image_url}. Retrying... (infra flake)")
+        wire_size = _sum_manifest_sizes(json.loads(manifest_output.stdout))
+        if wire_size <= 0:
+            raise StaticQualityGateError(f"Docker manifest for {image_url} reported a wire size of {wire_size} bytes")
+        return wire_size
 
     def _calculate_image_disk_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image uncompressed size by pulling and extracting"""
@@ -531,15 +583,7 @@ class StaticQualityGate:
         """
         violations = []
 
-        if measurement.on_wire_size > self.config.max_on_wire_size:
-            violations.append(
-                SizeViolation(
-                    measurement_type="wire",
-                    current_size=measurement.on_wire_size,
-                    max_size=self.config.max_on_wire_size,
-                )
-            )
-
+        # Only on-disk size can currently cause a violation
         if measurement.on_disk_size > self.config.max_on_disk_size:
             violations.append(
                 SizeViolation(

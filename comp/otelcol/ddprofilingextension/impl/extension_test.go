@@ -71,8 +71,8 @@ func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Componen
 	return h.exts
 }
 
-func TestNewExtension(t *testing.T) {
-	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{}, log.NewTemporaryLoggerWithoutInit())
+func TestNewComponent(t *testing.T) {
+	ext, err := NewComponent(&Config{}, component.BuildInfo{}, testComponent{}, log.NewTemporaryLoggerWithoutInit())
 	assert.NoError(t, err)
 
 	_, ok := ext.(*ddExtension)
@@ -105,7 +105,7 @@ func TestAgentExtension(t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// create extension
-	ext, err := NewExtension(&Config{
+	ext, err := NewComponent(&Config{
 		ProfilerOptions: ProfilerOptions{
 			Period: 1,
 		},
@@ -133,4 +133,36 @@ func TestAgentExtension(t *testing.T) {
 	}
 	err = ext.Shutdown(ctx)
 	assert.NoError(t, err)
+}
+
+func TestStandaloneExtension(t *testing.T) {
+	got := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/profiling/v1/input", req.URL.Path)
+		got <- req.Header.Get("User-Agent")
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	ext, err := NewComponent(&Config{
+		AgentAddr: server.Listener.Addr().String(),
+		ProfilerOptions: ProfilerOptions{
+			Period: 1,
+		},
+	}, component.BuildInfo{}, nil, nil)
+	require.NoError(t, err)
+
+	err = ext.Start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	timeout := time.After(15 * time.Second)
+	select {
+	case out := <-got:
+		assert.Equal(t, "Go-http-client/1.1", out)
+	case <-timeout:
+		t.Fatal("Timed out")
+	}
+
+	err = ext.Shutdown(context.Background())
+	require.NoError(t, err)
 }

@@ -13,7 +13,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -31,8 +31,6 @@ func enableUDSPassCred(_ syscall.RawConn) error {
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func processUDSOrigin(_ []byte, _ option.Option[workloadmeta.Component], _ pidmap.Component) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

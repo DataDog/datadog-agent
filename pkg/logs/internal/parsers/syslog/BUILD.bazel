@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "syslog",
+    srcs = [
+        "cef_leef.go",
+        "parser.go",
+        "structured_content.go",
+        "syslog.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_diagnostic//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "syslog_test",
+    srcs = [
+        "cef_leef_test.go",
+        "parser_test.go",
+        "structured_content_test.go",
+        "syslog_fuzz_test.go",
+        "syslog_test.go",
+    ],
+    embed = [":syslog"],
+    gotags = ["test"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

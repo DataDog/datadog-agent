@@ -10,6 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v6"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -24,7 +29,7 @@ import (
 
 const (
 	thirdPartyIntegration = "datadog-ping==1.0.2"
-	pipPackage            = "grpcio"
+	pipPackage            = "grpcio==1.80.0"
 )
 
 // TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
@@ -97,7 +102,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -414,7 +419,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.Require().NoError(err, "should write file")
 
 	// check to see if datadog-ping==1.0.2 is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// upgrade again without failure
 	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
@@ -429,7 +434,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		s.T().FailNow()
 	}
 
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	s.uninstallAgent()
 
@@ -512,7 +517,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -521,12 +526,21 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 }
 
 // install third party integration
+//
+// The agent integration install command can fail transiently when the
+// integrations-core release pipeline is mid-rotation: the TUF metadata.staged
+// snapshot returns 403 for a few minutes at a time. Wheels can be unavailable
+// for several minutes; their release pipeline runs at least once a day at
+// 5AM CET and can also run during working hours. Retry to absorb that window.
 func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing integration %s:\n%s", integration, err)
@@ -536,12 +550,19 @@ func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHo
 }
 
 // install pip package
+//
+// pip resolves wheels from the same integrations-core CDN that the agent
+// integration installer uses, so the same transient 403 window applies.
+// Retry to absorb it.
 func (s *baseAgentMSISuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, err)
@@ -555,12 +576,14 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	out, err := vm.Execute(cmd)
 	s.Require().NoError(err, "should show pip package")
 
 	// check to make sure it is installed
-	packageCheck := "Name: " + packageToCheck
+	packageCheck := "Name: " + pkgName
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
@@ -569,7 +592,9 @@ func (s *baseAgentMSISuite) checkPipPackageNotInstalled(vm *components.RemoteHos
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	_, err = vm.Execute(cmd)
 	s.Require().ErrorContains(err, "not found", "should not find pip package")
 
@@ -590,12 +615,35 @@ func (s *baseAgentMSISuite) getInstalledIntegrations(vm *components.RemoteHost) 
 	return out, nil
 }
 
-func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
+func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string, msiLogFile string) {
 	out, err := s.getInstalledIntegrations(vm)
 	s.Require().NoError(err, "should get installed integrations")
 
 	// we use strings.Contains to limit output on failure
-	assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed")
+	if !assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed") {
+		// Check the MSI log for known transient failure modes to aid investigation
+		if content, readErr := readMSILog(msiLogFile); readErr == nil {
+			for _, line := range strings.Split(content, "\n") {
+				if strings.Contains(line, "DownloadHTTPError") {
+					s.T().Logf("NOTE: %s: TUF DownloadHTTPError detected — the post-upgrade integration restore failed because the download service was temporarily unavailable. This is a transient infrastructure flake unrelated to the MSI code. For a permanent fix, contact agent-delivery/agent-integrations.\n  %s", filepath.Base(msiLogFile), strings.TrimSpace(line))
+				}
+			}
+		}
+	}
+}
+
+// readMSILog reads an MSI log file and returns its contents as a UTF-8 string.
+// MSI log files are written in UTF-16LE with a BOM.
+func readMSILog(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	decoded, _, err := transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), data)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }
 
 func (s *baseAgentMSISuite) checkIntegrationNotInstalled(vm *components.RemoteHost, integration string) {

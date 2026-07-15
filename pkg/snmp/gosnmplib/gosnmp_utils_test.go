@@ -34,7 +34,7 @@ func TestPacketToString(t *testing.T) {
 					},
 				},
 			},
-			expectedStr: "error=NoError(code:0, idx:0), values=[{\"oid\":\"1.3.6.1.2.1.1.2.0\",\"type\":\"ObjectIdentifier\",\"value\":\"1.3.6.1.4.1.3375.2.1.3.4.1\"},{\"oid\":\"1.3.6.1.2.1.1.3.0\",\"type\":\"Counter32\",\"value\":\"10\"}]",
+			expectedStr: `{"1.3.6.1.2.1.1.2.0":"ObjectIdentifier(1.3.6.1.4.1.3375.2.1.3.4.1)","1.3.6.1.2.1.1.3.0":"Counter32(10)"}`,
 		},
 		{
 			name: "invalid ipaddr",
@@ -47,7 +47,7 @@ func TestPacketToString(t *testing.T) {
 					},
 				},
 			},
-			expectedStr: "error=NoError(code:0, idx:0), values=[{\"oid\":\"1.3.6.1.2.1.1.2.0\",\"type\":\"IPAddress\",\"value\":\"10\",\"parse_err\":\"`oid 1.3.6.1.2.1.1.2.0: IPAddress should be string type but got type `int` and value `10``\"}]",
+			expectedStr: "{\"1.3.6.1.2.1.1.2.0\":\"(Unparseable IPAddress: oid 1.3.6.1.2.1.1.2.0: IPAddress should be string type but got type `int` and value `10`)\"}",
 		},
 		{
 			name:        "nil packet loglevel",

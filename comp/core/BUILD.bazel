@@ -1,4 +1,47 @@
-# gazelle:exclude bundle.go
-# gazelle:exclude bundle_params.go
-# gazelle:exclude bundle_test.go
-# gazelle:exclude bundle_mock.go
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "core",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+        "bundle_params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/delegatedauth/fx",
+        "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/delegatedauth/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/fx",
+        "//comp/core/log/mock",
+        "//comp/core/pid/fx",
+        "//comp/core/remoteflags/fx",
+        "//comp/core/secrets/fx",
+        "//comp/core/secrets/fx-noop",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/fx",
+        "//comp/core/sysprobeconfig/impl",
+        "//comp/core/sysprobeconfig/mock",
+        "//comp/core/telemetry/fx",
+        "//comp/core/telemetry/mock",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "core_test",
+    srcs = ["bundle_test.go"],
+    embed = [":core"],
+    deps = [
+        "//comp/core/pid/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

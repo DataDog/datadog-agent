@@ -29,7 +29,6 @@ func adjustNetwork(cfg model.Config) {
 
 	deprecateInt(cfg, spNS("closed_connection_flush_threshold"), netNS("closed_connection_flush_threshold"))
 	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
-	applyDefault(cfg, netNS("closed_channel_size"), 500)
 
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
@@ -53,11 +52,6 @@ func adjustNetwork(cfg model.Config) {
 			}
 			return nil
 		})
-
-		if cfg.GetBool(netNS("direct_send")) {
-			log.Warn("disabling direct send because this feature is not supported on windows")
-			cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
-		}
 	}
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
@@ -107,6 +101,13 @@ func adjustNetwork(cfg model.Config) {
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
 	}
 
+	if cfg.GetBool(netNS("direct_send")) && !DirectSendSupported() {
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			log.Warn("disabling direct send because this feature is not supported for this platform")
+		}
+		cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
+	}
+
 	// if npm connection rollups are enabled, but usm rollups are not,
 	// then disable npm rollups as well
 	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
@@ -120,6 +121,17 @@ func adjustNetwork(cfg model.Config) {
 		disableConfig(cfg, evNS("network_process", "enabled"), notSupportedEbpfless)
 	}
 	if !cfg.GetBool(spNS("enable_co_re")) {
-		disableConfig(cfg, netNS("enable_co_re"), "not supported when CO-RE is disabled in system-probe")
+		const notSupportedCORE = "not supported when CO-RE is disabled in system-probe"
+		disableConfig(cfg, netNS("enable_co_re"), notSupportedCORE)
+		disableConfig(cfg, netNS("enable_sk_tracer"), notSupportedCORE)
+	}
+	if !cfg.GetBool(netNS("enable_ringbuffers")) {
+		disableConfig(cfg, netNS("enable_sk_tracer"), "not supported when ring buffers disabled")
+	}
+	if cfg.GetBool(netNS("enable_sk_tracer")) {
+		const notSupportedSK = "not supported when sk tracer is enabled"
+		disableConfig(cfg, netNS("enable_protocol_classification"), notSupportedSK)
+		disableConfig(cfg, netNS("enable_cert_collection"), notSupportedSK)
+		disableConfig(cfg, smNS("enabled"), notSupportedSK)
 	}
 }

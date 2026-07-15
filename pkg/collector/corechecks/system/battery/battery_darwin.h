@@ -14,7 +14,6 @@ typedef struct {
 } OptionalBool;
 
 typedef struct {
-    bool found;
     OptionalInt cycleCount;
     OptionalInt designCapacity;
     OptionalInt appleRawMaxCapacity;
@@ -23,8 +22,10 @@ typedef struct {
     OptionalInt instantAmperage;
     OptionalBool isCharging;
     OptionalBool externalConnected;
+    OptionalBool isCritical;
 } BatteryInfo;
 
+bool hasInternalBattery(void);
 BatteryInfo getBatteryInfo(void);
 
 #endif

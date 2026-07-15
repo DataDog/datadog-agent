@@ -311,10 +311,17 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileDNSMatchMaxDepth int
 	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
 	SecurityProfileNodeEvictionTimeout time.Duration
+	// SecurityProfileSampleRefreshPeriod defines the minimum interval between sample refresh events for the same dedup cookie
+	SecurityProfileSampleRefreshPeriod time.Duration
 	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
 	SecurityProfileCleanupDelay time.Duration
 	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
 	SecurityProfileV2EventTypes []model.EventType
+	// SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling.
+	// The tag may be "*" to match any tag for the given image name.
+	SecurityProfileV2ExcludedImages []string
+	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
+	SecurityProfileV2MaxDumpSize func() int
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -356,8 +363,12 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
-	// SBOMResolverEnrichmentTicker defines the ticker for enriching SBOMs with runtime usage information
-	SBOMResolverEnrichmentTicker time.Duration
+	// SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
+	SBOMResolverEnrichmentInterval time.Duration
+	// SBOMResolverForwardInterval defines the interval for forwarding SBOMs
+	SBOMResolverForwardInterval time.Duration
+	// SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
+	SBOMResolverRefreshInterval time.Duration
 	// SBOMResolverGeneratePolicies defines if the SBOM resolver should generate runtime security policies based on the computed SBOMs
 	SBOMResolverGeneratePolicies bool
 
@@ -393,6 +404,10 @@ type RuntimeSecurityConfig struct {
 	UserSessionsCacheSize int
 	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
 	SSHUserSessionsEnabled bool
+
+	// CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so
+	// IS_UNHANDLED_ERROR treats every negative syscall return as handled.
+	CaptureAllSyscallErrorsEnabled bool
 
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
@@ -588,7 +603,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
-		SBOMResolverEnrichmentTicker:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_ticker"),
+		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
+		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
+		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
 		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
@@ -631,6 +648,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
+		SecurityProfileSampleRefreshPeriod: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.sample_refresh_period"),
+		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
+		SecurityProfileV2MaxDumpSize: func() int {
+			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
+			return mds * (1 << 10)
+		},
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -661,6 +684,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// User Sessions
 		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
 		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+
+		// Capture all syscall errors
+		CaptureAllSyscallErrorsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.syscalls.capture_all_errors.enabled"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),

@@ -29,7 +29,19 @@ api_key:
 ## Set to 'ap1.datadoghq.com' to send data to the AP1 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
-# site: datadoghq.com
+# site: "datadoghq.com"
+
+## @param infrastructure_mode - string - optional - default: "full"
+## @env DD_INFRASTRUCTURE_MODE - string - optional - default: "full"
+## Controls which integrations and metadata the Agent collects.
+## Valid values:
+##   - full: default server/host-monitoring behavior (all checks allowed).
+##   - basic: minimal host-level metrics only.
+##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - cloud_cost_only: Cloud Cost Management lightweight tagging.
+##   - none: disables infrastructure checks.
+#
+# infrastructure_mode: "full"
 
 ## @param dd_url - string - optional - default: "https://app.datadoghq.com"
 ## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
@@ -40,7 +52,7 @@ api_key:
 ## own "*_dd_url" settings.
 ## If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
 #
-# dd_url: https://app.datadoghq.com
+# dd_url: "https://app.datadoghq.com"
 
 ## @param proxy - custom object - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
@@ -181,6 +193,21 @@ api_key:
 #
 # remote_updates: true
 
+## @param process_manager - custom object - optional
+## When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+## This setting is ignored on Linux and does not enable or disable the systemd unit.
+#
+# process_manager:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
+#   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+#   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#
+#   enabled: true
+
 ## @param tag_value_split_separator - object - optional - default: {}
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - JSON object of string to string - optional - default: {}
 ## Split tag values according to a given separator. Only applies to host tags,
@@ -228,10 +255,10 @@ api_key:
 ## Possible values are: min, max, median, avg, sum and count.
 #
 # histogram_aggregates:
-#   - max
-#   - median
-#   - avg
-#   - count
+#   - "max"
+#   - "median"
+#   - "avg"
+#   - "count"
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
 ## @env DD_HISTOGRAM_PERCENTILES - space-separated list of strings - optional - default: "0.95"
@@ -280,6 +307,36 @@ api_key:
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
+
+## @param use_v3_api - custom object - optional
+## Controls the use of the v3 metrics intake.
+#
+# use_v3_api:
+
+#   # @param series - custom object - optional
+#   # Controls the use of the v3 metrics intake for non-distribution metrics (series).
+#
+#   series:
+
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "datadog_only"
+#     # Global default for the non-distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "datadog_only"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for non-distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
 
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
 ## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
@@ -536,7 +593,50 @@ api_key:
 ## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
-# collect_gpu_tags: false
+# collect_gpu_tags: true
+
+## @param gpu - custom object - optional
+## Configuration for GPU Monitoring on non-containerized Linux hosts.
+## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+#
+# gpu:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_GPU_ENABLED - boolean - optional - default: false
+#   # Set to true to enable the GPU check in the core Agent.
+#   # Required for GPU monitoring on non-containerized Linux hosts.
+#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#
+#   enabled: false
+
+#   # @param nccl - custom object - optional
+#   # NCCL collective communication metrics. When enabled, the Agent listens on a
+#   # Unix domain socket for events emitted by the NCCL profiler plugin in
+#   # training pods and emits per-collective performance metrics.
+#   # Pair with admission_controller.nccl_profiler to inject the plugin into
+#   # training pods, or mount the plugin into containers manually.
+#
+#   nccl:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_NCCL_ENABLED - boolean - optional - default: false
+#     # Enable the NCCL collective performance check.
+#
+#     enabled: false
+
+#     # @param host_socket_path - string - optional - default: "/var/run/datadog"
+#     # @env DD_GPU_NCCL_HOST_SOCKET_PATH - string - optional - default: "/var/run/datadog"
+#     # Host directory containing the Agent's NCCL socket. Must match the
+#     # hostPath volume mounted into training pods.
+#
+#     host_socket_path: "/var/run/datadog"
+
+#     # @param socket_path - string - optional - default: "/var/run/datadog/nccl.socket"
+#     # @env DD_GPU_NCCL_SOCKET_PATH - string - optional - default: "/var/run/datadog/nccl.socket"
+#     # Full path to the Unix domain socket the Agent listens on for NCCL events.
+#     # Must be under host_socket_path.
+#
+#     socket_path: "/var/run/datadog/nccl.socket"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -742,6 +842,26 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
+#     # @param dual_ship - boolean - optional - default: false
+#     # @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_DUAL_SHIP - boolean - optional - default: false
+#     # When false (default), the Observability Pipelines Worker replaces the primary
+#     # Datadog logs intake as the sole destination. When true, logs are sent to BOTH
+#     # the primary Datadog intake and the Observability Pipelines Worker, which is
+#     # useful for evaluating OPW without interrupting the existing flow of telemetry
+#     # to Datadog.
+#
+#     dual_ship: false
+
+#     # @param dual_ship_reliable - boolean - optional - default: false
+#     # @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_DUAL_SHIP_RELIABLE - boolean - optional - default: false
+#     # Only meaningful when `dual_ship` is true. When false (default), the OPW
+#     # destination is treated as best-effort: failures to OPW do not apply
+#     # backpressure to the main pipeline, so an unhealthy OPW cannot stall delivery
+#     # to Datadog. Set to true to make the OPW destination reliable, meaning its
+#     # failures participate in flow control just like the primary Datadog endpoint.
+#
+#     dual_ship_reliable: false
+
 #   # @param traces - custom object - optional
 #   # Specific configurations for traces
 #
@@ -766,19 +886,19 @@ api_key:
 ## Advanced Configuration ##
 ############################
 
-## @param confd_path - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
-## @env DD_CONFD_PATH - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+## @param confd_path - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+## @env DD_CONFD_PATH - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
 #
-# confd_path: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+# confd_path: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
 
-## @param additional_checksd - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
-## @env DD_ADDITIONAL_CHECKSD - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+## @param additional_checksd - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+## @env DD_ADDITIONAL_CHECKSD - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
 ## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
 ## located in the Agent configuration folder.
 #
-# additional_checksd: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+# additional_checksd: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
 
 ## @param expvar_port - integer - optional - default: 5000
 ## @env DD_EXPVAR_PORT - integer - optional - default: 5000
@@ -792,15 +912,15 @@ api_key:
 #
 # cmd_port: 5001
 
-## @param GUI_port - integer - optional - default: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
-## @env DD_GUI_PORT - integer - optional - default: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
+## @param GUI_port - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
+## @env DD_GUI_PORT - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 ## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
 #
-# GUI_port: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
+# GUI_port: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 
 ## @param GUI_session_expiration - integer - optional - default: 0
 ## @env DD_GUI_SESSION_EXPIRATION - integer - optional - default: 0
@@ -937,6 +1057,19 @@ api_key:
 #
 # secret_backend_config:
 #   <KEY_1>: <VALUE_1>
+
+## @param multi_secret_backends - object - optional - default: {}
+## @env DD_MULTI_SECRET_BACKENDS - JSON object - optional - default: {}
+## `multi_secret_backends` defines named secret backends for routing. Each entry specifies a `type`
+## and optional `config`. Use `ENC[backendID;secretKey]` handles to route secrets to the named backend.
+## This option is ignored if `secret_backend_command` or `secret_backend_type` is set.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+#
+# multi_secret_backends:
+#   <backend_name>:
+#     type: <backend_type>
+#     config:
+#       <KEY_1>: <VALUE_1>
 
 ## @param secret_refresh_interval - integer - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default: 0
@@ -1099,6 +1232,14 @@ api_key:
 #
 #   container_collect_all: false
 
+#   # @param use_container_timestamp - boolean - optional - default: false
+#   # @env DD_LOGS_CONFIG_USE_CONTAINER_TIMESTAMP - boolean - optional - default: false
+#   # Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+#   #
+#   # This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+#
+#   use_container_timestamp: false
+
 #   # @param logs_dd_url - string - optional - default: ""
 #   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional - default: ""
 #   # Define the endpoint and port to hit when using a proxy for logs.
@@ -1115,8 +1256,8 @@ api_key:
 #
 #   logs_no_ssl: false
 
-#   # @param processing_rules - list of custom objects - optional - default: []
-#   # @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional - default: []
+#   # @param processing_rules - list - optional - default: []
+#   # @env DD_LOGS_CONFIG_PROCESSING_RULES - JSON list - optional - default: []
 #   # Global processing rules that are applied to all logs. The available rules are
 #   # "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
@@ -1126,8 +1267,8 @@ api_key:
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
 
-#   # @param auto_multi_line_detection - boolean - optional - default: false
-#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+#   # @param auto_multi_line_detection - boolean - optional - default: true
+#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: true
 #   # Enable automatic aggregation of multi-line logs for common log patterns.
 #   # More information can be found in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
@@ -1260,15 +1401,15 @@ api_key:
 #
 #   streaming:
 
-#     # @param streamlogs_log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
-#     # @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     # @param streamlogs_log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     # @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
 #     # Path to the file containing the streamlogs log file.
 #     # Default paths:
 #     #   * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
 #     #   * Darwin: /opt/datadog-agent/logs/streamlogs_info/streamlogs.log
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
-#     streamlogs_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     streamlogs_log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
 
 {{- end -}}
 {{- if .TraceAgent }}
@@ -1290,14 +1431,14 @@ api_key:
 #
 #   enabled: true
 
-#   # @param env - string - optional - default: "none"
-#   # @env DD_APM_ENV - string - optional - default: "none"
+#   # @param env - string - optional - default: ""
+#   # @env DD_APM_ENV - string - optional - default: ""
 #   # The environment tag that Traces should be tagged with.
 #   # If not set the value will be inherited, in order, from the top level
 #   # "env" config option if set and then from the 'env:' tag if present in the
 #   # 'tags' top level config option.
 #
-#   env: none
+#   env: ""
 
 #   # @param receiver_port - integer - optional - default: 8126
 #   # @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
@@ -1307,15 +1448,15 @@ api_key:
 #
 #   receiver_port: 8126
 
-#   # @param receiver_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
-#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   # @param receiver_socket - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #   #
 #   # Please note that UDS receiver is not available in Windows.
 #   # Enabling this setting may result in unexpected behavior.
 #
-#   receiver_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   receiver_socket: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -1324,16 +1465,16 @@ api_key:
 #
 #   apm_non_local_traffic: false
 
-#   # @param apm_dd_url - string - optional
-#   # @env DD_APM_DD_URL - string - optional
+#   # @param apm_dd_url - string - optional - default: ""
+#   # @env DD_APM_DD_URL - string - optional - default: ""
 #   # Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
 #   # therefore the proxy must be able to handle TCP connections.
 #
 #   apm_dd_url: <ENDPOINT>:<PORT>
 
-#   # @param max_traces_per_second - integer - optional - default: 10
-#   # @env DD_APM_MAX_TPS - integer - optional - default: 10
-#   # @env DD_MAX_TPS - integer - optional - default: 10
+#   # @param max_traces_per_second - float - optional - default: 10
+#   # @env DD_APM_MAX_TPS - float - optional - default: 10
+#   # @env DD_MAX_TPS - float - optional - default: 10
 #   # DEPRECATED - please use `target_traces_per_second` instead.
 #   #
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1344,8 +1485,8 @@ api_key:
 #
 #   max_traces_per_second: 10
 
-#   # @param target_traces_per_second - integer - optional - default: 10
-#   # @env DD_APM_TARGET_TPS - integer - optional - default: 10
+#   # @param target_traces_per_second - float - optional - default: 10
+#   # @env DD_APM_TARGET_TPS - float - optional - default: 10
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
 #   # the received traffic and communicated to tracers. This configures head-based sampling.
 #   # As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
@@ -1354,17 +1495,17 @@ api_key:
 #
 #   target_traces_per_second: 10
 
-#   # @param errors_per_second - integer - optional - default: 10
-#   # @env DD_APM_ERROR_TPS - integer - optional - default: 10
+#   # @param errors_per_second - float - optional - default: 10
+#   # @env DD_APM_ERROR_TPS - float - optional - default: 10
 #   # The target error trace chunks to receive per second. The TPS is spread
 #   # to catch all combinations of service, name, resource, http.status, and error.type.
 #   # Set to 0 to disable the errors sampler.
 #
 #   errors_per_second: 10
 
-#   # @param max_events_per_second - integer - optional - default: 200
-#   # @env DD_APM_MAX_EPS - integer - optional - default: 200
-#   # @env DD_MAX_EPS - integer - optional - default: 200
+#   # @param max_events_per_second - float - optional - default: 200
+#   # @env DD_APM_MAX_EPS - float - optional - default: 200
+#   # @env DD_MAX_EPS - float - optional - default: 200
 #   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
 #   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
 #   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
@@ -1372,17 +1513,17 @@ api_key:
 #
 #   max_events_per_second: 200
 
-#   # @param max_memory - integer - optional - default: 500000000
-#   # @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000
+#   # @param max_memory - float - optional - default: "5e+08"
+#   # @env DD_APM_MAX_MEMORY - float - optional - default: "5e+08"
 #   # This value is what the Agent aims to use in terms of memory. If surpassed, the API
 #   # rate limits incoming requests to aim and stay below this value.
 #   # Note: The Agent process is killed if it uses more than 150% of `max_memory`.
 #   # Set the `max_memory` parameter to `0` to disable the memory limitation.
 #
-#   max_memory: 500000000
+#   max_memory: 500000000.0
 
-#   # @param max_cpu_percent - integer - optional - default: 50
-#   # @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
+#   # @param max_cpu_percent - float - optional - default: 50
+#   # @env DD_APM_MAX_CPU_PERCENT - float - optional - default: 50
 #   # The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
 #   # incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
 #   # Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -1706,8 +1847,8 @@ api_key:
 #
 #     reject: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]
 
-#   # @param replace_tags - list of objects - optional
-#   # @env DD_APM_REPLACE_TAGS - list of objects - optional
+#   # @param replace_tags - list of object - optional - default: []
+#   # @env DD_APM_REPLACE_TAGS - JSON list of objects - optional - default: []
 #   # Defines a set of rules to replace or remove certain resources, tags containing
 #   # potentially sensitive information.
 #   # Each rules has to contain:
@@ -1723,15 +1864,15 @@ api_key:
 #       repl: "<PATTERN_TO_INLINE>"
 
 #   # @param ignore_resources - list of strings - optional - default: []
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
-#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma-separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma-separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
 #   ignore_resources: ["(GET|POST) /healthcheck"]
 
-#   # @param log_file - string - optional
-#   # @env DD_APM_LOG_FILE - string - optional
+#   # @param log_file - string - optional - default: ""
+#   # @env DD_APM_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where APM-agent logs are written.
 #
 #   log_file: <APM_LOG_FILE_PATH>
@@ -1775,14 +1916,14 @@ api_key:
 #   peer_tags_aggregation: true
 
 #   # @param peer_tags - list of strings - optional - default: []
-#   # @env DD_APM_PEER_TAGS - list of strings - optional - default: []
+#   # @env DD_APM_PEER_TAGS - JSON array of strings - optional - default: []
 #   # Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
 #   # and will drop ones that are unapproved.
 #
 #   peer_tags: []
 
 #   # @param features - list of strings - optional - default: []
-#   # @env DD_APM_FEATURES - comma or space-separated list of strings - optional - default: []
+#   # @env DD_APM_FEATURES - comma or space separated list of strings - optional - default: []
 #   # Configure additional beta APM features.
 #   # The list of items available under apm_config.features is not guaranteed to persist across versions;
 #   # a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
@@ -1790,7 +1931,7 @@ api_key:
 #   features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2", "disable_operation_and_resource_name_logic_v2"]
 
 #   # @param additional_endpoints - object - optional - default: {}
-#   # @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional - default: {}
+#   # @env DD_APM_ADDITIONAL_ENDPOINTS - JSON object - optional - default: {}
 #   # Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
 #   # See https://docs.datadoghq.com/agent/guide/dual-shipping
 #
@@ -1966,11 +2107,11 @@ api_key:
 #
 #   cmd_port: 6162
 
-#   # @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
-#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 #   # The full path to the file where process Agent logs are written.
 #
-#   log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 
 #   # @param intervals - custom object - optional
 #   # The interval, in seconds, at which the Agent runs each check. If you want consistent
@@ -2073,8 +2214,8 @@ api_key:
 #   scrub_args: true
 
 #   # @param custom_sensitive_words - list of strings - optional - default: []
-#   # @env DD_CUSTOM_SENSITIVE_WORDS - space-separated list of strings or JSON array of strings - optional - default: []
-#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space-separated list of strings or JSON array of strings - optional - default: []
+#   # @env DD_CUSTOM_SENSITIVE_WORDS - comma-separated list of strings or JSON array of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - comma-separated list of strings or JSON array of strings - optional - default: []
 #   # Define your own list of sensitive data to be merged with the default one.
 #   # Read more on Datadog documentation:
 #   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -2090,7 +2231,7 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-{{- if (ne .OS "darwin") }}
+{{- if (or (eq .OS "windows") (eq .OS "linux")) }}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -2339,8 +2480,8 @@ api_key:
 #
 # dogstatsd_port: 8125
 
-## @param bind_host - string - optional - default: "localhost"
-## @env DD_BIND_HOST - string - optional - default: "localhost"
+## @param bind_host - string - optional - default: ""
+## @env DD_BIND_HOST - string - optional - default: ""
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
 ## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
@@ -2349,8 +2490,8 @@ api_key:
 #
 # bind_host: localhost
 
-## @param dogstatsd_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+## @param dogstatsd_socket - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
@@ -2358,7 +2499,7 @@ api_key:
 ## Please note that UDS receiver is not available in Windows.
 ## Enabling this setting may result in unexpected behavior.
 #
-# dogstatsd_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+# dogstatsd_socket: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2451,8 +2592,8 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param dogstatsd_mapper_profiles - list of custom object - optional
-## @env DD_DOGSTATSD_MAPPER_PROFILES - list of custom object - optional
+## @param dogstatsd_mapper_profiles - list - optional - default: []
+## @env DD_DOGSTATSD_MAPPER_PROFILES - JSON list of objects - optional - default: []
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
 ## The profiles and matching rules are processed in the order defined in this configuration.
@@ -2515,6 +2656,12 @@ api_key:
 ## How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 #
 # dogstatsd_no_aggregation_pipeline_batch_size: 2048
+
+## @param dogstatsd_no_aggregation_pipeline_workers_count - integer - optional - default: 1
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_WORKERS_COUNT - integer - optional - default: 1
+## How many workers are used by the no-aggregation pipeline.
+#
+# dogstatsd_no_aggregation_pipeline_workers_count: 1
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
@@ -2593,13 +2740,13 @@ api_key:
 ## to containers with a total memory limit greater than ~250mb. If
 ## jmx_use_container_support is disabled this option has no effect.
 #
-# jmx_max_ram_percentage: 25.0
+# jmx_max_ram_percentage: 25
 
-## @param jmx_log_file - string - optional - default: ""
-## @env DD_JMX_LOG_FILE - string - optional - default: ""
+## @param jmx_log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 ## Path of the log file where JMXFetch logs are written.
 #
-# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+# jmx_log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
@@ -2681,14 +2828,14 @@ api_key:
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: 'info'
+# log_level: "info"
 
-## @param log_file - string - optional - default: ""
-## @env DD_LOG_FILE - string - optional - default: ""
+## @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
-# log_file: <AGENT_LOG_FILE_PATH>
+# log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 
 ## @param log_format_json - boolean - optional - default: false
 ## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
@@ -2852,6 +2999,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ## @param autoconfig_include_features - list of strings - optional - default: []
 ## @env DD_AUTOCONFIG_INCLUDE_FEATURES - space-separated list of strings - optional - default: []
@@ -2868,6 +3016,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ###########################################
 ## Container Autodiscovery Configuration ##
@@ -2941,6 +3090,17 @@ api_key:
 ## on all registered configuration providers.
 #
 # ad_config_poll_interval: 10
+
+## @param ad_tag_completeness_max_wait - integer - optional - default: 0
+## @env DD_AD_TAG_COMPLETENESS_MAX_WAIT - integer - optional - default: 0
+## Maximum time in seconds that autodiscovery waits for an entity's tags to be
+## complete before scheduling checks for it. This avoids checks running briefly
+## with incomplete tags. This can happen when some sources (kubelet, container
+## runtime, etc.) have reported information for the entity, but others have not
+## yet. 0 disables waiting and checks are scheduled as soon as the entity is
+## discovered.
+#
+# ad_tag_completeness_max_wait: 0
 
 ## @param ad_allowed_env_vars - list of strings - optional - default: []
 ## @env DD_AD_ALLOWED_ENV_VARS - space-separated list of strings - optional - default: []
@@ -3391,6 +3551,55 @@ api_key:
 #
 #     init_security_context: '{"privileged": false}'
 
+#   # @param nccl_profiler - custom object - optional
+#   # NCCL profiler injection. When enabled, the admission controller injects
+#   # an init container into pods labelled `admission.datadoghq.com/nccl-profiler.enabled: "true"`
+#   # to mount the NCCL profiler plugin and configure NCCL env vars so the
+#   # Agent's NCCL check can collect collective performance events over a UDS.
+#
+#   nccl_profiler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED - boolean - optional - default: false
+#     # Enable the NCCL profiler injection webhook.
+#
+#     enabled: false
+
+#     # @param injector_image - string - optional - default: ""
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE - string - optional - default: ""
+#     # Fully-qualified image reference for the NCCL profiler injector. The
+#     # webhook self-disables if this is empty when enabled is true.
+#
+#     injector_image: ""
+
+#     # @param mutate_unlabelled - boolean - optional - default: false
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_MUTATE_UNLABELLED - boolean - optional - default: false
+#     # When true, the webhook injects into every pod that does not carry the
+#     # `admission.datadoghq.com/nccl-profiler.enabled: "false"` label, instead
+#     # of requiring `"true"` to opt in. Useful in clusters dedicated to ML
+#     # training. Either this or admission_controller.mutate_unlabelled enables
+#     # blanket mode. Note: when enabled, every pod's admission depends on the
+#     # injector image being reachable from the kubelet.
+#
+#     mutate_unlabelled: false
+
+#     # @param init_resources - custom object - optional
+#     # CPU and memory resources applied to the injected init container.
+#
+#     init_resources:
+
+#       # @param cpu - string - optional - default: ""
+#       # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INIT_RESOURCES_CPU - string - optional - default: ""
+#       # CPU request and limit for the init container.
+#
+#       cpu: ""
+
+#       # @param memory - string - optional - default: ""
+#       # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INIT_RESOURCES_MEMORY - string - optional - default: ""
+#       # Memory request and limit for the init container.
+#
+#       memory: ""
+
 {{- end -}}
 {{- if .DockerTagging }}
 
@@ -3522,6 +3731,8 @@ api_key:
 ## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: true
 ## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
 ## which is used for the orchestrator ECS check.
+## When ``infrastructure_mode`` is ``none``, task collection is disabled unless overridden
+## (for example set ``DD_ECS_TASK_COLLECTION_ENABLED`` to ``true``).
 #
 # ecs_task_collection_enabled: true
 
@@ -3601,7 +3812,7 @@ api_key:
 ## containerd containers.
 #
 # containerd_exclude_namespaces:
-#   - moby
+#   - "moby"
 
 {{- end -}}
 {{- if .Kubelet }}
@@ -3746,6 +3957,14 @@ api_key:
 #
 # kubernetes_metadata_tag_update_freq: 60
 
+## @param kubernetes_metadata_streaming - boolean - optional - default: true
+## @env DD_KUBERNETES_METADATA_STREAMING - boolean - optional - default: true
+## Stream Kubernetes metadata from the Cluster Agent instead of polling it every
+## `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
+## tags with less delay.
+#
+# kubernetes_metadata_streaming: true
+
 ## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
 ## @env DD_KUBERNETES_APISERVER_CLIENT_TIMEOUT - integer - optional - default: 10
 ## Set the timeout for the Agent when connecting to the Kubernetes API server.
@@ -3808,7 +4027,7 @@ api_key:
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
 #
 # kubernetes_node_annotations_as_host_aliases:
-#   - cluster.k8s.io/machine
+#   - "cluster.k8s.io/machine"
 
 ## @param cluster_name - string - optional - default: ""
 ## @env DD_CLUSTER_NAME - string - optional - default: ""
@@ -4130,7 +4349,7 @@ api_key:
 #         # @param use_raw_socket - boolean - optional - default: false
 #         # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_LINUX_USE_RAW_SOCKET - boolean - optional - default: false
 #         # Send pings in a privileged fashion using a raw socket.
-#         # This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+#         # This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
 #         # socket).
 #         # If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
 #         # enable it, see system-probe.yaml.example.
@@ -4345,7 +4564,7 @@ api_key:
 #         #         - "tagKey2:tagValue2"
 #         #       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 #
-#         interface_config:
+#         interface_configs:
 #           "10.0.0.1":
 #             - match_field: name
 #               match_value: eth0
@@ -4433,10 +4652,17 @@ api_key:
 
 #     # @param stop_timeout - integer - optional - default: 5
 #     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_STOP_TIMEOUT - integer - optional - default: 5
-#     # stop_timeout - float - optional - default: 5.0
 #     # The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
 #
-#     stop_timeout: 5.0
+#     stop_timeout: 5
+
+#     # @param tags - list of strings - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
+#     # A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+#
+#     tags:
+#       - "application:<APPLICATION_ID>"
+#       - "team:<TEAM_NAME>"
 
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.
@@ -4449,7 +4675,7 @@ api_key:
 #
 #     enabled: false
 
-#     # @param listeners - custom object - optional
+#     # @param listeners - list of object - optional - default: []
 #     # This section configures one or more listeners ports that will receive flow traffic.
 #     # Each listener have the following options:
 #     #  * flow_type    - string - The flow type correspond to the incoming flow protocol.
@@ -4458,7 +4684,7 @@ api_key:
 #     #                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
 #     #  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
 #     #                            Binds to 0.0.0.0 by default (accepting all packets).
-#     #  * workers      - string - (Optional) Number of workers to use for this listener.
+#     #  * workers      - integer - (Optional) Number of workers to use for this listener.
 #     #                            Defaults to 1.
 #     #  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
 #     #                              Defaults to None.
@@ -4488,6 +4714,7 @@ api_key:
 #         port: 6343
 
 #     # @param stop_timeout - integer - optional - default: 5
+#     # @env DD_NETWORK_DEVICES_NETFLOW_STOP_TIMEOUT - integer - optional - default: 5
 #     # The maximum number of seconds to wait for the NetFlow listeners to stop when the Agent shuts down.
 #
 #     stop_timeout: 5
@@ -4504,11 +4731,13 @@ api_key:
 # reverse_dns_enrichment:
 
 #   # @param workers - integer - optional - default: 10
+#   # @env DD_REVERSE_DNS_ENRICHMENT_WORKERS - integer - optional - default: 10
 #   # The number of concurrent workers used to perform reverse DNS lookups.
 #
 #   workers: 10
 
 #   # @param chan_size - integer - optional - default: 5000
+#   # @env DD_REVERSE_DNS_ENRICHMENT_CHAN_SIZE - integer - optional - default: 5000
 #   # The size of the channel used to send reverse DNS lookup requests to the workers.
 #
 #   chan_size: 5000
@@ -4549,6 +4778,7 @@ api_key:
 #     max_retries: 10
 
 #     # @param max_size - integer - optional - default: 1000000
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_MAX_SIZE - integer - optional - default: 1000000
 #     # The maximum size in entries of the cache, above which additional entries will not be cached.
 #
 #     max_size: 1000000
@@ -4565,21 +4795,25 @@ api_key:
 #     enabled: true
 
 #     # @param limit_per_sec - integer - optional - default: 1000
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_LIMIT_PER_SEC - integer - optional - default: 1000
 #     # The maximum number of reverse DNS lookups allowed per second by the rate limiter.
 #
 #     limit_per_sec: 1000
 
 #     # @param limit_throttled_per_sec - integer - optional - default: 1
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_LIMIT_THROTTLED_PER_SEC - integer - optional - default: 1
 #     # The maximum number of reverse DNS lookups allowed per second when the rate limiter is throttled due to errors exceeding the threshold.
 #
 #     limit_throttled_per_sec: 1
 
 #     # @param throttle_error_threshold - integer - optional - default: 10
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_THROTTLE_ERROR_THRESHOLD - integer - optional - default: 10
 #     # The number of consecutive errors that will trigger the rate limiter to throttle down to limit_throttled_per_sec.
 #
 #     throttle_error_threshold: 10
 
 #     # @param recovery_intervals - integer - optional - default: 5
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_RECOVERY_INTERVALS - integer - optional - default: 5
 #     # The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
 #
 #     recovery_intervals: 5
@@ -4870,6 +5104,17 @@ api_key:
 #
 #       enabled: true
 
+#       # @param container_tag_promotion - string - optional - default: "off"
+#       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION - string - optional - default: "off"
+#       # Controls how the Infra-Attribute-Processor promotes custom container tags into
+#       # `_dd.tags.container` (visible in the Infrastructure tab) for the traces pipeline.
+#       # This setting only affects traces. Accepted values:
+#       #   off:       tags are written as-is; only keys recognized by the trace-agent reach `_dd.tags.container` (default).
+#       #   duplicate: write both the original tag and a `datadog.container.tag.<key>` copy.
+#       #   rename:    write only the `datadog.container.tag.<key>` form (smaller payload).
+#
+#       container_tag_promotion: "off"
+
 #   # @param logs - custom object - optional
 #   # Logs-specific configuration for OTLP ingest in the Datadog Agent.
 #
@@ -4963,7 +5208,7 @@ api_key:
 #   task_timeout_seconds: 60
 
 #   # @param actions_allowlist - list of strings - optional - default: []
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
@@ -4987,8 +5232,8 @@ api_key:
 #   http_timeout_seconds: 30
 
 #   # @param http_allowlist - list of strings - optional - default: []
-#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - space-separated list of strings - optional - default: []
-#   # List of allowed URL patterns for HTTP actions.
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 

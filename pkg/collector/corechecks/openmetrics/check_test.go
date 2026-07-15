@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventorychecksmock "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -83,7 +83,7 @@ func configureOpenMetricsCheckForEndpoint(t *testing.T, instance string, endpoin
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	omCheck := newCheck().(*Check)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instance = strings.ReplaceAll(instance, "%%endpoint%%", endpoint)
 	err := omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "test", "provider")
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func configureOpenMetricsCheckWithoutServer(t *testing.T, instance string) check
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	omCheck := newCheck().(*Check)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "test", "provider")
 	require.NoError(t, err)
 
@@ -124,7 +124,7 @@ func TestConfigureSkipsWhenCoreLoaderFlagDisabled(t *testing.T) {
 			cfg.Set("openmetrics.use_core_loader", false, configmodel.SourceAgentRuntime)
 
 			omCheck := newCheck().(*Check)
-			err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(`openmetrics_endpoint: http://127.0.0.1/metrics`), nil, "test", "provider")
+			err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte(`openmetrics_endpoint: http://127.0.0.1/metrics`), nil, "test", "provider")
 
 			require.True(t, errors.Is(err, check.ErrSkipCheckInstance))
 		})
@@ -136,7 +136,7 @@ func TestConfigureSkipsUnsupportedCoreHTTPConfig(t *testing.T) {
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	omCheck := newCheck().(*Check)
-	err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(`
+	err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte(`
 openmetrics_endpoint: http://127.0.0.1/metrics
 metrics: []
 auth_type: digest
@@ -158,7 +158,7 @@ service: instance-service
 	initConfig := integration.Data([]byte("service: init-service\n"))
 	omCheck := newCheck().(*Check)
 	omCheck.BuildID(integration.FakeConfigHash, instance, initConfig)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	mockSender := mocksender.NewMockSenderWithSenderManager(omCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
@@ -714,7 +714,7 @@ target_info: "true"
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			omCheck := newCheck().(*Check)
-			err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(test.instance), nil, "test", "provider")
+			err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte(test.instance), nil, "test", "provider")
 			require.ErrorContains(t, err, test.error)
 		})
 	}
@@ -1117,7 +1117,7 @@ func TestTLSHostAndCipherOptions(t *testing.T) {
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	omCheck := newCheck().(*Check)
-	err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(`
+	err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte(`
 openmetrics_endpoint: https://127.0.0.1/metrics
 namespace: test
 metrics: []
@@ -2087,7 +2087,7 @@ target_info: true
 }
 
 func TestLatestMetadataTransformer(t *testing.T) {
-	invChecks := inventorychecksimpl.NewMock().Comp
+	invChecks := inventorychecksmock.NewMock().Comp
 	check.InitializeInventoryChecksContext(invChecks)
 	t.Cleanup(check.ReleaseContext)
 
@@ -2116,7 +2116,7 @@ metrics:
 }
 
 func TestLegacyMetadataTransformer(t *testing.T) {
-	invChecks := inventorychecksimpl.NewMock().Comp
+	invChecks := inventorychecksmock.NewMock().Comp
 	check.InitializeInventoryChecksContext(invChecks)
 	t.Cleanup(check.ReleaseContext)
 

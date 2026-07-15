@@ -44,6 +44,22 @@ var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS": nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS,
 	"FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS":     nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS,
 	"FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS":                nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_0":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_1":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_1,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_2":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_2,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_3":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_3,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_4":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_4,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_5":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_5,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_6":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_6,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_7":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_7,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_8":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_8,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_9":                   nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_9,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_10":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_10,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_11":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_11,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_12":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_12,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_13":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_13,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_14":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_14,
+	"FI_DEV_NVLINK_COUNT_FEC_HISTORY_15":                  nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_15,
 	"FI_DEV_NVLINK_COUNT_EFFECTIVE_BER":                   nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER,
 	"FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS":                   nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS,
 	"FI_DEV_NVLINK_COUNT_SYMBOL_BER":                      nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER,
@@ -52,6 +68,7 @@ var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_C2C_LINK_ERROR_REPLAY_B2B":                    nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B,
 	"FI_DEV_PCIE_REPLAY_COUNTER":                          nvml.FI_DEV_PCIE_REPLAY_COUNTER,
 	"FI_DEV_PERF_POLICY_THERMAL":                          nvml.FI_DEV_PERF_POLICY_THERMAL,
+	"FI_DEV_GET_GPU_RECOVERY_ACTION":                      nvml.FI_DEV_GET_GPU_RECOVERY_ACTION,
 }
 
 func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
@@ -66,35 +83,31 @@ func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
 	return ids
 }
 
+// UnsupportedFieldIDsForConfig computes unsupported NVML field IDs for an architecture+mode.
+func UnsupportedFieldIDsForConfig(t *testing.T, archSpecs *ArchitecturesSpec, archSpec ArchitectureSpec, mode DeviceMode) []uint32 {
+	t.Helper()
+
+	return unsupportedFieldIDsFromNames(t, archSpec.UnsupportedFieldsForMode(mode, archSpecs))
+}
+
 // UnsupportedFieldIDsForMode computes unsupported NVML field IDs for an architecture+mode.
 func UnsupportedFieldIDsForMode(t *testing.T, archSpec ArchitectureSpec, mode DeviceMode) []uint32 {
 	t.Helper()
 
-	unsupportedNameSet := make(map[string]struct{})
-	for _, group := range archSpec.Capabilities.UnsupportedFieldsByDeviceMode {
-		if len(group.DeviceModes) > 0 && !slices.Contains(group.DeviceModes, mode) {
-			continue
-		}
-		for _, name := range group.Fields {
-			unsupportedNameSet[name] = struct{}{}
-		}
-	}
-
-	unsupportedNames := make([]string, 0, len(unsupportedNameSet))
-	for name := range unsupportedNameSet {
-		unsupportedNames = append(unsupportedNames, name)
-	}
-	return unsupportedFieldIDsFromNames(t, unsupportedNames)
+	return unsupportedFieldIDsFromNames(t, archSpec.UnsupportedFieldsForMode(mode, nil))
 }
 
 // BuildMockOptionsForArchAndMode creates canonical NVML mock options from spec capabilities.
-func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
+func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *ArchitecturesSpec, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
 	t.Helper()
 
 	testMode := testutil.DeviceFeatureMode(config.DeviceMode)
 	caps := testutil.Capabilities{
-		GPM:               archSpec.Capabilities.GPM,
-		UnsupportedFields: UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode),
+		GPM:                       archSpec.EffectiveCapabilities(config.DeviceMode).GPM,
+		NvLinkGenerationSupported: config.Capabilities.NVLink,
+		NvLinkLinkCount:           config.NVLinkLinkCount,
+		C2C:                       config.Capabilities.C2C,
+		UnsupportedFields:         UnsupportedFieldIDsForConfig(t, archSpecs, archSpec, config.DeviceMode),
 	}
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(config.Architecture),
@@ -105,7 +118,7 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpec Architec
 	}
 
 	if config.DeviceMode == DeviceModeMIG {
-		opts = append(opts, testutil.WithMIGChildCount(1))
+		opts = append(opts, testutil.WithMIGChildUUIDs(map[int]map[int]string{0: {0: testutil.MIGUUIDs[0]}}))
 	} else {
 		opts = append(opts, testutil.WithMIGDisabled())
 	}

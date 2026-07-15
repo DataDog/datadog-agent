@@ -5,6 +5,7 @@
 #include "bpf_helpers.h"
 
 #include "conn_tuple.h"
+#include "tracer.h"
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.

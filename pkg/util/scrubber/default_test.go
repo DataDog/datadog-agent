@@ -101,7 +101,7 @@ func TestConfigAppKey(t *testing.T) {
 }
 
 func TestConfigPrefixedAppKey(t *testing.T) {
-	// Identifiable app key format: ddapp_<random28>_<checksum5> (40 chars total)
+	// Identifiable app key format: ddapp_<random28><checksum6> (40 chars total)
 	// Last 4 chars of the checksum are preserved in output
 	assertClean(t,
 		`ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
@@ -112,6 +112,12 @@ func TestConfigPrefixedAppKey(t *testing.T) {
 	assertClean(t,
 		`config with ddapp_AAAAAAAAAAAAAAAAAAAAAAAAAAAA_aBCDE in the middle`,
 		`config with ************************************BCDE in the middle`)
+	assertClean(t,
+		`api_key: ddapp_7qvWg9fxH76ym3f9gfnrs3EeFoc04bjmf4`, // Generated randomly to look valid
+		`api_key: ************************************jmf4`)
+	assertClean(t,
+		`api_key: ddapp_7qvWg9fxH76ym3f9gfnrs3EeFo_04bjmf4`, // Generated randomly to look valid
+		`api_key: ************************************jmf4`)
 }
 
 func TestConfigRCAppKey(t *testing.T) {
@@ -996,6 +1002,9 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 		`cms-svc-api-key: cmskey789`,
 		`cms-svc-api-key: "********"`)
 	assertClean(t,
+		`dd-api-key: someapikey123`,
+		`dd-api-key: "********"`)
+	assertClean(t,
 		`lodauth: lodauth123`,
 		`lodauth: "********"`)
 	assertClean(t,
@@ -1059,4 +1068,19 @@ func TestHideKeyExceptLastChars(t *testing.T) {
 			assert.Equal(t, tt.expected, HideKeyExceptLastChars(tt.key))
 		})
 	}
+}
+
+func TestDontScrubNonMapping(t *testing.T) {
+	assertClean(t,
+		`mysql_password:password`,
+		`mysql_password:password`)
+	assertClean(t,
+		`- mysql_password:password`,
+		`- mysql_password:password`)
+	assertClean(t,
+		`"mysql_password:password"`,
+		`"mysql_password:password"`)
+	assertClean(t,
+		`- "mysql_password:password"`,
+		`- "mysql_password:password"`)
 }

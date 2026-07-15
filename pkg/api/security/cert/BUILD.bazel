@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "cert",
@@ -19,14 +22,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "cert_test",
     srcs = [
         "cert_generator_test.go",
         "cert_getter_test.go",
     ],
     embed = [":cert"],
-    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetWithoutSource / assert_testonly
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/stretchr/testify/require"
 )
 
@@ -605,7 +606,7 @@ func runOpenMetricsFixtureOnce(t *testing.T, instance string, payload string) *m
 
 	omCheck := newCheck().(*Check)
 	instance = strings.ReplaceAll(instance, "%%endpoint%%", server.URL)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(omCheck.ID(), senderManager)
@@ -627,6 +628,7 @@ func mockSenderHasMetricCall(mockSender *mocksender.MockSender) bool {
 		"Historate":                         {},
 		"Distribution":                      {},
 		"HistogramBucket":                   {},
+		"OpenmetricsBucket":                 {},
 	}
 	for _, call := range mockSender.Mock.Calls {
 		if _, ok := metricMethods[call.Method]; ok {
@@ -671,6 +673,8 @@ func (benchmarkSender) ServiceCheck(string, servicecheck.ServiceCheckStatus, str
 }
 func (benchmarkSender) HistogramBucket(string, int64, float64, float64, bool, string, []string, bool) {
 }
+func (benchmarkSender) OpenmetricsBucket(string, int64, float64, float64, bool, string, []string, bool) {
+}
 func (benchmarkSender) GaugeWithTimestamp(string, float64, string, []string, float64) error {
 	return nil
 }
@@ -682,6 +686,7 @@ func (benchmarkSender) EventPlatformEvent([]byte, string)                       
 func (benchmarkSender) GetSenderStats() stats.SenderStats                            { return stats.SenderStats{} }
 func (benchmarkSender) DisableDefaultHostname(bool)                                  {}
 func (benchmarkSender) SetCheckCustomTags([]string)                                  {}
+func (benchmarkSender) SetInfraTagger(*infratags.Tagger)                             {}
 func (benchmarkSender) SetCheckService(string)                                       {}
 func (benchmarkSender) SetNoIndex(bool)                                              {}
 func (benchmarkSender) FinalizeCheckServiceTag()                                     {}

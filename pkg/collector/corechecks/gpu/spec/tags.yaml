@@ -23,6 +23,8 @@ tags:
     regex: "^[a-z0-9_-]+$"
   gpu_parent_uuid:
     regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+  gpu_pci_bus_id:
+    regex: "^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\\.0$"
   gpu_host:
     regex: "^true$"
   pid:
@@ -35,10 +37,15 @@ tags:
     regex: "^\\d+$"
   kube_container_name: {}
   memory_location:
-    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
-      shm|cbu|sram)$"
+    regex:
+      "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
+      shm|cbu|sram|sm|pcie|microcontroller|other)$"
+  error_subtype:
+    regex: "^(parity|secded)$"
   nvlink_port:
     regex: "^\\d+$"
+  recovery_action:
+    regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
 
 tagsets:
   container:
@@ -56,7 +63,11 @@ tagsets:
       - gpu_slicing_mode
       - gpu_type
       - gpu_parent_uuid
+      - gpu_pci_bus_id
       - gpu_host
+  nvlink:
+    tags:
+      - nvlink_port
   process:
     workload_only: true
     tags:

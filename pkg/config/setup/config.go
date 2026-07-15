@@ -13,7 +13,7 @@ import (
 	"maps"
 	"net"
 	"os"
-	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -188,10 +188,8 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 func init() {
-	osinit()
-
 	// init default for code that access the config before it initialized
-	InitConfigObjects("", "")
+	InitConfigObjects()
 }
 
 // Variables to initialize at start time
@@ -276,56 +274,22 @@ var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-type configLibBackend struct {
-	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
-}
-
-func resolveConfigLibType(cliPath string, defaultDir string) string {
-	configPath := ""
-	for _, path := range []string{cliPath, defaultDir} {
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-		}
-	}
-
-	if configPath == "" {
-		return ""
-	}
-
-	yamlFile, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	conf := configLibBackend{}
-	err = yaml.Unmarshal(yamlFile, &conf)
-	if err != nil {
-		return ""
-	}
-	return conf.ConfNodeTreeModel
-}
-
 // InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
 // but from the main.
-func InitConfigObjects(cliPath string, defaultDir string) {
-	// We first load the configuration to see which config library should be used.
-	configLib := resolveConfigLibType(cliPath, defaultDir)
-
+func InitConfigObjects() {
 	// Assign the config globals, using locks to make the tests happy
-	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
-	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
+	SetDatadog(create.NewConfig("datadog"))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe")) // nolint: forbidigo // legitimate use of SetDatadog
 
-	// Configuration defaults
+	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
 
+	// Post-init fixups, custom logic to tweak certain settings
+	fixupInitConfig()
+
+	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
-
-	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // InitConfig initializes the config defaults on a config used by all agents
@@ -341,16 +305,40 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Add them to common_settings.go instead
 	// -------------------------------------------------------------
 
-	// Settings that are shared in common between serverless and core-agent, split up by feature / product
+	// Settings that are shared in common between serverless and the full agent, split up by feature / product
 	initCommonConfigComponents(config)
-	// Settings just for the core-agent in general
+	// Settings just for the full agent in general
 	initCoreAgentFull(config)
+	// Settings associated with a feature / product that only appear in the full agent, not in serverless
+	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
+// settings shared by full agent and serverless
 func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 	for _, f := range commonConfigComponents {
 		f(config)
 	}
+}
+
+// settings that are only initialized by the full agent, not serverless
+func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
+	comps := []func(pkgconfigmodel.Setup){
+		setupProcesses,
+		setupPrivateActionRunner,
+		remoteflags,
+		anomalyDetection,
+	}
+	for _, f := range comps {
+		f(config)
+	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -389,44 +377,33 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		return value, found
 	}
 
-	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
-	if isSet = config.IsSet("proxy"); isSet {
-		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
-			isSet = false
-			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
-		}
+	if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
+		log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 	}
 
 	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
-		isSet = true
 		p.HTTP = HTTP
 	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
-		isSet = true
 		p.HTTP = HTTP
 	}
 
 	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	}
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	if !config.GetBool("use_proxy_for_cloud_metadata") {
 		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
-		isSet = true
 		p.NoProxy = append(p.NoProxy,
 			"169.254.169.254", // Azure, EC2, GCE
 			"100.100.100.200", // Alibaba
@@ -435,7 +412,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
-	if isSet {
+	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
 		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
 		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
@@ -682,6 +659,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	SanitizeDataPlaneConfig(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -927,14 +905,15 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
+	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
+	// setting in pkg/config/schema/yaml/.
 
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
@@ -969,7 +948,6 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 }
 
 func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
@@ -992,11 +970,18 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	log.Info("Starting to resolve secrets")
+
+	var multiBackends map[string]secrets.SecretBackendConfig
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &multiBackends); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
+	}
+
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
 		Type:                         config.GetString("secret_backend_type"),
 		Config:                       config.GetStringMap("secret_backend_config"),
+		MultiBackends:                multiBackends,
 		Command:                      config.GetString("secret_backend_command"),
 		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                      config.GetInt("secret_backend_timeout"),
@@ -1013,7 +998,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0 {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
@@ -1183,6 +1168,62 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 		return
 	}
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, and
+// Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// is false, this function always installs a SourceAgentRuntime override of
+// false, which beats file and fleet-policy sources and prevents them from
+// re-enabling ADP after this call returns. A warning is emitted only when the
+// value was explicitly set to true at call time.
+//
+// Windows ADP runs only under dd-procmgr (via processes.d); dd-procmgr-service is
+// started by the core Agent only when process_manager.enabled is true.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+//
+// The envLookup parameter is normally os.Getenv. It is exposed as a parameter
+// so tests can inject a stub without touching global state.
+// When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
+// is intended for local development on unsupported platforms only.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
+	if envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+		return
+	}
+
+	switch {
+	case goos == "linux", goos == "darwin":
+		return
+	case goos == "windows":
+		if config.GetBool("process_manager.enabled") {
+			// LoadDatadog may have locked data_plane.enabled=false before fleet policies
+			// were merged; SourceAgentRuntime outranks SourceFleetPolicies, so clear the
+			// stale runtime override once process manager is enabled.
+			if config.GetSource(DataPlaneEnabled) == pkgconfigmodel.SourceAgentRuntime {
+				config.UnsetForSource(DataPlaneEnabled, pkgconfigmodel.SourceAgentRuntime)
+			}
+			return
+		}
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s requires process_manager.enabled on Windows and will be ignored", DataPlaneEnabled)
+		}
+	default:
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
+	}
+
+	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// SanitizeDataPlaneConfig applies sanitizeDataPlaneConfig for the current host.
+// It is also called after fleet policy merging because fleet policies may set
+// process_manager.enabled or data_plane.enabled after the initial LoadDatadog pass.
+func SanitizeDataPlaneConfig(config pkgconfigmodel.Config) {
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1443,13 +1484,57 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
+// ApplyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
+// ComputeDataPlaneStopTimeout is a post-load override that, when the user has
+// not explicitly set data_plane.stop_timeout, recomputes it from
+// aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
+// this value via the config stream to size its topology graceful-shutdown
+// budget; computing the sum here keeps that budget aligned with the documented
+// core-agent shutdown window even when users customize the component
+// timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
+	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
+		return
+	}
+	sum := config.GetInt("aggregator_stop_timeout") + config.GetInt("forwarder_stop_timeout")
+	// Keep the source as default: the value is a derived default, not an
+	// agent runtime decision, so it should be filtered out by views that
+	// strip defaults (e.g. config dumps for diagnostics).
+	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv(prefix + "additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault(prefix+"dd_url", "")
+	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
@@ -1520,4 +1605,24 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	return true
+}
+
+func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if pkgconfigenv.IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	if pkgconfigenv.IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }

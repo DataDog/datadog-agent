@@ -530,7 +530,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.ancestors.sid",
@@ -1555,7 +1555,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.parent.sid",
@@ -1650,7 +1650,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.sid",
@@ -2677,9 +2677,19 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.cnames",
+          "definition": "CNAME targets returned by the DNS response",
+          "property_doc_link": "dns-response-cnames-doc"
+        },
+        {
           "name": "dns.response.code",
           "definition": "Response code of the DNS response according to RFC 1035",
           "property_doc_link": "dns-response-code-doc"
+        },
+        {
+          "name": "dns.response.ips",
+          "definition": "IP addresses resolved by the DNS response",
+          "property_doc_link": "dns-response-ips-doc"
         },
         {
           "name": "network.destination.ip",
@@ -3268,7 +3278,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "exec.sid",
@@ -3852,7 +3862,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "exit.sid",
@@ -5865,7 +5875,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.sid",
@@ -6890,7 +6900,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.sid",
@@ -6985,7 +6995,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.sid",
@@ -8254,7 +8264,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.sid",
@@ -9279,7 +9289,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.sid",
@@ -9374,7 +9384,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.sid",
@@ -10220,7 +10230,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.sid",
@@ -11245,7 +11255,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.parent.sid",
@@ -11340,7 +11350,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.sid",
@@ -11431,6 +11441,35 @@
           "name": "signal.type",
           "definition": "Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)",
           "property_doc_link": "signal-type-doc"
+        }
+      ]
+    },
+    {
+      "name": "socket",
+      "definition": "A socket was created",
+      "type": "Network",
+      "from_agent_version": "7.81",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "socket.domain",
+          "definition": "Socket domain",
+          "property_doc_link": "socket-domain-doc"
+        },
+        {
+          "name": "socket.protocol",
+          "definition": "Socket protocol",
+          "property_doc_link": "socket-protocol-doc"
+        },
+        {
+          "name": "socket.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "socket.type",
+          "definition": "Socket type",
+          "property_doc_link": "socket-type-doc"
         }
       ]
     },
@@ -14648,7 +14687,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-pidcontext-ppid-doc",
+      "link": "common-process-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14700,6 +14739,7 @@
         "setsockopt",
         "setxattr",
         "signal",
+        "socket",
         "splice",
         "unlink",
         "unload_module",
@@ -15707,6 +15747,18 @@
       "examples": []
     },
     {
+      "name": "dns.response.cnames",
+      "link": "dns-response-cnames-doc",
+      "type": "string",
+      "definition": "CNAME targets returned by the DNS response",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "dns.response.code",
       "link": "dns-response-code-doc",
       "type": "int",
@@ -15716,6 +15768,18 @@
       ],
       "constants": "DNS Responses",
       "constants_link": "dns-responses",
+      "examples": []
+    },
+    {
+      "name": "dns.response.ips",
+      "link": "dns-response-ips-doc",
+      "type": "IP/CIDR",
+      "definition": "IP addresses resolved by the DNS response",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -16904,6 +16968,42 @@
       ],
       "constants": "Signal constants",
       "constants_link": "signal-constants",
+      "examples": []
+    },
+    {
+      "name": "socket.domain",
+      "link": "socket-domain-doc",
+      "type": "int",
+      "definition": "Socket domain",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.protocol",
+      "link": "socket-protocol-doc",
+      "type": "int",
+      "definition": "Socket protocol",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.type",
+      "link": "socket-type-doc",
+      "type": "int",
+      "definition": "Socket type",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -20350,7 +20450,15 @@
           "architecture": "all"
         },
         {
+          "name": "MAP_DROPPABLE",
+          "architecture": "all"
+        },
+        {
           "name": "MAP_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MAP_FILE",
           "architecture": "all"
         },
         {
@@ -20653,6 +20761,10 @@
           "architecture": "all"
         },
         {
+          "name": "AF_MCTP",
+          "architecture": "all"
+        },
+        {
           "name": "AF_MAX",
           "architecture": "all"
         }
@@ -20814,7 +20926,15 @@
           "architecture": "all"
         },
         {
+          "name": "O_PATH",
+          "architecture": "all"
+        },
+        {
           "name": "O_RSYNC",
+          "architecture": "all"
+        },
+        {
+          "name": "O_TMPFILE",
           "architecture": "all"
         }
       ]
@@ -20980,6 +21100,14 @@
           "architecture": "all"
         },
         {
+          "name": "PR_PAC_GET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_SET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_PDEATHSIG",
           "architecture": "all"
         },
@@ -21008,6 +21136,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_SCHED_CORE",
+          "architecture": "all"
+        },
+        {
           "name": "PR_GET_SPECULATION_CTRL",
           "architecture": "all"
         },
@@ -21021,6 +21153,14 @@
         },
         {
           "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_GET_VL",
           "architecture": "all"
         },
         {
@@ -21072,6 +21212,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_TIMER_CREATE_RESTORE_IDS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_TSC",
           "architecture": "all"
         },
@@ -21097,6 +21241,46 @@
         },
         {
           "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_LOCK_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_FUTEX_HASH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_GET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_SET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_GET_CONTROL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_SET_CONTROL",
           "architecture": "all"
         },
         {
@@ -21194,6 +21378,14 @@
           "architecture": "all"
         },
         {
+          "name": "PTRACE_GETREGS",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SETREGS",
+          "architecture": "all"
+        },
+        {
           "name": "PTRACE_SETOPTIONS",
           "architecture": "all"
         },
@@ -21251,6 +21443,22 @@
         },
         {
           "name": "PTRACE_GET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_RSEQ_CONFIGURATION",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG",
           "architecture": "all"
         },
         {
@@ -22482,6 +22690,60 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket domains",
+      "link": "socket-domains",
+      "description": "Socket domains are the supported socket domains.",
+      "all": [
+        {
+          "name": "AF_UNSPEC",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET6",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_UNIX",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket protocols",
+      "link": "socket-protocols",
+      "description": "Socket protocols are the supported socket protocols.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
           "architecture": "all"
         }
       ]

@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
+        "//pkg/security/seclog",
         "//pkg/util/grpc",
         "//pkg/util/system/socket",
-        "@//pkg/security/seclog",
         "@com_github_mdlayher_vsock//:vsock",
         "@org_golang_google_grpc//:grpc",
     ],

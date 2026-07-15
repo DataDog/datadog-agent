@@ -113,20 +113,17 @@ func mkContext(buildType string, osName string) context {
 }
 
 func render(destFile string, tplFile string, component string, osName string) {
-	f, err := os.Create(destFile)
-	if err != nil {
-		panic(err)
-	}
-
 	tplFilename := filepath.Base(tplFile)
 
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component, osName))
-	if err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, mkContext(component, osName)); err != nil {
 		panic(err)
 	}
 
-	if err := f.Close(); err != nil {
+	rendered := append(bytes.TrimRight(buf.Bytes(), "\n\r \t"), '\n')
+
+	if err := os.WriteFile(destFile, rendered, 0644); err != nil {
 		panic(err)
 	}
 }
@@ -140,7 +137,7 @@ func renderAll(destFolder string, tplFolder string) {
 		"dcacf":        "config_template.yaml",
 		"system-probe": "system-probe_template.yaml",
 	} {
-		for _, osName := range []string{"windows", "darwin", "linux"} {
+		for _, osName := range []string{"windows", "darwin", "linux", "aix"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
 			fmt.Println("Successfully wrote", destFile)

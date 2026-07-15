@@ -8,12 +8,13 @@
 package uprobes
 
 import (
+	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -39,7 +40,7 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 		result, err := inspector.Inspect(fpath, allMandatoryExisting)
 		require.NoError(tt, err)
 		require.Contains(tt, result, setID)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setID].SymbolMap))
+		require.ElementsMatch(tt, []string{"SSL_connect"}, slices.Collect(maps.Keys(result[setID].SymbolMap)))
 		require.NoError(tt, result[setID].Error)
 	})
 
@@ -47,7 +48,7 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 		result, err := inspector.Inspect(fpath, allBestEffortExisting)
 		require.NoError(tt, err)
 		require.Contains(tt, result, setID)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setID].SymbolMap))
+		require.ElementsMatch(tt, []string{"SSL_connect"}, slices.Collect(maps.Keys(result[setID].SymbolMap)))
 		require.NoError(tt, result[setID].Error)
 	})
 
@@ -55,7 +56,7 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 		result, err := inspector.Inspect(fpath, mandatoryExistBestEffortDont)
 		require.NoError(tt, err)
 		require.Contains(tt, result, setID)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setID].SymbolMap))
+		require.ElementsMatch(tt, []string{"SSL_connect"}, slices.Collect(maps.Keys(result[setID].SymbolMap)))
 		require.NoError(tt, result[setID].Error)
 	})
 

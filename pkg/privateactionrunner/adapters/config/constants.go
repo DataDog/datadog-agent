@@ -25,6 +25,8 @@ const (
 	defaultJwtRefreshInterval     = 15 * time.Second
 	heartbeatInterval             = 20 * time.Second
 	defaultHTTPClientTimeout      = 30 * time.Second
+	// rshell commands belong to a namespace, currently only "rshell:" is supported.
+	RshellCommandNamespacePrefix = "rshell:"
 )
 
 // BundleInheritedAllowedAction represents an action that is automatically allowed
@@ -93,4 +95,5 @@ var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
 	{ActionFQN: "com.datadoghq.script.enrichScript", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.http.testConnection", ExpectedPrefix: "com.datadoghq.http"},
 	{ActionFQN: "com.datadoghq.remoteaction.testConnection", ExpectedPrefix: "com.datadoghq.remoteaction"},
+	{ActionFQN: "com.datadoghq.remoteaction.internal.prepareEncryption", ExpectedPrefix: "com.datadoghq.remoteaction"},
 }

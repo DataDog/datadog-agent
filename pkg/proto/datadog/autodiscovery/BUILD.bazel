@@ -1,0 +1,16 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "autodiscovery_proto",
+    srcs = ["autodiscovery.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "autodiscovery_go_proto",
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":autodiscovery_proto",
+    visibility = ["//visibility:public"],
+)

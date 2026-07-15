@@ -3,8 +3,10 @@ static_quality_gates:
     default: false
   stage: functional_test
   rules:
+    - !reference [.except_release_branch]
+    - !reference [.except_pr_targeting_release_branch]
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
-    - !reference [.on_main_or_release_branch]
+    - !reference [.on_main]
     - !reference [.on_mergequeue]
     - !reference [.on_dev_branches_with_artifact_changes]
     - changes:
@@ -38,6 +40,8 @@ static_quality_gates:
     - docker_build_cws_instrumentation_arm64
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
+    - docker_build_host_profiler_standalone_amd64
+    - docker_build_host_profiler_standalone_arm64
     - dogstatsd_deb-x64
     - dogstatsd_deb-arm64
     - dogstatsd_rpm-x64
@@ -80,12 +84,14 @@ static_quality_gates:
     expire_in: 1 week
   variables:
     GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses git merge-base
     KUBERNETES_CPU_REQUEST: 8
 
 manual_gate_threshold_update:
   stage: functional_test
   rules:
+    - !reference [.except_release_branch]
+    - !reference [.except_pr_targeting_release_branch]
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
     - !reference [.on_dev_branches_with_artifact_changes_manual]

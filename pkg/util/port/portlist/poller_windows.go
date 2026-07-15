@@ -7,6 +7,7 @@ package portlist
 
 import (
 	"errors"
+	"net/netip"
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
@@ -27,6 +28,7 @@ type windowsImpl struct {
 type famPort struct {
 	proto string
 	port  uint16
+	ip    netip.Addr
 	pid   uint32
 }
 
@@ -63,6 +65,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		fp := famPort{
 			proto: "tcp",
 			port:  e.Local.Port(),
+			ip:    e.Local.Addr().Unmap(),
 			pid:   uint32(e.Pid),
 		}
 		pm, ok := im.known[fp]
@@ -81,6 +84,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 			port: Port{
 				Proto:   "tcp",
 				Port:    e.Local.Port(),
+				IP:      e.Local.Addr().Unmap(),
 				Process: process,
 				Pid:     e.Pid,
 			},

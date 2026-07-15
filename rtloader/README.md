@@ -25,8 +25,7 @@ that must be implemented by any supported backend, see `include/rtloader.h` for 
 
 ### Common
 
-The `common` folder contains C/C++ modules that are compiled into both
-`libdatadog-agent-three` and `libdatadog-agent-two` to avoid code duplication.
+The `common` folder contains C/C++ modules that are compiled into `libdatadog-agent-three`.
 Most of the code used to extend the embedded interpreter is there.
 
 ## Requirements

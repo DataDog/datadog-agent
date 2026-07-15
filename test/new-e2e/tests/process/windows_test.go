@@ -64,7 +64,7 @@ func (s *windowsTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	// Install chocolatey - https://chocolatey.org/install
 	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
-	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	stdout, err := s.Env().RemoteHost.Execute("$env:chocolateyVersion = '2.7.1'; Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
 	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
 	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
 	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
@@ -293,7 +293,7 @@ func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	// Try multiple times as all the I/O data may not be available in a given instant
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.
-			MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+			MustExecuteOn(c, "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 		assertManualProcessCheck(c, check, true, process)
 
 		var checkOutput struct {
@@ -348,10 +348,7 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 
 	var lastOutput string
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
-		if !assert.NoError(c, err, "workload-list command failed") {
-			return
-		}
+		out := s.Env().RemoteHost.MustExecuteOn(c, `& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
 		lastOutput = out
 		var resp workloadResponse
 		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {

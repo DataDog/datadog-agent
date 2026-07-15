@@ -1,0 +1,34 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  datadog/myname:
+    api:
+      key: user-supplied-key
+      site: datadoghq.eu
+  pprof/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  zpages/dd-autoconfigured:
+    endpoint: "localhost:55679"
+
+service:
+  extensions:
+    [
+      pprof/dd-autoconfigured,
+      zpages/dd-autoconfigured,
+      health_check/dd-autoconfigured,
+      datadog/myname,
+    ]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]

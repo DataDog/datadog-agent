@@ -48,6 +48,11 @@ type workloadmeta struct {
 	collectors            map[string]wmdef.Collector
 	collectorsInitialized wmdef.CollectorStatus
 
+	// stopCancel cancels the context passed to start(), stopping all background goroutines.
+	stopCancel context.CancelFunc
+	// startWg tracks background goroutines spawned by start() so OnStop can wait for them to exit.
+	startWg sync.WaitGroup
+
 	// firstCollectorReady is closed when at least one collector has been started.
 	firstCollectorReady     chan struct{}
 	firstCollectorReadyOnce sync.Once
@@ -78,8 +83,8 @@ type Provider struct {
 	Endpoint      api.AgentEndpointProvider
 }
 
-// NewWorkloadMeta creates a new workloadmeta component.
-func NewWorkloadMeta(deps Dependencies) Provider {
+// NewComponent creates a new workloadmeta component.
+func NewComponent(deps Dependencies) Provider {
 	candidates := make(map[string]wmdef.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
@@ -101,31 +106,33 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
-
 		var err error
 
-		// Main context passed to components
-		// TODO(components): this mainCtx should probably be replaced by the
-		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
+		ctx, cancel := context.WithCancel(mainCtx)
+		wm.stopCancel = cancel
 
 		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(mainCtx, wm, deps.Config)
+			err = deps.Params.InitHelper(ctx, wm, deps.Config)
 			if err != nil {
+				cancel()
 				return err
 			}
 		}
-		wm.start(mainCtx)
+		wm.start(ctx)
 		return nil
 	}})
 	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
-		// TODO(components): workloadmeta should probably be stopped cleanly
+		if wm.stopCancel != nil {
+			wm.stopCancel()
+			wm.startWg.Wait()
+		}
 		return nil
 	}})
 
 	return Provider{
 		Comp:          wm,
-		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+		FlareProvider: flaretypes.NewProvider(wm.fillFlare),
 		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }

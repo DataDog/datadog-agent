@@ -289,7 +289,16 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	metricTags := append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
+	// When device metadata is collected, the backend enriches metrics with device tags
+	// from the metadata payload, so only the resource tag is needed on metrics.
+	// Otherwise, there is no enrichment payload and legacy device tags must be kept
+	// so existing queries/monitors keep matching.
+	var metricTags []string
+	if d.config.CollectDeviceMetadata {
+		metricTags = []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
+	} else {
+		metricTags = append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
+	}
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
@@ -403,8 +412,8 @@ func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable boo
 
 	valuesStore, err := fetch.Fetch(sess, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
 		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
-	if log.ShouldLog(log.DebugLvl) {
-		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
 
 	if err != nil {

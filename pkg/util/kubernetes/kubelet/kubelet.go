@@ -82,7 +82,8 @@ type KubeUtil struct {
 
 func (ku *KubeUtil) init() error {
 	var err error
-	ku.kubeletClient, err = getKubeletClient(context.Background())
+	ctx := context.Background()
+	ku.kubeletClient, err = getKubeletClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -118,10 +119,15 @@ func (ku *KubeUtil) init() error {
 
 	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
-		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
+
+		// the method getNodeNameFromStatsSummary will get the node name from the stats summary
+		// and cache it in the kubeletClient.config.nodeName on success.
+		nodeName, err := ku.getNodeNameFromStatsSummary(ctx)
 		if err != nil {
 			return err
 		}
+
+		log.Debugf("got node name from kubelet: %s", nodeName)
 	}
 
 	return nil
@@ -202,16 +208,12 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	var nodeName string
 
 	if ku.useAPIServer {
-		if ku.kubeletClient.config.nodeName != "" {
-			nodeName = ku.kubeletClient.config.nodeName
-		} else {
-			stats, err := ku.GetLocalStatsSummary(ctx)
-			if err == nil && stats.Node.NodeName != "" {
-				nodeName = stats.Node.NodeName
-			} else {
-				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
-			}
+		var err error
+		nodeName, err = ku.getNodeNameFromStatsSummary(ctx)
+		if err != nil {
+			return "", err
 		}
+
 	} else {
 		pods, err := ku.GetLocalPodList(ctx)
 		if err != nil {
@@ -389,6 +391,27 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 	return ku.getLocalPodList(ctx)
 }
 
+// getNodeNameFromStatsSummary gets the node name from the stats summary API
+// and caches it in the kubeletClient.config.nodeName on success.
+func (ku *KubeUtil) getNodeNameFromStatsSummary(ctx context.Context) (string, error) {
+	if ku.kubeletClient.config.nodeName != "" {
+		return ku.kubeletClient.config.nodeName, nil
+	}
+
+	stats, err := ku.GetLocalStatsSummary(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+	}
+
+	if stats.Node.NodeName == "" {
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s, node name is empty", kubeletStatsSummary)
+	}
+
+	ku.kubeletClient.config.nodeName = stats.Node.NodeName // cache the node name
+
+	return stats.Node.NodeName, nil
+}
+
 // GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
@@ -449,7 +472,9 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
-// GetConfig returns the kubelet configuration from /configz
+// GetConfig returns the kubelet configuration from /configz. Since
+// kubernetes/kubernetes#136044, the inner kubeletconfig object carries
+// APIVersion and Kind; older kubelets leave them empty.
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {

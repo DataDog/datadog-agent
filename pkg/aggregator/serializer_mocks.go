@@ -30,7 +30,7 @@ func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.Se
 }
 
 type MockSerializerSketch struct {
-	sketches []*metrics.SketchSeries
+	sketches []metrics.Distribution
 	MockSerializerIterableSerie
 }
 

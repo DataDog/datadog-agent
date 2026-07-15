@@ -1,3 +1,5 @@
+import os
+
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -18,6 +20,7 @@ scenario_name = "aws/kind"
         "install_agent": doc.install_agent,
         "install_agent_with_operator": doc.install_agent_with_operator,
         "install_argorollout": doc.install_argorollout,
+        "pipeline_id": doc.pipeline_id,
         "agent_version": doc.container_agent_version,
         "stack_name": doc.stack_name,
         "architecture": aws_doc.architecture,
@@ -35,6 +38,7 @@ def create_kind(
     ctx: Context,
     config_path: str | None = None,
     stack_name: str | None = None,
+    pipeline_id: str | None = None,
     install_agent: bool | None = True,
     install_agent_with_operator: bool | None = None,
     install_argorollout: bool | None = False,
@@ -68,6 +72,7 @@ def create_kind(
         config_path,
         key_pair_required=True,
         stack_name=stack_name,
+        pipeline_id=pipeline_id,
         install_agent=install_agent,
         agent_version=agent_version,
         use_fakeintake=use_fakeintake,
@@ -87,18 +92,26 @@ def create_kind(
 
 def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    remoteHost = tool.RemoteHost("aws-kind", outputs)
-    host = remoteHost.address
-    user = remoteHost.user
 
-    command = f"\nssh {user}@{host}"
-    print(f"If you want to connect to the remote host, you can run the following command \n\n{command}")
+    import tempfile
+
+    kubeconfig_content = outputs["dd-Cluster-kind"]["kubeConfig"]
+    kubeconfig_dir = tempfile.mkdtemp(prefix=f"kubeconfig-{full_stack_name}-")
+    kubeconfig_path = os.path.join(kubeconfig_dir, "config")
+    with open(kubeconfig_path, "w") as f:
+        f.write(kubeconfig_content)
+    os.chmod(kubeconfig_path, 0o600)
+
+    os.environ["KUBECONFIG"] = kubeconfig_path
+
+    export_cmd = f"export KUBECONFIG={kubeconfig_path}"
+    tool.info(f"kubectl configured — run the following to use it in other terminals:\n\n  {export_cmd}\n")
 
     if copy_to_clipboard:
         import pyperclip
 
         input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        pyperclip.copy(export_cmd)
 
 
 @task(

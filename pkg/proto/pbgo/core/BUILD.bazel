@@ -1,4 +1,60 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+filegroup(
+    name = "config_go_proto_srcs",
+    srcs = ["//pkg/proto/datadog/remoteconfig:config_go_proto"],
+    output_group = "go_generated_srcs",
+)
+
+go_msgp(
+    name = "remoteconfig_gen",
+    src = ":config_go_proto_srcs",
+    out = "remoteconfig_gen.go",
+    out_test = "remoteconfig_gen_test.go",
+    src_file = "remoteconfig.pb.go",
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/api/v1:v1_go_proto": [
+            "api.pb.go",
+            "api_grpc.pb.go",
+        ],
+        "//pkg/proto/datadog/autodiscovery:autodiscovery_go_proto": [
+            "autodiscovery.pb.go",
+        ],
+        "//pkg/proto/datadog/kubemetadata:kubemetadata_go_proto": [
+            "kubemetadata.pb.go",
+        ],
+        "//pkg/proto/datadog/model/v1:v1_go_proto": [
+            "model.pb.go",
+        ],
+        "//pkg/proto/datadog/remoteagent:core_go_proto": [
+            "flare.pb.go",
+            "flare_grpc.pb.go",
+            "remoteagent.pb.go",
+            "remoteagent_grpc.pb.go",
+            "status.pb.go",
+            "status_grpc.pb.go",
+            "telemetry.pb.go",
+            "telemetry_grpc.pb.go",
+        ],
+        "//pkg/proto/datadog/remoteconfig:config_go_proto": [
+            "echo.pb.go",
+            "echo_grpc.pb.go",
+            "remoteconfig.pb.go",
+        ],
+        "//pkg/proto/datadog/workloadfilter:workloadfilter_go_proto": [
+            "workloadfilter.pb.go",
+        ],
+        "//pkg/proto/datadog/workloadmeta:workloadmeta_go_proto": [
+            "workloadmeta.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "core",
@@ -13,6 +69,7 @@ go_library(
         "kubemetadata.pb.go",
         "model.pb.go",
         "remoteagent.pb.go",
+        "remoteagent_grpc.pb.go",
         "remoteconfig.pb.go",
         "remoteconfig_gen.go",
         "status.pb.go",
@@ -25,6 +82,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",

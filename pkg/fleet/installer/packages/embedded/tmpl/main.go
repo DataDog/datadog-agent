@@ -32,48 +32,19 @@ func main() {
 }
 
 func generate(outputDir string) error {
-	err := os.MkdirAll(filepath.Join(outputDir, "oci"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for oci: %w", err)
-	}
-	err = os.MkdirAll(filepath.Join(outputDir, "debrpm"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for deb-rpm: %w", err)
-	}
-	for unit, content := range systemdUnitsOCI {
-		filePath := filepath.Join(outputDir, "oci", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range windowsProcmgrLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
 		}
 	}
-	for unit, content := range systemdUnitsDebRpm {
-		filePath := filepath.Join(outputDir, "debrpm", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range linuxProcmgrYAMLLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
 		}
 	}
-	for unit, content := range systemdUnitsOCILegacyKernel {
-		filePath := filepath.Join(outputDir, "oci-nocap", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
-		}
-	}
-	for unit, content := range systemdUnitsDebRpmLegacyKernel {
-		filePath := filepath.Join(outputDir, "debrpm-nocap", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range systemdEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -84,7 +55,7 @@ func generate(outputDir string) error {
 //go:embed *.tmpl
 var embedded embed.FS
 
-type systemdTemplateData struct {
+type installerTemplateData struct {
 	InstallDir                   string
 	EtcDir                       string
 	FleetPoliciesDir             string
@@ -94,18 +65,37 @@ type systemdTemplateData struct {
 }
 
 type templateData struct {
-	systemdTemplateData
+	installerTemplateData
 	AmbiantCapabilitiesSupported bool
 }
 
-func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+type embeddedLayout struct {
+	subdir string
+	units  map[string][]byte
+}
+
+func (l embeddedLayout) writeFilesToSubdir(root string) error {
+	subdirPath := filepath.Join(root, l.subdir)
+	if err := os.MkdirAll(subdirPath, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", subdirPath, err)
+	}
+	for name, content := range l.units {
+		path := filepath.Join(subdirPath, name)
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
 	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, templateData{
-		systemdTemplateData:          data,
+		installerTemplateData:        data,
 		AmbiantCapabilitiesSupported: ambiantCapabilitiesSupported,
 	}); err != nil {
 		panic(err)
@@ -113,16 +103,16 @@ func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabiliti
 	return buf.Bytes()
 }
 
-func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+func mustReadSystemdUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
 	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
 }
 
-func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
+func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
-func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
-	units := map[string][]byte{
+func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	return map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
@@ -141,50 +131,88 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgrd.service":       mustReadSystemdUnit("datadog-agent-procmgrd.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgrd-exp.service":   mustReadSystemdUnit("datadog-agent-procmgrd.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
+	}
+}
 
-		// dd-procmgrd process configs
+func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
+	return map[string][]byte{
 		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
 		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 	}
-	return units
+}
+
+func windowsProcmgrYAMLFile(yamlFile, windowsFile string, codegen installerTemplateData) map[string][]byte {
+	return map[string][]byte{
+		yamlFile: mustRenderYAMLConfig(windowsFile, codegen),
+	}
 }
 
 var (
-	stableDataOCI = systemdTemplateData{
+	stableDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
 		Stable:           true,
 	}
-	expDataOCI = systemdTemplateData{
+	expDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
 		EtcDir:           "/etc/datadog-agent-exp",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
 	}
-
-	stableDataDebRpm = systemdTemplateData{
+	stableDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           true,
 	}
-	expDataDebRpm = systemdTemplateData{
+	expDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent-exp",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           false,
 	}
-
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true)
-
-	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
+	windowsDDOTCodegenData = installerTemplateData{
+		InstallDir:       "__DDOT_INSTALL_ROOT__",
+		EtcDir:           "__DDOT_ETC_ROOT__",
+		FleetPoliciesDir: "__DDOT_FLEET_POLICIES_DIR__",
+		PIDDir:           "",
+		Stable:           true,
+	}
+	windowsADPCodegenData = installerTemplateData{
+		InstallDir:       "__ADP_INSTALL_ROOT__",
+		EtcDir:           "__ADP_ETC_ROOT__",
+		FleetPoliciesDir: "__ADP_FLEET_POLICIES_DIR__",
+		Stable:           true,
+	}
+	windowsPARCodegenData = installerTemplateData{
+		InstallDir:       "__PAR_INSTALL_ROOT__",
+		EtcDir:           "__PAR_ETC_ROOT__",
+		FleetPoliciesDir: "__PAR_FLEET_POLICIES_DIR__",
+		PIDDir:           "",
+		Stable:           true,
+	}
+	windowsProcmgrLayouts = []embeddedLayout{
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+	}
+	linuxProcmgrYAMLLayouts = []embeddedLayout{
+		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
+		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
+		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+	}
+	systemdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
+		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "oci-nocap", units: systemdUnits(stableDataOCI, expDataOCI, false)},
+		{subdir: "debrpm-nocap", units: systemdUnits(stableDataDebRpm, expDataDebRpm, false)},
+	}
 )

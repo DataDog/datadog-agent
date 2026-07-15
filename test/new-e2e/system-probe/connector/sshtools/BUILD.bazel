@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sshtools",
+    srcs = [
+        "cmd.go",
+        "communicator.go",
+        "config.go",
+        "dial.go",
+        "keepalive.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/sshtools",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_crypto//ssh"],
+)

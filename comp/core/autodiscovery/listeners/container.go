@@ -35,20 +35,22 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	globalFilter  workloadfilter.FilterBundle
-	metricsFilter workloadfilter.FilterBundle
-	logsFilter    workloadfilter.FilterBundle
-	tagger        tagger.Component
+	globalFilter      workloadfilter.FilterBundle
+	metricsFilter     workloadfilter.FilterBundle
+	logsFilter        workloadfilter.FilterBundle
+	tagger            tagger.Component
+	staticConfigIndex *StaticConfigIndex
 }
 
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{
-		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
-		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		tagger:        options.Tagger,
+		globalFilter:      options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:     options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:        options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:            options.Tagger,
+		staticConfigIndex: options.StaticConfigIndex,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -108,7 +110,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 
-	if !container.State.Running && container.Runtime == workloadmeta.ContainerRuntimeECSFargate {
+	if !container.State.Running && (container.Runtime == workloadmeta.ContainerRuntimeECSFargate || container.Runtime == "") {
 		return
 	}
 
@@ -132,13 +134,14 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			containerImg.RawName,
 			container.Labels,
 		),
-		ports:           ports,
-		pid:             container.PID,
-		hostname:        container.Hostname,
-		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
-		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
-		tagger:          l.tagger,
-		wmeta:           l.Store(),
+		ports:             ports,
+		pid:               container.PID,
+		hostname:          container.Hostname,
+		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer),
+		logsExcluded:      l.logsFilter.IsExcluded(filterableContainer),
+		tagger:            l.tagger,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	if pod != nil {

@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=2.0.0
+install_script_version=2.1.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -23,7 +23,20 @@ else
     BLUE=''
     NC=''
 fi
-install_log_file=/tmp/ddagent-install.log
+# curl progress: show the bar interactively, suppress it in non-interactive
+# environments (CI, MDM/Jamf scripts, piped invocations) where --progress-bar
+# floods logs with hash lines (e.g. "##########  67.5%"). Must be set before
+# the exec redirect below, which makes [ -t ] checks unreliable.
+# --no-progress-meter requires curl 7.67+ (2019); macOS 12+ ships >=7.79.
+if [ -t 1 ] && [ -t 2 ]; then
+    curl_progress_opt="--progress-bar"
+else
+    curl_progress_opt="--no-progress-meter"
+fi
+# Use mktemp so the log path is unpredictable (0600, random suffix). A fixed
+# /tmp path would let a local user pre-create it as a symlink and redirect
+# root-owned `tee` output into a privileged file.
+install_log_file=$(mktemp /tmp/ddagent-install.XXXXXX)
 exec > >(tee "$install_log_file") 2>&1
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
@@ -80,6 +93,16 @@ fi
 gui_app_menu_enabled=false
 if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
+fi
+
+# Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
+ai_usage_chrome_extension_id=
+if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
+    ai_usage_chrome_extension_id=$DD_AI_USAGE_CHROME_EXTENSION_ID
+fi
+infrastructure_mode=
+if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
+    infrastructure_mode="$DD_INFRASTRUCTURE_MODE"
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -182,9 +205,9 @@ function on_error() {
 It looks like you hit an issue when trying to install the Agent.
 See the following log files for details:
 
-    - $install_log_file
     - /opt/datadog-agent/logs/preinstall.log
     - /opt/datadog-agent/logs/postinstall.log
+    - $install_log_file
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of the log files and we'll do our very best to help
@@ -211,6 +234,8 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
+    [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
+    [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
@@ -238,7 +263,7 @@ else
 
     printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
     prepare_dmg_file $dmg_file
-    if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
+    if ! $sudo_cmd curl --fail $curl_progress_opt "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
         printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
         exit 1;
     fi

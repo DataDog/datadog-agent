@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl-trace",
@@ -15,11 +16,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl-trace_test",
     srcs = ["trace_logger_test.go"],
     embed = [":impl-trace"],
-    gotags = ["test"],  # keep
     deps = [
         "//comp/core/log/def",
         "//comp/def",

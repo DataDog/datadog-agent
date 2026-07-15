@@ -324,18 +324,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(ddprocmon_shasum, 'nightly-ddprocmon-sha')
 
 
-class TestCreateBuildLinksPatterns(unittest.TestCase):
-    current_version = "7.50.0-rc.1"
-
-    def test_create_build_links_patterns_correct_values(self):
-        new_rc_version = "7.51.1-rc.2"
-        patterns = release._create_build_links_patterns(self.current_version, new_rc_version)
-
-        self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
-        self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
-        self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")
-
-
 class TestFindPreviousTags(unittest.TestCase):
     keys = ["HARRY_POTTER_VERSION", "HERMIONE_GRANGER_VERSION", "WEASLEY_VERSION"]
 

@@ -1,6 +1,11 @@
 {
-  "type": "unsupported",
-  "operation": "not",
-  "argument": true,
+  "type": "not",
+  "operation": "",
+  "left": {
+    "type": "literal",
+    "operation": "",
+    "value": true,
+    "error": ""
+  },
   "error": ""
 }

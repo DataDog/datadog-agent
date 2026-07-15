@@ -12,6 +12,9 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
+  comp/anomalydetection/observer/def: default
+  comp/anomalydetection/recorder/def: default
+  comp/anomalydetection/severityevents/def: default
   comp/api/api/def:
     used_by_otel: true
   comp/core/agenttelemetry/def:
@@ -21,6 +24,8 @@ modules:
   comp/core/agenttelemetry/impl:
     used_by_otel: true
   comp/core/config:
+    used_by_otel: true
+  comp/core/configstreamconsumer/def:
     used_by_otel: true
   comp/core/configsync: default
   comp/core/delegatedauth:
@@ -34,6 +39,10 @@ modules:
   comp/core/flare/types:
     used_by_otel: true
   comp/core/hostname/hostnameinterface:
+    used_by_otel: true
+  comp/core/hostname/hostnameinterface/def:
+    used_by_otel: true
+  comp/core/hostname/hostnameinterface/mock:
     used_by_otel: true
   comp/core/ipc/def:
     used_by_otel: true
@@ -116,6 +125,8 @@ modules:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
     used_by_otel: true
+  comp/otelcol/otlp/components/connector/datadogconnector:
+    used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
@@ -142,6 +153,12 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
+  internal/qbranch/anomalydetection-scorer:
+    independent: false
+    should_test_condition: never
+  internal/qbranch/anomalydetection-testbench:
+    independent: false
+    should_test_condition: never
   internal/tools:
     independent: false
     should_tag: false
@@ -159,10 +176,6 @@ modules:
     should_tag: false
     should_test_condition: never
   internal/tools/modparser:
-    independent: false
-    should_tag: false
-    should_test_condition: never
-  internal/tools/proto:
     independent: false
     should_tag: false
     should_test_condition: never
@@ -196,15 +209,12 @@ modules:
   pkg/config/render_config:
     should_tag: false
     should_test_condition: never
+  pkg/config/schema: default
   pkg/config/setup:
     used_by_otel: true
   pkg/config/structure:
     used_by_otel: true
-  pkg/config/teeconfig:
-    used_by_otel: true
   pkg/config/utils:
-    used_by_otel: true
-  pkg/config/viperconfig:
     used_by_otel: true
   pkg/discovery/tracermetadata/model: default
   pkg/dyninst/testprogs/progs: ignored
@@ -216,17 +226,7 @@ modules:
     used_by_otel: true
   pkg/gohai:
     used_by_otel: true
-  pkg/logs/client:
-    used_by_otel: true
-  pkg/logs/diagnostic:
-    used_by_otel: true
   pkg/logs/message:
-    used_by_otel: true
-  pkg/logs/metrics:
-    used_by_otel: true
-  pkg/logs/processor:
-    used_by_otel: true
-  pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
     used_by_otel: true
@@ -263,7 +263,7 @@ modules:
     used_by_otel: true
   pkg/orchestrator/util:
     used_by_otel: true
-  pkg/process/procutil/resources: ignored
+  pkg/process/procutil/testdata: ignored
   pkg/process/util/api:
     used_by_otel: true
   pkg/proto:
@@ -311,6 +311,8 @@ modules:
     used_by_otel: true
   pkg/util/compression:
     used_by_otel: true
+  pkg/util/confmaputils:
+    used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true
   pkg/util/defaultpaths:
@@ -328,6 +330,8 @@ modules:
   pkg/util/hostinfo:
     used_by_otel: true
   pkg/util/hostname/validate:
+    used_by_otel: true
+  pkg/util/hostport:
     used_by_otel: true
   pkg/util/http:
     used_by_otel: true
@@ -376,6 +380,7 @@ modules:
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:
     independent: false
+    should_test_condition: is_linux
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored

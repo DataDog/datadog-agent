@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "client_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/cmd/client",
+    visibility = ["//visibility:private"],
+    deps = ["//test/fakeintake/cmd/client/cmd"],
+)
+
+go_binary(
+    name = "client",
+    embed = [":client_lib"],
+    visibility = ["//visibility:public"],
+)

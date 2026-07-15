@@ -16,15 +16,16 @@ import os
 import re
 import sys
 
-# Names of tool to strip to their basenames
-TOOL_BASENAMES = frozenset(
-    [
-        "ar",
-        "gcc",
-        "g++",
-        "ld",
-    ]
-)
+# Names of tool to strip and rename
+TOOL_BASENAME_MAPPING = {
+    "ar": "ar",
+    "gcc": "gcc",
+    "g++": "g++",
+    "ld": "ld",
+    "cc_wrapper.sh": "clang",
+    "llvm-ar": "ar",
+}
+
 
 # Build-environment flags that are meaningless outside of Bazel
 FLAGS_TO_CLEAR = frozenset(
@@ -46,7 +47,7 @@ _PATH_SPLITTER_RE = re.compile(r"""(/[^\s='"]+)""")
 
 def _fix_tool_path(segment):
     basename = os.path.basename(segment)
-    return basename if basename in TOOL_BASENAMES else segment
+    return TOOL_BASENAME_MAPPING.get(basename, segment)
 
 
 def _fix_bazel_out_path(segment, install_prefix):

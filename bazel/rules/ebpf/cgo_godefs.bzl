@@ -73,20 +73,15 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
-    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
-    # the old ninja behavior.
-    cc_prefix = "CC=clang " if platform == "linux" else ""
-
     cmd = (
         "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
-        "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
+        "GOROOT=$ROOT/{goroot} CC=$ROOT/{cc} $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
-        cc_prefix = cc_prefix,
+        cc = ctx.file.c_compiler.path,
         goroot = go.sdk.root_file.dirname,
         src_dir = src.dirname,
-        go = go.go.path,
+        go = go.sdk.go.path,
         includes = include_flags,
         src_file = src.basename,
         genpost = genpost.path,
@@ -102,8 +97,8 @@ def _cgo_godefs_impl(ctx):
     ctx.actions.run_shell(
         outputs = outputs,
         inputs = depset(
-            [src, go.go],
-            transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs, go.cc_toolchain_files],
+            [src, go.sdk.go, ctx.file.c_compiler],
+            transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs],
         ),
         tools = [genpost],
         command = cmd,
@@ -137,6 +132,10 @@ _cgo_godefs = rule(
             providers = [CcInfo],
             doc = "cc_library targets whose headers are needed in the sandbox but whose include dirs should not appear as -I flags.",
         ),
+        "c_compiler": attr.label(
+            allow_single_file = True,
+            cfg = "exec",
+        ),
         "_genpost": attr.label(
             default = "//pkg/ebpf/cgo:genpost",
             executable = True,
@@ -156,16 +155,26 @@ _STD_LINUX_DEPS = [
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
     all_deps = deps + (_STD_LINUX_DEPS if platform == "linux" else [])
 
+    # Applied to every target the macro creates so the diff_test stamped out by
+    # write_source_file is skipped on incompatible OSes — incompatibility-by-
+    # association does not propagate reliably when tests are named explicitly
+    # (e.g. via the verify_generated_files test_suite).
+    compat = select({
+        "@platforms//os:{}".format(platform): [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    })
+
     gen = name + "_gen"
     _cgo_godefs(
         name = gen,
         src = src,
         deps = all_deps,
         hdrs = hdrs,
-        target_compatible_with = select({
-            "@platforms//os:{}".format(platform): [],
-            "//conditions:default": ["@platforms//:incompatible"],
+        c_compiler = select({
+            "@platforms//os:windows": "@winlibs_mingw64//:gcc",
+            "//conditions:default": "@llvm_toolchain_llvm//:bin/clang",
         }),
+        target_compatible_with = compat,
     )
 
     base = src.name.removesuffix(".go")
@@ -175,6 +184,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         name = name + "_main_out",
         srcs = [":" + gen],
         output_group = "main",
+        target_compatible_with = compat,
     )
     write_source_file(
         name = name,
@@ -182,6 +192,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         in_file = ":" + name + "_main_out",
         out_file = main_file,
         check_that_out_file_exists = False,
+        target_compatible_with = compat,
     )
 
     if platform == "linux":
@@ -190,6 +201,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
             name = name + "_test_out",
             srcs = [":" + gen],
             output_group = "test_file",
+            target_compatible_with = compat,
         )
         write_source_file(
             name = name + "_test_file",
@@ -197,6 +209,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
             in_file = ":" + name + "_test_out",
             out_file = test_file,
             check_that_out_file_exists = False,
+            target_compatible_with = compat,
         )
 
 INTERNAL_FOR_TESTING = {"relpath": _relpath}

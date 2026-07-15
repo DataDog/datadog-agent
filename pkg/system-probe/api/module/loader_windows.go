@@ -8,13 +8,14 @@ package module
 import (
 	"fmt"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func preRegister(_ *sysconfigtypes.Config, _ rcclient.Component, _ []*Factory) error {
+func preRegister(_ *sysconfigtypes.Config, _ rcclient.Component, _ telemetry.Component, _ []*Factory) error {
 	if err := driver.Init(); err != nil {
 		return fmt.Errorf("failed to load driver subsystem: %v", err)
 	}

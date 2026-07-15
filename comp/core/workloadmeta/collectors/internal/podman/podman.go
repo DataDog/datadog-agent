@@ -19,9 +19,9 @@ import (
 
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,8 +51,15 @@ type podmanDBClient struct {
 	rootDir string
 }
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id      string
+	cfg     config.Component
 	clients []podmanDBClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
@@ -60,10 +67,11 @@ type collector struct {
 }
 
 // NewCollector returns a new podman collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
+			cfg:     deps.Config,
 			seen:    make(map[workloadmeta.EntityID]struct{}),
 			catalog: workloadmeta.NodeAgent,
 		},
@@ -81,7 +89,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	rawDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
+	rawDBPath := c.cfg.GetString("podman_db_path")
 
 	var dbPaths []string
 	if rawDBPath != "" {

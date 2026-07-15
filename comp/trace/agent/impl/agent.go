@@ -75,6 +75,11 @@ type dependencies struct {
 var _ traceagent.Component = (*component)(nil)
 
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	// c.Agent is nil when the trace-agent is disabled (see NewAgent). Guard
+	// against it so callers such as the Datadog exporter do not nil-panic.
+	if c.Agent == nil || c.Agent.OTLPReceiver == nil {
+		return
+	}
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 

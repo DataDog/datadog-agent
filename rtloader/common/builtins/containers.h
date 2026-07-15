@@ -32,9 +32,7 @@
 #include <Python.h>
 #include <rtloader_types.h>
 
-#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_containers(void);
-#endif
 
 #define CONTAINERS_MODULE_NAME "containers"
 

@@ -1,0 +1,4 @@
+# Tools-only module (//go:build tools tracker for `go install` dependencies).
+# No Bazel targets are generated; the empty BUILD.bazel keeps bazelify_go_work
+# happy without compiling anything.
+# gazelle:ignore

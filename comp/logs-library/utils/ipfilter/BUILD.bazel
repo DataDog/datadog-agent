@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ipfilter",
+    srcs = [
+        "denial_info.go",
+        "filter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "ipfilter_test",
+    srcs = ["filter_test.go"],
+    embed = [":ipfilter"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

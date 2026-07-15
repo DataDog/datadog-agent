@@ -1,6 +1,5 @@
 """Scripts and configuration embedded into the installer as data."""
 
-# gazelle:exclude tmpl
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 exports_files(
@@ -23,8 +22,8 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-installer.service",
     "tmpl/gen/debrpm/datadog-agent-process-exp.service",
     "tmpl/gen/debrpm/datadog-agent-process.service",
-    "tmpl/gen/debrpm/datadog-agent-procmgrd-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-procmgrd.service",
+    "tmpl/gen/debrpm/datadog-agent-procmgr-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-procmgr.service",
     "tmpl/gen/debrpm/datadog-agent-security-exp.service",
     "tmpl/gen/debrpm/datadog-agent-security.service",
     "tmpl/gen/debrpm/datadog-agent-sysprobe-exp.service",
@@ -32,6 +31,9 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
     "tmpl/gen/debrpm/datadog-agent-trace.service",
     "tmpl/gen/debrpm/datadog-agent.service",
+    "tmpl/gen/windows/datadog-agent-action.yaml",
+    "tmpl/gen/windows/datadog-agent-data-plane.yaml",
+    "tmpl/gen/windows/datadog-agent-ddot.yaml",
     "tmpl/gen/oci/datadog-agent-action-exp.service",
     "tmpl/gen/oci/datadog-agent-action.service",
     "tmpl/gen/oci/datadog-agent-data-plane-exp.service",
@@ -45,8 +47,8 @@ service_srcs = [
     "tmpl/gen/oci/datadog-agent-installer.service",
     "tmpl/gen/oci/datadog-agent-process-exp.service",
     "tmpl/gen/oci/datadog-agent-process.service",
-    "tmpl/gen/oci/datadog-agent-procmgrd-exp.service",
-    "tmpl/gen/oci/datadog-agent-procmgrd.service",
+    "tmpl/gen/oci/datadog-agent-procmgr-exp.service",
+    "tmpl/gen/oci/datadog-agent-procmgr.service",
     "tmpl/gen/oci/datadog-agent-security-exp.service",
     "tmpl/gen/oci/datadog-agent-security.service",
     "tmpl/gen/oci/datadog-agent-sysprobe-exp.service",
@@ -74,12 +76,15 @@ go_library(
     srcs = ["tmpl/main.go"],
     embedsrcs = [
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-action-windows.yaml.tmpl",
         "tmpl/datadog-agent-data-plane.service.tmpl",
+        "tmpl/datadog-agent-data-plane-windows.yaml.tmpl",
         "tmpl/datadog-agent-ddot.service.tmpl",
         "tmpl/datadog-agent-ddot.yaml.tmpl",
+        "tmpl/datadog-agent-ddot-windows.yaml.tmpl",
         "tmpl/datadog-agent-installer.service.tmpl",
         "tmpl/datadog-agent-process.service.tmpl",
-        "tmpl/datadog-agent-procmgrd.service.tmpl",
+        "tmpl/datadog-agent-procmgr.service.tmpl",
         "tmpl/datadog-agent-security.service.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",

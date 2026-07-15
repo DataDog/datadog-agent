@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixed the Cluster Agent's cluster check rebalancing algorithm to operate
+    on configuration digests rather than individual instance IDs. Previously,
+    multi-instance configurations could be incorrectly split across different
+    runners, causing inaccurate workload estimates and suboptimal rebalancing
+    decisions.

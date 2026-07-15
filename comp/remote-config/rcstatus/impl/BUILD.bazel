@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/remoteconfiguration.tmpl",
+        "status_templates/remoteconfigurationHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/def",
+        "//pkg/config/utils",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["status_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

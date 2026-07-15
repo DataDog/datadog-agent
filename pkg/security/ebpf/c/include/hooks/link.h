@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
+int __attribute__((always_inline)) trace__sys_link(void *ctx, u8 async, const char *oldpath, const char *newpath) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
     struct syscall_cache_t syscall = {
         .type = EVENT_LINK,
@@ -18,24 +18,32 @@ int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(link, const char *, oldpath, const char *, newpath) {
-    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_link(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_SYSCALL_ENTRY4(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
-    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_link(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_linkat")
 int hook_do_linkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
-        return trace__sys_link(ASYNC_SYSCALL, NULL, NULL);
+        return trace__sys_link(ctx, ASYNC_SYSCALL, NULL, NULL);
+    }
+    return 0;
+}
+
+HOOK_ENTRY("filename_linkat")
+int hook_filename_linkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return trace__sys_link(ctx, ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -64,7 +72,8 @@ int hook_complete_walk(ctx_t *ctx) {
 
     syscall->resolver.dentry = src_dentry;
     syscall->resolver.key = syscall->link.src_file.path_key;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -83,11 +92,8 @@ TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_LINK);
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        syscall->state = DISCARDED;
-    }
+    // do not pop, we want to invalidate the inode even if the syscall is discarded
+    apply_dentry_resolution_outcome(syscall, EVENT_LINK);
 
     return 0;
 }
@@ -168,7 +174,8 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
 
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
-        syscall->resolver.discarder_event_type = 0;
+        syscall->resolver.event_type = 0;
+        syscall->resolver.flags = 0;
         syscall->resolver.callback = select_dr_key(prog_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -183,6 +190,12 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
 
 HOOK_EXIT("do_linkat")
 int rethook_do_linkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_linkat")
+int rethook_filename_linkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }

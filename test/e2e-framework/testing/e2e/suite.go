@@ -154,12 +154,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -174,8 +173,6 @@ import (
 )
 
 const (
-	importKey = "import"
-
 	createTimeout          = 60 * time.Minute
 	deleteTimeout          = 30 * time.Minute
 	provisionerGracePeriod = 2 * time.Second
@@ -214,6 +211,14 @@ type BaseSuite[Env any] struct {
 	coverageOutDir string
 
 	outputDir string
+
+	// cleanupCalled is true once TearDownSuite has executed (regardless of caller). Used by
+	// the t.Cleanup hook registered in SetupSuite to skip cleanup when testify or a
+	// derived-suite defer has already handled it. testify calls TearDownSuite reliably on
+	// every path *except* SetupSuite failure (testify suite.go:214 defers TearDownSuite
+	// after SetupSuite returns, so a Goexit during setup never registers the defer); the
+	// t.Cleanup hook covers that one gap.
+	cleanupCalled bool
 }
 
 //
@@ -223,6 +228,19 @@ type BaseSuite[Env any] struct {
 // Env returns the current environment
 func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
+}
+
+// Logf satisfies the common.Context interface by delegating to the underlying *testing.T
+func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
+	bs.T().Helper()
+	bs.T().Logf(format, args...)
+}
+
+// FailNow satisfies the common.Context interface by logging the message and stopping the test.
+func (bs *BaseSuite[Env]) FailNow(format string, args ...any) {
+	bs.T().Helper()
+	bs.T().Logf(format, args...)
+	bs.T().FailNow()
 }
 
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
@@ -267,9 +285,17 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	}, waitFor, tick, msg, args...)
 }
 
-// CleanupOnSetupFailure is a helper to cleanup on setup failure
-// It should be defered in `SetupSuite` if you override it in your custom test suite.
-// When deferred, any panic or assertion failure will stop the test execution and call `TearDownSuite`.
+// CleanupOnSetupFailure is a helper to cleanup on setup failure.
+//
+// BaseSuite registers a `t.Cleanup` hook that invokes this method automatically when
+// SetupSuite fails to complete, so derived suites do not need to `defer` it themselves.
+// Existing `defer s.CleanupOnSetupFailure()` callers continue to work; on the rare path
+// where both fire, `provisioner.Destroy` is idempotent so duplicate calls are harmless.
+//
+// When called from a `defer`, `recover()` captures any panic in the deferring frame; in
+// that case the panic is consumed here (testify's outer recoverAndFailOnPanic will not see
+// it). When called from the t.Cleanup hook, `recover()` returns nil and we fall through to
+// the `T().Failed()` branch.
 func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 	if err := recover(); err != nil || bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
@@ -434,12 +460,18 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 					if diagnoseErr != nil {
 						utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-					} else if diagnoseResult != "" {
+					}
+
+					// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+					if diagnoseResult != "" {
 						utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 					}
 				}
 
 			}
+
+			// set the env here so the tearDown can call diagnose too if it fails
+			bs.env = newEnv
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -478,113 +510,22 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	return nil
 }
 
-func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
-	var env Env
-
-	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
-	envValue := reflect.ValueOf(&env)
-
-	retainedFields := make([]reflect.StructField, 0)
-	retainedValues := make([]reflect.Value, 0)
-	for _, field := range envFields {
-		if !field.IsExported() {
-			continue
-		}
-
-		importKeyFromTag := field.Tag.Get(importKey)
-		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-
-		// Produce meaningful error in case we have an importKey but field is not importable
-		if importKeyFromTag != "" && !isImportable {
-			return nil, nil, nil, fmt.Errorf("resource named %s has %s key but does not implement Importable interface", field.Name, importKey)
-		}
-
-		if !isImportable && isPtrImportable {
-			return nil, nil, nil, fmt.Errorf("resource named %s of type %T implements Importable on pointer receiver but is not a pointer", field.Name, field.Type)
-		}
-
-		if !isImportable {
-			continue
-		}
-
-		// Create zero-value if not created (pointer to struct)
-		fieldValue := envValue.Elem().FieldByIndex(field.Index)
-		if fieldValue.IsNil() {
-			fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
-		}
-
-		retainedFields = append(retainedFields, field)
-		retainedValues = append(retainedValues, fieldValue)
-	}
-
-	return &env, retainedFields, retainedValues, nil
-}
-
 func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
-	if len(fields) != len(values) {
-		panic("fields and values must have the same length")
-	}
-
-	if len(resources) == 0 {
-		return nil
-	}
-
-	for idx, fieldValue := range values {
-		field := fields[idx]
-		importKeyFromTag := field.Tag.Get(importKey)
-
-		// If a field value is nil, it means that it was explicitly set to nil by provisioners, hence not available
-		// We should not find it in the resources map, returning an error in this case.
-		if fieldValue.IsNil() {
-			if _, found := resources[importKeyFromTag]; found {
-				return fmt.Errorf("resource named %s has key %s but is nil", fields[idx].Name, importKeyFromTag)
-			}
-
-			continue
-		}
-
-		importable := fieldValue.Interface().(components.Importable)
-		resourceKey := importable.Key()
-		if importKeyFromTag != "" {
-			resourceKey = importKeyFromTag
-		}
-		if resourceKey == "" {
-			return fmt.Errorf("resource named %s has no import key set and no annotation", field.Name)
-		}
-
-		if rawResource, found := resources[resourceKey]; found {
-			err := importable.Import(rawResource, fieldValue.Interface())
-			if err != nil {
-				return fmt.Errorf("failed to import resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
-			}
-
-			// See if the component requires init
-			if initializable, ok := fieldValue.Interface().(common.Initializable); ok {
-				if err := initializable.Init(bs); err != nil {
-					return fmt.Errorf("failed to init resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
-				}
-			}
-		} else {
-			return fmt.Errorf("expected resource named: %s with key: %s but not returned by provisioners", field.Name, resourceKey)
-		}
-	}
-
-	return nil
+	return environments.BuildEnvFromResources(bs, resources, fields, values)
 }
 
 func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Context, context.CancelFunc) {
-	var ctx context.Context
-	var cancel func()
-
-	if deadline, ok := bs.T().Deadline(); ok {
-		deadline = deadline.Add(-provisionerGracePeriod)
-		ctx, cancel = context.WithDeadlineCause(context.Background(), deadline, errors.New("go test timeout almost reached, cancelling provisioners"))
-	} else {
-		ctx, cancel = context.WithTimeout(context.Background(), opTimeout)
+	if deadline, ok := bs.T().Deadline(); ok && time.Now().Before(deadline) {
+		// Normal case: clamp the provisioner context just before the real go
+		// test deadline so it cancels itself before the binary panics.
+		return context.WithDeadlineCause(context.Background(), deadline.Add(-provisionerGracePeriod), errors.New("go test timeout almost reached, cancelling provisioners"))
 	}
 
-	return ctx, cancel
+	// Either the suite has no go test deadline, or it has already passed
+	// (e.g. TearDownSuite running after go test -timeout fired). Falling back
+	// to opTimeout gives cleanup (pulumi destroy, cluster state dump) a fair
+	// window before GitLab kills the job.
+	return context.WithTimeout(context.Background(), opTimeout)
 }
 
 //
@@ -595,7 +536,8 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // This function is called by [testify Suite].
 //
 // If you override SetupSuite in your custom test suite type, the function must call [e2e.BaseSuite.SetupSuite].
-// Please also call `defer bs.CleanupOnSetupFailure()` in your `SetupSuite` implementation. It is needed to make sure that we cleanup on panic or on SetupSuite failure.
+// The framework registers a `t.Cleanup` hook that handles cleanup on `SetupSuite` failure
+// (panic or `T.FailNow`), so derived suites do not need to add a defer themselves.
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
@@ -606,6 +548,23 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		bs.T().Skip("TEARDOWN_ONLY is set, skipping setup and tests")
 		return
 	}
+
+	// Register a t.Cleanup hook that invokes CleanupOnSetupFailure if testify never gets
+	// the chance to call TearDownSuite. testify's own defer of TearDownSuite (testify
+	// suite.go:214) is registered *after* SetupSuite returns, so a panic or T.FailNow in
+	// any SetupSuite layer (framework or derived override) leaves the goroutine without
+	// ever invoking it. t.Cleanup runs against the *testing.T regardless of how the test
+	// goroutine terminates, so it is robust to Goexit/panic during setup. The cleanupCalled
+	// flag (set at the start of TearDownSuite) ensures the hook is a no-op when testify
+	// or a legacy `defer s.CleanupOnSetupFailure()` already handled cleanup. When the hook
+	// does invoke CleanupOnSetupFailure, recover() returns nil and we fall through to its
+	// T().Failed() branch to run the diagnose + TearDownSuite + T.Fatal sequence.
+	bs.T().Cleanup(func() {
+		if bs.cleanupCalled {
+			return
+		}
+		bs.CleanupOnSetupFailure()
+	})
 
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
@@ -618,10 +577,6 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	}
 	bs.outputDir = sessionDirectory
 	utils.Logf(bs.T(), "Suite session output directory: %s", bs.outputDir)
-	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
-	// Meaning that stack clean up may not be called.
-	// We do implement an explicit recover to handle this manuallay.
-	defer bs.CleanupOnSetupFailure()
 
 	// Setup Datadog Client to be used to send telemetry when writing e2e tests
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -714,8 +669,17 @@ func (bs *BaseSuite[Env]) IsWithinCI() bool {
 //
 // If you override TearDownSuite in your custom test suite type, the function must call [e2e.BaseSuite.TearDownSuite].
 //
+// Idempotent: a `cleanupCalled` flag is set on the first call so subsequent calls return
+// early. This coordinates the various paths that reach cleanup — testify's normal
+// after-tests defer, the t.Cleanup hook in SetupSuite, the legacy
+// `defer s.CleanupOnSetupFailure()` in derived suites — to result in exactly one teardown.
+//
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
+	if bs.cleanupCalled {
+		return
+	}
+	bs.cleanupCalled = true
 	bs.endTime = time.Now()
 
 	if bs.params.devMode {
@@ -746,23 +710,36 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Run provisioner Diagnose before tearing down the stack
-		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-		if err != nil {
-			utils.Logf(bs.T(), "unable to get stack name for diagnose, err: %v", err)
-			continue
+		// Look up the Pulumi stack name for the diagnose and remote-cleanup paths. The
+		// local Destroy path uses bs.params.stackName directly and does not depend on
+		// this lookup, so a failure here must NOT skip Destroy. In practice this lookup
+		// only fails when no Pulumi state exists (e.g. our unit tests with mock
+		// provisioners).
+		stackName, stackNameErr := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+		if stackNameErr != nil {
+			utils.Logf(bs.T(), "unable to get pulumi stack name (used by diagnose / remote cleanup): %v", stackNameErr)
 		}
-		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
+
+		// Run provisioner Diagnose before tearing down the stack. Requires the looked-up stack name.
+		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly && stackNameErr == nil {
 			utils.Logf(bs.T(), "Running Diagnose for provisioner %s", id)
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-			} else if diagnoseResult != "" {
+			}
+
+			// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+			if diagnoseResult != "" {
 				utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 			}
 		}
 
 		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
+			// Remote cleanup requires the looked-up Pulumi stack name. Skip if unavailable.
+			if stackNameErr != nil {
+				utils.Logf(bs.T(), "skipping remote stack cleaning because pulumi stack name lookup failed")
+				continue
+			}
 			fullStackName := "organization/e2eci/" + stackName
 			utils.Logf(bs.T(), "Remote stack cleaning enabled for stack %s", fullStackName)
 
@@ -782,6 +759,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 				}
 			} else {
 				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
+				utils.Logf(bs.T(), "Stack cleaner trigger output: %s", out)
 			}
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
@@ -798,6 +776,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
 func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		// Apply coverage required override if set
+		if overrideable, ok := any(bs.env).(common.CoverageRequiredOverrideable); ok {
+			overrideable.SetCoverageRequiredOverride(bs.params.coverageRequired)
+		}
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
 		coverageFolder := filepath.Join(coverageDir, rootTestName)

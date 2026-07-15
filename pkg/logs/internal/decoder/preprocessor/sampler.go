@@ -7,6 +7,8 @@
 package preprocessor
 
 import (
+	"hash/fnv"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -45,10 +47,10 @@ func (s *NoopSampler) Flush() *message.Message {
 }
 
 var tlmAdaptiveSamplerDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "dropped",
-	[]string{"source"}, "Number of log messages dropped by the adaptive sampler")
+	[]string{"source", "detection_only"}, "Number of log messages dropped by the adaptive sampler, or that would be dropped when detection_only is true")
 
 var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "bytes_dropped",
-	[]string{"source"}, "Number of bytes dropped by the adaptive sampler")
+	[]string{"source", "detection_only"}, "Number of bytes dropped by the adaptive sampler, or that would be dropped when detection_only is true")
 
 var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
@@ -62,8 +64,23 @@ var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter(
 var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
 	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
 
+var tlmAdaptiveSamplerTagBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "tag_bytes_dropped",
+	[]string{"source", "detection_only"}, "Estimated pre-tailer tag metadata bytes for logs dropped by the adaptive sampler, or that would be dropped when detection_only is true")
+
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
+}
+
+const adaptiveSamplerNoisyLogTag = "noisy_log:true"
+
+func adaptiveSamplerLogHashTag(tokens []Token) string {
+	var b [1]byte
+	h := fnv.New64a()
+	for _, t := range tokens {
+		b[0] = byte(t)
+		_, _ = h.Write(b[:])
+	}
+	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
 }
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
@@ -82,6 +99,31 @@ type AdaptiveSamplerConfig struct {
 	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
 	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
 	ProtectImportantLogs bool
+	// DetectionOnly tags messages that would be dropped, without dropping them.
+	DetectionOnly bool
+	// TagPatternHash tags messages with the hash of their structural pattern.
+	TagPatternHash bool
+	// Include limits adaptive sampling to messages matching at least one filter.
+	// When empty, all messages are eligible unless excluded.
+	Include []AdaptiveSamplerFilter
+	// IncludeConfigured records whether Include was explicitly configured, so an
+	// invalid or empty include list does not accidentally sample every message.
+	IncludeConfigured bool
+	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
+	// precedence over Include.
+	Exclude []AdaptiveSamplerFilter
+	// IsSourceDisabled is called per-message to check whether the current source
+	// is in the disabled_sources list. When it returns true the sampler passes the
+	// message through without rate-limiting. Using a closure lets the check track
+	// ReplaceableSource swaps and future Remote Config updates.
+	IsSourceDisabled func() bool
+}
+
+// AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
+// or both.
+type AdaptiveSamplerFilter struct {
+	Regex        *regexp.Regexp
+	SampleTokens []Token
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
@@ -101,20 +143,24 @@ type samplerEntry struct {
 // frequently matched patterns appear at the front, so the scan exits early for the
 // common case where a hot pattern is matched.
 type AdaptiveSampler struct {
-	entries []samplerEntry
-	config  AdaptiveSamplerConfig
-	source  string // used as a telemetry tag
-	now     func() time.Time
+	entries           []samplerEntry
+	config            AdaptiveSamplerConfig
+	source            string // used as a telemetry tag
+	now               func() time.Time
+	baseBytesEstimate int
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
 // source is the log source name used for telemetry tagging.
-func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSampler {
+// baseBytesEstimate is the static portion of the ddtags byte count (source config
+// tags + sourcecategory), computed once at decoder construction time.
+func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string, baseBytesEstimate int) *AdaptiveSampler {
 	return &AdaptiveSampler{
-		entries: make([]samplerEntry, 0, config.MaxPatterns),
-		config:  config,
-		source:  source,
-		now:     time.Now,
+		entries:           make([]samplerEntry, 0, config.MaxPatterns),
+		config:            config,
+		source:            source,
+		now:               time.Now,
+		baseBytesEstimate: baseBytesEstimate,
 	}
 }
 
@@ -131,60 +177,122 @@ func isImportant(tokens []Token) bool {
 	return false
 }
 
+func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	matched := false
+	if f.Regex != nil {
+		if !f.Regex.Match(msg.GetContent()) {
+			return false
+		}
+		matched = true
+	}
+	if len(f.SampleTokens) > 0 {
+		if !IsMatch(f.SampleTokens, tokens, matchThreshold) {
+			return false
+		}
+		matched = true
+	}
+	return matched
+}
+
+func matchesAnyFilter(filters []AdaptiveSamplerFilter, msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	for _, filter := range filters {
+		if filter.matches(msg, tokens, matchThreshold) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) bool {
+	if matchesAnyFilter(s.config.Exclude, msg, tokens, s.config.MatchThreshold) {
+		return false
+	}
+	if len(s.config.Include) == 0 && !s.config.IncludeConfigured {
+		return true
+	}
+	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
+}
+
+func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, tokens []Token) {
+	if s.config.TagPatternHash {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerLogHashTag(tokens))
+	}
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
+		return msg
+	}
+	if !s.shouldSample(msg, tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		return msg
+	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
 		return msg
 	}
 	now := s.now()
+	detectionOnly := s.config.DetectionOnly
 
 	for i := range s.entries {
-		e := &s.entries[i]
-		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
-			continue
+		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
+			return s.processMatchedEntry(i, msg, now, detectionOnly)
 		}
-		// Refill credits based on time elapsed since last seen.
-		elapsed := now.Sub(e.lastSeen).Seconds()
-		e.credits += elapsed * s.config.RateLimit
-		if e.credits > s.config.BurstSize {
-			e.credits = s.config.BurstSize
-		}
-		e.lastSeen = now
-		e.matchCount++
+	}
+	return s.trackNewPattern(msg, tokens, now)
+}
 
-		// All mutations to e must complete before bubbling: bubbling swaps
-		// entries by value, so e (= &s.entries[i]) aliases a different
-		// entry after the first swap.
-		allow := e.credits >= 1.0
-		if allow {
-			e.credits--
-			if e.sampled > 0 {
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
-			}
-			e.sampled = 0
-		} else {
-			e.sampled++
-		}
+// processMatchedEntry handles a log that matched the pattern at index i: it refills
+// and spends credits, updates tags and counters, re-sorts the pattern table, and
+// returns the message when emitted or nil when dropped.
+func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool) *message.Message {
+	e := &s.entries[i]
+	matchedTokens := e.tokens
 
-		// Bubble the matched entry toward the front to maintain descending order.
-		for i > 0 && s.entries[i-1].matchCount < s.entries[i].matchCount {
-			s.entries[i-1], s.entries[i] = s.entries[i], s.entries[i-1]
-			i--
-		}
+	// Refill credits based on time elapsed since last seen.
+	elapsed := now.Sub(e.lastSeen).Seconds()
+	e.credits += elapsed * s.config.RateLimit
+	if e.credits > s.config.BurstSize {
+		e.credits = s.config.BurstSize
+	}
+	e.lastSeen = now
+	e.matchCount++
 
-		if allow {
-			tlmAdaptiveSamplerKept.Inc(s.source)
-			return msg
-		}
-		tlmAdaptiveSamplerDropped.Inc(s.source)
-		tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source)
-		return nil
+	allow := e.credits >= 1.0
+	if allow {
+		e.credits--
 	}
 
-	// No match — this is a new pattern. Evict the least-frequently-matched entry if full.
+	// Compute tag bytes from the user-originated ParsingExtra.Tags before
+	// any sampler-internal annotations are added (e.g. noisy_log:true).
+	var tb int
+	if !allow {
+		tb = message.AppendTagMetadataBytes(s.baseBytesEstimate, msg.ParsingExtra.Tags)
+	}
+
+	// All mutations to e must complete before bubbling: bubbling swaps entries by
+	// value, so e (= &s.entries[i]) aliases a different entry after the first swap.
+	s.updateForMatchedPattern(e, msg, matchedTokens, allow, detectionOnly)
+
+	// Bubble the matched entry toward the front to maintain descending order.
+	for i > 0 && s.entries[i-1].matchCount < s.entries[i].matchCount {
+		s.entries[i-1], s.entries[i] = s.entries[i], s.entries[i-1]
+		i--
+	}
+
+	if allow {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		return msg
+	}
+	return s.recordDrop(msg, tb, detectionOnly)
+}
+
+// trackNewPattern records a never-before-seen pattern, evicting the
+// least-frequently-matched entry when the table is full, and emits the message.
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time) *message.Message {
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
@@ -204,5 +312,48 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.
 func (s *AdaptiveSampler) Flush() *message.Message {
+	return nil
+}
+
+// updateForMatchedPattern runs after a log matched an existing pattern and credits
+// decided allow vs deny. It mutates msg tags and e.sampled:
+//   - DetectionOnly: tag lines the credit bucket would reject (noisy_log, optional hash),
+//     and reset e.sampled (detection-only never accumulates “suppressed since last emit”).
+//   - Otherwise: on allow, attach adaptive_sampler_sampled_count from prior denials and
+//     reset e.sampled; on deny, increment e.sampled for a future allowed line.
+func (s *AdaptiveSampler) updateForMatchedPattern(e *samplerEntry, msg *message.Message, matchedTokens []Token, allow, detectionOnly bool) {
+	if detectionOnly {
+		if !allow {
+			s.appendPatternHashTagIfEnabled(msg, matchedTokens)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+		}
+		e.sampled = 0
+		return
+	}
+	if allow {
+		if e.sampled > 0 {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+		}
+		e.sampled = 0
+	} else {
+		e.sampled++
+	}
+}
+
+// recordDrop runs when credits rejected a matched-pattern line
+// It records drop projection metrics (bytes + optional tag-byte estimate), with the
+// detection_only series tag distinguishing detection-only runs from real drops, then resolves
+// outcome: msg when DetectionOnly still forwards the line, nil on real drop.
+func (s *AdaptiveSampler) recordDrop(msg *message.Message, tb int, detectionOnly bool) *message.Message {
+	detectionTag := strconv.FormatBool(detectionOnly)
+	tlmAdaptiveSamplerDropped.Add(1, s.source, detectionTag)
+	tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source, detectionTag)
+	if tb > 0 {
+		tlmAdaptiveSamplerTagBytesDropped.Add(float64(tb), s.source, detectionTag)
+	}
+	if detectionOnly {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		return msg
+	}
 	return nil
 }

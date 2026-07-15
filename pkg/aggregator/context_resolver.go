@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -81,6 +81,9 @@ type contextResolver struct {
 	// tagFilterCache maps a pre-filter contextKey to the post-filter (contextKey, taggerKey, metricKey).
 	// This avoids repeated RetainFunc calls for metrics we have already processed.
 	tagFilterCache *tagFilterCache
+	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
+	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
+	tagFilterEnabled bool
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -89,6 +92,9 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 }
 
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
+	cfg := pkgconfigsetup.Datadog()
+	adpEnabled := cfg.GetBool("data_plane.enabled")
+	adpOnly := cfg.GetBool("metric_tag_filterlist_adp_only")
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
@@ -101,7 +107,8 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:   newTagFilterCache(pkgconfigsetup.Datadog().GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterEnabled: adpEnabled || !adpOnly,
 	}
 }
 
@@ -113,7 +120,8 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.metricBuffer.Reset()
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
-	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
+
+	if filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
@@ -148,6 +156,17 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	}
 
 	return contextKey
+}
+
+// shouldAggregateTags returns true if the tag for the given metric should be considered
+// for aggregation. Distribution, and Counter (dogstatsd counts).
+// We don't support Count metrics from checks, it would be complicated to enable this for
+// MonotonicCounts - which is commonly used in checks, so to avoid confusion we don't
+// support counts in checks at all for now.
+func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
+	mtype := metricSampleContext.GetMetricType()
+	return mtype == metrics.DistributionType ||
+		mtype == metrics.CounterType
 }
 
 // filterTags filters tags from the context that match the given tagMatcher.
@@ -237,7 +256,6 @@ func (cr *contextResolver) clearTagFilterCache() {
 	cr.tagFilterCache.clear()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}

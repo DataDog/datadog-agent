@@ -107,7 +107,7 @@ func DockerTest(t *testing.T) {
 			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithRunOptions(ec2.WithDocker()),
+					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E))),
 				),
 			),
 		)
@@ -292,8 +292,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 		statusOutput, err := client.ExecuteWithRetry("datadog-agent \"status\"")
 		require.NoError(is.T(), err)
 
-		// API Key is invalid we should not check for the following error
-		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+		statusOutput = common.SanitizeStatusOutputForKnownNoise(statusOutput)
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
 }

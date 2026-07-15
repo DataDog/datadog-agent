@@ -1,5 +1,4 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -7,9 +6,53 @@ exports_files([
     "framing_linux_test.go",
 ])
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+
+# Source files all carry //go:build linux_bpf, so callers must propagate the
+# linux_bpf tag (e.g. via gotags on a go_library/go_test) to compile in this
+# package.
+go_library(
+    name = "output",
+    srcs = [
+        "doc.go",
+        "drop_notification.go",
+        "event.go",
+        "framing_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/output",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
 cgo_godefs(
     name = "framing_godefs",
     src = "framing.go",
     hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "output_test",
+    srcs = [
+        "event_test.go",
+        "framing_linux_test.go",
+    ],
+    embed = [":output"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
 )

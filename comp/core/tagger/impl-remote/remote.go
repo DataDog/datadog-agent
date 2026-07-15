@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -70,8 +71,9 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp     tagger.Component
-	Endpoint api.AgentEndpointProvider
+	Comp          tagger.Component
+	Endpoint      api.AgentEndpointProvider
+	FlareProvider flaretypes.Provider
 }
 
 type remoteTagger struct {
@@ -127,8 +129,9 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:     remoteTaggerInstance,
-		Endpoint: api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
+		Comp:          remoteTaggerInstance,
+		Endpoint:      api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
+		FlareProvider: flaretypes.NewProvider(remoteTaggerInstance.fillFlare),
 	}, nil
 }
 
@@ -221,10 +224,17 @@ func start(remoteTagger *remoteTagger) error {
 	creds := credentials.NewTLS(remoteTagger.tlsConfig)
 
 	var onStartErr error
+	// Same max message size as the core agent AgentSecure gRPC server (impl-agent.BuildServer).
+	maxMsgSize := remoteTagger.cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		remoteTagger.ctx,
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
 				_, sPort, err := net.SplitHostPort(url)
@@ -417,6 +427,15 @@ func (t *remoteTagger) GetEntity(entityID types.EntityID) (*types.Entity, error)
 }
 
 // List returns all the entities currently stored by the tagger.
+func (t *remoteTagger) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	response := t.List()
+	jsonTags, err := json.MarshalIndent(response, "", "\t")
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("tagger-list.json", jsonTags)
+}
+
 func (t *remoteTagger) List() types.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := types.TaggerListResponse{

@@ -23,6 +23,21 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
+	// MetricEventServerRetry counts how many times a queued event was scheduled for retry
+	// Tags: -
+	MetricEventServerRetry = newRuntimeMetric(".rules.event_server.retry")
+	// MetricEventServerSkippedRetry counts retries that were skipped because the queue was at capacity
+	// Tags: -
+	MetricEventServerSkippedRetry = newRuntimeMetric(".rules.event_server.skipped_retry")
+	// MetricEventServerMissingTags counts events that were sent with missing container tags
+	// Tags: -
+	MetricEventServerMissingTags = newRuntimeMetric(".rules.event_server.missing_tags")
+	// MetricEventServerQueueSize is the current number of events waiting in the retry queue
+	// Tags: -
+	MetricEventServerQueueSize = newRuntimeMetric(".rules.event_server.queue_size")
+	// MetricEventServerRetriesBeforeSend is a distribution of the number of retries an event required before being sent
+	// Tags: -
+	MetricEventServerRetriesBeforeSend = newRuntimeMetric(".rules.event_server.retries_before_send")
 
 	// Rate limiter metrics
 
@@ -195,21 +210,6 @@ var (
 	// MetricProcessInodeError is the name of the metric used to report a broken lineage with a inode mismatch
 	// Tags: -
 	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
-	// MetricProcessResolverReparentSuccess counts successful process reparenting
-	// Tags: callpath:set_process_context, callpath:do_exit
-	MetricProcessResolverReparentSuccess = newRuntimeMetric(".process_resolver.reparent.success")
-	// MetricProcessResolverReparentFailed counts failed reparenting attempts (e.g. procfs not updated yet)
-	// Tags: callpath:set_process_context, callpath:do_exit
-	MetricProcessResolverReparentFailed = newRuntimeMetric(".process_resolver.reparent.failed")
-	// MetricProcessResolverReparentProcfsSuccess counts successful procfs resolutions of a new parent during reparenting
-	// Tags: -
-	MetricProcessResolverReparentProcfsSuccess = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.success")
-	// MetricProcessResolverReparentProcfsFailed counts failed procfs resolutions of a new parent during reparenting
-	// Tags: -
-	MetricProcessResolverReparentProcfsFailed = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.failed")
-	// MetricProcessResolverProcFallbackLimiterDrop counts procfs fallback resolutions dropped by the rate limiter
-	// Tags: -
-	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
 
 	// Mount resolver metrics
 
@@ -534,9 +534,9 @@ var (
 
 	// Event Processing metrics
 
-	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
-	// Tags: -
-	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
+	// Tags: profile_image_name, profile_image_tag
+	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
 
@@ -563,6 +563,26 @@ var (
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
+
+	// Sample refresh metrics (cookie-based dedup refresh)
+
+	// MetricSecurityProfileV2SampleRefreshReceived counts HandleSampleRefresh calls
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshReceived = newRuntimeMetric(".security_profile_v2.sample_refresh.received")
+
+	// MetricSecurityProfileV2SampleRefreshHits counts refresh events where the cookie was found in the LRU
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshHits = newRuntimeMetric(".security_profile_v2.sample_refresh.hits")
+
+	// MetricSecurityProfileV2SampleRefreshMisses counts refresh events where the cookie was not found (LRU evicted)
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
+
+	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
 
@@ -602,17 +622,6 @@ var (
 	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
 	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
 	ProcessSourceProcTags = []string{ProcFSTag}
-
-	// ReparentCallpathSetProcessContext tags a reparent from the setProcessContext path
-	ReparentCallpathSetProcessContext = "callpath:set_process_context"
-	// ReparentCallpathDoExit tags a reparent from the ApplyExitEntry path (do_exit)
-	ReparentCallpathDoExit = "callpath:do_exit"
-	// ReparentCallpathKernelPPid tags a reparent triggered by a kernel ppid mismatch
-	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
-	// ReparentCallpathRelatedEvent tags a reparent from the related event dispatch path
-	ReparentCallpathRelatedEvent = "callpath:related_event"
-	// AllReparentCallpathTags is the list of all reparent callpath tags
-	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent}
 )
 
 func newRuntimeMetric(name string) string {

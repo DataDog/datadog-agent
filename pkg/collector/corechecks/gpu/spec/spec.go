@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"regexp"
 
@@ -21,9 +22,10 @@ const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
 	tagsSpecFile          = "tags.yaml"
+	aggregationsSpecFile  = "aggregations.yaml"
 )
 
-//go:embed gpu_metrics.yaml architectures.yaml tags.yaml
+//go:embed gpu_metrics.yaml architectures.yaml tags.yaml aggregations.yaml
 var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
@@ -52,6 +54,19 @@ type MetricsSpec struct {
 type TagsSpec struct {
 	Tags    map[string]TagSpec    `yaml:"tags"`
 	Tagsets map[string]TagsetSpec `yaml:"tagsets"`
+}
+
+// AggregationsSpec is the YAML aggregation specification.
+type AggregationsSpec struct {
+	Aggregations map[string]AggregationSpec `yaml:"aggregations"`
+}
+
+// AggregationSpec defines aggregation behavior metadata.
+type AggregationSpec struct {
+	Description           string `yaml:"description"`
+	TimeAggregator        string `yaml:"time_aggregator"`
+	GroupAggregator       string `yaml:"group_aggregator"`
+	GranularityAggregator string `yaml:"granularity_aggregator"`
 }
 
 // TagSpec defines validation metadata for a reusable tag.
@@ -91,9 +106,30 @@ type TagsetSpec struct {
 
 // MetricMetadataSpec defines metadata used to generate integrations metadata.csv rows.
 type MetricMetadataSpec struct {
-	MetricType  string `yaml:"metric_type,omitempty"`
-	Unit        string `yaml:"unit,omitempty"`
+	MetricType string `yaml:"metric_type,omitempty"`
+	Unit       string `yaml:"unit,omitempty"`
+	// UsedInDDUI marks metrics surfaced in Datadog UI defaults.
+	UsedInDDUI  bool   `yaml:"used_in_dd_ui,omitempty"`
 	Description string `yaml:"description,omitempty"`
+	Aggregation string `yaml:"aggregation,omitempty"`
+}
+
+// UnmarshalYAML validates metric metadata values while decoding.
+func (m *MetricMetadataSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MetricMetadataSpec
+
+	var decoded plain
+	if err := unmarshal(&decoded); err != nil {
+		return fmt.Errorf("unmarshal metric metadata: %w", err)
+	}
+
+	switch decoded.MetricType {
+	case "", "gauge", "counter", "histogram":
+		*m = MetricMetadataSpec(decoded)
+		return nil
+	default:
+		return fmt.Errorf("invalid metric_type %q: must be one of [gauge, counter, histogram]", decoded.MetricType)
+	}
 }
 
 // MetricSpec is a metric definition without the name (name is the map key).
@@ -196,13 +232,22 @@ func (v *MetricValidator) validateDefinition() error {
 
 // MetricSupportSpec defines where a metric is supported.
 type MetricSupportSpec struct {
-	UnsupportedArchitectures []string            `yaml:"unsupported_architectures"`
-	DeviceModes              map[DeviceMode]bool `yaml:"device_modes"`
+	UnsupportedArchitectures []string                   `yaml:"unsupported_architectures"`
+	DeviceModes              map[DeviceMode]bool        `yaml:"device_modes"`
+	CapabilitiesRequired     MetricCapabilitiesRequired `yaml:"capabilities_required,omitempty"`
+}
+
+// MetricCapabilitiesRequired defines hardware capabilities required for a metric.
+type MetricCapabilitiesRequired struct {
+	NVLink *int  `yaml:"nvlink,omitempty"`
+	C2C    *bool `yaml:"c2c,omitempty"`
 }
 
 // ArchitecturesSpec is the YAML architecture capability specification.
 type ArchitecturesSpec struct {
-	Architectures map[string]ArchitectureSpec `yaml:"architectures"`
+	NVLinkGenerations map[int]FieldSupportSpec    `yaml:"nvlink_generations"`
+	C2C               FieldSupportSpec            `yaml:"c2c"`
+	Architectures     map[string]ArchitectureSpec `yaml:"architectures"`
 }
 
 // Specs bundles all GPU spec files used by validation and tests.
@@ -210,12 +255,22 @@ type Specs struct {
 	Metrics       *MetricsSpec
 	Tags          *TagsSpec
 	Architectures *ArchitecturesSpec
+	Aggregations  *AggregationsSpec
 }
 
 // ArchitectureCapabilities defines capabilities and unsupported fields.
 type ArchitectureCapabilities struct {
 	GPM                           bool                                `yaml:"gpm"`
+	NVLink                        int                                 `yaml:"nvlink"`
+	C2C                           bool                                `yaml:"c2c"`
 	UnsupportedFieldsByDeviceMode []UnsupportedFieldsByDeviceModeSpec `yaml:"unsupported_fields_by_device_mode"`
+}
+
+// ArchitectureCapabilitiesOverride defines mode-specific capability overrides.
+type ArchitectureCapabilitiesOverride struct {
+	GPM    *bool `yaml:"gpm,omitempty"`
+	NVLink *int  `yaml:"nvlink,omitempty"`
+	C2C    *bool `yaml:"c2c,omitempty"`
 }
 
 // UnsupportedFieldsByDeviceModeSpec groups unsupported fields by device modes.
@@ -224,10 +279,107 @@ type UnsupportedFieldsByDeviceModeSpec struct {
 	Fields      []string     `yaml:"fields"`
 }
 
+// FieldSupportSpec defines fields made available by a capability.
+type FieldSupportSpec struct {
+	SupportedFields []string `yaml:"supported_fields"`
+}
+
+// ArchitectureSupportSpec defines architecture support for a set of device modes.
+type ArchitectureSupportSpec struct {
+	// DeviceModes lists the device modes covered by this support entry.
+	DeviceModes []DeviceMode `yaml:"device_modes"`
+	// Capabilities describes which hardware/API capabilities are available for those modes.
+	Capabilities ArchitectureCapabilitiesOverride `yaml:"capabilities"`
+	// UnsupportedFields lists additional GetFieldValues fields unsupported for those modes.
+	UnsupportedFields []string `yaml:"unsupported_fields"`
+}
+
 // ArchitectureSpec defines architecture capabilities and unsupported device modes.
 type ArchitectureSpec struct {
-	Capabilities           ArchitectureCapabilities `yaml:"capabilities"`
-	UnsupportedDeviceModes []DeviceMode             `yaml:"unsupported_device_modes"`
+	// Capabilities is the default capability set used when no mode-specific support entry matches.
+	Capabilities ArchitectureCapabilities `yaml:"capabilities"`
+	// Support contains mode-specific capability and unsupported-field overrides.
+	Support []ArchitectureSupportSpec `yaml:"support"`
+	// UnsupportedDeviceModes lists device modes that should not be validated for this architecture.
+	UnsupportedDeviceModes []DeviceMode `yaml:"unsupported_device_modes"`
+}
+
+// EffectiveCapabilities returns the capabilities for a device mode.
+func (a ArchitectureSpec) EffectiveCapabilities(mode DeviceMode) ArchitectureCapabilities {
+	capabilities := a.Capabilities
+	for _, support := range a.Support {
+		if slices.Contains(support.DeviceModes, mode) {
+			capabilities.applyOverride(support.Capabilities)
+			return capabilities
+		}
+	}
+	return capabilities
+}
+
+func (c *ArchitectureCapabilities) applyOverride(override ArchitectureCapabilitiesOverride) {
+	if override.GPM != nil {
+		c.GPM = *override.GPM
+	}
+	if override.NVLink != nil {
+		c.NVLink = *override.NVLink
+	}
+	if override.C2C != nil {
+		c.C2C = *override.C2C
+	}
+}
+
+// UnsupportedFieldsForMode returns fields unsupported for a device mode and capability set.
+func (a ArchitectureSpec) UnsupportedFieldsForMode(mode DeviceMode, archSpecs *ArchitecturesSpec) []string {
+	unsupported := make(map[string]struct{})
+	capabilities := a.EffectiveCapabilities(mode)
+	for _, support := range a.Support {
+		if !slices.Contains(support.DeviceModes, mode) {
+			continue
+		}
+		for _, field := range support.UnsupportedFields {
+			unsupported[field] = struct{}{}
+		}
+	}
+	for _, group := range a.Capabilities.UnsupportedFieldsByDeviceMode {
+		if len(group.DeviceModes) > 0 && !slices.Contains(group.DeviceModes, mode) {
+			continue
+		}
+		for _, name := range group.Fields {
+			unsupported[name] = struct{}{}
+		}
+	}
+	if archSpecs != nil {
+		for generation, support := range archSpecs.NVLinkGenerations {
+			if generation <= capabilities.NVLink {
+				continue
+			}
+			for _, field := range support.SupportedFields {
+				unsupported[field] = struct{}{}
+			}
+		}
+		if !capabilities.C2C {
+			for _, field := range archSpecs.C2C.SupportedFields {
+				unsupported[field] = struct{}{}
+			}
+		}
+	}
+	names := make([]string, 0, len(unsupported))
+	for name := range unsupported {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// SupportedNVLinkGeneration returns the highest NVLink generation this architecture can support.
+func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
+	maxGeneration := a.Capabilities.NVLink
+	for _, support := range a.Support {
+		if support.Capabilities.NVLink != nil {
+			maxGeneration = max(maxGeneration, *support.Capabilities.NVLink)
+		}
+	}
+	return maxGeneration
 }
 
 // SupportsArchitecture returns true if the metric is supported on this architecture.
@@ -253,6 +405,17 @@ func (m MetricSpec) SupportsDeviceMode(mode DeviceMode) bool {
 // SupportsConfig returns true if the metric is supported for the given GPU config.
 func (m MetricSpec) SupportsConfig(config GPUConfig) bool {
 	return m.SupportsArchitecture(config.Architecture) && m.SupportsDeviceMode(config.DeviceMode)
+}
+
+// SupportsCapabilities returns true if the metric's capability requirements are met.
+func (m MetricSpec) SupportsCapabilities(capabilities ArchitectureCapabilities) bool {
+	if m.Support.CapabilitiesRequired.NVLink != nil && capabilities.NVLink < *m.Support.CapabilitiesRequired.NVLink {
+		return false
+	}
+	if m.Support.CapabilitiesRequired.C2C != nil && capabilities.C2C != *m.Support.CapabilitiesRequired.C2C {
+		return false
+	}
+	return true
 }
 
 // IsModeSupportedByArchitecture returns true when the architecture supports the device mode.
@@ -310,6 +473,21 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	return &parsed, nil
 }
 
+// LoadAggregationsSpec loads the canonical GPU aggregations specification file.
+func LoadAggregationsSpec() (*AggregationsSpec, error) {
+	data, err := embeddedSpecs.ReadFile(aggregationsSpecFile)
+	if err != nil {
+		return nil, fmt.Errorf("read aggregations spec %q: %w", aggregationsSpecFile, err)
+	}
+
+	var parsed AggregationsSpec
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal aggregations spec %q: %w", aggregationsSpecFile, err)
+	}
+
+	return &parsed, nil
+}
+
 // LoadSpecs loads all canonical GPU specification files.
 func LoadSpecs() (*Specs, error) {
 	metrics, err := LoadMetricsSpec()
@@ -327,9 +505,24 @@ func LoadSpecs() (*Specs, error) {
 		return nil, fmt.Errorf("load architectures spec: %w", err)
 	}
 
+	aggregations, err := LoadAggregationsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load aggregations spec: %w", err)
+	}
+
+	for metricName, metricSpec := range metrics.Metrics {
+		if metricSpec.Metadata == nil || metricSpec.Metadata.Aggregation == "" {
+			continue
+		}
+		if _, found := aggregations.Aggregations[metricSpec.Metadata.Aggregation]; !found {
+			return nil, fmt.Errorf("metric %q references unknown aggregation %q", metricName, metricSpec.Metadata.Aggregation)
+		}
+	}
+
 	return &Specs{
 		Metrics:       metrics,
 		Tags:          tags,
 		Architectures: architectures,
+		Aggregations:  aggregations,
 	}, nil
 }

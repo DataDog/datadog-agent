@@ -1,19 +1,8 @@
-# gazelle:ignore
-# gazelle:exclude _obj
-# gazelle:exclude bytecode
-# gazelle:exclude compiler
-# gazelle:exclude ebpftest
-# gazelle:exclude features
-# gazelle:exclude kernelbugs
-# gazelle:exclude maps
-# gazelle:exclude names
-# gazelle:exclude perf
-# gazelle:exclude prebuilt
-# gazelle:exclude uprobes
-# gazelle:exclude verifier
-
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+# gazelle:exclude include_headers_gen.go
+# gazelle:exclude types_linux_test.go
 
 exports_files([
     "types_linux.go",
@@ -36,7 +25,7 @@ genrule(
 
 go_binary(
     name = "include_headers",
-    srcs = [":include_headers_src"],
+    srcs = [":include_headers_gen.go"],
     visibility = ["//visibility:public"],
 )
 
@@ -177,4 +166,144 @@ filegroup(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "ebpf",
+    srcs = [
+        "btf.go",
+        "co_re.go",
+        "co_re_load.go",
+        "co_re_load_testutil.go",
+        "co_re_telemetry.go",
+        "co_re_unsupported.go",
+        "common.go",
+        "config.go",
+        "debug_handlers.go",
+        "debuglog_dumper.go",
+        "ebpf.go",
+        "ksyms.go",
+        "ksyms_bpf.go",
+        "lockcontention.go",
+        "lockcontention_noop.go",
+        "manager.go",
+        "map_cleaner.go",
+        "mappings.go",
+        "perf.go",
+        "perf_data_event.go",
+        "perf_ring_buffer.go",
+        "preprocess.go",
+        "printk_patcher.go",
+        "probes.go",
+        "rc_btf.go",
+        "status_codes.go",
+        "time.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/ebpf/btf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/maps",
+        "//pkg/ebpf/names",
+        "//pkg/process/util",
+        "//pkg/remoteconfig/state",
+        "//pkg/system-probe/config",
+        "//pkg/util/archive",
+        "//pkg/util/funcs",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "//pkg/util/sync",
+        "//pkg/version",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_cilium_ebpf//perf",
+        "@com_github_cilium_ebpf//ringbuf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_prometheus_client_golang//prometheus",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# keep
+go_test(
+    name = "types_linux_test",
+    srcs = ["types_linux_test.go"],
+    embed = [":ebpf"],
+    gotags = [
+        "linux_bpf",
+        "test",
+    ],
+    # keep
+    deps = [
+        "//pkg/ebpf/ebpftest:cgo_align",
+    ],
+)
+
+go_test(
+    name = "ebpf_test",
+    srcs = [
+        "btf_test.go",
+        "co_re_telemetry_test.go",
+        "feature_test.go",
+        "ksyms_bpf_test.go",
+        "ksyms_test.go",
+        "lockcontention_test.go",
+        "manager_test.go",
+        "map_cleaner_test.go",
+        "preprocess_test.go",
+        "printk_patcher_test.go",
+        "probes_test.go",
+        "rc_btf_test.go",
+        "time_test.go",
+    ],
+    embed = [":ebpf"],
+    gotags = [
+        "linux_bpf",
+        "test",
+    ],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//comp/core/telemetry/impl/noops",
+        "//pkg/config/remote/data",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/ebpftest",  # keep
+        "//pkg/ebpf/maps",
+        "//pkg/ebpf/names",
+        "//pkg/remoteconfig/state",
+        "//pkg/security/ebpf/kernel",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "//pkg/util/testutil/flake",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
 )

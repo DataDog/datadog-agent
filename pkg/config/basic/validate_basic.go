@@ -7,22 +7,57 @@
 package basic
 
 import (
+	"fmt"
 	"reflect"
-	"runtime"
-	"strings"
 )
 
-// TODO: Callers that are using SetWithoutSource improperly, need to be fixed
-var allowlistCaller = []string{
-	// Fixing this test by updating its use of SetWithoutSources causes other failures, needs investigation
-	"comp/core/autodiscovery/listeners/snmp_test.go",
-
-	// TestNewConfig has an expectedConfig, which has embedded structs pathteststore.Config and connfilter.Config
-	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
-	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
-
-	// TestFullConfig assigns an object usersV3, which is a list of structs
-	"comp/snmptraps/config/def/config_test.go",
+// StructToMap recursively converts a struct to map[string]interface{} using
+// mapstructure tags for keys (falling back to field name). This produces only
+// basic types that pass ValidateBasicTypes. Zero-value fields are omitted.
+func StructToMap(v interface{}) interface{} {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+	switch rv.Kind() {
+	case reflect.Struct:
+		m := make(map[string]interface{})
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			f := rt.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			fv := rv.Field(i)
+			if fv.IsZero() {
+				continue
+			}
+			key := f.Tag.Get("mapstructure")
+			if key == "" || key == "-" {
+				key = f.Name
+			}
+			m[key] = StructToMap(fv.Interface())
+		}
+		return m
+	case reflect.Slice:
+		s := make([]interface{}, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			s[i] = StructToMap(rv.Index(i).Interface())
+		}
+		return s
+	case reflect.Map:
+		m := make(map[string]interface{})
+		iter := rv.MapRange()
+		for iter.Next() {
+			m[fmt.Sprintf("%v", iter.Key().Interface())] = StructToMap(iter.Value().Interface())
+		}
+		return m
+	default:
+		return v
+	}
 }
 
 // ValidateBasicTypes returns true if the argument is made of only basic types
@@ -31,21 +66,7 @@ func ValidateBasicTypes(value interface{}) bool {
 		return true
 	}
 	v := reflect.ValueOf(value)
-	if validate(v) {
-		return true
-	}
-
-	// Allow existing callers that are using SetWithoutSource. Fix these later
-	for _, stackSkip := range []int{2, 3, 4} {
-		_, absfile, _, _ := runtime.Caller(stackSkip)
-		for _, allowSource := range allowlistCaller {
-			if strings.HasSuffix(absfile, allowSource) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return validate(v)
 }
 
 func validate(v reflect.Value) bool {

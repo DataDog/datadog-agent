@@ -35,7 +35,7 @@ metrics:
 `), "reusable:1")
 	require.NoError(t, err)
 
-	mockSender := mocksender.NewMockSender(checkid.ID("reusable:1"))
+	mockSender := mocksender.NewMockSender(t, checkid.ID("reusable:1"))
 	mockSender.SetupAcceptAll()
 
 	require.NoError(t, scraper.Scrape(mockSender))
@@ -56,5 +56,5 @@ auth_type: digest
 
 func TestReusableScraperAPINilScraper(t *testing.T) {
 	var scraper *Scraper
-	require.ErrorContains(t, scraper.Scrape(mocksender.NewMockSender(checkid.ID("reusable:1"))), "openmetrics scraper is not configured")
+	require.ErrorContains(t, scraper.Scrape(mocksender.NewMockSender(t, checkid.ID("reusable:1"))), "openmetrics scraper is not configured")
 }

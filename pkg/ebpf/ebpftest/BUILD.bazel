@@ -1,0 +1,83 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ebpftest",
+    srcs = [
+        "bpfdebug_linux.go",
+        "bpfdebug_unsupported.go",
+        "buildmode.go",
+        "buildmode_linux.go",
+        "buildmode_windows.go",
+        "dumpmaps_helper.go",
+        "fail_log.go",
+        "log.go",
+        "trace_pipe.go",
+        "trace_pipe_linux.go",
+        "version_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    # Sources depend on symbols gated behind //go:build test (log.Default, etc.)
+    # and linux_bpf. go_library has no gotags attribute, so this target cannot
+    # be compiled correctly outside of an embedding go_test. Manual keeps it out
+    # of //... expansion; tests supply the right gotags themselves.
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/log/slog",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# cgo_align.go is strange.
+# If it is included in the library the ebpftest tests will not build. The
+# failure is:
+#     golang cannot use generic function l.TestCgoAlignment without instantiation
+# So we have a distinct library for it, so it can be used from the single test
+# that uses it.
+# keep
+go_library(
+    name = "cgo_align",
+    srcs = ["cgo_align.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "ebpftest_test",
+    srcs = [
+        "buildmode_test.go",
+        "jobenv_test.go",
+        "trace_pipe_linux_test.go",
+    ],
+    embed = [":ebpftest"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

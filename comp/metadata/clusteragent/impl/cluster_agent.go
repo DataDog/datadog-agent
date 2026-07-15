@@ -18,11 +18,11 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -77,7 +77,7 @@ type datadogclusteragent struct {
 // Provides defines the output of the clusteragent metadata component
 type Provides struct {
 	Comp             clusteragent.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 }
 
 // NewComponent creates a new securityagent metadata Component
@@ -140,6 +140,13 @@ func (dca *datadogclusteragent) initMetadata() {
 	dca.metadata["agent_version"] = version.AgentVersion
 	dca.metadata["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	dca.metadata["flavor"] = flavor.GetFlavor()
+
+	podName, err := common.GetSelfPodName()
+	if err != nil {
+		dca.log.Debugf("Could not determine cluster-agent pod name: %s", err)
+		podName = ""
+	}
+	dca.metadata["pod_name"] = podName
 }
 
 func (dca *datadogclusteragent) getFeatureConfigs() {

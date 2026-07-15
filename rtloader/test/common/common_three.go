@@ -36,8 +36,8 @@ func GetRtLoader() *C.rtloader_t {
 			oldPath := os.Getenv("PATH")
 			defer os.Setenv("PATH", oldPath)
 			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
-			// On Windows, the python library file sits at the root of the Python Home
-			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
+			// On Windows, the Python Home is passed directly (as it points to an entire copy of it)
+			pythonHome = C.CString(rlocationPathFromEnv("PYTHON_HOME"))
 			defer C.free(unsafe.Pointer(pythonHome))
 		} else {
 			// Python Home is a level up from the path to the binary

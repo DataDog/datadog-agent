@@ -43,7 +43,7 @@ func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, r.conf.SymDBProxy.AdditionalEndpoints, "datadog.trace_agent.debugger.", []string{}, r.statsd)
+		r.conf.NewHTTPTransport(), target, apiKey, r.conf.SymDBProxy.AdditionalEndpoints, r.conf.MaxRequestBytes, "datadog.trace_agent.debugger.", []string{}, r.statsd)
 	return newSymDBProxy(r.conf, transport, hostTags)
 }
 

@@ -10,10 +10,20 @@ import (
 )
 
 type typeInfo struct {
-	Dynamic_size_class uint32
-	Byte_len           uint32
-	Enqueue_pc         uint32
-	X__padding         uint32
+	Dynamic_size_class                   uint32
+	Byte_len                             uint32
+	Enqueue_pc                           uint32
+	Go_context_context_offset            int32
+	Go_context_key_offset                int32
+	Go_context_value_offset              int32
+	Ddtrace_trace_id_offset              int32
+	Ddtrace_span_id_offset               int32
+	Ddtrace_parent_id_offset             int32
+	Ddtrace_span_context_offset          int32
+	Ddtrace_span_context_trace_id_offset int32
+	Go_context_is_context                uint8
+	Ddtrace_span_kind                    uint8
+	X__padding                           [2]uint8
 }
 type probeParams struct {
 	Throttler_idx         uint32
@@ -35,9 +45,15 @@ type throttlerParams struct {
 	Budget int64
 }
 type stats struct {
-	Cpu_ns        uint64
-	Hit_cnt       uint64
-	Throttled_cnt uint64
+	Cpu_ns                   uint64
+	Hit_cnt                  uint64
+	Throttled_cnt            uint64
+	Recovery_fires           uint64
+	Recovery_evicted_frames  uint64
+	Recovery_submit_failures uint64
+	Recovery_no_open_calls   uint64
+	Recovery_filtered_goexit uint64
+	Recovery_invalid_state   uint64
 }
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
@@ -96,9 +112,9 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x19
 	case compiler.OpcodeExprReadString:
 		return 0x1a
-	case compiler.OpcodeExprCmpEqBase:
+	case compiler.OpcodeExprCmpBase:
 		return 0x1b
-	case compiler.OpcodeExprCmpEqString:
+	case compiler.OpcodeExprCmpString:
 		return 0x1c
 	case compiler.OpcodeConditionCheck:
 		return 0x1d
@@ -118,6 +134,66 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x24
 	case compiler.OpcodeSwissMapCheckSlot:
 		return 0x25
+	case compiler.OpcodeCondNot:
+		return 0x26
+	case compiler.OpcodeCondJumpIfFalse:
+		return 0x27
+	case compiler.OpcodeCondJumpIfTrue:
+		return 0x28
+	case compiler.OpcodeExprLoadDuration:
+		return 0x29
+	case compiler.OpcodeConditionStateInit:
+		return 0x2a
+	case compiler.OpcodeConditionLeafRecord:
+		return 0x2b
+	case compiler.OpcodeConditionLeafLoad:
+		return 0x2c
+	case compiler.OpcodeConditionCheckPreserveError:
+		return 0x2d
+	case compiler.OpcodeConditionLeafComplete:
+		return 0x2e
+	case compiler.OpcodeGoContextChainInit:
+		return 0x2f
+	case compiler.OpcodeGoContextChainHop:
+		return 0x30
+	case compiler.OpcodeProcessGoTime:
+		return 0x31
+	case compiler.OpcodeExprLoadAddress:
+		return 0x32
+	case compiler.OpcodeArrayLoopBegin:
+		return 0x33
+	case compiler.OpcodeArrayLoopEnd:
+		return 0x34
+	case compiler.OpcodeSliceLoopBegin:
+		return 0x35
+	case compiler.OpcodeSliceLoopEnd:
+		return 0x36
+	case compiler.OpcodeSwissMapLoopBegin:
+		return 0x37
+	case compiler.OpcodeSwissMapLoopEnd:
+		return 0x38
+	case compiler.OpcodeExprAdvanceOffset:
+		return 0x39
+	case compiler.OpcodePanicUnwindPrepare:
+		return 0x3a
+	case compiler.OpcodePanicUnwindEvictSlots:
+		return 0x3b
+	case compiler.OpcodeEmitFilterSliceMarker:
+		return 0x3c
+	case compiler.OpcodeEmitFilterMapMarker:
+		return 0x3d
+	case compiler.OpcodeInitFilterSliceLoop:
+		return 0x3e
+	case compiler.OpcodeEmitFilterSliceElement:
+		return 0x3f
+	case compiler.OpcodeFilterSliceAdvance:
+		return 0x40
+	case compiler.OpcodeInitFilterMapLoop:
+		return 0x41
+	case compiler.OpcodeEmitFilterMapElement:
+		return 0x42
+	case compiler.OpcodeFilterMapAdvance:
+		return 0x43
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -121,51 +121,74 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
 
 	// Get existing image to merge SBOM data
-	var finalBom *cyclonedx_v1_4.Bom
-	var finalCompressedSBOM *workloadmeta.CompressedSBOM
-
 	existingImage, err := store.GetImage(imageID)
-	if err == nil && existingImage != nil && existingImage.SBOM != nil {
-		// Decompress existing image SBOM to get CycloneDXBOM
-		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
-		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
-			// Merge runtime properties from new BOM into existing image SBOM
-			finalBom = mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
-			log.Debugf("Merged runtime properties for image %s SBOM", imageID)
-		} else {
-			// Decompression failed or no CycloneDXBOM, use the new one directly
-			finalBom = &newBom
-			if err != nil {
-				log.Warnf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
-			} else {
-				log.Debugf("No existing CycloneDXBOM for image %s, using new SBOM", imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range store.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
 			}
 		}
-	} else {
-		// No existing SBOM on image, use the new one directly
-		finalBom = &newBom
-		if err != nil {
-			log.Debugf("Could not get image %s from store: %v, using new SBOM", imageID, err)
-		} else {
-			log.Debugf("No existing SBOM for image %s, using new SBOM", imageID)
-		}
+	}
+	if existingImage == nil {
+		log.Debugf("Ignoring system-probe SBOM for image %s: image not found in workloadmeta", imageID)
+		return workloadmeta.Event{}, nil
 	}
 
-	// Compress the final merged SBOM for storage
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
-		CycloneDXBOM: finalBom,
-	})
+	if existingImage.SBOM == nil {
+		log.Debugf("Existing image %s has no SBOM, skipping", imageID)
+		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
+	}
+
+	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
+		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	}
+
+	// Decompress existing image SBOM to get CycloneDXBOM
+	existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
+	if err != nil || existingSBOM == nil || existingSBOM.CycloneDXBOM == nil {
+		return workloadmeta.Event{}, fmt.Errorf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
+	}
+
+	// Merge runtime properties from new BOM into existing image SBOM
+	finalBom := mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
+	log.Debugf("Merged runtime properties for image %s SBOM", imageID)
+
+	// Compress the final merged SBOM, preserving scan metadata from the existing
+	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
+	sbomToCompress := &workloadmeta.SBOM{
+		CycloneDXBOM:       finalBom,
+		Status:             existingImage.SBOM.Status,
+		GenerationTime:     existingImage.SBOM.GenerationTime,
+		GenerationDuration: existingImage.SBOM.GenerationDuration,
+		GenerationMethod:   existingImage.SBOM.GenerationMethod,
+		Error:              existingImage.SBOM.Error,
+	}
+
+	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
 
-	// Return event to update the ContainerImageMetadata entity
+	// Emit the enriched SBOM under the resolved image's own EntityID, so it lands
+	// on the same ContainerImageMetadata the runtime collector populates and
+	// workloadmeta merges the two sources. existingImage is looked up by
+	// container.Image.ID, or by matching RepoDigest when the kubelet reports that
+	// ID as a manifest/repo digest, so its ID can differ from imageID.
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.ContainerImageMetadata{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainerImageMetadata,
-				ID:   imageID,
+				ID:   existingImage.EntityID.ID,
 			},
 			SBOM: finalCompressedSBOM,
 		},
@@ -285,32 +308,29 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			updateProperty(RunningAsRootProperty)
 		}
 
-		// If LastAccessProperty is not present in the merged component (neither from
-		// existingBom nor from newBom), set it to zero so downstream consumers can
-		// distinguish "never seen running" from "unknown".
-		hasLastAccess := false
-		for _, prop := range mergedComp.Properties {
-			if prop != nil && prop.Name == LastAccessProperty {
-				hasLastAccess = true
-				break
-			}
-		}
-		if !hasLastAccess {
-			if mergedComp.Properties == nil {
-				mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-			}
-			zeroValue := "0"
-			mergedComp.Properties = append(mergedComp.Properties, &cyclonedx_v1_4.Property{
-				Name:  LastAccessProperty,
-				Value: &zeroValue,
-			})
-			log.Tracef("Set %s to zero for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
-		}
+		// Default any runtime property absent from the merged component so consumers
+		// can distinguish "not in use" from "unknown": a package never seen running
+		// is LastSeenRunning "0", not setuid, and not running as root.
+		ensureProperty(mergedComp, LastAccessProperty, "0")
+		ensureProperty(mergedComp, HasSetSuidBitProperty, "false")
+		ensureProperty(mergedComp, RunningAsRootProperty, "false")
 
 		mergedBom.Components = append(mergedBom.Components, mergedComp)
 	}
 
 	return mergedBom
+}
+
+// ensureProperty appends a property with the given name and value to the
+// component unless it already carries one with that name.
+func ensureProperty(comp *cyclonedx_v1_4.Component, name, value string) {
+	for _, p := range comp.Properties {
+		if p != nil && p.Name == name {
+			return
+		}
+	}
+	v := value
+	comp.Properties = append(comp.Properties, &cyclonedx_v1_4.Property{Name: name, Value: &v})
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
@@ -320,6 +340,7 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},
@@ -404,6 +425,9 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 			log.Warnf("error converting workloadmeta event: %v", err)
 			continue
 		}
+		if workloadmetaEvent.Entity == nil {
+			continue
+		}
 
 		collectorEvent := workloadmeta.CollectorEvent{
 			Type:   workloadmetaEvent.Type,
@@ -414,6 +438,12 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 		collectorEvents = append(collectorEvents, collectorEvent)
 	}
 	return collectorEvents
+}
+
+// IsResyncComplete always returns true because the SBOM collector does not
+// use chunked snapshots.
+func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
+	return true
 }
 
 func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {

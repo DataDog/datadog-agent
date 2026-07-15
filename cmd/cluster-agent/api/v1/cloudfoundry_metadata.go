@@ -11,8 +11,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,7 +32,7 @@ func NewCloudFoundryMetadataHandler(bbsCache cloudfoundry.BBSCacheI, ccCache clo
 	}
 }
 
-func installCloudFoundryMetadataEndpoints(r *mux.Router) {
+func installCloudFoundryMetadataEndpoints(r *http.ServeMux) {
 	// Get the Cloud Foundry caches for the metadata handlers
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
@@ -47,23 +45,22 @@ func installCloudFoundryMetadataEndpoints(r *mux.Router) {
 
 	handler := NewCloudFoundryMetadataHandler(bbsCache, ccCache)
 
-	r.HandleFunc("/tags/cf/apps/{nodeName}", api.WithTelemetryWrapper("getCFAppsMetadataForNode", handler.getCFAppsMetadataForNode)).Methods("GET")
+	r.HandleFunc("GET /tags/cf/apps/{nodeName}", api.WithTelemetryWrapper("getCFAppsMetadataForNode", handler.getCFAppsMetadataForNode))
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.serve_nozzle_data") {
-		r.HandleFunc("/cf/apps/{guid}", api.WithTelemetryWrapper("getCFApplication", handler.getCFApplication)).Methods("GET")
-		r.HandleFunc("/cf/apps", api.WithTelemetryWrapper("getCFApplications", handler.getCFApplications)).Methods("GET")
-		r.HandleFunc("/cf/org_quotas", api.WithTelemetryWrapper("getCFOrgQuotas", handler.getCFOrgQuotas)).Methods("GET")
-		r.HandleFunc("/cf/orgs", api.WithTelemetryWrapper("getCFOrgs", handler.getCFOrgs)).Methods("GET")
+		r.HandleFunc("GET /cf/apps/{guid}", api.WithTelemetryWrapper("getCFApplication", handler.getCFApplication))
+		r.HandleFunc("GET /cf/apps", api.WithTelemetryWrapper("getCFApplications", handler.getCFApplications))
+		r.HandleFunc("GET /cf/org_quotas", api.WithTelemetryWrapper("getCFOrgQuotas", handler.getCFOrgQuotas))
+		r.HandleFunc("GET /cf/orgs", api.WithTelemetryWrapper("getCFOrgs", handler.getCFOrgs))
 	}
 }
 
-func installKubernetesMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {}
+func installKubernetesMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component) {}
 
 // getCFAppsMetadataForNode is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger
 func (h *CloudFoundryMetadataHandler) getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	nodename := vars["nodeName"]
+	nodename := r.PathValue("nodeName")
 
 	if h.bbsCache == nil {
 		log.Errorf("BBS cache is not initialized")
@@ -123,8 +120,7 @@ func (h *CloudFoundryMetadataHandler) getCFApplications(w http.ResponseWriter, r
 // getCFApplication is only used when the PCF firehose nozzle hits the DCA for a single cloudfoundry application
 // It return a single CFApplication with the given guid
 func (h *CloudFoundryMetadataHandler) getCFApplication(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	guid := vars["guid"]
+	guid := r.PathValue("guid")
 
 	if h.ccCache == nil {
 		log.Errorf("CC cache is not initialized")

@@ -12,11 +12,10 @@ package converters
 import (
 	"fmt"
 	"log/slog"
-	"reflect"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
@@ -30,19 +29,26 @@ type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeProfiling         = "profiling"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
+)
+
+// Component type names for otlp_http
+const (
+	componentTypeOtlpHTTP           = "otlp_http"
+	componentTypeOtlpHTTPDeprecated = "otlphttp"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultProfilingName         = "profiling"
+	defaultInfraAttributesName     = componentTypeInfraAttributes + "/" + confmaputils.AutoConfiguredSuffix
+	defaultResourceDetectionName   = componentTypeResourceDetection + "/" + confmaputils.AutoConfiguredSuffix
+	defaultDDHostNameProcessorName = componentTypeDDHostNameProcessor + "/" + confmaputils.AutoConfiguredSuffix
+	defaultProfilingName           = "profiling"
 )
 
 // Reserved component names for internal metrics pipeline
@@ -50,6 +56,7 @@ const (
 	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
 	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
 	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	reservedContainerIDProcessor       = "resource/" + confmaputils.AutoConfiguredSuffix + "-container-attribute"
 	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
@@ -61,11 +68,13 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldDDAPIKey           = "dd-api-key"
-	fieldDDEVPOrigin        = "dd-evp-origin"
-	fieldDDEVPOriginVersion = "dd-evp-origin-version"
-	fieldAPIKey             = "api_key"
-	fieldAppKey             = "app_key"
+	fieldDDAPIKey                = "dd-api-key"
+	fieldDDEVPOrigin             = "dd-evp-origin"
+	fieldDDEVPOriginVersion      = "dd-evp-origin-version"
+	fieldDDOtelMetricConfig      = "dd-otel-metric-config"
+	fieldDDOtelMetricConfigValue = `{"resource_attributes_as_tags": true}`
+	fieldAPIKey                  = "api_key"
+	fieldAppKey                  = "app_key"
 )
 
 // OTEL config path prefixes
@@ -75,131 +84,9 @@ const (
 	pathPrefixProcessors = "processors::"
 )
 
-// isComponentType checks if a component name matches a specific type.
-// OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
-func isComponentType(name, componentType string) bool {
-	return name == componentType || strings.HasPrefix(name, componentType+"/")
-}
-
-// Get retrieves a value of type T from the confMap at the given path.
-// Path segments are separated by "::".
-// Returns the value and true if found and of correct type, zero value and false otherwise.
-// Does not modify the map.
-// Get only logs errors because they are recoverable (ie. Ensure)
-func Get[T any](c confMap, path string) (T, bool) {
-	var zero T
-	currentMap := c
-	pathSlice := strings.Split(path, "::")
-
-	target := pathSlice[len(pathSlice)-1]
-	for _, key := range pathSlice[:len(pathSlice)-1] {
-		childConfMap, exists := currentMap[key]
-		if !exists {
-			slog.Debug("non-existent intermediate map", slog.String("key", key), slog.String("path", path))
-			return zero, false
-		}
-
-		childMap, isMap := childConfMap.(confMap)
-		if !isMap {
-			slog.Debug("intermediate node is not a map", slog.String("key", key), slog.String("path", path))
-			return zero, false
-		}
-
-		currentMap = childMap
-	}
-
-	obj, exists := currentMap[target]
-	if !exists {
-		slog.Debug("leaf element doesn't exist", slog.String("path", path))
-		return zero, false
-	}
-
-	val, ok := obj.(T)
-	return val, ok
-}
-
-// Ensure retrieves a value of type T from the confMap at the given path.
-// If the path doesn't exist, it creates the path with a zero value of type T.
-// Path segments are separated by "::".
-// Returns an error if an intermediate path element exists but is not a map.
-func Ensure[T any](c confMap, path string) (T, error) {
-	if val, ok := Get[T](c, path); ok {
-		return val, nil
-	}
-	var zero T
-	// Special handling for map types
-	// create an empty map instead of nil
-	switch any(zero).(type) {
-	case map[string]any:
-		zero = any(make(map[string]any)).(T)
-	}
-	if err := Set(c, path, zero); err != nil {
-		return zero, fmt.Errorf("failed to ensure path %q: %w", path, err)
-	}
-	return zero, nil
-}
-
-// ensurePath walks the confMap along the given "::" separated path, creating intermediate maps as needed.
-// Returns the final map and the target key name.
-// Returns an error if an intermediate path element exists but is not a map.
-func ensurePath(c confMap, path string) (confMap, string, error) {
-	currentMap := c
-	pathSlice := strings.Split(path, "::")
-
-	target := pathSlice[len(pathSlice)-1]
-	for _, key := range pathSlice[:len(pathSlice)-1] {
-		childConfMap, exists := currentMap[key]
-		if !exists {
-			currentMap[key] = make(confMap)
-			childConfMap = currentMap[key]
-		}
-
-		childMap, isMap := childConfMap.(map[string]any)
-		if !isMap {
-			return nil, "", fmt.Errorf("path element %q is not a map", key)
-		}
-
-		currentMap = childMap
-	}
-
-	return currentMap, target, nil
-}
-
-// Set sets a value of type T in the confMap at the given path.
-// Path segments are separated by "::".
-// Creates intermediate maps as needed.
-// Returns an error if an intermediate path element exists but is not a map.
-func Set[T any](c confMap, path string, value T) error {
-	currentMap, target, err := ensurePath(c, path)
-	if err != nil {
-		return err
-	}
-
-	if existingValue, exists := currentMap[target]; exists {
-		slog.Debug("overwriting config", slog.String("path", path), slog.Any("old", existingValue), slog.Any("new", value))
-	}
-	currentMap[target] = value
-	return nil
-}
-
-// SetDefault sets a default value if the key does not exist or already holds the same value.
-// If the key exists with a different value, the existing value is preserved (user override wins).
-// Path segments are separated by "::".
-// Creates intermediate maps as needed.
-// Returns true if the default is active (set or already matching), false if a user override was preserved.
-// Returns an error only if path traversal fails (intermediate element is not a map).
-func SetDefault[T any](c confMap, path string, value T) (bool, error) {
-	currentMap, target, err := ensurePath(c, path)
-	if err != nil {
-		return false, err
-	}
-
-	if existingValue, exists := currentMap[target]; exists {
-		return reflect.DeepEqual(existingValue, value), nil
-	}
-	currentMap[target] = value
-	return true, nil
+// isComponentTypeOtlpHTTP checks for both the current ("otlp_http") and deprecated ("otlphttp") component names.
+func isComponentTypeOtlpHTTP(name string) bool {
+	return confmaputils.IsComponentType(name, componentTypeOtlpHTTP) || confmaputils.IsComponentType(name, componentTypeOtlpHTTPDeprecated)
 }
 
 // ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.
@@ -218,25 +105,25 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	// Only convert primitive numeric types
 	switch v := val.(type) {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
-		slog.Debug("converting value to string", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
 	case xconfmap.ExpandedValue:
 		// ExpandedValues should not be altered at conversion stage
 		return true
 	default:
-		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
+		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", v)))
 		return false
 	}
 }
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
+// This function emits OTel semantic convention tags and must only be called from the standalone (no-agent) path.
 func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
 	// Check if the processor is already defined in root processors
-	globalProcessors, _ := Get[confMap](conf, "processors")
+	globalProcessors, _ := confmaputils.Get[confMap](conf, "processors")
 	if _, exists := globalProcessors[resourceProcessorName]; exists {
 		return nil, fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
 	}
@@ -247,30 +134,30 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 		}
 	}
 
-	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
+	resourceProcessor, err := confmaputils.Ensure[confMap](conf, "processors::"+resourceProcessorName)
 	if err != nil {
 		return nil, err
 	}
 
-	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
+	attributes, err := confmaputils.Ensure[[]any](resourceProcessor, "attributes")
 	if err != nil {
 		return nil, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
+		"key":    version.OTelProfilerVersionKey,
 		"value":  version.ProfilerVersion,
 		"action": "upsert",
 	}
 
 	attributes = append(attributes, profilerNameElement)
 	attributes = append(attributes, profilerVersionElement)
-	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
+	if err := confmaputils.Set(resourceProcessor, "attributes", attributes); err != nil {
 		return nil, err
 	}
 
@@ -292,50 +179,4 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 	}
 
 	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
-}
-
-// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
-// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
-func PrometheusReceiverConfig() map[string]any {
-	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
-}
-
-// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
-func PrometheusReceiverConfigWithTarget(target string) map[string]any {
-	return confMap{
-		"config": confMap{
-			"scrape_configs": []any{
-				confMap{
-					"job_name":                      "host-profiler-internal",
-					"metric_name_validation_scheme": "legacy",
-					"metric_name_escaping_scheme":   "underscores",
-					"scrape_interval":               "60s",
-					"scrape_protocols":              []any{"PrometheusText0.0.4"},
-					"fallback_scrape_protocol":      "PrometheusText0.0.4",
-					"static_configs": []any{
-						confMap{
-							"targets": []any{target},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// FilterProcessorConfig returns the default configuration for the filter processor
-// that drops internal prometheus scrape metrics from being exported.
-func FilterProcessorConfig() map[string]any {
-	return confMap{
-		"metrics": confMap{
-			"exclude": confMap{
-				"match_type": "regexp",
-				"metric_names": []any{
-					"^scrape_.*$",                            // Prometheus scraper timing metrics
-					"^up$",                                   // Scraper up/down status
-					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
-				},
-			},
-		},
-	}
 }

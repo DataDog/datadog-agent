@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["publishermetadatacache.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/def",
+            "//comp/publishermetadatacache/def",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "//pkg/util/winutil/eventlog/publishermetadatacache",
+        ],
+        "//conditions:default": [],
+    }),
+)

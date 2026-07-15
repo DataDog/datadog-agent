@@ -1,3 +1,6 @@
+require "find"
+require "set"
+
 require "./lib/symbols_inspectors"
 
 module Omnibus
@@ -31,6 +34,7 @@ module Omnibus
 
     # Override the package_me step to sign the binaries just before the packagers run
     def package_me
+      normalize_linux_package_permissions
       if @chmod_before_packaging
         @chmod_before_packaging.each do |file, mode|
           next unless File.exist?(file)
@@ -46,6 +50,76 @@ module Omnibus
       super
     end
 
+    # Build images may make package output paths group-writable, setgid, and
+    # owned by a shared build group so non-root builders can write to them.
+    # Package managers record file metadata, so restore runtime ownership and
+    # remove those build-only sharing bits before generating deb/rpm payloads.
+    def normalize_linux_package_permissions
+      return unless linux_target?
+
+      normalize_package_path(install_dir)
+      Array(extra_package_files).each do |path|
+        normalize_package_path(path)
+      end
+    end
+
+    def normalize_package_path(path)
+      return unless File.exist?(path)
+
+      normalize_path_tree_permissions(path)
+    end
+
+    def normalize_path_tree_permissions(root)
+      if File.directory?(root)
+        Find.find(root) do |path|
+          normalize_path_permissions(path)
+        end
+      else
+        normalize_path_permissions(root)
+      end
+    end
+
+    def external_package_path?(path)
+      expanded_path = File.expand_path(path)
+      project_root = File.expand_path(Omnibus::Config.project_root)
+      install_root = File.expand_path(install_dir)
+
+      !path_inside?(expanded_path, project_root) && !path_inside?(expanded_path, install_root)
+    end
+
+    def path_inside?(path, root)
+      path == root || path.start_with?("#{root}/")
+    end
+
+    def normalize_path_permissions(path)
+      return unless File.exist?(path)
+
+      # The Linux build image may make files group-writable and directories
+      # group-writable/setgid so non-root builders can update shared build
+      # roots. Those bits are build-environment details, not package metadata.
+      # Normalize only real payload paths; symlink permissions are irrelevant
+      # and chmod/chown would affect their targets.
+      stat = File.lstat(path)
+      return if stat.symlink?
+
+      # Keep all existing permission bits except the shared-build bits:
+      # g+w for files, and g+w/setgid for directories.
+      mode = stat.mode & 0o7777
+      normalized_mode = stat.directory? ? mode & ~0o2020 : mode & ~0o020
+
+      # Non-root dev-env builds may write through group permissions without
+      # owning root-created paths, so chmod must also be best-effort.
+      if normalized_mode != mode && (Process.euid == 0 || stat.uid == Process.euid)
+        File.chmod(normalized_mode, path)
+      end
+
+      # Best-effort filesystem cleanup for root-run Omnibus builds. Package
+      # metadata should be root-owned regardless of the builder user, but
+      # non-root builds cannot chown staged files; packager metadata must cover
+      # that case.
+      File.chown(0, 0, path) if Process.euid == 0 && (stat.uid != 0 || stat.gid != 0)
+    end
+
     def ddwcssign(file)
       log.info(self.class.name) { "Signing #{file}" }
 
@@ -58,8 +132,12 @@ module Omnibus
       begin
         attempts += 1
         cmd = Array.new.tap do |arr|
-          arr << "dd-wcs"
+          arr << "C:/devtools/windows-code-signer.exe"
           arr << "sign"
+          if ENV['WINDOWS_SIGNING_CERT'] && ENV['WINDOWS_SIGNING_CONFIG']
+            arr << "--cert" << ENV['WINDOWS_SIGNING_CERT']
+            arr << "--key-info" << ENV['WINDOWS_SIGNING_CONFIG']
+          end
           arr << "\"#{file}\""
         end.join(" ")
 
@@ -67,7 +145,7 @@ module Omnibus
         if status.exitstatus != 0
           log.warn(self.class.name) do
             <<-EOH.strip
-              Failed to sign with dd-wcs (Attempt #{attempts} of #{max_retries})
+              Failed to sign with windows-code-signer.exe (Attempt #{attempts} of #{max_retries})
 
               STDOUT
               ------
@@ -78,9 +156,9 @@ module Omnibus
               #{status.stderr}
             EOH
           end
-          raise "Failed to sign with dd-wcs"
+          raise "Failed to sign with windows-code-signer.exe"
         else
-          log.info(self.class.name) { "Successfully signed #{file} after #{attempts} attempt(s)" }
+          log.info(self.class.name) { "Successfully signed #{file} using windows-code-signer.exe after #{attempts} attempt(s)" }
         end
       rescue => e
         # Retry logic: raise error after 3 attempts
@@ -89,7 +167,7 @@ module Omnibus
           sleep(delay)
           retry
         end
-        raise "Failed to sign with dd-wcs: #{e.message}"
+        raise "Failed to sign with windows-code-signer.exe: #{e.message}"
       end
     end
 
@@ -116,6 +194,45 @@ module Omnibus
     expose :sign_file
     expose :chmod_before_packaging
   end
+
+  # On Windows, the Go linker emits a companion .pdb next to each .exe so
+  # that Windows-native tools (cdb, WPA, xperf) can resolve Go symbols. The
+  # .pdb belongs in the same .debug.zip artifact as the existing .debug
+  # (full-symbols copy of each stripped binary), not in the main MSI/ZIP —
+  # PDBs are large and only useful for crash analysis.
+  #
+  # Hook into the strip lifecycle: before omnibus' Windows stripper zips up
+  # the .debug/ tree, walk every binary registered via
+  # `windows_symbol_stripping_file` and move its `.exe.pdb` companion into
+  # the same `.debug/` location the strip output goes (mirroring the
+  # absolute install_dir path, with the drive letter stripped — same layout
+  # the upstream stripper computes for the .debug files).
+  module StripperPDBRelocator
+    def strip_windows
+      relocate_pdb_companions
+      super
+    end
+
+    private
+
+    def relocate_pdb_companions
+      symboldir = File.join(project.install_dir, ".debug")
+      Array(project.windows_symbol_stripping_files).each do |executable|
+        source_exe = executable.strip
+        pdb = "#{source_exe}.pdb"
+        next unless File.exist?(pdb)
+
+        rel = pdb.dup
+        rel = rel[2..rel.length - 1] if rel[1] == ":"
+        target = File.join(symboldir, rel)
+
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.mv(pdb, target)
+      end
+    end
+  end
+
+  Stripper.prepend(StripperPDBRelocator)
 
   # Notarize and staple the .pkg after it is signed. Without this, Gatekeeper
   # rejects the .pkg when extracted from the .dmg (e.g. by Homebrew), because
@@ -163,6 +280,68 @@ module Omnibus
 
   Packager::PKG.prepend PackagerPKGNotarizer
 
+  # The legacy Omnibus RPM packager builds its file list by globbing the staging
+  # tree. When Omnibus stages an external extra_package_file, it creates parent
+  # directories in that tree as an implementation detail. Without filtering,
+  # those synthetic parents are emitted as %dir entries, so our RPM starts
+  # owning distro-owned directories like /usr/lib/systemd or /lib/systemd/system.
+  #
+  # Keep explicit extra_package_file entries, with metadata overrides for shared
+  # external directories that must match other Datadog RPMs, but drop only the
+  # parent directories created to stage external extra_package_file paths.
+  module PackagerRPMExtraPackageParentFilter
+    SHARED_EXTERNAL_DIRECTORY_ATTRIBUTES = {
+      "/var/log/datadog" => "0755,root,root",
+    }.freeze
+
+    def build_filepath(path, debug = false)
+      filepath = "/" + path.gsub("#{build_dir(debug)}/", "")
+      shared_directory_entry = shared_external_directory_entry(path, filepath)
+      return shared_directory_entry if shared_directory_entry
+      return "" if extra_package_parent_directory?(filepath)
+
+      super
+    end
+
+    private
+
+    def shared_external_directory_entry(path, filepath)
+      attributes = SHARED_EXTERNAL_DIRECTORY_ATTRIBUTES[File.expand_path(filepath)]
+      return unless attributes && File.directory?(path)
+
+      "%dir %attr(#{attributes}) #{rpm_safe(filepath)}"
+    end
+
+    def extra_package_parent_directory?(filepath)
+      extra_package_parent_directories.include?(File.expand_path(filepath))
+    end
+
+    def extra_package_parent_directories
+      @extra_package_parent_directories ||= begin
+        dirs = Set.new
+        project_root = File.expand_path(Omnibus::Config.project_root)
+        install_root = File.expand_path(project.install_dir)
+        Array(project.extra_package_files).each do |path|
+          expanded_path = File.expand_path(path)
+          next if path_inside?(expanded_path, project_root) || path_inside?(expanded_path, install_root)
+
+          parent = File.dirname(expanded_path)
+          while parent != "/"
+            dirs.add(parent)
+            parent = File.dirname(parent)
+          end
+        end
+        dirs
+      end
+    end
+
+    def path_inside?(path, root)
+      path == root || path.start_with?("#{root}/")
+    end
+  end
+
+  Packager::RPM.prepend PackagerRPMExtraPackageParentFilter
+
   # Open the Builder class to allow adding custom DSL methods
   class Builder
     #
@@ -172,5 +351,6 @@ module Omnibus
       command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
     end
     expose :command_on_repo_root
+
   end
 end

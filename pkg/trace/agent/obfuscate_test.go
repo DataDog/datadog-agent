@@ -41,6 +41,8 @@ func TestObfuscateStatsGroup(t *testing.T) {
 			Resource: resource,
 		}
 	}
+	agnt, stop := agentWithDefaults()
+	defer stop()
 	for _, tt := range []struct {
 		in  *pb.ClientGroupedStats // input stats
 		out string                 // output obfuscated resource
@@ -51,8 +53,6 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		{statsGroup("valkey", "ADD 1, 2"), "ADD"},
 		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
 	} {
-		agnt, stop := agentWithDefaults()
-		defer stop()
 		agnt.obfuscateStatsGroup(tt.in)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}
@@ -323,6 +323,45 @@ func TestObfuscateConfig(t *testing.T) {
 					CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 				}))
 		}
+	})
+}
+
+// TestObfuscateSpan_openSearchWhenElasticEnabledWithoutElasticBody documents a bug in
+// obfuscateSpanInternal: when both elasticsearch and opensearch JSON obfuscation are enabled,
+// the code returns early if elasticsearch.body is missing and never obfuscates opensearch.body.
+func TestObfuscateSpan_openSearchWhenElasticEnabledWithoutElasticBody(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		ES:         obfuscate.JSONConfig{Enabled: true},
+		OpenSearch: obfuscate.JSONConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	raw := `{"role": "database"}`
+	want := `{"role":"?"}`
+	span := &pb.Span{
+		Type: "opensearch",
+		Meta: map[string]string{
+			"opensearch.body": raw,
+		},
+	}
+	agnt.ObfuscateSpan(span)
+	assert.Equal(t, want, span.Meta["opensearch.body"],
+		"opensearch.body should still be obfuscated when elasticsearch.body is absent")
+
+	t.Run("elasticsearch-span-type-same-bug", func(t *testing.T) {
+		span := &pb.Span{
+			Type: "elasticsearch",
+			Meta: map[string]string{
+				"opensearch.body": raw,
+			},
+		}
+		agnt.ObfuscateSpan(span)
+		assert.Equal(t, want, span.Meta["opensearch.body"],
+			"OpenSearch-instrumented spans may use type elasticsearch with only opensearch.body")
 	})
 }
 

@@ -10,7 +10,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,7 +17,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -27,7 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
 )
 
 func getSampleBinaryPath() (string, error) {
@@ -101,11 +101,6 @@ func runBenchmark() error {
 	}
 	defer func() { program.Close() }()
 
-	sampleLink, err := link.OpenExecutable(binPath)
-	if err != nil {
-		return err
-	}
-
 	// Launch the sample service, inject the BPF program and collect the output.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -121,36 +116,14 @@ func runBenchmark() error {
 	if err != nil {
 		return err
 	}
-
-	textSection := obj.Section(".text")
-	if textSection == nil {
-		return errors.New("no .text section found")
-	}
-	var allAttached []link.Link
-	for _, attachpoint := range program.Attachpoints {
-		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
-		addr := attachpoint.PC - textSection.Addr + textSection.Offset
-		fmt.Printf("attaching @0x%x cookie=%d\n", addr, attachpoint.Cookie)
-		attached, err := sampleLink.Uprobe(
-			"",
-			program.BpfProgram,
-			&link.UprobeOptions{
-				PID:     sampleProc.Process.Pid,
-				Address: addr,
-				Offset:  0,
-				Cookie:  attachpoint.Cookie,
-			},
-		)
-		if err != nil {
-			return err
-		}
-		allAttached = append(allAttached, attached)
+	pid := process.ID{PID: int32(sampleProc.Process.Pid)}
+	attached, err := uprobe.Attach(program, process.Executable{Path: binPath}, pid)
+	if err != nil {
+		return err
 	}
 	defer func() {
-		for _, a := range allAttached {
-			if err := a.Close(); err != nil {
-				fmt.Printf("error closing link: %v\n", err)
-			}
+		if err := attached.Detach(nil); err != nil {
+			fmt.Printf("error detaching: %v\n", err)
 		}
 	}()
 

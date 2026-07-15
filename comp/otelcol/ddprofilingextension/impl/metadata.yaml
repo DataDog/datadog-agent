@@ -1,0 +1,9 @@
+type: ddprofiling
+display_name: Datadog Profiling Extension
+
+status:
+  class: extension
+  stability:
+    development: [extension]
+  codeowners:
+    active: [DataDog/opentelemetry]

@@ -32,15 +32,15 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
-	mockConfig.SetWithoutSource("kubelet_client_crt", "")
-	mockConfig.SetWithoutSource("kubelet_client_key", "")
-	mockConfig.SetWithoutSource("kubelet_client_ca", "")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10250)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10255)
-	mockConfig.SetWithoutSource("kubernetes_pod_expiration_duration", 15*60)
+	mockConfig.SetInTest("kubelet_client_crt", "")
+	mockConfig.SetInTest("kubelet_client_key", "")
+	mockConfig.SetInTest("kubelet_client_ca", "")
+	mockConfig.SetInTest("kubelet_tls_verify", true)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", 10250)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", 10255)
+	mockConfig.SetInTest("kubernetes_pod_expiration_duration", 15*60)
 }
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
@@ -53,10 +53,10 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)

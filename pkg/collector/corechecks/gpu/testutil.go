@@ -24,15 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 // WithGPUConfigEnabled enables the GPU check configuration for testing
 // and registers a cleanup to disable it after the test completes.
 func WithGPUConfigEnabled(t testing.TB) {
 	t.Helper()
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+	pkgconfigsetup.Datadog().SetInTest("gpu.enabled", true)
 	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("gpu.enabled", false)
 	})
 }
 
@@ -42,7 +43,15 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 	metricsByName := make(map[string][]gpuspec.MetricObservation)
 
 	for _, call := range mockSender.Mock.Calls {
-		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
+		metricType := ""
+		switch call.Method {
+		case "GaugeWithTimestamp":
+			metricType = "gauge"
+		case "CountWithTimestamp":
+			metricType = "counter"
+		case "HistogramBucket":
+			metricType = "histogram"
+		default:
 			continue
 		}
 
@@ -56,23 +65,39 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 		}
 
 		specMetricName := strings.TrimPrefix(metricName, "gpu.")
-		tags := []string{}
-		if len(call.Arguments) > 3 {
-			if callTags, ok := call.Arguments.Get(3).([]string); ok {
-				tags = append([]string(nil), callTags...)
-			}
-		}
 		var value *float64
-		if len(call.Arguments) > 1 {
-			if metricValue, ok := call.Arguments.Get(1).(float64); ok {
-				value = &metricValue
+		tags := []string{}
+
+		if metricType == "histogram" {
+			if len(call.Arguments) > 1 {
+				if metricValue, ok := call.Arguments.Get(1).(int64); ok {
+					floatValue := float64(metricValue)
+					value = &floatValue
+				}
+			}
+			if len(call.Arguments) > 6 {
+				if callTags, ok := call.Arguments.Get(6).([]string); ok {
+					tags = append([]string(nil), callTags...)
+				}
+			}
+		} else {
+			if len(call.Arguments) > 1 {
+				if metricValue, ok := call.Arguments.Get(1).(float64); ok {
+					value = &metricValue
+				}
+			}
+			if len(call.Arguments) > 3 {
+				if callTags, ok := call.Arguments.Get(3).([]string); ok {
+					tags = append([]string(nil), callTags...)
+				}
 			}
 		}
 
 		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.MetricObservation{
-			Name:  specMetricName,
-			Tags:  tags,
-			Value: value,
+			Name:       specMetricName,
+			MetricType: metricType,
+			Tags:       tags,
+			Value:      value,
 		})
 	}
 
@@ -89,6 +114,7 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			assert.Zero(t, status.Missing, "metric %s missing in %d cases", metricName, status.Missing)
 			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
 			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
+			assert.Zero(t, status.WrongType, "metric %s wrong type in %d cases", metricName, status.WrongType)
 			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
 
 			for tag, tagResult := range status.TagResults {
@@ -98,6 +124,11 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			}
 		})
 	}
+}
+
+// InjectXIDEventsForTest injects device events into the check's device event gatherer.
+func (c *Check) InjectXIDEventsForTest(uuid string, events []ddnvml.DeviceEventData) error {
+	return c.deviceEvtGatherer.InjectEventsForTest(uuid, events)
 }
 
 func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode, validateDeviceCount bool) {

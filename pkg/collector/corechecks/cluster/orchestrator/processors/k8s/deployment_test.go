@@ -48,7 +48,7 @@ func TestDeploymentHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewDeploymentHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -116,16 +116,16 @@ func TestDeploymentHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.Deployment)
 	assert.True(t, ok)
 	assert.Equal(t, "deployment-1", resource1.Name)
-	assert.NotSame(t, deployment1, resource1) // Should be a copy
+	assert.Same(t, deployment1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.Deployment)
 	assert.True(t, ok)
 	assert.Equal(t, "deployment-2", resource2.Name)
-	assert.NotSame(t, deployment2, resource2) // Should be a copy
+	assert.Same(t, deployment2, resource2) // ResourceList returns raw informer references
 }
 
 func TestDeploymentHandlers_ResourceUID(t *testing.T) {
@@ -466,4 +466,14 @@ func createTestDeployment(name, namespace string) *appsv1.Deployment {
 			},
 		},
 	}
+}
+
+func TestDeploymentHandlers_CloneResource(t *testing.T) {
+	handlers := &DeploymentHandlers{}
+	original := createTestDeployment("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.Deployment)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

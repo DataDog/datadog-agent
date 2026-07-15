@@ -10,14 +10,14 @@ import (
 	"time"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -30,13 +30,18 @@ type RuntimeReporter struct {
 	logChan   chan *message.Message
 }
 
-// ReportRaw reports raw (bytes) events to the intake
-func (r *RuntimeReporter) ReportRaw(content []byte, service string, timestamp time.Time, tags ...string) {
+// ReportRaw reports raw (bytes) events to the intake.
+// If hostname is empty, the reporter's default hostname is used.
+func (r *RuntimeReporter) ReportRaw(content []byte, service string, hostname string, timestamp time.Time, tags ...string) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
 	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, timestamp.UnixNano())
-	msg.Hostname = r.hostname
+	if hostname != "" {
+		msg.Hostname = hostname
+	} else {
+		msg.Hostname = r.hostname
+	}
 	r.logChan <- msg
 }
 

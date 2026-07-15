@@ -1,7 +1,109 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# gazelle:exclude rust/include
-# gazelle:exclude rust/sd-agent
-# gazelle:exclude rust/src
-# gazelle:exclude rust/testdata
-# gazelle:exclude rust/tests
+go_library(
+    name = "module",
+    srcs = [
+        "doc.go",
+        "impl_linux.go",
+        "impl_rust_linux.go",
+        "impl_rust_stub_linux.go",
+        "impl_services_rust_init_linux.go",
+        "impl_services_rust_init_stub_linux.go",
+        "impl_services_rust_log_bridge_linux.go",
+        "impl_services_rust_logger_linux.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:android": [
+            "-Lpkg/discovery/module/pkg/discovery/module/rust -Lpkg/discovery/module/pkg/discovery/module/rust/target/release -ldd_discovery",
+        ],
+        "@rules_go//go/platform:linux": [
+            "-Lpkg/discovery/module/pkg/discovery/module/rust -Lpkg/discovery/module/pkg/discovery/module/rust/target/release -ldd_discovery",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:android": [
+            "-Ipkg/discovery/module/pkg/discovery/module/rust/include",
+        ],
+        "@rules_go//go/platform:linux": [
+            "-Ipkg/discovery/module/pkg/discovery/module/rust/include",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/module",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/core",
+            "//pkg/discovery/model",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/system-probe/api/module",
+            "//pkg/system-probe/config/types",
+            "//pkg/system-probe/utils",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/core",
+            "//pkg/discovery/model",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/system-probe/api/module",
+            "//pkg/system-probe/config/types",
+            "//pkg/system-probe/utils",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "module_test",
+    srcs = [
+        "impl_linux_test.go",
+        "impl_services_rust_logger_linux_test.go",
+        "impl_services_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":module"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/discovery/core",
+        "//pkg/discovery/language",
+        "//pkg/discovery/model",
+        "//pkg/discovery/tracermetadata/model",
+        "//pkg/discovery/usm",
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/tls/nodejs",
+        "//pkg/network/usm/sharedlibraries/testutil",
+        "//pkg/network/usm/testutil",
+        "//pkg/system-probe/config",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_prometheus_procfs//:procfs",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_vishvananda_netns//:netns",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/module/splite",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/api/module",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//process",
+            "@com_github_stretchr_testify//suite",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/module/splite",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/api/module",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//process",
+            "@com_github_stretchr_testify//suite",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

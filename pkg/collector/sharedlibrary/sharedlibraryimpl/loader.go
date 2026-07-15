@@ -44,10 +44,13 @@ func (*CheckLoader) String() string {
 }
 
 // Load returns a Shared Library check
-func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
+func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	// we need to dynamically compute the shared libraries path because their extensions are platform dependent
 	// we could also have collisions with existing shared libraries
-	libPath := sl.loader.ComputeLibraryPath(config.Name)
+	libPath, err := sl.loader.ComputeLibraryPath(config.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load shared library check %q: %w", config.Name, err)
+	}
 
 	// open the library and get pointers to its symbols through the library loader
 	lib, err := sl.loader.Open(libPath)
@@ -64,7 +67,11 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	configDigest := config.FastDigest()
 
 	// pass the configuration to the check
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source, config.Provider); err != nil {
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource, config.Provider); err != nil {
 		return c, err
 	}
 

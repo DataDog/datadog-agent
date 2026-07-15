@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"sync"
 
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
@@ -56,7 +57,8 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp telemetry.Component
+	Comp          telemetry.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent creates a new telemetry component.
@@ -70,10 +72,13 @@ func NewComponent(deps Requires) Provides {
 			return nil
 		},
 	})
-	return Provides{Comp: comp}
+	return Provides{
+		Comp:          comp,
+		FlareProvider: flaretypes.NewProvider(comp.fillFlare),
+	}
 }
 
-func newTelemetry() telemetry.Component {
+func newTelemetry() *telemetryImpl {
 	return &telemetryImpl{
 		mutex:    &mutex,
 		registry: registry,
@@ -262,6 +267,17 @@ func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, e
 	defer t.mutex.Unlock()
 
 	return t.registry.Gather()
+}
+
+func (t *telemetryImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	// Use defaultGather=false to match the /telemetry HTTP endpoint (Handler), which
+	// serves t.registry. Most agent metrics use DefaultOptions and go to t.registry;
+	// only metrics with Options{DefaultMetric:true} go to defaultRegistry (defaultGather=true).
+	text, err := t.GatherText(false, telemetry.NoFilter)
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("telemetry.log", []byte(text))
 }
 
 func (t *telemetryImpl) GatherText(defaultGather bool, filter telemetry.MetricFilter) (string, error) {

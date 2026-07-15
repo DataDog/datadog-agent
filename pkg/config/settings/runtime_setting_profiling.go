@@ -72,13 +72,13 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 	if profile {
 		// populate site
 		s := pkgconfigsetup.DefaultSite
-		if config.IsSet(l.ConfigPrefix + "site") {
+		if config.IsConfigured(l.ConfigPrefix + "site") {
 			s = config.GetString(l.ConfigPrefix + "site")
 		}
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		if config.IsSet(l.ConfigPrefix + "internal_profiling.profile_dd_url") {
+		if config.IsConfigured(l.ConfigPrefix + "internal_profiling.profile_dd_url") {
 			site = config.GetString(l.ConfigPrefix + "internal_profiling.profile_dd_url")
 		}
 

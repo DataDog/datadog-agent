@@ -13,15 +13,16 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
@@ -50,6 +51,7 @@ func (f *mockSenderFactory) NewTCPSender(
 	_ string,
 	queueCount int,
 	workersPerQueue int,
+	_ metrics.PipelineMonitor,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue
@@ -76,6 +78,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	_ secrets.Component,
+	_ metrics.PipelineMonitor,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue

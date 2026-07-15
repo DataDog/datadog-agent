@@ -48,7 +48,7 @@ secret_backend_config:
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 				ec2.WithAgentOptions(
-					agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFile, true, windowsPermission),
+					agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFileYAML, true, windowsPermission),
 					agentparams.WithAgentConfig(config),
 					agentparams.WithSkipAPIKeyInConfig(),
 				),

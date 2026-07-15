@@ -34,10 +34,9 @@ Important:
   so Cluster Agent cannot directly fix spot-assigned pods that fail to schedule — it must evict them and let the workload to recreate them.
 - spot nodes carry a `NoSchedule` taint to repel unrelated workloads.
 
-The spot node label is currently Karpenter-specific [[2]](#karpenter-nodepool):
-- label: `karpenter.sh/capacity-type=spot`
-
-The spot node taint uses the Datadog namespace and must be configured separately on spot nodes:
+Both the nodeSelector and the taint use the same Datadog-namespaced key and must be configured on spot nodes
+(see the Karpenter NodePool example [[2]](#karpenter-nodepool) for how to set them automatically):
+- label: `autoscaling.datadoghq.com/capacity-type=interruptible`
 - taint: `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule`
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
@@ -60,6 +59,9 @@ metadata:
   name: spot
 spec:
   template:
+    metadata:
+      labels:
+        autoscaling.datadoghq.com/capacity-type: interruptible
     spec:
       requirements:
         - key: karpenter.sh/capacity-type
@@ -93,11 +95,8 @@ Rebalancing handles the following cases:
 
 ### TODO
 
-- [ ] Complete StatefulSet support (needs patch permission)
 - [ ] Implement Argo Rollout support
 - [ ] Implement CronJob support (needs patch permission)
-- [ ] Emit Kubernetes events
-- [ ] Add metrics and observability
 - [ ] Add spot-related labels to the agent's out-of-the-box Kubernetes tag extraction so they are automatically collected as tags on all telemetry.
   See [out-of-the-box tags documentation](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags)
   and the corresponding configuration in this repository.
@@ -191,7 +190,7 @@ nginx-6f8f465d8c-sn6dw   1/1     Running   0          5m29s
 ## Scheduler components
 
 - `scheduler` — admission decisions, fallback, rebalancing
-- `workloadController` — watches workloads, syncs config and pods
+- `workloadController` — watches workloads, syncs config and pods (once)
 - `podTracker` — counts spot / on-demand pods per workload
 - `spotConfigStore` — per-workload spot config key-value store
 - `podLister` — lists pods from workloadmeta store
@@ -215,7 +214,7 @@ graph TD
     end
 
     Webhook -->|"CREATE / DELETE Pod"| S
-    WLM -->|"Pod set / unset events"| PT
+    WLM -->|"addedOrUpdated, deleted"| PT
 
     S -->|"getConfig, disable"| CS
     S -->|"admitNewPod, deletePod"| PT
@@ -227,7 +226,7 @@ graph TD
     K8sAPI -->|"WATCH workloads"| WC
 
     WC -->|"setConfig, deleteConfig"| CS
-    WC -->|"addedOrUpdated, untrack"| PT
+    WC -->|"untrack, addedOrUpdated (once)"| PT
     WC -->|"listPods"| PL
 
     PL -->|"ListKubernetesPods"| WLM

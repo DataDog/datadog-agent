@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -66,8 +66,8 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 	})
 }
 
-func TestNewConverterForAgent(t *testing.T) {
-	_, err := NewConverterForAgent(Requires{})
+func TestNewComponent(t *testing.T) {
+	_, err := NewComponent(Requires{})
 	assert.NoError(t, err)
 }
 
@@ -143,6 +143,12 @@ func TestConvert(t *testing.T) {
 			provided:       "extensions/other-extensions/datadog-site/config.yaml",
 			expectedResult: "extensions/other-extensions/datadog-site/config-result.yaml",
 			agentConfig:    "extensions/other-extensions/datadog-site/acfg.yaml",
+		},
+		{
+			name:           "extensions/other-extensions/dd-wired",
+			provided:       "extensions/other-extensions/dd-wired/config.yaml",
+			expectedResult: "extensions/other-extensions/dd-wired/config-result.yaml",
+			agentConfig:    "extensions/other-extensions/dd-wired/acfg.yaml",
 		},
 		{
 			name:           "extensions/no-changes/datadog",
@@ -466,7 +472,7 @@ func TestConvert(t *testing.T) {
 					r.Hostname = &mockHostname{hostname: "test-host"}
 				}
 			}
-			converter, err := NewConverterForAgent(r)
+			converter, err := NewComponent(r)
 			assert.NoError(t, err)
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
@@ -514,7 +520,7 @@ func TestConvert(t *testing.T) {
 func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "123456")
 	t.Setenv("DD_SITE", "")
-	converter, err := NewConverterForAgent(Requires{Conf: config.NewMock(t), Hostname: &mockHostname{hostname: "test-host"}})
+	converter, err := NewComponent(Requires{Conf: config.NewMock(t), Hostname: &mockHostname{hostname: "test-host"}})
 	assert.NoError(t, err)
 
 	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))

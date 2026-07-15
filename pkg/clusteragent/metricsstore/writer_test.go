@@ -19,7 +19,7 @@ import (
 )
 
 func TestWriteAll_Leader(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", "test.gauge", 42.0, "", []string{"tag1:value1"}).Return()
 	mockSender.On("Count", "test.count", 10.0, "", []string{"tag2:value2"}).Return()
 	mockSender.On("Commit").Return()
@@ -43,7 +43,7 @@ func TestWriteAll_Leader(t *testing.T) {
 }
 
 func TestWriteAll_NonLeader(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	store := NewMetricsStore(func(_ interface{}) StructuredMetrics {
 		return StructuredMetrics{
@@ -61,7 +61,7 @@ func TestWriteAll_NonLeader(t *testing.T) {
 }
 
 func TestWriteAll_EmptyStore(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Commit").Return()
 
 	store := NewMetricsStore(func(_ interface{}) StructuredMetrics { return nil }, mockSender, func() bool { return true }, nil)
@@ -73,7 +73,7 @@ func TestWriteAll_EmptyStore(t *testing.T) {
 }
 
 func TestWriteAll_MultipleMetrics(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -100,7 +100,7 @@ func TestWriteAll_MultipleMetrics(t *testing.T) {
 }
 
 func TestWriteAll_GlobalTagsAppended(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", "test.gauge", 1.0, "", []string{"metric:tag", "global:tag"}).Return()
 	mockSender.On("Commit").Return()
 
@@ -119,7 +119,7 @@ func TestWriteAll_GlobalTagsAppended(t *testing.T) {
 }
 
 func TestWriteAllPeriodically_CancelsOnContext(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 

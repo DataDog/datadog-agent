@@ -8,6 +8,7 @@
 package output
 
 // #define CGO
+// #define uint8_t unsigned char
 // #define uint16_t unsigned short
 // #define uint32_t unsigned int
 // #define uint64_t unsigned long long
@@ -16,3 +17,4 @@ import "C"
 
 type EventHeader C.di_event_header_t
 type DataItemHeader C.di_data_item_header_t
+type DropNotification C.di_drop_notification_t

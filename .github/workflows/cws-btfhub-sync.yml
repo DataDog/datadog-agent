@@ -47,13 +47,13 @@ jobs:
           df -h
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.base_branch || 'main' }}
           persist-credentials: false
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
@@ -66,7 +66,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: '.go-version'
 
@@ -87,7 +87,7 @@ jobs:
           dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
           path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
@@ -99,7 +99,7 @@ jobs:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.base_branch || 'main' }}
 
@@ -109,7 +109,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: '.go-version'
 
@@ -136,7 +136,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.cws-btfhub-sync.create-pr
 
-      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
         with:
           token: ${{ steps.octo-sts.outputs.token }}

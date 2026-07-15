@@ -17,6 +17,7 @@ import (
 	"time"
 
 	dockerclient "github.com/moby/moby/client"
+	"go.uber.org/atomic"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -91,6 +92,13 @@ type Tailer struct {
 	// stop: writing a value to this channel will cause the readForever component to stop
 	stop chan struct{}
 
+	// stopping is set before Stop() closes/cancels the reader. readForever uses
+	// it to distinguish a deliberate shutdown (where the reader's body is closed
+	// on purpose) from a reader/connection close that happens during normal
+	// operation, so it only terminates on the former and reconnects on the
+	// latter. See readForever for the full rationale (AGENT-16261).
+	stopping *atomic.Bool
+
 	// done: a value is written to this channel when the message-forwarder
 	// component is finished.
 	done chan struct{}
@@ -147,6 +155,7 @@ func NewAPITailer(
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
+		stopping:           atomic.NewBool(false),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
@@ -178,6 +187,7 @@ func NewDockerTailer(
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
+		stopping:           atomic.NewBool(false),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
@@ -199,6 +209,12 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", t.ContainerID)
 
 	t.registry.SetTailed(t.Identifier(), false)
+
+	// Mark the tailer as stopping BEFORE closing/cancelling the reader below, so
+	// that the reader-close and context-cancel errors those calls provoke in
+	// readForever are recognized as an intentional shutdown rather than a
+	// stream close to recover from.
+	t.stopping.Store(true)
 
 	// signal the readForever component to stop
 	t.stop <- struct{}{}
@@ -259,6 +275,7 @@ func (t *Tailer) setupReader() error {
 	return err
 }
 
+// tryRestartReader reconnects the reader by setting up a fresh one.
 func (t *Tailer) tryRestartReader(reason string) error {
 	log.Debugf("%s for container %v", reason, t.ContainerID)
 	t.wait()
@@ -313,10 +330,34 @@ func (t *Tailer) readForever() {
 			t.Source.RecordBytes(int64(n))
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
-				case isReaderClosed(err):
-					// The reader has been closed during the shut down process
-					// of the tailer, stop reading
-					return
+				case isReaderClosed(err), isClosedConnError(err):
+					// These errors mean the underlying log stream was closed:
+					// "http: read on closed response body" (isReaderClosed) or
+					// "use of closed network connection" (isClosedConnError).
+					//
+					// During a deliberate Stop() we close/cancel the reader on
+					// purpose, so these are expected and we must terminate.
+					//
+					// During normal operation, however, the same errors are
+					// produced by the moby client (github.com/moby/moby/client):
+					// it wraps the log stream in a cancelReadCloser that closes
+					// the HTTP body whenever the read context is cancelled. Our
+					// read timeout cancels that context on every idle stream,
+					// and the cancelled read then races between surfacing as
+					// context.Canceled (handled below) and, when the body close
+					// wins, one of these "closed" errors. They also occur when
+					// the daemon simply drops the connection. In all of those
+					// non-stopping cases the tailer must reconnect: returning
+					// here would silently kill the tailer with no restart and no
+					// further "Stop tailing container" log, blacking out the
+					// container's logs until its source is removed (AGENT-16261).
+					if t.stopping.Load() {
+						return
+					}
+					if err := t.tryRestartReader("Restarting reader after the log stream was closed"); err != nil {
+						return
+					}
+					continue
 				case isContextCanceled(err):
 					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
 					// before starting to send any data when it has stored several large log files.
@@ -325,9 +366,6 @@ func (t *Tailer) readForever() {
 						return
 					}
 					continue
-				case isClosedConnError(err):
-					// This error is raised when the agent is stopping
-					return
 				case isFileAlreadyClosed(err):
 					// This error seems to be returned by Docker for Windows
 					// See: https://github.com/microsoft/go-winio/blob/master/file.go
@@ -393,9 +431,11 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	tailer.setLastSince(output.ParsingExtra.Timestamp)
 	origin.Identifier = tailer.Identifier()
 
+	providerTags := tailer.tagProvider.GetTags()
+
 	var tags []string
 	tags = append(tags, output.ParsingExtra.Tags...)
-	tags = append(tags, tailer.tagProvider.GetTags()...)
+	tags = append(tags, providerTags...)
 	origin.SetTags(tags)
 
 	// XXX(remy): is it OK recreating a message here?

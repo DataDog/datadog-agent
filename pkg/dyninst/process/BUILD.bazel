@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "process",
+    srcs = [
+        "config.go",
+        "info.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/process",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/ir"],
+)

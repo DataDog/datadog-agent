@@ -59,6 +59,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -93,6 +94,12 @@ TEST_HELPER_CBINS = ["cudasample"]
 RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
+
+# Rust static libraries that must be installed next to the Go source so cgo can
+# link against them. Maps source package -> install destination directory.
+RUST_STATIC_LIBS = {
+    "pkg/discovery/module/rust": "pkg/discovery/module/rust",
+}
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -924,6 +931,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:lock_contention",
     "//pkg/ebpf/c:ksyms_iter",
     "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
     "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
@@ -947,6 +956,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/dyninst/ebpf:dyninst_event-debug",
     "//pkg/ebpf/testdata/c:logdebug-test",
     "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:sleepable",
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]
@@ -1230,7 +1240,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     }
 
     platform_flags = []
-    if arch.kmt_arch in platform_map:
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
@@ -1239,6 +1249,14 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
         bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+
+    # Install Rust static libraries that cgo needs to find at link time. These
+    # always land in the source tree (alongside the Go files) rather than in
+    # `output_dir`, because cgo LDFLAGS reference them via ${SRCDIR}.
+    for source_path, lib_dest in RUST_STATIC_LIBS.items():
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1694,6 +1712,19 @@ def save_build_outputs(ctx, destfile):
             shutil.copy2(gofile, outdir)
             outfiles.append(relpath)
             count += 1
+
+        # Include Rust static libraries (built by build_rust_binaries) so that
+        # downstream jobs running `build-sysprobe-binary` — which does not
+        # invoke bazel — can still link cgo code that references them.
+        for _, lib_dest in RUST_STATIC_LIBS.items():
+            for afile in glob.glob(os.path.join(lib_dest, "*.a")):
+                relpath = os.path.relpath(afile)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(afile, outdir)
+                outfiles.append(relpath)
+                count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")

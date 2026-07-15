@@ -19,10 +19,10 @@ import (
 )
 
 // NewFactory creates a factory for the receiver.
-func NewFactory() receiver.Factory {
+func NewFactory(profilerName string) receiver.Factory {
 	return xreceiver.NewFactory(
 		component.MustNewType("profiling"),
-		defaultConfig,
+		func() component.Config { return defaultConfig(profilerName) },
 		xreceiver.WithProfiles(createProfilesReceiver, component.StabilityLevelAlpha))
 }
 

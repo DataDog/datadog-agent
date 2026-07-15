@@ -91,6 +91,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		metrics.MetricSourceCiscoSdwan,
+		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
 		// Plugins and non-checks
@@ -836,6 +838,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 235
 	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return 236
+	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return 521
 	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return 237
 	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1147,6 +1151,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 515
 	case metrics.MetricSourceNiFi:
 		return 516
+	case metrics.MetricSourceCiscoSdwan:
+		return 517
+	case metrics.MetricSourceVersa:
+		return 519
 	default:
 		return 0
 	}

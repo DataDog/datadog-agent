@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 // DaemonHandle
 // ---------------------------------------------------------------------------
 
-/// Handle to a running dd-procmgrd (Unix) / dd-procmgr-service (Windows) daemon.
+/// Handle to a running dd-procmgrd daemon.
 pub struct DaemonHandle {
     child: Child,
     log_lines: Arc<Mutex<Vec<String>>>,
@@ -31,10 +31,7 @@ impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
-        #[cfg(unix)]
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
-        #[cfg(windows)]
-        let bin = env!("CARGO_BIN_EXE_dd-procmgr-service");
 
         let mut cmd = Command::new(bin);
         cmd.env("DD_PM_CONFIG_DIR", config_dir)
@@ -561,22 +558,24 @@ pub fn pid_is_alive(pid: u32) -> bool {
     signal::kill(Pid::from_raw(pid as i32), None).is_ok()
 }
 
+/// Uses `WaitForSingleObject` with a zero timeout instead of
+/// `GetExitCodeProcess` to avoid false positives when a process
+/// exits with code 259 (`STILL_ACTIVE`).
 #[cfg(windows)]
 pub fn pid_is_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
     };
-    const STILL_ACTIVE: u32 = 259;
+    const WAIT_TIMEOUT: u32 = 258;
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
         if handle.is_null() {
             return false;
         }
-        let mut exit_code: u32 = 0;
-        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        let ret = WaitForSingleObject(handle, 0);
         CloseHandle(handle);
-        ok != 0 && exit_code == STILL_ACTIVE
+        ret == WAIT_TIMEOUT
     }
 }
 
@@ -591,5 +590,27 @@ pub fn wait_for_pid_gone(pid: u32, timeout: Duration) -> bool {
             return false;
         }
         std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Force-kill a PID (simulates external crash, not dd-procmgr stop).
+#[cfg(unix)]
+pub fn kill_pid_force(pid: u32) {
+    signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL)
+        .unwrap_or_else(|e| panic!("failed to SIGKILL pid {pid}: {e}"));
+}
+
+/// Force-kill a PID (simulates external crash, not dd-procmgr stop).
+#[cfg(windows)]
+pub fn kill_pid_force(pid: u32) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        assert!(!handle.is_null(), "OpenProcess failed for pid {pid}");
+        let ok = TerminateProcess(handle, 1);
+        CloseHandle(handle);
+        assert_ne!(ok, 0, "TerminateProcess failed for pid {pid}");
     }
 }

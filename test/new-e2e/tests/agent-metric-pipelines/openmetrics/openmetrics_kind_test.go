@@ -49,6 +49,8 @@ const (
 
 type openMetricsE2ESuite interface {
 	T() *testing.T
+	Logf(format string, args ...any)
+	FailNow(format string, args ...any)
 	SessionOutputDir() string
 	Env() *environments.Kubernetes
 }

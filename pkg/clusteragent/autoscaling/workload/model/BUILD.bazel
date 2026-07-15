@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "const.go",
+        "doc.go",
+        "pod_autoscaler.go",
+        "pod_autoscaler_profile.go",
+        "pod_autoscaler_string.go",
+        "pod_autoscaler_test_utils.go",
+        "pod_autoscaler_validation.go",
+        "rc_schema.go",
+        "recommendations.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+    ],
+)
+
+dd_agent_go_test(
+    name = "model_test",
+    srcs = [
+        "pod_autoscaler_profile_test.go",
+        "pod_autoscaler_size_test.go",
+        "pod_autoscaler_test.go",
+        "pod_autoscaler_validation_test.go",
+    ],
+    embed = [":model"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

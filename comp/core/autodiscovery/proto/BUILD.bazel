@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "proto",
+    srcs = ["proto.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/proto/pbgo/core",
+    ],
+)
+
+dd_agent_go_test(
+    name = "proto_test",
+    srcs = ["proto_test.go"],
+    embed = [":proto"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

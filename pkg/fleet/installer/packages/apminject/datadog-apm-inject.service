@@ -1,0 +1,17 @@
+[Unit]
+Description=Datadog APM Inject - Manages libinject in ld.so.preload
+Documentation=https://docs.datadoghq.com/
+After=network.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+Environment=DD_LOG_LEVEL=info
+ExecStart={{INSTALLER_PATH}} apm instrument-start host
+ExecStop={{INSTALLER_PATH}} apm instrument-stop host
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

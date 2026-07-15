@@ -5,6 +5,7 @@
 
 //go:build aix
 
+// Package agent provides the Enabled function for the process agent component.
 package agent
 
 import (

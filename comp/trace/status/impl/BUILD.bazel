@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/traceagent.tmpl",
+        "status_templates/traceagentHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/status/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/status",
+        "//comp/def",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["status_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/status",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

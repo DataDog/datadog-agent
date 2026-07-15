@@ -6,12 +6,12 @@ RUN rm -vf /etc/ssl/openssl.cnf
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.25.9.linux-$(dpkg --print-architecture).tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.26.4.linux-$(dpkg --print-architecture).tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 
 # Install go-delve
-RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@latest
+RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 # Install datadog-agent-dbg at the right version
 RUN apt-get install -o Dpkg::Options::="--force-confold" --no-install-recommends -y gnupg dirmngr ca-certificates \
@@ -27,9 +27,10 @@ RUN echo "deb https://${APT_REPO}/ ${APT_DISTRIBUTION} 7 6" > /etc/apt/sources.l
  && dpkg -X ./datadog-agent-dbg*.deb / \
  && rm -f ./datadog-agent-dbg*.deb
 
-# Add GDB debug script for libpython
+# Add GDB debug script for libpython - pin to a specific CPython release tag
+ARG CPYTHON_TAG=v3.13.13
 RUN TARGET_FILE=$(find /opt/datadog-agent/.debug/opt/datadog-agent/embedded/lib/ -name 'libpython3.*0.dbg' | sed 's/.dbg/-gdb.py/') \
- && curl https://raw.githubusercontent.com/python/cpython/master/Tools/gdb/libpython.py -o ${TARGET_FILE}
+ && curl -fSL https://raw.githubusercontent.com/python/cpython/${CPYTHON_TAG}/Tools/gdb/libpython.py -o "${TARGET_FILE}"
 
 RUN mkdir -p /usr/lib/debug/.build-id/$(readelf -n /opt/datadog-agent/bin/agent/agent | perl -nE 'say $1 if /Build ID: (..)(.*)/')
 

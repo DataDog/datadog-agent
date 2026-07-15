@@ -13,9 +13,11 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"reflect"
 	"slices"
@@ -29,7 +31,6 @@ import (
 	"github.com/fatih/structtag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/doc"
@@ -49,6 +50,7 @@ var (
 	fieldHandlersOutput  string
 	fieldAccessorsOutput string
 	buildTags            string
+	moduleNameOverride   string
 )
 
 // AstFiles defines ast files
@@ -177,6 +179,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		GettersOnly:  field.gettersOnly,
 		Ref:          field.ref,
 		RestrictedTo: restrictedTo,
+		DefaultValue: field.defaultValue,
 	}
 
 	module.Fields[alias] = newStructField
@@ -283,6 +286,7 @@ func handleNonEmbedded(module *common.Module, field seclField, aliasPrefix, alia
 		SetHandler:    field.setHandler,
 		AliasPrefix:   aliasPrefix,
 		Alias:         alias,
+		DefaultValue:  field.defaultValue,
 	}
 }
 
@@ -344,6 +348,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 		ReadOnly:         field.readOnly,
+		DefaultValue:     field.defaultValue,
 	}
 
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
@@ -396,6 +401,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 		ReadOnly:         field.readOnly,
+		DefaultValue:     field.defaultValue,
 	}
 	module.Fields[alias] = newStructField
 
@@ -456,6 +462,7 @@ type seclField struct {
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
 	ref                    string
 	readOnly               bool
+	defaultValue           string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -492,6 +499,8 @@ func parseFieldDef(def string) (seclField, error) {
 				field.check = value
 			case "set_handler":
 				field.setHandler = value
+			case "default":
+				field.defaultValue = value
 			case "opts":
 				for opt := range strings.SplitSeq(value, "|") {
 					switch opt {
@@ -769,22 +778,20 @@ func parseTags(tags *structtag.Tags, containerStructName string) ([]string, []se
 	return opOverrides, fields, gettersOnlyFields
 }
 
-func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
+// newAstFiles parses each input file with go/parser. The downstream code only
+// reads ast.File scopes and struct tags, so we don't need go/packages' import
+// graph or type info — and avoiding it keeps this generator hermetic under
+// Bazel (no Go toolchain required at action time).
+func newAstFiles(files ...string) (*AstFiles, error) {
 	var astFiles AstFiles
-
+	fset := token.NewFileSet()
 	for _, file := range files {
-		pkgs, err := packages.Load(cfg, file)
+		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse %s: %w", file, err)
 		}
-
-		if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-			return nil, fmt.Errorf("failed to get syntax from parse file %s", file)
-		}
-
-		astFiles.files = append(astFiles.files, pkgs[0].Syntax[0])
+		astFiles.files = append(astFiles.files, f)
 	}
-
 	return &astFiles, nil
 }
 
@@ -826,19 +833,17 @@ func sortFieldsByChecks(module *common.Module) {
 }
 
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
-	cfg := packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
-	}
-
-	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
+	astFiles, err := newAstFiles(modelFile, typesFile)
 	if err != nil {
 		return nil, err
 	}
 
-	moduleName := path.Base(path.Dir(output))
-	if moduleName == "." {
-		moduleName = path.Base(pkgName)
+	moduleName := moduleNameOverride
+	if moduleName == "" {
+		moduleName = path.Base(path.Dir(output))
+		if moduleName == "." {
+			moduleName = path.Base(pkgName)
+		}
 	}
 
 	module := &common.Module{
@@ -1297,26 +1302,12 @@ func GenerateContent(output string, module *common.Module, tmplCode string) erro
 
 	cleaned := removeEmptyLines(&buffer)
 
-	tmpfile, err := os.CreateTemp(path.Dir(output), "secl-helpers")
+	formatted, err := format.Source([]byte(cleaned))
 	if err != nil {
-		return err
+		return fmt.Errorf("formatting %s: %w\n%s", output, err, cleaned)
 	}
 
-	if _, err := tmpfile.WriteString(cleaned); err != nil {
-		return err
-	}
-
-	if err := tmpfile.Close(); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Fatal(string(output))
-		return err
-	}
-
-	return os.Rename(tmpfile.Name(), output)
+	return os.WriteFile(output, formatted, 0644)
 }
 
 func removeEmptyLines(input *bytes.Buffer) string {
@@ -1350,5 +1341,6 @@ func init() {
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
 	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
 	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
+	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.Parse()
 }

@@ -7,7 +7,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -15,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -27,12 +25,14 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -153,6 +153,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
 		ConfigID:             configID,
+		// The daemon builds its env by hand rather than via env.FromEnv, so mirror
+		// the same FIPS detection: FIPS build flavor or explicit DD_FIPS_MODE=true.
+		FIPSMode: pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true",
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
@@ -223,37 +226,13 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	// Host is instrumented if the ld.so.preload file contains the apm injector
-	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
+	ssiStatus, err := ssi.GetInstrumentationStatus()
+	if err != nil {
+		return status, err
 	}
-	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.HostInstrumented = true
-	}
-
-	// Docker is installed if the docker binary is in the PATH
-	_, err = osexec.LookPath("docker")
-	if err != nil && errors.Is(err, osexec.ErrNotFound) {
-		return status, nil
-	} else if err != nil {
-		return status, fmt.Errorf("could not check if docker is installed: %w", err)
-	}
-	status.DockerInstalled = true
-
-	// Docker is instrumented if there is the injector runtime in its configuration
-	// We're not retrieving the default runtime from the docker daemon as we are not
-	// root
-	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
-	} else if errors.Is(err, os.ErrNotExist) {
-		return status, nil
-	}
-	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.DockerInstrumented = true
-	}
-
+	status.HostInstrumented = ssiStatus.HostInstrumented
+	status.DockerInstalled = ssiStatus.DockerInstalled
+	status.DockerInstrumented = ssiStatus.DockerInstrumented
 	return status, nil
 }
 
@@ -297,10 +276,13 @@ func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecre
 	decryptedSecrets := make(map[string]string)
 
 	for key, encoded := range encryptedSecrets {
-		// 1. Check if any file operation in the config contains SEC[key]
+		// 1. Check if any file operation in the config contains SEC[key], either in a
+		// patch or in a jq operation's arguments. Both are raw JSON blobs, so a flat scan
+		// covers placeholders at any nesting depth.
+		fullKey := fmt.Sprintf("SEC[%s]", key)
 		found := false
 		for _, operation := range operations.FileOperations {
-			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s]", key)) {
+			if strings.Contains(string(operation.Patch), fullKey) || strings.Contains(string(operation.Arguments), fullKey) {
 				found = true
 				break
 			}
@@ -706,6 +688,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				FileOperationType: config.FileOperationType(operation.FileOperationType),
 				FilePath:          operation.FilePath,
 				Patch:             operation.Patch,
+				Transform:         operation.Transform,
+				Arguments:         operation.Arguments,
 			})
 		}
 		encryptedSecrets := make(map[string]string)
@@ -837,6 +821,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
+			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 
 		requestState, ok := tasksState[pkg]

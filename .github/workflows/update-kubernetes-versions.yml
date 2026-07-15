@@ -41,12 +41,12 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.update-kubernetes-versions.create-pr
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: true
           token: ${{ steps.octo-sts.outputs.token }}
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.14'
 
@@ -56,7 +56,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install Python dependencies
-        run: pip install requests pyyaml semver
+        run: pip install requests==2.33.1 pyyaml==6.0.3 semver==3.0.4
 
       - name: Install kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc #v1.14.0
@@ -83,14 +83,14 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/datadog-agent-kind-image-publisher-oidc
           aws-region: us-east-1
 
       - name: Log in to AWS ECR
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
 
@@ -145,7 +145,7 @@ jobs:
         run: |
           dda inv k8s-versions.update-e2e-yaml
 
-      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
         if: steps.update-yaml.outputs.updated == 'true'
         with:

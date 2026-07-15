@@ -1,10 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
     srcs = [
         "defaults_darwin.go",
         "defaults_nix.go",
+        "errortracking.go",
         "log.go",
         "log_format.go",
         "log_format_serverless.go",
@@ -18,16 +20,18 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/util/log",
+        "//pkg/util/log/errortracking",
         "//pkg/util/log/slog",
         "//pkg/util/log/slog/filewriter",
         "//pkg/util/log/slog/formatters",
         "//pkg/util/log/slog/handlers",
         "//pkg/util/log/syslog",
         "//pkg/util/log/types",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = [
         "log_nix_test.go",
@@ -35,10 +39,11 @@ go_test(
         "split_writer_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],  # keep
     deps = [
         "//pkg/config/setup",
         "//pkg/util/log",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/slog",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

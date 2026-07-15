@@ -1,0 +1,76 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/internal_profiling.yaml.schema.json
+node_type: section
+type: object
+properties:
+  block_profile_rate:
+    node_type: setting
+    type: integer
+    default: 0
+  capture_all_allocations:
+    node_type: setting
+    type: boolean
+    default: false
+  cpu_duration:
+    node_type: setting
+    type: string
+    default: 1m0s
+    format: duration
+    tags:
+    - golang_type:duration
+  custom_attributes:
+    node_type: setting
+    type: array
+    default:
+    - check_id
+    items:
+      type: string
+  delta_profiles:
+    node_type: setting
+    type: boolean
+    default: true
+  enable_block_profiling:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_goroutine_stacktraces:
+    node_type: setting
+    type: boolean
+    default: false
+  enable_mutex_profiling:
+    node_type: setting
+    type: boolean
+    default: false
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: internal profiling
+  extra_tags:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  mutex_profile_fraction:
+    node_type: setting
+    type: integer
+    default: 0
+  period:
+    node_type: setting
+    type: string
+    default: 5m0s
+    format: duration
+    tags:
+    - golang_type:duration
+  profile_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  unix_socket:
+    node_type: setting
+    type: string
+    default: ''
+    comment: file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
+tags:
+- full-agent-only:true

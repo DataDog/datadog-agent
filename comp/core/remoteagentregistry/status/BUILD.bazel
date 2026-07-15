@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/remote_agents.tmpl",
+        "status_templates/remote_agents_html.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/remoteagentregistry/def",
+        "//comp/core/status",
+    ],
+)

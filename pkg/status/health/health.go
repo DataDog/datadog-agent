@@ -37,6 +37,7 @@ type catalog struct {
 	sync.RWMutex
 	components map[*Handle]*component
 	latestRun  time.Time
+	done       chan struct{}
 }
 
 func newCatalog() *catalog {
@@ -52,7 +53,8 @@ func (c *catalog) register(name string, options ...Option) *Handle {
 	defer c.Unlock()
 
 	if len(c.components) == 0 {
-		go c.run()
+		c.done = make(chan struct{})
+		go c.run(c.done)
 	}
 
 	component := &component{
@@ -81,17 +83,20 @@ func (c *catalog) register(name string, options ...Option) *Handle {
 // run is the healthcheck goroutine that triggers a ping every 15 sec
 // it must be started when the first component registers, and will
 // return if no components are registered anymore
-func (c *catalog) run() {
+func (c *catalog) run(done chan struct{}) {
 	pingTicker := time.NewTicker(pingFrequency)
+	defer pingTicker.Stop()
 
 	for {
-		t := <-pingTicker.C
-		empty := c.pingComponents(t.Add(mulDuration(pingFrequency, bufferSize)))
-		if empty {
-			break
+		select {
+		case <-done:
+			return
+		case t := <-pingTicker.C:
+			if c.pingComponents(t.Add(mulDuration(pingFrequency, bufferSize))) {
+				return
+			}
 		}
 	}
-	pingTicker.Stop()
 }
 
 func mulDuration(d time.Duration, x int) time.Duration {
@@ -128,6 +133,9 @@ func (c *catalog) deregister(handle *Handle) error {
 	}
 	close(c.components[handle].healthChan)
 	delete(c.components, handle)
+	if len(c.components) == 0 {
+		close(c.done)
+	}
 	return nil
 }
 

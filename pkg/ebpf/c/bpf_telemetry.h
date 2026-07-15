@@ -8,8 +8,9 @@
 
 /* redefinition of some error values */
 #ifdef COMPILE_CORE
+#define ENOMEM 12
+#define EBUSY  16
 #define EEXIST 17
-#define EBUSY 16
 #endif
 
 #define STR(x) #x
@@ -62,6 +63,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define FN_INDX_bpf_skb_load_bytes bpf_skb_load_bytes_indx
 #define FN_INDX_bpf_perf_event_output bpf_perf_event_output_indx
 #define FN_INDX_bpf_ringbuf_output bpf_ringbuf_output_indx
+#define FN_INDX_bpf_copy_from_user bpf_copy_from_user_indx
 
 #define helper_with_telemetry(fn, ...)                                                          \
     ({                                                                                          \
@@ -129,6 +131,15 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
         errno_ret;                                                                             \
     })
 
+#define bpf_sk_storage_get_or_create(map, sk, val)                                  \
+    ({                                                                              \
+        void *ret = bpf_sk_storage_get(&map, sk, val, BPF_SK_STORAGE_GET_F_CREATE); \
+        if (ret == NULL) {                                                          \
+            __record_map_telemetry(map, ENOMEM);                                    \
+        }                                                                           \
+        ret;                                                                        \
+    })
+
 #define bpf_probe_read_with_telemetry(...) \
     helper_with_telemetry(bpf_probe_read, __VA_ARGS__)
 
@@ -155,6 +166,9 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define bpf_ringbuf_output_with_telemetry(...) \
     helper_with_telemetry(bpf_ringbuf_output, __VA_ARGS__)
+
+#define bpf_copy_from_user_with_telemetry(...) \
+    helper_with_telemetry(bpf_copy_from_user, __VA_ARGS__)
 
 #if defined(bpf_target_x86)
 

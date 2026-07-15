@@ -12,6 +12,7 @@ namespace Datadog.CustomActions
         public const string InstallerServiceName = "Datadog Installer";
         public const string NpmServiceName = "ddnpm";
         public const string ProcmonServiceName = "ddprocmon";
+        public const string ProcmgrServiceName = "dd-procmgr-service";
 
         // Key under HKLM that contains our options
         public const string DatadogAgentRegistryKey = @"Software\Datadog\Datadog Agent";
@@ -19,5 +20,7 @@ namespace Datadog.CustomActions
         // Flavor names
         public const string FipsFlavor = "fips";
         public const string BaseFlavor = "base";
+
+        public const string FallbackAiUsageChromeExtensionId = "gkmbhgbippkmmmidcikijiblbagbjgjj";
     }
 }

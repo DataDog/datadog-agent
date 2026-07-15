@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "amd64.go",
+        "arm64.go",
+        "default.go",
+        "distro.go",
+        "resources.go",
+    ],
+    embedsrcs = [
+        "amd64/domain.xsl",
+        "arm64/domain.xsl",
+        "default/domain.xsl",
+        "default/network.xsl",
+        "default/pool.xml",
+        "default/raw_volume.xml",
+        "default/volume.xml",
+        "default/volume_local.xsl",
+        "distro/domain-amd64.xsl",
+        "distro/domain-arm64.xsl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms/resources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/scenarios/aws/microVMs/vmconfig",
+        "@com_github_pulumi_pulumi_libvirt_sdk//go/libvirt",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

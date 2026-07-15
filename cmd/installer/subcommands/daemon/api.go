@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	localapiclient "github.com/DataDog/datadog-agent/comp/updater/localapiclient/def"
 	localapiclientfx "github.com/DataDog/datadog-agent/comp/updater/localapiclient/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

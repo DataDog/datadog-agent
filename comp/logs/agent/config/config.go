@@ -364,36 +364,100 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		main.CompressionLevel = compressionOptions.CompressionLevel
 	}
 
-	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
+	// opwAdditionals collects any OPW dual-ship endpoint before the user-configured
+	// additional_endpoints so they are included in the final endpoint list.
+	var opwAdditionals []Endpoint
+
+	if logsConfig.obsPipelineWorkerDualShipReliable() && !logsConfig.obsPipelineWorkerDualShip() {
+		log.Warn("observability_pipelines_worker.logs.dual_ship_reliable=true has no effect because observability_pipelines_worker.logs.dual_ship is false")
+	}
+
+	vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL()
+	opwEnabled := logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined
+	if logsConfig.obsPipelineWorkerDualShip() && !opwEnabled {
+		log.Warn("observability_pipelines_worker.logs.dual_ship=true has no effect because OPW is not enabled or its url is empty")
+	}
+
+	if opwEnabled {
 		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 		}
-		main.Host = host
-		main.Port = port
-		main.useSSL = useSSL
-	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-		host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+		if logsConfig.obsPipelineWorkerDualShip() {
+			// dual_ship=true: Datadog remains the primary endpoint; OPW is appended as
+			// an additional endpoint. The primary DD host is resolved below via the
+			// normal logsDDURL / GetMainEndpoint path.
+			//
+			// OPW is best-effort (unreliable) by default so that an unhealthy OPW
+			// cannot apply backpressure to the main pipeline and stall delivery to
+			// Datadog. Operators who want OPW to participate in flow control can opt
+			// in via observability_pipelines_worker.logs.dual_ship_reliable.
+			//
+			// Inherit the v2-API metadata (Version, TrackType, Protocol, Origin) from
+			// the main endpoint so OPW receives the same URL path (/api/v2/logs) and
+			// DD-PROTOCOL/DD-EVP-ORIGIN headers as the primary Datadog destination —
+			// matching how user-supplied additional_endpoints inherit these fields.
+			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback)
+			opwEndpoint.Host = host
+			opwEndpoint.Port = port
+			opwEndpoint.useSSL = useSSL
+			opwEndpoint.isAdditionalEndpoint = true
+			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
+			opwEndpoint.Version = main.Version
+			opwEndpoint.TrackType = main.TrackType
+			opwEndpoint.Protocol = main.Protocol
+			opwEndpoint.Origin = main.Origin
+			// Mirror the fields that loadHTTPAdditionalEndpoints copies from main so that
+			// any compression override applied to main (e.g. via BuildHTTPEndpointsWithCompressionOverride)
+			// and all backoff/recovery settings are consistent between the two endpoints.
+			opwEndpoint.UseCompression = main.UseCompression
+			opwEndpoint.CompressionKind = main.CompressionKind
+			opwEndpoint.CompressionLevel = main.CompressionLevel
+			opwEndpoint.BackoffFactor = main.BackoffFactor
+			opwEndpoint.BackoffBase = main.BackoffBase
+			opwEndpoint.BackoffMax = main.BackoffMax
+			opwEndpoint.RecoveryInterval = main.RecoveryInterval
+			opwEndpoint.RecoveryReset = main.RecoveryReset
+			opwEndpoint.ConnectionResetInterval = main.ConnectionResetInterval
+			opwAdditionals = append(opwAdditionals, opwEndpoint)
+		} else {
+			// Default behaviour: OPW replaces the primary Datadog endpoint and is the only
+			// destination logs are shipped to. dual_ship is the opt-in for users who want
+			// to evaluate OPW alongside an unchanged flow of telemetry to Datadog.
+			main.Host = host
+			main.Port = port
+			main.useSSL = useSSL
 		}
-		main.Host = host
-		main.Port = port
-		main.PathPrefix = pathPrefix
-		main.useSSL = useSSL
-	} else {
-		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-		host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
-		}
+	}
 
-		main.Host = host
-		main.Port = port
-		main.useSSL = useSSL
+	// Resolve the primary Datadog endpoint when it has not been replaced by OPW.
+	if main.Host == "" {
+		if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
+			host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+			}
+			main.Host = host
+			main.Port = port
+			main.PathPrefix = pathPrefix
+			main.useSSL = useSSL
+		} else {
+			addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
+			host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", addr, err)
+			}
+
+			main.Host = host
+			main.Port = port
+			main.useSSL = useSSL
+		}
 	}
 
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback)
+
+	// Prepend OPW dual-ship endpoints so they appear before user-configured additional_endpoints.
+	additionals = append(opwAdditionals, additionals...)
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
@@ -419,6 +483,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.BackoffFactor = main.BackoffFactor
 		e.RecoveryInterval = main.RecoveryInterval
 		e.RecoveryReset = main.RecoveryReset
+		e.ConnectionResetInterval = main.ConnectionResetInterval
 		e.Version = main.Version
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol

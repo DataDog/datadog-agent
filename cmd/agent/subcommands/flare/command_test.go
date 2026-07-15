@@ -24,7 +24,7 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,7 +97,7 @@ func getProfiler(t testing.TB) profiler.Component {
 	deps := fxutil.Test[deps](
 		t,
 		core.MockBundle(),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		profilerfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcomp ipc.Component) ipc.HTTPClient { return ipcomp.GetClient() }),
@@ -119,18 +119,19 @@ func (c *commandTestSuite) TestReadProfileData() {
 	httpsPort := u.Port()
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("expvar_port", port)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", httpsPort)
-	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
-	mockConfig.SetWithoutSource("process_config.expvar_port", port)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetInTest("expvar_port", port)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", httpsPort)
+	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("process_config.expvar_port", port)
+	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	if runtime.GOOS != "darwin" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetInTest("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
@@ -189,24 +190,25 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	port := u.Port()
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("expvar_port", port)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
-	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
-	mockConfig.SetWithoutSource("process_config.expvar_port", port)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetInTest("expvar_port", port)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", 0)
+	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("process_config.expvar_port", port)
+	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	if runtime.GOOS != "darwin" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetInTest("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
-	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
+	require.Regexp(t, "^error collecting trace agent profile: ", err.Error())
 
 	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
@@ -252,12 +254,12 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
-	mockConfig.SetWithoutSource("expvar_port", 0)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", 0)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
-	mockConfig.SetWithoutSource("process_config.enabled", true)
-	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
+	mockConfig.SetInTest("expvar_port", 0)
+	mockConfig.SetInTest("security_agent.expvar_port", 0)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", 0)
+	mockConfig.SetInTest("process_config.enabled", true)
+	mockConfig.SetInTest("process_config.expvar_port", 0)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	InjectConnectionFailures(mockSysProbeConfig, mockConfig)

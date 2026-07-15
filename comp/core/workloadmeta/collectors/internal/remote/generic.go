@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,7 +25,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -66,6 +66,10 @@ type StreamHandler interface {
 	HandleResponse(store workloadmeta.Component, response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
 	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
+	// IsResyncComplete returns true if the given response marks the end of the
+	// initial full-state snapshot. Implementations that don't support chunked
+	// snapshots should always return true.
+	IsResyncComplete(response interface{}) bool
 }
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
@@ -73,9 +77,11 @@ type GenericCollector struct {
 	CollectorID   string
 	Catalog       workloadmeta.AgentType
 	StreamHandler StreamHandler
+	Config        pkgconfigmodel.Reader
 
 	store        workloadmeta.Component
 	resyncNeeded bool
+	resyncEvents []workloadmeta.CollectorEvent
 
 	client GrpcClient
 	stream Stream
@@ -101,7 +107,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	address := c.StreamHandler.Address()
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+		if vsockAddr := c.Config.GetString("vsock_addr"); vsockAddr != "" {
 			cid, err := socket.ParseVSockAddress(vsockAddr)
 			if err != nil {
 				return nil, err
@@ -117,7 +123,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
 	// Same max message size as core agent AgentSecure gRPC (impl-agent.BuildServer).
-	maxMsgSize := pkgconfigsetup.Datadog().GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	maxMsgSize := c.Config.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 	opts = append(opts, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize),
@@ -155,7 +161,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, backoff.Permanent(errWorkloadmetaStreamNotStarted)
 		default:
 		}
 
@@ -174,6 +180,9 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
+			// Cancel the context created for this failed attempt so it is not
+			// leaked when the next retry overwrites c.streamCancel.
+			c.streamCancel()
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return nil, err
 		}
@@ -186,7 +195,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfigsetup.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := c.Config.GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {
@@ -224,6 +233,7 @@ func (c *GenericCollector) Run() {
 			// connection is re-established.
 			c.stream = nil
 			c.resyncNeeded = true
+			c.resyncEvents = nil
 
 			if err != io.EOF {
 				telemetry.RemoteClientErrors.Inc(c.CollectorID)
@@ -240,8 +250,12 @@ func (c *GenericCollector) Run() {
 		}
 
 		if c.resyncNeeded {
-			c.StreamHandler.HandleResync(c.store, collectorEvents)
-			c.resyncNeeded = false
+			c.resyncEvents = append(c.resyncEvents, collectorEvents...)
+			if c.StreamHandler.IsResyncComplete(response) {
+				c.StreamHandler.HandleResync(c.store, c.resyncEvents)
+				c.resyncEvents = nil
+				c.resyncNeeded = false
+			}
 		} else {
 			c.store.Notify(collectorEvents)
 		}

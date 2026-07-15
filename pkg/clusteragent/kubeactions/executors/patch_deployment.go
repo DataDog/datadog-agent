@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -22,6 +21,8 @@ import (
 type PatchDeploymentExecutor struct {
 	clientset kubernetes.Interface
 }
+
+var _ Executor = (*PatchDeploymentExecutor)(nil)
 
 // NewPatchDeploymentExecutor creates a new PatchDeploymentExecutor
 func NewPatchDeploymentExecutor(clientset kubernetes.Interface) *PatchDeploymentExecutor {
@@ -68,12 +69,9 @@ func (e *PatchDeploymentExecutor) Execute(ctx context.Context, action *kubeactio
 		}
 	}
 
-	log.Infof("Patching deployment %s/%s (uid=%s) with patch: %s", namespace, name, resourceID, string(patchBytes))
-
 	// Get the deployment first to verify UID matches resource_id
 	deployment, err := e.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Failed to get deployment %s/%s: %v", namespace, name, err)
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("failed to get deployment: %v", err),
@@ -81,28 +79,20 @@ func (e *PatchDeploymentExecutor) Execute(ctx context.Context, action *kubeactio
 	}
 
 	if string(deployment.UID) != resourceID {
-		log.Errorf("Deployment %s/%s UID mismatch: expected %s, got %s - deployment may have been replaced", namespace, name, resourceID, deployment.UID)
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("deployment UID mismatch: expected %s, got %s - deployment may have been replaced since action was created", resourceID, deployment.UID),
 		}
 	}
 
-	// Determine patch strategy
 	patchType := resolvePatchType(patchParams.GetPatchStrategy())
-	log.Infof("Using patch strategy %q for deployment %s/%s", patchParams.GetPatchStrategy(), namespace, name)
-
-	// Apply the patch
-	_, err = e.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		log.Errorf("Failed to patch deployment %s/%s: %v", namespace, name, err)
+	if _, err := e.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, patchBytes, metav1.PatchOptions{}); err != nil {
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("failed to patch deployment: %v", err),
 		}
 	}
 
-	log.Infof("Successfully patched deployment %s/%s", namespace, name)
 	return ExecutionResult{
 		Status:  StatusSuccess,
 		Message: fmt.Sprintf("deployment %s/%s patched", namespace, name),

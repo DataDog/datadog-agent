@@ -23,17 +23,21 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -48,7 +52,7 @@ type senderWithChans struct {
 }
 
 func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
-	s.itemChan = make(chan senderItem, 10)
+	s.itemChan = make(chan senderItem, 16)
 	s.serviceCheckChan = make(chan servicecheck.ServiceCheck, 10)
 	s.eventChan = make(chan event.Event, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
@@ -61,7 +65,7 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 func testDemux(log log.Component, hostname hostname.Component, filterlist filterlist.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressionmock.NewMockCompressor()))
 	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), nooptagger.NewComponent(), filterlist, defaultHostname)
 	return demux
@@ -488,13 +492,13 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample := (<-s.itemChan).(*senderHistogramBucket)
 	assert.Nil(t, bucketSample.bucket.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
 
@@ -504,14 +508,74 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, customTags, bucketSample.bucket.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
+}
+
+func TestCheckSenderInfraTagger_OnlyTagsEligibleChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	cfg.Set("integration.cloud_cost_only.tagged", []string{"my.metric"}, pkgconfigmodel.SourceFile)
+	tagger := infratags.NewTagger(cfg)
+	require.NotNil(t, tagger)
+
+	// eligible check: scheduler sets the tagger on the sender
+	eligible := initSender(checkID1, "")
+	eligible.sender.SetInfraTagger(tagger)
+	eligible.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-eligible.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// ineligible check (not in allow-list): scheduler does not set the tagger
+	ineligible := initSender(checkID2, "")
+	ineligible.sender.Gauge("my.other_metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample = (<-ineligible.itemChan).(*senderMetricSample)
+	assert.NotContains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+}
+
+func TestCheckSenderInfraTagger_NilTagger(t *testing.T) {
+	s := initSender(checkID1, "")
+
+	// nil tagger: no infra tags on gauge
+	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-s.itemChan).(*senderMetricSample)
+	assert.NotContains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// nil tagger: no infra tags on histogram bucket
+	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+	bucket := (<-s.itemChan).(*senderHistogramBucket)
+	assert.NotContains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
+}
+
+func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
+	// empty tagged list means all non-custom checks are eligible
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	tagger := infratags.NewTagger(cfg)
+	require.NotNil(t, tagger)
+
+	s := initSender(checkID1, "")
+	s.sender.SetInfraTagger(tagger)
+
+	// any check metric gets the infra tag
+	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-s.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	s.sender.Gauge("my.other_metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample = (<-s.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// histogram buckets also get the infra tag
+	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+	bucket := (<-s.itemChan).(*senderHistogramBucket)
+	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
 func TestCheckSenderInterface(t *testing.T) {
@@ -526,7 +590,8 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.MonotonicCountWithFlushFirstValue("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
+	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, false)
 	s.sender.Distribution("my.distribution", 43.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
@@ -590,6 +655,18 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
 	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
 	assert.Equal(t, true, histogramBucket.bucket.FlushFirstValue)
+	assert.Equal(t, false, histogramBucket.bucket.MultipleBuckets)
+
+	histogramBucket = (<-s.itemChan).(*senderHistogramBucket)
+	assert.Equal(t, "my.histogram_bucket", histogramBucket.bucket.Name)
+	assert.Equal(t, int64(42), histogramBucket.bucket.Value)
+	assert.Equal(t, 1.0, histogramBucket.bucket.LowerBound)
+	assert.Equal(t, 2.0, histogramBucket.bucket.UpperBound)
+	assert.Equal(t, true, histogramBucket.bucket.Monotonic)
+	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
+	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
+	assert.Equal(t, false, histogramBucket.bucket.FlushFirstValue)
+	assert.Equal(t, true, histogramBucket.bucket.MultipleBuckets)
 
 	distributionSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, distributionSample.id)

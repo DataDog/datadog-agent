@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduce scale-up stabilization windows for built-in DPA presets:
+    Optimize Cost from 300s to 190s, Optimize Balance from 600s to 130s,
+    and Optimize Performance from 900s to 70s. This allows faster
+    scale-up response for workloads using autoscaling profiles.

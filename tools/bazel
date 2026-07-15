@@ -29,10 +29,18 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
   fi
   export GOCACHE="$XDG_CACHE_HOME/go-build"
   export GOMODCACHE="$XDG_CACHE_HOME/go/mod"
-  extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
+  [ -z "${CI-}" ] && extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
-  [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && extra_args+=(--config=ci)
+  if [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ]; then
+    extra_args+=(--config=ci)
+    # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
+    if [ "$(uname -s)" = Linux ]; then
+      extra_args+=(--config=cache:edge)
+    else
+      extra_args+=(--config=cache:frontend)
+    fi
+  fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   [ -z "${GOCACHE-}" ] && export GOCACHE=~/.cache/go-build

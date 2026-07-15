@@ -88,7 +88,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
-	if key := "api_key"; pkgconfigsetup.Datadog().IsSet(key) {
+	if key := "api_key"; pkgconfigsetup.Datadog().IsConfigured(key) {
 		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString(key))
 		oc.OrchestratorEndpoints[0].ConfigSettingPath = "api_key"
 	}
@@ -98,11 +98,11 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
-	if k := OrchestratorNSKey("custom_sensitive_words"); pkgconfigsetup.Datadog().IsSet(k) {
+	if k := OrchestratorNSKey("custom_sensitive_words"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		oc.Scrubber.AddCustomSensitiveWords(pkgconfigsetup.Datadog().GetStringSlice(k))
 	}
 
-	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); pkgconfigsetup.Datadog().IsSet(k) {
+	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		redact.UpdateSensitiveAnnotationsAndLabels(pkgconfigsetup.Datadog().GetStringSlice(k))
 	}
 
@@ -165,7 +165,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
-	if !pkgconfigsetup.Datadog().IsSet(configKey) {
+	if !pkgconfigsetup.Datadog().IsConfigured(configKey) {
 		return
 	}
 

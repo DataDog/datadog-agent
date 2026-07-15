@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -107,6 +108,9 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int
 		if errors.Is(err, safeelf.ErrNoSymbols) {
 			p.binNoSymbolsMetric.Add(1)
 		}
+		if isExpectedGoTLSInspectionError(err) {
+			return map[int]*uprobes.InspectionResult{0: {Error: err}}, nil
+		}
 		return nil, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
 	}
 
@@ -118,6 +122,12 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int
 	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 
 	return map[int]*uprobes.InspectionResult{0: {SymbolMap: inspectionResult.Functions}}, nil
+}
+
+func isExpectedGoTLSInspectionError(err error) bool {
+	return errors.Is(err, binversion.ErrNotGoExe) ||
+		errors.Is(err, safeelf.ErrNoSymbols) ||
+		errors.Is(err, bininspect.ErrSymbolsNotFound)
 }
 
 // Cleanup removes the inspection result for the binary at the given path from the map.
@@ -235,7 +245,7 @@ func getConnPointer(result *bininspect.Result, funcName string) (gotls.Location,
 		return gotls.Location{}, errors.New("expected at least one parameter")
 	}
 	readConnReceiver := result.Functions[funcName].Parameters[0]
-	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Ptr)
+	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Pointer)
 }
 
 func getReadBufferLocation(result *bininspect.Result) (gotls.SliceLocation, error) {

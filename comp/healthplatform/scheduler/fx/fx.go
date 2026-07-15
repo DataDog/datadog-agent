@@ -1,0 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package fx provides the fx module for the health platform scheduler component.
+package fx
+
+import (
+	checkrunnerimpl "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for the scheduler component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(checkrunnerimpl.NewComponent),
+	)
+}

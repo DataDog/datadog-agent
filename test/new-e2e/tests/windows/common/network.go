@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 )
 
 // BoundPort represents a port that is bound to a process

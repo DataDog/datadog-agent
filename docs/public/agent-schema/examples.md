@@ -105,7 +105,8 @@ apm_config:
 6. **`default: false`** — a simple boolean default on a regular cross-platform setting node.
 7. **`platform_default`** — used instead of `default` when the correct default depends on the operating system. Here,
    Linux uses a Unix socket path while all other platforms default to an empty string. The special key `other` acts as a
-   fallback for any platform not explicitly listed.
+   fallback for any platform not explicitly listed. As much as possible, avoid assuming the full list of supported platforms
+   is known, eg. setting a value for `other` which is Darwin specific when you already have a value for Linux and Windows.
 
 ---
 
