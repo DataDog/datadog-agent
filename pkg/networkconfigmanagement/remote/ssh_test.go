@@ -329,7 +329,7 @@ func TestBuildAuthMethods(t *testing.T) {
 				Username: "test",
 				Password: "hunter2",
 			},
-			expectedAuthMethods: 1,
+			expectedAuthMethods: 2,
 		},
 		{
 			name: "success: private key only",
@@ -349,13 +349,13 @@ func TestBuildAuthMethods(t *testing.T) {
 			expectedAuthMethods: 1,
 		},
 		{
-			name: "success: 2 auth methods, user/pass + private key",
+			name: "success: 2 auth methods, user+pass + private key",
 			auth: ncmconfig.AuthCredentials{
 				Username:       "test",
 				Password:       "hunter2",
 				PrivateKeyFile: privateKeyPath,
 			},
-			expectedAuthMethods: 2,
+			expectedAuthMethods: 3,
 		},
 		{
 			name: "error: cannot read private key",

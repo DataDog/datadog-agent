@@ -17,16 +17,44 @@ Released on: 2026-07-08
 - Please refer to the `7.81.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7810>`_ for the list of changes on the Core Checks
 
 
-Metrics now use the Datadog v3 intake by default. The v3
-payload format is more compact, reducing outbound bandwidth from
-Agents to Datadog.
+Metrics are now forwarded to the new Datadog v3 API by default
+(``/api/intake/metrics/v3/series``). The v3 API payload format is more compact,
+reducing outbound bandwidth from Agents to Datadog.
+
+If you configure ``additional_endpoints`` to forward to a non-Datadog endpoint,
+you will likely need to disable v3 for this endpoint. Otherwise you will see
+404s. This can be done via:
+
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "<additional_endpoint>": false
+
+Example:
+
+.. code-block:: yaml
+
+   additional_endpoints:
+     "https://non-datadog-endpoint":
+       - apikey2
+
+will need:
+
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "https://non-datadog-endpoint": false
 
 Metrics sent to Observability Pipelines Worker continue to use
-the v2 intake by default.
+the v2 API by default.
 
-To keep using v2 intake, set
+To keep using v2 endpoint, set
 ``use_v3_api.series.enabled: "false"`` (global) or
-``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint).
+``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint; shown above).
 
 
 .. _Release Notes_7.81.0_Upgrade Notes:

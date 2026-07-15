@@ -18,6 +18,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -121,9 +122,9 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 	inStore := make(map[string]struct{}, len(p.state))
 
 	// Handle the existing and deleted PodAutoscalers
-	p.store.Update(func(pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
+	p.store.ProcessAll(configRetrieverStoreID, func(_ string, pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, autoscalingstore.ItemAction) {
 		if pai.Spec() == nil || pai.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
-			return pai, false
+			return pai, autoscalingstore.KeepItem
 		}
 
 		paID := pai.ID()
@@ -132,30 +133,32 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 		settingsItem, found := p.state[paID]
 		if found {
 			pai.UpdateFromSettings(settingsItem.spec, settingsItem.receivedTimestamp)
-			return pai, true
+			return pai, autoscalingstore.SetItem
 		}
 
 		// Not found in the new state, marking for deletion if no error occurred while processing new data
 		if !p.lastProcessingError {
 			pai.SetDeleted()
 			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", paID)
-			return pai, true
+			return pai, autoscalingstore.SetItem
 		}
 
 		log.Debugf("PodAutoscaler %s was not part of the last update, but we skipped the deletion due to errors while processing new data", paID)
-		return pai, false
-	}, configRetrieverStoreID)
+		return pai, autoscalingstore.KeepItem
+	})
 
-	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `Update` call above
+	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `ProcessAll` call above
 	for paID, item := range p.state {
 		if _, found := inStore[paID]; !found {
-			podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, true)
+			lockedItem, podAutoscalerFound := p.store.Get(paID)
+			var podAutoscaler model.PodAutoscalerInternal
 			if podAutoscalerFound {
+				podAutoscaler = lockedItem.Value()
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {
 				podAutoscaler = model.NewPodAutoscalerFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
 			}
-			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+			lockedItem.Upsert(podAutoscaler, configRetrieverStoreID)
 		}
 	}
 }

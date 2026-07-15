@@ -8,84 +8,24 @@
 package processmanager
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const adpProcmgrConfigFileName = "datadog-agent-data-plane.yaml"
-
-// WriteADPProcmgrConfig writes datadog-agent-data-plane.yaml next to the MSI install layout so
-// dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
-func WriteADPProcmgrConfig(installRootResolved string) error {
-	adpExe := filepath.Join(installRootResolved, "bin", "agent", "agent-data-plane.exe")
-	if _, err := os.Stat(adpExe); err != nil {
-		log.Debugf("ADP processes.d: skip write (agent-data-plane.exe stat %s: %v)", adpExe, err)
-		return nil
-	}
-	installPF := paths.DatadogProgramFilesDir
-	if installPF == "" {
-		log.Debugf("ADP processes.d: cannot write, DatadogProgramFilesDir is empty (installRoot=%s)", installRootResolved)
-		return errors.New("DatadogProgramFilesDir is empty; cannot write processes.d for ADP")
-	}
-	processesDir := filepath.Join(installPF, "processes.d")
-	if err := os.MkdirAll(processesDir, 0o755); err != nil {
-		log.Debugf("ADP processes.d: mkdir %s: %v", processesDir, err)
-		return fmt.Errorf("create processes.d: %w", err)
-	}
-
-	installRootRepl := filepath.ToSlash(filepath.Clean(installRootResolved))
-	etcRootRepl := filepath.ToSlash(filepath.Clean(paths.DatadogDataDir))
-	fleetPolicies := paths.FleetPoliciesDirForManagedProcess()
-	fleetPoliciesRepl := filepath.ToSlash(filepath.Clean(fleetPolicies))
-	log.Debugf("ADP processes.d: template replace __ADP_INSTALL_ROOT__=%q __ADP_ETC_ROOT__=%q __ADP_FLEET_POLICIES_DIR__=%q",
-		installRootRepl, etcRootRepl, fleetPoliciesRepl)
-
-	config := embedded.ADPWindowsProcmgrConfig
-	config = strings.ReplaceAll(config, "__ADP_INSTALL_ROOT__", installRootRepl)
-	config = strings.ReplaceAll(config, "__ADP_ETC_ROOT__", etcRootRepl)
-	config = strings.ReplaceAll(config, "__ADP_FLEET_POLICIES_DIR__", fleetPoliciesRepl)
-
-	path := filepath.Join(processesDir, adpProcmgrConfigFileName)
-	log.Debugf("ADP processes.d: writing %q", path)
-	return os.WriteFile(path, []byte(config), 0o644)
+var adpInstallRootProcmgrSpec = installRootProcmgrSpec{
+	logLabel:          "ADP",
+	binaryRelPath:     "bin/agent/agent-data-plane.exe",
+	configFileName:    "datadog-agent-data-plane.yaml",
+	embeddedConfig:    embedded.ADPWindowsProcmgrConfig,
+	placeholderPrefix: "ADP",
 }
 
-// RemoveADPProcmgrConfig removes the ADP processes.d YAML from the install layout and from
-// legacy package-relative processes.d.
-func RemoveADPProcmgrConfig(packageRootResolved string) error {
-	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
-		p := filepath.Join(installPF, "processes.d", adpProcmgrConfigFileName)
-		log.Debugf("ADP processes.d: remove %q", p)
-		if err := os.Remove(p); err != nil {
-			if os.IsNotExist(err) {
-				log.Debugf("ADP processes.d: remove %q: not present", p)
-			} else {
-				log.Debugf("ADP processes.d: remove %q: %v", p, err)
-				return err
-			}
-		}
-	} else {
-		log.Debugf("ADP processes.d: remove skip primary (DatadogProgramFilesDir is empty)")
-	}
-	legacy := filepath.Join(packageRootResolved, "processes.d", adpProcmgrConfigFileName)
-	log.Debugf("ADP processes.d: remove legacy %q", legacy)
-	if err := os.Remove(legacy); err != nil {
-		if os.IsNotExist(err) {
-			log.Debugf("ADP processes.d: remove legacy %q: not present", legacy)
-		} else {
-			log.Debugf("ADP processes.d: remove legacy %q: %v", legacy, err)
-			return err
-		}
-	}
-	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
-		removeEmptyProcessesDir(installPF)
-	}
-	return nil
+// WriteADPProcmgrConfig writes datadog-agent-data-plane.yaml under installRootResolved\processes.d so
+// dd-procmgrd picks it up. installRootResolved is the resolved MSI Program Files install root.
+func WriteADPProcmgrConfig(installRootResolved string) error {
+	return writeInstallRootProcmgrConfig(installRootResolved, adpInstallRootProcmgrSpec)
+}
+
+// RemoveADPProcmgrConfig removes the ADP processes.d YAML from installRootResolved\processes.d.
+func RemoveADPProcmgrConfig(installRootResolved string) error {
+	return removeInstallRootProcmgrConfig(installRootResolved, adpInstallRootProcmgrSpec)
 }

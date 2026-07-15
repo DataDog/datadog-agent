@@ -45,6 +45,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	source "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -459,6 +460,74 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 		}
 	}
 	t.Errorf("%s not found in metrics", outName)
+}
+
+func TestRunningMetricForPayloadContents(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(m pmetric.Metric)
+		wantRunning bool
+	}{
+		{
+			name: "apm stats only",
+			setup: func(m pmetric.Metric) {
+				m.SetName("dd.internal.stats.payload")
+				m.SetEmptySum()
+			},
+			wantRunning: false,
+		},
+		{
+			name: "real metric",
+			setup: func(m pmetric.Metric) {
+				m.SetName("my.metric")
+				m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			},
+			wantRunning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+
+			set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+				return &collectorConsumer{
+					serializerConsumer: &serializerConsumer{},
+					seenHosts:          make(map[string]struct{}),
+					seenTags:           make(map[string]struct{}),
+					getPushTime:        func() uint64 { return 0 },
+				}
+			}
+
+			rec := &metricRecorder{}
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+			require.NoError(t, err)
+
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			tt.setup(m)
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var names []string
+			for _, serie := range rec.series {
+				names = append(names, serie.Name)
+			}
+			if tt.wantRunning {
+				assert.Contains(t, names, "otel.datadog_exporter.metrics.running")
+			} else {
+				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running")
+				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running.fargate")
+			}
+		})
+	}
 }
 
 func newMetrics(

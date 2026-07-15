@@ -472,7 +472,9 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
-// GetConfig returns the kubelet configuration from /configz
+// GetConfig returns the kubelet configuration from /configz. Since
+// kubernetes/kubernetes#136044, the inner kubeletconfig object carries
+// APIVersion and Kind; older kubelets leave them empty.
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {
