@@ -5,6 +5,7 @@
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
+    - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
@@ -97,6 +98,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >

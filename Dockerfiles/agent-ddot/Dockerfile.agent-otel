@@ -60,7 +60,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     fi
 
 # Install Go based on architecture
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.26.5
 RUN ARCH=$(dpkg --print-architecture) && \
 if [ "$ARCH" = "amd64" ]; then \
 GO_ARCH="linux-amd64"; \
@@ -113,21 +113,28 @@ COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/
 # Generate the files and clean up go cache to free space
 ARG GOPROXY
 ARG GONOSUMDB
-RUN GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
+# The GOPROXY build arg is re-injected into every RUN below as an env var, so
+# strip any unreachable entry once here and apply the result explicitly to each
+# go step (an explicit assignment overrides the injected arg). Mirrors
+# tools/ci/sanitize-goproxy.sh.
+RUN printf '%s' "$GOPROXY" | tr '|' '\n' \
+      | grep -vE '^https?://[^/]*\.fabric\.dog(:[0-9]+)?(/|$)' \
+      | paste -sd '|' - > /tmp/goproxy.sanitized
+RUN GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
     go clean -cache; \
     else \
-    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
+    GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
     go clean -cache; \
     fi
 
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.

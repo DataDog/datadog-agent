@@ -85,10 +85,16 @@
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-amd64", "specific:true" ]
+  # Drop GOPROXY entries not usable from macOS runners before bazel forwards
+  # GOPROXY into its repository rules.
+  before_script:
+    - !reference [.sanitize_goproxy]
 
 .bazel:runner:macos-arm64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-arm64", "specific:true" ]
+  before_script:
+    - !reference [.sanitize_goproxy]
 
 .bazel:runner:windows-amd64:
   extends: [ .bazel:defs:cache:windows, .windows_docker_default ]

@@ -4,11 +4,11 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
-	github.com/DataDog/datadog-agent/pkg/fips v0.81.0
-	github.com/DataDog/datadog-agent/pkg/template v0.81.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.0
-	github.com/DataDog/datadog-agent/pkg/version v0.81.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.81.1
+	github.com/DataDog/datadog-agent/pkg/template v0.81.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.81.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.1
+	github.com/DataDog/datadog-agent/pkg/version v0.81.1
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/evanphx/json-patch/v5 v5.9.11
@@ -30,7 +30,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v29.4.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
