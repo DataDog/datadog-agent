@@ -10,9 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
-	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -34,23 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 )
-
-// HTTP client mock
-type clientMock struct {
-	body []byte
-}
-
-func (c *clientMock) Do(req *http.Request) (*http.Response, error) {
-	c.body, _ = io.ReadAll(req.Body)
-	return &http.Response{
-		Status:     "200 OK",
-		StatusCode: 200,
-	}, nil
-}
-
-func newClientMock() client {
-	return &clientMock{}
-}
 
 // Sender mock
 type senderMock struct {
@@ -177,11 +158,11 @@ func makeLogMock(t *testing.T) log.Component {
 	return logmock.New(t)
 }
 
-func makeSenderImpl(t *testing.T, cl client, c string) sender {
+func makeSenderImpl(t *testing.T, cl Client, c string) sender {
 	cfg := configmock.NewFromYAML(t, c)
 	log := makeLogMock(t)
 	if cl == nil {
-		cl = newClientMock()
+		cl = NewClientMock()
 	}
 	sndr, err := newSenderImpl(cfg, log, cl)
 	assert.NoError(t, err)
@@ -193,7 +174,7 @@ func getTestAtel(t *testing.T,
 	tel telemetry.Component,
 	YAMLConf string,
 	sndr sender,
-	client client,
+	client Client,
 	runner runner) *atel {
 
 	if tel == nil {
@@ -201,7 +182,7 @@ func getTestAtel(t *testing.T,
 	}
 
 	if client == nil {
-		client = newClientMock()
+		client = NewClientMock()
 	}
 
 	if runner == nil {
@@ -625,7 +606,7 @@ func TestReportMetricBasic(t *testing.T) {
 	counter := tel.NewCounter("checks", "execution_time", []string{"check_name"}, "")
 	counter.Inc("mycheck")
 
-	c := newClientMock()
+	c := NewClientMock()
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), nil, c, r)
 	require.True(t, a.enabled)
@@ -634,7 +615,7 @@ func TestReportMetricBasic(t *testing.T) {
 	a.start()
 	r.(*runnerMock).run()
 
-	assert.True(t, len(c.(*clientMock).body) > 0)
+	assert.True(t, len(c.Body()) > 0)
 }
 
 func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
@@ -2257,7 +2238,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	hist.Observe(100)
 
 	// setup and initiate atel
-	cl1 := newClientMock()
+	cl1 := NewClientMock()
 	s1 := makeSenderImpl(t, cl1, cfg1)
 	r1 := newRunnerMock()
 	a1 := getTestAtel(t, tel, cfg1, s1, cl1, r1)
@@ -2266,7 +2247,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	// run the runner to trigger the telemetry report
 	a1.start()
 	r1.(*runnerMock).run()
-	assert.True(t, len(cl1.(*clientMock).body) > 0)
+	assert.True(t, len(cl1.Body()) > 0)
 
 	// Run without compression
 	var cfg2 = `
@@ -2282,7 +2263,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
     `
 
 	// setup and initiate atel
-	cl2 := newClientMock()
+	cl2 := NewClientMock()
 	s2 := makeSenderImpl(t, cl2, cfg2)
 	r2 := newRunnerMock()
 	a2 := getTestAtel(t, tel, cfg2, s2, cl2, r2)
@@ -2291,16 +2272,16 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	// run the runner to trigger the telemetry report
 	a2.start()
 	r2.(*runnerMock).run()
-	assert.True(t, len(cl2.(*clientMock).body) > 0)
-	decompressBody, err := zstd.Decompress(nil, cl1.(*clientMock).body)
+	assert.True(t, len(cl2.Body()) > 0)
+	decompressBody, err := zstd.Decompress(nil, cl1.Body())
 	require.NoError(t, err)
 	require.NotZero(t, len(decompressBody))
 
 	// we cannot compare body (time stamp different and internal
 	// bucket serialization, but success above and significant size differences
 	// should be suffient
-	compressBodyLen := len(cl1.(*clientMock).body)
-	nonCompressBodyLen := len(cl2.(*clientMock).body)
+	compressBodyLen := len(cl1.Body())
+	nonCompressBodyLen := len(cl2.Body())
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
 
@@ -2490,7 +2471,7 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// setup and initiate atel
-	cl := newClientMock()
+	cl := NewClientMock()
 	s := makeSenderImpl(t, cl, cfg)
 	r := newRunnerMock()
 	a := getTestAtel(t, nil, cfg, s, cl, r)
@@ -2499,13 +2480,13 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	a.start()
 	err = a.SendEvent("agentbsod", payload)
 	require.NoError(t, err)
-	assert.True(t, len(cl.(*clientMock).body) > 0)
+	assert.True(t, len(cl.Body()) > 0)
 
-	//deserialize the payload of cl.(*clientMock).body
+	//deserialize the payload of cl.Body()
 	var topPayload map[string]interface{}
-	err = json.Unmarshal(cl.(*clientMock).body, &topPayload)
+	err = json.Unmarshal(cl.Body(), &topPayload)
 	require.NoError(t, err)
-	fmt.Print(string(cl.(*clientMock).body))
+	fmt.Print(string(cl.Body()))
 
 	v, ok, err2 := jsonquery.RunSingleOutput(".payload.message", topPayload)
 	require.NoError(t, err2)
@@ -2555,7 +2536,7 @@ func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// setup and initiate atel
-	cl := newClientMock()
+	cl := NewClientMock()
 	s := makeSenderImpl(t, cl, cfg)
 	r := newRunnerMock()
 	a := getTestAtel(t, nil, cfg, s, cl, r)

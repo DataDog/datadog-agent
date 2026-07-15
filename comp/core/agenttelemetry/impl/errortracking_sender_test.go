@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"runtime"
@@ -29,70 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
-// captureClient records every Do(req) call's request and body, and returns
-// configurable responses. The existing clientMock in agenttelemetry_test.go
-// only stores the LAST body; we need every body to assert single-POST
-// semantics for batches.
-type captureClient struct {
-	mu sync.Mutex
-
-	requests []*http.Request
-	bodies   [][]byte
-
-	statusCode int
-	err        error
-}
-
-func (c *captureClient) Do(req *http.Request) (*http.Response, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.requests = append(c.requests, req)
-	if req.Body != nil {
-		body, _ := io.ReadAll(req.Body)
-		c.bodies = append(c.bodies, body)
-	} else {
-		c.bodies = append(c.bodies, nil)
-	}
-
-	if c.err != nil {
-		return nil, c.err
-	}
-	status := c.statusCode
-	if status == 0 {
-		status = http.StatusOK
-	}
-	return &http.Response{
-		StatusCode: status,
-		Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
-		Body:       io.NopCloser(strings.NewReader("")),
-		Header:     make(http.Header),
-	}, nil
-}
-
-func (c *captureClient) snapshot() ([]*http.Request, [][]byte) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	reqs := append([]*http.Request{}, c.requests...)
-	bodies := make([][]byte, 0, len(c.bodies))
-	for _, b := range c.bodies {
-		if b == nil {
-			bodies = append(bodies, nil)
-			continue
-		}
-		cp := make([]byte, len(b))
-		copy(cp, b)
-		bodies = append(bodies, cp)
-	}
-	return reqs, bodies
-}
-
 // newTestSender constructs a senderImpl wired to a single in-memory
 // endpoint, bypassing the heavyweight newSenderImpl path that would
 // require a full config.Component and BuildHTTPEndpointsWithConfig call.
 // The fields populated here are exactly the ones sendLogsBatch and
 // sendPayload read.
-func newTestSender(t *testing.T, cl client) *senderImpl {
+func newTestSender(t *testing.T, cl Client) *senderImpl {
 	t.Helper()
 	main := logconfig.NewEndpoint("test-api-key", "", "instrumentation-telemetry-intake.datad0g.com", 0, "", true)
 	return &senderImpl{
@@ -129,7 +70,7 @@ func TestSendPayloadBody_StatusCodes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := &captureClient{statusCode: tc.status}
+			cl := &ClientMock{StatusCode: tc.status}
 			s := newTestSender(t, cl)
 			status, err := s.sendPayloadBody(context.Background(),
 				[]byte(`{"k":"v"}`), "logs", "test-key",
@@ -137,7 +78,7 @@ func TestSendPayloadBody_StatusCodes(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.status, status)
 
-			reqs, bodies := cl.snapshot()
+			reqs, bodies := cl.Requests(), cl.Bodies()
 			require.Len(t, reqs, 1)
 			assert.Equal(t, "logs", reqs[0].Header.Get("DD-Telemetry-request-type"))
 			assert.Equal(t, "test-key", reqs[0].Header.Get("DD-Api-Key"))
@@ -148,7 +89,7 @@ func TestSendPayloadBody_StatusCodes(t *testing.T) {
 }
 
 func TestSendPayloadBody_NetworkError(t *testing.T) {
-	cl := &captureClient{err: errors.New("simulated network down")}
+	cl := &ClientMock{Err: errors.New("simulated network down")}
 	s := newTestSender(t, cl)
 	status, err := s.sendPayloadBody(context.Background(),
 		[]byte("{}"), "logs", "key", "https://example.invalid/path", false)

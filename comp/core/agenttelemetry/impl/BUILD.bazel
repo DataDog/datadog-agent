@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = [
         "agenttelemetry.go",
+        "client_mock.go",
         "config.go",
         "errortracking_sender.go",
         "logs_payload.go",
