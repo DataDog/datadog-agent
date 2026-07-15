@@ -49,8 +49,6 @@ type internalHealthMetricsPipelineResolution struct {
 // converterWithoutAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one resourcedetection processor declared and used with required defaults
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
-//   - No infraattributes processor configured nor declared
-//   - remove infraattributes processor from metrics processors pipeline
 //   - At least one otlp_http exporter with dd-api-key declared & used
 //   - Check if used otlp_http exporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
@@ -96,7 +94,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	}
 
 	// Determines what components we need to check and ensures at least one resourcedetection is configured
-	// Deletes any infraattributes configured in the profiles pipeline
 	newProcessorNames, err := c.fixProcessorsPipeline(confStringMap, processorNames)
 	if err != nil {
 		return err
@@ -115,19 +112,8 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	}
 	profilesPipeline["receivers"] = newReceiverNames
 
-	// Go through every configured processor to make sure there are no infraattributes declared that were not in the
-	// pipeline
-	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
-		return err
-	}
-
 	// Remove agent-only extensions
 	if err := c.removeAgentOnlyExtensions(confStringMap); err != nil {
-		return err
-	}
-
-	// infraattributes processor can also be used in metrics pipeline
-	if err := c.ensureMetricsPipeline(confStringMap); err != nil {
 		return err
 	}
 
@@ -145,54 +131,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	return nil
 }
 
-func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
-	// Only operate on a metrics pipeline the user actually declared. Using Ensure here would
-	// materialize an empty service::pipelines::metrics for profiles-only configs, which then
-	// fails validation with "service::pipelines::metrics: must have at least one receiver".
-	metrics, ok := confmaputils.Get[confMap](conf, "service::pipelines::metrics")
-	if !ok {
-		return nil
-	}
-
-	processors, err := confmaputils.Ensure[[]any](metrics, "processors")
-	if err != nil {
-		return err
-	}
-
-	filteredProcessors := make([]any, 0, len(processors))
-	for _, processorAny := range processors {
-		processor, ok := processorAny.(string)
-		if !ok {
-			return errors.New("processors in metrics pipeline should be strings")
-		}
-
-		if confmaputils.IsComponentType(processor, componentTypeInfraAttributes) {
-			continue
-		}
-
-		filteredProcessors = append(filteredProcessors, processorAny)
-	}
-
-	metrics["processors"] = filteredProcessors
-
-	// infraattributes processor should've already been deleted by now, no need to check
-	return nil
-}
-
-func (c *converterWithoutAgent) ensureGlobalProcessors(conf confMap) error {
-	processors, err := confmaputils.Ensure[confMap](conf, "processors")
-	if err != nil {
-		return err
-	}
-
-	for name := range processors {
-		if confmaputils.IsComponentType(name, componentTypeInfraAttributes) {
-			delete(processors, name)
-		}
-	}
-	return nil
-}
-
 func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNames []any) ([]any, error) {
 	processors, err := confmaputils.Ensure[confMap](conf, "processors")
 	if err != nil {
@@ -200,20 +138,12 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 	}
 	foundResourcedetection := false
 	foundDDHostNameProcessor := false
-	toDelete := make(map[string]bool)
 
-	// remove infraattributes, track & sanitize resourcedetection
+	// track & sanitize resourcedetection
 	for _, nameAny := range processorNames {
 		name, ok := nameAny.(string)
 		if !ok {
 			return nil, fmt.Errorf("processor name must be a string, got %T", nameAny)
-		}
-
-		// Remove infraattributes from pipeline and global config
-		if confmaputils.IsComponentType(name, componentTypeInfraAttributes) {
-			delete(processors, name)
-			toDelete[name] = true
-			continue
 		}
 
 		// Track if we have resourcedetection
@@ -248,13 +178,6 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		slog.Info("Added minimal ddhostname processor to user configuration")
 		processorNames = append(processorNames, defaultDDHostNameProcessorName)
 	}
-
-	// Remove processors marked for deletion
-	processorNames = slices.DeleteFunc(processorNames, func(processor any) bool {
-		name := processor.(string)
-		_, exists := toDelete[name]
-		return exists
-	})
 
 	return processorNames, nil
 }
@@ -557,7 +480,7 @@ func resolveInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []
 }
 
 // addInternalHealthMetricsPipeline scrapes OTel collector internal telemetry and exports it
-// to the same orgs as profiles. Separate from ensureMetricsPipeline which handles user-defined pipelines.
+// to the same orgs as profiles. Separate from the user-defined metrics pipeline, if any.
 func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any, profilesProcessors []any) error {
 	if hasInternalHealthMetricsPipelineConflicts(conf) {
 		return nil

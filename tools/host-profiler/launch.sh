@@ -9,7 +9,9 @@ sudo mountpoint -q /sys/kernel/tracing || sudo mount -t tracefs tracefs /sys/ker
 
 cd /app
 
-# Run the profiler (uses localhost for agent connection via shared network namespace)
-# IPC artifacts (auth_token, ipc_cert.pem) are in /etc/datadog-agent from shared volume
-sudo -E ./bin/host-profiler/host-profiler run \
-  --core-config /etc/datadog-agent/datadog.yaml
+# HOST_PROFILER_CONFIG lets callers (e.g. docker-compose services) point at an alternate
+# OTel config, such as host-profiler-config-dogtel.yaml, without duplicating this script.
+# HOST_PROFILER_BIN_NAME must match the --output-name passed to build_and_launch.sh's
+# `dda inv host-profiler.build`, so multiple variants stay distinguishable in `ps`/`top`.
+sudo -E "./bin/host-profiler/${HOST_PROFILER_BIN_NAME:-host-profiler}" run \
+  --config "${HOST_PROFILER_CONFIG:-cmd/host-profiler/dist/host-profiler-config.yaml}"

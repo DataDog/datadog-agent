@@ -22,7 +22,10 @@ PPROFILE_MAX_VERSION = "v0.155.1"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("host-profiler"))
+
+
+def _bin_path(output_name):
+    return os.path.join(BIN_DIR, bin_name(output_name))
 
 
 def _get_profiler_agent_version(ctx):
@@ -61,13 +64,18 @@ def _get_profiler_agent_version(ctx):
 
 
 @task
-def build(ctx):
+def build(ctx, output_name=BIN_NAME):
     """
     Build the host profiler
-    """
 
-    if os.path.exists(BIN_PATH):
-        os.remove(BIN_PATH)
+    output_name: name of the built binary (default: host-profiler). Use a distinct
+    name (e.g. host-profiler-dogtel) when running multiple host-profiler variants
+    side by side, so they're distinguishable in `ps`/`top`/process listings.
+    """
+    bin_path = _bin_path(output_name)
+
+    if os.path.exists(bin_path):
+        os.remove(bin_path)
 
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="host-profiler")
@@ -90,7 +98,7 @@ def build(ctx):
         build_tags=build_tags,
         ldflags=ldflags,
         gcflags=gcflags,
-        bin_path=BIN_PATH,
+        bin_path=bin_path,
         env=env,
     )
 

@@ -29,7 +29,6 @@ type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes     = "infraattributes"
 	componentTypeResourceDetection   = "resourcedetection"
 	componentTypeDDHostNameProcessor = "ddhostname"
 	componentTypeProfiling           = "profiling"
@@ -45,7 +44,6 @@ const (
 
 // Default component names
 const (
-	defaultInfraAttributesName     = componentTypeInfraAttributes + "/" + confmaputils.AutoConfiguredSuffix
 	defaultResourceDetectionName   = componentTypeResourceDetection + "/" + confmaputils.AutoConfiguredSuffix
 	defaultDDHostNameProcessorName = componentTypeDDHostNameProcessor + "/" + confmaputils.AutoConfiguredSuffix
 	defaultProfilingName           = "profiling"

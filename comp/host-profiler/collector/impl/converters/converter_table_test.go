@@ -129,9 +129,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/proc-name-similar/out.yaml",
 		},
 		{
-			name:     "removes-infraattributes-from-metrics-pipeline",
-			provided: "no_agent/rm-infraattr-metrics/in.yaml",
-			expected: "no_agent/rm-infraattr-metrics/out.yaml",
+			name:     "preserves-infraattributes-in-metrics-pipeline",
+			provided: "no_agent/preserve-infraattr-metrics/in.yaml",
+			expected: "no_agent/preserve-infraattr-metrics/out.yaml",
 		},
 		{
 			name:     "adds-profiling-when-missing",

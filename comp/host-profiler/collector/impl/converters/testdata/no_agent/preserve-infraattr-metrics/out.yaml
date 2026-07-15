@@ -10,6 +10,10 @@ processors:
     batch:
         timeout: 10s
     ddhostname/dd-autoconfigured: {}
+    infraattributes:
+        allow_hostname_override: false
+    infraattributes/custom:
+        some_config: value
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -39,6 +43,8 @@ service:
             exporters:
                 - otlp_http
             processors:
+                - infraattributes
+                - infraattributes/custom
                 - batch
         profiles:
             exporters:

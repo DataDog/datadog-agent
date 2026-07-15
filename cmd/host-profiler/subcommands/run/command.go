@@ -25,11 +25,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-otel"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
@@ -45,6 +54,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -116,6 +126,17 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	} else {
 		opts = append(opts,
 			fx.Invoke(initStandaloneConfig),
+			fx.Provide(func() config.Component { return setup.Datadog() }),
+			fx.Supply(log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultHostProfilerLogFile())),
+			logfx.Module(),
+			workloadmetafx.Module(workloadmeta.NewParams()),
+			wmcatalog.GetCatalog(),
+			workloadfilterfx.Module(),
+			taggerfx.Module(),
+			hostnameimpl.Module(),
+			secretsfx.Module(),
+			telemetryfx.Module(),
+			fx.Provide(func() serializer.MetricSerializer { return &noopSerializer{} }),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
 		)
 	}
@@ -133,6 +154,9 @@ func run(collector collector.Component) error {
 func initStandaloneConfig() {
 	const kubeletHostAgentConfig = "kubernetes_kubelet_host"
 	pkgconfigenv.DetectFeatures(setup.Datadog())
+	// host-profiler's standalone path has no core Agent alongside it, so dogtelextension's
+	// local workloadmeta-backed tagger always applies here (see extension.go's Start gate).
+	setup.Datadog().Set("otel_standalone", true, pkgconfigmodel.SourceAgentRuntime)
 	k8sNodeIP := os.Getenv("K8S_NODE_IP")
 	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
 	if k8sNodeIP != "" {

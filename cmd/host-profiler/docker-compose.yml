@@ -43,6 +43,41 @@ services:
       - dd-api-key
       - dd-app-key
 
+  # host-profiler-standalone-dogtel runs host-profiler fully standalone: no sibling
+  # datadog-agent container, no agent-ipc volume. Container/image metadata comes from
+  # host-profiler's own local workloadmeta+tagger, exposed via the dogtel extension and
+  # consumed by the infraattributes processor (see host-profiler-config-dogtel.yaml),
+  # instead of relying solely on docker_attributes talking to the Docker socket directly.
+  host-profiler-standalone-dogtel:
+    build:
+      context: ../..
+      dockerfile: tools/host-profiler/Dockerfile
+      args:
+        UID: ${UID}
+        GID: ${GID}
+    privileged: true
+    pid: "host"
+    cgroup: "host"
+    environment:
+      DD_OTEL_STANDALONE: "true"
+      DOCKER_DD_AGENT: "true"
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DO_NOT_START_PROFILER:
+      DD_HOSTPROFILER_DEBUG:
+      HOST_PROFILER_CONFIG: cmd/host-profiler/dist/host-profiler-config-dogtel.yaml
+      HOST_PROFILER_BIN_NAME: host-profiler-dogtel
+      # Surface every Docker container label as a tag (label name -> tag key, verbatim)
+      # so dogtel's local tagger picks up arbitrary labels, not just the well-known ones.
+      DD_DOCKER_LABELS_AS_TAGS: '{"*":"%%label%%"}'
+    volumes:
+      - ../..:/app
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    secrets:
+      - dd-api-key
+      - dd-app-key
+
 volumes:
   agent-ipc:
 

@@ -1,0 +1,67 @@
+extensions:
+  dogtel:
+    # Tagger server settings. Must stay disabled here: host-profiler's standalone
+    # wiring (collectorimpl.NewExtraFactoriesWithoutAgentCore) passes a nil
+    # ipc.Component to dogtelextension since there's no core Agent alongside it,
+    # and startTaggerServer() dereferences it unconditionally, crashing on startup.
+    # Container/image enrichment for this test comes from infraattributesprocessor
+    # consuming the local tagger in-process, so the gRPC server isn't needed anyway.
+    enable_tagger_server: false       # Enable tagger gRPC server (default: false)
+    tagger_server_port: 5000          # Port to listen on, 0 = auto-assign (default: 0)
+    tagger_server_addr: "localhost"   # Address to bind to (default: localhost)
+    tagger_max_message_size: 4194304  # Max gRPC message size in bytes (default: 4MB)
+    tagger_max_concurrent_sync: 5     # Max concurrent sync connections (default: 5)
+
+    # Metadata collection (via FX modules in otel-agent)
+    enable_metadata_collection: true  # Informational flag (default: true)
+    metadata_interval: 300            # Interval in seconds (default: 300)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+  profiling:
+    symbol_uploader:
+      enabled: true
+      symbol_endpoints:
+        - site: ${env:DD_SITE}
+          api_key: ${env:DD_API_KEY}
+processors:
+  infraattributes:
+    allow_hostname_override: true
+    cardinality: 2
+  resource/dogtel:
+    attributes:
+      - key: dogtel_enabled
+        value: "true"
+        action: upsert
+  cumulativetodelta: {}
+  resourcedetection:
+    detectors: ["system"]
+    system:
+      resource_attributes:
+        host.arch:
+          enabled: true
+        host.name:
+          enabled: false
+        os.type:
+          enabled: false
+
+exporters:
+  otlp_http:
+    endpoint: https://otlp.${env:DD_SITE}
+    headers:
+      dd-api-key: ${env:DD_API_KEY}
+      dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+service:
+  extensions: [dogtel]
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      processors: [resourcedetection, infraattributes, resource/dogtel]
+      exporters: [otlp_http]
+    metrics:
+      receivers: [otlp]
+      processors: [cumulativetodelta, infraattributes]
+      exporters: [otlp_http]

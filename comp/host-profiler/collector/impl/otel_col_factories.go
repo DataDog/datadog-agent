@@ -13,15 +13,20 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
+	dogtelextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
@@ -141,13 +146,43 @@ func (e extraFactoriesWithAgentCore) GetProfilerName() string {
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
-type extraFactoriesWithoutAgentCore struct{}
+type extraFactoriesWithoutAgentCore struct {
+	config       config.Component
+	log          log.Component
+	workloadmeta workloadmeta.Component
+	tagger       tagger.Component
+	hostname     hostname.Component
+	serializer   serializer.MetricSerializer
+	telemetry    telemetry.Component
+	secrets      secrets.Component
+}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
 
 // NewExtraFactoriesWithoutAgentCore creates a new ExtraFactories instance when the Agent Core is not available.
-func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
-	return extraFactoriesWithoutAgentCore{}
+// The components below back the dogtelextension extension, which gives standalone mode its own
+// local workloadmeta+tagger (no core Agent needed) for container/image metadata enrichment via
+// the infraattributesprocessor.
+func NewExtraFactoriesWithoutAgentCore(
+	config config.Component,
+	log log.Component,
+	workloadmeta workloadmeta.Component,
+	tagger tagger.Component,
+	hostname hostname.Component,
+	serializer serializer.MetricSerializer,
+	telemetry telemetry.Component,
+	secrets secrets.Component,
+) ExtraFactories {
+	return extraFactoriesWithoutAgentCore{
+		config:       config,
+		log:          log,
+		workloadmeta: workloadmeta,
+		tagger:       tagger,
+		hostname:     hostname,
+		serializer:   serializer,
+		telemetry:    telemetry,
+		secrets:      secrets,
+	}
 }
 
 // GetLoggingOptions returns the logging options for the collector when the Agent Core is not available.
@@ -162,9 +197,10 @@ func (e extraFactoriesWithoutAgentCore) GetReceivers() []receiver.Factory {
 	}
 }
 
-// GetAgentConfig always returns nil in Standalone mode as the Core Agent is not available
+// GetAgentConfig returns the local config in Standalone mode; there is no Core Agent process,
+// but dogtelextension still needs a config.Component to read the otel_standalone gate.
 func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
-	return nil
+	return e.config
 }
 
 // GetExtensions returns the extensions for the collector.
@@ -172,6 +208,10 @@ func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactory(),
 		healthcheckextension.NewFactory(),
+		// ipc is nil: EnableTaggerServer defaults to false, and Start() only touches it when
+		// starting the tagger gRPC server, which standalone host-profiler doesn't need since
+		// the tagger is consumed in-process by infraattributesprocessor below.
+		dogtelextensionimpl.NewFactoryForAgent(e.config, e.log, e.serializer, e.hostname, e.workloadmeta, e.tagger, nil, e.telemetry, e.secrets),
 	}
 }
 
@@ -182,6 +222,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
 		ddhostnameprocessor.NewFactory(),
+		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
 	}
 }
 

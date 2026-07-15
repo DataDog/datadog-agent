@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"testing"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -19,7 +20,8 @@ import (
 )
 
 func TestExtraFactoriesWithoutAgentCore_GetProcessors(t *testing.T) {
-	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	hostname, _ := hostnamemock.NewMock("test-host")
+	extraFactories := NewExtraFactoriesWithoutAgentCore(nil, nil, nil, nil, hostname, nil, nil, nil)
 	factories, err := createFactories(extraFactories)()
 	require.NoError(t, err)
 
@@ -32,7 +34,8 @@ func TestExtraFactoriesWithoutAgentCore_GetProcessors(t *testing.T) {
 }
 
 func TestExtraFactoriesWithoutAgentCore_GetReceivers(t *testing.T) {
-	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	hostname, _ := hostnamemock.NewMock("test-host")
+	extraFactories := NewExtraFactoriesWithoutAgentCore(nil, nil, nil, nil, hostname, nil, nil, nil)
 	factories, err := createFactories(extraFactories)()
 	require.NoError(t, err)
 
@@ -46,7 +49,7 @@ func TestExtraFactoriesWithAgentCore_GetReceivers(t *testing.T) {
 }
 
 func TestExtraFactoriesWithoutAgentCore_GetProfilerName(t *testing.T) {
-	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	extraFactories := NewExtraFactoriesWithoutAgentCore(nil, nil, nil, nil, nil, nil, nil, nil)
 	assert.Equal(t, version.StandaloneProfilerName, extraFactories.GetProfilerName())
 }
 
