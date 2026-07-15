@@ -271,6 +271,7 @@ COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 # arch-agnostic (aarch64/x86_64). Keep nosys.so in the preload list.
 COPY --from=jemalloc /usr/lib/*/libjemalloc.so.2 /opt/lib/
 ENV LD_PRELOAD=/opt/lib/libjemalloc.so.2:/opt/lib/nosys.so
+ENV MALLOC_CONF=background_thread:true
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
