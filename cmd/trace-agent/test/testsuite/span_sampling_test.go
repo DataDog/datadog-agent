@@ -48,12 +48,14 @@ func TestSpanSampling(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			require.Len(t, v.TracerPayloads, 1)
-			require.Len(t, v.TracerPayloads[0].Chunks, 1)
-			assert.False(t, v.TracerPayloads[0].Chunks[0].DroppedTrace)
-			assert.Equal(t, int32(2), v.TracerPayloads[0].Chunks[0].Priority)
-			require.Len(t, v.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(t, 8.0, v.TracerPayloads[0].Chunks[0].Spans[0].Metrics["_dd.span_sampling.mechanism"])
+			require.Len(t, v.IdxTracerPayloads, 1)
+			tp := v.IdxTracerPayloads[0]
+			require.Len(t, tp.Chunks, 1)
+			assert.False(t, tp.Chunks[0].DroppedTrace)
+			assert.Equal(t, int32(2), tp.Chunks[0].Priority)
+			require.Len(t, tp.Chunks[0].Spans, 1)
+			mechanism, _ := idxNumAttr(tp.Strings, tp.Chunks[0].Spans[0].Attributes, "_dd.span_sampling.mechanism")
+			assert.Equal(t, 8.0, mechanism)
 		})
 	})
 }
