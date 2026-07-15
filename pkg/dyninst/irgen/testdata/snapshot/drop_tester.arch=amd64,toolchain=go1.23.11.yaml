@@ -5370,7 +5370,7 @@ Types:
         - Name: data
           Offset: 8
           Type: 21 VoidPointerType unsafe.Pointer
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 118
       Name: context.backgroundCtx
       GoRuntimeType: 351392
@@ -5379,9 +5379,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 109 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 127
       Name: context.cancelCtx
@@ -5428,15 +5425,12 @@ Types:
       GoRuntimeType: 258816
       GoKind: 25
       RawFields: []
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 109
       Name: context.emptyCtx
       GoRuntimeType: 289056
       GoKind: 25
       RawFields: []
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 111
       Name: context.stopCtx

@@ -3972,7 +3972,7 @@ Types:
           Type: 66 GoSubroutineType func()
       KeyOffset: -1
       ValueOffset: -1
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 172
       Name: context.backgroundCtx
       GoRuntimeType: 1855552
@@ -3981,9 +3981,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 159 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 183
       Name: context.cancelCtx
@@ -4030,15 +4027,12 @@ Types:
       GoRuntimeType: 1497952
       GoKind: 25
       RawFields: []
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 159
       Name: context.emptyCtx
       GoRuntimeType: 1639104
       GoKind: 25
       RawFields: []
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 161
       Name: context.stopCtx
@@ -4072,7 +4066,7 @@ Types:
           Type: 194 GoTimeType time.Time
       KeyOffset: -1
       ValueOffset: -1
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 174
       Name: context.todoCtx
       GoRuntimeType: 1855776
@@ -4081,9 +4075,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 159 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 168
       Name: context.valueCtx

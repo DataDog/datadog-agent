@@ -3882,7 +3882,7 @@ Types:
         - Name: data
           Offset: 8
           Type: 21 VoidPointerType unsafe.Pointer
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 160
       Name: context.backgroundCtx
       GoRuntimeType: 1669568
@@ -3891,9 +3891,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 147 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 171
       Name: context.cancelCtx
@@ -3940,15 +3937,12 @@ Types:
       GoRuntimeType: 1276096
       GoKind: 25
       RawFields: []
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 147
       Name: context.emptyCtx
       GoRuntimeType: 1400736
       GoKind: 25
       RawFields: []
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 149
       Name: context.stopCtx
@@ -3982,7 +3976,7 @@ Types:
           Type: 182 GoTimeType time.Time
       KeyOffset: -1
       ValueOffset: -1
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 162
       Name: context.todoCtx
       GoRuntimeType: 1669792
@@ -3991,9 +3985,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 147 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 156
       Name: context.valueCtx

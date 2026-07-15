@@ -60,6 +60,59 @@ func TestAnnotateSpecialGoTypesContextValueCtx(t *testing.T) {
 	require.Equal(t, int32(32), wrapped.ValueOffset)
 }
 
+// TestAnnotateSpecialGoTypesDelegatingContextImpl covers a struct that
+// implements context.Context through methods that delegate elsewhere (e.g.
+// rapid.Context, whose methods forward to the request's context) and therefore
+// has no context.Context field of its own. It is not a link in a walkable
+// chain, so it is left as a plain StructureType and captured as an ordinary
+// struct rather than being wrapped as GoContextImplementationType and run
+// through the chain walk.
+func TestAnnotateSpecialGoTypesDelegatingContextImpl(t *testing.T) {
+	writerIface := &ir.GoInterfaceType{
+		TypeCommon: ir.TypeCommon{
+			ID:       1,
+			Name:     "io.Writer",
+			ByteSize: 16,
+		},
+	}
+	intType := &ir.BaseType{
+		TypeCommon: ir.TypeCommon{
+			ID:       2,
+			Name:     "int",
+			ByteSize: 8,
+		},
+	}
+	// A context implementation with no context.Context field and no key/value
+	// payload: its context-ness comes only from delegating methods.
+	wrapper := &ir.StructureType{
+		TypeCommon: ir.TypeCommon{
+			ID:       3,
+			Name:     "example.RequestContext",
+			ByteSize: 24,
+		},
+		RawFields: []ir.Field{
+			{Name: "w", Offset: 0, Type: writerIface},
+			{Name: "n", Offset: 16, Type: intType},
+		},
+	}
+	tc := &typeCatalog{typesByID: map[ir.TypeID]ir.Type{
+		writerIface.ID: writerIface,
+		intType.ID:     intType,
+		wrapper.ID:     wrapper,
+	}}
+
+	annotateSpecialGoTypes(tc, true, map[ir.TypeID]struct{}{
+		wrapper.ID: {},
+	})
+
+	got, ok := tc.typesByID[wrapper.ID].(*ir.StructureType)
+	require.True(t, ok,
+		"a delegating impl with no parent context and no key/value payload has "+
+			"no chain data, so it is left as a plain struct rather than wrapped "+
+			"as GoContextImplementationType")
+	require.Same(t, wrapper, got)
+}
+
 func TestAnnotateSpecialGoTypesDDTraceSpan(t *testing.T) {
 	u64 := &ir.BaseType{
 		TypeCommon: ir.TypeCommon{

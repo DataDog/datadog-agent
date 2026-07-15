@@ -108,6 +108,20 @@ func annotateSpecialGoTypes(
 				attrs.ValueOffset = int32(val.Offset)
 			}
 		}
+		// A context implementation with no embedded parent context and no
+		// key/value payload is a delegating wrapper (its context methods forward
+		// to some other object, e.g. rapid.Context -> http.Request.Context())
+		// rather than a link in a walkable chain. Wrapping it would replace its
+		// normal struct-field capture with the chain walk, which immediately
+		// dead-ends (nothing to follow) yet still discards the struct's fields.
+		// Leave it as a plain struct so its fields are captured; genuine context
+		// values reached during ordinary capture still trigger the walk and
+		// still populate the top-level trace context.
+		if attrs.ContextOffset == ir.GoContextNoOffset &&
+			attrs.KeyOffset == ir.GoContextNoOffset &&
+			attrs.ValueOffset == ir.GoContextNoOffset {
+			continue
+		}
 		tc.typesByID[id] = &ir.GoContextImplementationType{
 			StructureType:       st,
 			GoContextAttributes: attrs,

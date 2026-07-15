@@ -5798,7 +5798,7 @@ Types:
           Type: 66 GoSubroutineType func()
       KeyOffset: -1
       ValueOffset: -1
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 130
       Name: context.backgroundCtx
       GoRuntimeType: 410656
@@ -5807,9 +5807,6 @@ Types:
         - Name: emptyCtx
           Offset: 0
           Type: 121 StructureType context.emptyCtx
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 139
       Name: context.cancelCtx
@@ -5856,15 +5853,12 @@ Types:
       GoRuntimeType: 315008
       GoKind: 25
       RawFields: []
-    - __kind: GoContextImplementationType
+    - __kind: StructureType
       ID: 121
       Name: context.emptyCtx
       GoRuntimeType: 353536
       GoKind: 25
       RawFields: []
-      ContextOffset: -1
-      KeyOffset: -1
-      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 123
       Name: context.stopCtx
