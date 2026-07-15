@@ -7,6 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::grpc::caller_auth::require_privileged_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
 use crate::process::{ManagedProcess, ProcessOrigin};
@@ -94,6 +95,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
+        require_privileged_pipe_client(&request)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -120,6 +122,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
+        require_privileged_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -145,6 +148,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
+        require_privileged_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -167,8 +171,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
     async fn reload_config(
         &self,
-        _request: Request<proto::ReloadConfigRequest>,
+        request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
+        require_privileged_pipe_client(&request)?;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::ReloadConfig { reply: reply_tx })

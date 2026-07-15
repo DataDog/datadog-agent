@@ -8,11 +8,13 @@ mod agent_credentials;
 mod agent_service_sid;
 mod local_account;
 mod managed_service_account;
+mod pipe_caller;
 mod pipe_security;
 mod sid;
 mod spawn;
 mod wide;
 
+pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use spawn::spawn_child_handle;
 

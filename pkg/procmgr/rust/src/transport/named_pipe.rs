@@ -15,7 +15,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 
-use crate::platform::create_pipe_server;
+use crate::platform::{create_pipe_server, pipe_client_may_mutate};
 
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 const DEFAULT_PIPE_INSTANCES: usize = 4;
@@ -45,13 +45,32 @@ pub fn cleanup(_path: &Path) {}
 // NamedPipeIo — wrapper for tonic's `Connected` trait
 // ---------------------------------------------------------------------------
 
+/// Pipe client authorization evaluated once at connect time.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PipeCallerAuth {
+    /// `true` when the client is LocalSystem or in the built-in Administrators group.
+    pub may_mutate: bool,
+}
+
 /// Newtype around [`NamedPipeServer`] that implements
 /// [`tonic::transport::server::Connected`] so tonic can serve over it.
-struct NamedPipeIo(NamedPipeServer);
+struct NamedPipeIo {
+    pipe: NamedPipeServer,
+    caller: PipeCallerAuth,
+}
+
+impl NamedPipeIo {
+    fn new(pipe: NamedPipeServer, caller: PipeCallerAuth) -> Self {
+        Self { pipe, caller }
+    }
+}
 
 impl tonic::transport::server::Connected for NamedPipeIo {
-    type ConnectInfo = ();
-    fn connect_info(&self) -> Self::ConnectInfo {}
+    type ConnectInfo = PipeCallerAuth;
+
+    fn connect_info(&self) -> Self::ConnectInfo {
+        self.caller
+    }
 }
 
 impl AsyncRead for NamedPipeIo {
@@ -60,7 +79,7 @@ impl AsyncRead for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
+        Pin::new(&mut self.pipe).poll_read(cx, buf)
     }
 }
 
@@ -70,15 +89,15 @@ impl AsyncWrite for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
+        Pin::new(&mut self.pipe).poll_write(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx)
+        Pin::new(&mut self.pipe).poll_flush(cx)
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
+        Pin::new(&mut self.pipe).poll_shutdown(cx)
     }
 }
 
@@ -157,7 +176,10 @@ async fn accept_loop(
         server = create_pipe_server(&ServerOptions::new(), &pipe_name)
             .context("failed to create next named pipe instance")?;
 
-        if tx.send(Ok(NamedPipeIo(connected))).await.is_err() {
+        let may_mutate = pipe_client_may_mutate(&connected);
+        let io = NamedPipeIo::new(connected, PipeCallerAuth { may_mutate });
+
+        if tx.send(Ok(io)).await.is_err() {
             break;
         }
     }
