@@ -616,6 +616,12 @@ func validateRawTLSOptions(config map[string]interface{}) error {
 }
 
 func validateUnsupportedRawOptions(config map[string]interface{}) error {
+	for _, setting := range []string{"openmetrics_endpoint", "prometheus_url"} {
+		if endpoint, ok := config[setting].(string); ok && strings.HasPrefix(strings.ToLower(endpoint), "unix://") {
+			return unsupportedCoreConfig("unix socket endpoint")
+		}
+	}
+
 	if rawAuthType, ok := config["auth_type"]; ok {
 		authType, ok := rawAuthType.(string)
 		if !ok {
@@ -630,8 +636,9 @@ func validateUnsupportedRawOptions(config map[string]interface{}) error {
 		"metric_patterns", "connect_timeout", "read_timeout", "request_size",
 		"tls_protocols_allowed",
 		"aws_host", "aws_region", "aws_service", "ntlm_domain",
-		"kerberos_auth", "kerberos_cache", "kerberos_delegate", "kerberos_force_initiate",
+		"kerberos", "kerberos_auth", "kerberos_cache", "kerberos_delegate", "kerberos_force_initiate",
 		"kerberos_hostname", "kerberos_keytab", "kerberos_principal",
+		"tls_intermediate_ca_certs",
 	} {
 		if _, ok := config[setting]; ok {
 			return unsupportedCoreConfig(setting)
@@ -654,7 +661,23 @@ func validateUnsupportedRawOptions(config map[string]interface{}) error {
 			return unsupportedCoreConfig("fractional min_collection_interval")
 		}
 	}
+	if authTokenOAuthHasOptions(config["auth_token"]) {
+		return unsupportedCoreConfig("auth_token oauth options")
+	}
 	return nil
+}
+
+func authTokenOAuthHasOptions(raw interface{}) bool {
+	authToken, ok := normalizeMap(raw)
+	if !ok {
+		return false
+	}
+	reader, ok := normalizeMap(authToken["reader"])
+	if !ok || reader["type"] != "oauth" {
+		return false
+	}
+	options, ok := normalizeMap(reader["options"])
+	return ok && len(options) > 0
 }
 
 func rawBoolDefault(config map[string]interface{}, key string, defaultValue bool) bool {

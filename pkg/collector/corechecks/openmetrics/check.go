@@ -39,6 +39,13 @@ func (c *Check) Run() error {
 	return c.scraper.Scrape(sender)
 }
 
+// Cancel releases HTTP resources when the instance is unscheduled.
+func (c *Check) Cancel() {
+	if c.scraper != nil {
+		c.scraper.Close()
+	}
+}
+
 // Configure parses the OpenMetrics instance configuration.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	if !pkgconfigsetup.Datadog().GetBool("openmetrics.use_core_loader") {

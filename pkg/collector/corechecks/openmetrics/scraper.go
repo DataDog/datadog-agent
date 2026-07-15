@@ -97,12 +97,11 @@ func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpClient, err := newHTTPClient(cfg)
+	staticTags, err := staticTags(cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	staticTags, err := staticTags(cfg)
+	httpClient, err := newHTTPClient(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +121,12 @@ func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
 		tags:                  staticTags,
 	}
 	return scraper, nil
+}
+
+func (s *openmetricsScraper) close() {
+	if s != nil && s.httpClient != nil {
+		s.httpClient.CloseIdleConnections()
+	}
 }
 
 func (s *openmetricsScraper) scrape(sender sender.Sender) error {

@@ -56,3 +56,10 @@ func (s *Scraper) Scrape(sender sender.Sender) error {
 	}
 	return s.inner.scrape(sender)
 }
+
+// Close releases idle HTTP connections owned by the scraper.
+func (s *Scraper) Close() {
+	if s != nil {
+		s.inner.close()
+	}
+}

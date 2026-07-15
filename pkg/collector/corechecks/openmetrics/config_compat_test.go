@@ -241,6 +241,7 @@ func TestParseConfigUnsupportedCompatibilitySettings(t *testing.T) {
 		{name: "AWS region", config: "aws_region: us-east-1\n"},
 		{name: "AWS service", config: "aws_service: execute-api\n"},
 		{name: "Kerberos auth", config: "kerberos_auth: required\n"},
+		{name: "legacy Kerberos auth", config: "kerberos: true\n"},
 		{name: "Kerberos cache", config: "kerberos_cache: /tmp/krb5cc\n"},
 		{name: "Kerberos delegation", config: "kerberos_delegate: true\n"},
 		{name: "Kerberos force initiate", config: "kerberos_force_initiate: true\n"},
@@ -249,6 +250,7 @@ func TestParseConfigUnsupportedCompatibilitySettings(t *testing.T) {
 		{name: "Kerberos principal", config: "kerberos_principal: service@example.com\n"},
 		{name: "generic tags disabled", config: "disable_generic_tags: true\n"},
 		{name: "legacy tag normalization disabled", config: "enable_legacy_tags_normalization: false\n"},
+		{name: "intermediate CA certificates", config: "tls_intermediate_ca_certs: [cert]\n"},
 	}
 
 	for _, test := range tests {
@@ -257,6 +259,33 @@ func TestParseConfigUnsupportedCompatibilitySettings(t *testing.T) {
 			require.ErrorIs(t, err, errUnsupportedCoreConfig)
 		})
 	}
+}
+
+func TestParseConfigUnsupportedUnixSocketEndpoints(t *testing.T) {
+	for _, instance := range []string{
+		"openmetrics_endpoint: unix:///var/run/metrics.sock\nmetrics: []\n",
+		"prometheus_url: unix:///var/run/metrics.sock\nmetrics: []\n",
+	} {
+		_, err := parseConfig([]byte(instance))
+		require.ErrorIs(t, err, errUnsupportedCoreConfig)
+	}
+}
+
+func TestParseConfigUnsupportedOAuthOptions(t *testing.T) {
+	_, err := parseConfig([]byte(compatTestInstance + `
+auth_token:
+  reader:
+    type: oauth
+    url: https://auth.example.com/token
+    client_id: client
+    client_secret: secret
+    options:
+      timeout: 3
+  writer:
+    type: header
+    name: Authorization
+`))
+	require.ErrorIs(t, err, errUnsupportedCoreConfig)
 }
 
 func TestParseConfigFractionalTimeout(t *testing.T) {

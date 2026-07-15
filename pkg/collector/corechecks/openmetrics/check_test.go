@@ -39,6 +39,18 @@ type checkRun struct {
 	checkID  string
 }
 
+type closeTrackingTransport struct {
+	closed atomic.Bool
+}
+
+func (*closeTrackingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (t *closeTrackingTransport) CloseIdleConnections() {
+	t.closed.Store(true)
+}
+
 func runOpenMetricsCheck(t *testing.T, instance string, payload string) checkRun {
 	t.Helper()
 
@@ -129,6 +141,20 @@ func TestConfigureSkipsWhenCoreLoaderFlagDisabled(t *testing.T) {
 			require.True(t, errors.Is(err, check.ErrSkipCheckInstance))
 		})
 	}
+}
+
+func TestCancelClosesScraperTransport(t *testing.T) {
+	run := configureOpenMetricsCheckWithoutServer(t, `
+openmetrics_endpoint: http://127.0.0.1/metrics
+metrics: []
+persist_connections: true
+`)
+	transport := &closeTrackingTransport{}
+	run.check.scraper.inner.httpClient.Transport = transport
+
+	run.check.Cancel()
+
+	require.True(t, transport.closed.Load())
 }
 
 func TestConfigureSkipsUnsupportedCoreHTTPConfig(t *testing.T) {
