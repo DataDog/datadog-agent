@@ -1,0 +1,21 @@
+---
+enhancements:
+  - |
+    SBOM generation no longer writes a cache to disk. Trivy-based scanning keeps
+    its cache in memory for the duration of a scan and frees it when the scan
+    completes. The agent no longer creates a BoltDB database under the SBOM cache
+    directory.
+upgrade:
+  - |
+    The following SBOM configuration options are removed and are now ignored,
+    because the SBOM cache is in memory only and no longer touches disk.
+
+    - ``sbom.cache_directory``
+    - ``sbom.clear_cache_on_exit``
+    - ``sbom.cache.max_disk_size``
+    - ``sbom.cache.clean_interval``
+    - ``sbom.container_image.overlayfs_disable_cache``
+  - |
+    The SBOM cache telemetry metrics ``sbom.cache_disk_size``,
+    ``sbom.cache_hits_total`` and ``sbom.cache_misses_total`` are removed. They
+    tracked the on-disk cache, which no longer exists.

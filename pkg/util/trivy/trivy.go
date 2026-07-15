@@ -14,10 +14,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math"
 	"runtime"
 	"slices"
-	"sync"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -33,10 +31,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/ddtrivy"
 )
 
@@ -52,9 +48,6 @@ const (
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
-	cacheDir            string
-	clearCacheOnClose   bool
-	maxCacheSize        int
 	computeDependencies bool
 	simplifyBomRefs     bool
 }
@@ -63,12 +56,7 @@ type collectorConfig struct {
 type Collector struct {
 	config collectorConfig
 
-	cacheInitialized   sync.Once
-	persistentCache    CacheWithCleaner
-	persistentCacheErr error
-
 	marshaler cyclonedx.Marshaler
-	wmeta     option.Option[workloadmeta.Component]
 
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
@@ -145,17 +133,13 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
+func NewCollector(cfg config.Component) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
-			cacheDir:            cfg.GetString("sbom.cache_directory"),
-			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
 			simplifyBomRefs:     cfg.GetBool("sbom.simplify_bom_refs"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
-		wmeta:     wmeta,
 
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
@@ -167,7 +151,6 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 func NewCollectorForCLI() *Collector {
 	return &Collector{
 		config: collectorConfig{
-			maxCacheSize:        math.MaxInt,
 			computeDependencies: true,
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
@@ -179,12 +162,12 @@ func NewCollectorForCLI() *Collector {
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
+func GetGlobalCollector(cfg config.Component) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
 
-	collector, err := NewCollector(cfg, wmeta)
+	collector, err := NewCollector(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -193,47 +176,14 @@ func GetGlobalCollector(cfg config.Component, wmeta option.Option[workloadmeta.C
 	return globalCollector, nil
 }
 
-// Close closes the collector
+// Close closes the collector. The cache is in-memory and per scan, so there is
+// nothing to release here.
 func (c *Collector) Close() error {
-	if c.persistentCache == nil {
-		return nil
-	}
-
-	if c.config.clearCacheOnClose {
-		if err := c.persistentCache.Clear(context.Background()); err != nil {
-			return fmt.Errorf("error when clearing trivy persistentCache: %w", err)
-		}
-	}
-
-	return c.persistentCache.Close()
-}
-
-// CleanCache cleans the persistentCache
-func (c *Collector) CleanCache() error {
-	if c.persistentCache != nil {
-		return c.persistentCache.clean()
-	}
 	return nil
-}
-
-// GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
-// only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) GetCache() (CacheWithCleaner, error) {
-	c.cacheInitialized.Do(func() {
-		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
-			c.wmeta,
-			c.config.cacheDir,
-			c.config.maxCacheSize,
-		)
-	})
-
-	return c.persistentCache, c.persistentCacheErr
 }
 
 // ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
-	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
-	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
 	artifactOption := getDefaultArtifactOption(scanOptions)

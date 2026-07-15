@@ -848,12 +848,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
-	config.BindEnvAndSetDefault("sbom.cache_directory", "${run_path}/sbom-agent")
 	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
 	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
-	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 	config.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	config.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 
@@ -866,7 +862,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "10Mb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
-	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", true)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)

@@ -105,10 +105,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-      overlayfs_disable_cache:
-        node_type: setting
-        type: boolean
-        default: true
       scan_interval:
         node_type: setting
         type: integer
@@ -151,29 +147,6 @@ properties:
     default: 5
     tags:
     - golang_type:float64
-  cache:
-    node_type: section
-    type: object
-    properties:
-      clean_interval:
-        node_type: setting
-        type: string
-        default: 1h
-        comment: used by custom cache.
-      max_disk_size:
-        node_type: setting
-        type: integer
-        default: 100000000
-        comment: 'used by custom cache: max disk space used by cached objects. Not
-          equal to max disk usage'
-  cache_directory:
-    node_type: setting
-    type: string
-    default: ${run_path}/sbom-agent
-  clear_cache_on_exit:
-    node_type: setting
-    type: boolean
-    default: false
   compression_kind:
     node_type: setting
     type: string

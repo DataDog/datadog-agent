@@ -13,7 +13,6 @@ go_library(
         "cache.go",
         "containerd.go",
         "crio.go",
-        "db.go",
         "docker.go",
         "image.go",
         "init.go",
@@ -29,7 +28,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
-        "//pkg/config/setup",
         "//pkg/sbom",
         "//pkg/sbom/bomconvert",
         "//pkg/sbom/telemetry",
@@ -37,8 +35,6 @@ go_library(
         "//pkg/util/containers/image",
         "//pkg/util/crio",
         "//pkg/util/log",
-        "//pkg/util/option",
-        "@com_github_aquasecurity_trivy//pkg/cache",
         "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/applier",
         "@com_github_aquasecurity_trivy//pkg/fanal/artifact",
@@ -65,7 +61,6 @@ go_library(
         "@com_github_distribution_reference//:reference",
         "@com_github_google_go_containerregistry//pkg/v1:pkg",
         "@com_github_google_go_containerregistry//pkg/v1/tarball",
-        "@com_github_hashicorp_golang_lru_v2//simplelru",
         "@com_github_mattn_go_sqlite3//:go-sqlite3",
         "@com_github_moby_docker_image_spec//specs-go/v1:specs-go",
         "@com_github_moby_moby_api//types/image",
@@ -74,7 +69,6 @@ go_library(
         "@com_github_opencontainers_image_spec//identity",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_samber_lo//:lo",
-        "@io_etcd_go_bbolt//:bbolt",
     ],
 )
 
@@ -82,7 +76,6 @@ dd_agent_go_test(
     name = "trivy_test",
     srcs = [
         "cache_test.go",
-        "db_test.go",
         "layers_containerd_test.go",
         "layers_crio_test.go",
         "layers_docker_test.go",
@@ -99,15 +92,7 @@ dd_agent_go_test(
     # - test rule strips 'trivy' because it is a LINUX_ONLY_FLAG
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
-        "//comp/core",
-        "//comp/core/config",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
-        "//comp/core/workloadmeta/fx-mock",
-        "//comp/core/workloadmeta/mock",
-        "//pkg/util/fxutil",
-        "//pkg/util/option",
         "@com_github_aquasecurity_trivy//pkg/fanal/types",
         "@com_github_containerd_containerd_v2//core/mount",
         "@com_github_containerd_containerd_v2//core/snapshots",
@@ -118,6 +103,5 @@ dd_agent_go_test(
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
     ],
 )

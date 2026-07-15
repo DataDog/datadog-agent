@@ -169,7 +169,6 @@ func TestRetryLogic_Error(t *testing.T) {
 			// Set up the configuration as the default one is too slow
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 			// Create a scanner and start it
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
@@ -235,7 +234,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Set up the configuration as the default one is too slow
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
@@ -300,7 +298,6 @@ func TestRetryChannelFull(t *testing.T) {
 	// Set up the configuration
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))

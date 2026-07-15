@@ -8,374 +8,83 @@
 package trivy
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
-var (
-	defaultDiskSize = 1000000
-)
-
-func TestCustomBoltCache_Artifacts(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
+func TestMemoryCache(t *testing.T) {
+	cache := newMemoryCache()
 	ctx := t.Context()
 
-	_, err = cache.GetArtifact(ctx, "non-existing-ID")
+	// Everything is missing on an empty cache.
+	_, err := cache.GetArtifact(ctx, "artifact")
+	require.Error(t, err)
+	_, err = cache.GetBlob(ctx, "blob1")
 	require.Error(t, err)
 
-	artifactID := "some_ID"
-	artifactInfo := newTestArtifactInfo()
-
-	err = cache.PutArtifact(ctx, artifactID, artifactInfo)
+	missingArtifact, missingBlobs, err := cache.MissingBlobs(ctx, "artifact", []string{"blob1", "blob2"})
 	require.NoError(t, err)
-
-	storedArtifact, err := cache.GetArtifact(ctx, artifactID)
-	require.NoError(t, err)
-	require.Equal(t, artifactInfo, storedArtifact)
-}
-
-func TestCustomBoltCache_Blobs(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	ctx := t.Context()
-
-	_, err = cache.GetBlob(ctx, "non-existing-ID")
-	require.Error(t, err)
-
-	blobID := "some_ID"
-	blobInfo := newTestBlobInfo()
-
-	err = cache.PutBlob(ctx, blobID, blobInfo)
-	require.NoError(t, err)
-
-	storedBlobInfo, err := cache.GetBlob(ctx, blobID)
-	require.NoError(t, err)
-	require.Equal(t, blobInfo, storedBlobInfo)
-}
-
-func TestCustomBoltCache_MissingBlobs(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	ctx := t.Context()
-
-	existingArtifactID := "1"
-	existingBlobID := "2"
-
-	err = cache.PutArtifact(ctx, existingArtifactID, newTestArtifactInfo())
-	require.NoError(t, err)
-
-	err = cache.PutBlob(ctx, existingBlobID, newTestBlobInfo())
-	require.NoError(t, err)
-
-	nonExistingBlobIDs := []string{"non-existing-1", "non-existing-2"}
-	inputBlobIDs := append([]string{existingBlobID}, nonExistingBlobIDs...)
-
-	// Artifact exists. Some blobs missing.
-	missingArtifact, missingBlobIDs, err := cache.MissingBlobs(ctx, existingArtifactID, inputBlobIDs)
-	require.False(t, missingArtifact)
-	require.Equal(t, nonExistingBlobIDs, missingBlobIDs)
-	require.NoError(t, err)
-
-	// Artifact does not exist. Some blobs missing.
-	missingArtifact, missingBlobIDs, err = cache.MissingBlobs(ctx, "non-existing-ID", inputBlobIDs)
 	require.True(t, missingArtifact)
-	require.Equal(t, nonExistingBlobIDs, missingBlobIDs)
+	require.Equal(t, []string{"blob1", "blob2"}, missingBlobs)
+
+	// Store an artifact and a blob, then read them back.
+	artifactInfo := newTestArtifactInfo()
+	require.NoError(t, cache.PutArtifact(ctx, "artifact", artifactInfo))
+	blobInfo := newTestBlobInfo()
+	require.NoError(t, cache.PutBlob(ctx, "blob1", blobInfo))
+
+	gotArtifact, err := cache.GetArtifact(ctx, "artifact")
 	require.NoError(t, err)
-}
+	require.Equal(t, artifactInfo, gotArtifact)
 
-func TestCustomBoltCache_Clear(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	gotBlob, err := cache.GetBlob(ctx, "blob1")
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
+	require.Equal(t, blobInfo, gotBlob)
 
-	ctx := t.Context()
-
-	artifactID := "some_ID"
-
-	err = cache.PutArtifact(ctx, artifactID, newTestArtifactInfo())
+	// Now only blob2 is missing and the artifact is present.
+	missingArtifact, missingBlobs, err = cache.MissingBlobs(ctx, "artifact", []string{"blob1", "blob2"})
 	require.NoError(t, err)
+	require.False(t, missingArtifact)
+	require.Equal(t, []string{"blob2"}, missingBlobs)
 
-	err = cache.Clear(ctx)
-	require.NoError(t, err)
+	// DeleteBlobs removes a blob.
+	require.NoError(t, cache.DeleteBlobs(ctx, []string{"blob1"}))
+	_, err = cache.GetBlob(ctx, "blob1")
+	require.Error(t, err)
 
-	_, err = cache.GetArtifact(ctx, artifactID)
+	// Clear empties the cache.
+	require.NoError(t, cache.Clear(ctx))
+	_, err = cache.GetArtifact(ctx, "artifact")
 	require.Error(t, err)
 }
 
-func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
+// TestMemoryCacheConcurrent exercises the cache from many goroutines, as a fast
+// scan does when trivy analyzes image layers in parallel. Run with -race.
+func TestMemoryCacheConcurrent(t *testing.T) {
+	cache := newMemoryCache()
 	ctx := t.Context()
 
-	serializedArtifactInfo, err := json.Marshal(newTestArtifactInfo())
-	require.NoError(t, err)
-
-	// Store two artifacts
-	artifactIDs := []string{"some_ID", "some_other_ID"}
-	for _, id := range artifactIDs {
-		err = cache.PutArtifact(ctx, id, newTestArtifactInfo())
-		require.NoError(t, err)
+	const goroutines = 16
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				id := fmt.Sprintf("blob-%d-%d", g, i)
+				require.NoError(t, cache.PutBlob(ctx, id, newTestBlobInfo()))
+				require.NoError(t, cache.PutArtifact(ctx, fmt.Sprintf("art-%d", g), newTestArtifactInfo()))
+				_, _, _ = cache.MissingBlobs(ctx, fmt.Sprintf("art-%d", g), []string{id, "missing"})
+				_, _ = cache.GetBlob(ctx, id)
+			}
+		}(g)
 	}
-
-	// Check that the currentCachedObjectTotalSize is equal to the size of the two artifacts
-	persistentCache := cache.(*ScannerCache).cache
-	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectTotalSize())
-
-	// Remove one artifact and check that currentCachedObjectTotalSize is the size of 1 artifact
-	err = persistentCache.Remove([]string{"some_ID"})
-	require.NoError(t, err)
-	require.Equal(t, len(serializedArtifactInfo)*(len(artifactIDs)-1), persistentCache.GetCurrentCachedObjectTotalSize())
-
-	// Remove the already removed artifact and the last one, check that currentCachedObjectTotalSize is 0
-	err = persistentCache.Remove(artifactIDs)
-	require.NoError(t, err)
-	require.Equal(t, 0, persistentCache.GetCurrentCachedObjectTotalSize())
-}
-
-func TestCustomBoltCache_Eviction(t *testing.T) {
-	deps := createCacheDeps(t)
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	ctx := t.Context()
-
-	// store 3 artifacts with different sizes
-	artifactSize := make(map[string]int)
-	totalSize := 0
-	for i := 0; i < cacheSize+1; i++ {
-		id := fmt.Sprintf("key%d", i)
-		artifact := newTestArtifactInfo()
-		artifact.Architecture = "A"
-		serializedArtifactInfo, err := json.Marshal(artifact)
-		require.NoError(t, err)
-		artifactSize[id] = len(serializedArtifactInfo)
-		totalSize += len(serializedArtifactInfo)
-		err = cache.PutArtifact(ctx, id, artifact)
-		require.NoError(t, err)
-	}
-
-	// Make sure the first artifact is evicted while others are still there
-	persistentCache := cache.(*ScannerCache).cache
-	require.Equal(t, totalSize-artifactSize["key0"], persistentCache.GetCurrentCachedObjectTotalSize())
-
-	for i := 1; i < cacheSize+1; i++ {
-		_, err = cache.GetArtifact(ctx, fmt.Sprintf("key%d", i))
-		require.NoError(t, err)
-	}
-
-	_, err = cache.GetArtifact(ctx, "key0")
-	require.Error(t, err)
-}
-
-func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
-	// Set the max disk size to the size of one item
-	artifact := newTestArtifactInfo()
-	artifact.Architecture = "architecture1"
-	serializedArtifactInfo, err := json.Marshal(artifact)
-	require.NoError(t, err)
-
-	deps := createCacheDeps(t)
-	c, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), len(serializedArtifactInfo))
-	cache := c.(*ScannerCache)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-	ctx := t.Context()
-
-	// Store two items
-	err = cache.PutArtifact(ctx, "key1", artifact)
-	require.NoError(t, err)
-
-	artifact.Architecture = "architecture2"
-	err = cache.PutArtifact(ctx, "key2", artifact)
-	require.NoError(t, err)
-
-	// Verify that only the second item is stored and currentCachedObjectTotalSize is correctly updated
-	retrievedArtifact, err := cache.GetArtifact(ctx, "key2")
-	require.NoError(t, err)
-	require.Equal(t, artifact, retrievedArtifact)
-
-	_, err = cache.GetArtifact(ctx, "key1")
-	require.Error(t, err)
-
-	persistentCache := cache.cache
-	require.Equal(t, len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
-}
-
-func TestCustomBoltCache_GarbageCollector(t *testing.T) {
-	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	image1 := &workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   "image1",
-		},
-	}
-
-	image2 := &workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   "image2",
-		},
-	}
-
-	// Test with no SBOM
-	image3 := &workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   "image3",
-		},
-	}
-
-	workloadmetaStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
-
-	cache, err := NewCustomBoltCache(option.New[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	time.Sleep(5 * time.Second)
-
-	// link image1 to artifact key1, an owned blob and a shared blob
-	cache.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
-	// link image2 to artifact key2, an owned blob and a shared blob
-	cache.setKeysForEntity("image2", []string{"key2", "blob2", "sharedBlob"})
-
-	// Create a goroutine that calls cacheCleaner.Clean every 500ms
-	go func() {
-		cleanTicker := time.NewTicker(500 * time.Millisecond)
-		for range cleanTicker.C {
-			cache.clean()
-		}
-	}()
-
-	ctx := t.Context()
-
-	// Store the artifacts of both images, the exclusive blobs and the shared blob
-	err = cache.PutArtifact(ctx, "key1", newTestArtifactInfo())
-	require.NoError(t, err)
-
-	err = cache.PutArtifact(ctx, "key2", newTestArtifactInfo())
-	require.NoError(t, err)
-
-	err = cache.PutBlob(ctx, "sharedBlob", newTestBlobInfo())
-	require.NoError(t, err)
-
-	err = cache.PutBlob(ctx, "blob1", newTestBlobInfo())
-	require.NoError(t, err)
-
-	err = cache.PutBlob(ctx, "blob2", newTestBlobInfo())
-	require.NoError(t, err)
-
-	// Wait for the garbage collector to be called
-	time.Sleep(time.Second)
-
-	// Check that no cache object was removed
-	artifact, err := cache.GetArtifact(ctx, "key1")
-	require.NoError(t, err)
-	require.Equal(t, newTestArtifactInfo(), artifact)
-
-	artifact, err = cache.GetArtifact(ctx, "key2")
-	require.NoError(t, err)
-	require.Equal(t, newTestArtifactInfo(), artifact)
-
-	blob, err := cache.GetBlob(ctx, "sharedBlob")
-	require.NoError(t, err)
-	require.Equal(t, newTestBlobInfo(), blob)
-
-	blob, err = cache.GetBlob(ctx, "blob1")
-	require.NoError(t, err)
-	require.Equal(t, newTestBlobInfo(), blob)
-
-	blob, err = cache.GetBlob(ctx, "blob2")
-	require.NoError(t, err)
-	require.Equal(t, newTestBlobInfo(), blob)
-
-	// Remove the second image from the workloadmeta
-	workloadmetaStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
-
-	// Wait for the garbage collector to clean up the unused artifact
-	time.Sleep(time.Second)
-
-	// Check that only artifact "key2" and "blob2" were removed
-	_, err = cache.GetArtifact(ctx, "key2")
-	require.Error(t, err)
-
-	_, err = cache.GetBlob(ctx, "blob2")
-	require.Error(t, err)
-
-	artifact, err = cache.GetArtifact(ctx, "key1")
-	require.NoError(t, err)
-	require.Equal(t, newTestArtifactInfo(), artifact)
-
-	blob, err = cache.GetBlob(ctx, "sharedBlob")
-	require.NoError(t, err)
-	require.Equal(t, newTestBlobInfo(), blob)
-
-	blob, err = cache.GetBlob(ctx, "blob1")
-	require.NoError(t, err)
-	require.Equal(t, newTestBlobInfo(), blob)
-
-	// Check that the currentCachedObjectTotalSize is correct
-	serializedArtifactInfo, err := json.Marshal(newTestArtifactInfo())
-	require.NoError(t, err)
-
-	serializedBlobInfo, err := json.Marshal(newTestBlobInfo())
-	require.NoError(t, err)
-
-	persistentCache := cache.(*ScannerCache).cache
-	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
+	wg.Wait()
 }
 
 func newTestArtifactInfo() types.ArtifactInfo {
@@ -402,16 +111,4 @@ func newTestBlobInfo() types.BlobInfo {
 			Name:   "3.17",
 		},
 	}
-}
-
-type cacheDeps struct {
-	fx.In
-	WMeta option.Option[workloadmeta.Component]
-}
-
-func createCacheDeps(t *testing.T) cacheDeps {
-	return fxutil.Test[cacheDeps](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
 }
