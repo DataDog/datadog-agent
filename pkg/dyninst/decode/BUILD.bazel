@@ -36,6 +36,7 @@ go_test(
     name = "decode_test",
     srcs = [
         "decoder_test.go",
+        "go_context_trace_test.go",
         "redaction_test.go",
         "return_marshal_test.go",
         "template_test.go",

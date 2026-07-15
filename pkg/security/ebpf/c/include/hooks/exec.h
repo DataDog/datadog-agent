@@ -412,6 +412,17 @@ int hook_exit_itimers(ctx_t *ctx) {
     }
 
     void *signal = (void *)CTX_PARM1(ctx);
+
+    // Since kernel 5.19, exit_itimers takes a struct task_struct* instead of a struct signal_struct*,
+    // so we need to read the signal_struct pointer from the task_struct first
+    u64 exit_itimers_takes_task_struct;
+    LOAD_CONSTANT("exit_itimers_takes_task_struct", exit_itimers_takes_task_struct);
+    if (exit_itimers_takes_task_struct) {
+        u64 task_struct_signal_offset;
+        LOAD_CONSTANT("task_struct_signal_offset", task_struct_signal_offset);
+        bpf_probe_read(&signal, sizeof(signal), (char *)signal + task_struct_signal_offset);
+    }
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 

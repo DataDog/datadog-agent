@@ -10,6 +10,9 @@ set response_file=%sourcedir%\PCbuild\msbuild.rsp
 
 set script_errorlevel=0
 
+:: Avoid import-time bytecode writes during the build and ensurepip bootstrap.
+set PYTHONDONTWRITEBYTECODE=1
+
 :: Start from a clean state
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
 rmdir /q /s %build_outdir%
@@ -77,7 +80,7 @@ xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 :: --include-dev - include include/ and libs/ directories
 :: --include-venv - include venv support
 :: --include-stable - adds python3.dll
-%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
+%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --copy %destdir% --include-dev --include-venv --include-stable -vv
 
 if %errorlevel% neq 0 (
    set script_errorlevel=%errorlevel%
@@ -92,7 +95,6 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
-for /d /r %destdir%\Lib %%d in (__pycache__) do rmdir /q /s "%%d"
 
 if %script_errorlevel% neq 0 (
    exit /b %script_errorlevel%

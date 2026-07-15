@@ -30,8 +30,8 @@ type invalidConfigModule struct {
 }
 
 // NewModule captures the config so the once-only startup check can read it.
-func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
+func NewModule(deps issues.ModuleDeps) issues.Module {
+	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Hostname)}
 }
 
 func (m *invalidConfigModule) IssueName() string {

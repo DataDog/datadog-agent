@@ -293,9 +293,7 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
-        # and removing the sandbox path from the paths recorded in them.
-        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
+        "install",
     ],
     # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
     toolchains = ["@@//:install_dir"],
@@ -472,7 +470,7 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
-        ":python_lib_dir_group_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
+        ":python_lib_dir_group_unix": "lib",
     } | select({
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},

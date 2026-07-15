@@ -1,17 +1,19 @@
 import os
 import re
 
-func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
-declare_regex = r'^config.BindEnvAndSetDefault\((.*)\)'
-set_default_regex = r'^config.SetDefault\((.*)\)'
-proc_declare_regex = r'^procBindEnvAndSetDefault\(config, (.*)\)'
+func_start_regex = r'^func (\w+)\(\w+ pkgconfigmodel.Setup\)'
+declare_regex = r'^c\w+g\.BindEnvAndSetDefault\((.*)\)'
+set_default_regex = r'^c\w+g\.SetDefault\((.*)\)'
+proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
 # `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
 # parentheses balance and only then match the joined statement against the single-line regexes above.
 DECL_START_PREFIXES = (
     'config.BindEnvAndSetDefault(',
+    'cfg.BindEnvAndSetDefault(',
     'config.SetDefault(',
+    'cfg.SetDefault',
     'procBindEnvAndSetDefault(',
 )
 
@@ -49,14 +51,14 @@ SETTINGS_DIR = os.path.join("pkg", "config", "setup")
 # initCoreAgentFull + commonConfigComponents
 COMMON_SETTINGS = os.path.join(SETTINGS_DIR, "common_settings.go")
 # declared in commonConfigComponents
-APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm.go")
-OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp.go")
-MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover.go")
+APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm_settings.go")
+OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp_settings.go")
+MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover_settings.go")
 # called from functions in initCoreAgentFull
-PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner.go")
-PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process.go")
+PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner_settings.go")
+PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process_settings.go")
 # system probe
-SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
+SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe_settings.go")
 
 
 def extract_imperative_code_hints():
