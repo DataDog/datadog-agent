@@ -122,6 +122,9 @@ impl Drop for TokenHandle {
 
 /// Run `f` while impersonating `token`, then revert the calling thread.
 ///
+/// `f` must be synchronous (no `.await`): impersonation is per-thread, and this
+/// helper relies on the calling task not yielding until `RevertToSelf`.
+///
 /// Does not duplicate or close `token`. When calling [`CreateProcessAsUserW`], pass the
 /// same `hToken` so executable and working-directory ACL checks run as the target user.
 pub(super) fn with_impersonated_token<T>(
