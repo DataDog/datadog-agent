@@ -182,3 +182,32 @@ class TestGetBuildFlags(unittest.TestCase):
 
         self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
         self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)
+
+    @mock.patch.dict(os.environ, {"GOOS": "aix", "GOARCH": "ppc64"}, clear=True)
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=([], "", ""))
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    @mock.patch("tasks.libs.common.utils.shutil.which")
+    def test_cross_aix_uses_aix_toolchain_flags(self, which, _get_rtloader_paths, _get_version_ldflags):
+        def fake_which(command):
+            if "powerpc-ibm-aix7.3.0.0" in command:
+                return f"/opt/aix-cross/bin/{os.path.basename(command)}"
+            return None
+
+        which.side_effect = fake_which
+
+        ldflags, _, env = get_build_flags(mock.Mock(), embedded_path="/dev")
+
+        self.assertEqual(env["GOOS"], "aix")
+        self.assertEqual(env["GOARCH"], "ppc64")
+        self.assertEqual(env["CGO_ENABLED"], "1")
+        self.assertEqual(env["CC"], "/opt/aix-cross/bin/powerpc-ibm-aix7.3.0.0-gcc")
+        self.assertEqual(env["CXX"], "/opt/aix-cross/bin/powerpc-ibm-aix7.3.0.0-g++")
+        self.assertIn("--sysroot=/opt/aix-cross/sysroot", env["CGO_CFLAGS"])
+        self.assertIn("-maix64", env["CGO_CFLAGS"])
+        self.assertIn("-Wl,-brtl", env["CGO_LDFLAGS"])
+        self.assertIn("-Wl,-bbigtoc", env["CGO_LDFLAGS"])
+        self.assertIn("-w", ldflags)
+        self.assertNotIn("-lpython3", env["CGO_LDFLAGS"])
+        self.assertNotIn("-Wl,--version-script", ldflags)
+        self.assertNotIn("-Wl,-z,lazy", ldflags)

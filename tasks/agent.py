@@ -30,6 +30,7 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
+    get_target_platform,
     get_version,
     gitlab_section,
 )
@@ -83,8 +84,9 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+    target_platform = get_target_platform()
 
-    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+    if not exclude_rtloader and not flavor.is_iot() and target_platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
@@ -140,7 +142,7 @@ def build(
 
     # AIX build hosts do not have bazel; the compressed schema files are
     # committed to the repo and do not need regeneration there.
-    if sys.platform != "aix":
+    if target_platform != "aix":
         schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
@@ -179,12 +181,13 @@ _PLATFORM_TO_OS_TARGET = {
 
 
 def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, windows_sysprobe):
-    os_target = _PLATFORM_TO_OS_TARGET[sys.platform]
+    target_platform = get_target_platform()
+    os_target = _PLATFORM_TO_OS_TARGET[target_platform]
 
     build_type = "iot-agent" if flavor.is_iot() else "agent-py3"
     generate_template(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", build_type, os_target)
 
-    if sys.platform != 'win32' or windows_sysprobe:
+    if target_platform != 'win32' or windows_sysprobe:
         generate_template(SYSPROBE_SCHEMA_FILE, "./cmd/agent/dist/system-probe.yaml", "system-probe", os_target)
 
     if not skip_assets:
@@ -197,6 +200,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
+    target_platform = get_target_platform()
     # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
     os.makedirs(BIN_PATH, exist_ok=True)
 
@@ -226,11 +230,11 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform != 'win32' or windows_sysprobe:
+    if target_platform != 'win32' or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    if sys.platform.startswith('aix'):
+    if target_platform.startswith('aix'):
         checks_to_copy = core_checks.AIX_CORECHECKS
     elif flavor.is_iot():
         checks_to_copy = core_checks.IOT_AGENT_CORECHECKS
@@ -249,7 +253,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     # add additional windows-only corechecks, only on windows. Otherwise the check loader
     # on linux will throw an error because the module is not found, but the config is.
-    if sys.platform == 'win32':
+    if target_platform == 'win32':
         for check in core_checks.WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(
@@ -259,7 +263,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
                 dirs_exist_ok=True,
             )
 
-    if sys.platform == 'darwin':
+    if target_platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
         shutil.copy(
             "./cmd/agent/dist/conf.d/process_agent.yaml.default",

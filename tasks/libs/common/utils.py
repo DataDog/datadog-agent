@@ -107,6 +107,119 @@ def bin_name(name):
     return name
 
 
+_SYS_PLATFORM_TO_GOOS = {
+    "linux": "linux",
+    "win32": "windows",
+    "darwin": "darwin",
+    "aix": "aix",
+}
+_GOOS_TO_SYS_PLATFORM = {
+    "windows": "win32",
+}
+
+
+def get_native_goos():
+    return _SYS_PLATFORM_TO_GOOS.get(sys.platform, sys.platform)
+
+
+def get_target_goos():
+    return os.getenv("GOOS") or get_native_goos()
+
+
+def get_target_platform():
+    target_goos = get_target_goos()
+    return _GOOS_TO_SYS_PLATFORM.get(target_goos, target_goos)
+
+
+def target_is_cross_compiling(goos=None, goarch=None):
+    goos = goos or get_target_goos()
+    goarch = goarch or os.getenv("GOARCH") or Arch.local().go_arch
+    return goos != get_native_goos() or Arch.from_str(goarch) != Arch.local()
+
+
+def _append_env_flags(env, name, flags):
+    existing = env.get(name, os.environ.get(name, ""))
+    current = existing.split()
+    additions = [flag for flag in flags.split() if flag not in current]
+    env[name] = " ".join([existing, *additions]).strip()
+
+
+def _cross_compiler_path(command):
+    if path := shutil.which(command):
+        return path
+
+    aix_cross_command = os.path.join("/opt/aix-cross", "bin", command)
+    if os.path.exists(aix_cross_command):
+        return aix_cross_command
+
+    return command
+
+
+def setup_go_cross_compile_env(env, goos=None, goarch=None):
+    goos = goos or os.getenv("GOOS")
+    goarch = goarch or os.getenv("GOARCH")
+    if not goos:
+        goos = get_native_goos()
+    if not goarch:
+        goarch = Arch.local().go_arch
+
+    if not target_is_cross_compiling(goos=goos, goarch=goarch):
+        return env
+
+    arch = Arch.from_str(goarch)
+    env["GOOS"] = goos
+    env["GOARCH"] = arch.go_arch
+    env["CGO_ENABLED"] = "1"
+
+    # Only DD_CC_CROSS/DD_CXX_CROSS (dedicated cross-compiler overrides) apply here.
+    # Plain DD_CC/CC are for native builds and must not leak into a cross build -
+    # e.g. a developer with CC=clang set for normal work must still get the
+    # correct arch-prefixed cross compiler for an arm64/aix/etc. cross build.
+    cc = os.getenv("DD_CC_CROSS")
+    cxx = os.getenv("DD_CXX_CROSS")
+
+    if not cc or not cxx:
+        cc = cc or arch.gcc_compiler(platform=goos)
+        cxx = cxx or arch.gpp_compiler(platform=goos)
+
+        if not shutil.which(cc) and goos == "darwin":
+            prefix = arch.gcc_prefix(platform=goos)
+            cc_clang = f"{prefix}-clang"
+            cxx_clang = f"{prefix}-clang++"
+            if shutil.which(cc_clang):
+                cc = cc_clang
+                cxx = cxx_clang
+
+    cc = _cross_compiler_path(cc)
+    cxx = _cross_compiler_path(cxx)
+
+    if not shutil.which(cc) and not os.path.exists(cc):
+        if goos == "darwin":
+            instr = "cloning osxcross, providing a macOS SDK, building osxcross and adding it to PATH"
+        elif goos == "windows":
+            instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+        elif goos == "aix":
+            instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh"
+        else:
+            instr = "the appropriate cross-compilation toolchain"
+        print(
+            color_message(
+                f"Error: Cross-compiler '{cc}' not found. Cross-compiling for GOOS={goos} requires {instr}.",
+                "red",
+            )
+        )
+        raise Exit(code=1)
+
+    env["CC"] = cc
+    env["CXX"] = cxx
+
+    if goos == "aix":
+        _append_env_flags(env, "CGO_CFLAGS", "--sysroot=/opt/aix-cross/sysroot -maix64")
+        _append_env_flags(env, "CGO_LDFLAGS", "--sysroot=/opt/aix-cross/sysroot -maix64 -Wl,-brtl -Wl,-bbigtoc")
+
+    return env
+
+
 def get_distro():
     """
     Get the distro name. Windows and Darwin stays the same.
@@ -263,7 +376,9 @@ def get_build_flags(
     Context object.
     """
     if arch is None:
-        arch = Arch.local()
+        arch = Arch.from_str(os.getenv("GOARCH") or "local")
+
+    target_platform = get_target_platform()
 
     gcflags = ""
     ldflags = get_version_ldflags(ctx, install_path=install_path)
@@ -271,7 +386,7 @@ def get_build_flags(
     extldflags = ""
     env = {"GO111MODULE": "on"}
 
-    if sys.platform == 'win32':
+    if target_platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
     else:
         # for pkg/ebpf/compiler on linux
@@ -287,16 +402,16 @@ def get_build_flags(
         python_home_3 = get_bazel_python_home(rtloader_lib)
 
     # setting the install path, allowing the agent to be installed in a custom location
-    if sys.platform.startswith('linux') and install_path:
+    if target_platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
     # setting the run path
-    if sys.platform.startswith('linux') and run_path:
+    if target_platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
 
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
-    if sys.platform.startswith('linux'):
+    if target_platform.startswith('linux'):
         extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
@@ -309,7 +424,7 @@ def get_build_flags(
             print(
                 f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
             )
-        if sys.platform == "aix":
+        if target_platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
@@ -319,14 +434,23 @@ def get_build_flags(
     # Python is installed alongside rtloader under the same embedded prefix.
     # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
     # os.environ, so placing this before it would cause the python flag to be dropped.
-    if sys.platform == 'aix':
+    #
+    # Only do this for a NATIVE AIX build (sys.platform == "aix"). When cross-compiling
+    # for AIX from a non-AIX host there is no AIX Python anywhere to link against --
+    # unlike the sysroot's C headers/libs, CPython for AIX isn't distributed as a
+    # devkit; it's built from source natively for every real build (see
+    # packaging/aix/stages/02-python.sh). Unconditionally adding -lpython3 would break
+    # every cross build, including ones that don't need Python at all (e.g.
+    # trace-agent, which has no cgo/python code) or agent builds that explicitly pass
+    # --build-exclude=python.
+    if target_platform == 'aix' and sys.platform == 'aix':
         aix_python_lib_path = python_home_3 or embedded_path
         if aix_python_lib_path:
             env['CGO_LDFLAGS'] = (
                 env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
             )
 
-    if sys.platform == 'win32':
+    if target_platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
@@ -345,9 +469,9 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        if sys.platform == "darwin":
+        if target_platform == "darwin":
             extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
-        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+        elif target_platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
@@ -362,7 +486,7 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" and target_platform == "darwin":
         # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
@@ -379,7 +503,7 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
-    elif sys.platform.startswith('linux'):
+    elif target_platform.startswith('linux'):
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
@@ -388,12 +512,21 @@ def get_build_flags(
     if os.getenv("DD_CXX"):
         env["CXX"] = os.getenv("DD_CXX")
 
-    if arch.is_cross_compiling():
-        # For cross-compilation we need to be explicit about certain Go settings
-        env["GOARCH"] = arch.go_arch
-        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
-        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
+    setup_go_cross_compile_env(env, goarch=arch.go_arch)
+
+    if target_platform == "aix" and sys.platform != "aix":
+        # Go's DWARF-on-AIX support probes the external linker with `-Wl,-V` and
+        # only recognizes IBM's native ld output (e.g. "0711-317 ERROR: Undefined
+        # symbol: .main", "/usr/bin/ld: LD X.X.X(date)") - see
+        # cmd/internal/dwarf.IsDWARFEnabledOnAIXLd in the Go toolchain. Our GNU-ld
+        # cross toolchain answers with different text, so that probe treats it as a
+        # hard failure and aborts the link entirely. -w skips the probe outright
+        # (dwarfEnabled() short-circuits on *FlagW before ever calling it), which is
+        # the only known way to link an AIX/ppc64 cgo binary through this toolchain
+        # today. Native AIX builds (sys.platform == "aix") use IBM's own ld, which
+        # this probe already handles, so they keep DWARF.
+        ldflags += "-w "
+        ldflags += "-extldflags=-Wl,--allow-multiple-definition "  # TEMP validation-only
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
