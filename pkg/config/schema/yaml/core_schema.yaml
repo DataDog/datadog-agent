@@ -1115,6 +1115,7 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
+            comment: metrics options
           url:
             node_type: setting
             type: string
@@ -1146,6 +1147,7 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
+            comment: logs options
           url:
             node_type: setting
             type: string
@@ -1264,8 +1266,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -1540,6 +1543,7 @@ properties:
     example: <COMMAND_PATH>
     tags:
     - template_section:Agent
+    comment: secrets backend
   secret_backend_arguments:
     node_type: setting
     type: array
@@ -2023,6 +2027,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2203,6 +2215,7 @@ properties:
     example: localhost
     tags:
     - template_section:Dogstatsd
+    comment: statsd
   dogstatsd_socket:
     node_type: setting
     type: string
@@ -2218,6 +2231,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
   dogstatsd_origin_detection:
     node_type: setting
@@ -7088,6 +7102,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      serializer_zstd_compressor_level:
+        node_type: setting
+        type: integer
+        default: 3
+        comment: |-
+          ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+          (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+          more efficient than the Agent. Forwarded to ADP over the config stream.
       stop_timeout:
         node_type: setting
         type: integer
@@ -8244,7 +8266,7 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Directory to store fleet policies
+    comment: Fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: integer
@@ -9217,7 +9239,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration (EUDM)
+        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer

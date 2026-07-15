@@ -3,6 +3,11 @@ include:
 
 .bazel:test:
   stage: source_test
+  needs:
+    - job: bazel:run-go-mod-tidy
+      artifacts: false
+    - job: bazel:run-gazelle
+      artifacts: false
   rules:
     - when: on_success
 
@@ -31,19 +36,19 @@ include:
   - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
 
 bazel:test:linux-amd64:
-  extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:linux-arm64:
-  extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-arm64 ]
+  extends: [ .bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:macos-amd64:
-  extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-amd64 ]
+  extends: [ .bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test ]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
@@ -53,17 +58,22 @@ bazel:test:macos-amd64:
     - !reference [.bazel:test:reporting, after_script]
 
 bazel:test:macos-arm64:
-  extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-arm64 ]
+  extends: [ .bazel:test:reporting, .bazel:runner:macos-arm64, .bazel:test ]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --execution_log_compact_file=$CI_PROJECT_DIR/bazel-exec.log --config=no-dd-agent-go-tests //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
+  artifacts:
+    paths:
+      - junit-*.tgz
+      - bazel-bep-*.json
+      - bazel-exec.log
 
 bazel:test:windows-amd64:
-  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  extends: [ .bazel:runner:windows-amd64, .bazel:test ]
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --keep_going --config=no-dd-agent-go-tests
@@ -93,62 +103,62 @@ bazel:test:windows-amd64:
     - !reference [.bazel:test:reporting, after_script]
 
 bazel:test:linux-amd64:base:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor ]
   variables:
     FLAVOR: base
 
 bazel:test:linux-amd64:dogstatsd:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor ]
   variables:
     FLAVOR: dogstatsd
 
 bazel:test:linux-amd64:heroku:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor ]
   variables:
     FLAVOR: heroku
 
 bazel:test:linux-amd64:iot:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor ]
   variables:
     FLAVOR: iot
 
 bazel:test:linux-arm64:base:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
+  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor ]
   variables:
     FLAVOR: base
 
 bazel:test:linux-arm64:dogstatsd:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
+  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor ]
   variables:
     FLAVOR: dogstatsd
 
 bazel:test:linux-arm64:heroku:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
+  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor ]
   variables:
     FLAVOR: heroku
 
 bazel:test:linux-arm64:iot:
-  extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
+  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor ]
   variables:
     FLAVOR: iot
 
 bazel:test:macos-amd64:base:
-  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
+  extends: [ .bazel:runner:macos-amd64, .bazel:test:flavor:macos ]
   variables:
     FLAVOR: base
 
 bazel:test:macos-amd64:dogstatsd:
-  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
+  extends: [ .bazel:runner:macos-amd64, .bazel:test:flavor:macos ]
   variables:
     FLAVOR: dogstatsd
 
 bazel:test:macos-arm64:base:
-  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
+  extends: [ .bazel:runner:macos-arm64, .bazel:test:flavor:macos ]
   variables:
     FLAVOR: base
 
 bazel:test:macos-arm64:dogstatsd:
-  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
+  extends: [ .bazel:runner:macos-arm64, .bazel:test:flavor:macos ]
   variables:
     FLAVOR: dogstatsd
 
@@ -156,7 +166,7 @@ bazel:test:macos-arm64:dogstatsd:
 # POWERSHELL_SCRIPT instead of `script:`, and the test pattern needs to exclude
 # Linux-only packaging targets.
 bazel:test:windows-amd64:base:
-  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  extends: [ .bazel:runner:windows-amd64, .bazel:test ]
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --keep_going --build_tests_only --config=base

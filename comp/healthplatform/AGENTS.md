@@ -106,7 +106,7 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 
 ### `IssueID` — kebab-case base, entity-specific suffix
 
-- **Base constant** (the exported `IssueID` or `AnnotationIssueID` / `TemplateIssueID` etc.): lowercase letters, digits, and hyphens only — e.g. `"check-execution-failure"`, `"ad-annotation"`.
+- **Base constant** (the exported `IssueID` or `AnnotationIssueID` / `TemplateIssueID` etc.): lowercase letters, digits, and hyphens only — e.g. `"rofs-permissions"`, `"ad-annotation"`.
 - **Full instance ID** (base + colon-separated suffix): the suffix is appended by the caller and may contain entity-specific characters such as `/`, `://`, spaces, or parentheses that naturally appear in Kubernetes entity names, container IDs, or UUIDs — e.g. `"ad-annotation:kube_service://default/my-svc"`, `"ad-template:nginx:containerd://abc123:deadbeef"`. Do not sanitize these away; the full ID is only used as a store map key, not displayed directly.
 - Scope: unique per issue *instance* — used as the store's map key
 - Export the base as a `const` in the issue file (or `module.go` when a module exists)
@@ -195,7 +195,7 @@ Declare every context key your module reads as a package-private `const` at the 
 
 ### No built-in check (externally reported)
 
-Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `checkfailure`.
+Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `admissionprobe`.
 
 For the simplest externally-reported case where no runner template is needed at all, skip the module entirely and use Path B layout — see `ad-misconfiguration` for an example.
 
@@ -340,7 +340,7 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 ### `IssueID` checks
 
-- [ ] The base `IssueID` constant is kebab-case: `[a-z0-9-]+` (e.g. `"ad-annotation"`, `"check-execution-failure"`)
+- [ ] The base `IssueID` constant is kebab-case: `[a-z0-9-]+` (e.g. `"ad-annotation"`, `"rofs-permissions"`)
 - [ ] The full instance ID (base + colon-separated suffix) is unique per issue instance and used consistently between the report and resolve call sites
 - [ ] No spaces or uppercase letters in the base constant
 - [ ] For Path B reporters: `issue.Id` is set to the full instance ID before calling `store.ReportIssue`
