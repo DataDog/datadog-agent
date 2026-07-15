@@ -137,31 +137,13 @@ func ptr[T any](value T) *T {
 	return &value
 }
 
-type fakeDRAResourceResolver struct {
-	input    ContainerClaimResource
-	resolved ContainerAllocatedResource
-}
-
-func (f fakeDRAResourceResolver) ResolveDRAResource(resource ContainerClaimResource) (ContainerAllocatedResource, bool) {
-	if resource.DriverName != f.input.DriverName || resource.PoolName != f.input.PoolName || resource.DeviceName != f.input.DeviceName {
-		return ContainerAllocatedResource{}, false
-	}
-	return f.resolved, true
-}
-
-func TestAddResourcesToContainerListResolvesDRA(t *testing.T) {
-	resolverInput := ContainerClaimResource{
+func TestAddResourcesToContainerListAddsDynamicResources(t *testing.T) {
+	dynamicResource := ContainerClaimResource{
 		DriverName: "gpu.nvidia.com",
 		PoolName:   "node-a",
 		DeviceName: "gpu-0",
 	}
-	resolvedResource := ContainerAllocatedResource{Name: "gpu.nvidia.com", ID: "GPU-1"}
-	ku := &KubeUtil{
-		draResourceResolver: fakeDRAResourceResolver{
-			input:    resolverInput,
-			resolved: resolvedResource,
-		},
-	}
+	ku := &KubeUtil{}
 	pod := &Pod{
 		Metadata: PodMetadata{
 			Namespace: "namespace",
@@ -182,12 +164,15 @@ func TestAddResourcesToContainerListResolvesDRA(t *testing.T) {
 				{
 					ClaimName:      "claim",
 					ClaimNamespace: "namespace",
-					ClaimResources: []ContainerClaimResource{resolverInput},
+					ClaimResources: []ContainerClaimResource{dynamicResource},
 				},
 			},
 		},
 	}, pod, containers)
 
-	require.Equal(t, []ContainerAllocatedResource{{Name: "nvidia.com/gpu", ID: "GPU-1"}, resolvedResource}, containers[0].ResolvedAllocatedResources)
+	require.Equal(t, []ContainerAllocatedResource{
+		{Name: "nvidia.com/gpu", ID: "GPU-1"},
+		{Name: "gpu.nvidia.com", ID: "gpu-0"},
+	}, containers[0].ResolvedAllocatedResources)
 	require.Len(t, containers[0].DynamicAllocatedResources, 1)
 }

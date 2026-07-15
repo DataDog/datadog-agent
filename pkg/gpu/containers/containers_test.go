@@ -60,7 +60,7 @@ func TestMatchContainerDevices(t *testing.T) {
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
 					Name: string(gpuutil.GpuNvidiaDRA),
-					ID:   testutil.GPUUUIDs[2],
+					ID:   "gpu-2",
 				},
 			},
 		}
@@ -354,15 +354,14 @@ func TestMatchContainerDevices(t *testing.T) {
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
 					Name: string(gpuutil.GpuNvidiaDRA),
-					ID:   testutil.MIGChildrenUUIDs[5][0],
+					ID:   "gpu-0",
 				},
 			},
 		}
 
-		filteredDevices, err := MatchContainerDevices(container, devices)
-		require.NoError(t, err)
-		require.Len(t, filteredDevices, 1)
-		require.Equal(t, testutil.MIGChildrenUUIDs[5][0], filteredDevices[0].GetDeviceInfo().UUID)
+		_, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "MIG devices are not supported for DRA index matching")
 	})
 }
 
@@ -427,6 +426,23 @@ func TestFindDeviceForResourceName(t *testing.T) {
 		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
 		_, err := findDeviceForResourceName(devices, "nvidia3")
 		require.Error(t, err)
+	})
+
+	t.Run("DRADeviceIndex", func(t *testing.T) {
+		device, err := findDeviceForDRAResourceName(devices, "gpu-2")
+		require.NoError(t, err)
+		assert.Equal(t, devices[2], device)
+	})
+
+	t.Run("DRADeviceNameIsInvalid", func(t *testing.T) {
+		_, err := findDeviceForDRAResourceName(devices, "gpu-two")
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
+	})
+
+	t.Run("DRAWithMIGDevice", func(t *testing.T) {
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		_, err := findDeviceForDRAResourceName(devices, "gpu-0")
+		require.ErrorContains(t, err, "MIG devices are not supported for DRA index matching")
 	})
 }
 

@@ -41,7 +41,6 @@ type collector struct {
 	id                         string
 	catalog                    workloadmeta.AgentType
 	store                      workloadmeta.Component
-	config                     config.Component
 	collectEphemeralContainers bool
 	pullInterval               time.Duration
 
@@ -59,7 +58,6 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 		Collector: &collector{
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent,
-			config:                     deps.Config,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
 		},
@@ -75,7 +73,7 @@ func (c *collector) GetPullInterval() time.Duration {
 	return c.pullInterval
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
@@ -87,7 +85,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	if err != nil {
 		return err
 	}
-	c.installDRAResourceResolver(ctx)
 	c.lastSeenPodUIDs = make(map[string]time.Time)
 	c.lastSeenContainerIDs = make(map[string]time.Time)
 

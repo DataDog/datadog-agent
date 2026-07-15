@@ -9,7 +9,5 @@
 enhancements:
   - |
     Added GPU attribution support for Kubernetes Dynamic Resource Allocation
-    allocations reported by the kubelet PodResources API. The Agent resolves
-    NVIDIA DRA ResourceSlice device metadata to GPU UUIDs when the node Agent
-    has ``get``, ``list``, and ``watch`` RBAC permissions for
-    ``resourceslices.resource.k8s.io``.
+    allocations reported by the kubelet PodResources API. The Agent maps
+    NVIDIA DRA ``gpu-N`` device names to local GPU indexes.

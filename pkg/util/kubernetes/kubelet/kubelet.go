@@ -69,7 +69,6 @@ type KubeUtil struct {
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
-	draResourceResolver  DRAResourceResolver
 	devicePluginsClient  DevicePluginClient
 
 	useAPIServer bool
@@ -78,11 +77,6 @@ type KubeUtil struct {
 	// be cached
 	nodeName      string
 	nodeNameMutex sync.Mutex
-}
-
-// DRAResourceResolver resolves DRA driver allocations into concrete container resources.
-type DRAResourceResolver interface {
-	ResolveDRAResource(resource ContainerClaimResource) (ContainerAllocatedResource, bool)
 }
 
 func (ku *KubeUtil) init() error {
@@ -350,15 +344,11 @@ func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[Contai
 				})
 			}
 		}
-		ku.addResolvedDynamicResources(container, resources.DynamicResources)
+		addDynamicResourcesToContainer(container, resources.DynamicResources)
 	}
 }
 
-func (ku *KubeUtil) addResolvedDynamicResources(container *ContainerStatus, resources []ContainerDynamicResource) {
-	if ku.draResourceResolver == nil {
-		return
-	}
-
+func addDynamicResourcesToContainer(container *ContainerStatus, resources []ContainerDynamicResource) {
 	seen := make(map[ContainerAllocatedResource]struct{}, len(container.ResolvedAllocatedResources))
 	for _, resource := range container.ResolvedAllocatedResources {
 		seen[resource] = struct{}{}
@@ -366,15 +356,18 @@ func (ku *KubeUtil) addResolvedDynamicResources(container *ContainerStatus, reso
 
 	for _, dynamicResource := range resources {
 		for _, claimResource := range dynamicResource.ClaimResources {
-			resolvedResource, ok := ku.draResourceResolver.ResolveDRAResource(claimResource)
-			if !ok {
+			if claimResource.DriverName == "" || claimResource.DeviceName == "" {
 				continue
 			}
-			if _, ok := seen[resolvedResource]; ok {
+			allocatedResource := ContainerAllocatedResource{
+				Name: claimResource.DriverName,
+				ID:   claimResource.DeviceName,
+			}
+			if _, ok := seen[allocatedResource]; ok {
 				continue
 			}
-			seen[resolvedResource] = struct{}{}
-			container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resolvedResource)
+			seen[allocatedResource] = struct{}{}
+			container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, allocatedResource)
 		}
 	}
 }
@@ -491,11 +484,6 @@ func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
 	}
 
 	return ku.rawConnectionInfo
-}
-
-// SetDRAResourceResolver installs the resolver used to enrich DRA PodResources allocations.
-func (ku *KubeUtil) SetDRAResourceResolver(resolver DRAResourceResolver) {
-	ku.draResourceResolver = resolver
 }
 
 // GetRawMetrics returns the raw kubelet metrics payload
