@@ -141,10 +141,16 @@ type ntmConfig struct {
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
 
-	// yamlWarnings contains a list of warnings about loaded YAML file.
-	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
-	// them from ReadConfig and ReadInConfig.
-	warnings []error
+	// warnings contains a list of warnings about the config.
+	warnings []string
+
+	// deprecated maps setting to their deprecated name
+	deprecated map[string][]string
+
+	// silenceUnknownWarning is a set of path to not warn about. Some settings might be deprecaed, removed or used
+	// by other Datadog product. While they're not considered as part of the config we should raise a warning if
+	// found in the YAML configuration
+	silenceUnknownWarning map[string]bool
 
 	startTime time.Time
 }
@@ -288,8 +294,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 		return nil, log.Errorf("Set invalid source: %s", source)
 	}
 
-	parts := splitKey(key)
-	err = tree.setAt(parts, value, source)
+	err = tree.setAt(key, value, source)
 	return tree, err
 }
 
@@ -322,8 +327,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 }
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
-	parts := splitKey(key)
-	_ = c.defaults.setAt(parts, value, model.SourceDefault)
+	_ = c.defaults.setAt(key, value, model.SourceDefault)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -593,7 +597,7 @@ func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
-		c.warnings = append(c.warnings, err)
+		c.warnings = append(c.warnings, err.Error())
 	}
 }
 
@@ -620,13 +624,13 @@ func (c *ntmConfig) buildEnvVars() {
 	}
 
 	root := newInnerNode(nil)
-	envWarnings := []error{}
+	envWarnings := []string{}
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
-					envWarnings = append(envWarnings, err)
+					envWarnings = append(envWarnings, err.Error())
 				} else {
 					// Stop looping since we set the config key with the value of the highest precedence env var
 					break
@@ -647,7 +651,7 @@ func (c *ntmConfig) ClearEnvVars() {
 	c.envs = newInnerNode(nil)
 	if c.isReady() {
 		if err := c.mergeAllLayers(); err != nil {
-			c.warnings = append(c.warnings, err)
+			c.warnings = append(c.warnings, err.Error())
 		}
 	}
 }
@@ -661,8 +665,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 			actualValue = converted
 		}
 	}
-	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(key, actualValue, model.SourceEnvVar)
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -869,16 +872,7 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return nil, err
-		}
-		curr = next
-	}
-	return curr, nil
+	return getNodeFromtree(key, c.root)
 }
 
 // SetEnvPrefix sets the environment variable prefix to use
@@ -1175,7 +1169,6 @@ func (c *ntmConfig) GetSubfields(key string) []string {
 
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides
 // If no env vars are declared, one will be derived from the key name
-// This is the preferred method to declare a setting
 func (c *ntmConfig) BindEnvAndSetDefault(key string, defaultVal interface{}, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
@@ -1189,9 +1182,44 @@ func (c *ntmConfig) BindEnvAndSetDefault(key string, defaultVal interface{}, env
 	c.addToKnownKeys(key)
 }
 
+// BindEnvAndSetDefaultWithDeprecation fully declares a setting with a default value, a list of deprecated names and
+// optional env var overrides.
+// If no env vars are declared, one will be derived from the key name.
+// Settings in the deprecated names list take precedence over the official and will automatically generate a warning.
+// Name in the list must be sorted by priority (oldest name first).
+func (c *ntmConfig) BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string) {
+	// compute all the known envvars
+	if len(envvars) == 0 {
+		envvars = make([]string, len(deprecatedNames)+1)
+		for _, name := range deprecatedNames {
+			envvars = append(envvars, c.mergeWithEnvPrefix(name))
+		}
+		// We add the new name at the end of the list since it has the lowest priority.
+		envvars = append(envvars, c.mergeWithEnvPrefix(key))
+	}
+	c.BindEnvAndSetDefault(key, defaultVal, envvars...)
+
+	c.Lock()
+	defer c.Unlock()
+	c.deprecated[key] = deprecatedNames
+
+	// We mark the deprecated setting and it's entire path
+	for _, name := range deprecatedNames {
+		for {
+			c.silenceUnknownWarning[name] = true
+
+			lastInd := strings.LastIndex(name, ".")
+			if lastInd == -1 {
+				break
+			}
+			name = name[:lastInd]
+		}
+	}
+}
+
 // Warnings just returns nil
-func (c *ntmConfig) Warnings() *model.Warnings {
-	return &model.Warnings{Errors: c.warnings}
+func (c *ntmConfig) Warnings() []string {
+	return slices.Clone(c.warnings)
 }
 
 func (c *ntmConfig) StartTime() time.Time {
@@ -1206,28 +1234,30 @@ func (c *ntmConfig) Object() model.Reader {
 // NewNodeTreeConfig returns a new Config object.
 func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
-		ready:              atomic.NewBool(false),
-		allowDynamicSchema: atomic.NewBool(false),
-		sequenceID:         0,
-		configEnvVars:      map[string][]string{},
-		knownKeys:          map[string]bool{},
-		setWarnings:        map[string]bool{},
-		defaults:           newInnerNode(nil),
-		file:               newInnerNode(nil),
-		unknown:            newInnerNode(nil),
-		infraMode:          newInnerNode(nil),
-		envs:               newInnerNode(nil),
-		configPostInit:     newInnerNode(nil),
-		secrets:            newInnerNode(nil),
-		localConfigProcess: newInnerNode(nil),
-		runtime:            newInnerNode(nil),
-		remoteConfig:       newInnerNode(nil),
-		fleetPolicies:      newInnerNode(nil),
-		cli:                newInnerNode(nil),
-		root:               newInnerNode(nil),
-		envTransform:       make(map[string]func(string) interface{}),
-		configName:         "datadog",
-		startTime:          time.Now(),
+		ready:                 atomic.NewBool(false),
+		allowDynamicSchema:    atomic.NewBool(false),
+		sequenceID:            0,
+		configEnvVars:         map[string][]string{},
+		knownKeys:             map[string]bool{},
+		setWarnings:           map[string]bool{},
+		defaults:              newInnerNode(nil),
+		file:                  newInnerNode(nil),
+		unknown:               newInnerNode(nil),
+		infraMode:             newInnerNode(nil),
+		envs:                  newInnerNode(nil),
+		configPostInit:        newInnerNode(nil),
+		secrets:               newInnerNode(nil),
+		localConfigProcess:    newInnerNode(nil),
+		runtime:               newInnerNode(nil),
+		remoteConfig:          newInnerNode(nil),
+		fleetPolicies:         newInnerNode(nil),
+		cli:                   newInnerNode(nil),
+		root:                  newInnerNode(nil),
+		deprecated:            map[string][]string{},
+		silenceUnknownWarning: map[string]bool{},
+		envTransform:          make(map[string]func(string) interface{}),
+		configName:            "datadog",
+		startTime:             time.Now(),
 	}
 
 	config.SetConfigName(name)

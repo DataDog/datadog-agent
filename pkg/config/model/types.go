@@ -194,16 +194,12 @@ type Reader interface {
 	// IsSetting returns whether the key identifies a setting (and not a section)
 	IsSetting(key string) bool
 
-	// GetKnownKeysLowercased returns all the keys that are known by the config
-	// Note: that it returns the keys lowercased.
-	GetKnownKeysLowercased() map[string]interface{}
-
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
-	Warnings() *Warnings
+	Warnings() []string
 
 	// StartTime returns the time at which the agent process started (completes config.Component interface)
 	StartTime() time.Time
@@ -264,6 +260,13 @@ type Setup interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+
+	// BindEnvAndSetDefaultWithDeprecation fully declares a setting with a default value, a list of deprecated names and
+	// optional env var overrides.
+	// If no env vars are declared, one will be derived from the key name.
+	// Settings in the deprecated names list take precedence over the official and will automatically generate a warning.
+	// Name in the list must be sorted by priority (oldest name first).
+	BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string)
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error

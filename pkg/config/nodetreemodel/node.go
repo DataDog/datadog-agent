@@ -48,6 +48,19 @@ func newLeafNode(v interface{}, source model.Source) *nodeImpl {
 	return &nodeImpl{val: v, source: source}
 }
 
+func getNodeFromtree(key string, tree *nodeImpl) (*nodeImpl, error) {
+	pathParts := splitKey(key)
+	curr := tree
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return nil, err
+		}
+		curr = next
+	}
+	return curr, nil
+}
+
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *nodeImpl) GetChild(key string) (*nodeImpl, error) {
 	if n.IsLeafNode() {
@@ -68,6 +81,14 @@ func (n *nodeImpl) HasChild(key string) bool {
 	}
 	_, ok := n.children[strings.ToLower(key)]
 	return ok
+}
+
+// ChildrenLen returns true if the node has a child for that given key
+func (n *nodeImpl) ChildrenLen() int {
+	if n.IsLeafNode() {
+		return 0
+	}
+	return len(n.children)
 }
 
 // Merge merges this node with that and returns the merged result
@@ -147,11 +168,12 @@ func (n *nodeImpl) ChildrenKeys() []string {
 // The key parts should already be lowercased.
 //
 // This method should only be called on the root of a tree, not on an inner node with parents.
-func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) error {
-	if len(key) == 0 {
+func (n *nodeImpl) setAt(key string, value interface{}, source model.Source) error {
+	parts := splitKeyFunc(key)
+	if len(parts) == 0 {
 		return errors.New("empty key given to Set")
 	}
-	newNode, err := setNodeAtPath(n, key, value, source)
+	newNode, err := setNodeAtPath(n, parts, value, source, false)
 	if newNode != nil && newNode.IsInnerNode() {
 		n.children = newNode.children
 	}
@@ -161,7 +183,7 @@ func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) e
 // setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
 // given value, and returns the root of that branch. If a leaf already exists at that path,
 // instead it is modified and no branch is allocated and this returns nil
-func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source) (*nodeImpl, error) {
+func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source, forceNewLeaf bool) (*nodeImpl, error) {
 	if len(fields) == 0 {
 		return newLeafNode(value, source), nil
 	}
@@ -173,16 +195,16 @@ func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model
 		if child, _ := n.GetChild(f); child != nil {
 			if child.IsInnerNode() {
 				next = child
-			} else {
+			} else if !forceNewLeaf {
 				// If we find a leaf, simply replace its value, and return nil for
 				// the first return value because no node was created
-				return nil, child.ReplaceValue(value)
+				return nil, child.ReplaceValue(value, source)
 			}
 		}
 	}
 
 	// Recursively set the node at the remaining part of the path
-	createdNode, err := setNodeAtPath(next, fields[1:], value, source)
+	createdNode, err := setNodeAtPath(next, fields[1:], value, source, forceNewLeaf)
 	if err != nil || createdNode == nil {
 		return nil, err
 	}
@@ -263,11 +285,12 @@ func (n *nodeImpl) IsInnerNode() bool {
 }
 
 // ReplaceValue replaces the value in the leaf node
-func (n *nodeImpl) ReplaceValue(v interface{}) error {
+func (n *nodeImpl) ReplaceValue(v interface{}, source model.Source) error {
 	if n.IsInnerNode() {
 		return errors.New("cannot ReplaceValue of innerNode")
 	}
 	n.val = v
+	n.source = source
 	return nil
 }
 
