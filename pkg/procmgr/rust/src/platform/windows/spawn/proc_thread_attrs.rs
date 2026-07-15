@@ -14,6 +14,8 @@ use windows_sys::Win32::System::Threading::{
 
 /// Owned proc-thread attribute list with a single `PROC_THREAD_ATTRIBUTE_JOB_LIST` entry.
 pub(super) struct ProcThreadAttributeList {
+    // Backing storage for `list`; must outlive the attribute list pointer.
+    #[allow(dead_code)]
     buffer: Vec<u8>,
     list: LPPROC_THREAD_ATTRIBUTE_LIST,
 }

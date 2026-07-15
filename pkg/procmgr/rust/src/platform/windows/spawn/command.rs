@@ -14,7 +14,7 @@ use crate::spawn_context;
 use super::super::{child_baseline_env_vars, merge_env_overrides, setup_process_group};
 use super::stdio;
 
-pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> {
+pub(super) fn build_command(request: &SpawnRequest) -> Result<(String, Command)> {
     let SpawnRequest {
         command,
         args,
@@ -27,17 +27,17 @@ pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> 
     let stdout = stdio::to_command_stdio(&stdout_setting, platform::stdout_inheritable());
     let stderr = stdio::to_command_stdio(&stderr_setting, platform::stderr_inheritable());
 
-    let mut cmd = Command::new(&command);
-    cmd.args(&args);
+    let mut cmd = Command::new(command);
+    cmd.args(args);
     // Ensure children don't see fleet installer environment.
     cmd.env_clear();
     let mut env_vars = child_baseline_env_vars();
-    merge_env_overrides(&mut env_vars, &env);
+    merge_env_overrides(&mut env_vars, env);
     for (k, v) in env_vars {
         cmd.env(k, v);
     }
     if let Some(dir) = working_dir {
-        cmd.current_dir(dir);
+        cmd.current_dir(dir.as_path());
     }
 
     // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
@@ -45,7 +45,7 @@ pub(super) fn build_command(request: SpawnRequest) -> Result<(String, Command)> 
     cmd.stdout(stdout);
     cmd.stderr(stderr);
 
-    Ok((command, cmd))
+    Ok((command.clone(), cmd))
 }
 
 /// Privileged fallback only: dd-procmgr-service runs as LocalSystem and the child inherits SYSTEM.
