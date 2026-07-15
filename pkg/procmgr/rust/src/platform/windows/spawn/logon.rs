@@ -13,13 +13,16 @@ use windows_sys::Win32::Security::{
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 
+/// Password placeholder for gMSA `LogonUserW` (`SERVICE_ACCOUNT_PASSWORD` in lmaccess.h).
+const SERVICE_ACCOUNT_PASSWORD: &str = "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}";
+
 /// `LogonUserW` inputs derived from the installer-configured agent service account.
 pub(super) struct LogonUserCredentials<'a> {
     /// Registry `installedDomain` (empty for local accounts; normalize with [`logon_domain`]).
     domain: &'a str,
     /// Registry `installedUser` (e.g. `ddagentuser`).
     username: &'a str,
-    /// LSA password for interactive logon, or `None` for gMSA / passwordless accounts.
+    /// Cleartext password for `LogonUserW`, `None` for built-in service SIDs that expect NULL.
     password: Option<&'a str>,
 }
 
@@ -28,7 +31,7 @@ pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         AgentAccount::LocalSystem => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "SYSTEM",
-            // Builtin account: pass an empty password (L""), not NULL (gMSA-style).
+            // Builtin account: pass an empty password (L""), not NULL.
             password: Some(""),
         },
         AgentAccount::LocalService => LogonUserCredentials {
@@ -54,7 +57,7 @@ pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         AgentAccount::ServiceAccountLogon { domain, user } => LogonUserCredentials {
             domain: domain.as_str(),
             username: user.as_str(),
-            password: None,
+            password: Some(SERVICE_ACCOUNT_PASSWORD),
         },
     }
 }
@@ -164,15 +167,15 @@ mod tests {
     }
 
     #[test]
-    fn logon_user_credentials_handle_passwordless_accounts() {
-        let svc = AgentAccount::ServiceAccountLogon {
+    fn logon_user_credentials_map_account_kinds() {
+        let gmsa = AgentAccount::ServiceAccountLogon {
             domain: "CORP".to_string(),
             user: "gmsa$".to_string(),
         };
-        let creds = logon_user_credentials(&svc);
+        let creds = logon_user_credentials(&gmsa);
         assert_eq!(creds.domain, "CORP");
         assert_eq!(creds.username, "gmsa$");
-        assert!(creds.password.is_none());
+        assert_eq!(creds.password, Some(SERVICE_ACCOUNT_PASSWORD));
 
         let ls = AgentAccount::LocalSystem;
         let creds = logon_user_credentials(&ls);

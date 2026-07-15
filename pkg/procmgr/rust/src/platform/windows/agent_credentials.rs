@@ -44,7 +44,7 @@ pub(crate) enum AgentAccount {
         user: String,
         password: String,
     },
-    /// gMSA or other service account logon without a stored password.
+    /// gMSA logon without a stored LSA password (see `SERVICE_ACCOUNT_PASSWORD` in spawn/logon.rs).
     ServiceAccountLogon { domain: String, user: String },
 }
 
