@@ -158,11 +158,18 @@ func TestStreamTailer_Unstructured_SourceHostTagFlagDisabled(t *testing.T) {
 // Syslog format tests (migrated from syslog_stream_tailer_test.go)
 // ---------------------------------------------------------------------------
 
+// newSyslogTestSource builds a syslog log source with attribute parsing enabled
+// so the syslog parser runs (it is gated off by default).
+func newSyslogTestSource() *sources.LogSource {
+	attrOn := true
+	return sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat, AttributeParsing: &attrOn})
+}
+
 func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -188,7 +195,7 @@ func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -210,7 +217,7 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -266,7 +273,7 @@ func TestStreamTailer_Syslog_NonTransparent_NoTrailerOnClose(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -288,7 +295,7 @@ func TestStreamTailer_Syslog_NoSourceServiceOverride(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -299,6 +306,30 @@ func TestStreamTailer_Syslog_NoSourceServiceOverride(t *testing.T) {
 	msg := recvMsg(t, outputChan)
 	assert.Empty(t, msg.Origin.Source(), "syslog parser should not override source directly")
 	assert.Empty(t, msg.Origin.Service(), "syslog parser should not override service")
+
+	clientConn.Close()
+	tailer.Stop()
+}
+
+func TestStreamTailer_Syslog_AttributeParsingDisabled(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	// attribute_parsing explicitly disabled: the decoder installs the noop
+	// parser, so syslog lines pass through raw and unstructured even though the
+	// source format is syslog.
+	attrOff := false
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat, AttributeParsing: &attrOff})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
+	tailer.Start()
+
+	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello world\n"))
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, message.StateUnstructured, msg.State)
+	assert.Equal(t, "<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello world", string(msg.GetContent()))
 
 	clientConn.Close()
 	tailer.Stop()

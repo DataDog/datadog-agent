@@ -47,6 +47,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
 	assert.Equal(t, IssueName, issue.GetIssueName())
+	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations in datadog.yaml", issue.GetTitle())
 	assert.Equal(t, float64(2),

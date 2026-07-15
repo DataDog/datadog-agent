@@ -11,6 +11,7 @@ from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.schema.add_comments import add_comments
 from tasks.schema.codegen_init_settings import run_codegen
 from tasks.schema.fixes import fix_schema
@@ -21,8 +22,12 @@ from tasks.schema.template_parser import parse_template
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 COMPRESS_DIR = os.path.join("pkg", "config", "schema")
+SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
+CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
+SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
+
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
@@ -163,10 +168,10 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     agent_bin_abs = os.path.abspath(agent_bin)
     with ctx.cd(output_dir):
         core_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
         sysprobe_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
 
     core_schema = yaml.safe_load(core_schema)
@@ -257,22 +262,32 @@ def extract_comments(ctx):
     return comment_assoc_map
 
 
+def filter(expect, filename):
+    def comparator(othername):
+        actual = filename == othername
+        return actual == expect
+
+    return comparator
+
+
 @task
-def codegen(ctx, schema_file, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     """
     Code generator for config schema
 
-    schema_file:     The schema to generate code from
     keep_orig_order: If true, extract order from *_settings.go files, keep it the same
-    check:           If true, validate whether codegen matches SCHEMA_DIR
-    fix:             If true, copy the codegen files into SCHEMA_DIR
+    check:           If true, validate whether codegen matches SETUP_INIT_DIR
+    fix:             If true, copy the codegen files into SETUP_INIT_DIR
+    keeptmp:         If true, don't delete the temporary folder
     """
 
-    source_schema = resolve_schema(schema_file)
+    core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
+    system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
     hints = extract_imperative_code_hints()
 
     tmpdir = tempfile.mkdtemp()
-    run_codegen(source_schema, hints, keep_orig_order, tmpdir)
+    run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
 
     display = not check and not fix
 
@@ -280,15 +295,21 @@ def codegen(ctx, schema_file, keep_orig_order=False, check=False, fix=False, kee
         print("Codegen complete. Output dir: %s" % tmpdir)
 
     if check:
-        # Compare tmpdir against SCHEMA_DIR, fail if different
+        # Compare tmpdir against SETUP_INIT_DIR, fail if different
         try:
-            ctx.run(f"diff {tmpdir}/ {SCHEMA_DIR}/")
-        except Failure:
-            print("Error: Schema codegen differs, fix this by running `dda inv schema.codegen --fix`")
+            for file in os.listdir(tmpdir):
+                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
+        except Failure as e:
+            print(
+                color_message(
+                    "Codegen for configuration differs, fix this by running `dda inv schema.codegen --fix`", "yellow"
+                )
+            )
+            raise Exit(code=1) from e
 
     if fix:
-        # Copy the files into SCHEMA_DIR
-        ctx.run(f"cp {tmpdir}/*.go {SCHEMA_DIR}/")
+        # Fix any differences by copying the codegen results into SETUP_INIT_DIR
+        ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
 
     if not keeptmp:
         return

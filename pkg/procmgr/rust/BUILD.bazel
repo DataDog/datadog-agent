@@ -178,6 +178,14 @@ rust_test(
 )
 
 rust_test(
+    name = "dd-procmgr_test",
+    crate = ":dd-procmgr",
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+)
+
+rust_test(
     name = "e2e_test",
     srcs = [
         "tests/e2e.rs",

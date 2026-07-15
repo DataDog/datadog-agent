@@ -103,14 +103,14 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessConfig(tt.fixture.Initial)
+			result, err := tt.profile.ProcessConfig(tt.fixture.Initial)
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
 
 			// use cmp.Diff for a nicer output if the strings don't match, but still assert that they are equal
-			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(actualOutput)))
-			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
+			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(result.Redacted)))
+			assert.Equal(t, tt.expectedExtractedMetadata, result.Metadata)
 		})
 	}
 }
@@ -174,14 +174,14 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessConfig(tt.fixture.Initial)
+			result, err := tt.profile.ProcessConfig(tt.fixture.Initial)
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
 
 			// use cmp.Diff for a nicer output if the strings don't match, but still assert that they are equal
-			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(actualOutput)))
-			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
+			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(result.Redacted)))
+			assert.Equal(t, tt.expectedExtractedMetadata, result.Metadata)
 		})
 	}
 }
