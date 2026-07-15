@@ -166,9 +166,9 @@ pkg_install(
 
 rust_test(
     name = "dd-procmgrd_test",
+    size = "large",
     crate = ":dd-procmgrd-lib",
     edition = "2024",
-    size = "large",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
