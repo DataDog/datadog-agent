@@ -220,6 +220,10 @@ type llmSpanInfo struct {
 	// recovered from the previous-response maps and matched to reqToolCalls by
 	// tool_call id, so the workflow's first llm span carries its cost.
 	firstGenUsage llmUsage
+	// suppressFlat drops the standalone per-request span: the connection is
+	// running tool workflows, which are represented by the agent workflow span
+	// instead, so a flat llm span here would be a duplicate.
+	suppressFlat bool
 }
 
 // detectProvider infers the LLM provider from the model name. Anthropic models
@@ -447,6 +451,11 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	// tool spans instead of a single flat span.
 	if len(info.reqToolCalls) > 0 && len(info.toolResults) > 0 {
 		emitWorkflowSpan(path, connKey, latencyNs, info)
+		return
+	}
+	// On a tool-workflow connection, the conversation is shown as the agent
+	// workflow; skip the standalone flat span so it isn't duplicated.
+	if info.suppressFlat {
 		return
 	}
 	if info.model == "" && info.prompt == "" && info.response == "" && len(info.toolCalls) == 0 {
@@ -694,11 +703,14 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.response = c
 	}
 
-	// Follow-up request: recover the tool_call generation's usage — cached by
-	// the response-event consumer as each response streams in, so it survives
-	// poll-batched transaction processing — for the workflow's first llm span.
-	if len(info.reqToolCalls) > 0 {
-		if u, ok := h.lookupGenUsage(key); ok {
+	// A connection with a cached tool-call generation is running tool workflows
+	// (the consumer cached it as the response streamed in). Recover the
+	// first-gen usage for the workflow's first llm span, and mark this
+	// transaction to suppress its standalone flat span — the conversation is
+	// shown as the agent workflow, so a flat llm span would be a duplicate.
+	if u, ok := h.lookupGenUsage(key); ok {
+		info.suppressFlat = true
+		if len(info.reqToolCalls) > 0 {
 			info.firstGenUsage = u
 		}
 	}
