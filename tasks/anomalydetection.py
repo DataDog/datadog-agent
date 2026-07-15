@@ -15,10 +15,11 @@ from dataclasses import dataclass
 from invoke import Exit, task
 
 from tasks.libs.anomalydetection.eval import (
-    CORRELATORS,
+    ABLATION_CORRELATORS,
     DETECTORS,
     EXTRACTORS,
     SCENARIOS,
+    SUPPORTED_CORRELATORS,
     StepLogger,
     _anchor_combos,
     _build_optuna_config,
@@ -962,13 +963,14 @@ def eval_bayesian(
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
     if only_list:
-        all_components = DETECTORS + CORRELATORS + EXTRACTORS
-        unknown_only = set(only_list) - set(all_components)
+        default_components = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
+        known_components = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
+        unknown_only = set(only_list) - set(known_components)
         if unknown_only:
             print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
             return
         if not components_list:
-            components_list = all_components
+            components_list = list(dict.fromkeys(default_components + only_list))
         else:
             unknown_only_in_subset = set(only_list) - set(components_list)
             if unknown_only_in_subset:
@@ -982,14 +984,14 @@ def eval_bayesian(
         locked_set = {c for c in components_list if c not in set(only_list)}
     else:
         if not components_list:
-            components_list = DETECTORS + CORRELATORS + EXTRACTORS
+            components_list = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
         locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
         print(color_message("Error: at least one component is required (--components)", Color.RED))
         return
 
-    unknown = (set(components_list) | locked_set) - set(DETECTORS + CORRELATORS + EXTRACTORS)
+    unknown = (set(components_list) | locked_set) - set(DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
         return
@@ -1674,7 +1676,7 @@ def eval_pipeline(
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
     force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
 
-    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    all_known = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
     unknown = set(force_enable_list + force_disable_list) - set(all_known)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
@@ -1968,7 +1970,7 @@ def eval_component(
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
-    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    all_known = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
         return

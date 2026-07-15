@@ -43,11 +43,12 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
-CORRELATORS = ["anomaly_scorer"]
+ABLATION_CORRELATORS = ["anomaly_scorer"]
+SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
 
-# All correlators represented in generated configs. time_cluster defaults on in
-# the testbench, so scorer-only trials must explicitly disable it.
-ALL_CORRELATORS = ["anomaly_scorer", "time_cluster"]
+# Correlators always represented in generated configs. time_cluster defaults on
+# in the testbench, so scorer-only trials must explicitly disable it.
+CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
 # always enables all of them unless force-disabled.
@@ -354,7 +355,7 @@ def _full_stack_combo(force_disable: list | None = None) -> dict:
     fd = set(force_disable or [])
     return {
         "detectors": sorted(d for d in DETECTORS if d not in fd),
-        "correlators": sorted(c for c in CORRELATORS if c not in fd),
+        "correlators": sorted(c for c in ABLATION_CORRELATORS if c not in fd),
     }
 
 
@@ -362,7 +363,7 @@ def _anchor_combos(force_disable: list | None = None, force_enable: list | None 
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
     fd = set(force_disable or [])
     fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
-    fe_cors = sorted(c for c in (force_enable or []) if c in CORRELATORS and c not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in ABLATION_CORRELATORS and c not in fd)
     anchors = []
     seen_keys: set = set()
     for combo in ANCHOR_COMBOS:
@@ -388,15 +389,15 @@ def random_component_combinations(
     """Generate up to n distinct random component combinations.
 
     Each combination is guaranteed to contain at least 1 detector (from DETECTORS)
-    and 1 correlator (from CORRELATORS).
+    and 1 correlator (from ABLATION_CORRELATORS).
     """
     force_enable = set(force_enable or [])
     force_disable = set(force_disable or [])
 
     det_pool = [d for d in DETECTORS if d not in force_disable]
-    cor_pool = [c for c in CORRELATORS if c not in force_disable]
+    cor_pool = [c for c in ABLATION_CORRELATORS if c not in force_disable]
     forced_dets = sorted(d for d in force_enable if d in DETECTORS)
-    forced_cors = sorted(c for c in force_enable if c in CORRELATORS)
+    forced_cors = sorted(c for c in force_enable if c in ABLATION_CORRELATORS)
 
     rng = random.Random(seed)
     combos = []
@@ -462,7 +463,7 @@ def _combo_to_config(
     force_disable_set = set(force_disable or [])
     enabled_set = set(detectors + correlators)
     components = {}
-    for name in DETECTORS + ALL_CORRELATORS:
+    for name in DETECTORS + CONFIGURED_CORRELATORS:
         components[name] = _component_base_config(name, name in enabled_set)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
@@ -551,7 +552,7 @@ def _build_optuna_config(
     active_set = set(components)
     result = {}
 
-    for name in DETECTORS + ALL_CORRELATORS + EXTRACTORS:
+    for name in DETECTORS + CONFIGURED_CORRELATORS + EXTRACTORS:
         if name not in active_set:
             result[name] = _component_base_config(name, False)
 

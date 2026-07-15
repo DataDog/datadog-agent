@@ -7,11 +7,19 @@ from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
 )
-from tasks.libs.anomalydetection.eval import _build_optuna_config, _combo_to_config
+from tasks.libs.anomalydetection.eval import (
+    ABLATION_CORRELATORS,
+    SUPPORTED_CORRELATORS,
+    _build_optuna_config,
+    _combo_to_config,
+)
 
 
 class TestAblationConfig(unittest.TestCase):
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
+        self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
+        self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "cross_signal", "time_cluster"])
+
         configs = {
             "combination": _combo_to_config(detectors=["bocpd"], correlators=["anomaly_scorer"]),
             "optuna": _build_optuna_config(
@@ -26,6 +34,15 @@ class TestAblationConfig(unittest.TestCase):
                 components = config["components"]
                 self.assertTrue(components["anomaly_scorer"]["enabled"])
                 self.assertFalse(components["time_cluster"]["enabled"])
+
+        manual = _build_optuna_config(
+            trial=None,
+            components=["cross_signal", "time_cluster"],
+            locked={"cross_signal", "time_cluster"},
+        )["components"]
+        self.assertTrue(manual["cross_signal"]["enabled"])
+        self.assertTrue(manual["time_cluster"]["enabled"])
+        self.assertFalse(manual["anomaly_scorer"]["enabled"])
 
 
 class TestPipelineResume(unittest.TestCase):
