@@ -30,17 +30,12 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout, stable).
+// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
+// --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at
+// launch with its config directory (stable or experiment).
 //
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
-
-// DDOTProcessConfigExperiment is the rendered process manager config for DDOT (deb/rpm layout,
-// experiment). It points at the experiment config directory (/etc/datadog-agent-exp) so the
-// experiment collector reads the experiment otel-config.yaml/datadog.yaml.
-//
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
-var DDOTProcessConfigExperiment string
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
