@@ -543,6 +543,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			detector := newDroppedMetricsDetector()
+			wrappedSink := &observingSerieSink{inner: seriesSink, detector: detector}
+
 			// flush DogStatsD pipelines (statsd/time samplers)
 			// ------------------------------------------------
 
@@ -555,7 +558,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						forceFlushAll: forceFlushAll,
 					},
 					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
+					seriesSink:   wrappedSink,
 				}
 
 				worker.flushChan <- t
@@ -574,12 +577,15 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						forceFlushAll:     forceFlushAll,
 					},
 					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
+					// Checks bypass DogStatsD client-telemetry detection.
+					seriesSink: seriesSink,
 				}
 
 				d.aggregator.flushChan <- t
 				<-t.trigger.blockChan
 			}
+
+			detector.logWarnings(d.log)
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		},
