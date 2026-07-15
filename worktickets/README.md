@@ -50,6 +50,11 @@ pipeline bugs).
 They were closed after correcting an inverted `share_labels` generator and
 rerunning 2,000 fixture-aware comparisons with no divergences.
 
+Post-rebase parser triage confirmed 07003-07005 remain reproducible. In
+particular, 07003 is now scoped to content-type parser selection: Ali's
+OpenMetrics parser accepts exemplars, while the Prometheus parser selected for
+`text/plain; version=0.0.4` still rejects them.
+
 ## Lifecycle
 
 When the Go scraper merges upstream and replaces the Python check in

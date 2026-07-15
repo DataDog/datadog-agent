@@ -1,19 +1,60 @@
 ## Current verification after Ali branch update
 
-Still open. Ali's streaming OpenMetrics parser now accepts exemplar trailers,
-but scraper selection still routes a `text/plain` response through the
-Prometheus parser. The differential payload server uses that common exporter
-content type, and the focused case still reports:
+Still open, but narrowed to HTTP content-type-driven parser selection.
+
+Ali's streaming **OpenMetrics parser** accepts and validates exemplar trailers.
+The scraper selects that parser when the endpoint responds with an OpenMetrics
+content type such as:
+
+```http
+Content-Type: application/openmetrics-text; version=1.0.0
+```
+
+The same payload is routed through the **Prometheus text parser** when the
+endpoint responds with the widespread legacy content type:
+
+```http
+Content-Type: text/plain; version=0.0.4
+```
+
+The differential payload server uses the latter. The Prometheus parser sees the
+`#` after the sample value as an invalid post-value token, so the focused case
+still reports:
 
 ```text
 go_rejected_py_accepted  go=0 py=4
 scrape: expected timestamp or new record, got "#"
 ```
 
-So the remaining compatibility decision is whether the Prometheus/text path
-should tolerate exemplar trailers (as Python does), or whether content-type
-negotiation guarantees make this input unsupported. The existing ticket is
-valid until that decision is explicit.
+Strictly, an exporter that advertises Prometheus 0.0.4 while emitting exemplars
+is mixing formats. Operationally, however, Python tolerates this combination,
+and real exporters or proxies may preserve a stale `text/plain` header while
+emitting newer syntax. Rejecting it would therefore be a Python-to-Go migration
+regression, and one exemplar currently aborts the entire scrape.
+
+### Recommended resolution
+
+Teach the Prometheus text path to recognize and ignore a syntactically valid
+OpenMetrics exemplar trailer after the sample value or optional timestamp. This
+is a narrow compatibility extension:
+
+- It preserves Python behavior for mislabeled endpoints.
+- It does not require semantic exemplar ingestion.
+- It avoids retrying or reparsing the entire response.
+- Malformed trailers can retain the existing error behavior unless 07001's
+  broader per-line recovery policy supersedes it.
+
+Alternative resolutions are to enforce the declared format strictly and
+document the migration break, or retry with the OpenMetrics parser after this
+specific failure. The strict option is standards-correct but operationally
+riskier; parser retry adds more complexity than the narrow compatibility rule.
+
+Verification should cover the same exemplar payload under both content types:
+
+| Response `Content-Type` | Expected Go behavior |
+|---|---|
+| `application/openmetrics-text; version=1.0.0` | Existing OpenMetrics parser accepts the sample |
+| `text/plain; version=0.0.4` | Prometheus parser accepts the sample and ignores the trailer |
 
 ---
 
