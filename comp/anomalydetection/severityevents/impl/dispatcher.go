@@ -21,10 +21,11 @@ type Dispatcher struct {
 	lastStateEntryTs int64
 }
 
-// NewDispatcher creates a dispatcher from cfg.
-func NewDispatcher(cfg severityeventsdef.SeverityEventsConfiguration) *Dispatcher {
+// NewDispatcher creates a dispatcher delivering to listener, filtered/cooled
+// down per cfg.
+func NewDispatcher(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) *Dispatcher {
 	return &Dispatcher{
-		listener:     cfg.Listener,
+		listener:     listener,
 		filter:       cfg.Filter,
 		cooldownSecs: cfg.CooldownSecs,
 		level:        severityeventsdef.SeverityLow,

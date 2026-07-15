@@ -33,7 +33,6 @@ tests_serverless-init*                  @DataDog/serverless-azure-gcp
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
-procmgr_rust_tests                      @DataDog/agent-runtimes
 test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
@@ -207,7 +206,7 @@ new-e2e-cleanup-on-failure              @DataDog/agent-devx
 new-e2e-agent-configuration*            @DataDog/agent-configuration
 new-e2e-agent-subcommands*              @DataDog/agent-configuration
 new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
-new-e2e-agent-health                    @DataDog/agent-health
+new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---

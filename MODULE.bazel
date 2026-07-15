@@ -46,7 +46,7 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.4.0")
+bazel_dep(name = "bazel_lib", version = "3.5.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.51.3")
@@ -56,7 +56,7 @@ bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
-bazel_dep(name = "rules_cc", version = "0.2.21")
+bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
@@ -159,18 +159,15 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
-## Use local object file tools
-find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
-use_repo(find_system_otool, "otool")
-
 register_toolchains(
-    "@otool//:all",
+    "//bazel/toolchains/patchelf:patchelf_built_toolchain",
     dev_dependency = True,
 )
 
 register_toolchains(
-    "//bazel/toolchains/patchelf:patchelf_built_toolchain",
-    dev_dependency = True,
+    "//bazel/toolchains/rpath_rewriter:install_name_tool_toolchain",
+    "//bazel/toolchains/rpath_rewriter:noop_windows_toolchain",
+    "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
 )
 
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
@@ -445,7 +442,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.6.1")
+bazel_dep(name = "apple_support", version = "2.7.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

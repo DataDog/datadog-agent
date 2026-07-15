@@ -2,12 +2,11 @@
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
     "HDRS",
@@ -85,7 +84,7 @@ cc_library(
 )
 
 cc_binary(
-    name = "curl_bin",
+    name = "curl",
     srcs = HDRS + PUBLIC_HEADERS + select({
         "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
@@ -95,9 +94,9 @@ cc_binary(
     ],
     defines = LOCAL_DEFINES,
     dynamic_deps = [
-        # Use :curl directly, not :curl_pkg: curl_bin is an installed_files of
-        # curl_pkg, so using curl_pkg here would create a dependency cycle.
-        ":curl",
+        # Use :curl_shared directly, not :curl_pkg: curl is an installed_executable
+        # of curl_pkg, so using curl_pkg here would create a dependency cycle.
+        ":curl_shared",
         "@nghttp2//:nghttp2_pkg",
         "@openssl//:libssl_shared_pkg",
         "@openssl//:libcrypto_shared_pkg",
@@ -220,34 +219,22 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "curl",
+    name = "curl_shared",
     dynamic_deps = [
         "@nghttp2//:nghttp2_pkg",
         "@openssl//:libssl_shared_pkg",
         "@openssl//:libcrypto_shared_pkg",
         "@zlib//:z_pkg",
     ],
+    shared_lib_name = select({
+        "@platforms//os:linux": "libcurl.so",
+        "@platforms//os:macos": "libcurl.dylib",
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":curl_static",
         ":curlu_static",
     ],
-)
-
-rewrite_rpath(
-    name = "curl_bin_patched",
-    inputs = [":curl_bin"],
-    package_metadata = [],
-)
-
-pkg_files(
-    name = "bin_files",
-    srcs = [":curl_bin_patched"],
-    attributes = pkg_attributes(mode = "0755"),
-    prefix = "bin",
-    renames = {
-        "curl_bin_patched": "curl",
-    },
 )
 
 pkg_files(
@@ -258,19 +245,21 @@ pkg_files(
 
 dd_cc_packaged(
     name = "curl_pkg",
-    input = ":curl",
+    input = ":curl_shared",
     version = SO_VERSION,
+    installed_executables = {
+        ":curl": "bin",
+    },
     installed_files = [
-        ":bin_files",
         ":hdr_files",
     ],
+    libname = "libcurl",
     visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":bin_files",
         ":hdr_files",
     ],
     prefix = "embedded",

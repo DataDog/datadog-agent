@@ -42,6 +42,9 @@ func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agen
 			aware.SetIssueReporter(reporter)
 		}
 	}
+	if override, ok := check.SenderManagerOverride(inner); ok {
+		senderManager = override
+	}
 	return &CheckWrapper{
 		inner:          inner,
 		senderManager:  senderManager,

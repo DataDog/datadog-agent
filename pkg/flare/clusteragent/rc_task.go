@@ -12,6 +12,7 @@ import (
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -43,9 +44,17 @@ func HandleRCFlareTask(
 		return errors.New("user_handle not provided in flare agent task")
 	}
 
-	if task.Config.TaskArgs["enable_profiling"] == "true" {
-		log.Infof("[RemoteFlare] enable_profiling is not yet supported for the cluster-agent flare")
+	flareArgs := flaretypes.FlareArgs{}
+	switch enableProfiling := task.Config.TaskArgs["enable_profiling"]; enableProfiling {
+	case "true":
+		flareArgs.ProfileDuration = cfg.GetDuration("flare.rc_profiling.profile_duration")
+		flareArgs.ProfileBlockingRate = cfg.GetInt("flare.rc_profiling.blocking_rate")
+		flareArgs.ProfileMutexFraction = cfg.GetInt("flare.rc_profiling.mutex_fraction")
+	case "false", "":
+	default:
+		log.Infof("[RemoteFlare] Unrecognized enable_profiling value %q, creating flare without profiling", enableProfiling)
 	}
+
 	if task.Config.TaskArgs["enable_streamlogs"] == "true" {
 		log.Infof("[RemoteFlare] enable_streamlogs is not yet supported for the cluster-agent flare")
 	}
@@ -55,7 +64,7 @@ func HandleRCFlareTask(
 		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 
-	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, statusComp, diagnoseComp, ipcComp)
+	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster-agent flare: %w", err)
 	}

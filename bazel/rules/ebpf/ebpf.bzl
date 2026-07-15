@@ -39,6 +39,7 @@ _COMMON_FLAGS = [
 _PREBUILT_FLAGS = [
     "-DCONFIG_64BIT",
     "-DCOMPILE_PREBUILT",
+    "-fdebug-compilation-dir=.",
 ]
 
 _CORE_FLAGS = [

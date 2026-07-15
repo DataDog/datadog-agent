@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Private Action Runner: restricted shell actions now combine Datadog
+    execution policy allowlists with operator-configured command and path
+    allowlists. Read-only and read-write allowed paths are handled separately,
+    so remediation commands can write only to paths allowed by both policies.
