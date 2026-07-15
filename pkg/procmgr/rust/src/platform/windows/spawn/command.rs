@@ -24,8 +24,8 @@ pub(super) fn build_command(request: &SpawnRequest) -> Result<(String, Command)>
         stderr_setting,
     } = request;
 
-    let stdout = stdio::to_command_stdio(&stdout_setting, platform::stdout_inheritable());
-    let stderr = stdio::to_command_stdio(&stderr_setting, platform::stderr_inheritable());
+    let stdout = stdio::to_command_stdio(stdout_setting, platform::stdout_inheritable());
+    let stderr = stdio::to_command_stdio(stderr_setting, platform::stderr_inheritable());
 
     let mut cmd = Command::new(command);
     cmd.args(args);
