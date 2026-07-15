@@ -105,41 +105,65 @@ impl ProcessEnabledMode {
     }
 }
 
+const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
+const LEGACY_PROCESS_ENABLED_ENV: &[&str] =
+    &["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"];
+const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
+
 impl GatedKeySpec {
-    fn enabled(&self, path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
+    /// Resolution order: env → legacy `process_config.enabled` transform (collection keys only)
+    /// → fleet policy → base YAML → agent default.
+    fn enabled(&self, base_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.env_override() {
             return Ok(enabled);
         }
-        if let Some(mode) = legacy_process_enabled_mode(path, yaml, self.fleet_policy_file)? {
-            match self.key {
-                "process_config.process_collection.enabled" => {
-                    return Ok(mode.process_collection());
-                }
-                "process_config.container_collection.enabled" => {
-                    return Ok(mode.container_collection());
-                }
-                _ => {}
-            }
-        }
-        if let Some(enabled) = self.fleet_policy_bool(yaml)? {
+        if let Some(enabled) = self.legacy_collection_override(base_path, yaml)? {
             return Ok(enabled);
         }
-        if let Some(enabled) = yaml.optional_bool_key(path, self.key)? {
+        if let Some(enabled) = self.fleet_policy_value(yaml)? {
+            return Ok(enabled);
+        }
+        if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
             return Ok(enabled);
         }
         Ok(self.default)
     }
 
-    fn fleet_policy_bool(&self, yaml: &mut YamlCache) -> anyhow::Result<Option<bool>> {
+    fn uses_legacy_process_enabled(&self) -> bool {
+        matches!(
+            self.key,
+            "process_config.process_collection.enabled"
+                | "process_config.container_collection.enabled"
+        )
+    }
+
+    fn legacy_collection_override(
+        &self,
+        base_path: &str,
+        yaml: &mut YamlCache,
+    ) -> anyhow::Result<Option<bool>> {
+        if !self.uses_legacy_process_enabled() {
+            return Ok(None);
+        }
+        let Some(mode) = resolve_legacy_process_enabled_mode(base_path, yaml)? else {
+            return Ok(None);
+        };
+        let enabled = match self.key {
+            "process_config.process_collection.enabled" => mode.process_collection(),
+            "process_config.container_collection.enabled" => mode.container_collection(),
+            _ => unreachable!(),
+        };
+        Ok(Some(enabled))
+    }
+
+    fn fleet_policy_value(&self, yaml: &mut YamlCache) -> anyhow::Result<Option<bool>> {
         let Some(filename) = self.fleet_policy_file else {
             return Ok(None);
         };
-        let Some(dir) = resolve_fleet_policies_dir() else {
+        let Some(path) = fleet_policy_path(filename) else {
             return Ok(None);
         };
-        let path = Path::new(&dir).join(filename);
-        let path = path.to_string_lossy();
-        yaml.optional_bool_key_if_exists(&path, self.key)
+        yaml.bool_key_if_exists(&path, self.key)
     }
 
     fn env_override(&self) -> Option<bool> {
@@ -167,6 +191,15 @@ fn resolve_fleet_policies_dir() -> Option<String> {
     }
 }
 
+fn fleet_policy_path(filename: &str) -> Option<String> {
+    resolve_fleet_policies_dir().map(|dir| {
+        Path::new(&dir)
+            .join(filename)
+            .to_string_lossy()
+            .into_owned()
+    })
+}
+
 struct YamlCache(HashMap<String, serde_yaml::Value>);
 
 impl YamlCache {
@@ -183,24 +216,39 @@ impl YamlCache {
         }
     }
 
-    fn optional_bool_key(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
-        match lookup_dotted_key(self.load(path)?, key) {
-            Some(value) => value_as_bool(value)
-                .ok_or_else(|| anyhow::anyhow!("key {key} is not a bool"))
-                .map(Some),
-            None => Ok(None),
-        }
+    fn bool_key(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
+        let Some(value) = self.dotted_key(path, key)? else {
+            return Ok(None);
+        };
+        value_as_bool(value)
+            .ok_or_else(|| anyhow::anyhow!("key {key} is not a bool"))
+            .map(Some)
     }
 
-    fn optional_bool_key_if_exists(
-        &mut self,
-        path: &str,
-        key: &str,
-    ) -> anyhow::Result<Option<bool>> {
+    fn bool_key_if_exists(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
         if !Path::new(path).is_file() {
             return Ok(None);
         }
-        self.optional_bool_key(path, key)
+        self.bool_key(path, key)
+    }
+
+    fn dotted_key<'a>(
+        &'a mut self,
+        path: &str,
+        key: &str,
+    ) -> anyhow::Result<Option<&'a serde_yaml::Value>> {
+        Ok(lookup_dotted_key(self.load(path)?, key))
+    }
+
+    fn dotted_key_if_exists<'a>(
+        &'a mut self,
+        path: &str,
+        key: &str,
+    ) -> anyhow::Result<Option<&'a serde_yaml::Value>> {
+        if !Path::new(path).is_file() {
+            return Ok(None);
+        }
+        self.dotted_key(path, key)
     }
 
     #[cfg(test)]
@@ -226,36 +274,34 @@ pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     })
 }
 
-fn legacy_process_enabled_mode(
-    path: &str,
+fn resolve_legacy_process_enabled_mode(
+    base_path: &str,
     yaml: &mut YamlCache,
-    fleet_policy_file: Option<&'static str>,
 ) -> anyhow::Result<Option<ProcessEnabledMode>> {
     if let Some(mode) = legacy_enabled_env_mode() {
         return Ok(Some(mode));
     }
-    if let Some(filename) = fleet_policy_file
-        && let Some(dir) = resolve_fleet_policies_dir()
+    if let Some(path) = fleet_policy_path(LEGACY_FLEET_POLICY_FILE)
+        && let Some(mode) = legacy_enabled_mode_from_file(yaml, &path)?
     {
-        let fleet_path = Path::new(&dir).join(filename);
-        let fleet_path = fleet_path.to_string_lossy();
-        if Path::new(fleet_path.as_ref()).is_file()
-            && let Some(value) =
-                lookup_dotted_key(yaml.load(fleet_path.as_ref())?, "process_config.enabled")
-            && let Some(mode) = legacy_enabled_mode(value)
-        {
-            return Ok(Some(mode));
-        }
+        return Ok(Some(mode));
     }
-    if let Some(value) = lookup_dotted_key(yaml.load(path)?, "process_config.enabled") {
-        return Ok(legacy_enabled_mode(value));
-    }
-    Ok(None)
+    legacy_enabled_mode_from_file(yaml, base_path)
+}
+
+fn legacy_enabled_mode_from_file(
+    yaml: &mut YamlCache,
+    path: &str,
+) -> anyhow::Result<Option<ProcessEnabledMode>> {
+    let Some(value) = yaml.dotted_key_if_exists(path, LEGACY_PROCESS_ENABLED_KEY)? else {
+        return Ok(None);
+    };
+    Ok(legacy_enabled_mode(value))
 }
 
 fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
-    ["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"]
-        .into_iter()
+    LEGACY_PROCESS_ENABLED_ENV
+        .iter()
         .filter_map(|name| std::env::var(name).ok())
         .map(|value| legacy_enabled_mode_from_string(&value))
         .next()
@@ -554,6 +600,267 @@ mod tests {
     }
 
     #[test]
+    fn fleet_system_probe_policy_enables_when_local_file_missing() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = dir.path().join("system-probe.yaml");
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe.to_string_lossy().into_owned(),
+                    keys: vec!["network_config.enabled".into()],
+                },
+            ];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn fleet_system_probe_config_policy_enables_when_local_file_missing() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "system_probe_config:\n  enabled: true\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = dir.path().join("system-probe.yaml");
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe.to_string_lossy().into_owned(),
+                    keys: vec!["system_probe_config.enabled".into()],
+                },
+            ];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn fleet_legacy_enabled_transforms_collection_keys() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policy_beats_local_system_probe_config() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "network_config:\n  enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe,
+                    keys: vec!["network_config.enabled".into()],
+                },
+            ];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn legacy_env_false_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn missing_system_probe_without_fleet_blocks_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = dir.path().join("system-probe.yaml");
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe.to_string_lossy().into_owned(),
+                    keys: vec![
+                        "network_config.enabled".into(),
+                        "system_probe_config.enabled".into(),
+                    ],
+                },
+            ];
+            assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn local_system_probe_config_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe,
+                    keys: vec!["network_config.enabled".into()],
+                },
+            ];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn env_override_enables_system_probe_network() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _network = EnvGuard::set("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = dir.path().join("system-probe.yaml");
+            let conditions = vec![
+                ConditionConfigFile {
+                    path: agent,
+                    keys: vec![
+                        "process_config.process_collection.enabled".into(),
+                        "process_config.process_discovery.enabled".into(),
+                    ],
+                },
+                ConditionConfigFile {
+                    path: sysprobe.to_string_lossy().into_owned(),
+                    keys: vec!["network_config.enabled".into()],
+                },
+            ];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
     fn env_override_beats_fleet_policy() {
         with_env_lock(|| {
             clear_gated_env_vars();
@@ -592,7 +899,7 @@ mod tests {
             "process_config.container_collection.enabled",
             "process_config.process_discovery.enabled",
         ] {
-            cache.optional_bool_key(&path, key).unwrap();
+            cache.bool_key(&path, key).unwrap();
         }
         assert_eq!(cache.loaded_file_count(), 1);
     }
@@ -615,6 +922,46 @@ mod tests {
         assert_eq!(
             value_as_bool(&serde_yaml::Value::String("true".into())),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn invalid_bool_value_blocks_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: not-a-bool\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn condition_config_summary_formats_paths() {
+        let conditions = vec![
+            ConditionConfigFile {
+                path: "/etc/datadog-agent/datadog.yaml".into(),
+                keys: vec![
+                    "process_config.enabled".into(),
+                    "process_config.process_collection.enabled".into(),
+                ],
+            },
+            ConditionConfigFile {
+                path: "/etc/datadog-agent/system-probe.yaml".into(),
+                keys: vec!["network_config.enabled".into()],
+            },
+        ];
+        assert_eq!(
+            condition_config_summary(&conditions),
+            "/etc/datadog-agent/datadog.yaml:process_config.enabled, /etc/datadog-agent/datadog.yaml:process_config.process_collection.enabled, /etc/datadog-agent/system-probe.yaml:network_config.enabled"
         );
     }
 }
