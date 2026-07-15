@@ -1,0 +1,56 @@
+---
+# Cross-compiles the AIX/ppc64 trace-agent and core-agent from a Linux amd64
+# runner, using the GNU cross-toolchain baked into the linux buildimage
+# (dd/experimental/teams/agent-build/aix/toolchain). See
+# AIX-CROSS-BUILD-NOTES.md at the repo root for the full writeup of what
+# this validates and what's still missing (notably: no python/cgo-python
+# support yet, see tasks/libs/common/utils.py).
+.aix_cross_before_script:
+  - !reference [.retrieve_linux_go_deps]
+  # Workaround for a Go linker bug: cmd/link/internal/ld/lib.go hardcodes an
+  # absolute native "/lib/crt0_64.o" path for AIX external links instead of
+  # resolving it through the configured cross compiler's sysroot, the way it
+  # does for the neighboring crtcxa/crtdbase objects. Fix upstream:
+  # https://go-review.googlesource.com/c/go/+/800880
+  # Remove this step once that lands and we're on a Go version that has it.
+  - ln -sf /opt/aix-cross/sysroot/usr/lib/crt0_64.o /lib/crt0_64.o
+
+build_trace_agent-binary_aix_ppc64:
+  stage: binary_build
+  timeout: 20m
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  variables:
+    GOOS: aix
+    GOARCH: ppc64
+  before_script:
+    - !reference [.aix_cross_before_script]
+  script:
+    - dda inv -- check-go-version
+    - dda inv -- -e trace-agent.build
+    - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent
+
+build_agent-binary_aix_ppc64:
+  stage: binary_build
+  timeout: 20m
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  variables:
+    GOOS: aix
+    GOARCH: ppc64
+  before_script:
+    - !reference [.aix_cross_before_script]
+  script:
+    - dda inv -- check-go-version
+    # python/cgo-python is not supported for AIX cross builds yet (no AIX-native
+    # libpython to link against on a Linux host) - see tasks/libs/common/utils.py.
+    - dda inv -- -e agent.build --build-exclude=python
+    - file $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent
