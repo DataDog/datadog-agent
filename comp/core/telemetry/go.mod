@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/comp/core/telemetry
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0-rc.2
-	github.com/DataDog/datadog-agent/comp/def v0.82.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0-rc.3
+	github.com/DataDog/datadog-agent/comp/def v0.82.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0-rc.3
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
@@ -15,8 +15,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.82.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.82.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
