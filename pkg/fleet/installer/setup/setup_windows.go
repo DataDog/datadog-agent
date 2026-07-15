@@ -49,6 +49,14 @@ const (
 // betaRegistry is the OCI registry that hosts beta / RC Agent builds.
 const betaRegistry = "install.datad0g.com"
 
+// pipelineRegistry is the OCI registry that hosts per-pipeline Agent builds.
+const pipelineRegistry = "installtesting.datad0g.com"
+
+// envInstallerDefaultVersionAgent is the env var the oci downloader and
+// env.FromEnv() both honor for per-package version overrides. We set this
+// for pipeline builds so the child re-exec inherits the pinned tag.
+const envInstallerDefaultVersionAgent = "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"
+
 // releaseSuffixRe matches a trailing `-N` release suffix (e.g. `-1`).
 var releaseSuffixRe = regexp.MustCompile(`-\d+$`)
 
@@ -113,6 +121,18 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 	return v, nil
 }
 
+// applyAgentDistOptions resolves the options that select which Agent build to
+// install:
+//
+//   - DD_AGENT_PIPELINE_ID — a specific CI pipeline build (see applyAgentPipelineID)
+//   - DD_AGENT_DIST_CHANNEL — the release channel, stable or beta (see applyAgentDistChannel)
+func applyAgentDistOptions(e *env.Env) error {
+	if err := applyAgentPipelineID(e); err != nil {
+		return err
+	}
+	return applyAgentDistChannel(e)
+}
+
 // applyAgentDistChannel reads DD_AGENT_DIST_CHANNEL and overrides the
 // registry used for agent-package OCI fetches before running setup.
 //
@@ -151,6 +171,47 @@ func applyAgentDistChannel(e *env.Env) error {
 	}
 	e.RegistryOverrideByImage[agentPackageImage] = betaRegistry
 	return os.Setenv(envInstallerRegistryURLAgent, betaRegistry)
+}
+
+// applyAgentPipelineID reads DD_AGENT_PIPELINE_ID and overrides both the
+// registry and the version used for agent-package OCI fetches so setup
+// installs a specific CI pipeline build.
+//
+// Cases:
+//
+//   - DD_AGENT_PIPELINE_ID unset → no-op
+//   - DD_AGENT_DIST_CHANNEL, DD_AGENT_MAJOR_VERSION, or DD_AGENT_MINOR_VERSION
+//     is set → error (these high-level options are mutually exclusive with the
+//     pipeline build)
+//   - DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE or
+//     DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT is already set → that
+//     explicit override wins for its axis (no-op), matching applyAgentDistChannel
+//   - otherwise → registry flips to pipelineRegistry, version to pipeline-<id>
+func applyAgentPipelineID(e *env.Env) error {
+	id := e.AgentPipelineID
+	if id == "" {
+		return nil
+	}
+	if e.AgentDistChannel != "" {
+		return fmt.Errorf("DD_AGENT_PIPELINE_ID and DD_AGENT_DIST_CHANNEL=%s are mutually exclusive", e.AgentDistChannel)
+	}
+	if e.AgentMajorVersion != "" || e.AgentMinorVersion != "" {
+		return errors.New("DD_AGENT_PIPELINE_ID is mutually exclusive with DD_AGENT_MAJOR_VERSION and DD_AGENT_MINOR_VERSION")
+	}
+	tag := "pipeline-" + id
+	if _, set := e.RegistryOverrideByImage[agentPackageImage]; !set {
+		e.RegistryOverrideByImage[agentPackageImage] = pipelineRegistry
+		if err := os.Setenv(envInstallerRegistryURLAgent, pipelineRegistry); err != nil {
+			return err
+		}
+	}
+	if _, set := e.DefaultPackagesVersionOverride[agentPackage]; !set {
+		e.DefaultPackagesVersionOverride[agentPackage] = tag
+		if err := os.Setenv(envInstallerDefaultVersionAgent, tag); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // parseMinorPrefix returns the numeric minor at the start of s — e.g. "78"

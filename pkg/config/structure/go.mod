@@ -7,7 +7,6 @@ replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
 	github.com/go-viper/mapstructure/v2 v2.5.0

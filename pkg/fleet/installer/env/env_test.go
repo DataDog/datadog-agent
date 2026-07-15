@@ -86,6 +86,7 @@ func TestFromEnv(t *testing.T) {
 				envAgentMajorVersion:                          "7",
 				envAgentMinorVersion:                          "79.0~rc.2",
 				envAgentDistChannel:                           "beta",
+				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
 				APIKey:                "123456",
@@ -144,6 +145,7 @@ func TestFromEnv(t *testing.T) {
 				AgentMajorVersion:   "7",
 				AgentMinorVersion:   "79.0~rc.2",
 				AgentDistChannel:    "beta",
+				AgentPipelineID:     "118008542",
 			},
 		},
 		{

@@ -37,6 +37,12 @@
 #error "SYS_gettid unavailable on this system"
 #endif
 
+// DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
+#ifndef DD_TRACER_MEMFD_SEALS
+#define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
+#endif
+
+
 pid_t gettid(void) {
     pid_t tid = syscall(SYS_gettid);
     return tid;
@@ -1277,8 +1283,8 @@ int test_tracer_memfd(int argc, char **argv) {
         err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data));
     }
 
-    // Seal the memfd (this triggers the eBPF event)
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+    // Seal the memfd the same way a real tracer does
+    if (fcntl(fd, F_ADD_SEALS, DD_TRACER_MEMFD_SEALS) < 0) {
         err(1, "%s failed", "fcntl F_ADD_SEALS");
     }
 

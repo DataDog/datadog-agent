@@ -135,6 +135,25 @@ func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	m.lastPayload = tp
 }
 
+type mockTracerPayloadModifierV1 struct {
+	modifyCalled bool
+	lastPayload  *idx.InternalTracerPayload
+}
+
+func (m *mockTracerPayloadModifierV1) ModifyV1(tp *idx.InternalTracerPayload) {
+	m.modifyCalled = true
+	m.lastPayload = tp
+}
+
+type mockSpanModifierV1 struct {
+	modifiedSpans int
+}
+
+func (m *mockSpanModifierV1) ModifySpanV1(_ *idx.InternalTraceChunk, span *idx.InternalSpan) {
+	m.modifiedSpans++
+	span.SetStringAttribute("_dd.modified", "true")
+}
+
 type mockContainerTagsBuffer struct {
 	containertagsbuffer.NoOpTagsBuffer
 	enabled    bool
@@ -805,6 +824,144 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, 2, int(payload.SpanCount))
 		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[0].Meta, "irrelevant")
 		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[1].Meta, "irrelevant")
+	})
+
+	t.Run("TracerPayloadModifierV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		mockModifier := &mockTracerPayloadModifierV1{}
+		agnt.TracerPayloadModifierV1 = mockModifier
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		assert.True(t, mockModifier.modifyCalled, "TracerPayloadModifierV1.ModifyV1 should have been called")
+		assert.NotNil(t, mockModifier.lastPayload, "TracerPayloadModifierV1 should have received a payload")
+	})
+
+	t.Run("SpanModifierV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		mockModifier := &mockSpanModifierV1{}
+		agnt.SpanModifierV1 = mockModifier
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		assert.Positive(t, mockModifier.modifiedSpans, "SpanModifierV1.ModifySpanV1 should have been called")
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		got, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].GetAttributeAsString("_dd.modified")
+		assert.True(t, ok)
+		assert.Equal(t, "true", got)
+	})
+
+	t.Run("DiscardSpansV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		agnt.DiscardSpanV1 = func(span *idx.InternalSpan) bool {
+			v, _ := span.GetAttributeAsString("irrelevant")
+			return v == "true"
+		}
+
+		strings := idx.NewStringTable()
+		span1 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 1, ServiceRef: strings.Add("a")})
+		span1.SetStringAttribute("irrelevant", "true")
+		span2 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 2, ServiceRef: strings.Add("a")})
+		span3 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 3, ServiceRef: strings.Add("a")})
+
+		c := spansToChunkV1(span1, span2, span3)
+		c.Priority = 1
+		tp := testutil.TracerPayloadV1WithChunk(c)
+
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		payload := payloads[0]
+		assert.Equal(t, 2, int(payload.SpanCount))
+		for _, span := range payload.TracerPayload.Chunks[0].Spans {
+			_, ok := span.GetAttributeAsString("irrelevant")
+			assert.False(t, ok, "discarded span attribute should not be present")
+		}
+	})
+
+	t.Run("nilChunkV1", func(t *testing.T) {
+		// A converted v0.x payload (or a malformed native idx payload) can carry
+		// nil chunk entries. ProcessV1 must drop them instead of panicking.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		tp := &idx.InternalTracerPayload{
+			Strings: strings,
+			Chunks:  []*idx.InternalTraceChunk{nil, chunk, nil},
+		}
+
+		assert.NotPanics(t, func() {
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		for _, c := range payloads[0].TracerPayload.Chunks {
+			assert.NotNil(t, c, "nil chunks should have been dropped")
+		}
+	})
+
+	t.Run("nilChunkV1WithDiscardSpan", func(t *testing.T) {
+		// discardSpansV1 runs before the chunk loop, so it must also tolerate nil chunks.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		agnt.DiscardSpanV1 = func(*idx.InternalSpan) bool { return false }
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		tp := &idx.InternalTracerPayload{
+			Strings: strings,
+			Chunks:  []*idx.InternalTraceChunk{nil, chunk},
+		}
+
+		assert.NotPanics(t, func() {
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+		})
 	})
 
 	t.Run("chunking", func(t *testing.T) {

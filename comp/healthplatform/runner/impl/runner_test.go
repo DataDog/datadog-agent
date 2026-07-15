@@ -17,11 +17,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	registrymock "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
+
+// failingTemplate is a Template whose BuildIssue always errors, used to
+// exercise runner.toProto's minimal-fallback path.
+type failingTemplate struct {
+	issueName string
+	issueType string
+}
+
+func (f *failingTemplate) IssueName() string { return f.issueName }
+func (f *failingTemplate) IssueType() string { return f.issueType }
+func (f *failingTemplate) BuildIssue(_ map[string]string) (*healthplatformpayload.Issue, error) {
+	return nil, errors.New("build failed")
+}
 
 func newTestRunner(t *testing.T) (*runner, *storemock.Mock) {
 	t.Helper()
@@ -112,6 +126,32 @@ func TestRunSourceDefaultFill(t *testing.T) {
 	// The mock registry has no template for "type-a" so a minimal proto is built
 	// with the source filled from the fallback.
 	assert.Equal(t, "fallback-source", issue.Source)
+}
+
+// TestRunFallbackUsesTemplateIssueType guards that when a template is found by
+// the registry but BuildIssue errors, the minimal fallback proto still carries
+// the template's own IssueType instead of leaving it empty.
+func TestRunFallbackUsesTemplateIssueType(t *testing.T) {
+	tmpl := &failingTemplate{issueName: "type-a", issueType: "type_a_snake"}
+	store := storemock.New(t)
+	r := &runner{
+		log:      logmock.New(t),
+		registry: registrymock.New(t, registrymock.WithTemplate("type-a", tmpl)),
+		store:    store,
+	}
+
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+		}, nil
+	}
+
+	_, err := r.Run("mycomp", fn)
+	require.NoError(t, err)
+
+	issue := store.GetIssue("id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "type_a_snake", issue.IssueType)
 }
 
 func TestRunSourceNotOverridden(t *testing.T) {

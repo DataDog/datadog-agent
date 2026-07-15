@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/util/log",
     ],
 )
@@ -18,6 +19,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/agent",
         "@com_github_stretchr_testify//assert",
     ],

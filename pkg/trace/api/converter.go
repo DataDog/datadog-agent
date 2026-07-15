@@ -28,9 +28,12 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 	reg := semantics.DefaultRegistry()
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
-	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
+	// Empty or nil chunks are dropped at conversion so they never enter the idx
+	// payload. This mirrors the legacy pb.TracerPayload path, which removed empty
+	// chunks before processing, and avoids leaving nil entries in the slice.
+	idxChunks := make([]*idx.InternalTraceChunk, 0, len(payload.Chunks))
 	chunkConvertedFields := idx.ChunkConvertedFields{}
-	for chunkIndex, chunk := range payload.Chunks {
+	for _, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
 		}
@@ -178,26 +181,27 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				idxSpans[spanIndex].SetStringAttribute("_dd.convertedv1", originPayloadVersion)
 			}
 		}
-		idxChunks[chunkIndex] = &idx.InternalTraceChunk{
+		idxChunk := &idx.InternalTraceChunk{
 			Strings:      stringTable,
 			Attributes:   chunkAttrs,
 			Spans:        idxSpans,
 			DroppedTrace: chunk.DroppedTrace,
 		}
-		idxChunks[chunkIndex].SetOrigin(chunk.Origin)
-		idxChunks[chunkIndex].ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
-		if chunk.Priority != int32(sampler.PriorityNone) && idxChunks[chunkIndex].Priority == int32(sampler.PriorityNone) {
+		idxChunk.SetOrigin(chunk.Origin)
+		idxChunk.ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
+		if chunk.Priority != int32(sampler.PriorityNone) && idxChunk.Priority == int32(sampler.PriorityNone) {
 			// If the chunk has a priority set and none on any internal span then use the chunk's priority
-			idxChunks[chunkIndex].Priority = chunk.Priority
+			idxChunk.Priority = chunk.Priority
 		}
-		if chunkDm, ok := idxChunks[chunkIndex].GetAttributeAsString("_dd.p.dm"); ok && idxChunks[chunkIndex].SamplingMechanism() == 0 {
+		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
 			samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32)
 			if err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
 			}
-			idxChunks[chunkIndex].SetSamplingMechanism(uint32(samplingMechanism))
+			idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 		}
+		idxChunks = append(idxChunks, idxChunk)
 	}
 	idxPayload := &idx.InternalTracerPayload{
 		Strings:    stringTable,
@@ -258,9 +262,19 @@ func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTa
 }
 
 func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTable) *idx.ArrayValue {
-	values := make([]*idx.AnyValue, len(arrayValue.Values))
-	for i, value := range arrayValue.Values {
-		values[i] = convertAttributeArrayValue(value, stringTable)
+	// An attribute may declare ARRAY_VALUE while carrying a nil ArrayValue, since
+	// Type and ArrayValue are independent fields rather than a real oneof.
+	if arrayValue == nil {
+		return &idx.ArrayValue{}
+	}
+	// Drop nil/unconvertible elements rather than storing nil AnyValue entries:
+	// several V1 paths (AnyValue.AsString, Msgsize, MarshalMsg) dereference every
+	// array element and would panic on a nil entry.
+	values := make([]*idx.AnyValue, 0, len(arrayValue.Values))
+	for _, value := range arrayValue.Values {
+		if converted := convertAttributeArrayValue(value, stringTable); converted != nil {
+			values = append(values, converted)
+		}
 	}
 	return &idx.ArrayValue{
 		Values: values,
@@ -268,6 +282,12 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 }
 
 func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, stringTable *idx.StringTable) *idx.AnyValue {
+	// A nil element is a valid decode result (the msgpack decoder stores nil for
+	// a nil array element); return nil so the caller can drop it instead of
+	// storing an unusable nil AnyValue in the array.
+	if arrayValue == nil {
+		return nil
+	}
 	switch arrayValue.Type {
 	case pb.AttributeArrayValue_STRING_VALUE:
 		return &idx.AnyValue{

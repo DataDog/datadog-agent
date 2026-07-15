@@ -25,6 +25,7 @@ func TestBuildIssue_BasicFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, IssueID, issue.Id)
 	assert.Equal(t, issueName, issue.IssueName)
+	assert.Equal(t, issueType, issue.IssueType)
 	assert.Equal(t, "Admission Controller Unreachable", issue.Title)
 	assert.Contains(t, issue.Description, "webhook not reachable")
 	assert.Equal(t, "availability", issue.Category)
