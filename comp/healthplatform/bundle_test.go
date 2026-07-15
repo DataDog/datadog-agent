@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
@@ -287,7 +287,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	cfg := config.NewMock(t)
-	mods := issues.GetAllModules(cfg)
+	hn, _ := hostnameinterface.NewMock("test-host")
+	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})

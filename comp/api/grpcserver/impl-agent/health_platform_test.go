@@ -58,7 +58,7 @@ func serverWithStoreAndRegistry(store healthplatformstore.Component, reg remotea
 // ── ReportHealthIssue ────────────────────────────────────────────────────────
 
 func TestReportHealthIssue_StoresIssue(t *testing.T) {
-	storeMock := healthplatformmock.Mock(t)
+	storeMock := healthplatformmock.New(t)
 	srv := serverWithStore(storeMock)
 
 	issue := &healthplatformpayload.Issue{Id: "test-issue", IssueName: "test-issue", Title: "Test Issue", Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH}
@@ -72,7 +72,7 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 }
 
 func TestReportHealthIssue_NilIssue(t *testing.T) {
-	srv := serverWithStore(healthplatformmock.Mock(t))
+	srv := serverWithStore(healthplatformmock.New(t))
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{})
 	require.Error(t, err)
@@ -80,7 +80,7 @@ func TestReportHealthIssue_NilIssue(t *testing.T) {
 }
 
 func TestReportHealthIssue_EmptyIssueID(t *testing.T) {
-	srv := serverWithStore(healthplatformmock.Mock(t))
+	srv := serverWithStore(healthplatformmock.New(t))
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Title: "no id"}})
 	require.Error(t, err)
@@ -88,7 +88,7 @@ func TestReportHealthIssue_EmptyIssueID(t *testing.T) {
 }
 
 func TestReportHealthIssue_EmptyIssueName(t *testing.T) {
-	srv := serverWithStore(healthplatformmock.Mock(t))
+	srv := serverWithStore(healthplatformmock.New(t))
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Id: "has-id-no-name"}})
 	require.Error(t, err)
@@ -98,7 +98,7 @@ func TestReportHealthIssue_EmptyIssueName(t *testing.T) {
 // TestReportHealthIssue_ValidSession verifies that a registered remote agent with a
 // valid session ID can report issues successfully.
 func TestReportHealthIssue_ValidSession(t *testing.T) {
-	storeMock := healthplatformmock.Mock(t)
+	storeMock := healthplatformmock.New(t)
 	reg := &stubRegistry{validSessions: map[string]bool{"sess-123": true}}
 	srv := serverWithStoreAndRegistry(storeMock, reg)
 
@@ -115,7 +115,7 @@ func TestReportHealthIssue_ValidSession(t *testing.T) {
 // is rejected with UNAUTHENTICATED.
 func TestReportHealthIssue_InvalidSession(t *testing.T) {
 	reg := &stubRegistry{validSessions: map[string]bool{}}
-	srv := serverWithStoreAndRegistry(healthplatformmock.Mock(t), reg)
+	srv := serverWithStoreAndRegistry(healthplatformmock.New(t), reg)
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
 		RemoteAgentSessionId: "stale-session",
@@ -128,7 +128,7 @@ func TestReportHealthIssue_InvalidSession(t *testing.T) {
 // TestReportHealthIssue_SessionWithoutRegistry verifies that supplying a session ID
 // when the registry is not wired returns Unavailable.
 func TestReportHealthIssue_SessionWithoutRegistry(t *testing.T) {
-	srv := serverWithStore(healthplatformmock.Mock(t)) // no registry
+	srv := serverWithStore(healthplatformmock.New(t)) // no registry
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
 		RemoteAgentSessionId: "some-session",
@@ -141,7 +141,7 @@ func TestReportHealthIssue_SessionWithoutRegistry(t *testing.T) {
 // TestReportHealthIssue_NoSessionSubAgent verifies that sub-agents (no session ID)
 // can report issues without a registry.
 func TestReportHealthIssue_NoSessionSubAgent(t *testing.T) {
-	storeMock := healthplatformmock.Mock(t)
+	storeMock := healthplatformmock.New(t)
 	srv := serverWithStore(storeMock) // no registry — fine for sub-agents
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
@@ -154,7 +154,7 @@ func TestReportHealthIssue_NoSessionSubAgent(t *testing.T) {
 // ── ResolveHealthIssue ───────────────────────────────────────────────────────
 
 func TestResolveHealthIssue_ClearsIssue(t *testing.T) {
-	storeMock := healthplatformmock.Mock(t)
+	storeMock := healthplatformmock.New(t)
 	srv := serverWithStore(storeMock)
 
 	require.NoError(t, storeMock.ReportIssue(&healthplatformpayload.Issue{Id: "to-resolve", IssueName: "to-resolve", Title: "active"}))
@@ -166,7 +166,7 @@ func TestResolveHealthIssue_ClearsIssue(t *testing.T) {
 }
 
 func TestResolveHealthIssue_EmptyIssueID(t *testing.T) {
-	srv := serverWithStore(healthplatformmock.Mock(t))
+	srv := serverWithStore(healthplatformmock.New(t))
 
 	_, err := srv.ResolveHealthIssue(context.Background(), &pb.ResolveHealthIssueRequest{})
 	require.Error(t, err)
@@ -176,7 +176,7 @@ func TestResolveHealthIssue_EmptyIssueID(t *testing.T) {
 // TestResolveHealthIssue_ValidSession verifies that a registered remote agent with a
 // valid session can resolve its own issues.
 func TestResolveHealthIssue_ValidSession(t *testing.T) {
-	storeMock := healthplatformmock.Mock(t)
+	storeMock := healthplatformmock.New(t)
 	reg := &stubRegistry{validSessions: map[string]bool{"sess-abc": true}}
 	srv := serverWithStoreAndRegistry(storeMock, reg)
 
@@ -193,7 +193,7 @@ func TestResolveHealthIssue_ValidSession(t *testing.T) {
 // TestResolveHealthIssue_InvalidSession verifies that a stale session is rejected.
 func TestResolveHealthIssue_InvalidSession(t *testing.T) {
 	reg := &stubRegistry{validSessions: map[string]bool{}}
-	srv := serverWithStoreAndRegistry(healthplatformmock.Mock(t), reg)
+	srv := serverWithStoreAndRegistry(healthplatformmock.New(t), reg)
 
 	_, err := srv.ResolveHealthIssue(context.Background(), &pb.ResolveHealthIssueRequest{
 		RemoteAgentSessionId: "stale",

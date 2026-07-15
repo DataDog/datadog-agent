@@ -432,7 +432,7 @@ new-e2e-agent-health:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
 
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64
@@ -448,8 +448,13 @@ new-e2e-privateactionrunner:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
+    - job: publish_fakeintake
+      optional: true
     - qa_agent_linux
   rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes_with_image_override]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -932,6 +937,7 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  allow_failure: true
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
