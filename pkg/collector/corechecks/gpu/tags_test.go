@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	slurmpkg "github.com/DataDog/datadog-agent/pkg/process/util/slurm"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -1291,4 +1293,113 @@ func TestNewWorkloadTagCache_DuplicateSubsystemPanics(t *testing.T) {
 	require.Panics(t, func() {
 		_, _ = NewWorkloadTagCacheWithSubsystem("dup", tg, wmeta, cp, tm, defaultCacheSize)
 	}, "constructing a second cache with the same subsystem must panic on Prometheus duplicate registration")
+}
+
+// fakeSlurmProvider is a minimal slurm.Provider for tests that doesn't touch /proc.
+type fakeSlurmProvider struct {
+	infoByPID map[int32]slurmpkg.SlurmInfo
+	errByPID  map[int32]error
+}
+
+func (f *fakeSlurmProvider) GetSlurmInfo(pid int32) (slurmpkg.SlurmInfo, error) {
+	if err, ok := f.errByPID[pid]; ok {
+		return slurmpkg.SlurmInfo{}, err
+	}
+	return f.infoByPID[pid], nil
+}
+
+func TestBuildProcessTags_SlurmJobIDAdditive(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(4242)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	// containerID="" triggers the existing container-provider fallback path; slurm tagging must
+	// still happen additively regardless of what that fallback returns.
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	cache.SetSlurmProvider(&fakeSlurmProvider{
+		infoByPID: map[int32]slurmpkg.SlurmInfo{
+			pid: {JobID: "3", JobName: "gpuhold", Partition: "gpu"},
+		},
+	})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+	assert.Contains(t, tags, "slurm_job_id:3")
+	assert.Contains(t, tags, "slurm_job_name:gpuhold")
+	assert.Contains(t, tags, "slurm_job_partition:gpu")
+}
+
+func TestBuildProcessTags_SlurmPermissionDenied(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(8686)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	cache.SetSlurmProvider(&fakeSlurmProvider{
+		errByPID: map[int32]error{
+			pid: fmt.Errorf("permission denied resolving slurm info for pid %d", pid),
+		},
+	})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err) // the slurm permission error must not surface as a check error
+	for _, tag := range tags {
+		assert.False(t, strings.HasPrefix(tag, "slurm_"))
+	}
+}
+
+func TestBuildProcessTags_SlurmPermissionDeniedRepeatedOccurrencesDoNotCrash(t *testing.T) {
+	// A persistent misconfiguration hits this path on every check run for every GPU process.
+	// The log call is bounded by the package's shared logLimitCheck (see gpu.go), which has its
+	// own coverage; this test only guards that repeated occurrences behave consistently (no
+	// tags, no error) and don't crash, regardless of the limiter's current state.
+	cache, mocks := setupWorkloadTagCache(t)
+
+	provider := &fakeSlurmProvider{errByPID: map[int32]error{}}
+	cache.SetSlurmProvider(provider)
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{}).AnyTimes()
+
+	for _, pid := range []int32{111, 222} {
+		provider.errByPID[pid] = fmt.Errorf("permission denied resolving slurm info for pid %d", pid)
+		mocks.workloadMeta.Set(&workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+			NsPid:    pid,
+			Owner:    nil,
+		})
+		tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+		require.NoError(t, err)
+		for _, tag := range tags {
+			assert.False(t, strings.HasPrefix(tag, "slurm_"))
+		}
+	}
+}
+
+func TestBuildProcessTags_SlurmProviderNilByDefault(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	// SetSlurmProvider is never called: behavior must be identical to today (no slurm_* tags,
+	// no panics, no extra proc reads).
+
+	pid := int32(6464)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+	for _, tag := range tags {
+		assert.False(t, strings.HasPrefix(tag, "slurm_"))
+	}
 }

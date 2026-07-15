@@ -93,6 +93,19 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  slurm_job_tagging:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          gpu.slurm_job_tagging.enabled tags GPU-process metrics with the owning Slurm job's
+          identity (slurm_job_id/slurm_job_name/slurm_job_partition), resolved from /proc reads with
+          no slurm binaries, munge, or hostPID required. Requires SYS_PTRACE in the agent's
+          securityContext to read another process's /proc/<pid>/environ. Experimental: defaults off.
   sp_process_metrics_request_timeout:
     node_type: setting
     type: string

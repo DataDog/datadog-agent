@@ -20,9 +20,11 @@ import (
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	slurmutil "github.com/DataDog/datadog-agent/pkg/process/util/slurm"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
@@ -43,6 +45,7 @@ type WorkloadTagCache struct {
 	tagger            tagger.Component
 	wmeta             workloadmeta.Component
 	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	slurmProvider     slurmutil.Provider               // slurmProvider is nil unless gpu.slurm_job_tagging.enabled; see SetSlurmProvider.
 	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
 	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
 }
@@ -147,6 +150,13 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 func (c *WorkloadTagCache) SetContainerProvider(p proccontainers.ContainerProvider) {
 	c.containerProvider = p
 	c.pidToCid = nil
+}
+
+// SetSlurmProvider sets the Slurm job identity provider after construction. Mirrors
+// SetContainerProvider: nil (never called) means Slurm tagging is disabled, matching today's
+// behavior exactly.
+func (c *WorkloadTagCache) SetSlurmProvider(p slurmutil.Provider) {
+	c.slurmProvider = p
 }
 
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
@@ -261,6 +271,27 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			multiErr = errors.Join(multiErr, fmt.Errorf("error building container tags for process %d and container %s: %w", pid, containerID, err))
 		}
 		tags = append(tags, containerTags...)
+	}
+
+	if c.slurmProvider != nil {
+		if info, slurmErr := c.slurmProvider.GetSlurmInfo(pid); slurmErr != nil {
+			// Logged at Warn (not Debug) since this is the only signal that distinguishes a
+			// SYS_PTRACE misconfiguration from a process that simply isn't a Slurm job.
+			// logLimitCheck (shared with this package's other check-level warnings) bounds this
+			// to the first 20 occurrences and then once every 10 minutes, so a persistent
+			// misconfiguration stays visible without spamming on every GPU process every run.
+			if logLimitCheck.ShouldLog() {
+				log.Warnf("could not resolve slurm info for pid %d: %v", pid, slurmErr)
+			}
+		} else if info.JobID != "" {
+			tags = append(tags, "slurm_job_id:"+info.JobID)
+			if info.JobName != "" {
+				tags = append(tags, "slurm_job_name:"+info.JobName)
+			}
+			if info.Partition != "" {
+				tags = append(tags, "slurm_job_partition:"+info.Partition)
+			}
+		}
 	}
 
 	return tags, multiErr

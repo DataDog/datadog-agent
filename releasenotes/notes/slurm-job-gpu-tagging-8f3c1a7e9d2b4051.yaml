@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU: Added an opt-in ``gpu.slurm_job_tagging.enabled`` config option that tags GPU-process
+    metrics with the owning Slurm job's identity (``slurm_job_id``, ``slurm_job_name``,
+    ``slurm_job_partition``) on Slurm-on-Kubernetes deployments. Resolved from the node agent's
+    own ``/proc/<pid>/environ``, requiring only the ``SYS_PTRACE`` capability.

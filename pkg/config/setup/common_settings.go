@@ -487,6 +487,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
+	// gpu.slurm_job_tagging.enabled tags GPU-process metrics with the owning Slurm job's
+	// identity (slurm_job_id/slurm_job_name/slurm_job_partition), resolved from /proc reads with
+	// no slurm binaries, munge, or hostPID required. Requires SYS_PTRACE in the agent's
+	// securityContext to read another process's /proc/<pid>/environ. Experimental: defaults off.
+	config.BindEnvAndSetDefault("gpu.slurm_job_tagging.enabled", false)
 	// gpu.collection_interval_override (seconds) overrides the gpu check scheduling
 	// cadence when > 0, taking precedence over the instance's min_collection_interval.
 	// Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
