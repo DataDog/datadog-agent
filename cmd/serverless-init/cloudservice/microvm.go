@@ -198,8 +198,9 @@ func (m *MicroVM) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) e
 		log.Fatalf("MicroVM does not support sidecar mode")
 	}
 	return mode.RunInit(logConfig, &mode.ProcessHooks{
-		OnAlive: m.child.MarkAlive,
-		OnDead:  m.child.MarkDead,
+		OnProcess: m.child.StoreProcess,
+		OnAlive:   m.child.MarkAlive,
+		OnDead:    m.child.MarkDead,
 	})
 }
 

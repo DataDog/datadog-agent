@@ -8,6 +8,8 @@ go_library(
         "config.go",
         "forwarder.go",
         "heartbeat.go",
+        "runsignal_unix.go",
+        "runsignal_windows.go",
         "server.go",
         "wire.go",
     ],

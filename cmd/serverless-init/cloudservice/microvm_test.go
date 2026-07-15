@@ -162,6 +162,35 @@ func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
 	assert.False(t, child.IsAlive(), "child must be dead after Run returns")
 }
 
+// TestMicroVM_Run_WiresOnProcess_ForSignalRun verifies that MicroVM.Run wires
+// OnProcess to m.child.StoreProcess, so Child.SignalRun (used to deliver
+// SIGUSR2 on /run) actually reaches the spawned process rather than
+// no-op'ing on an unset process handle. The child ignores SIGUSR2 wouldn't
+// distinguish "wired" from "not wired" (SignalRun no-ops either way when no
+// process is stored, since it returns nil in both cases) — so this test
+// relies on SIGUSR2's default disposition (terminate) to make the two cases
+// observably different: a long sleep that dies early only if the real
+// process was stored and signaled.
+func TestMicroVM_Run_WiresOnProcess_ForSignalRun(t *testing.T) {
+	if testing.Short() {
+		t.Skip("spawns a subprocess")
+	}
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init", "sleep", "2"}
+
+	child := lifecycle.NewChild()
+	m := &MicroVM{child: child}
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		_ = child.SignalRun(lifecycle.RunSignal)
+	}()
+
+	err := m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
+	assert.Error(t, err, "OnProcess must store the real process so SignalRun's SIGUSR2 reaches it and terminates the sleep early")
+}
+
 func TestParseMicroVMARNWithColonInName(t *testing.T) {
 	region, accountID, imageName := parseMicroVMARN("arn:aws:lambda:eu-west-1:999:microvm-image:my:image:v2")
 	assert.Equal(t, "eu-west-1", region)

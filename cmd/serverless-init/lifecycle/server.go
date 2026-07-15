@@ -51,6 +51,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -165,10 +166,11 @@ type Server struct {
 	metricSource  metrics.MetricSource
 	flushTimeout  time.Duration
 
-	childHandle ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
-	child       *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
-	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
-	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
+	childHandle      ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
+	child            *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
+	fwd              *Forwarder  // nil = no opt-in; today's behavior preserved
+	heartbeat        *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
+	runSignalEnabled bool        // true when DD_AWS_MICROVM_SEND_RUN_SIGNAL=true
 
 	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
 	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /run
@@ -213,17 +215,18 @@ func NewServer(
 	heartbeat *Heartbeat, // may be nil
 ) *Server {
 	s := &Server{
-		metricFlusher: metricFlusher,
-		traceFlusher:  traceFlusher,
-		logsFlusher:   logsFlusher,
-		metricEmitter: metricEmitter,
-		sampleDrainer: sampleDrainer,
-		metricSource:  metricSource,
-		flushTimeout:  flushTimeout,
-		childHandle:   childHandle,
-		fwd:           fwd,
-		instanceID:    atomic.NewString(""),
-		heartbeat:     heartbeat,
+		metricFlusher:    metricFlusher,
+		traceFlusher:     traceFlusher,
+		logsFlusher:      logsFlusher,
+		metricEmitter:    metricEmitter,
+		sampleDrainer:    sampleDrainer,
+		metricSource:     metricSource,
+		flushTimeout:     flushTimeout,
+		childHandle:      childHandle,
+		fwd:              fwd,
+		instanceID:       atomic.NewString(""),
+		heartbeat:        heartbeat,
+		runSignalEnabled: os.Getenv(RunSignalEnvVar) == "true",
 	}
 	// Derive the concrete *Child from the handle when possible so callers can
 	// reach it via Server.Child() without a separate return value.
@@ -539,7 +542,14 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
 // so the first heartbeat emission already carries the correct microvm_id tag.
+//
+// SIGUSR2 is sent first (no-forwarder path) so the child can reseed its PRNG
+// before any telemetry work. Skipped when a forwarder is configured.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
+	if s.fwd == nil {
+		s.sendRunSignal()
+	}
+
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
 	// consume r.Body before the decode, losing the instance_id tag on all
