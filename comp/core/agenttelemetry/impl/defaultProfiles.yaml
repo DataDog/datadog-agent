@@ -482,6 +482,11 @@ profiles:
       - name: injector.pe_memory_allocation_failures
       - name: injector.pe_injection_context_allocated
       - name: injector.pe_injection_context_cleanedup
+      - name: injector.crashes_during_injection
+      - name: injector.crashes_post_injection
+      - name: injector.boot_recovery_crash_boots_detected
+      - name: injector.boot_recovery_driver_self_disabled
+      - name: injector.boot_recovery_stability_timer_fired
   schedule:
     start_after: 30
     iterations: 0
