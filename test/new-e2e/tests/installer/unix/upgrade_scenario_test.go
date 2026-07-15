@@ -446,9 +446,7 @@ func (s *upgradeScenarioSuite) stopExperiment(pkg packageName) (string, error) {
 
 func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
 	assert.Eventually(s.T(), func() bool {
@@ -538,9 +536,7 @@ func (s *upgradeScenarioSuite) getInstallerStatusLegacy() installerStatus {
 
 	var statusLegacy installerStatusLegacy
 	err := json.Unmarshal([]byte(response), &statusLegacy)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 	// Legacy status handling
 	for k, pkg := range statusLegacy.Packages {
 		if pkg.LegacyVersionStable != "" || pkg.LegacyVersionExperiment != "" {

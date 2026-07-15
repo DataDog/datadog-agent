@@ -116,7 +116,7 @@ func (v *ec2TCPCongestionSuite) startIperf3Client(extraArgs string) {
 		v.T().Logf("iperf3 client not running after attempt %d, retrying...", attempt+1)
 		time.Sleep(3 * time.Second)
 	}
-	v.T().Fatal("iperf3 client failed to start after 3 attempts")
+	v.Require().FailNow("iperf3 client failed to start after 3 attempts")
 }
 
 // AfterTest dumps fakeintake info on failure.

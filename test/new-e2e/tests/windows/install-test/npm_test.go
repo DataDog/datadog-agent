@@ -219,13 +219,13 @@ func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPac
 		_, err := s.InstallAgent(host, installOpts...)
 		s.Require().NoError(err, "should upgrade to agent %s", agentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	if !s.Run("test "+agentPackage.AgentVersion(), func() {
 		client := s.NewTestClientForHost(host)
 		RequireAgentVersionRunningWithNoErrors(s.T(), client, agentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 }

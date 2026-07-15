@@ -56,7 +56,7 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) Meta {
 
 	var result status
 	if err := json.Unmarshal([]byte(statusPayload.Content), &result); err != nil {
-		v.T().Fatal(err)
+		v.Require().NoError(err)
 	}
 
 	return result.Data.MetaPayload
