@@ -217,6 +217,107 @@ func TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing.T) {
 	require.InDelta(t, total, shipped+ctx.pendingSum, 1e-9)
 }
 
+// TestGaugeWithTimestamp_ShipsCompressedBreakpointsPreservingCallerTimestamp
+// mirrors TestGauge_SpikeShipsViaGaugeWithTimestamp: GaugeWithTimestamp
+// must compress exactly like Gauge (kindGaugeWithTimestamp is reduced
+// identically to kindGauge, see reduce()), and must never fall back to the
+// untimestamped Gauge method — only real checks (e.g. the GPU check, which
+// stamps samples with their own eBPF collection time) call
+// GaugeWithTimestamp, and losing that timestamp would misattribute when a
+// compressed value actually occurred.
+func TestGaugeWithTimestamp_ShipsCompressedBreakpointsPreservingCallerTimestamp(t *testing.T) {
+	s, fake := newTestSender()
+
+	for i := 0; i < 10; i++ {
+		v := 100.0
+		if i == 5 {
+			v = 5000.0
+		}
+		s.compressAt(kindGaugeWithTimestamp, "my.gauge", v, "host", []string{"env:prod"}, float64(i), false)
+	}
+
+	found := false
+	for _, c := range fake.gauges {
+		if c.value == 5000.0 {
+			found = true
+			require.Equal(t, 5.0, c.timestamp)
+			require.Equal(t, []string{"env:prod"}, c.tags)
+		}
+	}
+	require.True(t, found, "expected the spike to be shipped as its own breakpoint, got %+v", fake.gauges)
+	require.Empty(t, fake.counts, "gauge calls must never ship via CountWithTimestamp")
+	require.Empty(t, fake.rawGauges, "GaugeWithTimestamp must never fall back to the untimestamped Gauge method")
+}
+
+// TestCountWithTimestamp_SumIsConservedAndShipsViaCountWithTimestamp mirrors
+// TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush: CountWithTimestamp
+// must accumulate pendingSum exactly like Count (kindCountWithTimestamp is
+// included in every pendingSum gate alongside kindCount/kindMonotonicCount).
+func TestCountWithTimestamp_SumIsConservedAndShipsViaCountWithTimestamp(t *testing.T) {
+	s, fake := newTestSender()
+
+	values := []float64{1, 1, 500, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	total := 0.0
+	for i, v := range values {
+		total += v
+		s.compressAt(kindCountWithTimestamp, "my.count", v, "host", nil, float64(i), false)
+	}
+
+	require.Empty(t, fake.gauges, "CountWithTimestamp calls must never ship via GaugeWithTimestamp")
+	require.NotEmpty(t, fake.counts)
+
+	shipped := 0.0
+	for _, c := range fake.counts {
+		shipped += c.value
+	}
+	ctx := s.contexts[contextKeyFor("my.count", "host", nil)]
+	require.InDelta(t, total, shipped+ctx.pendingSum, 1e-9,
+		"every received value must be shipped or still pending, never lost, same as plain Count")
+}
+
+func TestGaugeWithTimestamp_InvalidTimestampIsRejectedWithoutRecordingSample(t *testing.T) {
+	s, fake := newTestSender()
+
+	require.Error(t, s.GaugeWithTimestamp("my.gauge", 42, "host", nil, 0))
+	require.Error(t, s.GaugeWithTimestamp("my.gauge", 42, "host", nil, -5))
+	require.Empty(t, fake.gauges)
+	require.Empty(t, s.contexts, "an invalid-timestamp call must not create a context or touch the compressor")
+}
+
+func TestCountWithTimestamp_InvalidTimestampIsRejectedWithoutRecordingSample(t *testing.T) {
+	s, fake := newTestSender()
+
+	require.Error(t, s.CountWithTimestamp("my.count", 42, "host", nil, 0))
+	require.Empty(t, fake.counts)
+	require.Empty(t, s.contexts)
+}
+
+// TestDryRun_ForwardsGaugeAndCountWithTimestampPreservingCallerTimestamp is
+// the key behavior this whole interception exists for: unlike plain
+// Gauge/Count (which dry-run forwards via the untimestamped method, see
+// TestDryRun_ForwardsRawGaugeUnmodified), GaugeWithTimestamp/
+// CountWithTimestamp must forward via the SAME timestamped method with the
+// caller's own timestamp intact — silently replacing it with nowSeconds()
+// would misrepresent when a check's sample was actually collected.
+func TestDryRun_ForwardsGaugeAndCountWithTimestampPreservingCallerTimestamp(t *testing.T) {
+	s, fake := newTestSenderDryRun()
+
+	require.NoError(t, s.GaugeWithTimestamp("my.gauge", 42, "host", []string{"env:prod"}, 12345))
+	require.NoError(t, s.CountWithTimestamp("my.count", 7, "host", nil, 67890))
+
+	require.Len(t, fake.gauges, 1, "GaugeWithTimestamp must forward via the same timestamped method in dry-run mode, unlike plain Gauge")
+	require.Equal(t, 42.0, fake.gauges[0].value)
+	require.Equal(t, 12345.0, fake.gauges[0].timestamp, "the caller's own timestamp must be preserved, not replaced by nowSeconds()")
+	require.Equal(t, []string{"env:prod"}, fake.gauges[0].tags)
+
+	require.Len(t, fake.counts, 1)
+	require.Equal(t, 7.0, fake.counts[0].value)
+	require.Equal(t, 67890.0, fake.counts[0].timestamp)
+
+	require.Empty(t, fake.rawGauges, "must never fall back to the untimestamped Gauge method")
+	require.Empty(t, fake.rawCounts, "must never fall back to the untimestamped Count method")
+}
+
 func TestRate_FirstSampleProducesNoValue(t *testing.T) {
 	s, fake := newTestSender()
 
