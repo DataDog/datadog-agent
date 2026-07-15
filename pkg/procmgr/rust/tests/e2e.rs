@@ -1940,8 +1940,7 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let config_dir = dir.path().join("processes.d");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    let Some(yaml) =
-        render_ddot_template(install_dir.to_str().unwrap(), pid_dir.to_str().unwrap())
+    let Some(yaml) = render_ddot_template(install_dir.to_str().unwrap(), pid_dir.to_str().unwrap())
     else {
         eprintln!("DDOT_TEMPLATE_PATH not set at compile time, skipping");
         return;

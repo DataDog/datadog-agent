@@ -56,14 +56,8 @@ func generate(outputDir string) error {
 var embedded embed.FS
 
 type installerTemplateData struct {
-	InstallDir string
-	EtcDir     string
-	// ConfDir is the config directory a dd-procmgr-managed process reads. It renders to the
-	// literal ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at launch with its own
-	// config directory (/etc/datadog-agent for the stable procmgr, /etc/datadog-agent-exp for the
-	// experiment procmgr). This lets a single process definition follow the experiment config the
-	// same way datadog-agent-exp.service runs the agent with -c /etc/datadog-agent-exp.
-	ConfDir                      string
+	InstallDir                   string
+	EtcDir                       string
 	FleetPoliciesDir             string
 	PIDDir                       string
 	Stable                       bool
@@ -159,7 +153,6 @@ var (
 	stableDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
 		EtcDir:           "/etc/datadog-agent",
-		ConfDir:          "${DD_CONF_DIR}",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
 		Stable:           true,
@@ -167,7 +160,6 @@ var (
 	expDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
 		EtcDir:           "/etc/datadog-agent-exp",
-		ConfDir:          "${DD_CONF_DIR}",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
@@ -175,7 +167,6 @@ var (
 	stableDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
-		ConfDir:          "${DD_CONF_DIR}",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           true,
@@ -183,7 +174,6 @@ var (
 	expDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent-exp",
-		ConfDir:          "${DD_CONF_DIR}",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           false,
