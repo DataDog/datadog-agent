@@ -3937,9 +3937,9 @@
   
 
 
-<h1 id="linux-troubleshooting">Linux Troubleshooting</h1>
-<h2 id="generating-and-using-core-dumps-on-linux">Generating and using core dumps on Linux</h2>
-<h3 id="generating-core-dumps-on-agent-crashes">Generating core dumps on Agent crashes</h3>
+<h1 id="linux-troubleshooting">Linux Troubleshooting<a class="headerlink" href="#linux-troubleshooting" title="Permanent link">&para;</a></h1>
+<h2 id="generating-and-using-core-dumps-on-linux">Generating and using core dumps on Linux<a class="headerlink" href="#generating-and-using-core-dumps-on-linux" title="Permanent link">&para;</a></h2>
+<h3 id="generating-core-dumps-on-agent-crashes">Generating core dumps on Agent crashes<a class="headerlink" href="#generating-core-dumps-on-agent-crashes" title="Permanent link">&para;</a></h3>
 <p>There are two ways to generate core dumps when the Agent crashes on Linux.</p>
 <p>Starting on version 7.27 the Datadog Agent includes the <code>go_core_dump</code> option that, when enabled, makes any Agent process generate a core dump when it crashes. This is the simplest option and it can generate core dumps so long as the crash happens after the internal packages (configuration, logging...) finish initializing.</p>
 <div class="admonition note">
@@ -3959,7 +3959,7 @@
 <li>Set the user limit for core dump maximum size limit to a high-enough value. For example, you can set it to be arbitrarily big by running <code>ulimit -c unlimited</code>.</li>
 <li>Run any of the Datadog Agents debug packages manually, setting the <code>GOTRACEBACK</code> environment variable to <code>crash</code>. This will send a <code>SIGABRT</code> signal to the Agent process and trigger the creation of a core dump.</li>
 </ol>
-<h3 id="inspecting-a-core-dump">Inspecting a core dump</h3>
+<h3 id="inspecting-a-core-dump">Inspecting a core dump<a class="headerlink" href="#inspecting-a-core-dump" title="Permanent link">&para;</a></h3>
 <p>Use <code>dlv core DUMPFILE EXEFILE</code> to debug against a dump file.</p>
 <p>You need to use the debug binaries in the debug package to as the <code>EXEFILE</code>.</p>
 <p>See the <a href="../#delve">delve section</a> for more information on using delve.</p>
