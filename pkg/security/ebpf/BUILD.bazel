@@ -9,6 +9,8 @@ go_library(
         "features_unsupported.go",
         "loader.go",
         "manager.go",
+        "manager_ebpf.go",
+        "manager_noebpf.go",
         "map.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf",
@@ -20,13 +22,19 @@ go_library(
         "//pkg/security/probe/config",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/modifiers",
             "//pkg/security/ebpf/probes",
             "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//asm",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/modifiers",
             "//pkg/security/ebpf/probes",
             "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//asm",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "//conditions:default": [],
