@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -302,7 +303,7 @@ func TestSchedulerClosesReaderAfterCollection(t *testing.T) {
 		collectorErr error
 	}{
 		{
-			name:  "successful collection and report",
+			name:  "successful collection and send",
 			files: []ConfigFile{{Path: "/etc/redis/redis.conf"}},
 		},
 		{
@@ -595,6 +596,390 @@ func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
 	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
 }
 
+func TestSchedulerHeartbeatsCollectedFilesWithJitter(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        10 * time.Minute,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(10 * time.Minute),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{
+		config,
+	})
+
+	sender.waitForCollectedConfigs(t, 1)
+	waitForWatchScheduled(t, s, config)
+
+	mockClock.Add(69 * time.Minute)
+	require.Never(t, func() bool {
+		return len(sender.recordedCollectedConfigs()) > 1
+	}, 50*time.Millisecond, 5*time.Millisecond)
+
+	mockClock.Add(time.Minute)
+	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
+	assert.Equal(t, collectedConfigs[0], collectedConfigs[1])
+}
+
+func TestSchedulerCollectsChangedFilesAtNextHeartbeat(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{
+		config,
+	})
+	sender.waitForCollectedConfigs(t, 1)
+	waitForWatchScheduled(t, s, config)
+
+	collector.setFiles([]ConfigFile{
+		{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6380\n"),
+		},
+	})
+	s.Schedule([]integration.Config{
+		config,
+	})
+
+	require.Never(t, func() bool {
+		return len(collector.recordedRuns()) > 1
+	}, 50*time.Millisecond, 5*time.Millisecond)
+
+	mockClock.Add(time.Hour)
+	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
+	assert.Equal(t, []byte("port 6380\n"), collectedConfigs[1].ConfigFiles[0].Content)
+}
+
+func TestSchedulerIgnoresRescheduleReceivedInFlight(t *testing.T) {
+	sender := newBlockingCollectedConfigSender()
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+	defer sender.release()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{config})
+	sender.waitUntilBlocked(t)
+
+	collector.setFiles([]ConfigFile{
+		{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6380\n"),
+		},
+	})
+	s.Schedule([]integration.Config{config})
+	s.Schedule([]integration.Config{config})
+
+	nextCollection, inFlight, ok := watchedConfigState(s, config)
+	require.True(t, ok)
+	assert.True(t, inFlight)
+	assert.True(t, nextCollection.IsZero())
+
+	sender.release()
+	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
+	require.Len(t, collectedConfigs, 1)
+	assert.Equal(t, []byte("port 6379\n"), collectedConfigs[0].ConfigFiles[0].Content)
+	waitForWatchScheduled(t, s, config)
+	require.Never(t, func() bool {
+		return len(collector.recordedRuns()) > 1
+	}, 50*time.Millisecond, 5*time.Millisecond)
+}
+
+func TestSchedulerUnscheduleStopsHeartbeats(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        10 * time.Minute,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{config})
+	sender.waitForCollectedConfigs(t, 1)
+	waitForWatchScheduled(t, s, config)
+
+	s.Unschedule([]integration.Config{config})
+	mockClock.Add(2 * time.Hour)
+
+	require.Never(t, func() bool {
+		return len(sender.recordedCollectedConfigs()) > 1
+	}, 50*time.Millisecond, 5*time.Millisecond)
+}
+
+func TestSchedulerStopsHeartbeatingMissingFiles(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{
+		config,
+	})
+
+	sender.waitForCollectedConfigs(t, 1)
+	waitForWatchScheduled(t, s, config)
+	collector.setFiles(nil)
+
+	mockClock.Add(time.Hour)
+	collector.waitForRuns(t, 2)
+	assert.Len(t, sender.recordedCollectedConfigs(), 1)
+	require.Eventually(t, func() bool {
+		nextCollection, inFlight, ok := watchedConfigState(s, config)
+		return ok && !inFlight && nextCollection.IsZero()
+	}, time.Second, 10*time.Millisecond)
+
+	mockClock.Add(2 * time.Hour)
+	require.Never(t, func() bool {
+		return len(collector.recordedRuns()) > 2
+	}, 50*time.Millisecond, 5*time.Millisecond)
+}
+
+func TestSchedulerRetriesAfterFailedSend(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{err: errors.New("send failed")}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{config})
+	sender.waitForCollectedConfigs(t, 1)
+	require.Eventually(t, func() bool {
+		nextCollection, inFlight, ok := watchedConfigState(s, config)
+		return ok && !inFlight && nextCollection.Equal(mockClock.Now().Add(time.Minute))
+	}, time.Second, 10*time.Millisecond)
+
+	sender.setErr(nil)
+	mockClock.Add(time.Minute)
+
+	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
+	assert.Equal(t, collectedConfigs[0], collectedConfigs[1])
+	waitForWatchScheduled(t, s, config)
+}
+
+func TestSchedulerRetriesFailedSendBeforeExistingHeartbeat(t *testing.T) {
+	mockClock := clock.NewMock()
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		nil,
+		nil,
+		nil,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	oldHeartbeat := mockClock.Now().Add(time.Hour)
+	watch := &watchedConfig{
+		key:            watchKey(config),
+		integration:    config.Name,
+		serviceID:      config.ServiceID,
+		nextCollection: oldHeartbeat,
+		inFlight:       true,
+	}
+	s.mu.Lock()
+	s.watches[watchKey(config)] = watch
+	s.mu.Unlock()
+
+	s.finishSend([]pendingCollectedConfig{
+		{
+			watch: watch,
+		},
+	}, false)
+
+	nextCollection, inFlight, ok := watchedConfigState(s, config)
+	require.True(t, ok)
+	assert.False(t, inFlight)
+	assert.Equal(t, mockClock.Now().Add(time.Minute), nextCollection)
+	assert.True(t, nextCollection.Before(oldHeartbeat))
+}
+
+func TestSchedulerRejectsCollectionFromReplacedWatch(t *testing.T) {
+	s := newADScheduler(targetResolver{}, nil, nil, nil)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	key := watchKey(config)
+	staleWatch := &watchedConfig{
+		key:         key,
+		integration: config.Name,
+		serviceID:   config.ServiceID,
+	}
+	replacementDeadline := time.Now().Add(time.Hour)
+	replacementWatch := &watchedConfig{
+		key:            key,
+		integration:    config.Name,
+		serviceID:      config.ServiceID,
+		nextCollection: replacementDeadline,
+		inFlight:       true,
+	}
+	s.mu.Lock()
+	s.watches[key] = replacementWatch
+	s.mu.Unlock()
+
+	_, _, _, ok := s.snapshotWatch(staleWatch)
+	assert.False(t, ok)
+
+	s.finishSend([]pendingCollectedConfig{
+		{
+			watch: staleWatch,
+		},
+	}, true)
+	s.finishCollection(staleWatch, time.Time{})
+
+	s.mu.Lock()
+	activeWatch := s.watches[key]
+	activeDeadline := activeWatch.nextCollection
+	activeInFlight := activeWatch.inFlight
+	s.mu.Unlock()
+	assert.Same(t, replacementWatch, activeWatch)
+	assert.Equal(t, replacementDeadline, activeDeadline)
+	assert.True(t, activeInFlight)
+}
+
+func TestADSchedulerConfigFromAgentConfigDefaultsAndClampsJitter(t *testing.T) {
+	cfg := adSchedulerConfigFromAgentConfig(config.NewMock(t))
+	assert.Equal(t, time.Hour, cfg.heartbeatInterval)
+	assert.Equal(t, 10*time.Minute, cfg.heartbeatJitter)
+
+	cfg = adSchedulerConfigFromAgentConfig(config.NewMockWithOverrides(t, map[string]interface{}{
+		heartbeatIntervalConfigKey: 4 * time.Hour,
+		heartbeatJitterConfigKey:   2 * time.Hour,
+	}))
+	assert.Equal(t, time.Hour, cfg.heartbeatJitter)
+
+	cfg = adSchedulerConfigFromAgentConfig(config.NewMockWithOverrides(t, map[string]interface{}{
+		heartbeatIntervalConfigKey: 5 * time.Minute,
+		heartbeatJitterConfigKey:   10 * time.Minute,
+	}))
+	assert.Equal(t, 5*time.Minute, cfg.heartbeatInterval)
+	assert.Equal(t, 2*time.Minute+30*time.Second, cfg.heartbeatJitter)
+}
+
 func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	ac := &fakeAutodiscovery{}
 	lifecycle := &recordingLifecycle{}
@@ -861,6 +1246,45 @@ type recordingCollectedConfigSender struct {
 	err     error
 }
 
+type blockingCollectedConfigSender struct {
+	recordingCollectedConfigSender
+	started     chan struct{}
+	unblock     chan struct{}
+	blockOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingCollectedConfigSender() *blockingCollectedConfigSender {
+	return &blockingCollectedConfigSender{
+		started: make(chan struct{}),
+		unblock: make(chan struct{}),
+	}
+}
+
+func (s *blockingCollectedConfigSender) SendCollectedConfigs(configs []collectedConfig) error {
+	s.blockOnce.Do(func() {
+		close(s.started)
+		<-s.unblock
+	})
+	return s.recordingCollectedConfigSender.SendCollectedConfigs(configs)
+}
+
+func (s *blockingCollectedConfigSender) waitUntilBlocked(t *testing.T) {
+	t.Helper()
+
+	select {
+	case <-s.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for collected config send")
+	}
+}
+
+func (s *blockingCollectedConfigSender) release() {
+	s.releaseOnce.Do(func() {
+		close(s.unblock)
+	})
+}
+
 func (r *recordingCollectedConfigSender) SendCollectedConfigs(configs []collectedConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -868,6 +1292,26 @@ func (r *recordingCollectedConfigSender) SendCollectedConfigs(configs []collecte
 	copy(copiedConfigs, configs)
 	r.batches = append(r.batches, copiedConfigs)
 	return r.err
+}
+
+func (c *recordingConfigCollector) setFiles(files []ConfigFile) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.files = files
+}
+
+func (c *recordingConfigCollector) recordedRuns() []runCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	runs := make([]runCall, len(c.runs))
+	copy(runs, c.runs)
+	return runs
+}
+
+func (r *recordingCollectedConfigSender) setErr(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.err = err
 }
 
 func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, count int) []collectedConfig {
@@ -879,6 +1323,12 @@ func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, c
 		return len(r.flattenCollectedConfigsLocked()) >= count
 	}, 2*time.Second, 10*time.Millisecond)
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.flattenCollectedConfigsLocked()
+}
+
+func (r *recordingCollectedConfigSender) recordedCollectedConfigs() []collectedConfig {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.flattenCollectedConfigsLocked()
@@ -955,6 +1405,32 @@ func (f *recordingEventPlatformForwarder) recordedMessages() []eventPlatformSend
 	messages := make([]eventPlatformSendCall, len(f.messages))
 	copy(messages, f.messages)
 	return messages
+}
+
+func fixedJitter(d time.Duration) func(time.Duration) time.Duration {
+	return func(time.Duration) time.Duration {
+		return d
+	}
+}
+
+func watchedConfigState(s *adScheduler, config integration.Config) (time.Time, bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	watch, ok := s.watches[watchKey(config)]
+	if !ok {
+		return time.Time{}, false, false
+	}
+	return watch.nextCollection, watch.inFlight, true
+}
+
+func waitForWatchScheduled(t *testing.T, s *adScheduler, config integration.Config) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		nextCollection, inFlight, ok := watchedConfigState(s, config)
+		return ok && !inFlight && !nextCollection.IsZero()
+	}, time.Second, 10*time.Millisecond)
 }
 
 func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {
