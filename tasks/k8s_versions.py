@@ -42,6 +42,7 @@ KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_version
 # Matches: v1.35.0, v1.35.0-rc.1, etc.
 K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
+
 def get_kubernetes_releases(version_pattern: str = K8S_VERSION_PATTERN) -> list[dict[str, str]]:
     """Get releases from Kubernetes GitHub repository."""
     releases = []
@@ -138,11 +139,7 @@ def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
 
         if version and tag_name:
             is_rc = "rc" in tag_name
-            version_tags.append(
-                {'version': version,
-                 'tag': tag_name,
-                 'rc': is_rc}
-            )
+            version_tags.append({'version': version, 'tag': tag_name, 'rc': is_rc})
 
     # Sort by version (major, minor, patch)
     version_tags.sort(key=lambda x: x['version'], reverse=True)
@@ -347,7 +344,7 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     """
     _check_dependencies()
 
-    print(f"Fetching latest Kubernetes version...")
+    print("Fetching latest Kubernetes version...")
     current_versions = _get_latest_k8s_versions()
     if not current_versions:
         print("Error: Could not find any Kubernetes versions")
@@ -365,7 +362,7 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
 
     if new_versions:
         print("\nNew version(s) found!")
-        for version, data in new_versions.items():
+        for version in new_versions.keys():
             print(f"  {version}")
 
         # Set GitHub Actions outputs
