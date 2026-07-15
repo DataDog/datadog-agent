@@ -20,6 +20,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(smartadaptivesamplingimpl.NewComponent),
-		fx.Invoke(func(_ smartadaptivesampling.Component) {}),
+		fx.Invoke(func(sas smartadaptivesampling.Component) {
+			smartadaptivesampling.SetSeverityProvider(sas.Current)
+		}),
 	)
 }
