@@ -79,7 +79,10 @@ if [ -n "$ADP_AIX_BUILD_COMMAND" ]; then
     AWS_LC_SYS_NO_JITTER_ENTROPY=1 \
         BUILD_PROFILE="$ADP_AIX_BUILD_PROFILE" sh -c "$ADP_AIX_BUILD_COMMAND"
     if [ -z "$ADP_AIX_BINARY_PATH" ]; then
-        ADP_AIX_BINARY_PATH="$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane"
+        ADP_DEFAULT_BINARY_PATH="$CARGO_TARGET_DIR/$ADP_AIX_BUILD_PROFILE/agent-data-plane"
+        if [ -f "$ADP_DEFAULT_BINARY_PATH" ]; then
+            ADP_AIX_BINARY_PATH="$ADP_DEFAULT_BINARY_PATH"
+        fi
     fi
 else
     log "ADP_AIX_BUILD_COMMAND is disabled"
