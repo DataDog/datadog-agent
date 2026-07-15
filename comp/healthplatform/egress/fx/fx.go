@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the egress component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(egressimpl.New),
+		fxutil.ProvideComponentConstructor(egressimpl.NewComponent),
 	)
 }

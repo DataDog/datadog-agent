@@ -46,7 +46,7 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.4.0")
+bazel_dep(name = "bazel_lib", version = "3.5.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.51.3")
@@ -158,15 +158,6 @@ multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitoo
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
-
-## Use local object file tools
-find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
-use_repo(find_system_otool, "otool")
-
-register_toolchains(
-    "@otool//:all",
-    dev_dependency = True,
-)
 
 register_toolchains(
     "//bazel/toolchains/patchelf:patchelf_built_toolchain",
@@ -451,7 +442,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.6.1")
+bazel_dep(name = "apple_support", version = "2.7.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

@@ -160,6 +160,7 @@ var TestProfiles = Map{
 	"p1": &NCMProfile{
 		Name: "p1",
 		Commands: CommandSet{
+			Verify:     MkCommand("show sys", Expect(`Test Profile p1`)),
 			GetRunning: MkCommand("show run"),
 			GetStartup: MkCommand("show start"),
 			GetVersion: MkCommand("show ver"),
@@ -168,7 +169,8 @@ var TestProfiles = Map{
 	"p2": &NCMProfile{
 		Name: "p2",
 		Commands: CommandSet{
-			GetRunning: MkCommand("show running-config", "Building configuration..."),
+			Verify:     MkCommand("show system", Expect(`System P2`)),
+			GetRunning: MkCommand("show running-config", Expect("Building configuration...")),
 			GetStartup: MkCommand("show startup-config"),
 			GetVersion: MkCommand("show version"),
 		},

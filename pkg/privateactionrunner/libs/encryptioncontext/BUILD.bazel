@@ -10,8 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_jellydator_ttlcache_v3//:ttlcache",
-        "@org_golang_x_crypto//curve25519",
-        "@org_golang_x_crypto//nacl/box",
     ],
 )
 
@@ -25,6 +23,5 @@ go_test(
     gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//require",
-        "@org_golang_x_crypto//nacl/box",
     ],
 )

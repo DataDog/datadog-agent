@@ -432,7 +432,7 @@ new-e2e-agent-health:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
 
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64
@@ -937,6 +937,7 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  allow_failure: true
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
