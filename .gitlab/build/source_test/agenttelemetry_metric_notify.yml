@@ -10,10 +10,10 @@
 # every dev branch pipeline (unlike deploy_windows_testing-a7, whose entire include file is
 # skipped for a PR that doesn't touch Windows/bazel-related paths — gating on it with
 # needs:optional would silently degrade to needs:[] and fire before any build exists, see
-# https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). The Linux
-# deploy job is still declared `optional: true` since it may not run at all on some
-# pipelines (e.g. DEPLOY_AGENT=false) — in that case this job just never runs and the
-# placeholder comment stays as-is.
+# https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). No optional:
+# true on the need — deploy_deb_testing-a7_x64 is absent from the pipeline only on
+# mergequeue, which .on_dev_branches already excludes, so this job never runs while that
+# need would be missing.
 
 .agenttelemetry_metric_vm_notify_rules:
   - !reference [.on_dev_branches]
@@ -52,7 +52,6 @@ agenttelemetry_metric_vm_reminder_linux:
     - .agenttelemetry_metric_vm_comment_title
   needs:
     - job: deploy_deb_testing-a7_x64
-      optional: true
   rules:
     - !reference [.agenttelemetry_metric_vm_notify_rules]
   before_script:
