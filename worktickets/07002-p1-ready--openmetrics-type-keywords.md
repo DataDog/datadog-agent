@@ -1,95 +1,81 @@
+# OpenMetrics-only `TYPE` values are accepted but not submitted
+
 ## Summary
 
-The Go scraper aborts the entire scrape with
-`scrape: invalid metric type "<keyword>"` when it encounters any OpenMetrics
-1.0.0–only TYPE keyword: `stateset`, `gaugehistogram`, or `info`. Python's
-implementation treats unknown types as gauge/untyped and continues.
+The Go OpenMetrics parser recognizes `stateset`, `gaugehistogram`, and `info`,
+but the native metric transformer only handles `counter`, `gauge`,
+`histogram`, and `summary`. A configured native metric with an OpenMetrics-only
+type can therefore be parsed and then silently omitted.
 
-Modern OpenMetrics-compliant endpoints (kube-state-metrics 2.x, several
-node_exporter collectors, anything using
-`prometheus_client.metrics_core.StateSetMetricFamily` or `InfoMetricFamily`)
-emit these types regularly. A Go-side scrape against such an endpoint
-returns zero metrics until the operator notices.
+For responses parsed as Prometheus text, `stateset` and `gaugehistogram` are
+rejected as invalid types and can fail the scrape.
 
-## Context
+## Reproduction
 
-The Prometheus text format 0.0.4 defines five TYPE keywords:
-`counter`, `gauge`, `histogram`, `summary`, `untyped`. OpenMetrics 1.0.0
-adds three more: `stateset`, `gaugehistogram`, `info`. The Go scraper
-currently treats anything outside the Prometheus-5 set as fatal; Python
-treats it as gauge/untyped and proceeds.
-
-## Repro
-
-Mutate any line in `pkg/collector/corechecks/openmetrics/testdata/upstream_benchmarks/ksm.txt.gz`
-from `# TYPE foo gauge` to `# TYPE foo stateset` (or `info` or
-`gaugehistogram`), serve it, and run the Go scraper. It returns:
-
-```
-scrape: invalid metric type "stateset"
+```text
+# TYPE feature_enabled stateset
+feature_enabled{feature_enabled="dark_mode"} 1
+# EOF
 ```
 
-Python returns 743 of the 744 metrics (the one whose TYPE we changed is
-mapped to gauge).
+Configure the metric for native collection:
 
-The differential harness has this case in
-`adversarial.go::valueRenderingCases` indirectly; the most direct repro is:
-
-```bash
-echo '# TYPE foo stateset
-foo{a="x"} 1
-' | curl -sS -X POST --data-binary @- ...   # or just hand a payload to the harness
+```yaml
+metrics:
+  - feature_enabled
 ```
 
-Or simulate via the mutator:
+Repeat with `info` and `gaugehistogram` families, and with both
+`application/openmetrics-text` and `text/plain` response content types.
 
-```bash
-go test -tags openmetrics_differential -v \
-    -run TestOpenMetricsMutation -mutation.seed=1 -mutation.iters=50 \
-    ./pkg/collector/corechecks/openmetrics/differential/
-```
+## Expected behavior
 
-The output dumps regressions to `testdata/regressions/<sha>.prom` with
-`.meta` sidecar showing `go_err: scrape: invalid metric type "..."`.
+Go should match Python's compatibility behavior and submit these families.
+At minimum, unsupported OpenMetrics types should degrade to gauges rather than
+abort or silently disappear.
+
+Recommended mappings:
+
+| `TYPE` | Compatibility submission |
+|---|---|
+| `stateset` | Gauge samples with state labels |
+| `info` | Gauge value `1` with info labels |
+| `gaugehistogram` | Gauge-histogram buckets, sum, and count |
+| Unknown | Gauge/untyped fallback, or an explicit unsupported-config fallback |
+
+## Actual behavior
+
+The parser and transformer support different type sets. OpenMetrics parsing can
+succeed while native transformation returns no submission function. The
+Prometheus text parser rejects `stateset` and `gaugehistogram` before
+transformation.
+
+## Root cause
+
+`validOpenMetricsType` accepts the OpenMetrics 1.0 type set, while
+`nativeTransformer` and `skipNativeMetric` only support the four Prometheus
+families. `validPrometheusType` has a third, different support set.
+
+## Impact
+
+Modern exporters can emit these types. During migration, affected metrics may
+vanish silently or cause the entire endpoint scrape to fail depending on the
+response content type.
 
 ## Suggested fix
 
-In the TYPE-line parser, accept any of the OpenMetrics 1.0.0 keywords
-(`stateset`, `gaugehistogram`, `info`) and any unknown keyword.
+Define one explicit compatibility policy for every parser/transformer path.
+Either implement native handling for the OpenMetrics-only families or normalize
+them to supported submission types before transformer selection.
 
-Mapping suggestions (mirroring Python's behavior):
-
-| TYPE keyword | Treat as | Submission |
-|---|---|---|
-| `stateset` | gauge | one gauge per state, value 0 or 1 |
-| `gaugehistogram` | histogram | same buckets/le semantics, but values are gauge not counter |
-| `info` | gauge | always-1 gauge with the labels as tags |
-| `<unknown>` | untyped | submit as gauge with no special semantics |
-
-The simplest landing point is "accept and map to untyped/gauge" — full
-OpenMetrics 1.0.0 semantic fidelity for `stateset` / `info` /
-`gaugehistogram` can come later. The harness already has
-`format/openmetrics_unit_directive` passing (we accept `# UNIT`), so
-adding the new TYPE keywords is the analogous change.
-
-## Severity rationale
-
-P1 because:
-- It's narrow and well-understood.
-- It affects any OpenMetrics 1.0.0-compliant endpoint, which is most
-  modern exporters.
-- It can be fixed independently of the broader per-line-recovery work
-  (P0 ticket), making it a small, mergeable PR.
-
-If P0 lands first this becomes a no-op, but P1 lands faster.
+Do not allow a parsed, configured family to disappear silently.
 
 ## Verification
 
-After fix, the following should pass:
+For each type and both response content types, assert that:
 
-```
-TestOpenMetricsMutation  (with seed where a TYPE-mutation hits an info/stateset/gaugehistogram replacement)
-```
-
-And the `openmetrics_type_keyword` entry in `known_divergences.go`
-should be removable.
+- The scrape succeeds.
+- The configured family produces submissions.
+- Metric names, values, and tags match Python.
+- An unsupported type follows a documented fallback path rather than silently
+  disappearing.

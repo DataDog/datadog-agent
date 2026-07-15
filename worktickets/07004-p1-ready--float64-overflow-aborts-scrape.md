@@ -1,98 +1,68 @@
-## Current verification after Ali branch update
-
-Still open. The now-runnable focused differential case reproduces unchanged:
-Go returns zero submissions with `strconv.ParseFloat ... value out of range`;
-Python submits one `+Inf` gauge.
-
----
+# Out-of-range sample values abort the scrape instead of becoming infinity
 
 ## Summary
 
-The Go scraper aborts the entire scrape with
-`scrape: strconv.ParseFloat: parsing "<value>": value out of range` when
-a sample value exceeds float64 range (e.g. `1e400`). Python clamps the
-value to `±Inf` and submits it like any other.
+When a sample value exceeds the `float64` range, Go returns a parse error and
+aborts the scrape. Python converts the value to positive or negative infinity
+and continues.
 
-A single runaway metric (counter wraparound, memory leak observed in a
-gauge, exporter bug) zeros out the Go-side scrape. Python keeps reporting
-the other metrics and the runaway one as `+Inf`, which is the right
-graceful-degradation behavior.
+## Reproduction
 
-## Context
-
-`strconv.ParseFloat` returns `(±Inf, ErrRange)` for values outside
-float64's representable range — `Inf` is a valid float64 in Go. The
-Go scraper currently treats `ErrRange` as fatal; Python's float
-constructor accepts the same input and just produces `inf`.
-
-The minimal repro:
-
-```
-# TYPE m gauge
-m 1e400
+```text
+# TYPE memory_growth gauge
+memory_growth 1e400
 ```
 
-## Repro
+The same issue applies to `-1e400`.
 
-Adversarial catalog:
+## Expected behavior
 
-```bash
-go test -tags openmetrics_differential -v \
-    -run 'TestOpenMetricsAdversarial/values/over_max_float64' \
-    ./pkg/collector/corechecks/openmetrics/differential/
+Submit `memory_growth` with `+Inf` or `-Inf`, matching Python and Go's own
+`strconv.ParseFloat` result value.
+
+## Actual behavior
+
+Go returns:
+
+```text
+strconv.ParseFloat: parsing "1e400": value out of range
 ```
 
-Current output:
+Python submits one gauge with value `+Inf`.
 
-```
-go_err: scrape: strconv.ParseFloat: parsing "1e400": value out of range
-    while parsing: "m 1e400"
-```
+## Root cause
 
-Python returns 1 gauge submission with value `+Inf`.
+`strconv.ParseFloat` returns both an infinity value and `strconv.ErrRange` for
+an overflow. The scraper treats every non-nil error as fatal and discards the
+usable infinity value.
+
+## Impact
+
+One runaway counter, gauge, sum, or bucket value can suppress every metric from
+the endpoint. Python continues collecting the unaffected metrics.
 
 ## Suggested fix
 
-Where `strconv.ParseFloat` is called on a sample value, treat
-`ErrRange` as non-fatal and use the returned `±Inf` value:
+Accept the returned value when the error is `strconv.ErrRange`:
 
 ```go
-v, err := strconv.ParseFloat(s, 64)
-if err != nil {
-    var nerr *strconv.NumError
-    if errors.As(err, &nerr) && errors.Is(nerr.Err, strconv.ErrRange) {
-        // v is already ±Inf per strconv contract; use it.
-    } else {
-        return err  // syntax error, real failure
-    }
+value, err := strconv.ParseFloat(raw, 64)
+if err != nil && !errors.Is(err, strconv.ErrRange) {
+    return err
 }
 ```
 
-Same logic for histogram bucket counts, summary quantile values,
-`_count`, and `_sum` — anywhere a numeric value is parsed.
-
-## Severity rationale
-
-P1 because:
-- Runaway metrics happen in the wild (memory leak gauge climbs past
-  1e300; counter wraps; misconfigured rate calculation overflows).
-- Failure is total — losing every metric from an affected endpoint.
-- Fix is a small typed-error check, no behavior-shape change.
+Apply the same policy everywhere sample numeric values are parsed. Timestamp
+overflow should remain invalid because timestamps are converted to bounded
+integer milliseconds.
 
 ## Verification
 
-After fix:
+Assert parity for:
 
-```
-TestOpenMetricsAdversarial/values/over_max_float64   # passes with Go emitting +Inf
-```
-
-And the `float64_overflow` entry in `known_divergences.go` can
-be removed.
-
-## Out of scope
-
-Negative-overflow (`-1e400` → `-Inf`) and subnormal handling are
-adjacent but not the same bug. Subnormals (`5e-324`) already work —
-see `TestOpenMetricsAdversarial/values/smallest_subnormal` which
-passes today.
+- `1e400` → `+Inf`
+- `-1e400` → `-Inf`
+- Gauge, counter, histogram sum/count/bucket, and summary values
+- A valid metric following the overflow sample
+- Invalid numeric syntax such as `1efoo` still follows the normal error or
+  line-recovery policy

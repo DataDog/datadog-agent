@@ -1,107 +1,68 @@
-## Current verification after Ali branch update
-
-Still open. The focused differential case reproduces the original result
-unchanged: both sides submit three metrics, but Go emits `gauge diff.m` while
-Python emits `monotonic_count diff.m.count` for the conflicting family.
-
----
+# Conflicting `TYPE` declarations produce different metric kinds
 
 ## Summary
 
-When a metric is declared with two different TYPE keywords in the same
-payload — e.g. `# TYPE m gauge` then later `# TYPE m counter` for the
-same metric `m` — Go honors the **first** declaration and Python honors
-the **last**. The two implementations submit the same sample under
-different kinds (gauge vs `monotonic_count` with the `.count` suffix).
+When a payload declares the same metric family with two different `TYPE`
+values, Go uses the first declaration and Python uses the last. The migration
+changes the submitted metric name and kind without reporting an error.
 
-This produces silent data divergence: the metric still appears in
-Datadog, but its type and accumulated semantics change between Go and
-Python deployments.
+## Reproduction
 
-## Context
-
-The Prometheus text format doesn't strictly forbid multiple `# TYPE`
-declarations for the same metric name (it's "should not", not "must
-not"). Real-world payloads can hit this when:
-
-- An exporter is buggy and emits TYPE for the same name twice.
-- Two different metric sources are accidentally serialized to the same
-  endpoint.
-- A migration window where an exporter is changing its TYPE for a
-  metric (and the deploy hasn't fully rolled).
-
-Both Go and Python could defensibly choose either rule. The bug is
-that **they disagree**, so a side-by-side migration produces type-shape
-data drift.
-
-## Repro
-
-Adversarial catalog:
-
-```bash
-go test -tags openmetrics_differential -v \
-    -run 'TestOpenMetricsAdversarial/name/conflicting_type' \
-    ./pkg/collector/corechecks/openmetrics/differential/
+```text
+# TYPE requests gauge
+requests 1
+# TYPE requests counter
+requests 2
 ```
 
-Current output:
+## Expected behavior
 
-```
-divergent  go=3 py=3 diffs=2
-divergence breakdown: only_in_go=1 only_in_python=1
-only_in_go:     gauge\x00diff.m\x00\x00  value=1 tags=[]
-only_in_python: monotonic_count\x00diff.m.count\x00\x00  value=1 tags=[]
-```
+Go should match Python's last-declaration-wins behavior for compatibility:
 
-Minimal payload:
-
-```
-# TYPE m gauge
-m 1
-# TYPE m counter
-m 2
+```text
+kind: monotonic_count
+name: <namespace>.requests.count
 ```
 
-Go submits `diff.m` as gauge=1. Python submits `diff.m.count` as
-monotonic_count=1 (it uses the LAST TYPE, counter, and applies the
-`.count` suffix transformation).
+## Actual behavior
+
+Go submits the family as a gauge using the first declaration:
+
+```text
+kind: gauge
+name: <namespace>.requests
+```
+
+Python submits it as a monotonic count using the later counter declaration.
+
+## Root cause
+
+Go processes or caches the family type before the later declaration can replace
+it. Python's metadata map is updated by each declaration before samples are
+transformed.
+
+## Impact
+
+The metric still arrives, but its name and aggregation semantics change during
+migration. Dashboards, monitors, and rate calculations can silently use the
+wrong series.
+
+Conflicting declarations are malformed exporter output, but Python accepts them
+today, so compatibility requires a deterministic matching policy.
 
 ## Suggested fix
 
-Match Python's last-write-wins semantics. The OpenMetrics spec says
-each metric family should have one TYPE; when duplicates appear, the
-"reasonable" behavior is take the later declaration as the operator's
-latest intent.
-
-Implementation: in the TYPE-line parser, replace any existing TYPE for
-the metric name instead of keeping the first.
-
-This is a small change in the parser's metadata-tracking pass.
-
-## Severity rationale
-
-P2 because:
-- The metric still gets submitted on both sides — partial degradation,
-  not total failure.
-- Real-world incidence is probably low (most exporters get TYPE right).
-- But silent data drift during migration is worth fixing — operators
-  comparing pre- and post-migration dashboards will see metrics
-  reshape.
+Use last-declaration-wins metadata for a family before transforming its samples.
+If streaming constraints make that impossible, explicitly reject conflicting
+declarations on both migration paths rather than silently producing a different
+metric kind.
 
 ## Verification
 
-After fix:
+Assert that:
 
-```
-TestOpenMetricsAdversarial/name/conflicting_type
-```
-
-should produce `verdict: agree` with both impls submitting
-`monotonic_count diff.m.count`.
-
-## Note
-
-There's a defensible argument for the opposite fix (Python adopts
-Go's first-wins). If that becomes the chosen direction, the adversarial
-case should still be updated to reflect agreement, and the divergence
-documented as resolved.
+- Gauge followed by counter matches Python's counter output.
+- Counter followed by gauge matches Python's gauge output.
+- Repeated identical declarations do not change output.
+- Conflicts separated by unrelated families follow the same policy.
+- The chosen policy is identical in streaming and buffered parser paths.
