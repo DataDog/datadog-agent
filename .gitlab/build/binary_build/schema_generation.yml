@@ -2,22 +2,28 @@
 include:
   - .gitlab/.pre/common/macos.yml
 
+.on_schema_paths_changed:
+  - changes:
+      paths:
+        - pkg/config/**/*
+        - tasks/schema/**/*
+      compare_to: $COMPARE_TO_BRANCH
 
 .generate_config_schema:
   stage: binary_build
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_main_or_release_branch]
-    - changes:
-        paths:
-          - pkg/config/**/*
-          - tasks/schema/**/*
-        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.on_schema_paths_changed]
 
 generate_config_schema-linux:
   extends:
     - .generate_config_schema
     - .bazel:defs:cache:progressive
+  rules:
+    # inhibit `.except_mergequeue` to validate accumulated schema changes and prevent drift from landing on `main`
+    - !reference [.on_main_or_release_branch]
+    - !reference [.on_schema_paths_changed]
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
@@ -31,13 +37,14 @@ generate_config_schema-linux:
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
+    - bash $CI_PROJECT_DIR/tasks/schema/check_schema_refresh.sh $CI_PROJECT_DIR
     - bash $CI_PROJECT_DIR/tasks/schema/check_config_templates.sh $CI_PROJECT_DIR
+    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/yaml/
   artifacts:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml
 
 generate_config_schema-macos:
   extends:
@@ -59,19 +66,7 @@ generate_config_schema-macos:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
-
-lint_config_schema:
-  stage: binary_build
-  extends: .generate_config_schema
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
-  needs:
-    - job: "generate_config_schema-linux"
-  script:
-    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/
-  allow_failure: false
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml
 
 generate_config_schema-windows:
   extends:
@@ -83,9 +78,10 @@ generate_config_schema-windows:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
-      -m 8192M
+      -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e GITLAB_CI
       -e CI_JOB_ID
@@ -105,5 +101,4 @@ generate_config_schema-windows:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml

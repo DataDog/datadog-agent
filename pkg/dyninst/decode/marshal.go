@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -46,11 +47,20 @@ type debuggerData struct {
 }
 
 type messageData struct {
-	duration              *uint64
-	durationMissingReason *string
-	entryOrLine           *captureEvent
-	_return               *captureEvent
-	template              *ir.Template
+	entryOrLine *captureEvent
+	_return     *captureEvent
+	template    *ir.Template
+	// returnMissingReason is non-empty when the probe expected a return
+	// event but none arrived, carrying the human-readable pairing-failure
+	// reason. Used to produce a specific message when a template segment
+	// references @duration in that case.
+	returnMissingReason string
+}
+
+// isDurationRef reports whether a parsed expression is a bare {"ref":"@duration"}.
+func isDurationRef(e exprlang.Expr) bool {
+	ref, ok := e.(*exprlang.RefExpr)
+	return ok && ref.Ref == "@duration"
 }
 
 func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
@@ -90,18 +100,6 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			limits.maxBytes = maxLogLineBytes - result.Len()
 		case ir.InvalidSegment:
 			writeBoundedError(&result, limits, "error", seg.Error)
-		case *ir.DurationSegment:
-			if m.duration == nil {
-				if m.durationMissingReason != nil {
-					writeBoundedError(&result, limits, "error", *m.durationMissingReason)
-				} else {
-					writeBoundedError(&result, limits, "error", "@duration is not available")
-				}
-			} else {
-				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
-				limits.consume(n)
-			}
-
 		default:
 			return fmt.Errorf(
 				"unexpected segment type: %T: %+#v", seg, seg,
@@ -131,6 +129,19 @@ func (m *messageData) processJSONSegment(
 	}
 
 	if ev == nil || ev.rootType == nil || ev.rootData == nil {
+		// If the missing event is the return event and the segment
+		// references @duration, surface the specific pairing-failure
+		// reason instead of the generic "UNAVAILABLE" marker.
+		if seg.EventKind == ir.EventKindReturn && isDurationRef(seg.JSON) &&
+			m.returnMissingReason != "" {
+			msg := "@duration is not available: " + m.returnMissingReason
+			if !limits.canWrite(len(msg)) {
+				return nil
+			}
+			result.WriteString(msg)
+			limits.consume(len(msg))
+			return nil
+		}
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -150,6 +161,14 @@ func (m *messageData) processJSONSegment(
 		return nil
 	}
 	expr := ev.rootType.Expressions[exprIdx]
+	if expr.Redacted {
+		if !limits.canWrite(len(formatRedacted)) {
+			return nil
+		}
+		result.WriteString(formatRedacted)
+		limits.consume(len(formatRedacted))
+		return nil
+	}
 
 	// Check expression status.
 	statusArraySize := ev.rootType.ExprStatusArraySize
@@ -158,13 +177,25 @@ func (m *messageData) processJSONSegment(
 	}
 	statusArray := bitset(ev.rootData[:statusArraySize])
 	switch statusArray.getExprStatus(exprIdx) {
-	case ir.ExprStatusPresent:
-		// Success — fall through to format the value.
+	case ir.ExprStatusPresent, ir.ExprStatusTruncated:
+		// Success — fall through to format the value. Truncated is
+		// treated like Present here; the filter type's formatter
+		// reads currentExpr.status to surface the truncation
+		// metadata where it matters.
 	case ir.ExprStatusNilDeref:
 		return errNilPointerEvaluating
 	case ir.ExprStatusOOB:
 		return errIndexOutOfBounds
 	default: // ExprStatusAbsent
+		if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
+			msg := "@duration is not available: " + ir.ErrDurationNotOnReturn
+			if !limits.canWrite(len(msg)) {
+				return nil
+			}
+			result.WriteString(msg)
+			limits.consume(len(msg))
+			return nil
+		}
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -187,6 +218,12 @@ func (m *messageData) processJSONSegment(
 		return errors.New("expression data out of bounds")
 	}
 	exprData := ev.rootData[exprDataStart:exprDataEnd]
+
+	// Set currentExpr so type-specific formatters (notably the filter
+	// types) can surface ExprStatusTruncated as collection-truncation
+	// metadata. Other formatters ignore the field.
+	ev.encodingContext.currentExpr.index = int(exprIdx)
+	ev.encodingContext.currentExpr.status = statusArray.getExprStatus(exprIdx)
 
 	// Format the value based on type using encodingContext.
 	// formatType already consumes bytes internally, so we don't need to
@@ -270,8 +307,17 @@ type captureEvent struct {
 
 	rootData         []byte
 	rootType         *ir.EventRootType
+	traceContext     traceContext
 	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
+}
+
+type traceContext struct {
+	traceIDLower uint64
+	traceIDUpper uint64
+	spanID       uint64
+	parentID     uint64
+	valid        bool
 }
 
 // resolveDictType checks if a variable's type can be resolved via the runtime
@@ -315,6 +361,7 @@ func (ce *captureEvent) resolveDictType(dictIndex int) (ir.Type, string, bool) {
 func (ce *captureEvent) clear() {
 	ce.rootData = nil
 	ce.rootType = nil
+	ce.traceContext = traceContext{}
 	ce.evaluationErrors = nil
 
 	clear(ce.dataItems)
@@ -367,6 +414,15 @@ func (ce *captureEvent) init(
 			if !exists || prev.Header().Length < item.Header().Length {
 				ce.dataItems[key] = item
 			}
+			// First-valid-wins: the first synthetic trace_context data item
+			// with valid=1 sets ce.traceContext. Subsequent items don't
+			// overwrite, so the message-top-level dd.* fields reflect the
+			// earliest captured Context that resolved to an active span.
+			if _, isTraceCtx := types[ir.TypeID(item.Type())].(*ir.TraceContextType); isTraceCtx && !ce.traceContext.valid {
+				if tc, ok := parseTraceContextDataItem(item); ok {
+					ce.traceContext = tc
+				}
+			}
 		}
 	}
 	if rootType == nil {
@@ -396,11 +452,42 @@ func (ce *captureEvent) init(
 					Expression: expr.Name,
 					Message:    errIndexOutOfBounds.Error(),
 				})
+			case ir.ExprStatusAbsent:
+				// @duration is the only expression type where absent status
+				// has a specific, user-meaningful reason (the BPF program
+				// emits it only when entry_ktime_ns equals the probe's own
+				// start_ns — i.e. the probe is not on a return).
+				if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
+					*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+						Expression: expr.Name,
+						Message:    ir.ErrDurationNotOnReturn,
+					})
+				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// parseTraceContextDataItem parses the first ir.TraceContextByteSize bytes
+// of a synthetic trace-context data item's payload as a trace_context_t.
+// Returns ok=false if the data item is too short or has valid=0.
+func parseTraceContextDataItem(item output.DataItem) (traceContext, bool) {
+	data, ok := item.Data()
+	if !ok || uint32(len(data)) < ir.TraceContextByteSize {
+		return traceContext{}, false
+	}
+	if data[32] == 0 {
+		return traceContext{}, false
+	}
+	return traceContext{
+		traceIDLower: binary.LittleEndian.Uint64(data[0:8]),
+		traceIDUpper: binary.LittleEndian.Uint64(data[8:16]),
+		spanID:       binary.LittleEndian.Uint64(data[16:24]),
+		parentID:     binary.LittleEndian.Uint64(data[24:32]),
+		valid:        true,
+	}, true
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -453,7 +540,18 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if statusArray.getExprStatus(expressionIndex) != ir.ExprStatusPresent && parameterSize != 0 {
+	if expr.Redacted {
+		return writeRedacted(enc, typeName, tokenNotCapturedReasonRedactedIdent)
+	}
+	exprStatus := statusArray.getExprStatus(expressionIndex)
+	// ExprStatusPresent and ExprStatusTruncated both indicate the value
+	// is present; Truncated additionally signals that a filter result
+	// hit its collection cap. The filter type's decoder reads
+	// currentExpr.status (set below) and appends the truncation
+	// metadata to its JSON output.
+	if exprStatus != ir.ExprStatusPresent &&
+		exprStatus != ir.ExprStatusTruncated &&
+		parameterSize != 0 {
 		// Nil-deref and OOB expressions are already handled in init() and
 		// marked as skipped, so we only reach here for genuinely unavailable data.
 		if err := writeTokens(enc,
@@ -468,6 +566,8 @@ func (ce *captureEvent) processExpression(
 		}
 		return nil
 	}
+	ce.encodingContext.currentExpr.index = expressionIndex
+	ce.encodingContext.currentExpr.status = exprStatus
 	err := encodeValue(
 		&ce.encodingContext, enc, parameterType.GetID(), data, typeName,
 	)
@@ -660,6 +760,9 @@ func encodeValue(
 	data []byte,
 	valueType string,
 ) error {
+	if c.redaction.RedactType(valueType) {
+		return writeRedacted(enc, valueType, tokenNotCapturedReasonRedactedType)
+	}
 	decoderType, ok := c.getType(typeID)
 	if !ok {
 		return errors.New("no decoder type found")
@@ -679,6 +782,20 @@ func encodeValue(
 		return err
 	}
 	return nil
+}
+
+// writeRedacted emits a captured-value object whose value is dropped for the
+// given reason, e.g. {"type": "string", "notCapturedReason": "redactedIdent"}.
+// The name (when there is one) is written by the caller beforehand.
+func writeRedacted(enc *jsontext.Encoder, typeName string, reason jsontext.Token) error {
+	return writeTokens(enc,
+		jsontext.BeginObject,
+		jsontext.String("type"),
+		jsontext.String(typeName),
+		tokenNotCapturedReason,
+		reason,
+		jsontext.EndObject,
+	)
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {

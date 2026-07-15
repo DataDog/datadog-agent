@@ -5,6 +5,7 @@
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
+    - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
@@ -34,15 +35,16 @@
       -e GONOSUMDB
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
+      -e WINDOWS_SIGNING_CERT
+      -e WINDOWS_SIGNING_CONFIG
       -e TARGET_ARCH="$ARCH"
       -e DEBUG_CUSTOMACTION
       -e BUCKET_BRANCH
       -e S3_OMNIBUS_CACHE_BUCKET
       -e S3_OMNIBUS_GIT_CACHE_BUCKET
-      -e INTEGRATION_WHEELS_CACHE_BUCKET
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
-      -e API_KEY_ORG2
+      -e AGENT_API_KEY_ORG2
       -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
       -e AGENT_FLAVOR
       -e OMNIBUS_RUBY_VERSION
@@ -95,6 +97,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
@@ -102,8 +105,10 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI
+      -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
+      -e CI_JOB_ID
       -e CI_PROJECT_NAME
       -e CI_JOB_NAME_SLUG
       -e CI_COMMIT_REF_NAME
@@ -122,13 +127,14 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e GONOSUMDB
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
+      -e WINDOWS_SIGNING_CERT
+      -e WINDOWS_SIGNING_CONFIG
       -e BUCKET_BRANCH
-      -e INTEGRATION_WHEELS_CACHE_BUCKET
       -e S3_OMNIBUS_CACHE_BUCKET
       -e USE_S3_CACHING
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
-      -e API_KEY_ORG2
+      -e AGENT_API_KEY_ORG2
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"

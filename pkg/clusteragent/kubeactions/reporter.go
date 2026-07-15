@@ -13,7 +13,7 @@ import (
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -111,15 +111,11 @@ func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAct
 		ResourceNamespace: resourceNamespace,
 	}
 
-	log.Infof("[KubeActions] Sending EVP event: event_type=%s, action_id=%s, status=%s", evpEventType, event.ActionID, event.Status)
-
 	payload, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("[KubeActions] Failed to marshal %s event for %s: %v", evpEventType, actionKey.String(), err)
 		return
 	}
-
-	log.Debugf("[KubeActions] EVP payload: %s", string(payload))
 
 	evpMsg := message.NewMessage(payload, nil, "", 0)
 	if err := r.epForwarder.SendEventPlatformEventBlocking(evpMsg, eventplatform.EventTypeKubeActions); err != nil {
@@ -127,5 +123,5 @@ func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAct
 		return
 	}
 
-	log.Infof("[KubeActions] Sent %s event for action %s", evpEventType, actionID)
+	log.Debugf("[KubeActions] Sent %s event for action %s", evpEventType, actionID)
 }

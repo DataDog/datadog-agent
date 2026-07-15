@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -5,6 +6,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 from invoke import MockContext, Result
 
+from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.gates import (
     ArtifactMeasurement,
     DockerArtifactMeasurer,
@@ -233,13 +235,13 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
 
         self.assertIn("Couldn't find any DEB file", str(cm.exception))
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg', 'OMNIBUS_PACKAGE_DIR_SUSE': '/test/suse/pkg'})
     def test_find_package_path_patterns(self):
         test_cases = [
             ("static_quality_gate_agent_deb_amd64", "/test/pkg/datadog-agent_7*amd64.deb"),
             ("static_quality_gate_agent_deb_amd64_fips", "/test/pkg/datadog-fips-agent_7*amd64.deb"),
             ("static_quality_gate_iot_agent_rpm_arm64", "/test/pkg/datadog-iot-agent-7*aarch64.rpm"),
-            ("static_quality_gate_dogstatsd_suse_amd64", "/test/pkg/datadog-dogstatsd-7*x86_64.rpm"),
+            ("static_quality_gate_dogstatsd_suse_amd64", "/test/suse/pkg/datadog-dogstatsd-7*x86_64.rpm"),
             ("static_quality_gate_agent_heroku_amd64", "/test/pkg/datadog-heroku-agent_7*amd64.deb"),
         ]
 
@@ -343,6 +345,14 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
                 "static_quality_gate_docker_agent_jmx_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64",
             ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_arm64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-arm64",
+            ),
         ]
 
         for gate_name, expected_url in test_cases:
@@ -365,6 +375,10 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
             (
                 "static_quality_gate_docker_cluster_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/cluster-agent-nightly:v71580015-668844-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf-nightly:v71580015-668844-7-amd64",
             ),
         ]
 
@@ -405,6 +419,57 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
                 self.measurer._get_image_url(config)
             self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
 
+    def test_calculate_image_wire_size_sums_manifest_sizes(self):
+        self.mock_ctx.run.return_value = Result(
+            stdout=json.dumps(
+                [
+                    {
+                        "Ref": "gcr.io/datadoghq/agent:7@sha256:aaa",
+                        "Descriptor": {"size": 1, "platform": {"architecture": "amd64", "os": "linux"}},
+                        "Raw": "eyJzaXplIjoxfQ==",
+                        "SchemaV2Manifest": {
+                            "config": {"size": 10},
+                            "layers": [{"size": 100}],
+                        },
+                    },
+                    {
+                        "Ref": "gcr.io/datadoghq/agent:7@sha256:bbb",
+                        "Descriptor": {"size": 1_000, "platform": {"architecture": "arm64", "os": "linux"}},
+                        "Raw": "eyJzaXplIjoyfQ==",
+                        "SchemaV2Manifest": {
+                            "config": {"size": 10_000},
+                            "layers": [{"size": 100_000}],
+                        },
+                    },
+                ]
+            )
+        )
+
+        self.assertEqual(self.measurer._calculate_image_wire_size(self.mock_ctx, "img"), 111_111)
+
+    def test_calculate_image_wire_size_zero_result_raises(self):
+        """Test the silent-zero condition the earlier `grep size | awk` reported as a sane 0-byte image now fails"""
+        self.mock_ctx.run.return_value = Result(stdout=json.dumps([]))
+
+        with self.assertRaises(StaticQualityGateError) as cm:
+            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
+        self.assertIn("wire size of 0 bytes", str(cm.exception))
+
+    def test_calculate_image_wire_size_invalid_json_raises(self):
+        """Test invalid JSON outputs ignored by earlier `grep | awk` pipeline are now reported as such"""
+        self.mock_ctx.run.return_value = Result(stdout="not json")
+
+        with self.assertRaises(json.JSONDecodeError):
+            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
+
+    def test_calculate_image_wire_size_non_zero_exit_raises_infra_error(self):
+        """Test `docker manifest inspect` non-zero exit codes swallowed by earlier `grep | awk` are now retriable"""
+        self.mock_ctx.run.return_value = Result(exited=1)
+
+        with self.assertRaises(InfraError) as cm:
+            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
+        self.assertIn("Docker manifest inspect failed to retrieve img", str(cm.exception))
+
 
 class TestStaticQualityGate(unittest.TestCase):
     def setUp(self):
@@ -433,7 +498,8 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
+        # on-wire gates are non-blocking
+        self.assertTrue(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_execute_gate_on_disk_violation(self):
         # Mock measurement exceeding disk limit (250MB > 200MB limit)
@@ -454,14 +520,11 @@ class TestStaticQualityGate(unittest.TestCase):
         violations = self.gate._check_size_limits(measurement)
         self.assertEqual(len(violations), 0)
 
-    def test_check_size_limits_on_wire_violation(self):
+    def test_check_size_limits_on_wire_causes_no_violation(self):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         violations = self.gate._check_size_limits(measurement)
 
-        self.assertEqual(len(violations), 1)
-        self.assertEqual(violations[0].measurement_type, "wire")
-        self.assertEqual(violations[0].current_size, 120 * 1024 * 1024)
-        self.assertEqual(violations[0].max_size, 100 * 1024 * 1024)
+        self.assertEqual(len(violations), 0)
 
     def test_check_size_limits_on_disk_violation(self):
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 250 * 1024 * 1024)

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 

@@ -5,5 +5,8 @@ go_library(
     srcs = ["modifier.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/payload",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/proto/pbgo/trace"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+    ],
 )

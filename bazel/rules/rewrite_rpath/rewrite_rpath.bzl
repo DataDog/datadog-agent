@@ -1,53 +1,61 @@
-"""Set a binary's rpath to the provided value.
-
-If no rpath is provided, this defaults to <@@//:install_dir>/embedded/lib.
-"""
+"""Set a binary's rpath to the provided value."""
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
-def _is_os(ctx, constraint):
-    return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
+_RPATH_REWRITER_TOOLCHAIN = "//bazel/toolchains/rpath_rewriter"
+
+def rewrite_rpaths(ctx, inputs, rpath):
+    """Creates actions to apply an rpath rewriter to files and TreeArtifacts.
+
+    The selected rpath rewriter toolchain provides separate tools for regular
+    files and TreeArtifacts. A `None` tool means rpath rewriting is not
+    applicable for that artifact kind on the target platform; in that case, the
+    original input is returned unchanged and no copy action is registered.
+
+    Args:
+      ctx: the rule context.
+      inputs: the files or TreeArtifacts to patch.
+      rpath: the rpath to set.
+
+    Returns:
+      A list of rewritten outputs, in the same order as inputs. Rewritten
+      artifacts preserve the input basename. On platforms where rewriting is a
+      no-op, some or all entries may be the original inputs.
+    """
+    toolchain = ctx.toolchains[_RPATH_REWRITER_TOOLCHAIN]
+
+    outputs = []
+    for input in inputs:
+        tool = toolchain.tree_rewriter_tool if input.is_directory else toolchain.rewriter_tool
+
+        # No-op: just pass this input through.
+        if tool == None:
+            outputs.append(input)
+            continue
+
+        if input.is_directory:
+            output = ctx.actions.declare_directory("patched_dirs/" + input.basename)
+        else:
+            output = ctx.actions.declare_file("patched/" + input.basename)
+
+        args = ctx.actions.args()
+        args.add(input.path)
+        args.add(rpath)
+        args.add(output.path)
+        ctx.actions.run(
+            inputs = [input],
+            outputs = [output],
+            arguments = [args],
+            executable = tool,
+            toolchain = _RPATH_REWRITER_TOOLCHAIN,
+        )
+        outputs.append(output)
+
+    return outputs
 
 def _rewrite_rpath_impl(ctx):
-    is_linux = _is_os(ctx, ctx.attr._linux_constraint)
-    is_macos = _is_os(ctx, ctx.attr._macos_constraint)
-
-    if not is_linux and not is_macos:
-        return DefaultInfo(files = depset(ctx.files.inputs))
-
-    processed_files = []
     rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
-    for input in ctx.files.inputs:
-        processed_file = ctx.actions.declare_file("patched/" + input.basename)
-        if is_linux:
-            toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-            args = ctx.actions.args()
-            args.add("--set-rpath", rpath)
-            args.add("--force-rpath")
-            args.add(input.path)
-            args.add("--output", processed_file.path)
-            ctx.actions.run(
-                inputs = [input],
-                outputs = [processed_file],
-                arguments = [args],
-                executable = toolchain.path,
-            )
-        else:
-            toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-            args = ctx.actions.args()
-            args.add(toolchain.path)
-            args.add(rpath)
-            args.add(input.path)
-            args.add(processed_file.path)
-            ctx.actions.run(
-                inputs = [input],
-                outputs = [processed_file],
-                executable = ctx.file._script,
-                arguments = [args],
-            )
-        processed_files.append(processed_file)
-
-    return DefaultInfo(files = depset(processed_files))
+    return DefaultInfo(files = depset(rewrite_rpaths(ctx, inputs = ctx.files.inputs, rpath = rpath)))
 
 rewrite_rpath = rule(
     implementation = _rewrite_rpath_impl,
@@ -64,24 +72,10 @@ rewrite_rpath = rule(
             Supports '{install_dir}' variable.""",
             default = "{install_dir}/embedded/lib",
         ),
-        "_linux_constraint": attr.label(
-            default = "@platforms//os:linux",
-        ),
-        "_macos_constraint": attr.label(
-            default = "@platforms//os:macos",
-        ),
-        "_script": attr.label(
-            default = "@@//bazel/rules/rewrite_rpath:macos.sh",
-            allow_single_file = True,
-            cfg = "exec",
-        ),
         "_install_dir": attr.label(
             doc = "Private label used for the default rpath",
             default = "@@//:install_dir",
         ),
     },
-    toolchains = [
-        "@@//bazel/toolchains/patchelf:patchelf_toolchain_type",
-        "@@//bazel/toolchains/otool:otool_toolchain_type",
-    ],
+    toolchains = [_RPATH_REWRITER_TOOLCHAIN],
 )

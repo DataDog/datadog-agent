@@ -42,13 +42,14 @@ func newClusterStore() *clusterStore {
 func (s *clusterStore) reset() {
 	for _, node := range s.nodes {
 		dispatchedConfigs.Delete(node.name, le.JoinLeaderValue)
+		nodeAgents.Dec(le.JoinLeaderValue)
 	}
 
 	s.active = false
 	s.digestToConfig = make(map[string]integration.Config)
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
-	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
+	s.clearDangling()
 	s.endpointsConfigs = make(map[string]map[string]integration.Config)
 	s.idToDigest = make(map[checkid.ID]string)
 }
@@ -67,7 +68,10 @@ func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 		if node == nil {
 			continue
 		}
-		switch node.nodetype {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		switch nodetype {
 		case types.NodeTypeCLCRunner:
 			clcRunnerCount++
 		case types.NodeTypeNodeAgent:
@@ -94,8 +98,16 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 	return node
 }
 
-// clearDangling resets the danglingConfigs map to a new empty one
+// clearDangling resets the danglingConfigs map to a new empty one, cleaning up
+// the telemetry tracked for the configs it held.
+// sticky) at their last value until the process restarts.
 func (s *clusterStore) clearDangling() {
+	for _, c := range s.danglingConfigs {
+		if c.unscheduledCheck {
+			unscheduledCheck.Delete(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		}
+	}
+	danglingConfigs.Delete(le.JoinLeaderValue)
 	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
 }
 
@@ -184,32 +196,4 @@ func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) in
 		busyness += busynessFunc(stats)
 	}
 	return busyness
-}
-
-// GetMostWeightedClusterCheck returns the Cluster Check with the most weight on the node
-// The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(stats types.CLCRunnerStats) int) (string, int, error) {
-	s.RLock()
-	defer s.RUnlock()
-	if len(s.clcRunnerStats) == 0 {
-		log.Debugf("Node %s has no check stats", s.name)
-		return "", -1, fmt.Errorf("node %s has no check stats", s.name)
-	}
-	firstItr := true
-	checkID := ""
-	checkWeight := 0
-	for id, stats := range s.clcRunnerStats {
-		busyness := busynessFunc(stats)
-		if (busyness > checkWeight || firstItr) && stats.IsClusterCheck {
-			// Only consider Cluster Checks
-			checkWeight = busyness
-			checkID = id
-			firstItr = false
-		}
-	}
-	if firstItr {
-		log.Debugf("Node %s has no check stats for cluster checks: %v", s.name, s.clcRunnerStats)
-		return "", -1, fmt.Errorf("no cluster checks found on node %s", s.name)
-	}
-	return checkID, checkWeight, nil
 }

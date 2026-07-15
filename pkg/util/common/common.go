@@ -84,7 +84,7 @@ func valueToInterface(value reflect.Value) interface{} {
 	case reflect.Struct:
 		return StructToMap(value.Interface())
 
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if !value.IsNil() {
 			return valueToInterface(value.Elem())
 		}

@@ -52,6 +52,13 @@ func main() {
 	condInt16(7, "miss")
 	condInt32(42, "match")
 	condInt32(7, "miss")
+	// Negative value to exercise signed comparison: BPF cmp_kind_int
+	// XORs the sign bit of the most-significant byte before comparing,
+	// turning two's-complement compare into unsigned byte compare. A
+	// bug in that trick surfaces here as `x < 0` either firing on
+	// nothing (treats -5 as 0xfffffffb > 0) or firing on the wrong
+	// calls.
+	condInt32(-5, "neg")
 	condInt64(42, "match")
 	condInt64(7, "miss")
 	condUint8(42, "match")
@@ -70,6 +77,15 @@ func main() {
 	condBool(false, "miss")
 	condString("hello", "match")
 	condString("other", "miss")
+	// Long-LHS / max-length-literal regression coverage. The literal
+	// MaxStringLiteralLength (255) imposed by IR-gen used to be
+	// indistinguishable from a longer LHS sharing the same first 255
+	// bytes, because SM_OP_EXPR_READ_STRING capped the stored length at
+	// 255. condString_long_a_then_b is 300 bytes ('a'*255 + 'b'*45),
+	// condString_exact_a255 is 'a'*255 — both are compared against the
+	// 255-byte literal 'a'*255 in simple.yaml.
+	condString(strings.Repeat("a", 255)+strings.Repeat("b", 45), "long_a_then_b")
+	condString(strings.Repeat("a", 255), "exact_a255")
 
 	// Struct with typed fields: called twice with different field values so
 	// field-level conditions can distinguish the calls.
@@ -121,6 +137,14 @@ func main() {
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
 
+	// condGuarded for split-condition short-circuit tests. Calls cover
+	// match, no-match, and nil-pointer paths so probes can verify the
+	// guard `(x != nil && x.I32 == 1)` correctly short-circuits without
+	// nil-derefing.
+	condGuarded(&condFields{I32: 1}, "match")
+	condGuarded(&condFields{I32: 99}, "miss")
+	condGuarded(nil, "nilptr")
+
 	// `== null` condition targets: each called twice — once with nil (probe
 	// matches) and once with non-nil (probe does not match). Covers all four
 	// nullable Go types: pointer, slice, map, interface.
@@ -136,6 +160,22 @@ func main() {
 	condNullUnsafePtr(nil, "match")
 	u := 42
 	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
+
+	// contains(map, key) condition targets. Called three times:
+	// "present" — key is in the map and contains(...) is true.
+	// "absent"  — key is not in the map; contains(...) is false.
+	// "nil"     — map is nil; contains(...) is false.
+	condContainsMap(
+		map[string]int{"existing_key": 1},
+		map[int]int{42: 1},
+		"present",
+	)
+	condContainsMap(
+		map[string]int{"other": 2},
+		map[int]int{7: 1},
+		"absent",
+	)
+	condContainsMap(nil, nil, "nil")
 
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
@@ -292,6 +332,185 @@ func main() {
 	// probe it.
 	mv := (&methodValueReceiver{val: 42}).inlinedMethod
 	methodValueSink(mv)
+
+	// condReturnPtr for split-condition return-side nil-deref tests:
+	// returns a pointer that is nil on the "nilret" tag. A return-side
+	// leaf like @return.I32 == 1 nil-derefs on the nil-returning call.
+	condReturnPtr("match")
+	condReturnPtr("nilret")
+
+	// any / all targets. Each tag corresponds to an assertion in the
+	// integration test snapshots. Placed at the end of main so adding /
+	// removing them doesn't shift line numbers of probe targets earlier in
+	// the file (which existing line-probes reference).
+	//
+	// Slices of base types.
+	anyAllIntSlice([]int{1, 2, 42, 99}, "match")
+	anyAllIntSlice([]int{1, 2, 3}, "anymiss_allmatch")
+	anyAllIntSlice([]int{1, -1, 2}, "allmiss")
+	anyAllIntSlice(nil, "empty")
+	// 4096 elements exactly at the iteration cap, one match in the middle.
+	anyAllIntSlice(makeIntSliceWithMatch(4096, 100, 42), "cap")
+	// 4097 elements (one over the cap), all positive, match at index 5:
+	// `any` short-circuits at iteration 6; `all` (no false element) hits
+	// the cap and trips CollectionTooLarge.
+	anyAllIntSlice(makeIntSliceWithMatch(4097, 5, 42), "capplus")
+	// 5000 elements all positive (no match): both `any(==42)` and
+	// `all(>0)` walk to the cap and trip CollectionTooLarge.
+	anyAllIntSlice(makeIntSliceFilled(5000, 1), "toolarge")
+	// 5000 elements, match at index 10: `any` short-circuits well before
+	// the cap.
+	anyAllIntSlice(makeIntSliceWithMatch(5000, 10, 42), "scany")
+	// 5000 elements, single negative at index 10: `all(>0)` short-
+	// circuits before the cap.
+	anyAllIntSlice(makeIntSliceWithMatch(5000, 10, -1), "scall")
+
+	// Predicate bodies over @it.field for slice-of-struct.
+	anyAllStructSlice([]condFields{
+		{I32: 100, S: "a"},
+		{I32: 300, S: "b"},
+	}, "match")
+	anyAllStructSlice([]condFields{
+		{I32: 1, S: "a"},
+		{I32: 2, S: "b"},
+	}, "miss")
+	anyAllStructSlice(nil, "empty")
+
+	// Slice of pointers — guarded vs unguarded predicate body. The
+	// guarded probes must produce clean snapshots; the unguarded one
+	// must surface condition_eval_error because dereferencing a nil
+	// element faults.
+	anyAllPtrSlice([]*condFields{nil, {I32: 1, S: "x"}, nil, {I32: 2, S: "y"}}, "guarded_match")
+	anyAllPtrSlice([]*condFields{nil, {I32: 1, S: "y"}, nil}, "guarded_miss")
+	anyAllPtrSlice(nil, "guarded_empty")
+	anyAllPtrSlice([]*condFields{nil, {I32: 1, S: "y"}}, "unguarded_nil")
+	anyAllPtrSlice([]*condFields{{I32: 1, S: "x"}, {I32: 2, S: "y"}}, "unguarded_clean")
+
+	// Arrays.
+	anyAllIntArray([5]int{1, 2, 42, 4, 5}, "match")
+	anyAllIntArray([5]int{1, 2, 3, 4, 5}, "miss")
+
+	// Maps.
+	anyAllIntMap(map[string]int{"a": 1, "b": 42, "c": 3}, "match")
+	anyAllIntMap(map[string]int{"a": 1, "b": 2, "c": 3}, "miss")
+	anyAllIntMap(nil, "empty")
+	// 4097 entries with all values == 1 and no match for ==42. The any
+	// loop walks every slot and trips CollectionTooLarge; all(>0)
+	// short-circuits never and also trips the cap.
+	anyAllIntMapMassive(makeIntMapFilled(4097, 1, "", 0), "toolarge")
+	// 100 entries (comfortably under the cap), with one match keyed
+	// "match"=42 and one miss keyed "miss"=-1. any(==42) and all(>0)
+	// both terminate well before the cap regardless of iteration order
+	// — verifying short-circuit semantics over a map without depending
+	// on cross-toolchain map layout near the cap boundary.
+	{
+		m := makeIntMapFilled(100, 1, "match", 42)
+		m["miss"] = -1
+		anyAllIntMap(m, "sc100")
+	}
+
+	// Map of string -> *condFields. Guarded body uses @value != null
+	// before reading @value.I32; unguarded faults on the nil entry.
+	anyAllPtrMap(map[string]*condFields{
+		"a": nil,
+		"b": {I32: 200, S: "match"},
+	}, "guarded_match")
+	anyAllPtrMap(map[string]*condFields{
+		"a": nil,
+		"b": {I32: 5, S: "miss"},
+	}, "guarded_miss")
+	anyAllPtrMap(nil, "guarded_empty")
+
+	// Slice of *string. Verifies that null-comparison on a pointer
+	// (@it != null) preserves the pointer, while a value comparison
+	// (@it == "x") auto-derefs through the *string to compare the
+	// underlying string bytes.
+	{
+		x := "x"
+		y := "y"
+		anyAllPtrStrSlice([]*string{nil, &x, nil, &y}, "guarded_match")
+		anyAllPtrStrSlice([]*string{nil, &y}, "guarded_miss")
+		anyAllPtrStrSlice([]*string{nil, &x}, "unguarded_nil")
+		anyAllPtrStrSlice([]*string{&x, &y}, "unguarded_clean")
+	}
+
+	// Slice of *int. Same pattern, base type.
+	{
+		one := 1
+		two := 2
+		anyAllPtrIntSlice([]*int{nil, &one, nil, &two}, "guarded_match")
+		anyAllPtrIntSlice([]*int{nil, &two}, "guarded_miss")
+		anyAllPtrIntSlice([]*int{nil, &one}, "unguarded_nil")
+		anyAllPtrIntSlice([]*int{&one, &two}, "unguarded_clean")
+	}
+
+	// Slice of structs whose element size exceeds the per-iteration
+	// scratch budget. Probes over this target should be rejected at irgen
+	// time with a typed Issue; the call here exists only to keep the
+	// function in DWARF so the probe can resolve the method.
+	anyAllOversizedSlice([]oversizedElem{{I32: 1, S: "a"}}, "match")
+
+	// Map keyed by a struct (condFields). Lookup by struct key isn't
+	// supported, but iteration via any/all should work — @key (the bare
+	// key) is the struct value, @key.I32 accesses a field on it.
+	anyAllStructKeyMap(map[condFields]int{
+		{I32: 1, S: "a"}: 10,
+		{I32: 2, S: "b"}: 20,
+	}, "match")
+	anyAllStructKeyMap(map[condFields]int{
+		{I32: 1, S: "a"}: 10,
+	}, "miss")
+	anyAllStructKeyMap(nil, "empty")
+
+	// Map keyed by a struct pointer. @key is a pointer; @key.I32 derefs.
+	{
+		a := condFields{I32: 1, S: "a"}
+		b := condFields{I32: 2, S: "b"}
+		anyAllPtrStructKeyMap(map[*condFields]int{
+			&a: 10,
+			&b: 20,
+		}, "match")
+		anyAllPtrStructKeyMap(map[*condFields]int{
+			&a: 10,
+		}, "miss")
+		anyAllPtrStructKeyMap(nil, "empty")
+	}
+
+	// Map whose value type is large enough that Go stores it out-of-line
+	// (the slot's `elem` field becomes *bigStruct). The body accesses
+	// @value.Field1 — auto-deref should make this transparent to the user.
+	anyAllBigValMap(map[string]bigStruct{
+		"a": {Field1: 1},
+		"b": {Field1: 42},
+	}, "match")
+	anyAllBigValMap(map[string]bigStruct{
+		"a": {Field1: 1},
+	}, "miss")
+	anyAllBigValMap(nil, "empty")
+
+	// Same, but the key is the large struct.
+	anyAllBigKeyMap(map[bigStruct]int{
+		{Field1: 1}:  10,
+		{Field1: 42}: 20,
+	}, "match")
+	anyAllBigKeyMap(map[bigStruct]int{
+		{Field1: 1}: 10,
+	}, "miss")
+	anyAllBigKeyMap(nil, "empty")
+
+	// Slices and arrays of strings (used by both any/all and contains
+	// probes).
+	anyAllStringSlice([]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringSlice([]string{"alpha", "beta", "gamma"}, "miss")
+	anyAllStringSlice(nil, "empty")
+	anyAllStringArray([3]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringArray([3]string{"alpha", "beta", "gamma"}, "miss")
+
+	// Negative targets for contains: slice element types that are not
+	// comparable base types (slice-of-slice, slice-of-map). The probe must
+	// be rejected at irgen.
+	anyAllIntSliceOfSlice([][]int{{1, 2}, {3, 4}}, "match")
+	anyAllIntSliceOfMap([]map[string]int{{"a": 1}, {"b": 2}}, "match")
 }
 
 //go:noinline
@@ -487,6 +706,22 @@ func condNilPtrStruct(x *condFields, tag string) {
 	fmt.Println("condNilPtrStruct", x, tag)
 }
 
+// condGuarded mixes a pointer arg (may be nil) with a return value so a
+// split-event-kind condition can guard a potentially-nil-derefing entry
+// leaf with another entry leaf, e.g. (x != nil && x.I32 == 1) and pair
+// it with a return-side leaf like @return == 0. Used by tests that
+// verify the guard short-circuits correctly when x is nil.
+//
+//go:noinline
+func condGuarded(x *condFields, tag string) int {
+	if x == nil {
+		fmt.Println("condGuarded nil", tag)
+		return 0
+	}
+	fmt.Println("condGuarded", x.I32, tag)
+	return int(x.I32)
+}
+
 // condReturnAndLocal has parameters a and b, a local (sum), and a return
 // value so we can test condition event-kind assignment: parameter→entry,
 // local/return→return. Parameter b serves as the template variable.
@@ -580,6 +815,16 @@ func condNullIface(i error, tag string) {
 func condNullUnsafePtr(p unsafe.Pointer, tag string) {
 	sink(p, tag)
 	fmt.Println(p, tag)
+}
+
+// condContainsMap is a target for contains(m, key) conditions. Takes both a
+// string-keyed and int-keyed map so a single test function can exercise both
+// key-type flavors.
+//
+//go:noinline
+func condContainsMap(m map[string]int, mi map[int]int, tag string) {
+	sink(m, mi, tag)
+	fmt.Println(m, mi, tag)
 }
 
 // --- len/isEmpty test functions ---
@@ -961,4 +1206,227 @@ func condMultiReturn(tag string) (r0 int, r1 string) {
 	r1 = tag
 	fmt.Println("condMultiReturn", r0, r1)
 	return r0, r1
+}
+
+// condReturnPtr returns a *condFields that is nil on the "nilret" tag.
+// Used by split-condition probes that put the nil-deref leaf on the
+// return side, exercising the abort-path arming of condition_eval_error
+// when no ConditionBeginOp ran (return-side AST replay inlines its
+// return leaves).
+//
+//go:noinline
+func condReturnPtr(tag string) *condFields {
+	fmt.Println("condReturnPtr", tag)
+	if tag == "nilret" {
+		return nil
+	}
+	return &condFields{I32: 1}
+}
+
+// makeIntSliceFilled returns a slice of length n with every element set
+// to fill. Helper for any/all integration probes — kept out of main() so
+// the surrounding DWARF location lists stay consistent across toolchains.
+//
+//go:noinline
+func makeIntSliceFilled(n int, fill int) []int {
+	xs := make([]int, n)
+	for i := range xs {
+		xs[i] = fill
+	}
+	return xs
+}
+
+// makeIntSliceWithMatch returns a slice of length n filled with 1s except
+// for index matchIdx, which is set to matchVal.
+//
+//go:noinline
+func makeIntSliceWithMatch(n, matchIdx, matchVal int) []int {
+	xs := makeIntSliceFilled(n, 1)
+	xs[matchIdx] = matchVal
+	return xs
+}
+
+// makeIntMapFilled returns a map of length n with keys "k_0000".."k_NNNN"
+// all valued fill. If specialKey is non-empty, that key is added with
+// specialVal (overwriting any same-name k_NNNN entry).
+//
+//go:noinline
+func makeIntMapFilled(n, fill int, specialKey string, specialVal int) map[string]int {
+	m := make(map[string]int, n)
+	for i := range n {
+		m[fmt.Sprintf("k_%04d", i)] = fill
+	}
+	if specialKey != "" {
+		m[specialKey] = specialVal
+	}
+	return m
+}
+
+// anyAllIntSlice is the target for `any` / `all` slice-predicate probes
+// over a slice of base-typed elements.
+//
+//go:noinline
+func anyAllIntSlice(xs []int, tag string) {
+	fmt.Println("anyAllIntSlice", xs, tag)
+}
+
+// anyAllStructSlice is the target for `any` / `all` over a slice of
+// structs, exercising `@it.field` predicate bodies.
+//
+//go:noinline
+func anyAllStructSlice(xs []condFields, tag string) {
+	fmt.Println("anyAllStructSlice", len(xs), tag)
+}
+
+// anyAllPtrSlice is the target for `any` / `all` over a slice of struct
+// pointers. Exercises guarded (@it != null && @it.S == "x") and unguarded
+// (@it.S == "x") predicate bodies against nil-containing inputs.
+//
+//go:noinline
+func anyAllPtrSlice(xs []*condFields, tag string) {
+	fmt.Println("anyAllPtrSlice", len(xs), tag)
+}
+
+// anyAllIntArray is the target for `any` / `all` over a Go array (fixed
+// compile-time length).
+//
+//go:noinline
+func anyAllIntArray(xs [5]int, tag string) {
+	fmt.Println("anyAllIntArray", xs, tag)
+}
+
+// anyAllIntMap is the target for `any` / `all` over a Go map.
+// Exercises the swiss-map iteration walk.
+//
+//go:noinline
+func anyAllIntMap(m map[string]int, tag string) {
+	fmt.Println("anyAllIntMap", len(m), tag)
+}
+
+// anyAllIntMapMassive carries the same payload as anyAllIntMap but lives
+// in its own function so probes that need to fire on a too-large map can
+// target it independently. The parameter is named `redactMyEntries` so
+// the test JSON redactor (defaultRedactors in json_redaction_test.go)
+// replaces the captured entries with a placeholder — necessary because
+// chased_slices truncation makes the captured key set non-deterministic
+// across Go toolchains for maps with > MAX_CHASED_SLICES entries.
+//
+//go:noinline
+func anyAllIntMapMassive(redactMyEntries map[string]int, tag string) {
+	fmt.Println("anyAllIntMapMassive", len(redactMyEntries), tag)
+}
+
+// anyAllPtrMap is the target for `any` / `all` over a map[string]*condFields,
+// exercising short-circuit through the @value pointer access.
+//
+//go:noinline
+func anyAllPtrMap(m map[string]*condFields, tag string) {
+	fmt.Println("anyAllPtrMap", len(m), tag)
+}
+
+// anyAllPtrStrSlice is the target for any/all over a slice of *string.
+// Exercises (a) null-comparison preserving the pointer and (b) value
+// comparison auto-derefing the pointer to read the underlying string.
+//
+//go:noinline
+func anyAllPtrStrSlice(xs []*string, tag string) {
+	fmt.Println("anyAllPtrStrSlice", len(xs), tag)
+}
+
+// anyAllPtrIntSlice is the target for any/all over a slice of *int.
+// Same pattern as anyAllPtrStrSlice but with a base-type pointee.
+//
+//go:noinline
+func anyAllPtrIntSlice(xs []*int, tag string) {
+	fmt.Println("anyAllPtrIntSlice", len(xs), tag)
+}
+
+// oversizedElem is a struct deliberately larger than
+// ir.CollectionPredicateMaxElemBytes (256). Used to verify that irgen
+// rejects any/all over a slice/array with elem_size > the per-iteration
+// scratch budget.
+type oversizedElem struct {
+	I32 int32
+	S   string
+	pad [300]byte
+}
+
+// anyAllOversizedSlice is the target for any/all over a slice of structs
+// whose size exceeds the per-iteration scratch budget. The probe should
+// fail to load with a typed Issue.
+//
+//go:noinline
+func anyAllOversizedSlice(xs []oversizedElem, tag string) {
+	fmt.Println("anyAllOversizedSlice", len(xs), tag)
+}
+
+// anyAllStructKeyMap is the target for any/all over a map with a struct
+// key. Iteration is supported even though m[k] lookup with a struct key
+// is not — the loop walks every slot and exposes @key (the bare key
+// reference) as the struct value, with @key.field accessing fields on it.
+//
+//go:noinline
+func anyAllStructKeyMap(m map[condFields]int, tag string) {
+	fmt.Println("anyAllStructKeyMap", len(m), tag)
+}
+
+// anyAllPtrStructKeyMap is the target for any/all over a map with a
+// struct-pointer key. @key is a pointer; @key.field auto-derefs it.
+//
+//go:noinline
+func anyAllPtrStructKeyMap(m map[*condFields]int, tag string) {
+	fmt.Println("anyAllPtrStructKeyMap", len(m), tag)
+}
+
+// anyAllBigValMap exercises any/all over a map whose values exceed Go's
+// in-slot size threshold (~128 bytes), forcing the runtime to store
+// values out-of-line as pointers in the slot. DWARF's slot type reflects
+// this rewrite: the slot's `elem` field is *bigStruct, which means
+// iteration reads an 8-byte pointer per slot and the body auto-derefs
+// to access fields.
+//
+//go:noinline
+func anyAllBigValMap(m map[string]bigStruct, tag string) {
+	fmt.Println("anyAllBigValMap", len(m), tag)
+}
+
+// anyAllBigKeyMap is the same but with the *key* being the large struct.
+// The slot's `key` field becomes *bigStruct.
+//
+//go:noinline
+func anyAllBigKeyMap(m map[bigStruct]int, tag string) {
+	fmt.Println("anyAllBigKeyMap", len(m), tag)
+}
+
+// anyAllStringSlice is the target for any/all (and contains) over a slice
+// of strings.
+//
+//go:noinline
+func anyAllStringSlice(xs []string, tag string) {
+	fmt.Println("anyAllStringSlice", len(xs), tag)
+}
+
+// anyAllStringArray is the target for any/all (and contains) over a Go
+// array of strings.
+//
+//go:noinline
+func anyAllStringArray(xs [3]string, tag string) {
+	fmt.Println("anyAllStringArray", xs, tag)
+}
+
+// anyAllIntSliceOfSlice exists so we can attach `contains` probes whose
+// element type is `[]int` and verify the resulting Issue surfaces at irgen
+// (slice-of-slice elements are not a comparable base type).
+//
+//go:noinline
+func anyAllIntSliceOfSlice(xs [][]int, tag string) {
+	fmt.Println("anyAllIntSliceOfSlice", len(xs), tag)
+}
+
+// anyAllIntSliceOfMap is the same negative-target shape, for slice elements
+// of map type.
+//
+//go:noinline
+func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
+	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
 }

@@ -14,11 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/spf13/afero"
 
-	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -26,14 +27,15 @@ import (
 	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Params allows overriding the filesystem implementation (e.g. in tests).
+// Params allows overriding the filesystem and clock implementations (e.g. in tests).
 type Params struct {
-	Fs afero.Fs
+	Fs  afero.Fs
+	Clk clock.Clock
 }
 
-// NewParams returns production Params using the real OS filesystem.
+// NewParams returns production Params using the real OS filesystem and clock.
 func NewParams() Params {
-	return Params{Fs: afero.NewOsFs()}
+	return Params{Fs: afero.NewOsFs(), Clk: clock.New()}
 }
 
 // Requires defines the dependencies for the offlinereporter component.
@@ -60,6 +62,7 @@ type sampleSender interface {
 type offlinereporterImpl struct {
 	log               log.Component
 	fs                afero.Fs
+	clk               clock.Clock
 	filePath          string
 	heartbeatInterval time.Duration
 	demux             sampleSender
@@ -75,6 +78,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	h := &offlinereporterImpl{
 		log:               reqs.Log,
 		fs:                reqs.Params.Fs,
+		clk:               reqs.Params.Clk,
 		filePath:          filepath.Join(reqs.Config.GetString("run_path"), "agent_heartbeat"),
 		heartbeatInterval: reqs.Config.GetDuration("telemetry.offlinereporter.heartbeat_interval"),
 		demux:             reqs.Demultiplexer,
@@ -120,7 +124,7 @@ func (h *offlinereporterImpl) onStart(_ context.Context) error {
 }
 
 func (h *offlinereporterImpl) writeNow() error {
-	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	ts := strconv.FormatInt(h.clk.Now().Unix(), 10)
 	return afero.WriteFile(h.fs, h.filePath, []byte(ts), 0600)
 }
 
@@ -154,12 +158,12 @@ func (h *offlinereporterImpl) SendOfflineDuration(metricName string, tags []stri
 	h.demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{
 		{
 			Name:       metricName,
-			Value:      time.Since(h.lastHeartbeat).Seconds(),
+			Value:      h.clk.Since(h.lastHeartbeat).Seconds(),
 			Mtype:      metrics.GaugeType,
 			Tags:       tags,
 			Host:       h.hostname,
 			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
+			Timestamp:  float64(h.clk.Now().Unix()),
 		},
 	})
 }

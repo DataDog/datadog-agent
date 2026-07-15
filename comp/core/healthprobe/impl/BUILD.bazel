@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -6,19 +7,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/flare/types",
         "//comp/core/healthprobe/def",
         "//comp/core/log/def",
         "//comp/def",
         "//pkg/status/health",
-        "@com_github_gorilla_mux//:mux",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["healthprobe_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/healthprobe/def",
         "//comp/core/log/mock",

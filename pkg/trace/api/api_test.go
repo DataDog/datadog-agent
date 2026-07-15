@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -75,16 +75,15 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
-	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	port, err := testutil.FindTCPPort()
+	if err != nil {
+		panic(err)
+	}
+	conf.ReceiverPort = port
 	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.
 	conf.ReceiverIdleTimeout = 0
-	// Enable convert-traces by default for tests since most tests expect V1 behavior
-	if conf.Features == nil {
-		conf.Features = make(map[string]struct{})
-	}
-	conf.Features["convert-traces"] = struct{}{}
 
 	return conf
 }
@@ -163,7 +162,7 @@ func TestServerShutdown(t *testing.T) {
 			defer wg.Done()
 			for n := 0; n < 200; n++ {
 				// Send to TCP endpoint
-				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d/v0.4/traces", conf.ReceiverPort), bytes.NewReader(bts))
 				req.Header.Set("Content-Type", "application/msgpack")
 				resp, _ := tcpClient.Do(req)
 				if resp != nil {
@@ -1447,15 +1446,14 @@ func TestHandleTraces(t *testing.T) {
 }
 
 func TestHandleTracesWithoutConvertFeature(t *testing.T) {
-	// Test that the old code path (without convert-traces feature) still works
+	// Test that the old code path (with disable-convert-traces feature) still works
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
 	assert.Nil(t, err)
 
-	// prepare the receiver WITHOUT the convert-traces feature
-	conf := newTestReceiverConfigWithFeatures() // no features
+	// prepare the receiver WITH the disable-convert-traces feature
+	conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.conf.Features = make(map[string]struct{}) // explicitly disable convert-traces
 
 	// response recorder
 	handler := receiver.handleWithVersion(v04, receiver.handleTraces)

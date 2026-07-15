@@ -95,15 +95,6 @@ else
 
   # Dogstatsd
   dependency 'datadog-dogstatsd'
-
-  # this dependency puts few files out of the omnibus install dir and move them
-  # in the final destination. This way such files will be listed in the packages
-  # manifest and owned by the package manager. This is the only point in the build
-  # process where we operate outside the omnibus install dir, thus the need of
-  # the `extra_package_file` directive.
-  # This must be the last dependency in the project.
-
-  dependency 'datadog-dogstatsd-finalize'
 end
 
 
@@ -173,6 +164,8 @@ package :msi do
     ]
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true
+    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
+    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
   end
 
   parameters({

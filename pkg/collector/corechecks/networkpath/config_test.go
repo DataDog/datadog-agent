@@ -6,20 +6,29 @@
 package networkpath
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig.SetInTest("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -34,6 +43,24 @@ hostname: 1.2.3.4
 `),
 			rawInitConfig: []byte(``),
 			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
+			},
+		},
+		{
+			name: "test config id",
+			rawInstance: []byte(`
+test_config_id: test-config-a
+hostname: 1.2.3.4
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				TestConfigID:          "test-config-a",
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
@@ -486,6 +513,62 @@ disable_windows_driver: true
 				DisableWindowsDriver:  true,
 			},
 		},
+		{
+			name: "Disable collecting source public IP",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
+		{
+			name: "Disable collecting source public IP from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+`),
+			rawInitConfig: []byte(`
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
+		{
+			name: "Disable collecting source public IP from init config cannot be re-enabled per instance",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+disable_source_public_ip_collection: false
+`),
+			rawInitConfig: []byte(`
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -496,6 +579,74 @@ disable_windows_driver: true
 			}
 		})
 	}
+}
+
+type fakeTraceroute struct {
+	path payload.NetworkPath
+}
+
+func (f *fakeTraceroute) Run(context.Context, tracerouteconfig.Config) (payload.NetworkPath, error) {
+	return f.path, nil
+}
+
+func TestRunSetsTestConfigIDInPayload(t *testing.T) {
+	configmock.New(t).SetInTest("network_devices.namespace", "my-namespace")
+
+	rawInstance := integration.Data(`
+test_config_id: test-config-a
+hostname: api.example.com
+source_service: frontend
+destination_service: api
+tags:
+  - env:prod
+`)
+	rawInitConfig := integration.Data{}
+	expectedID := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstance, rawInitConfig)
+	sender := mocksender.NewMockSender(t, expectedID)
+	sender.SetupAcceptAll()
+
+	check := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		traceroute: &fakeTraceroute{path: payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{
+				Hostname: "api.example.com",
+				Port:     443,
+			},
+		}},
+	}
+	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, rawInstance, rawInitConfig, "network-path-remote-config:scheduled[0]", names.NetworkPathRemoteConfig)
+	assert.NoError(t, err)
+
+	err = check.Run()
+	assert.NoError(t, err)
+
+	sender.AssertCalled(t, "EventPlatformEvent", mock.MatchedBy(func(raw []byte) bool {
+		var path payload.NetworkPath
+		if err := json.Unmarshal(raw, &path); err != nil {
+			return false
+		}
+		return path.TestConfigID == "test-config-a" &&
+			path.Namespace == "my-namespace" &&
+			path.Origin == payload.PathOriginNetworkPathIntegration &&
+			path.TestRunType == payload.TestRunTypeScheduled &&
+			path.SourceProduct == payload.SourceProductNetworkPath &&
+			path.CollectorType == payload.CollectorTypeAgent &&
+			path.Source.Service == "frontend" &&
+			path.Destination.Service == "api" &&
+			assert.ObjectsAreEqual([]string{"env:prod"}, path.Tags)
+	}), eventplatform.EventTypeNetworkPath)
+}
+
+func TestConfigureIgnoresTestConfigIDFromNonRCProvider(t *testing.T) {
+	rawInstance := integration.Data(`
+test_config_id: test-config-a
+hostname: api.example.com
+`)
+	check := &Check{CheckBase: core.NewCheckBase(CheckName)}
+
+	err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "file:network_path.yaml", names.File)
+	assert.NoError(t, err)
+	assert.Empty(t, check.config.TestConfigID)
 }
 
 func TestFirstNonZero(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -48,8 +49,8 @@ func TestSNMPListener(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
+	mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 
 	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
@@ -95,8 +96,8 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 10)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetInTest("network_devices.autodiscovery.workers", 10)
 
 	testWorker := func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -145,8 +146,8 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
+	mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 
 	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
@@ -477,7 +478,7 @@ func TestCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			_, ipNet, err := net.ParseCIDR("192.168.0.0/24")
 			assert.NoError(t, err)
@@ -490,7 +491,7 @@ func TestCache(t *testing.T) {
 				},
 			}
 
-			mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", listenerConfigs)
+			mockConfig.SetInTest("network_devices.autodiscovery.configs", listenerConfigs)
 
 			listener, err := NewSNMPListener(ServiceListernerDeps{})
 			assert.NoError(t, err)
@@ -541,7 +542,7 @@ func TestSubnetIndex(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", configs)
 
 	listener, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.NoError(t, err)
@@ -558,13 +559,8 @@ func TestSubnetIndex(t *testing.T) {
 func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{
-		map[string]interface{}{
-			"network":   "192.168.0.0/30",
-			"community": "public",
-		},
-	})
+	mockConfig.SetInTest("run_path", testDir)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", []interface{}{map[string]interface{}{"network": "192.168.0.0/30", "community": "public"}})
 
 	listener, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.NoError(t, err)
@@ -686,7 +682,7 @@ func TestMigrateCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			mockSnmpConfig := snmp.Config{
 				Network:   tt.subnet,
@@ -699,17 +695,9 @@ func TestMigrateCache(t *testing.T) {
 					},
 				},
 			}
-			mockListenerConfigs := []interface{}{
-				map[string]interface{}{
-					"network":         mockSnmpConfig.Network,
-					"port":            mockSnmpConfig.Port,
-					"loader":          mockSnmpConfig.Loader,
-					"community":       mockSnmpConfig.Community,
-					"authentications": mockSnmpConfig.Authentications,
-				},
-			}
-			mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", mockListenerConfigs)
-			mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+			mockListenerConfigs := []interface{}{basic.StructToMap(mockSnmpConfig)}
+			mockConfig.SetInTest("network_devices.autodiscovery.configs", mockListenerConfigs)
+			mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 
 			listenerConfig, err := snmp.NewListenerConfig()
 			assert.NoError(t, err)
@@ -754,11 +742,11 @@ func setupTestListener(t *testing.T, configs []interface{}, extraOpts map[string
 
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+	mockConfig.SetInTest("run_path", testDir)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 	for k, v := range extraOpts {
-		mockConfig.SetWithoutSource(k, v)
+		mockConfig.SetInTest(k, v)
 	}
 
 	factory := newTestSessionFactory()

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.applicationHost>
+    <applicationPools>
+      <add name="poolX">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolX-service" />
+          <add name="DD_ENV" value="poolX-env" />
+          <add name="DD_VERSION" value="poolX-version" />
+        </environmentVariables>
+      </add>
+    </applicationPools>
+    <sites>
+      <site name="wcsite" id="30">
+        <application path="/core" applicationPool="poolX">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\coreapp" />
+        </application>
+        <application path="/fw" applicationPool="poolX">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\fwapp" />
+        </application>
+      </site>
+    </sites>
+  </system.applicationHost>
+</configuration>

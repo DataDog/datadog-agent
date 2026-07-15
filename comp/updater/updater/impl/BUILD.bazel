@@ -12,8 +12,8 @@ go_library(
         "//comp/def",
         "//comp/remote-config/rcservice/def",
         "//comp/updater/updater/def",
+        "//pkg/fleet/daemon",
         "//pkg/util/option",
-        "@//pkg/fleet/daemon",
     ],
 )
 

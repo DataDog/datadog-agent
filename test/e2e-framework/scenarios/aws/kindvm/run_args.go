@@ -44,6 +44,14 @@ type RunParams struct {
 	// using raw Kubernetes resources instead of the Datadog Helm chart.
 	// See StandaloneAgentDeployFunc and WithStandaloneOTelAgent.
 	standaloneAgentFunc StandaloneAgentDeployFunc
+
+	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
+	// When empty the cluster uses the default single worker node.
+	workerNodes []kubecomp.KindWorkerNode
+
+	// mountDockerSocket bind-mounts /var/run/docker.sock from the EC2 host into
+	// each kind node, surfacing the host's dockerd inside the cluster.
+	mountDockerSocket bool
 }
 
 type RunOption = func(*RunParams) error
@@ -60,6 +68,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
 		deployDogstatsd:     false,
 		deployOperator:      false,
+		workerNodes:         []kubecomp.KindWorkerNode{},
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -74,7 +83,7 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	}
 
 	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults
@@ -196,4 +205,20 @@ func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
 // bypassing the Datadog Helm chart.
 func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) RunOption {
 	return func(p *RunParams) error { p.standaloneAgentFunc = fn; return nil }
+}
+
+// WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.
+// Use this to test workloads that depend on node topology (e.g. spot vs on-demand capacity types).
+func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
+	return func(p *RunParams) error {
+		p.workerNodes = append(p.workerNodes, nodes...)
+		return nil
+	}
+}
+
+// WithMountDockerSocket bind-mounts /var/run/docker.sock from the EC2 host into
+// each kind node. Use this to reproduce environments (e.g. GKE COS) where the
+// kubelet runs on containerd but a separate dockerd is still reachable.
+func WithMountDockerSocket() RunOption {
+	return func(p *RunParams) error { p.mountDockerSocket = true; return nil }
 }

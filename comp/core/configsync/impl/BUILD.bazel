@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "module.go",
+        "sync.go",
+        "test_common.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/configsync/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/configsync/def",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/config/basic",
+        "//pkg/config/helper",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "module_integration_test.go",
+        "module_test.go",
+        "sync_integration_test.go",
+        "sync_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/configsync/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/config/create",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -53,22 +53,29 @@ func (m *CELMatchingProgram) GetTargetType() workloadfilter.ResourceType {
 	return m.target
 }
 
-// extractRuleMetadata extracts the rule list, resource type and CEL identifier from the given workloadfilter.Rules.
-// This method is responsible for the priority order of the rules:
-// Containers > Processes > Services > Endpoints.
-func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectType workloadfilter.ResourceType, celADID adtypes.CelIdentifier) {
-	switch {
-	case len(rules.Containers) > 0:
-		return rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier
-	case len(rules.Processes) > 0:
-		return rules.Processes, workloadfilter.ProcessType, adtypes.CelProcessIdentifier
-	case len(rules.KubeServices) > 0:
-		return rules.KubeServices, workloadfilter.KubeServiceType, adtypes.CelServiceIdentifier
-	case len(rules.KubeEndpoints) > 0:
-		return rules.KubeEndpoints, workloadfilter.KubeEndpointType, adtypes.CelEndpointIdentifier
-	default:
-		return nil, "", ""
+// ruleMetadata holds the rule list, resource type and CEL identifier for a single resource type.
+type ruleMetadata struct {
+	ruleList   []string
+	objectType workloadfilter.ResourceType
+	celADID    adtypes.CelIdentifier
+}
+
+// extractAllRuleMetadata extracts metadata for ALL non-empty rule categories from the given workloadfilter.Rules.
+func extractAllRuleMetadata(rules workloadfilter.Rules) []ruleMetadata {
+	var result []ruleMetadata
+	if len(rules.Containers) > 0 {
+		result = append(result, ruleMetadata{rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier})
 	}
+	if len(rules.Processes) > 0 {
+		result = append(result, ruleMetadata{rules.Processes, workloadfilter.ProcessType, adtypes.CelProcessIdentifier})
+	}
+	if len(rules.KubeServices) > 0 {
+		result = append(result, ruleMetadata{rules.KubeServices, workloadfilter.KubeServiceType, adtypes.CelServiceIdentifier})
+	}
+	if len(rules.KubeEndpoints) > 0 {
+		result = append(result, ruleMetadata{rules.KubeEndpoints, workloadfilter.KubeEndpointType, adtypes.CelEndpointIdentifier})
+	}
+	return result
 }
 
 // checkRuleRecommendations checks if the given rules contain the recommended fields for the given CEL identifier.
@@ -102,25 +109,38 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 	return nil
 }
 
-// CreateMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
-// It returns nil if no rules are defined.
-func CreateMatchingProgram(rules workloadfilter.Rules) (program MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
-	ruleList, objectType, celADID := extractRuleMetadata(rules)
-	if len(ruleList) == 0 {
-		return nil, "", nil, nil
+// CreateMatchingPrograms creates MatchingPrograms for all resource types that have rules defined.
+// It returns a map of programs keyed by resource type and the list of CEL AD identifiers.
+// If checkRecommendations is true and any type fails recommendation checks, the call fails.
+func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations bool) (map[workloadfilter.ResourceType]MatchingProgram, []adtypes.CelIdentifier, error) {
+	allMeta := extractAllRuleMetadata(rules)
+	if len(allMeta) == 0 {
+		return nil, nil, nil
 	}
 
-	combinedRule := strings.Join(ruleList, " || ")
+	programs := make(map[workloadfilter.ResourceType]MatchingProgram, len(allMeta))
+	var celADIDs []adtypes.CelIdentifier
 
-	celprg, compileErr := celprogram.CreateCELProgram(combinedRule, objectType)
-	if compileErr != nil {
-		return nil, "", compileErr, nil
+	for _, meta := range allMeta {
+		combinedRule := strings.Join(meta.ruleList, " || ")
+
+		celprg, err := celprogram.CreateCELProgram(combinedRule, meta.objectType)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if checkRecommendations {
+			if err := checkRuleRecommendations(combinedRule, meta.celADID); err != nil {
+				return nil, nil, err
+			}
+		}
+
+		programs[meta.objectType] = &CELMatchingProgram{
+			program: celprg,
+			target:  meta.objectType,
+		}
+		celADIDs = append(celADIDs, meta.celADID)
 	}
 
-	recError = checkRuleRecommendations(combinedRule, celADID)
-
-	return &CELMatchingProgram{
-		program: celprg,
-		target:  objectType,
-	}, celADID, nil, recError
+	return programs, celADIDs, nil
 }

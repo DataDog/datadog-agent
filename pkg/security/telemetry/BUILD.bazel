@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "containers_running_telemetry_common.go",
+        "containers_running_telemetry_linux.go",
+        "containers_running_telemetry_others.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//comp/dogstatsd/constants",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+        ],
+        "//conditions:default": [],
+    }),
+)

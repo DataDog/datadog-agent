@@ -9,8 +9,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,10 +24,11 @@ type CommonRunner struct {
 }
 
 func NewCommonRunner(
+	coreCfg model.Reader,
 	configuration *config.Config,
 ) *CommonRunner {
 	return &CommonRunner{
-		opmsClient: opms.NewClient(configuration),
+		opmsClient: opms.NewClient(coreCfg, configuration),
 		config:     configuration,
 	}
 }
@@ -49,8 +52,9 @@ func (n *CommonRunner) Stop(ctx context.Context) error {
 }
 
 func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Millisecond * time.Duration(n.config.HealthCheckInterval))
-	defer ticker.Stop()
+	defaultInterval := time.Millisecond * time.Duration(n.config.HealthCheckInterval)
+	timer := time.NewTimer(defaultInterval)
+	defer timer.Stop()
 
 	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
 
@@ -59,9 +63,10 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 		case <-ctx.Done():
 			log.FromContext(ctx).Info("Stopping health check loop")
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			logger := log.FromContext(ctx)
 			healthResponse, err := n.opmsClient.HealthCheck(ctx)
+			observability.ReportHealthCheck(n.config.MetricsClient)
 			if healthResponse != nil && healthResponse.ServerTime != nil {
 				logger = logger.With(log.String("server-time", healthResponse.ServerTime.UTC().Format(time.RFC3339)))
 			}
@@ -72,6 +77,12 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			} else {
 				logger.Debug("health check succeeded")
 			}
+
+			nextInterval := defaultInterval
+			if healthResponse != nil && healthResponse.RetryAfter > 0 {
+				nextInterval = healthResponse.RetryAfter
+			}
+			timer.Reset(nextInterval)
 		}
 	}
 }

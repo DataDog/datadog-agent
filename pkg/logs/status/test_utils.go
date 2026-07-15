@@ -10,9 +10,9 @@ package status
 import (
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -22,5 +22,5 @@ func InitStatus(coreConfig model.Reader, sources *sources.LogSources) {
 	var isRunning = atomic.NewUint32(StatusRunning)
 	tracker := tailers.NewTailerTracker()
 	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
+	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars, metrics.NewNoopPipelineMonitor(""))
 }

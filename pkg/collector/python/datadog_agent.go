@@ -10,13 +10,18 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -113,7 +118,7 @@ func Headers(jsonPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, jsonPayload **C.char) {
 	goKey := C.GoString(key)
-	if !pkgconfigsetup.Datadog().IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsKnown(goKey) {
 		*jsonPayload = nil
 		return
 	}
@@ -668,6 +673,75 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
 	}
+}
+
+func parseIssueJSON(payload string) (*healthplatformpayload.Issue, error) {
+	t := strings.TrimSpace(payload)
+	if t == "" || t == "null" {
+		return nil, errors.New("empty or null payload")
+	}
+	var msg healthplatformpayload.Issue
+	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
+		return nil, err
+	}
+	if msg.Id == "" {
+		return nil, errors.New("empty or null id")
+	}
+	return &msg, nil
+}
+
+// ReportIssue forwards Python health platform reports to the injected health platform component.
+// reportJSON is protobuf JSON for healthplatform.Issue
+//
+//export ReportIssue
+func ReportIssue(checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	goCheckName := C.GoString(checkName)
+	var goPayload string
+	if reportJSON != nil {
+		goPayload = C.GoString(reportJSON)
+	} else {
+		return
+	}
+
+	report, err := parseIssueJSON(goPayload)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
+		return
+	}
+
+	report.Source = goCheckName
+
+	err = hp.ReportIssue(report)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
+	}
+}
+
+// ResolveIssue marks a health platform issue resolved by IssueId (Python: datadog_agent.resolve_issue).
+//
+//export ResolveIssue
+func ResolveIssue(issueID *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	var id string
+	if issueID != nil {
+		id = C.GoString(issueID)
+	}
+	hp.ResolveIssue(id)
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).

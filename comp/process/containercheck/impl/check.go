@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
@@ -40,8 +40,8 @@ type Provides struct {
 	Component containercheck.Component
 }
 
-// NewCheck creates a new containercheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new containercheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}

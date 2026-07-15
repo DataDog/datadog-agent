@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,7 +25,7 @@ func TestPoolTelemetry(t *testing.T) {
 
 	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
-	pool := NewPool(1024, packetsTelemetryStore)
+	pool := NewPool(configmock.New(t), 1024, packetsTelemetryStore)
 
 	packet := &Packet{
 		Contents:   []byte("test"),

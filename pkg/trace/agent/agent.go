@@ -140,15 +140,26 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
+	// DiscardSpanV1 is the V1 (idx) equivalent of DiscardSpan, called by ProcessV1.
+	// If it returns true, the span will be deleted before processing.
+	DiscardSpanV1 func(*idx.InternalSpan) bool
+
 	// SpanModifier will be called on all non-nil spans of received trace chunks.
 	// Note that any modification of the trace chunk could be overwritten by
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
+	// SpanModifierV1 is the V1 (idx) equivalent of SpanModifier, called by ProcessV1.
+	SpanModifierV1 SpanModifierV1
+
 	// TracerPayloadModifier will be called on all tracer payloads early on in
 	// their processing. In particular this happens before trace chunks are
 	// meaningfully filtered or modified.
 	TracerPayloadModifier TracerPayloadModifier
+
+	// TracerPayloadModifierV1 is the V1 (idx) equivalent of TracerPayloadModifier,
+	// called by ProcessV1.
+	TracerPayloadModifierV1 TracerPayloadModifierV1
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -177,9 +188,20 @@ type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
 }
 
+// SpanModifierV1 is the V1 (idx) equivalent of SpanModifier, allowing spans to
+// be modified while they are processed by the agent's ProcessV1 method.
+type SpanModifierV1 interface {
+	ModifySpanV1(*idx.InternalTraceChunk, *idx.InternalSpan)
+}
+
 // TracerPayloadModifier is an interface that allows tracer implementations to
 // modify a TracerPayload as it is processed in the Agent's Process method.
 type TracerPayloadModifier = payload.TracerPayloadModifier
+
+// TracerPayloadModifierV1 is the V1 (idx) equivalent of TracerPayloadModifier,
+// allowing tracer implementations to modify a TracerPayload as it is processed
+// in the Agent's ProcessV1 method.
+type TracerPayloadModifierV1 = payload.TracerPayloadModifierV1
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
@@ -485,8 +507,9 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TracerPayloadModifier.Modify(p.TracerPayload)
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
+	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
@@ -555,7 +578,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -664,14 +687,18 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	if a.TracerPayloadModifierV1 != nil {
+		a.TracerPayloadModifierV1.ModifyV1(p.TracerPayload)
+	}
 
-	// TODO: Implement this when we support v1 on serverless
-	// a.discardSpans(p)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
+
+	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
+	a.discardSpansV1(p)
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
-		if len(chunk.Spans) == 0 {
+		if chunk == nil || len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			p.TracerPayload.RemoveChunk(i)
 			continue
@@ -715,10 +742,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 					span.SetStringAttribute(k, v)
 				}
 			}
-			// TODO: Skip for now as we will avoid SpanModifier for now as it's just used by serverless
-			// if a.SpanModifier != nil {
-			// 	a.SpanModifier.ModifySpan(chunk, span)
-			// }
+			if a.SpanModifierV1 != nil {
+				a.SpanModifierV1.ModifySpanV1(chunk, span)
+			}
 			a.obfuscateSpanInternal(span)
 			a.TruncateV1(span)
 			if p.ClientComputedTopLevel {
@@ -732,7 +758,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			traceutil.ComputeTopLevelV1(chunk)
 		}
 
-		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -843,7 +869,7 @@ func normalizeAPMModeSpanTag(apmMode string) string {
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string) *traceutil.ProcessedTrace {
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
@@ -859,23 +885,32 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 	if pt.GitCommitSha == "" {
 		pt.GitCommitSha = gitCommitSha
 	}
+	// Only override AppVersion if it was not set in the tracer payload or span tags.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
+	}
 	return pt
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
+func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTraceV1 {
 	pt := &traceutil.ProcessedTraceV1{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion(),
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
+		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
 		pt.GitCommitSha = payloadGitCommitSha
+	}
+	// Only override AppVersion if it was not set in the tracer payload.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
 	}
 	return pt
 }
@@ -906,6 +941,32 @@ func (a *Agent) discardSpans(p *api.Payload) {
 		n := 0
 		for _, span := range chunk.Spans {
 			if !a.DiscardSpan(span) {
+				chunk.Spans[n] = span
+				n++
+			}
+		}
+		// set everything at the back of the array to nil to avoid memory leaking
+		// since we're going to have garbage elements at the back of the slice.
+		for i := n; i < len(chunk.Spans); i++ {
+			chunk.Spans[i] = nil
+		}
+		chunk.Spans = chunk.Spans[:n]
+	}
+}
+
+// discardSpansV1 is the V1 (idx) equivalent of discardSpans: it removes all
+// spans for which the provided DiscardSpanV1 function returns true.
+func (a *Agent) discardSpansV1(p *api.PayloadV1) {
+	if a.DiscardSpanV1 == nil {
+		return
+	}
+	for _, chunk := range p.TracerPayload.Chunks {
+		if chunk == nil {
+			continue
+		}
+		n := 0
+		for _, span := range chunk.Spans {
+			if !a.DiscardSpanV1(span) {
 				chunk.Spans[n] = span
 				n++
 			}

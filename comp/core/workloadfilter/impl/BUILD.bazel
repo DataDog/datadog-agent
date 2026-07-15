@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "filter.go",
+        "filter_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/workloadfilter/baseimpl",
+        "//comp/core/workloadfilter/catalog",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/mock",
+        "//comp/def",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "filter_mock_test.go",
+        "filter_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/mock",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

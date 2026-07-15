@@ -18,7 +18,7 @@
           {
             "function": "main.PointerChainArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 367
+            "lineNumber": 586
           },
           {
             "function": "main.main",
@@ -51,13 +51,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function was inlined"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

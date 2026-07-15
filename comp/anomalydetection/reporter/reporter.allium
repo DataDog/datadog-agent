@@ -1,0 +1,642 @@
+-- allium: 3
+
+-- Scope: Anomaly detection reporter component and its boundary with the
+--   observer that feeds it. Defines what triggers a report, how correlator
+--   lifecycle events are turned into Datadog change events, and the locked
+--   routing identity of those events.
+--
+-- Includes:
+--   - Observer→Reporter trigger semantics (one Report per advance cycle)
+--   - Reporter variants: StdoutReporter (always-on developer trace) and
+--     EventReporter (conditional change-event publisher)
+--   - Event-driven emission: reporters are stateless forwarders of
+--     CorrelatorEvents; deduplication and recurrence detection are owned
+--     by the correlators that emit those events
+--   - Change-event payload shape: title, message, tags, change attributes
+--     block (changed_resource, author, prev_value, new_value, impacted
+--     resources, change_metadata)
+--   - Scorer episode events: EpisodeStarted / EpisodeEnded change events
+--     emitted at-most-once per episode transition
+--   - Sub-category classification (spike, drop, new_pattern) recorded in
+--     change_metadata.sub_category
+--   - Routing identity for edge-intelligence (integration_id and
+--     changed_resource.type), locked by invariant
+--   - Payload size caps imposed by the v2 Events API
+--
+-- Excludes:
+--   - How correlations are detected (observer internals: extractors,
+--     detectors, correlators, scheduler, storage engine)
+--   - How and when correlators fire CorrelationDetected events (owned by
+--     comp/anomalydetection/observer correlationEmitter)
+--   - The shape of upstream signals (metric series, log streams, RRCF) and
+--     how they become Anomaly values
+--   - Event-platform forwarder transport (HTTP delivery, retry, backpressure,
+--     domain selection); the forwarder is treated as an external service
+--   - Event Management intake-side validation, persistence and UI behaviour
+--   - Stdout reporter's exact textual format
+--   - Windowed log-rate annotations and the storage queries that produce
+--     them; these are display enrichment inside the change message
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- A Correlation is a group of related Anomalies that the observer's
+-- correlators have identified as a single behavioural pattern. The reporter
+-- consumes Correlations; it never creates or mutates them. Pattern is the
+-- correlator's stable identifier for the kind of behaviour observed (e.g.
+-- "kernel_bottleneck"); two Correlations with the same Pattern in the same
+-- active episode are the same event.
+external entity Correlation {
+    pattern: String
+    title: String
+    anomalies: List<Anomaly>
+    member_series: List<String>
+    first_seen: Timestamp
+    last_updated: Timestamp
+}
+
+-- An Anomaly is one point-in-time deviation reported by a detector. Multiple
+-- anomalies on related series are grouped into a Correlation upstream.
+external entity Anomaly {
+    type: AnomalyType
+    detector_name: String
+    title: String
+    description: String
+    source_namespace: String
+    source_display_name: String
+    source_tags: Set<String>
+    timestamp: Timestamp
+    score: Decimal?
+    debug_info: AnomalyDebugInfo?
+    context: AnomalyContext?
+
+    -- Derived: a metric-typed anomaly produced by extracting structure from
+    -- log lines. These are presented as log anomalies even though they flow
+    -- through the metric pipeline. The classification depends on the
+    -- extractor that produced the source series.
+    is_log_derived:
+        if type = log: false
+        else if context = nil: false
+        else if source_namespace = `log_pattern_extractor`:
+            context.pattern != ""
+        else if source_namespace = `log_metrics_extractor`:
+            context.pattern != "" or context.example != ""
+        else: false
+
+    -- Derived: a single classification for tagging and rendering. Log-derived
+    -- metric anomalies are reported as logs.
+    effective_type:
+        if type = log or is_log_derived: log
+        else: metric
+}
+
+-- The event-platform forwarder is the agent's outbound channel for typed
+-- payloads bound for various Datadog intakes. The reporter publishes change
+-- events through it; it does not own delivery semantics.
+external entity Forwarder {
+    -- Derived from forwarder lifecycle. When false, the reporter must skip
+    -- event publishing without erroring.
+    available: Boolean
+}
+
+-- A ChangeEvent is the v2 Events API payload submitted to the Event
+-- Management intake. Field types here are the subset whose values the
+-- reporter chooses; intake-side validation and persistence are out of
+-- scope.
+external entity ChangeEvent {
+    title: String
+    message: String
+    category: EventCategory
+    integration_id: String
+    host: String?
+    tags: Set<String>
+    timestamp: Timestamp
+    aggregation_key: String
+    changed_resource_name: String
+    changed_resource_type: String
+    author_name: String
+    author_type: String
+    impacted_resources: List<ImpactedResource>
+    sub_category: SubCategory
+    prev_value: PerSeriesBaseline
+    new_value: PerSeriesCurrent
+    metric_anomalies: List<AnomalyInventoryEntry>
+    log_anomalies: List<AnomalyInventoryEntry>
+    member_series: List<String>
+    first_seen: Timestamp
+    last_updated: Timestamp
+    anomaly_count: Integer
+}
+
+-- A CorrelatorEvent carries a lifecycle notification produced by a
+-- correlator during an advance cycle. The reporter consumes these events
+-- and forwards them to the appropriate sink (event-platform forwarder or
+-- stdout). It never mutates them and never produces them.
+--
+--   kind = CorrelationDetected  — a new pattern first-seen (or recurrence
+--       after inactivity) in the correlator's active set; triggers a
+--       ChangeEvent publication.
+--   kind = EpisodeStarted       — the anomaly scorer's EWMA crossed the
+--       High threshold, opening a new episode.
+--   kind = EpisodeEnded         — the scorer's EWMA dropped below the High
+--       threshold, closing the active episode.
+--
+-- Episode events carry a Correlation snapshot that records the scorer
+-- state at the transition time; the correlation object is immutable from
+-- the reporter's perspective.
+external entity CorrelatorEvent {
+    kind: CorrelatorEventKind
+    correlator_name: String
+    correlation: Correlation
+    timestamp: Timestamp
+}
+
+enum CorrelatorEventKind {
+    CorrelationDetected | EpisodeStarted | EpisodeEnded
+}
+
+-- The observer engine that calls Report on each subscribed reporter. Its
+-- internals are owned by comp/anomalydetection/observer; here it is only
+-- the party on the far side of ObserverReportBoundary.
+external entity ObserverEngine {}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- Detector-supplied baseline and current-state numbers for one anomaly.
+-- Absent for log anomalies that lack a numeric baseline.
+value AnomalyDebugInfo {
+    baseline_mean: Decimal
+    baseline_median: Decimal
+    baseline_stddev: Decimal
+    baseline_mad: Decimal
+    threshold: Decimal
+    current_value: Decimal
+    deviation_sigma: Decimal
+}
+
+-- Optional enrichment attached to an Anomaly by the extractor that produced
+-- its source series.
+value AnomalyContext {
+    pattern: String
+    example: String
+    split_tags: Map<String, String>
+}
+
+-- An entry in the Event Management impacted-resources list. Today the only
+-- impacted resource kind we emit is the service.
+value ImpactedResource {
+    name: String
+    type: String
+}
+
+-- Per-series numeric snapshot carried in prev_value / new_value. Keyed by
+-- the anomaly's display name. Entries for anomalies without DebugInfo are
+-- omitted; the map may be empty. Display names are assumed unique within a
+-- Correlation (the upstream contract from comp/anomalydetection/observer);
+-- if two anomalies in the same Correlation collide, only the later one's
+-- snapshot is retained.
+value PerSeriesBaseline {
+    -- Map<display_name, { mean, median, stddev }>
+    entries: Map<String, Map<String, Decimal>>
+}
+
+value PerSeriesCurrent {
+    -- Map<display_name, { value, deviation_sigma, threshold? }>
+    entries: Map<String, Map<String, Decimal>>
+}
+
+value AnomalyInventoryEntry {
+    source: String
+    detector: String
+    title: String
+    timestamp: Timestamp
+    description: String?
+    score: Decimal?
+    debug_info: AnomalyDebugInfo?
+    context: AnomalyContext?
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum AnomalyType { metric | log }
+
+-- Event Management's category enum; reporter always emits `change`.
+enum EventCategory { change | alert | story }
+
+-- Sub-category recorded in change_metadata.sub_category for downstream
+-- grouping. The enum is closed; new sub-categories require a spec change.
+enum SubCategory { spike | drop | new_pattern }
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+-- A Reporter is an observer-subscribed sink that turns each detection-cycle
+-- output into outbound effects. Two variants ship in this component:
+-- StdoutReporter is the always-on developer trace; EventReporter publishes
+-- change events to the Event Management intake.
+entity Reporter {
+    kind: StdoutReporter | EventReporter
+}
+
+-- The always-on developer trace. Emits a human-readable summary of active
+-- correlations and new anomalies on every advance cycle. Its exact textual
+-- format is not a contract.
+variant StdoutReporter : Reporter {
+}
+
+-- Publishes change events to the Event Management intake. Fully stateless:
+-- deduplication and recurrence detection are entirely owned by the
+-- correlators that produce CorrelatorEvents. The reporter forwards each
+-- CorrelationDetected event as a ChangeEvent and each episode event as a
+-- scorer-episode ChangeEvent. All events are at-most-once; a transient
+-- forwarder failure logs an error and discards the event.
+variant EventReporter : Reporter {
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Gates the EventReporter. When false the reporter component still
+    -- runs (StdoutReporter is always wired) but no change events are
+    -- published. Default is false: opt-in is explicit.
+    reporting_enabled: Boolean = false
+
+    -- Caps imposed by the v2 Events API on outbound payloads. Enforced by
+    -- the PayloadCapsRespected invariant.
+    message_max_bytes: Integer = 4000
+    changed_resource_name_max_chars: Integer = 128
+    impacted_resources_max_items: Integer = 100
+}
+
+------------------------------------------------------------
+-- Routing Identity
+------------------------------------------------------------
+
+-- The Event Management intake routes a change event by integration_id.
+-- source_type_id is derived intake-side from that integration and is not
+-- emitted by the reporter payload.
+--
+-- integration_id and changed_resource.type are constants of the
+-- `edge-intelligence` integration; they are not configurable and are
+-- enforced on every emitted ChangeEvent by the RoutingIdentityLocked
+-- invariant.
+--
+-- changed_resource.type is `anomaly`. The intake rejects the
+-- previously-emitted `configuration` value.
+--
+--   integration_id         = "edge-intelligence"
+--   derived source_type_id = 78252213 (from integration_id)
+--   changed_resource_type  = "anomaly"
+--   author_name           = "datadog-agent-observer"
+--   author_type           = "automation"
+--   category              = change
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Reporter wiring at agent startup. StdoutReporter is unconditional;
+-- EventReporter joins the reporter group only when reporting is enabled
+-- AND the event-platform forwarder is available. A missing or unavailable
+-- forwarder downgrades gracefully to stdout-only with a warning, rather
+-- than failing the agent.
+
+rule WireReportersOnStartup {
+    when: ReporterComponentStarts()
+
+    ensures: StdoutReporter.created()
+
+    ensures:
+        if config.reporting_enabled and Forwarder.available:
+            EventReporter.created()
+
+    @guidance
+        -- ReporterComponentStarts fires once per agent lifetime, at the Fx
+        -- Start hook of comp/anomalydetection/reporter. StdoutReporter is
+        -- unconditional. EventReporter is created only when reporting is
+        -- enabled in config AND the event-platform forwarder is available;
+        -- otherwise the component runs stdout-only with a warning, which is
+        -- the graceful-degradation invariant below.
+}
+
+-- Each advance cycle the observer emits one Report call per subscribed
+-- reporter. The StdoutReporter renders the active correlations and new
+-- anomalies as a developer trace. The exact rendering is not a contract;
+-- the StdoutTraceWritten emission below names the effect at spec level
+-- without prescribing format.
+
+rule ReportCorrelationsToStdout {
+    when: ObserverAdvanced(active_correlations, _correlator_events, new_anomalies)
+
+    for reporter in StdoutReporters:
+        ensures: StdoutTraceWritten(
+            reporter: reporter,
+            correlations: active_correlations,
+            new_anomalies: new_anomalies
+        )
+
+    @guidance
+        -- StdoutReporter never publishes externally. Patterns delivered via
+        -- CorrelationDetected events log at info; patterns present in
+        -- active_correlations but absent from the current cycle's events
+        -- log at debug (ongoing). The StdoutTraceWritten event is the
+        -- observable boundary; its textual form is unspecified.
+}
+
+-- Each CorrelationDetected event from this cycle produces exactly one
+-- ChangeEvent publication attempt. Each episode event (EpisodeStarted,
+-- EpisodeEnded) produces one scorer-episode publication attempt. All events
+-- are at-most-once: a forwarder failure logs an error and discards the event.
+-- Iterating over EventReporters (a 0-or-1 element collection) makes the rule
+-- a no-op when reporting is not enabled.
+
+rule PublishCorrelatorEvents {
+    when: ObserverAdvanced(_active_correlations, correlator_events, _new_anomalies)
+
+    for reporter in EventReporters:
+        for evt in correlator_events where evt.kind = CorrelationDetected:
+            let c = evt.correlation
+            ensures: ChangeEvent.created(
+                title: c.title,
+                message: render_change_message(c),
+                category: change,
+                integration_id: "edge-intelligence",
+                host: derive_host(c),
+                tags: derive_event_tags(c),
+                timestamp: c.first_seen,
+                aggregation_key: "observer:" + c.pattern,
+                changed_resource_name: truncate(c.pattern, config.changed_resource_name_max_chars),
+                changed_resource_type: "anomaly",
+                author_name: "datadog-agent-observer",
+                author_type: "automation",
+                impacted_resources: derive_impacted_services(c),
+                sub_category: classify_sub_category(c),
+                prev_value: derive_prev_value(c),
+                new_value: derive_new_value(c),
+                metric_anomalies: metric_inventory(c),
+                log_anomalies: log_inventory(c),
+                member_series: c.member_series,
+                first_seen: c.first_seen,
+                last_updated: c.last_updated,
+                anomaly_count: c.anomalies.count
+            ) or:
+                ensures: one error log emitted
+
+        for evt in correlator_events
+            where evt.kind in {EpisodeStarted, EpisodeEnded}:
+            ensures: EpisodeChangeEvent.created(
+                kind: evt.kind,
+                correlator_name: evt.correlator_name,
+                correlation: evt.correlation,
+                timestamp: evt.timestamp
+            ) or:
+                ensures: one error log emitted
+
+    @guidance
+        -- Deduplication (at-most-once per episode) is owned by the
+        -- correlator that emitted the CorrelationDetected event via its
+        -- correlationEmitter helper. The reporter holds no seen-pattern
+        -- state; it is a pure, stateless forwarder.
+        --
+        -- All events are at-most-once. A forwarder failure logs the error
+        -- and discards the event; the correlator has already drained it
+        -- from its internal pending queue so there is no replay mechanism.
+}
+
+------------------------------------------------------------
+-- Derivations (black-box functions)
+------------------------------------------------------------
+
+-- The functions called from PublishCorrelationDetected's ensures clause are
+-- pure black-box functions of Correlation. Their outputs are part of
+-- the event-payload contract; their internal representation is left as
+-- prose so that string-formatting and iteration-order choices are not
+-- promoted to machine-checkable obligations.
+
+-- classify_sub_category(c: Correlation) -> SubCategory
+--
+-- Returns one of spike | drop | new_pattern, in priority order:
+--   1. If any log-effective anomaly lacks a meaningful baseline (no
+--      debug_info, or debug_info.baseline_mean = 0), the whole
+--      correlation is `new_pattern`. These are novel signals that did
+--      not exist before.
+--   2. Otherwise, if every anomaly with debug_info has
+--      current_value <= baseline_mean, classify as `drop`.
+--   3. Otherwise classify as `spike`.
+--   A Correlation with no anomalies classifies as `spike`.
+
+-- derive_host(c: Correlation) -> String
+--
+-- The agent hostname from the hostname component, attached to the change
+-- event for intake-side host association. Omitted from the wire payload
+-- when the hostname component is unavailable or returns an empty value.
+
+-- derive_event_tags(c: Correlation) -> Set<String>
+--
+-- Every change event is tagged with a fixed source tag and the
+-- originating pattern, then enriched with the dimensions that identify
+-- which workload the anomalies belong to.
+--
+--   Always present:
+--     source:edge-intelligence
+--     pattern:{c.pattern}
+--
+--   Anomaly-type tags (zero, one, or both):
+--     anomaly_type:metric  if any anomaly has effective_type = metric
+--     anomaly_type:log     if any anomaly has effective_type = log
+--
+--   Dimensional tags: the union of service:, env:, host: tags found on
+--     each anomaly's source_tags, plus the same keys lifted from
+--     context.split_tags (set by the log-pattern clusterer). Tags are
+--     deduplicated.
+--
+-- The leading two tags (source and pattern) are kept in that order;
+-- all remaining tags are sorted for stable output.
+
+-- derive_impacted_services(c: Correlation) -> List<ImpactedResource>
+--
+-- The unique set of services found on member-series tags and anomaly
+-- source tags, emitted as { name, type=service } entries. Sorted
+-- alphabetically before capping at config.impacted_resources_max_items
+-- so the cap is deterministic. When the set is empty, the field is
+-- omitted from the wire payload rather than emitted as [].
+
+-- derive_prev_value(c: Correlation) -> PerSeriesBaseline
+-- derive_new_value(c: Correlation)  -> PerSeriesCurrent
+--
+-- Per-anomaly numeric snapshots keyed by anomaly display name.
+-- prev_value records the baseline at detection time (mean, median,
+-- stddev). new_value records the current value, deviation_sigma and,
+-- when set, the detector threshold. Anomalies without debug_info are
+-- omitted from both maps.
+
+-- metric_inventory(c: Correlation) -> List<AnomalyInventoryEntry>
+-- log_inventory(c: Correlation)    -> List<AnomalyInventoryEntry>
+--
+-- Partition c.anomalies by effective_type into two inventory lists.
+-- Each entry carries the originating anomaly's identifying fields
+-- (source, detector, title, timestamp, description, score, debug_info,
+-- context). Every anomaly appears in exactly one of the two lists;
+-- see AnomaliesPartitionedByEffectiveType.
+
+-- render_change_message(c: Correlation) -> String
+--
+-- A compact human-readable summary listing the correlation header and
+-- one bullet per anomaly. Log-derived anomalies render with
+-- pattern/example/rate annotations; numeric anomalies render with
+-- current value vs baseline mean and sigma. Anomaly bullets are
+-- deduplicated and sorted so two cycles that observe the same anomalies
+-- produce byte-identical messages; the header reports the deduplicated
+-- bullet count, not the raw anomaly count. The resulting string is
+-- truncated to at most config.message_max_bytes bytes; truncation
+-- happens on a rune boundary so the result remains valid UTF-8, and a
+-- three-byte "..." suffix is appended to signal that the message was
+-- cut.
+
+-- truncate(s: String, max_chars: Integer) -> String
+--   Returns s when it is at most max_chars characters long. Otherwise
+--   returns the first (max_chars - 1) characters of s followed by an
+--   ellipsis character (U+2026), so the result is exactly max_chars
+--   characters and remains valid UTF-8. max_chars must be at least 1.
+
+-- map_to_pattern_set(cs: List<Correlation>) -> Set<String>
+--   The set of c.pattern values from cs.
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant SubCategoryCoversAll {
+    -- classify_sub_category is total: every Correlation maps to exactly
+    -- one SubCategory value.
+    for c in Correlations:
+        classify_sub_category(c) in {spike, drop, new_pattern}
+}
+
+invariant RoutingIdentityLocked {
+    -- Every emitted ChangeEvent uses the locked routing identity.
+    -- source_type_id is not emitted; Event Management derives it from
+    -- integration_id for the registered publisher.
+    -- changed_resource.type is `anomaly`; the previously-emitted
+    -- `configuration` value is rejected by the intake.
+    for e in ChangeEvents:
+        e.integration_id = "edge-intelligence"
+        and e.changed_resource_type = "anomaly"
+        and e.author_name = "datadog-agent-observer"
+        and e.author_type = "automation"
+        and e.category = change
+}
+
+invariant PayloadCapsRespected {
+    -- Caps imposed by the v2 Events API. Encoded here because they shape
+    -- what reaches the user, not just the wire payload.
+    for e in ChangeEvents:
+        byte_length(e.message) <= config.message_max_bytes
+        and char_length(e.changed_resource_name) <= config.changed_resource_name_max_chars
+        and e.impacted_resources.count <= config.impacted_resources_max_items
+}
+
+invariant AnomaliesPartitionedByEffectiveType {
+    -- Every anomaly in a Correlation appears in exactly one of
+    -- metric_anomalies or log_anomalies, never both, never neither.
+    for e in ChangeEvents:
+        e.metric_anomalies.count + e.log_anomalies.count = e.anomaly_count
+}
+
+invariant GracefulDegradationWithoutForwarder {
+    -- If reporting is enabled but the forwarder is unavailable at startup,
+    -- the agent runs normally with StdoutReporter only; no ChangeEvent is
+    -- ever emitted, and no error is propagated to the caller.
+    not (config.reporting_enabled and not Forwarder.available)
+    or (EventReporters.count = 0 and ChangeEvents.count = 0)
+}
+
+-- A further behavioural property holds but is not expressible as a
+-- single-point-in-time invariant; it constrains how state evolves across
+-- advance cycles.
+--
+-- PublishAtMostOncePerEpisode: within a single contiguous active episode
+-- for a pattern, the EventReporter emits at most one ChangeEvent. This
+-- property is enforced by the correlationEmitter inside each correlator:
+-- it fires CorrelationDetected at most once per episode per pattern. A
+-- new episode begins after the pattern leaves the active set and the
+-- correlator resets its emitter state. The reporter inherits the guarantee
+-- without maintaining its own seen-pattern set. A forwarder failure on the
+-- single emission discards the event (at-most-once, not exactly-once).
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- The boundary between the observer's engine and any Reporter. The observer
+-- calls Report once per advance cycle on every subscribed reporter,
+-- carrying the active correlation set, the correlator lifecycle events
+-- produced during this advance cycle, and the new anomalies from this
+-- cycle. Reporters must not block the calling goroutine.
+surface ObserverReportBoundary {
+    facing _: ObserverEngine
+
+    exposes:
+        Report(active_correlations: List<Correlation>, correlator_events: List<CorrelatorEvent>, new_anomalies: List<Anomaly>)
+
+    provides:
+        ObserverAdvanced(active_correlations: List<Correlation>, correlator_events: List<CorrelatorEvent>, new_anomalies: List<Anomaly>)
+
+    @guarantee SingleAdvancePerCall
+        -- Report is invoked exactly once per advance cycle per subscribed
+        -- reporter; calls are serialised within a reporter (the observer
+        -- does not interleave Report invocations on the same reporter).
+
+    @guarantee ActiveSetIsAuthoritative
+        -- active_correlations is the complete current active set as of this
+        -- advance cycle. Reporters use it to display or log ongoing patterns
+        -- and to distinguish newly-detected patterns from ongoing ones.
+        -- correlator_events carries only the events produced during this
+        -- cycle; events from prior cycles are not re-delivered.
+
+    @guarantee CorrelationsAreOpaque
+        -- The reporter treats Correlation, Anomaly, and CorrelatorEvent as
+        -- read-only data carriers. It never mutates them, never persists
+        -- them beyond the current Report call, and never queries observer
+        -- internals.
+
+    @guidance
+        -- An optional companion handshake exists for reporters that want
+        -- windowed rate annotations in their rendered messages: the
+        -- observer calls SetStorage(storage) exactly once after engine
+        -- construction, before the first Report call. Reporters that do
+        -- not need historical rates ignore this handshake.
+}
+
+------------------------------------------------------------
+-- Deferred Specifications
+------------------------------------------------------------
+
+deferred ForwarderTransport -- see: comp/forwarder/eventplatform
+    -- Event-platform forwarder delivery semantics (HTTP intake selection,
+    -- retry policy, backpressure, payload draining at shutdown) are owned
+    -- by comp/forwarder/eventplatform and not specified here. The reporter
+    -- requires only that SendEventPlatformEventBlocking returns an error
+    -- when delivery fails synchronously; asynchronous failures are not
+    -- surfaced.
+
+deferred AnomalyProduction -- see: comp/anomalydetection/observer
+    -- How Anomaly and Correlation values are produced (extractors,
+    -- detectors, correlators, scheduling, retention) is owned by
+    -- comp/anomalydetection/observer. This spec treats them as inputs.
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "RicherEvidenceBlock: change_metadata currently carries summary statistics (mean, sigma, sub_category) and the anomaly inventory. Should change_metadata also carry structured evidence — which detectors fired, with what scores, on what windows, and links back into source signals — and if so in what shape? Today this is implementation-private; promoting it to the spec would commit the reporter to a stable evidence schema."
+
+open question "LogRateAnnotationContract: rendered messages may include log-rate annotations of the form 'rate: X.Xlog/s (was Y.Ylog/s last minutes)'. The 60-second current window, 5-minute baseline window, 0.3 relative threshold and 2.0 absolute threshold currently live in the implementation. Are these part of the user-visible contract (and therefore spec-level constants in config) or display-only enrichment that the spec leaves unspecified?"

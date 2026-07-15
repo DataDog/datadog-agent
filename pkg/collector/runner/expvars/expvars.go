@@ -14,7 +14,6 @@ import (
 	"github.com/mohae/deepcopy"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -113,7 +112,6 @@ func AddCheckStats(c check.Check,
 	warnings []error,
 	mStats checkstats.SenderStats,
 	haagent haagent.Component,
-	healthPlatform healthplatform.Component,
 ) {
 
 	var s *checkstats.Stats
@@ -132,7 +130,7 @@ func AddCheckStats(c check.Check,
 
 	s, found = stats[c.ID()]
 	if !found {
-		s = checkstats.NewStats(c, healthPlatform)
+		s = checkstats.NewStats(c)
 		stats[c.ID()] = s
 	}
 

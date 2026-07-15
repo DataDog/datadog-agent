@@ -95,11 +95,6 @@ instances:
     #
     # oracle_client: false
 
-    ## @param oracle_client_lib_dir - string - optional
-    ## Specify the directory with Oracle client libraries. Relevant only if `oracle_client = true`.
-    #
-    # oracle_client_lib_dir: <ORACLE_CLIENT_LIB_DIR>
-
     ## @param username - string - required
     ## Username for the Datadog-Oracle server check user. The user has to exist in CDB.
     #
@@ -228,6 +223,11 @@ instances:
       ## Enable collection of tablespace usage
       #
       # enabled: true
+
+      ## @param collection_interval - int - optional - default: 600
+      ## The interval in seconds between tablespace usage collections.
+      #
+      # collection_interval: 600
 
     ## Configure collection of process memory usage
     #

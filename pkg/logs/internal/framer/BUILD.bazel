@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "framer",
+    srcs = [
+        "docker_stream.go",
+        "framer.go",
+        "matcher.go",
+        "no_framing.go",
+        "onebyte.go",
+        "syslog.go",
+        "twobyte.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/framer",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_diagnostic//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//pkg/logs/message",
+        "//pkg/logs/status/utils",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "framer_test",
+    srcs = [
+        "docker_stream_test.go",
+        "framer_test.go",
+        "matcher_test.go",
+        "syslog_test.go",
+    ],
+    embed = [":framer"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/logs/message",
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

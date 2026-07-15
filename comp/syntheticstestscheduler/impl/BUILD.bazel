@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "assertions.go",
+        "config.go",
+        "scheduler.go",
+        "syntheticscomponent.go",
+        "telemetry.go",
+        "testpoller.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/impl",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/networkpath/traceroute/def",
+        "//comp/syntheticstestscheduler/common",
+        "//comp/syntheticstestscheduler/def",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/util/http",
+        "//pkg/version",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "assertions_test.go",
+        "syntheticstestscheduler_test.go",
+        "testpoller_test.go",
+        "worker_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/forwarder/eventplatform/impl",
+        "//comp/syntheticstestscheduler/common",
+        "//pkg/config/mock",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/trace/teststatsd",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_mock//gomock",
+    ],
+)

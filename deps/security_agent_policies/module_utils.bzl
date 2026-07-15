@@ -14,6 +14,7 @@ Usage:
 
 load("@bazel_tools//tools/build_defs/repo:cache.bzl", "DEFAULT_CANONICAL_ID_ENV", "get_default_canonical_id")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "get_auth")
+load("//bazel/repo:release_json.bzl", "read_effective_release_json")
 
 _get_security_agent_policies_attrs = {
     "canonical_id": attr.string(),
@@ -22,7 +23,7 @@ _get_security_agent_policies_attrs = {
 
 def _get_security_agent_policies_impl(rctx):
     """Implementation of the get_security_agent_policies_using_release_constants rule."""
-    release_info = json.decode(rctx.read(rctx.path(rctx.attr._release_info)))
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
     vars = release_info["dependencies"]
 
     version = vars["SECURITY_AGENT_POLICIES_VERSION"]  # e.g. "v0.77.0"

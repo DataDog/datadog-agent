@@ -225,7 +225,7 @@ class KMTDirectoriesRequirement(Requirement):
         ]
 
         user = getpass.getuser()
-        group = kmt_os.user_group
+        group = kmt_os.user_group()
 
         return check_directories(ctx, dirs, fix, user, group, 0o755)
 

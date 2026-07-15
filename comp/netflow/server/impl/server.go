@@ -14,7 +14,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -23,6 +24,7 @@ import (
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
@@ -32,11 +34,13 @@ type Requires struct {
 	compdef.In
 	Lc            compdef.Lifecycle
 	Config        nfconfig.Component
+	AgentConfig   coreconfig.Component
 	Logger        log.Component
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
 	RDNSQuerier   rdnsquerier.Component
+	NPCollector   npcollector.Component `optional:"true"`
 }
 
 // Provides defines what the netflow server component provides.
@@ -47,9 +51,20 @@ type Provides struct {
 	StatusProvider status.InformationProvider
 }
 
+// disabledServer is the zero-overhead stub returned when netflow is disabled.
+type disabledServer struct{}
+
 // NewComponent configures a netflow server.
 func NewComponent(deps Requires) (Provides, error) {
 	conf := deps.Config.Get()
+
+	if !conf.Enabled {
+		return Provides{
+			Comp:           &disabledServer{},
+			StatusProvider: status.NewInformationProvider(nil),
+		}, nil
+	}
+
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
 		return Provides{}, err
@@ -67,8 +82,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, networkPathEnabled, deps.NPCollector)
 
 	srv := &Server{
 		config:  conf,
@@ -76,25 +92,22 @@ func NewComponent(deps Requires) (Provides, error) {
 		logger:  deps.Logger,
 	}
 
-	var statusProvider status.Provider
-
-	if conf.Enabled {
-		statusProvider = Provider{
-			server: srv,
-		}
-
-		// netflow is enabled, so start the server
-		deps.Lc.Append(compdef.Hook{
-			OnStart: func(_ context.Context) error {
-				err := srv.Start()
-				return err
-			},
-			OnStop: func(context.Context) error {
-				srv.Stop()
-				return nil
-			},
-		})
+	statusProvider := Provider{
+		server: srv,
 	}
+
+	// netflow is enabled, so start the server
+	deps.Lc.Append(compdef.Hook{
+		OnStart: func(_ context.Context) error {
+			err := srv.Start()
+			return err
+		},
+		OnStop: func(context.Context) error {
+			srv.Stop()
+			return nil
+		},
+	})
+
 	return Provides{
 		Comp:           srv,
 		StatusProvider: status.NewInformationProvider(statusProvider),

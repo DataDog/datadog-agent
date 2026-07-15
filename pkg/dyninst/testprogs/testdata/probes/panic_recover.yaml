@@ -1,0 +1,71 @@
+binary: panic_recover
+probes:
+  - id: a
+    type: LOG_PROBE
+    where:
+      methodName: main.a
+    captureSnapshot: true
+  - id: b
+    type: LOG_PROBE
+    where:
+      methodName: main.b
+    captureSnapshot: true
+    capture:
+      maxLength: 64
+  - id: c
+    type: LOG_PROBE
+    where:
+      methodName: main.c
+    captureSnapshot: true
+    capture:
+      maxLength: 64
+  - id: d
+    type: LOG_PROBE
+    where:
+      methodName: main.d
+    captureSnapshot: true
+  - id: e
+    type: LOG_PROBE
+    where:
+      methodName: main.e
+    captureSnapshot: true
+  - id: f
+    type: LOG_PROBE
+    where:
+      methodName: main.f
+    captureSnapshot: true
+  - id: recoverNoPanic
+    type: LOG_PROBE
+    where:
+      methodName: main.recoverNoPanic
+    captureSnapshot: true
+  - id: probedRecoverer
+    type: LOG_PROBE
+    where:
+      methodName: main.probedRecoverer
+    captureSnapshot: true
+  - id: probedDeep
+    type: LOG_PROBE
+    where:
+      methodName: main.probedDeep
+    captureSnapshot: true
+  - id: goroutinePanic
+    type: LOG_PROBE
+    where:
+      methodName: main.goroutinePanic
+    captureSnapshot: true
+  - id: goroutineInner
+    type: LOG_PROBE
+    where:
+      methodName: main.goroutineInner
+    captureSnapshot: true
+  # warmupErrorType exists solely to populate the type catalog with
+  # the error interface and the *errors.errorString concrete type. The
+  # recovery probe's @exception chase reuses those registrations so panic
+  # values built via fmt.Errorf render their inner message instead of
+  # stopping at "missing type information".
+  - id: warmupErrorType
+    type: LOG_PROBE
+    where:
+      methodName: main.warmupErrorType
+    captureSnapshot: true

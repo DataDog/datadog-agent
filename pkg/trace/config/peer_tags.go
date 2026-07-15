@@ -32,10 +32,37 @@ var peerTagConcepts = []semantics.Concept{
 	semantics.ConceptPeerAWSKinesisStream,
 }
 
-// basePeerTags is the base set of peer tag precursors (tags from which peer tags
-// are derived) we aggregate on when peer tag aggregation is enabled.
-var basePeerTags = func() []string {
+// PeerTagsCache is a snapshot of the peer-tag attribute key set together with
+// the semantic registry content hash it was derived from. Callers that need
+// to avoid recomputing on every read (e.g. the Concentrator's hot path)
+// should hold a *PeerTagsCache and compare its ContentHash against
+// semantics.DefaultRegistry().ContentHash() to decide when to rebuild via
+// AgentConfig.PeerTagsCache.
+type PeerTagsCache struct {
+	// ContentHash is the registry content hash that Keys was derived from.
+	ContentHash string
+	// Keys is the sorted, deduped peer-tag attribute key set, or nil if
+	// PeerTagsAggregation is disabled on the AgentConfig.
+	Keys []string
+}
+
+// PeerTagsCache builds and returns a fresh PeerTagsCache snapshot from the
+// live semantic registry combined with the operator-configured PeerTags.
+// The returned ContentHash is the registry's ContentHash() at the time of the call.
+// Returns a snapshot with nil Keys when PeerTagsAggregation is disabled.
+func (c *AgentConfig) PeerTagsCache() *PeerTagsCache {
 	r := semantics.DefaultRegistry()
+	cache := &PeerTagsCache{ContentHash: r.ContentHash()}
+	if !c.PeerTagsAggregation {
+		return cache
+	}
+	cache.Keys = preparePeerTags(append(basePeerTags(r), c.PeerTags...))
+	return cache
+}
+
+// basePeerTags returns the sorted list of peer-tag precursor attribute keys
+// derived from r. Internal helper for PeerTagsCache and the package's tests.
+func basePeerTags(r semantics.Registry) []string {
 	var precursors []string
 	for _, concept := range peerTagConcepts {
 		for _, info := range r.GetAttributePrecedence(concept) {
@@ -44,7 +71,7 @@ var basePeerTags = func() []string {
 	}
 	sort.Strings(precursors)
 	return precursors
-}()
+}
 
 func preparePeerTags(tags []string) []string {
 	if len(tags) == 0 {

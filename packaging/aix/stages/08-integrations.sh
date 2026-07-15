@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="08-integrations"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -48,8 +41,6 @@ fi
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed."
-        log "       Re-run after fixing the error by deleting the sentinel:"
-        log "       rm $SENTINEL"
         log "       Common causes:"
         log "         - Stage 07 constraints.txt missing: ensure Stage 07 completed"
         log "         - integrations-core check not found: verify INTEGRATIONS_CORE=$INTEGRATIONS_CORE"
@@ -58,24 +49,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ─── Step 1: Copy built-in Go check example configs ───────────────────────────
+# ─── Step 1: Supplement Go check configs from integrations-core ──────────────
 #
-# Built-in Go checks (cpu, memory, disk, load, network) are implemented in the
-# agent binary itself and do not require pip install. We bundle their example
-# configuration files so the operator can see the available options.
+# For every Go check whose conf.d directory was populated by inv agent.build,
+# also copy conf.yaml.default and conf.yaml.example from integrations-core if
+# they exist there. This provides the full documented configuration (e.g. snmp
+# has a rich conf.yaml.example in integrations-core but only an auto_conf.yaml
+# in the agent repo). Stage 10 copies agent-repo configs afterward, so
+# agent-repo files take precedence when both repos provide the same filename.
 
-log "Copying built-in Go check default configs"
-# Built-in check config files are named conf.yaml.default (not conf.yaml.example).
-# The network check is intentionally excluded: datadog_checks.network is a Python
-# check that is not bundled in the AIX package; including its config causes the
-# agent to attempt loading the Python check and log an ImportError at startup.
-for check in cpu memory disk load; do
-    mkdir -p "$STAGING/etc/datadog-agent/conf.d/${check}.d"
-    cp "/opt/datadog-agent/cmd/agent/dist/conf.d/${check}.d/conf.yaml.default" \
-       "$STAGING/etc/datadog-agent/conf.d/${check}.d/" 2>/dev/null || \
-        log "WARNING: no conf.yaml.default for built-in check: $check"
-done
-log "Built-in check configs copied"
+AGENT_DIST_CONFD="$AGENT_SRC/bin/agent/dist/conf.d"
+if [ -d "$AGENT_DIST_CONFD" ]; then
+    for check_dir in "$AGENT_DIST_CONFD"/*.d; do
+        [ -d "$check_dir" ] || continue
+        check=$(basename "$check_dir" .d)
+        CHECK_DATA="$INTEGRATIONS_CORE/$check/datadog_checks/$check/data"
+        if [ -d "$CHECK_DATA" ]; then
+            mkdir -p "$STAGING/etc/datadog-agent/conf.d/${check}.d"
+            for conf_file in conf.yaml.example conf.yaml.default; do
+                if [ -f "$CHECK_DATA/$conf_file" ]; then
+                    cp "$CHECK_DATA/$conf_file" "$STAGING/etc/datadog-agent/conf.d/${check}.d/"
+                    log "Copied integrations-core $conf_file for Go check: $check"
+                fi
+            done
+        fi
+    done
+fi
 
 # ─── Step 2: Install Python checks from integrations-core ─────────────────────
 #
@@ -91,7 +90,7 @@ log "Built-in check configs copied"
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 
-PYTHON_CHECKS="lparstats openmetrics ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
+PYTHON_CHECKS="lparstats openmetrics process ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
 
 log "Installing Python checks: $PYTHON_CHECKS"
 
@@ -118,7 +117,4 @@ done
 
 log "All Python checks processed"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

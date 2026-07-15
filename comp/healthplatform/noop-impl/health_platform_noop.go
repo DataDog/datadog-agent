@@ -10,14 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // Provides defines the output of the noop health-platform component
@@ -42,11 +41,7 @@ func NewComponent() Provides {
 	}
 }
 
-func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
-	return nil
-}
-
-func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatformdef.HealthCheckFunc, _ time.Duration) error {
+func (n *noopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
@@ -54,14 +49,20 @@ func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 	return 0, make(map[string]*healthplatformpayload.Issue)
 }
 
-func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatformpayload.Issue {
+func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
-func (n *noopHealthPlatform) ClearIssuesForCheck(_ string) {
+func (n *noopHealthPlatform) RegisterIssuesObserver(_ healthplatformdef.IssuesObserver) {}
+
+func (n *noopHealthPlatform) ResolveIssue(_ string) {
 }
 
-func (n *noopHealthPlatform) ClearAllIssues() {
+func (n *noopHealthPlatform) ResolveAllIssues() {
+}
+
+func (n *noopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
+	return nil
 }
 
 func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {

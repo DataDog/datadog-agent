@@ -200,7 +200,7 @@ func evaluateExpression(path []string, i int, input, topLevelInput reflect.Value
 		part = part[1 : len(part)-1]
 	}
 	switch input.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return evaluateExpression(path, i, input.Elem(), topLevelInput)
 	case reflect.Struct:
 		caser := cases.Title(language.English)

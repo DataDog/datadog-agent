@@ -1,11 +1,13 @@
 import base64
+import os
+import secrets
 from pathlib import Path
 from typing import NamedTuple
 
 from invoke.context import Context
 from invoke.exceptions import UnexpectedExit
 
-from tasks.e2e_framework.tool import is_windows, warn
+from tasks.e2e_framework.tool import info, is_windows, warn
 
 
 def ssh_fingerprint_to_bytes(fingerprint: str) -> bytes:
@@ -144,3 +146,79 @@ def is_key_encrypted(ctx: Context, path: str):
 
 def ssh_agent_supported():
     return not is_windows()
+
+
+def add_key_to_ssh_agent(ctx: Context, private_key_path: str, passphrase: str) -> None:
+    """
+    Add a passphrase-protected private key to the running ssh-agent non-interactively.
+    On macOS, also stores the passphrase in the Keychain so the key survives reboots.
+    No-op on Windows where Pulumi does not use ssh-agent.
+    """
+    import platform
+    import stat
+    import tempfile
+
+    if not ssh_agent_supported():
+        return
+
+    # Temporary askpass script so ssh-add gets the passphrase without an interactive prompt
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        f.write(f'#!/bin/sh\nprintf "%s" "{passphrase}"\n')
+        askpass_path = f.name
+    os.chmod(askpass_path, stat.S_IRWXU)
+
+    try:
+        # On macOS, --apple-use-keychain persists the passphrase across reboots
+        extra = "--apple-use-keychain " if platform.system() == "Darwin" else ""
+        ctx.run(
+            f'SSH_ASKPASS_REQUIRE=force SSH_ASKPASS="{askpass_path}" ssh-add {extra}"{private_key_path}"',
+            hide=True,
+        )
+        info(f"✓ SSH key added to ssh-agent: {private_key_path}")
+    except UnexpectedExit as e:
+        warn(f"Could not add key to ssh-agent (is it running?): {e}")
+    finally:
+        os.unlink(askpass_path)
+
+
+def default_key_paths(
+    account: str,
+    user: str,
+    provider: str = "aws",
+    key_type: str = "rsa",
+) -> tuple[Path, Path]:
+    """
+    Return (private_key_path, public_key_path) for the auto-generated e2e SSH keypair.
+
+    provider="aws"   → ~/.ssh/id_{key_type}_e2e_{account}_{user}.pem  (no prefix, backward-compat)
+    provider="azure" → ~/.ssh/id_{key_type}_e2e_azure_{account}_{user}.pem
+    provider="gcp"   → ~/.ssh/id_{key_type}_e2e_gcp_{account}_{user}.pem
+    """
+    account_part = account.replace("-", "_")
+    provider_part = "" if provider == "aws" else f"{provider}_"
+    private_path = Path.home() / ".ssh" / f"id_{key_type}_e2e_{provider_part}{account_part}_{user}.pem"
+    public_path = private_path.with_name(f"{private_path.stem}.pub")
+    return private_path, public_path
+
+
+def generate_keypair_with_passphrase(
+    ctx: Context,
+    private_key_path: str,
+    public_key_path: str,
+    key_type: str = "ed25519",
+) -> str:
+    """
+    Generate a new SSH keypair encrypted with a random passphrase.
+    Writes the private key to private_key_path and the public key to public_key_path.
+    Returns the passphrase.
+    """
+    passphrase = secrets.token_urlsafe(32)
+    os.makedirs(Path(private_key_path).parent, exist_ok=True)
+    ctx.run(f'ssh-keygen -t {key_type} -f "{private_key_path}" -N "{passphrase}" -C ""', hide=True)
+    if not is_windows():
+        os.chmod(private_key_path, 0o600)
+    # ssh-keygen appends .pub to the private key path; rename to the desired public key path
+    generated_pub = f"{private_key_path}.pub"
+    if generated_pub != public_key_path:
+        os.rename(generated_pub, public_key_path)
+    return passphrase

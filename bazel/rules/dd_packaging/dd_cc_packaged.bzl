@@ -1,12 +1,44 @@
 """dd_cc_packaged — packaging-aware wrapper around cc_shared_library or cc_binary."""
 
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
+
+def _dd_packaged_files_impl(ctx):
+    rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
+    dest_src_map = {}
+
+    for src, prefix in ctx.attr.srcs.items():
+        for out in rewrite_rpaths(ctx, inputs = src.files.to_list(), rpath = rpath):
+            dest = (prefix + "/" + out.basename) if prefix else out.basename
+            dest_src_map[dest] = out
+
+    return [PackageFilesInfo(
+        dest_src_map = dest_src_map,
+        attributes = {"mode": "0755"},
+    )]
+
+_dd_packaged_files_rule = rule(
+    implementation = _dd_packaged_files_impl,
+    attrs = {
+        "srcs": attr.label_keyed_string_dict(
+            doc = "Dict mapping file/directory labels to their installation prefix",
+            allow_files = True,
+        ),
+        "rpath": attr.string(
+            default = "{install_dir}/embedded/lib",
+        ),
+        "_install_dir": attr.label(default = "@@//:install_dir"),
+    },
+    toolchains = [
+        "//bazel/toolchains/rpath_rewriter",
+    ],
+)
 
 def _dd_cc_packaged_rule_impl(ctx):
     installed = []
@@ -48,36 +80,50 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
+
     rewrite_rpath(
         name = patched_name,
         inputs = [input],
         package_metadata = [],
     )
-    rule_installed_files = list(installed_files)
+    extra_files = []
+    if installed_executables:
+        exec_files_name = "{}_exec_files".format(name)
+        _dd_packaged_files_rule(
+            name = exec_files_name,
+            srcs = installed_executables,
+            package_metadata = [],
+            visibility = visibility,
+        )
+        extra_files.append(":{}".format(exec_files_name))
     packaged_lib = "{}_packaged".format(name)
+    resolved_libname = libname if libname else "lib" + input.name
     if version:
         so_symlink(
             name = packaged_lib,
             src = ":{}".format(patched_name),
-            libname = "lib" + input.name,
+            libname = resolved_libname,
             version = version,
+            prefix = prefix,
+            dest_dir = dest_dir,
             visibility = visibility,
         )
     else:
+        base = dest_dir if dest_dir else "lib"
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
-            prefix = "lib",
+            prefix = (base + "/" + prefix) if prefix else base,
             visibility = visibility,
             package_metadata = [],
         )
-    rule_installed_files.append(":{}".format(packaged_lib))
+    extra_files.append(":{}".format(packaged_lib))
     _dd_cc_packaged_rule(
         name = name,
         input = input,
-        installed_files = rule_installed_files,
+        installed_files = extra_files + installed_files,
         visibility = visibility,
         package_metadata = [],
         **kwargs
@@ -90,6 +136,11 @@ dd_cc_packaged = macro(
     If installed_files is provided, these files will be installed with the
     packaged object at installation time if the final artifact
     depends, directly or indirectly, on the wrapped binary.
+
+    If installed_executables is provided, each entry is rpath-patched and
+    installed with mode 0755. Files and directory artifacts are installed as
+    prefix/basename. Use this instead of wrapping files in pkg_files and passing
+    them via installed_files, so that rpath rewriting is not skipped.
 
     If a version is provided and the input is a cc_shared_library, the library
     will be installed along with the versioned symlink (see so_symlink).
@@ -104,7 +155,29 @@ dd_cc_packaged = macro(
             configurable = False,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
+        "installed_executables": attr.label_keyed_string_dict(
+            doc = "Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
+            configurable = True,
+        ),
         "installed_files": attr.label_list(
+            configurable = True,
+        ),
+        "libname": attr.string(
+            default = "",
+            configurable = False,
+        ),
+        "prefix": attr.string(
+            doc = """Optional subdirectory appended after the base directory.
+            Empty (default) installs files directly under the base.
+            On the versioned path this is forwarded to so_symlink's prefix.""",
+            default = "",
+            configurable = False,
+        ),
+        "dest_dir": attr.string(
+            doc = """Optional override for the base directory. Defaults to lib/
+            on Linux/macOS and bin/ on Windows (via so_symlink). Use this for
+            deps with non-standard install layouts (e.g. msodbcsql/lib64).""",
+            default = "",
             configurable = False,
         ),
         "version": attr.string(

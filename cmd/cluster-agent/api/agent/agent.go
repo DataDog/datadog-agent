@@ -13,13 +13,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -40,32 +39,32 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, ipc ipc.Component) {
-	r.HandleFunc("/version", getVersion).Methods("GET")
-	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
+func SetupHandlers(r *http.ServeMux, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, ipc ipc.Component) {
+	r.HandleFunc("GET /version", getVersion)
+	r.HandleFunc("GET /hostname", getHostname)
+	r.HandleFunc("POST /flare", func(w http.ResponseWriter, r *http.Request) {
 		makeFlare(w, r, statusComponent, diagnoseComponent, ipc)
-	}).Methods("POST")
-	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
-	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
+	})
+	r.HandleFunc("POST /stop", stopAgent)
+	r.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) })
+	r.HandleFunc("GET /status/health", getHealth)
+	r.HandleFunc("GET /config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
-	}).Methods("GET")
-	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
-	r.HandleFunc("/config/without-defaults", settings.GetFullConfigWithoutDefaults("")).Methods("GET")
-	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
-	r.HandleFunc("/autoscaler-list", func(w http.ResponseWriter, r *http.Request) { getAutoscalerList(w, r) }).Methods("GET")
-	r.HandleFunc("/local-autoscaling-check", func(w http.ResponseWriter, r *http.Request) { getLocalAutoscalingWorkloadCheck(w, r) }).Methods("GET")
-	r.HandleFunc("/tagger-list", func(w http.ResponseWriter, r *http.Request) { getTaggerList(w, r, taggerComp) }).Methods("GET")
-	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+	})
+	r.HandleFunc("GET /config", settings.GetFullConfig(""))
+	r.HandleFunc("GET /config/without-defaults", settings.GetFullConfigWithoutDefaults(""))
+	r.HandleFunc("GET /config/by-source", settings.GetFullConfigBySource())
+	r.HandleFunc("GET /config/list-runtime", settings.ListConfigurable)
+	r.HandleFunc("GET /config/{setting}", settings.GetValue)
+	r.HandleFunc("POST /config/{setting}", settings.SetValue)
+	r.HandleFunc("GET /autoscaler-list", func(w http.ResponseWriter, r *http.Request) { getAutoscalerList(w, r) })
+	r.HandleFunc("GET /local-autoscaling-check", func(w http.ResponseWriter, r *http.Request) { getLocalAutoscalingWorkloadCheck(w, r) })
+	r.HandleFunc("GET /tagger-list", func(w http.ResponseWriter, r *http.Request) { getTaggerList(w, r, taggerComp) })
+	r.HandleFunc("GET /workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
-	}).Methods("GET")
-	r.HandleFunc("/metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON).Methods("GET")
-	r.HandleFunc("/metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON).Methods("GET")
+	})
+	r.HandleFunc("GET /metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON)
+	r.HandleFunc("GET /metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON)
 
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
@@ -163,9 +162,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.DCALogFile
+		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
-	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent, diagnoseComponent, ipc)
+	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, flaretypes.FlareArgs{}, statusComponent, diagnoseComponent, ipc)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

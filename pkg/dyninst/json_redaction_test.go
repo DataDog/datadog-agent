@@ -158,6 +158,45 @@ func (e entriesSorter) replace(v jsontext.Value) jsontext.Value {
 	return sorted
 }
 
+// redactContextSpanID replaces the value of the span_id entry inside a
+// context.Context entries map. dd-trace-go generates the server span id per
+// request, so it is non-deterministic across runs, whereas trace_id and
+// parent_id are fixed by the test's traceparent and are left intact. It is safe
+// to apply to any entries map: only a "span_id" key is touched, which appears
+// only in the context map.
+func redactContextSpanID(v jsontext.Value) jsontext.Value {
+	var entries [][2]jsontext.Value
+	if err := json.Unmarshal(v, &entries); err != nil {
+		return v
+	}
+	for i := range entries {
+		var key struct {
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(entries[i][0], &key); err != nil || key.Value != "span_id" {
+			continue
+		}
+		var value struct {
+			Type  string `json:"type"`
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(entries[i][1], &value); err != nil {
+			continue
+		}
+		value.Value = "[span_id]"
+		marshaled, err := json.Marshal(value)
+		if err != nil {
+			continue
+		}
+		entries[i][1] = marshaled
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return v
+	}
+	return out
+}
+
 type stackFrame struct {
 	Function   string `json:"function"`
 	FileName   string `json:"fileName"`
@@ -215,6 +254,10 @@ var defaultRedactors = []jsonRedactor{
 	redactor(
 		exactMatcher(`/duration`),
 		replacerFunc(redactNonZeroDuration),
+	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/captures/[^/]+/captureExpressions/[^/]+$`),
+		replacerFunc(redactDurationCaptureExpression),
 	),
 	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
@@ -313,6 +356,31 @@ func redactGoID(v jsontext.Value) jsontext.Value {
 		return v
 	}
 	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+// redactDurationCaptureExpression replaces the (non-deterministic)
+// numeric value of a captureExpression whose type is "@duration" so
+// snapshot tests are stable.
+func redactDurationCaptureExpression(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '{' {
+		return v
+	}
+	var obj struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(v, &obj); err != nil {
+		return v
+	}
+	if obj.Type != "@duration" {
+		return v
+	}
+	obj.Value = "[duration]"
+	buf, err := json.Marshal(obj)
 	if err != nil {
 		return v
 	}

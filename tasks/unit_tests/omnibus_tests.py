@@ -55,7 +55,7 @@ class TestOmnibusCache(unittest.TestCase):
             for platform, get_dd_api_key_env in {
                 "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
                 "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
-                "win32": {"API_KEY_ORG2": "api-key"},
+                "win32": {"AGENT_API_KEY_ORG2": "api-key"},
             }.items():
                 with (
                     self.subTest(platform=platform),
@@ -80,6 +80,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -230,6 +231,30 @@ class TestOmnibusCache(unittest.TestCase):
             # We ran omnibus
             r'bundle exec omnibus(\.bat)? build agent',
         )
+
+
+class TestOmnibusRunTask(unittest.TestCase):
+    def setUp(self):
+        self.mock_ctx = MockContextRaising(run={})
+        self.mock_ctx.set_result_for('run', re.compile(r'bundle exec omnibus build agent .*'), Result())
+
+    def test_formats_overrides_as_single_hash_option(self):
+        omnibus.omnibus_run_task(
+            self.mock_ctx,
+            task="build",
+            target_project="agent",
+            base_dir="/opt/dd/omnibus",
+            env={},
+            host_distribution="ubuntu",
+            cache_dir="/var/cache/dd/omnibus/cache",
+        )
+
+        command = self.mock_ctx.run.mock_calls[0].args[0]
+        self.assertIn(
+            "--override=base_dir:/opt/dd/omnibus cache_dir:/var/cache/dd/omnibus/cache host_distribution:ubuntu",
+            command,
+        )
+        self.assertEqual(command.count("--override="), 1)
 
 
 class TestOmnibusInstall(unittest.TestCase):

@@ -137,7 +137,17 @@ namespace Datadog.CustomActions.Rollback
             Load();
             for (var i = RollbackActions.Count - 1; i >= 0; i--)
             {
-                RollbackActions[i].Restore(_session, _fileSystemServices, _serviceController);
+                // Restore is best-effort: a failure on one entry must not prevent the remaining
+                // entries from being restored. Log and continue so a single bad item cannot
+                // poison the rest of the rollback.
+                try
+                {
+                    RollbackActions[i].Restore(_session, _fileSystemServices, _serviceController);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Error restoring rollback action {RollbackActions[i].GetType().Name}: {e}");
+                }
             }
         }
 

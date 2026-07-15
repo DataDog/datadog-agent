@@ -10,10 +10,12 @@ package windowscertificate
 
 import (
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 	"unsafe"
@@ -79,6 +81,23 @@ const (
 	//
 	// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcrlcontextproperty
 	certHashPropID = 3
+
+	// CERT_FRIENDLY_NAME_PROP_ID is the property ID for the friendly name of a
+	// certificate, stored as a UTF-16LE string.
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatecontextproperty
+	certFriendlyNamePropID = 11
+)
+
+var (
+	// Microsoft certificate-template OIDs. V1 is a BMPString holding the template
+	// display name; V2 is a SEQUENCE { templateOID, majorVersion, minorVersion }.
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/seccrypto/template
+	oidCertTemplateV1 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2}
+	oidCertTemplateV2 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 7}
+	// id-ce-extKeyUsage — RFC 5280 §4.2.1.12.
+	oidExtKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
 )
 
 type certChainValidation struct {
@@ -89,35 +108,51 @@ type certChainValidation struct {
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
-	CertificateStore    string              `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
-	CertSubjects        []string            `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
-	Server              string              `yaml:"server" json:"server" nullable:"false"`
-	Username            string              `yaml:"username" json:"username" nullable:"false"`
-	Password            string              `yaml:"password" json:"password" nullable:"false"`
-	DaysCritical        int                 `yaml:"days_critical" json:"days_critical" minimum:"0"`
-	DaysWarning         int                 `yaml:"days_warning" json:"days_warning" minimum:"0"`
-	EnableCRLMonitoring bool                `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
-	CrlDaysWarning      int                 `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
-	CertChainValidation certChainValidation `yaml:"cert_chain_validation" json:"cert_chain_validation" nullable:"true"`
+	CertificateStore      string              `yaml:"certificate_store" json:"certificate_store" nullable:"false"`
+	CertificateStoreRegex []string            `yaml:"certificate_store_regex" json:"certificate_store_regex" nullable:"true"`
+	CertSubjects          []string            `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
+	Server                string              `yaml:"server" json:"server" nullable:"false"`
+	Username              string              `yaml:"username" json:"username" nullable:"false"`
+	Password              string              `yaml:"password" json:"password" nullable:"false"`
+	DaysCritical          int                 `yaml:"days_critical" json:"days_critical" minimum:"0"`
+	DaysWarning           int                 `yaml:"days_warning" json:"days_warning" minimum:"0"`
+	EnableCRLMonitoring   bool                `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
+	CrlDaysWarning        int                 `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
+	CertChainValidation   certChainValidation `yaml:"cert_chain_validation" json:"cert_chain_validation" nullable:"true"`
+
+	// Optional tags for Certificate properties
+	CertificateTemplateTag     bool `yaml:"certificate_template_tag" json:"certificate_template_tag" default:"false"`
+	EnhancedKeyUsageTag        bool `yaml:"enhanced_key_usage_tag" json:"enhanced_key_usage_tag" default:"false"`
+	FriendlyNameTag            bool `yaml:"friendly_name_tag" json:"friendly_name_tag" default:"false"`
+	SubjectAlternativeNamesTag bool `yaml:"subject_alternative_names_tag" json:"subject_alternative_names_tag" default:"false"`
+	IssuerTag                  bool `yaml:"issuer_tag" json:"issuer_tag" default:"false"`
+	SignatureAlgorithmTag      bool `yaml:"signature_algorithm_tag" json:"signature_algorithm_tag" default:"false"`
 }
 
 // WinCertChk is the object representing the check
 type WinCertChk struct {
 	core.CheckBase
-	config Config
+	config           Config
+	certStoreRegexes []*regexp.Regexp // non-nil when certificate_store_regex lists at least one pattern
 }
 
 type crlInfoCopy struct {
 	Issuer     string
 	NextUpdate time.Time
 	Thumbprint string
+	StoreName  string
 }
 
+// certInfo holds the per-certificate values needed by the check's reporting
+// loop.
 type certInfo struct {
-	Certificate      *x509.Certificate
+	SubjectString    string
+	NotAfter         time.Time // certificate expiration
+	Tags             []string  // cert-derived tags
+	Thumbprint       string
 	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
-	Thumbprint       string
+	StoreName        string
 }
 
 // Factory creates a new check factory
@@ -193,6 +228,20 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return fmt.Errorf("cannot unmarshal configuration: %s", err)
 	}
+
+	if err := validateCertificateStoreSelection(&config); err != nil {
+		return err
+	}
+
+	w.certStoreRegexes = nil
+	if len(config.CertificateStoreRegex) > 0 {
+		var compileErr error
+		w.certStoreRegexes, compileErr = compileCertificateStoreRegexes(config.CertificateStoreRegex)
+		if compileErr != nil {
+			return compileErr
+		}
+	}
+
 	w.config = config
 
 	if w.config.DaysWarning < w.config.DaysCritical {
@@ -203,7 +252,15 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		log.Warnf("Days warning (%d) is equal to days critical (%d). Warning service checks will not be emitted.", w.config.DaysWarning, w.config.DaysCritical)
 	}
 
-	log.Infof("Windows Certificate Check configured with Certificate Store: '%s' and Certificate Subjects: '%v'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
+	staticStore := strings.TrimSpace(w.config.CertificateStore)
+	switch {
+	case len(w.certStoreRegexes) > 0 && staticStore != "":
+		log.Infof("Windows Certificate Check configured with certificate_store: '%s', certificate_store_regex: %v, and Certificate Subjects: '%v'", staticStore, w.config.CertificateStoreRegex, strings.Join(w.config.CertSubjects, ", "))
+	case len(w.certStoreRegexes) > 0:
+		log.Infof("Windows Certificate Check configured with certificate_store_regex: %v and Certificate Subjects: '%v'", w.config.CertificateStoreRegex, strings.Join(w.config.CertSubjects, ", "))
+	default:
+		log.Infof("Windows Certificate Check configured with Certificate Store: '%s' and Certificate Subjects: '%v'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
+	}
 	return nil
 }
 
@@ -219,41 +276,33 @@ func (w *WinCertChk) Run() error {
 	var crlInfo []crlInfoCopy
 	var serverTag string
 	if w.config.Server != "" {
-		certificates, crlInfo, err = w.getRemoteCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.Server, w.config.Username, w.config.Password, w.config.EnableCRLMonitoring)
+		certificates, crlInfo, serverTag, err = w.collectRemoteCertificates()
 		if err != nil {
 			return err
 		}
-		serverTag = "server:" + w.config.Server
 	} else {
-		certificates, crlInfo, err = w.getCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.EnableCRLMonitoring)
+		certificates, crlInfo, serverTag, err = w.collectLocalCertificates()
 		if err != nil {
 			return err
 		}
-		hostname, err := os.Hostname()
-		if err != nil {
-			return err
-		}
-		serverTag = "server:" + hostname
 	}
 	if len(certificates) == 0 {
-		log.Warnf("No certificates found in store: %s for subject filters: '%s'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
+		log.Warnf("No certificates found in %s for subject filters: '%s'", w.storeConfigDescriptionForLogs(), strings.Join(w.config.CertSubjects, ", "))
 	}
 	if len(crlInfo) == 0 && w.config.EnableCRLMonitoring {
-		log.Warnf("No CRLs found in store: %s", w.config.CertificateStore)
+		log.Warnf("No CRLs found in %s", w.storeConfigDescriptionForLogs())
 	}
 
 	for _, cert := range certificates {
-		log.Debugf("Found certificate: %s", cert.Certificate.Subject.String())
-		daysRemaining := getExpiration(cert.Certificate.NotAfter)
-		expirationDate := cert.Certificate.NotAfter.Format(time.RFC3339)
+		log.Debugf("Found certificate: %s", cert.SubjectString)
+		daysRemaining := getExpiration(cert.NotAfter)
+		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
-		// Adding Subject and Certificate Store as tags
-		tags := getSubjectTags(cert.Certificate)
-		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
-		tags = append(tags, serverTag)
-		tags = append(tags, "certificate_thumbprint:"+cert.Thumbprint)
-		// Need to use hex format for serial numbers as they are typically displayed in hex format in the UI
-		tags = append(tags, "certificate_serial_number:"+cert.Certificate.SerialNumber.Text(16))
+		// cert.Tags carries the cert-derived tags (subject, thumbprint, serial,
+		// optional groups) pre-built in buildCertInfo.
+		tags := make([]string, 0, len(cert.Tags)+2)
+		tags = append(tags, cert.Tags...)
+		tags = append(tags, "certificate_store:"+w.storeNameTag(cert.StoreName), serverTag)
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
 
 		if daysRemaining <= 0 {
@@ -287,7 +336,7 @@ func (w *WinCertChk) Run() error {
 		if w.config.CertChainValidation.EnableCertChainValidation {
 			// Report both the trust status and chain policy errors if they exist
 			if cert.TrustStatusError != 0 {
-				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
+				log.Debugf("Certificate %s has trust status error: %d", cert.SubjectString, cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
 				message := "Certificate Validation failed. The certificates in the certificate chain have the following errors: " + strings.Join(trustStatusErrors, ", ")
 				if cert.ChainPolicyError != 0 {
@@ -302,7 +351,7 @@ func (w *WinCertChk) Run() error {
 				)
 				// Report the chain policy error only if it exists
 			} else if cert.ChainPolicyError != 0 {
-				log.Debugf("Certificate %s has chain policy error: %d", cert.Certificate.Subject.String(), cert.ChainPolicyError)
+				log.Debugf("Certificate %s has chain policy error: %d", cert.SubjectString, cert.ChainPolicyError)
 				chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
 				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
@@ -331,7 +380,7 @@ func (w *WinCertChk) Run() error {
 
 		// Adding CRL Issuer and Certificate Store as tags
 		crlTags := getCrlIssuerTags(crlIssuer)
-		crlTags = append(crlTags, "certificate_store:"+w.config.CertificateStore)
+		crlTags = append(crlTags, "certificate_store:"+w.storeNameTag(crl.StoreName))
 		crlTags = append(crlTags, serverTag)
 		crlTags = append(crlTags, "crl_thumbprint:"+crl.Thumbprint)
 		sender.Gauge("windows_certificate.crl_days_remaining", crlDaysRemaining, "", crlTags)
@@ -363,9 +412,115 @@ func (w *WinCertChk) Run() error {
 	return nil
 }
 
-func (w *WinCertChk) getCertificates(store string, certFilters []string, collectCRL bool) ([]certInfo, []crlInfoCopy, error) {
+func (w *WinCertChk) resolveStoreNamesFrom(root registry.Key) ([]string, error) {
+	static := strings.TrimSpace(w.config.CertificateStore)
+	var available []string
+	if len(w.certStoreRegexes) > 0 {
+		names, err := systemCertificateStoreNames(root)
+		if err != nil {
+			return nil, err
+		}
+		available = names
+	}
+	return resolveStoreNames(static, available, w.certStoreRegexes), nil
+}
+
+func (w *WinCertChk) storeNameTag(storeName string) string {
+	if storeName != "" {
+		return storeName
+	}
+	return strings.TrimSpace(w.config.CertificateStore)
+}
+
+func (w *WinCertChk) storeConfigDescriptionForLogs() string {
+	static := strings.TrimSpace(w.config.CertificateStore)
+	if len(w.certStoreRegexes) > 0 && static != "" {
+		return fmt.Sprintf("certificate_store %q and stores matching certificate_store_regex %#v", static, w.config.CertificateStoreRegex)
+	}
+	if len(w.certStoreRegexes) > 0 {
+		return fmt.Sprintf("stores matching certificate_store_regex %#v", w.config.CertificateStoreRegex)
+	}
+	return "store: " + w.config.CertificateStore
+}
+
+func (w *WinCertChk) collectLocalCertificates() ([]certInfo, []crlInfoCopy, string, error) {
+	stores, err := w.resolveStoreNamesFrom(registry.LOCAL_MACHINE)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if len(stores) == 0 && strings.TrimSpace(w.config.CertificateStore) == "" {
+		log.Warnf("No Local Machine certificate store names matched certificate_store_regex %#v", w.config.CertificateStoreRegex)
+	}
 	var certificates []certInfo
 	var crlInfo []crlInfoCopy
+	explicitStore := strings.TrimSpace(w.config.CertificateStore)
+	for _, store := range stores {
+		certs, crls, err := w.getCertificates(store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
+		if err != nil {
+			if strings.EqualFold(store, explicitStore) {
+				return nil, nil, "", err
+			}
+			log.Errorf("Error collecting certificates from store %s: %v", store, err)
+			continue
+		}
+		certificates = append(certificates, certs...)
+		crlInfo = append(crlInfo, crls...)
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return certificates, crlInfo, "server:" + hostname, nil
+}
+
+func (w *WinCertChk) collectRemoteCertificates() ([]certInfo, []crlInfoCopy, string, error) {
+	server := w.config.Server
+	remoteServer := "\\\\" + server + "\\IPC$"
+	err := netAddConnection(remoteServer, "", w.config.Password, w.config.Username)
+	if err != nil {
+		log.Errorf("Error adding connection: %v", err)
+		return nil, nil, "", err
+	}
+	defer func() {
+		if cancelErr := netCancelConnection(remoteServer); cancelErr != nil {
+			log.Errorf("Error canceling connection: %v", cancelErr)
+		}
+	}()
+
+	remoteRegKey, err := registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
+	if err != nil {
+		log.Errorf("Error opening remote registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw#remarks", server, err)
+		return nil, nil, "", err
+	}
+	defer remoteRegKey.Close()
+
+	stores, err := w.resolveStoreNamesFrom(remoteRegKey)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if len(stores) == 0 && strings.TrimSpace(w.config.CertificateStore) == "" {
+		log.Warnf("No certificate store names on remote server %s matched certificate_store_regex %#v", server, w.config.CertificateStoreRegex)
+	}
+
+	var certificates []certInfo
+	var crlInfo []crlInfoCopy
+	explicitStore := strings.TrimSpace(w.config.CertificateStore)
+	for _, store := range stores {
+		certs, crls, collectErr := w.collectRemoteCertStore(remoteRegKey, store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
+		if collectErr != nil {
+			if strings.EqualFold(store, explicitStore) {
+				return nil, nil, "", collectErr
+			}
+			log.Errorf("Error collecting certificates from remote store %s: %v", store, collectErr)
+			continue
+		}
+		certificates = append(certificates, certs...)
+		crlInfo = append(crlInfo, crls...)
+	}
+	return certificates, crlInfo, "server:" + server, nil
+}
+
+func (w *WinCertChk) getCertificates(store string, certFilters []string, collectCRL bool) ([]certInfo, []crlInfoCopy, error) {
 	storeName := windows.StringToUTF16Ptr(store)
 
 	log.Debugf("Opening certificate store: %s", store)
@@ -377,95 +532,24 @@ func (w *WinCertChk) getCertificates(store string, certFilters []string, collect
 		log.Errorf("Error opening certificate store %s: %v", store, err)
 		return nil, nil, err
 	}
-	// Close the store when the function returns
 	defer closeCertificateStore(storeHandle, store)
 
-	log.Debugf("Enumerating certificates in store")
-
-	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(storeHandle, w.config.CertChainValidation)
-	} else {
-		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config.CertChainValidation)
-	}
-	if err != nil {
-		log.Errorf("Error getting certificates: %v", err)
-		return nil, nil, err
-	}
-	log.Debugf("Found %d certificates in store %s", len(certificates), store)
-
-	if collectCRL {
-		crlInfo, err = getCrlInfo(storeHandle)
-		if err != nil {
-			log.Errorf("Error getting CRLs: %v", err)
-			return nil, nil, err
-		}
-	}
-	log.Debugf("Found %d CRLs in store %s", len(crlInfo), store)
-
-	return certificates, crlInfo, nil
+	return w.enumerateStoreContents(storeHandle, store, certFilters, collectCRL)
 }
 
-func (w *WinCertChk) getRemoteCertificates(store string, certFilters []string, server string, username string, password string, collectCRL bool) ([]certInfo, []crlInfoCopy, error) {
-
-	// Create network path to the remote server's IPC$ share
-	// see https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw
-	remoteServer := "\\\\" + server + "\\IPC$"
-	registryPath := "SOFTWARE\\Microsoft\\SystemCertificates\\" + store
-	var remoteRegKey registry.Key
-	var certStoreKey registry.Key
-
-	err := netAddConnection(remoteServer, "", password, username)
-	if err != nil {
-		log.Errorf("Error adding connection: %v", err)
-		return nil, nil, err
-	}
-	log.Debugf("Connection to %s is successful", server)
-	defer func() {
-		err = netCancelConnection(remoteServer)
-		if err != nil {
-			log.Errorf("Error canceling connection: %v", err)
-		}
-	}()
-
-	log.Debugf("Opening remote registry on %s", server)
-
-	// After establishing a connection to the remote server, we open its Local Machine registry key
-	remoteRegKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
-	if err != nil {
-		log.Errorf("Error opening remote registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw#remarks", server, err)
-		return nil, nil, err
-	}
-	log.Debugf("Remote registry opened successfully")
-	defer remoteRegKey.Close()
-
-	// Once the remote registry is opened, we use its handle to open the registry key of the certificate store
-	certStoreKey, err = registry.OpenKey(remoteRegKey, registryPath, registry.READ)
-	if err != nil {
-		log.Errorf("Error opening %s registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenkeyexw", registryPath, server, err)
-		return nil, nil, err
-	}
-	log.Debugf("%s registry key opened successfully", registryPath)
-	defer certStoreKey.Close()
-
-	// Pass the registry key handle of the certificate store with the windows.CERT_STORE_PROV_REG provider
-	storeHandle, err := openCertificateStore(
-		windows.CERT_STORE_PROV_REG,
-		windows.CERT_STORE_OPEN_EXISTING_FLAG,
-		uintptr(certStoreKey))
-	if err != nil {
-		log.Errorf("Error opening certificate store %s: %v", store, err)
-		return nil, nil, err
-	}
-	log.Debugf("Certificate store opened successfully")
-	defer closeCertificateStore(storeHandle, store)
+// enumerateStoreContents lists certificates (and optionally CRLs) from an
+// already-open store handle. Shared by the local and remote code paths.
+func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store string,
+	certFilters []string, collectCRL bool) ([]certInfo, []crlInfoCopy, error) {
 
 	log.Debugf("Enumerating certificates in store")
-	var certificates []certInfo
 
+	var certificates []certInfo
+	var err error
 	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(storeHandle, w.config.CertChainValidation)
+		certificates, err = getEnumCertificatesInStore(storeHandle, w.config)
 	} else {
-		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config.CertChainValidation)
+		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config)
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
@@ -482,7 +566,38 @@ func (w *WinCertChk) getRemoteCertificates(store string, certFilters []string, s
 		}
 	}
 	log.Debugf("Found %d CRLs in store %s", len(crlInfo), store)
+
+	for i := range certificates {
+		certificates[i].StoreName = store
+	}
+	for i := range crlInfo {
+		crlInfo[i].StoreName = store
+	}
 	return certificates, crlInfo, nil
+}
+
+func (w *WinCertChk) collectRemoteCertStore(remoteRegKey registry.Key, store string, certFilters []string, collectCRL bool) ([]certInfo, []crlInfoCopy, error) {
+	registryPath := "SOFTWARE\\Microsoft\\SystemCertificates\\" + store
+	certStoreKey, err := registry.OpenKey(remoteRegKey, registryPath, registry.READ)
+	if err != nil {
+		log.Errorf("Error opening %s registry key: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenkeyexw", registryPath, err)
+		return nil, nil, err
+	}
+	log.Debugf("%s registry key opened successfully", registryPath)
+	defer certStoreKey.Close()
+
+	storeHandle, err := openCertificateStore(
+		windows.CERT_STORE_PROV_REG,
+		windows.CERT_STORE_OPEN_EXISTING_FLAG,
+		uintptr(certStoreKey))
+	if err != nil {
+		log.Errorf("Error opening certificate store %s: %v", store, err)
+		return nil, nil, err
+	}
+	log.Debugf("Certificate store opened successfully")
+	defer closeCertificateStore(storeHandle, store)
+
+	return w.enumerateStoreContents(storeHandle, store, certFilters, collectCRL)
 }
 
 func openCertificateStore(storeProvider uintptr, flags uint32, para uintptr) (windows.Handle, error) {
@@ -506,8 +621,57 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 	}
 }
 
+// buildCertInfo parses a CertContext and extracts everything the reporting
+// loop will need into Go-owned values.
+// Returns an error only when parsing or required-property reads fail;
+// optional lookups (friendly name) are logged and left empty on failure.
+func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
+	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
+	cert, err := parseCertificate(encodedCert)
+	if err != nil {
+		return certInfo{}, fmt.Errorf("parsing certificate: %w", err)
+	}
+
+	var trustStatusError, chainPolicyError uint32
+	if cfg.CertChainValidation.EnableCertChainValidation {
+		trustStatusError, chainPolicyError, err = validateCertificateChain(
+			certContext, storeHandle, cfg.CertChainValidation.CertChainPolicyValidationFlags)
+		if err != nil {
+			return certInfo{}, fmt.Errorf("validating certificate chain: %w", err)
+		}
+	}
+
+	thumbprint, err := getCertThumbprint(certContext)
+	if err != nil {
+		return certInfo{}, fmt.Errorf("getting certificate thumbprint: %w", err)
+	}
+
+	var friendlyName string
+	if cfg.FriendlyNameTag {
+		friendlyName, err = getFriendlyName(certContext)
+		if err != nil {
+			log.Debugf("Error getting friendly name for %s: %v", cert.Subject.String(), err)
+		}
+	}
+
+	// Build cert-derived tags here, while the cert bytes are still valid.
+	tags := getSubjectTags(cert)
+	tags = append(tags, "certificate_thumbprint:"+thumbprint)
+	tags = append(tags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
+	tags = appendOptionalTags(tags, cert, friendlyName, cfg)
+
+	return certInfo{
+		SubjectString:    cert.Subject.String(),
+		NotAfter:         cert.NotAfter,
+		Tags:             tags,
+		Thumbprint:       thumbprint,
+		TrustStatusError: trustStatusError,
+		ChainPolicyError: chainPolicyError,
+	}, nil
+}
+
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
-func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation certChainValidation) ([]certInfo, error) {
+func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -529,43 +693,19 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 			}
 		}
 
-		encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
-
-		cert, err := parseCertificate(encodedCert)
+		info, err := buildCertInfo(certContext, storeHandle, cfg)
 		if err != nil {
-			log.Errorf("Error parsing certificate: %v", err)
+			log.Errorf("Error building cert info: %v", err)
 			continue
 		}
-
-		var trustStatusError uint32
-		var chainPolicyError uint32
-		if certChainValidation.EnableCertChainValidation {
-			trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainPolicyValidationFlags)
-			if err != nil {
-				log.Errorf("Error validating certificate chain: %v", err)
-				continue
-			}
-		}
-
-		certThumbprint, err := getCertThumbprint(certContext)
-		if err != nil {
-			log.Errorf("Error getting certificate thumbprint: %v", err)
-			continue
-		}
-
-		certificates = append(certificates, certInfo{
-			Certificate:      cert,
-			TrustStatusError: trustStatusError,
-			ChainPolicyError: chainPolicyError,
-			Thumbprint:       certThumbprint,
-		})
+		certificates = append(certificates, info)
 	}
 
 	return certificates, nil
 }
 
 // findCertificatesInStore finds certificates in a store with a given subject string
-func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, certChainValidation certChainValidation) ([]certInfo, error) {
+func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -597,36 +737,12 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
-			encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
-
-			cert, err := parseCertificate(encodedCert)
+			info, err := buildCertInfo(certContext, storeHandle, cfg)
 			if err != nil {
-				log.Errorf("Error parsing certificate: %v", err)
+				log.Errorf("Error building cert info: %v", err)
 				continue
 			}
-
-			var trustStatusError uint32
-			var chainPolicyError uint32
-			if certChainValidation.EnableCertChainValidation {
-				trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainPolicyValidationFlags)
-				if err != nil {
-					log.Errorf("Error validating certificate chain: %v", err)
-					continue
-				}
-			}
-
-			certThumbprint, err := getCertThumbprint(certContext)
-			if err != nil {
-				log.Errorf("Error getting certificate thumbprint: %v", err)
-				continue
-			}
-
-			certificates = append(certificates, certInfo{
-				Certificate:      cert,
-				TrustStatusError: trustStatusError,
-				ChainPolicyError: chainPolicyError,
-				Thumbprint:       certThumbprint,
-			})
+			certificates = append(certificates, info)
 		}
 	}
 

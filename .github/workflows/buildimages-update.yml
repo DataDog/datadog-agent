@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Checkout branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
@@ -64,7 +64,7 @@ jobs:
       - name: Bazel cache
         uses: ./.github/actions/bazel-cache
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR
@@ -128,7 +128,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.buildimages-update.create-pr
 
-      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
         with:
           token: ${{ steps.octo-sts.outputs.token }}

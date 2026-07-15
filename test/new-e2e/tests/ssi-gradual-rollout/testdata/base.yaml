@@ -1,0 +1,15 @@
+---
+clusterAgent:
+  admissionController:
+    # hostip mode bypasses the CSI driver entirely; combined with our pods staying in
+    # ImagePullBackOff (we only inspect the mutated spec), CSI is irrelevant here.
+    configMode: "hostip"
+  # Disable the external metrics provider. The framework default enables it, which
+  # registers the v1beta1.external.metrics.k8s.io APIService. On teardown, when the
+  # cluster-agent service is deleted, the APIService is orphaned (cluster-scoped, but
+  # backed by a service in the datadog namespace). The K8s namespace controller then
+  # fails discovery while terminating the namespace, deadlocking deletion of every
+  # namespace in the cluster (including mock-registry). These tests don't need
+  # external metrics, so disabling avoids the trap entirely.
+  metricsProvider:
+    enabled: false

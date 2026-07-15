@@ -36,6 +36,12 @@ func getDummyMessageWithLF(content string) *message.Message {
 	return m
 }
 
+func getDummyMessageWithTimestamp(content, timestamp string) *message.Message {
+	m := getDummyMessageWithLF(content)
+	m.ParsingExtra.Timestamp = timestamp
+	return m
+}
+
 func lineHandlerChans() (func(*message.Message), chan *message.Message) {
 	ch := make(chan *message.Message, 20)
 	return func(m *message.Message) { ch <- m }, ch
@@ -186,6 +192,43 @@ func TestMultiLineHandler(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, "6. next line", string(output.GetContent()))
 	assert.Equal(t, len(shortLineTracingSpaces)+1, output.RawDataLen)
+}
+
+// TestMultiLineHandlerCarriesLastLineTimestamp confirms that the regex-driven
+// MultiLineHandler emits combined messages stamped with the LAST aggregated
+// line's ParsingExtra.Timestamp. This is the existing (correct) behavior and
+// is asserted here as a counterpart to TestAggregateCarriesLastLineTimestamp
+// in the auto-multiline aggregator — both paths must agree, otherwise the
+// Docker socket tailer's lastSince offset gets stuck on the first line of a
+// group and replays the rest on every reader restart.
+func TestMultiLineHandlerCarriesLastLineTimestamp(t *testing.T) {
+	const (
+		ts1 = "2026-05-11T10:00:00.000000001Z"
+		ts2 = "2026-05-11T10:00:00.000000002Z"
+		ts3 = "2026-05-11T10:00:00.000000003Z"
+		ts4 = "2026-05-11T10:00:00.000000004Z"
+	)
+
+	re := regexp.MustCompile(`^[0-9]+\.`)
+	outputFn, outputChan := lineHandlerChans()
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
+
+	h.process(getDummyMessageWithTimestamp("1. first", ts1))
+	h.process(getDummyMessageWithTimestamp("continuation", ts2))
+	h.process(getDummyMessageWithTimestamp("more", ts3))
+	// A new start-of-group flushes the buffered group [L1, L2, L3].
+	h.process(getDummyMessageWithTimestamp("2. second", ts4))
+
+	output := <-outputChan
+	assert.Equal(t, "1. first\\ncontinuation\\nmore", string(output.GetContent()))
+	assert.Equal(t, ts3, output.ParsingExtra.Timestamp,
+		"regex multiline must emit the LAST aggregated line's timestamp so the tailer offset advances past every combined line")
+
+	// Flush the buffered "2. second" — single-line groups keep their own timestamp.
+	h.flush()
+	output = <-outputChan
+	assert.Equal(t, "2. second", string(output.GetContent()))
+	assert.Equal(t, ts4, output.ParsingExtra.Timestamp)
 }
 
 func TestTrimMultiLine(t *testing.T) {

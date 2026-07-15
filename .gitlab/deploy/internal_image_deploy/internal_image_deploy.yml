@@ -9,22 +9,17 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   timeout: 1h
-  parallel:
-    matrix: # See https://github.com/DataDog/datadog-agent/pull/45778
-      - COMPRESSION: "zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-      - COMPRESSION: "nydus"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
   script:
     # Constant variables
-    - export RELEASE_STAGING="true"
+    - export RELEASE_STAGING=""
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
+    - export IMAGES_GIT_REF="master"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # Specify the compression
-    - export IMAGE_VERSION="${IMAGE_VERSION}-${COMPRESSION}"
+    - export IMAGE_VERSION="${IMAGE_VERSION}${COMPRESSION}"
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
     # Fetch Gitlab token
@@ -36,34 +31,47 @@
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"; fi
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - |
+      # TODO: Remove this workaround once JIT replication is reliable for these
+      # images.
+      if [ -z "$CI_COMMIT_TAG" ]; then
+        export RELEASE_STAGING="true"
+        export RELEASE_PROD=""
+      fi
+    - if [ "${RELEASE_PROD_OVERRIDE:-}" = "true" ]; then export RELEASE_PROD="true"; fi
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ${IMAGES_GIT_REF} --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v23
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
-  IMAGE_VERSION: tmpl-v12
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
-  IMAGE_VERSION: tmpl-v7
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 
 .host_profiler_standalone_variables: &host_profiler_standalone_variables
-  IMAGE_VERSION: tmpl-v1
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+  RELEASE_PROD_OVERRIDE: "true"
 
 # -- publish jobs --
 publish_internal_container_image-jmx:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v24
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v25
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
@@ -77,6 +85,14 @@ publish_internal_container_image-jmx:
 
 publish_internal_container_image-fips:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v24
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v25
   needs:
     - job: docker_build_fips_agent7_jmx
       artifacts: false
@@ -89,6 +105,14 @@ publish_internal_container_image-fips:
 
 publish_internal_container_image-ot_standalone:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v7
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v8
   needs:
     - job: docker_build_ot_agent_standalone_amd64
       artifacts: false
@@ -100,6 +124,14 @@ publish_internal_container_image-ot_standalone:
 
 publish_internal_container_image-ot_standalone-fips:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v7
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v8
   needs:
     - job: docker_build_ot_agent_standalone_fips_amd64
       artifacts: false
@@ -112,6 +144,14 @@ publish_internal_container_image-ot_standalone-fips:
 
 publish_internal_container_image-host_profiler_standalone:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v1
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v2
   needs:
     - job: docker_build_host_profiler_standalone_amd64
       artifacts: false
@@ -124,6 +164,14 @@ publish_internal_container_image-host_profiler_standalone:
 # DCA publish jobs
 publish_internal_dca_container_image:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v12
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v13
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
@@ -134,6 +182,14 @@ publish_internal_dca_container_image:
 
 publish_internal_dca_container_image-fips:
   extends: .docker_trigger_base
+  parallel:
+    matrix:
+      - COMPRESSION: "-nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+        IMAGE_VERSION: tmpl-v12
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v13
   needs:
     - job: docker_build_cluster_agent_fips_amd64
       artifacts: false

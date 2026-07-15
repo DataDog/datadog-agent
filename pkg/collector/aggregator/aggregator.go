@@ -36,7 +36,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -78,7 +78,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -113,7 +113,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -145,7 +145,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
 		return
@@ -160,7 +160,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
-	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
@@ -174,7 +174,7 @@ func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(_checkID))
+	sender, err := checkContext.GetSender(checkid.ID(_checkID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return

@@ -86,7 +86,7 @@ extensions:
     gateway_destination: ""
     gateway_service: ""
     hostname: ""
-    installation_method: "" # TODO: change to "helm" after helm chart version bump
+    installation_method: kubernetes
     http:
       cors: null
       endpoint: localhost:9875
@@ -144,8 +144,9 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
+    trace_container_tag_promotion: "off"
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    error_mode: propagate
+    error_mode: ignore
     log_conditions: null
     logs:
       exclude: null
@@ -205,13 +206,17 @@ receivers:
   prometheus/dd-autoconfigured:
     api_server:
       enabled: false
+      max_connections: 512
       server_config:
         cors: null
-        idle_timeout: 0
-        read_header_timeout: 0
+        endpoint: 127.0.0.1:9090
+        idle_timeout: 60000000000
+        keep_alives_enabled: true
+        read_header_timeout: 60000000000
+        read_timeout: 600000000000
         tls: null
         transport: tcp
-        write_timeout: 0
+        write_timeout: 30000000000
     config:
       global:
         evaluation_interval: 1m
@@ -254,6 +259,9 @@ receivers:
         tsdb:
           outofordertimewindow: 0
           retention: {}
+    discovery_reload_on_startup: false
+    initial_scrape_offset: 0
+    scrape_on_shutdown: false
     target_allocator: null
     trim_metric_suffixes: false
 service:
@@ -324,3 +332,5 @@ service:
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true
+    resource:
+      schema_url: https://opentelemetry.io/schemas/1.40.0

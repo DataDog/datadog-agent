@@ -240,14 +240,65 @@ func newResolver(_ *testing.T, params secrets.ConfigParams) *secretResolver {
 	return resolver
 }
 
-func TestResolveNoCommand(t *testing.T) {
-	tel := nooptelemetry.GetCompatComponent()
-	resolver := newEnabledSecretResolver(tel)
-	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, errors.New("some error")
+var someMultiBackends = map[string]secrets.SecretBackendConfig{
+	"file": {Type: "file.yaml"},
+}
+
+// TestConfigurePrecedence verifies the backend priority order:
+// secret_backend_command > secret_backend_type > multi_secret_backends.
+// Lower-priority backends are cleared after Configure so they have no effect on resolution.
+func TestConfigurePrecedence(t *testing.T) {
+	tests := []struct {
+		name                 string
+		params               secrets.ConfigParams
+		wantBackendCommand   string
+		wantBackendType      string
+		wantMultiBackendsNil bool
+	}{
+		{
+			name:                 "command beats type",
+			params:               secrets.ConfigParams{Command: "my_command", Type: "file.yaml"},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
+		},
+		{
+			name:                 "command beats multi_secret_backends",
+			params:               secrets.ConfigParams{Command: "my_command", MultiBackends: someMultiBackends},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
+		},
+		{
+			name:                 "command beats type and multi_secret_backends",
+			params:               secrets.ConfigParams{Command: "my_command", Type: "file.yaml", MultiBackends: someMultiBackends},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
+		},
+		{
+			name:                 "type beats multi_secret_backends",
+			params:               secrets.ConfigParams{Type: "file.yaml", MultiBackends: someMultiBackends},
+			wantBackendType:      "file.yaml",
+			wantMultiBackendsNil: true,
+		},
 	}
 
-	// since we didn't set any command this should return without any error
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newResolver(t, tc.params)
+			if tc.wantBackendCommand != "" {
+				assert.Equal(t, tc.wantBackendCommand, r.backendCommand)
+			}
+			assert.Equal(t, tc.wantBackendType, r.backendType)
+			if tc.wantMultiBackendsNil {
+				assert.Nil(t, r.multiBackends)
+			}
+		})
+	}
+}
+
+func TestResolveNoCommand(t *testing.T) {
+	// newResolver with no params leaves secretBackendMethod empty — Resolve must be a no-op.
+	resolver := newResolver(t, secrets.ConfigParams{})
+
 	resConf, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NoError(t, err)
 	assert.Equal(t, testConf, resConf)
@@ -264,6 +315,106 @@ func TestResolveSecretError(t *testing.T) {
 
 	_, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NotNil(t, err)
+}
+
+// TestResolvePartialFailure verifies that when some secret handles fail to resolve,
+// the successfully resolved handles are still substituted — a single failure must not
+// block working secrets.
+func TestResolvePartialFailure(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	// commandHookFunc only returns a value for "pass1"; "unknown_handle" is absent from
+	// the response, which causes the resolver to treat it as unresolved.
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		return []byte(`{"pass1":{"value":"password1"}}`), nil
+	}
+
+	conf := []byte(`instances:
+- password: ENC[pass1]
+  user: test
+- password: ENC[unknown_handle]
+  user: test2
+`)
+
+	resolvedConf, err := resolver.Resolve(conf, "test", "", "", true)
+
+	// Error is returned because the secret "unknown_handle" was unresolved.
+	require.Error(t, err)
+
+	resolved := string(resolvedConf)
+	assert.Contains(t, resolved, "password1", "resolved handle should be substituted")
+	assert.Contains(t, resolved, "ENC[unknown_handle]", "unresolved handle should remain as ENC[]")
+	assert.NotEmpty(t, resolver.unresolvedSecrets)
+}
+
+// TestResolveMultiSecretBackendsNamed verifies that ENC[FILE;pass1] is routed to the
+// named "file" backend under multi_secret_backends, and that the lookup is case-insensitive
+// (the handle prefix "FILE" matches the lowercase-stored key "file").
+func TestResolveMultiSecretBackendsNamed(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	// Keys are stored lowercase (as Configure normalizes them); the handle prefix is
+	// matched case-insensitively via strings.ToLower at lookup time.
+	resolver.secretBackendMethod = "multi_secret_backends"
+	resolver.multiBackends = map[string]secrets.SecretBackendConfig{
+		"file": {Type: "file.yaml", Config: map[string]interface{}{"file_path": "/tmp/secrets.yaml"}},
+	}
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		return []byte(`{"pass1":{"value":"resolved_value"}}`), nil
+	}
+
+	conf := []byte("password: ENC[FILE;pass1]\n")
+	resolvedConf, err := resolver.Resolve(conf, "test", "", "", false)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(resolvedConf), "resolved_value")
+}
+
+// TestResolveBackendTypeSemicolonHandle verifies that when secret_backend_type is configured
+// (and multi_secret_backends is not), handles containing ";" are forwarded to the backend
+// command verbatim — the semicolon is not treated as a backendID delimiter.
+func TestResolveBackendTypeSemicolonHandle(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.backendType = "file.yaml"
+	var gotPayload string
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		gotPayload = payload
+		return []byte(`{"foo;bar":{"value":"resolved"}}`), nil
+	}
+
+	conf := []byte("k: ENC[foo;bar]\n")
+	_, err := resolver.Resolve(conf, "test", "", "", false)
+	require.NoError(t, err)
+	assert.Contains(t, gotPayload, `"foo;bar"`, "semicolon handle must not be split when multi_secret_backends is not set")
+}
+
+// TestResolveUnprefixedDisallowedWithMultiOnly verifies that an unprefixed ENC[handle]
+// is rejected when only multi_secret_backends is configured — every handle must carry
+// a backend prefix (e.g. ENC[FILE;handle]).
+func TestResolveUnprefixedDisallowedWithMultiOnly(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.secretBackendMethod = "multi_secret_backends"
+	resolver.multiBackends = map[string]secrets.SecretBackendConfig{
+		"file": {Type: "file.yaml", Config: map[string]interface{}{"file_path": "/tmp/secrets.yaml"}},
+	}
+
+	conf := []byte("password: ENC[pass1]\n")
+	_, err := resolver.Resolve(conf, "test", "", "", false)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "could not resolve secret handle(s)")
+	found := false
+	for k := range resolver.unresolvedSecrets {
+		if strings.Contains(k, "unknown backend") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected unknown backend in unresolvedSecrets, got %#v", resolver.unresolvedSecrets)
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {
@@ -1374,4 +1525,51 @@ func TestResolveNoNotify(t *testing.T) {
 
 	_, err := resolver.Resolve(testSimpleConf, "origin1", "", "", false)
 	require.NoError(t, err)
+}
+
+// TestShouldResolvedSecretMultiBackendNamespace verifies that the backendID; prefix is
+// stripped before parsing the Kubernetes namespace from a handle, so that namespace
+// scoping works correctly for named extra backends.
+func TestShouldResolvedSecretMultiBackendNamespace(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+
+	// Any non-nil multiBackends map triggers prefix-stripping; the backend type doesn't matter.
+	anyBackends := map[string]secrets.SecretBackendConfig{
+		"prodk8s": {Type: "k8s.secrets"},
+	}
+
+	t.Run("scopeIntegrationToNamespace strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.scopeIntegrationToNamespace = true
+		resolver.multiBackends = anyBackends
+
+		// Handle: "prodk8s;namespace1/secret;key" — namespace is "namespace1", not "prodk8s;namespace1"
+		// Container is in "namespace1", so access should be allowed.
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s;namespace1/secret;key", "origin", "img", "namespace1"))
+
+		// Container is in a different namespace — should be denied.
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s;namespace1/secret;key", "origin", "img", "namespace2"))
+	})
+
+	t.Run("allowedNamespace strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.allowedNamespace = []string{"namespace1"}
+		resolver.multiBackends = anyBackends
+
+		// "namespace1" is in the allowlist — should be allowed.
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s;namespace1/secret;key", "origin", "img", "namespace1"))
+
+		// "namespace2" is not in the allowlist — should be denied.
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s;namespace2/secret;key", "origin", "img", "namespace2"))
+	})
+
+	t.Run("k8s_secret@ format strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.scopeIntegrationToNamespace = true
+		resolver.multiBackends = anyBackends
+
+		// Handle: "prodk8s;k8s_secret@namespace1/secret/key"
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace1"))
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace2"))
+	})
 }

@@ -1,26 +1,15 @@
 # check=skip=SecretsUsedInArgOrEnv
-ARG AGENT_DOCKER_REPO=datadog/agent
+ARG AGENT_DOCKER_REPO=registry.datadoghq.com/agent
 ARG AGENT_VERSION=7.72.2
 ARG UBUNTU_VERSION=24.04
 ARG AGENT_DOCKER_TAG=${AGENT_VERSION}-full
 ARG AGENT_GIT_REF=${AGENT_VERSION}
 ARG BASE_IMAGE_REGISTRY=docker.io
 
-# Required for PACKAGE_TYPE=linux or windows: source agent OCI URL and output OCI URL.
-ARG AGENT_OCI
-ARG OUTPUT_OCI
-
 # Use the Ubuntu Slim AMD64 base image
-FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$UBUNTU_VERSION AS builder
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$UBUNTU_VERSION AS builder_base
 
 # Set environment variables
-ARG AGENT_VERSION
-ARG AGENT_GIT_REF
-ARG CI
-ARG DDA_VERSION=v0.29.0
-ARG PACKAGE_TYPE
-ARG GOPROXY
-ARG GONOSUMDB
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -32,6 +21,7 @@ WORKDIR /workspace
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
+ARG CI
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
@@ -56,6 +46,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Windows cross-compilation tools if building for Windows
+ARG PACKAGE_TYPE
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -68,28 +59,19 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix; \
     fi
 
-# We can't get tarballs for dev branches, so we can't just pull the tarball from github.
-# Instead we make a treeless clone at the reference provided, and build from the repo.
-# We also have to use the repo clone because some invoke tasks rely on git coommands unavailable
-# in repo tarball archives. For the same reason a shallow clone will also not work.
-RUN git clone --branch ${AGENT_GIT_REF} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent
-
-# Set the working directory to the source code
-WORKDIR /workspace/datadog-agent
-
 # Install Go based on architecture
-RUN GO_VERSION=$(cat .go-version) && \
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-    GO_ARCH="linux-amd64"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-    GO_ARCH="linux-arm64"; \
-    else \
-    echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi && \
-    curl -fsSLO --retry 4 https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
-    rm go${GO_VERSION}.$GO_ARCH.tar.gz
+ARG GO_VERSION=1.26.4
+RUN ARCH=$(dpkg --print-architecture) && \
+if [ "$ARCH" = "amd64" ]; then \
+GO_ARCH="linux-amd64"; \
+elif [ "$ARCH" = "arm64" ]; then \
+GO_ARCH="linux-arm64"; \
+else \
+echo "Unsupported architecture: $ARCH" && exit 1; \
+fi && \
+curl -fsSLO --retry 4 https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
+tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
+rm go${GO_VERSION}.$GO_ARCH.tar.gz
 
 # Set up Go environment
 ENV PATH="/usr/local/go/bin:${PATH}"
@@ -100,6 +82,7 @@ ENV GOPATH=/go
 RUN go version && \
     curl --version
 
+ARG DDA_VERSION=v0.33.1
 ENV DDA_INTERACTIVE=false
 # Install prebuilt dda and sync tasks
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -112,25 +95,50 @@ RUN ARCH=$(dpkg --print-architecture) && \
     dda self dep sync -f legacy-tasks
 
 
+FROM builder_base AS builder
+# We can't get tarballs for dev branches, so we can't just pull the tarball from github.
+# Instead we make a treeless clone at the reference provided, and build from the repo.
+# We also have to use the repo clone because some invoke tasks rely on git commands unavailable
+# in repo tarball archives. For the same reason a shallow clone will also not work.
+ARG AGENT_GIT_REF
+ARG DD_GIT_COMMIT_SHA
+ARG PACKAGE_TYPE
+RUN git clone --branch "${AGENT_GIT_REF}" --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent && \
+    if [ -n "${DD_GIT_COMMIT_SHA}" ]; then \
+        git -C datadog-agent checkout --detach "${DD_GIT_COMMIT_SHA}"; \
+    fi
+
+# Set the working directory to the source code
+WORKDIR /workspace/datadog-agent
+
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files and clean up go cache to free space
-RUN GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
+ARG GOPROXY
+ARG GONOSUMDB
+# The GOPROXY build arg is re-injected into every RUN below as an env var, so
+# normalize it once and apply the result explicitly to each go step.
+RUN printf '%s' "$GOPROXY" > /tmp/goproxy.sanitized && \
+    { ! printf '%s' "$GOPROXY" | grep -q '\.fabric\.dog' || \
+      curl --silent --output /dev/null --connect-timeout 3 --max-time 5 "https://depot-read-api-go.rapid-dependency-management-depot.all-clusters.local-dc.fabric.dog:8443/magicmirror/magicmirror/@current/sumdb/sum.golang.org/supported" || \
+      { printf '%s' "$GOPROXY" | tr '|' '\n' | grep -vE '^https?://[^/]*\.fabric\.dog(:[0-9]+)?(/|$)' | paste -sd '|' - > /tmp/goproxy.sanitized && \
+        echo "sanitize-goproxy: endpoint unusable here; stripped it from GOPROXY" >&2; }; }
+RUN GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
     go clean -cache; \
     else \
-    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
+    GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
     go clean -cache; \
     fi
 
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.
@@ -147,6 +155,8 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 #       --build-arg REGISTRY_AUTH=password \
 #       --secret id=registry_username,env=REGISTRY_USERNAME \
 #       --secret id=registry_password,env=REGISTRY_PASSWORD ...
+
+# Required for PACKAGE_TYPE=linux or windows: source agent OCI URL and output OCI URL.
 ARG AGENT_OCI
 ARG OUTPUT_OCI
 ARG REGISTRY_AUTH=""

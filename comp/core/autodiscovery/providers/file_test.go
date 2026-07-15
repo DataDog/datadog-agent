@@ -23,8 +23,8 @@ import (
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
-	paths := []string{"tests", "foo/bar"}
+	cfg.SetInTest("ignore_autoconf", []string{"ignored"})
+	paths := []string{"testdata", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
@@ -82,7 +82,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 18, len(configs))
+	assert.Equal(t, 20, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml)
 	assert.Equal(t, 4, len(provider.Errors))
@@ -93,7 +93,7 @@ func TestEnvVarReplacement(t *testing.T) {
 	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
 
-	paths := []string{"tests"}
+	paths := []string{"testdata"}
 	ResetReader(paths)
 	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)

@@ -11,11 +11,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"sort"
 	"strings"
 	"sync"
-
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -25,7 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -113,10 +110,10 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			if err != nil {
 				k.configErrors[entityName] = err
-				k.reportConfigurationError(entityName, err, errorSource)
+				reportConfigurationError(k.healthPlatform, entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
-				k.clearConfigurationErrors(entityName)
+				clearConfigurationErrors(k.healthPlatform, entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -154,7 +151,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
-			k.clearConfigurationErrors(entityName)
+			clearConfigurationErrors(k.healthPlatform, entityName)
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -305,48 +302,6 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	maps.Copy(errors, k.configErrors)
 
 	return errors
-}
-
-// reportConfigurationError reports the AD configuration errors to the health platform.
-func (k *ContainerConfigProvider) reportConfigurationError(entityName string, errMsgSet types.ErrorMsgSet, errorSource types.ErrorSource) {
-	if k.healthPlatform == nil {
-		return
-	}
-
-	// Sort error messages for stable checkID assignment
-	errMsgs := make([]string, 0, len(errMsgSet))
-	for msg := range errMsgSet {
-		errMsgs = append(errMsgs, msg)
-	}
-	sort.Strings(errMsgs)
-	errorMsg := strings.Join(errMsgs, ", ")
-
-	checkID := "ad-annotation:" + entityName
-	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatformdef.ADMisconfigurationIssueID,
-		Context: map[string]string{
-			"entityName":   entityName,
-			"errorMessage": errorMsg,
-			"errorSource":  string(errorSource),
-		},
-	}
-
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); err != nil {
-		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
-	}
-}
-
-// clearConfigurationErrors clears all previously reported configuration errors for the given entity.
-func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
-	if k.healthPlatform == nil {
-		return
-	}
-
-	checkID := "ad-annotation:" + entityName
-	// Passing nil report clears the issue
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
-	}
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.

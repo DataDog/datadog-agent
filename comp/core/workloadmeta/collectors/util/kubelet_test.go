@@ -194,7 +194,7 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 			name: "status.resources overrides spec (resized down)",
 			spec: &kubelet.ContainerSpec{
 				Name: "c",
-				Resources: &kubelet.ContainerResourcesSpec{
+				Resources: &kubelet.ResourcesSpec{
 					Requests: kubelet.ResourceList{
 						kubelet.ResourceCPU:              resource.MustParse("500m"),
 						kubelet.ResourceMemory:           resource.MustParse("1Gi"),
@@ -208,7 +208,7 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 			},
 			status: &kubelet.ContainerStatus{
 				Name: "c",
-				Resources: &kubelet.ContainerResourcesSpec{
+				Resources: &kubelet.ResourcesSpec{
 					Requests: kubelet.ResourceList{
 						kubelet.ResourceCPU:    resource.MustParse("200m"),
 						kubelet.ResourceMemory: resource.MustParse("512Mi"),
@@ -237,7 +237,7 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 			name: "legacy cluster (no status resources) falls back to spec",
 			spec: &kubelet.ContainerSpec{
 				Name: "c",
-				Resources: &kubelet.ContainerResourcesSpec{
+				Resources: &kubelet.ResourcesSpec{
 					Requests: kubelet.ResourceList{
 						kubelet.ResourceCPU:    resource.MustParse("100m"),
 						kubelet.ResourceMemory: resource.MustParse("256Mi"),
@@ -266,7 +266,7 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 			name: "status.resources with partial keys falls through to spec for missing keys",
 			spec: &kubelet.ContainerSpec{
 				Name: "c",
-				Resources: &kubelet.ContainerResourcesSpec{
+				Resources: &kubelet.ResourcesSpec{
 					Requests: kubelet.ResourceList{
 						kubelet.ResourceCPU:              resource.MustParse("500m"),
 						kubelet.ResourceMemory:           resource.MustParse("1Gi"),
@@ -280,7 +280,7 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 			},
 			status: &kubelet.ContainerStatus{
 				Name: "c",
-				Resources: &kubelet.ContainerResourcesSpec{
+				Resources: &kubelet.ResourcesSpec{
 					Requests: kubelet.ResourceList{
 						kubelet.ResourceCPU: resource.MustParse("300m"),
 					},

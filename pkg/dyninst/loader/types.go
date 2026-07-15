@@ -85,10 +85,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EXPR_LOAD_LITERAL
 	case compiler.OpcodeExprReadString:
 		return C.SM_OP_EXPR_READ_STRING
-	case compiler.OpcodeExprCmpEqBase:
-		return C.SM_OP_EXPR_CMP_EQ_BASE
-	case compiler.OpcodeExprCmpEqString:
-		return C.SM_OP_EXPR_CMP_EQ_STRING
+	case compiler.OpcodeExprCmpBase:
+		return C.SM_OP_EXPR_CMP_BASE
+	case compiler.OpcodeExprCmpString:
+		return C.SM_OP_EXPR_CMP_STRING
 	case compiler.OpcodeConditionCheck:
 		return C.SM_OP_CONDITION_CHECK
 	case compiler.OpcodeConditionBegin:
@@ -113,6 +113,60 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_COND_JUMP_IF_FALSE
 	case compiler.OpcodeCondJumpIfTrue:
 		return C.SM_OP_COND_JUMP_IF_TRUE
+	case compiler.OpcodeExprLoadDuration:
+		return C.SM_OP_EXPR_LOAD_DURATION
+	case compiler.OpcodeConditionStateInit:
+		return C.SM_OP_CONDITION_STATE_INIT
+	case compiler.OpcodeConditionLeafRecord:
+		return C.SM_OP_CONDITION_LEAF_RECORD
+	case compiler.OpcodeConditionLeafLoad:
+		return C.SM_OP_CONDITION_LEAF_LOAD
+	case compiler.OpcodeConditionCheckPreserveError:
+		return C.SM_OP_CONDITION_CHECK_PRESERVE_ERROR
+	case compiler.OpcodeConditionLeafComplete:
+		return C.SM_OP_CONDITION_LEAF_COMPLETE
+	case compiler.OpcodeGoContextChainInit:
+		return C.SM_OP_GO_CONTEXT_CHAIN_INIT
+	case compiler.OpcodeGoContextChainHop:
+		return C.SM_OP_GO_CONTEXT_CHAIN_HOP
+	case compiler.OpcodeProcessGoTime:
+		return C.SM_OP_PROCESS_GO_TIME
+	case compiler.OpcodeExprLoadAddress:
+		return C.SM_OP_EXPR_LOAD_ADDRESS
+	case compiler.OpcodeArrayLoopBegin:
+		return C.SM_OP_ARRAY_LOOP_BEGIN
+	case compiler.OpcodeArrayLoopEnd:
+		return C.SM_OP_ARRAY_LOOP_END
+	case compiler.OpcodeSliceLoopBegin:
+		return C.SM_OP_SLICE_LOOP_BEGIN
+	case compiler.OpcodeSliceLoopEnd:
+		return C.SM_OP_SLICE_LOOP_END
+	case compiler.OpcodeSwissMapLoopBegin:
+		return C.SM_OP_SWISS_MAP_LOOP_BEGIN
+	case compiler.OpcodeSwissMapLoopEnd:
+		return C.SM_OP_SWISS_MAP_LOOP_END
+	case compiler.OpcodeExprAdvanceOffset:
+		return C.SM_OP_EXPR_ADVANCE_OFFSET
+	case compiler.OpcodePanicUnwindPrepare:
+		return C.SM_OP_PANIC_UNWIND_PREPARE
+	case compiler.OpcodePanicUnwindEvictSlots:
+		return C.SM_OP_PANIC_UNWIND_EVICT_SLOTS
+	case compiler.OpcodeEmitFilterSliceMarker:
+		return C.SM_OP_EMIT_FILTER_SLICE_MARKER
+	case compiler.OpcodeEmitFilterMapMarker:
+		return C.SM_OP_EMIT_FILTER_MAP_MARKER
+	case compiler.OpcodeInitFilterSliceLoop:
+		return C.SM_OP_INIT_FILTER_SLICE_LOOP
+	case compiler.OpcodeEmitFilterSliceElement:
+		return C.SM_OP_EMIT_FILTER_SLICE_ELEMENT
+	case compiler.OpcodeFilterSliceAdvance:
+		return C.SM_OP_FILTER_SLICE_ADVANCE
+	case compiler.OpcodeInitFilterMapLoop:
+		return C.SM_OP_INIT_FILTER_MAP_LOOP
+	case compiler.OpcodeEmitFilterMapElement:
+		return C.SM_OP_EMIT_FILTER_MAP_ELEMENT
+	case compiler.OpcodeFilterMapAdvance:
+		return C.SM_OP_FILTER_MAP_ADVANCE
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

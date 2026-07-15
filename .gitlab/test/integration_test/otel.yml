@@ -21,16 +21,36 @@ integration_tests_otel:
 
 docker_image_build_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
+  extends: [.docker_build_amd64, .docker_build_job_definition]
+  # TODO: switch back to ["arch:amd64"] runners (from `.docker_build_amd64`) once
+  # the docker Python SDK in the `docker_x64` build image is upgraded to >=7.0.0.
+  # The older SDK uses an `http+docker://` URL scheme internally when connecting
+  # via Unix socket, which newer urllib3 rejects — breaking the after_script
+  # tests on non-DinD runners. DinD runners avoid the code path entirely (Docker
+  # is reached over TCP), which is why the same image worked there before.
   tags: ["docker-in-docker:amd64"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
+    AFTER_SCRIPT_IGNORE_ERRORS: false # We run tests in the after_script
+    BUILD_ARG: |
+      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror
+      --build-arg CI
+      --build-arg GOPROXY
+      --build-arg GONOSUMDB
+      --build-arg GO_VERSION
+    BUILD_CONTEXT: /tmp/otel-ci
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-byoc
+    CACHE_TARGET: builder_base
   before_script:
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
-    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/Dockerfile
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
     - export OTELCOL_VERSION=$(yq eval '.processors[] | select(.gomod | test("opentelemetry-collector-contrib")) | .gomod' /tmp/otel-ci/manifest.yaml | head -1 | awk '{print $NF}')
     - >-
@@ -41,67 +61,110 @@ docker_image_build_otel:
       yq eval -i
       '.processors += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor " + env(OTELCOL_VERSION)}]'
       /tmp/otel-ci/manifest.yaml
-  script:
     - !reference [.login_to_docker_readonly]
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    - export GO_VERSION=$(cat .go-version)
+    # Create a buildx builder, see .ddot_byoc_build_cache_setup for the rationale behind this.
+    - docker buildx create --use --driver docker-container --bootstrap
+  after_script:
+    # Compute the image name and tag the template will push to, so after_script can reference them.
+    # ECR_RELEASE_SUFFIX mirrors the logic in .docker_build_job_definition.
     - |
-      docker build \
-      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY \
-      --build-arg GONOSUMDB \
-      --tag agent-byoc:latest \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
-    - |
-      OT_AGENT_IMAGE_NAME=agent-byoc \
-      OT_AGENT_TAG=latest python3 \
-      /tmp/otel-ci/otel_agent_build_tests.py
+      if [[ "$BUCKET_BRANCH" == "nightly" && "$IMAGE" =~ "ci/datadog-agent/agent" ]]; then
+        ECR_RELEASE_SUFFIX="-nightly"
+      else
+        ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG:+-release}"
+      fi
+      export OT_AGENT_IMAGE_NAME="${IMAGE}${ECR_RELEASE_SUFFIX}"
+      export OT_AGENT_TAG="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-${ARCH}"
+    - python3 /tmp/otel-ci/otel_agent_build_tests.py
+
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+
+# Shared caching logic for all DDOT BYOC build jobs.
+# Expects BUILD_ARGS and IMAGE to be set before referencing.
+# Defines CACHE_FROM and CACHE_TO for use in subsequent build steps.
+.ddot_byoc_build_cache_setup:
+  script:
+    # These jobs run on docker-in-docker:amd64 runners rather than the standard arch:amd64 runners
+    # used by .docker_build_job_definition, for two reasons:
+    #   1. The Python docker SDK in the docker_x64 image is <7.0.0, which uses an http+docker://
+    #      URL scheme over the Unix socket that newer urllib3 rejects. DinD runners expose Docker
+    #      over TCP, avoiding this entirely.
+    #   2. The BYOC OCI tests start a local registry and reach it via --network=host; this only
+    #      works cleanly inside DinD's isolated network namespace.
+    #
+    # The arch:amd64 runners used by .docker_build_job_definition have a buildx builder with a
+    # capable driver (docker-container or remote) pre-configured at the runner level. DinD runners
+    # don't — they start with a fresh Docker daemon whose default buildx driver is "docker", which
+    # does not support --cache-to type=registry. We therefore create an explicit builder here.
+    # --driver-opt network=host is required so that the BuildKit daemon container shares the DinD
+    # host's network namespace; without it, build steps using --network=host cannot reach
+    # localhost:5000 (the local OCI registry started in the before_script).
+    - docker buildx create --use --driver docker-container --driver-opt network=host --bootstrap
+    - |
+      CACHE_REGISTRY="${IMAGE}:cache"
+      CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
+      CACHE_TO=""
+      NO_CACHE=""
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" || "$BUCKET_BRANCH" == "nightly" ]]; then
+        CACHE_TO="--cache-to type=registry,ref=${CACHE_REGISTRY},mode=max"
+      fi
+      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+        CACHE_FROM=""
+        NO_CACHE="--no-cache"
+      fi
+      docker buildx build \
+        --target builder_base \
+        ${NO_CACHE} \
+        ${CACHE_FROM} \
+        ${CACHE_TO} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
 
 # Test that the BYOC packages can be built with the existing Dockerfile
 .ddot_byoc_oci_build_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
+  # TODO: Switch to standard `amd64` runners - see comment above in docker_image_build_otel
   tags: ["docker-in-docker:amd64"]
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/$DDOT_BYOC_OCI_REPO-builder
   before_script:
     - !reference [docker_image_build_otel, before_script]
     - apt-get update && apt-get install -y --no-install-recommends zstd
-  script:
-    - !reference [.login_to_docker_readonly]
-    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     # Start a local OCI registry to receive both the source agent OCI and the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
-    - OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
+    - export AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - export OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
+  script:
+    - |
+      BUILD_ARGS="\
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
+        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+        --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
+        --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
+        --build-arg OUTPUT_OCI=$OUTPUT_OCI \
+        --build-arg CI \
+        --build-arg GOPROXY=$GOPROXY \
+        --build-arg GONOSUMDB=$GONOSUMDB \
+        --build-arg GO_VERSION=$(cat .go-version)"
+    - !reference [.ddot_byoc_build_cache_setup, script]
     # TODO: use staging package for AGENT_OCI until DDOT extension is released in 7.78.0
     - |
-      docker build \
-      --target builder \
-      --network=host \
-      --build-arg AGENT_VERSION=$AGENT_VERSION \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
-      --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
-      --build-arg OUTPUT_OCI=$OUTPUT_OCI \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY=$GOPROXY \
-      --build-arg GONOSUMDB=$GONOSUMDB \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
+      docker buildx build \
+        --target builder \
+        --network=host \
+        ${CACHE_FROM} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
     # Verify the OCI image index was pushed and the replaced binary is present in the ddot layer
     - |
       REGISTRY_BASE="http://localhost:5000/v2/${DDOT_BYOC_OCI_REPO}"
@@ -142,28 +205,34 @@ ddot_byoc_binary_build_test_ubuntu2004:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-byoc-ubuntu2004-builder
   before_script:
     - !reference [docker_image_build_otel, before_script]
+    - export AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
   script:
-    - !reference [.login_to_docker_readonly]
-    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
-      docker build \
-      --target builder \
-      --tag otel-builder-tmp \
-      --build-arg AGENT_VERSION=$AGENT_VERSION \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg UBUNTU_VERSION=20.04 \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY=$GOPROXY \
-      --build-arg GONOSUMDB=$GONOSUMDB \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
+      BUILD_ARGS="\
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
+        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+        --build-arg UBUNTU_VERSION=20.04 \
+        --build-arg CI \
+        --build-arg GOPROXY=$GOPROXY \
+        --build-arg GONOSUMDB=$GONOSUMDB \
+        --build-arg GO_VERSION=$(cat .go-version)"
+    - !reference [.ddot_byoc_build_cache_setup, script]
+    - |
+      docker buildx build \
+        --target builder \
+        --load \
+        --tag otel-builder-tmp \
+        ${CACHE_FROM} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
     - mkdir -p ddot-byoc
     - docker run --rm -v "$(pwd)/ddot-byoc:/out" otel-builder-tmp cp /workspace/datadog-agent/bin/otel-agent/otel-agent /out/otel-agent
     - BIN_PATH=ddot-byoc/otel-agent

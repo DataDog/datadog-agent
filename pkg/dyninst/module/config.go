@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,14 +55,6 @@ type Config struct {
 
 	// ActuatorConfig is the configuration for the actuator.
 	ActuatorConfig actuator.Config
-
-	// UseMultiAttach causes the loader to use the uprobe_multi link type
-	// (BPF_LINK_TYPE_UPROBE_MULTI) when attaching probes. This batches
-	// many attachments into a single bpf_link_create call and is much
-	// faster for programs with many attachpoints, but requires kernel
-	// support (Linux 6.6+). The caller is responsible for only enabling
-	// this on supported kernels.
-	UseMultiAttach bool
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
@@ -98,14 +92,15 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		return nil, err
 	}
 
+	stateDir := dynamicInstrumentationStateDir()
 	c := &Config{
 		Config:                 *ebpf.NewConfig(),
 		LogUploaderURL:         withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
-		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
-		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
+		SymDBCacheDir:          filepath.Join(stateDir, "symdb-uploads"),
+		ProbeTombstoneFilePath: filepath.Join(stateDir, "debugger-probes-tombstone.json"),
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
 		ActuatorConfig: actuator.Config{
@@ -113,6 +108,15 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		},
 	}
 	return c, nil
+}
+
+// dynamicInstrumentationStateDir returns the directory under which dynamic
+// instrumentation persists its writable state (tombstone and SymDB upload
+// cache). It lives under run_path (a root-owned directory) rather than a
+// world-writable location like /tmp, so an unprivileged user cannot pre-create
+// the path or plant symlinks that root would follow when writing.
+func dynamicInstrumentationStateDir() string {
+	return filepath.Join(defaultpaths.GetDefaultRunPath(), "system-probe", "dynamic-instrumentation")
 }
 
 const diNS = "dynamic_instrumentation"

@@ -14,9 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 )
 
@@ -30,24 +27,26 @@ func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer http.Hand
 		httpHandler = TimeoutHandlerFunc(httpHandler, timeout)
 	}
 
-	var handler http.Handler
-	// when HTTP/2 traffic that is not TLS being sent we need to create a new handler which
-	// is able to handle the pre fix magic sent
-	handler = h2c.NewHandler(handlerWithFallback(grpcServer, httpHandler), &http2.Server{})
-	if tlsConfig != nil {
-		tlsConfig.NextProtos = []string{"h2"}
-		handler = handlerWithFallback(grpcServer, httpHandler)
-	}
-
-	return &http.Server{
+	srv := &http.Server{
 		Addr:      addr,
-		Handler:   handler,
+		Handler:   handlerWithFallback(grpcServer, httpHandler),
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed
 			return context.WithValue(ctx, grpccontext.ConnContextKey, c)
 		},
 	}
+
+	if tlsConfig != nil {
+		tlsConfig.NextProtos = []string{"h2"}
+	} else {
+		var p http.Protocols
+		p.SetHTTP1(true)
+		p.SetUnencryptedHTTP2(true)
+		srv.Protocols = &p
+	}
+
+	return srv
 }
 
 // TimeoutHandlerFunc returns an HTTP handler that times out after a duration.

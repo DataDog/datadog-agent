@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "evictor",
+    srcs = ["evictor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/evictor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@io_k8s_api//policy/v1:policy",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "evictor_test",
+    srcs = ["evictor_test.go"],
+    embed = [":evictor"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

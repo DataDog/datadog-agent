@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Add support for the ``datadog.metric.as_type`` datapoint attribute on
+    OTLP delta sum metrics. When this attribute is set to ``"rate"``, the
+    metric is sent to Datadog as a Rate (value divided by interval) instead
+    of a Count. Accepted values are ``"rate"``, ``"count"``, and ``"gauge"``;
+    unknown values are logged and ignored. This allows users migrating from
+    DogStatsD to OpenTelemetry to preserve rate-type metric behavior.

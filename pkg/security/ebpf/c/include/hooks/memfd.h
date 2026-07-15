@@ -64,8 +64,7 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
     for (int i = 0; i < TRACER_MEMFD_SUFFIX_LEN; i++) {
         syscall.tracer_memfd_create.suffix[i] = name[MEMFD_TRACER_PREFIX_LEN + i];
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -104,7 +103,9 @@ static int __attribute__((always_inline)) handle_memfd_fcntl(ctx_t *ctx) {
     unsigned int cmd = (unsigned int)CTX_PARM2(ctx);
     unsigned int arg = (unsigned int)CTX_PARM3(ctx);
 
-    if ((cmd != F_ADD_SEALS) || !(arg & F_SEAL_WRITE)) {
+    // dd-trace-go seals F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL while
+    // libdatadog seals F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL.
+    if ((cmd != F_ADD_SEALS) || !(arg & F_SEAL_WRITE || arg & F_SEAL_SEAL)) {
         return 0;
     }
 

@@ -90,10 +90,6 @@ type processKey struct {
 	version string
 }
 
-func (k processKey) String() string {
-	return fmt.Sprintf("%s (service: %s)", k.pid, k.service)
-}
-
 type uploadRequest struct {
 	procID         processKey
 	runtimeID      string
@@ -113,7 +109,7 @@ func newSymdbManager(
 	opts ...option,
 ) *symdbManager {
 	cfg := symdbManagerConfig{
-		maxBufferFuncs: 10000,
+		flushThresholdBytes: uploader.DefaultFlushThresholdBytes,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -138,7 +134,7 @@ func newSymdbManager(
 	if cacheDir != "" {
 		cache, err := newPersistentUploadCache(cacheDir, cfg.testingKnobs.cacheOptions...)
 		if err != nil {
-			log.Errorf("Failed to create persistent upload cache dir %s: %v", cacheDir, err)
+			log.Errorf("Failed to initialize persistent upload cache at %s: %v", cacheDir, err)
 		} else {
 			m.persistentCache = cache
 		}
@@ -154,8 +150,8 @@ func newSymdbManager(
 }
 
 type symdbManagerConfig struct {
-	maxBufferFuncs int
-	testingKnobs   struct {
+	flushThresholdBytes int
+	testingKnobs        struct {
 		onDeferUpload                     func()
 		onUploadRejectedByPersistentCache func()
 		onUploadQueued                    func(queuedUploadInfo)
@@ -168,9 +164,9 @@ type symdbManagerConfig struct {
 
 type option func(config *symdbManagerConfig)
 
-func withMaxBufferFuncs(maxBufferFuncs int) option {
+func withFlushThresholdBytes(flushThresholdBytes int) option {
 	return func(c *symdbManagerConfig) {
-		c.maxBufferFuncs = maxBufferFuncs
+		c.flushThresholdBytes = flushThresholdBytes
 	}
 }
 
@@ -279,7 +275,8 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 	if m.persistentCache != nil {
 		entry, err := m.persistentCache.GetEntry(runtimeID.ID.PID)
 		if err != nil {
-			log.Warnf("failed to check upload cache for process %s", runtimeID.String())
+			log.Warnf("failed to check upload cache for process %s (service: %s, version: %s, runtime ID: %s): %v",
+				runtimeID.ID, runtimeID.service, runtimeID.version, runtimeID.runtimeID, err)
 		}
 		if entry != nil && entry.ServiceName == runtimeID.service && entry.ServiceVersion == runtimeID.version {
 			switch entry.Type {
@@ -290,7 +287,8 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 				if m.cfg.testingKnobs.onUploadRejectedByPersistentCache != nil {
 					m.cfg.testingKnobs.onUploadRejectedByPersistentCache()
 				}
-				log.Debugf("skipping SymDB upload for %s (%s) because it was previously uploaded", runtimeID.service, runtimeID.ID)
+				log.Debugf("skipping SymDB upload for process %s (service: %s, version: %s, runtime ID: %s) because it was previously uploaded",
+					runtimeID.ID, runtimeID.service, runtimeID.version, runtimeID.runtimeID)
 				return nil
 			case entryTypeAttempt:
 				// We already attempted to upload symbols for this process
@@ -314,8 +312,8 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 					// The backoff duration has expired. Allow the upload to proceed.
 					break
 				}
-				log.Infof("SymDB: scheduling retry upload for process %s after backoff of %v (error number %d, elapsed since last attempt: %s)",
-					runtimeID.ID, remainingWait, entry.ErrorNumber, elapsed)
+				log.Infof("SymDB: scheduling retry upload for process %s (service: %s, version: %s, runtime ID: %s) after backoff of %v (error number %d, elapsed since last attempt: %s)",
+					runtimeID.ID, runtimeID.service, runtimeID.version, runtimeID.runtimeID, remainingWait, entry.ErrorNumber, elapsed)
 
 				if m.cfg.testingKnobs.onDeferUpload != nil {
 					m.cfg.testingKnobs.onDeferUpload()
@@ -330,7 +328,8 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 
 				return nil
 			default:
-				log.Warnf("invalid entry type in cache for process %s: %d", runtimeID, entry.Type)
+				log.Warnf("invalid entry type in cache for process %s (service: %s, version: %s, runtime ID: %s): %d",
+					runtimeID.ID, runtimeID.service, runtimeID.version, runtimeID.runtimeID, entry.Type)
 			}
 		}
 	}
@@ -396,7 +395,8 @@ func (m *symdbManager) removeUploadInner(key processKey) {
 	delete(m.mu.trackedProcesses, key)
 	if m.persistentCache != nil {
 		if err := m.persistentCache.RemoveEntry(key.pid.PID); err != nil {
-			log.Warnf("failed to remove cache entry for process %s", key.pid)
+			log.Warnf("failed to remove cache entry for process %s (service: %s, version: %s): %v",
+				key.pid, key.service, key.version, err)
 		}
 	}
 
@@ -413,7 +413,8 @@ func (m *symdbManager) removeUploadInner(key processKey) {
 	// wait for it to terminate.
 	var doneCh chan struct{}
 	if m.mu.currentUpload != nil && m.mu.currentUpload.procID == key {
-		log.Infof("Cancelling symbols upload for process %s", key)
+		log.Infof("Cancelling symbols upload for process %s (service: %s, version: %s, runtime ID: %s)",
+			key.pid, key.service, key.version, m.mu.currentUpload.runtimeID)
 		// Cancel the upload first.
 		if m.mu.currentCancel != nil {
 			m.mu.currentCancel(errors.New("symbols upload no longer required"))
@@ -528,8 +529,8 @@ func (m *symdbManager) worker(ctx context.Context) {
 		err := m.performUpload(uploadCtx, req.procID, req.runtimeID, req.executablePath)
 		if err != nil {
 			if uploadCtx.Err() != nil {
-				log.Infof("SymDB: upload cancelled for process %v (executable: %s): %v",
-					req.runtimeID, req.executablePath, context.Cause(uploadCtx))
+				log.Infof("SymDB: upload cancelled for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %v",
+					req.procID.pid, req.procID.service, req.procID.version, req.runtimeID, req.executablePath, context.Cause(uploadCtx))
 			} else {
 				// We'll retry the upload on network errors, but not on other errors.
 				var ue uploadError
@@ -540,12 +541,12 @@ func (m *symdbManager) worker(ctx context.Context) {
 						retryDelay = m.cfg.testingKnobs.networkErrorRetryDelay
 					}
 					nextAttempt := time.Now().Add(retryDelay)
-					log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v. Will be attempted again at: %s.",
-						req.procID.pid, req.executablePath, err, nextAttempt)
+					log.Errorf("SymDB: failed to upload symbols for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %v. Will be attempted again at: %s.",
+						req.procID.pid, req.procID.service, req.procID.version, req.runtimeID, req.executablePath, err, nextAttempt)
 					m.addToQueue(req, nextAttempt)
 				} else {
-					log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v. It will not be attempted again.",
-						req.procID.pid, req.executablePath, err)
+					log.Errorf("SymDB: failed to upload symbols for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %v. It will not be attempted again.",
+						req.procID.pid, req.procID.service, req.procID.version, req.runtimeID, req.executablePath, err)
 				}
 			}
 		}
@@ -569,7 +570,8 @@ func (m *symdbManager) performUpload(
 		// error number.
 		entry, err := m.persistentCache.GetEntry(procID.pid.PID)
 		if err != nil {
-			return fmt.Errorf("failed to read cache entry for process %v: %w", procID.pid, err)
+			return fmt.Errorf("failed to read cache entry for process %s (service: %s, version: %s, runtime ID: %s): %w",
+				procID.pid, procID.service, procID.version, runtimeID, err)
 		}
 		if entry != nil && entry.Type == entryTypeAttempt {
 			errorNumber = entry.ErrorNumber + 1
@@ -577,7 +579,8 @@ func (m *symdbManager) performUpload(
 
 		// Record this attempt in the cache.
 		if err := m.persistentCache.AddAttempt(procID.pid.PID, procID.service, procID.version, errorNumber, "" /* errMsg */); err != nil {
-			return fmt.Errorf("failed to create cache entry for process %v: %w", procID.pid, err)
+			return fmt.Errorf("failed to create cache entry for process %s (service: %s, version: %s, runtime ID: %s): %w",
+				procID.pid, procID.service, procID.version, runtimeID, err)
 		}
 
 		// Update the cache entry when the upload is complete.
@@ -589,7 +592,8 @@ func (m *symdbManager) performUpload(
 				if err := m.persistentCache.AddCompleted(
 					procID.pid.PID, procID.service, procID.version,
 				); err != nil {
-					retErr = fmt.Errorf("failed to update cache entry for process %v: %w", procID.pid, err)
+					retErr = fmt.Errorf("failed to update cache entry for process %s (service: %s, version: %s, runtime ID: %s): %w",
+						procID.pid, procID.service, procID.version, runtimeID, err)
 				}
 			} else {
 				// Upload failed, update the cache entry we created above with
@@ -597,14 +601,15 @@ func (m *symdbManager) performUpload(
 				if err := m.persistentCache.AddAttempt(
 					procID.pid.PID, procID.service, procID.version, errorNumber, retErr.Error(),
 				); err != nil {
-					log.Errorf("Failed to update cache entry with error for process %v: %v", procID.pid, err)
+					log.Errorf("Failed to update cache entry with error for process %s (service: %s, version: %s, runtime ID: %s): %v",
+						procID.pid, procID.service, procID.version, runtimeID, err)
 				}
 			}
 		}()
 	}
 
-	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
-		procID.pid, procID.service, procID.version, executablePath)
+	log.Infof("SymDB: uploading symbols for process %s (service: %s, version: %s, runtime ID: %s, executable: %s)",
+		procID.pid, procID.service, procID.version, runtimeID, executablePath)
 	startTime := time.Now()
 	extractOpts := symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg}
 	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
@@ -615,72 +620,42 @@ func (m *symdbManager) performUpload(
 		m.objectLoader,
 		extractOpts)
 	if err != nil {
-		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
-			procID.pid, executablePath, err)
+		return fmt.Errorf("failed to read symbols for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %w",
+			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
 	}
 
-	sender := uploader.NewSymDBUploader(
+	var diskCache *object.DiskCache
+	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
+		diskCache = dc
+	}
+	enc, err := uploader.NewBatchEncoder(
 		m.uploadURL.String(),
 		procID.service, procID.version, runtimeID,
+		uuid.New(),
+		diskCache, nil, /* headers */
 	)
-	uploadBuffer := make([]uploader.Scope, 0, 100)
-	bufferFuncs := 0
-	uploadID := uuid.New()
-	batchNum := 0
-	var totalPackages, totalFuncs int
-	// Flush every so often in order to not store too many scopes in memory.
-	maybeFlush := func(final bool) error {
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
-		}
-
-		if len(uploadBuffer) == 0 {
-			return nil
-		}
-		if final || bufferFuncs >= m.cfg.maxBufferFuncs {
-			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions. Final chunk: %t", len(uploadBuffer), bufferFuncs, final)
-			batchNum++
-			err := sender.UploadBatch(ctx,
-				uploader.UploadInfo{
-					UploadID: uploadID,
-					BatchNum: batchNum,
-					Final:    final,
-				},
-				uploadBuffer,
-			)
-			if err != nil {
-				return uploadError{cause: err}
-			}
-			uploadBuffer = uploadBuffer[:0]
-			bufferFuncs = 0
-		}
-		return nil
+	if err != nil {
+		return fmt.Errorf("failed to create batch encoder for process %v: %w",
+			procID.pid, err)
 	}
-	for pkg, err := range it {
-		if err != nil {
-			return fmt.Errorf("failed to iterate packages for process %v (executable: %s): %w",
-				procID.pid, executablePath, err)
-		}
+	defer func() { _ = enc.Close() }()
 
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
+	stats, err := uploader.RunUploadLoop(
+		ctx, enc, it, version.AgentVersion, m.cfg.flushThresholdBytes,
+	)
+	if err != nil {
+		if errors.Is(err, uploader.ErrUpload) {
+			return uploadError{cause: err}
 		}
-
-		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
-		uploadBuffer = append(uploadBuffer, scope)
-		totalPackages++
-		totalFuncs += pkg.Stats().NumFunctions
-		bufferFuncs += pkg.Stats().NumFunctions
-		if err := maybeFlush(pkg.Final); err != nil {
-			return err
-		}
+		return fmt.Errorf("upload for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %w",
+			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
 	}
 
-	log.Infof("SymDB: Successfully uploaded symbols for process %v "+
-		"(service: %s, version: %s, executable: %s):"+
+	log.Infof("SymDB: Successfully uploaded symbols for process %s "+
+		"(service: %s, version: %s, runtime ID: %s, executable: %s):"+
 		" %d packages, %d functions, %d chunks in %v",
-		procID.pid, procID.service, procID.version, executablePath,
-		totalPackages, totalFuncs, batchNum, time.Since(startTime))
+		procID.pid, procID.service, procID.version, runtimeID, executablePath,
+		stats.Packages, stats.Functions, stats.Batches, time.Since(startTime))
 	return nil
 }
 

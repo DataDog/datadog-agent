@@ -11,14 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Check if all directories agent could write to are writable by the agent.
-func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
+// Check determines if all directories the agent could write to are writable.
+func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
 	writeDirs := []string{
 		"/tmp",
 		cfg.GetString("run_path"),
@@ -57,10 +57,14 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 		return nil, nil
 	}
 
-	return &healthplatform.IssueReport{
-		IssueId: "read-only-filesystem-error",
-		Context: map[string]string{
-			"directories": strings.Join(nonWritableDirs, ","),
+	return []runnerdef.IssueReport{
+		{
+			IssueID:   IssueID,
+			IssueName: IssueName,
+			Source:    "agent",
+			Context: map[string]string{
+				"directories": strings.Join(nonWritableDirs, ","),
+			},
 		},
 	}, nil
 }

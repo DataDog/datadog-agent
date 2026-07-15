@@ -137,6 +137,41 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		msg.Release()
 		s.postMutate()
 		return nil
+	case output.EventPairingExpectationReturnPanicUnwound:
+		// The recovery probe emitted a single synthetic return for every
+		// probed frame on h.Goid whose StackByteDepth ∈ (Panic_lo_depth,
+		// Panic_hi_depth] is being unwound by panic+recover. Hand the one
+		// payload to the buffer with a shared/refcounted message and let
+		// the buffer fan it out across matching invocations.
+		//
+		// Each fragment of the recovery event is routed here individually.
+		// Fragment 0 carries the panic range in its header and attaches as
+		// the synthetic return on every match. Fragments 1+ (only emitted
+		// if the panic value is large enough to span multiple ringbuf
+		// flushes) arrive with Panic_lo_depth=Panic_hi_depth=0 because
+		// scratch_buf_flush_and_continue does not preserve those fields
+		// across continuation headers — so NotePanicUnwoundRange matches
+		// nothing and returns nil, and the fragment's payload is released
+		// via ReleaseBase. The user therefore sees a truncated single-
+		// fragment view of the panic value when it spans fragments. This
+		// is acceptable: the recovery probe's role is primarily to clean
+		// up in_progress_calls bookkeeping (which BPF does before submit),
+		// and matching invocations are still finalized via fragment 0.
+		shared := eventbuf.NewSharedMessage(wrapMessage(msg))
+		readys := s.buffer.NotePanicUnwoundRange(
+			h.Goid, h.Panic_lo_depth, h.Panic_hi_depth, shared,
+		)
+		// End the Acquire phase. If no matches acquired a handle, this
+		// releases the underlying now; otherwise the last handle's
+		// Release does it. Don't gate on len(readys) — a match can
+		// acquire a handle without finalizing (incomplete entry side),
+		// so len(readys)==0 doesn't imply zero handles.
+		shared.ReleaseBase()
+		for _, ready := range readys {
+			s.emit(ready)
+		}
+		s.postMutate()
+		return nil
 	case output.EventPairingExpectationCallMapFull:
 		// BPF ran out of room in the in_progress_calls map. The entry event
 		// is emitted standalone (no return will come) with an operator log.
@@ -176,13 +211,27 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 }
 
 // HandleDropNotification applies a side-channel drop notification to the
-// event buffer, finalizing the invocation it references if the resulting
+// event buffer, finalizing the invocation(s) it references if the resulting
 // state is now complete. Blocks on s.mu so a quiescent probe still gets its
 // truncated capture emitted promptly without waiting for the next main-channel
 // event.
 func (s *sink) HandleDropNotification(n output.DropNotification) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	switch output.DropReason(n.Drop_reason) {
+	case output.DropReasonPanicUnwoundLost:
+		// Range notification: one drop affects every buffered invocation on
+		// n.Goid whose depth is in (Panic_lo_depth, Panic_hi_depth]. The
+		// per-invocation key fields (Probe_id, Stack_byte_depth,
+		// Entry_ktime_ns) are not meaningful here.
+		readys := s.buffer.NotePanicUnwoundRangeLost(
+			n.Goid, n.Panic_lo_depth, n.Panic_hi_depth,
+		)
+		for _, r := range readys {
+			s.emit(r)
+		}
+		return
+	}
 	key := eventbuf.Key{
 		Goid:           n.Goid,
 		StackByteDepth: n.Stack_byte_depth,
@@ -258,11 +307,12 @@ func (s *sink) emit(ready eventbuf.Ready) {
 	// would corrupt previously-enqueued events on the next overwrite.
 	var decodedBytes []byte
 	decoded, probe, err := s.decoder.Decode(decode.Event{
-		EntryOrLine: entry,
-		Return:      ret,
-		ServiceName: s.service,
-		ProcessTags: s.processTags,
-		Truncated:   ready.EntryTruncated || ready.ReturnTruncated,
+		EntryOrLine:  entry,
+		Return:       ret,
+		ServiceName:  s.service,
+		ProcessTags:  s.processTags,
+		Truncated:    ready.EntryTruncated || ready.ReturnTruncated,
+		PanicUnwound: ready.PanicUnwound,
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {

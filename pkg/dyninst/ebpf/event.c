@@ -15,8 +15,6 @@
 
 char _license[] SEC("license") = "GPL";
 
-const uint32_t zero_uint32 = 0;
-
 static inline __attribute__((always_inline)) void
 read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stack_byte_depth) {
   if (OFFSET_runtime_dot_g__goid == 0 && OFFSET_runtime_dot_g__m == 0) {
@@ -67,6 +65,30 @@ struct {
   __type(key, uint32_t);
   __type(value, call_depths_t);
 } in_progress_calls_buf SEC(".maps");
+
+// notify_panic_unwound_lost publishes a DROP_REASON_PANIC_UNWOUND_LOST
+// notification carrying the unwound range from the recovery probe's
+// event header. Probe_id, stack_byte_depth, last_seq and entry_ktime_ns
+// are zero — the notification applies to every buffered invocation on
+// header->goid whose depth falls in (panic_lo_depth, panic_hi_depth].
+static inline __attribute__((always_inline)) void
+notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  if (stats) {
+    __sync_fetch_and_add(&stats->recovery_submit_failures, 1);
+  }
+  di_drop_notification_t* dn = drop_notify_prepare();
+  if (dn) {
+    *dn = (di_drop_notification_t){
+        .prog_id = prog_id,
+        .goid = header->goid,
+        .drop_reason = DROP_REASON_PANIC_UNWOUND_LOST,
+        .panic_lo_depth = header->panic_lo_depth,
+        .panic_hi_depth = header->panic_hi_depth,
+    };
+    (void)send_drop_notification();
+  }
+}
 
 static inline __attribute__((always_inline)) void
 probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs) {
@@ -126,20 +148,21 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       return;
     }
     int remaining;
-    uint64_t saved_dict_ptr = 0;
     uint64_t entry_ktime_ns = 0;
+    // Write directly into stack_machine_t fields where possible so the
+    // verifier doesn't have to track extra stack-local addresses; this
+    // keeps probe_run_with_cookie's frame within budget.
     if (!call_depths_delete(
-            depths, header->stack_byte_depth, params->probe_id,
-            &remaining, &saved_dict_ptr, &entry_ktime_ns)) {
+            depths, header->stack_byte_depth, (uint16_t)params->probe_id,
+            &remaining, &global_ctx.stack_machine->saved_dict_ptr,
+            &entry_ktime_ns,
+            &global_ctx.stack_machine->condition_state)) {
       // Somewhat common case where the goroutine has open calls, but it's not
       // this one.
       LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
           header->goid, header->stack_byte_depth, params->probe_id);
       return;
     }
-    // Restore the dict pointer saved at entry time so the stack machine
-    // can resolve generic shape types on the return path.
-    global_ctx.stack_machine->saved_dict_ptr = saved_dict_ptr;
     // Stamp the entry's timestamp on the return event so userspace can
     // correlate entry and return for the same invocation. Also record it
     // on stack_machine for any drop notifications this probe sends.
@@ -249,9 +272,20 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
         // the side channel so the buffered entry can be emitted alone rather
         // than leaking until process shutdown.
         LOG(1, "probe_run: failed to submit condition-failed signal for return event");
-        send_drop_notification(
-            prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-            0, global_ctx.stack_machine->entry_ktime_ns, DROP_REASON_RETURN_LOST);
+        {
+          di_drop_notification_t* dn = drop_notify_prepare();
+          if (dn) {
+            *dn = (di_drop_notification_t){
+                .prog_id = prog_id,
+                .probe_id = params->probe_id,
+                .goid = header->goid,
+                .stack_byte_depth = header->stack_byte_depth,
+                .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
+                .drop_reason = DROP_REASON_RETURN_LOST,
+            };
+            (void)send_drop_notification();
+          }
+        }
       }
     }
     // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
@@ -267,9 +301,20 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
       if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
         LOG(1, "probe_run: failed to submit throttled condition-failed signal");
-        send_drop_notification(
-            prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-            0, global_ctx.stack_machine->entry_ktime_ns, DROP_REASON_RETURN_LOST);
+        {
+          di_drop_notification_t* dn = drop_notify_prepare();
+          if (dn) {
+            *dn = (di_drop_notification_t){
+                .prog_id = prog_id,
+                .probe_id = params->probe_id,
+                .goid = header->goid,
+                .stack_byte_depth = header->stack_byte_depth,
+                .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
+                .drop_reason = DROP_REASON_RETURN_LOST,
+            };
+            (void)send_drop_notification();
+          }
+        }
       }
     }
     // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
@@ -283,7 +328,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       return;
     }
     depths->depths[0].depth = header->stack_byte_depth;
-    depths->depths[0].probe_id = params->probe_id;
+    depths->depths[0].probe_id = (uint16_t)params->probe_id;
+    depths->depths[0].condition_state = global_ctx.stack_machine->condition_state;
     depths->depths[0].dict_ptr = global_ctx.stack_machine->saved_dict_ptr;
     depths->depths[0].entry_ktime_ns = start_ns;
     int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
@@ -296,7 +342,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
           LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
           return;
         }
-        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id,
+        if (!call_depths_insert(depths, header->stack_byte_depth, (uint16_t)params->probe_id,
+                                global_ctx.stack_machine->condition_state,
                                 global_ctx.stack_machine->saved_dict_ptr, start_ns)) {
           header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
         }
@@ -309,21 +356,52 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     // A mid-chase flush failed. Skip the final submit — sending it now
     // would leave a gap in the fragment sequence — and notify userspace
     // so it can finalize whatever (if anything) reached it.
-    if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
+    if (header->event_pairing_expectation ==
+        EVENT_PAIRING_RETURN_PANIC_UNWOUND) {
+      // Recovery probe: in_progress_calls slots in (lo, hi] were already
+      // evicted by SM_OP_PANIC_UNWIND_EVICT_SLOTS, so any fragments that
+      // reached userspace cannot be re-paired with their entries. Tell
+      // userspace to range-scan its buffer; the partial-fragment
+      // semantics of PARTIAL_ENTRY do not apply here.
+      notify_panic_unwound_lost(prog_id, header);
+    } else if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
       // Earlier fragments reached userspace; tell it to emit them as
       // truncated.
       uint8_t reason = (params->kind == EVENT_KIND_RETURN)
                            ? DROP_REASON_PARTIAL_RETURN
                            : DROP_REASON_PARTIAL_ENTRY;
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          sm->last_submitted_seq, sm->entry_ktime_ns, reason);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .last_seq = sm->last_submitted_seq,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = reason,
+          };
+          (void)send_drop_notification();
+        }
+      }
     } else if (params->kind == EVENT_KIND_RETURN) {
       // The very first flush failed; no return fragments are in flight.
       // Tell userspace to emit the matching entry alone.
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          0, sm->entry_ktime_ns, DROP_REASON_RETURN_LOST);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = DROP_REASON_RETURN_LOST,
+          };
+          (void)send_drop_notification();
+        }
+      }
     }
     // Entry probe with no fragments: no userspace state to clean up.
     LOG(1, "probe_run: continuation aborted at seq=%d", sm->last_submitted_seq);
@@ -336,23 +414,55 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   final_header->continuation_flags = 0; // final fragment
   if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
     LOG(1, "probe_run output dropped");
-    if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
+    if (header->event_pairing_expectation ==
+        EVENT_PAIRING_RETURN_PANIC_UNWOUND) {
+      // Recovery probe: in_progress_calls slots in (lo, hi] were already
+      // evicted by SM_OP_PANIC_UNWIND_EVICT_SLOTS, so any fragments that
+      // reached userspace cannot be re-paired with their entries. Tell
+      // userspace to range-scan its buffer; the partial-fragment
+      // semantics of PARTIAL_ENTRY do not apply here.
+      notify_panic_unwound_lost(prog_id, header);
+    } else if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
       // Some fragments already reached userspace; this final fragment is
       // lost. Notify userspace to emit the partial event as truncated.
       uint8_t reason = (params->kind == EVENT_KIND_RETURN)
                            ? DROP_REASON_PARTIAL_RETURN
                            : DROP_REASON_PARTIAL_ENTRY;
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          sm->last_submitted_seq, sm->entry_ktime_ns, reason);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .last_seq = sm->last_submitted_seq,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = reason,
+          };
+          (void)send_drop_notification();
+        }
+      }
     } else if (params->kind == EVENT_KIND_RETURN) {
       // No fragments were submitted; the return probe produced nothing in
       // userspace. Tell userspace to emit the matching entry alone.
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          0, sm->entry_ktime_ns, DROP_REASON_RETURN_LOST);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = DROP_REASON_RETURN_LOST,
+          };
+          (void)send_drop_notification();
+        }
+      }
     }
-    // Entry probe with no fragments: no userspace state to clean up.
+    // Entry probe with no fragments (and not the recovery probe): no
+    // userspace state to clean up.
   } else {
     sm->last_submitted_seq = sm->continuation_seq;
     if (stack_hash != 0) {
@@ -363,23 +473,9 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   return;
 }
 
-// Cumulative stats aggregated throughout probe lifetime.
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __uint(max_entries, 1);
-  __type(key, uint32_t);
-  __type(value, stats_t);
-} stats_buf SEC(".maps");
-
 SEC("uprobe")
 int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
-
-  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
-  if (!stats) {
-    return 0;
-  }
-  stats->hit_cnt++;
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
   if (cookie >= num_probe_params) {
@@ -390,13 +486,20 @@ int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
+  uint32_t probe_id = params->probe_id;
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &probe_id);
+  if (!stats) {
+    return 0;
+  }
+  __sync_fetch_and_add(&stats->hit_cnt, 1);
+
   if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
-    stats->throttled_cnt++;
+    __sync_fetch_and_add(&stats->throttled_cnt, 1);
   } else {
     probe_run(start_ns, params, regs);
   }
 
-  stats->cpu_ns += bpf_ktime_get_ns() - start_ns;
+  __sync_fetch_and_add(&stats->cpu_ns, bpf_ktime_get_ns() - start_ns);
   return 0;
 }
 

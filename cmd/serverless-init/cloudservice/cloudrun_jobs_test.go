@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -152,7 +152,7 @@ func TestIsCloudRunJobWhenNotSet(t *testing.T) {
 func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	skipOnWindows(t)
 	demux := createDemultiplexer(t)
-	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
 	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
@@ -179,7 +179,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	skipOnWindows(t)
 	demux := createDemultiplexer(t)
-	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
 	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
@@ -309,7 +309,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	// Simulate an error
 	testErr := errors.New("task failed")
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, true, testErr)
+	jobs.Shutdown(nil, true, testErr)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -339,7 +339,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
 
 	// Simulate success (no error)
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, true, nil)
+	jobs.Shutdown(nil, true, nil)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -359,7 +359,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
 	// Don't call Init, so jobSpan remains nil
 
 	// Should not panic
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, true, nil)
+	jobs.Shutdown(nil, true, nil)
 
 	// Should not submit anything
 	assert.False(t, mockAgent.processCalled)

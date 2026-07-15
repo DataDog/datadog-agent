@@ -34,6 +34,9 @@ func setupPlatformMocks() {
 	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return nil
 	}
+	diskv2.GetDriveTypeFn = func(_ string) uint32 {
+		return windows.DRIVE_FIXED
+	}
 }
 
 func createWindowsCheck(t *testing.T) check.Check {
@@ -78,6 +81,76 @@ func createWindowsCheck(t *testing.T) check.Check {
 			}}, nil
 	})
 	return diskCheck
+}
+
+func createWindowsCheckWithMultipleIODevices(t *testing.T) check.Check {
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
+	primaryVolume := `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`
+	secondaryVolume := `\\?\Volume{b1b2c3d4-e5f6-7890-abcd-ef1234567890}\`
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return map[string]gopsutil_disk.IOCountersStat{
+			primaryVolume: {
+				Name:      primaryVolume,
+				ReadTime:  300,
+				WriteTime: 450,
+			},
+			secondaryVolume: {
+				Name:      secondaryVolume,
+				ReadTime:  600,
+				WriteTime: 750,
+			},
+		}, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:        mountpoint,
+			Fstype:      "NTFS",
+			Total:       100000000000,
+			Free:        30000000000,
+			Used:        70000000000,
+			UsedPercent: 70.0,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     primaryVolume,
+				Mountpoint: "D:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     secondaryVolume,
+				Mountpoint: "E:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw", "relatime"},
+			},
+		}, nil
+	})
+	return diskCheck
+}
+
+func assertIOMetricsTaggedWith(t *testing.T, m *mocksender.MockSender, deviceTag string) {
+	t.Helper()
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{deviceTag})
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{deviceTag})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{deviceTag})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{deviceTag})
+}
+
+func assertIOMetricsNotTaggedWith(t *testing.T, m *mocksender.MockSender, deviceTag string) {
+	t.Helper()
+	tagMatcher := mock.MatchedBy(func(tags []string) bool {
+		return slices.Contains(tags, deviceTag)
+	})
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.read_time", mock.AnythingOfType("float64"), "", tagMatcher)
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.write_time", mock.AnythingOfType("float64"), "", tagMatcher)
+	m.AssertNotCalled(t, "Rate", "system.disk.read_time_pct", mock.AnythingOfType("float64"), "", tagMatcher)
+	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", mock.AnythingOfType("float64"), "", tagMatcher)
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
@@ -308,6 +381,47 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
+func TestGivenADiskCheckWithDefaultConfig_WhenMultipleIOCountersAreReturned_ThenAllIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createWindowsCheckWithMultipleIODevices(t)
+	m := configureCheck(t, diskCheck, nil, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assertIOMetricsTaggedWith(t, m, `device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+	assertIOMetricsTaggedWith(t, m, `device:?\volume{b1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+}
+
+func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenMultipleIOCountersAreReturned_ThenOnlyIncludedIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createWindowsCheckWithMultipleIODevices(t)
+	config := integration.Data([]byte(`
+device_include:
+  - a1b2c3d4
+`))
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assertIOMetricsTaggedWith(t, m, `device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+	assertIOMetricsNotTaggedWith(t, m, `device:?\volume{b1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+}
+
+func TestGivenADiskCheckWithDeviceExcludeConfigured_WhenMultipleIOCountersAreReturned_ThenExcludedIOCountersMetricsAreNotReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createWindowsCheckWithMultipleIODevices(t)
+	config := integration.Data([]byte(`
+device_exclude:
+  - b1b2c3d4
+`))
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assertIOMetricsTaggedWith(t, m, `device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+	assertIOMetricsNotTaggedWith(t, m, `device:?\volume{b1b2c3d4-e5f6-7890-abcd-ef1234567890}`)
+}
+
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
 	setupDefaultMocks()
 	var netAddConnectionCalls [][]string
@@ -355,7 +469,7 @@ func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigu
 		return nil
 	}
 	diskCheck := createWindowsCheck(t)
-	m := mocksender.NewMockSender(diskCheck.ID())
+	m := mocksender.NewMockSender(t, diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 create_mounts:
@@ -383,7 +497,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSys
 		return errors.New("error calling NetAddConnection")
 	}
 	diskCheck := createWindowsCheck(t)
-	m := mocksender.NewMockSender(diskCheck.ID())
+	m := mocksender.NewMockSender(t, diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 create_mounts:
@@ -667,6 +781,74 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasCdromInOpts_ThenPartit
 	}))
 	// Regular partition should still be reported
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenDriveTypeIsCdrom_ThenPartitionIsExcluded(t *testing.T) {
+	tests := []struct {
+		name      string
+		device    string
+		mount     string
+		fstype    string
+		deviceTag string
+	}{
+		{
+			name:      "empty drive",
+			device:    "D:",
+			mount:     "D:\\",
+			fstype:    "",
+			deviceTag: "device:d:",
+		},
+		{
+			name:      "CDFS media",
+			device:    "D:",
+			mount:     "D:\\",
+			fstype:    "CDFS",
+			deviceTag: "device:d:",
+		},
+		{
+			name:      "UDF media",
+			device:    "E:",
+			mount:     "E:\\",
+			fstype:    "UDF",
+			deviceTag: "device:e:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDefaultMocks()
+			diskv2.GetDriveTypeFn = func(path string) uint32 {
+				if path == tt.mount {
+					return windows.DRIVE_CDROM
+				}
+				return windows.DRIVE_FIXED
+			}
+			diskCheck := createWindowsCheck(t)
+			diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+				return []gopsutil_disk.PartitionStat{
+					{
+						Device:     tt.device,
+						Mountpoint: tt.mount,
+						Fstype:     tt.fstype,
+						Opts:       []string{"ro"},
+					},
+					{
+						Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
+						Mountpoint: "C:\\",
+						Fstype:     "NTFS",
+						Opts:       []string{"rw"},
+					}}, nil
+			})
+			m := configureCheck(t, diskCheck, nil, nil)
+			err := diskCheck.Run()
+
+			assert.Nil(t, err)
+			m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+				return slices.Contains(tags, tt.deviceTag)
+			}))
+			m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+		})
+	}
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartitionIsExcluded(t *testing.T) {

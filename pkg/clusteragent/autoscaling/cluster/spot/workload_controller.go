@@ -11,10 +11,12 @@ import (
 	"context"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -26,13 +28,26 @@ import (
 )
 
 type workloadResource struct {
-	gvr  schema.GroupVersionResource
-	kind string
+	kind      string
+	gvr       schema.GroupVersionResource
+	newObject func(namespace, name string) runtime.Object
 }
 
 var spotWorkloadResources = []workloadResource{
-	{schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, kubernetes.DeploymentKind},
-	{schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, kubernetes.StatefulSetKind},
+	{
+		kind: kubernetes.DeploymentKind,
+		gvr:  schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
+		newObject: func(namespace, name string) runtime.Object {
+			return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
+		},
+	},
+	{
+		kind: kubernetes.StatefulSetKind,
+		gvr:  schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+		newObject: func(namespace, name string) runtime.Object {
+			return &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
+		},
+	},
 }
 
 // workloadController watches spot-enabled workloads and keeps the podTracker and
@@ -183,12 +198,19 @@ func (c *workloadController) processItem(ctx context.Context, key objectRef) err
 	}
 
 	// Update config store
+	_, exists := c.store.getConfig(key)
+
 	cfg := c.defaultConfig
 	overrideFromAnnotations(&cfg, u.GetAnnotations())
 	c.store.setConfig(key, cfg)
 	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
 
-	// List and track pods
+	// List and track pods.
+	// Do it once per enabled workload to avoid race with pod updates arriving via WLM through scheduler.trackPodUpdates.
+	if exists {
+		return nil
+	}
+
 	selector, ok := getPodSelector(key.Kind, u.Object)
 	if !ok {
 		return nil

@@ -83,6 +83,7 @@ type Server struct {
 	responseOverridesByMethod map[string]map[string]httpResponse
 
 	par *parServerState
+	rc  *rcServerState
 }
 
 // NewServer creates a new fakeintake server and starts it on localhost:port
@@ -143,6 +144,22 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/fakeintake/par/result", fi.handlePARResult)
 	mux.HandleFunc("/fakeintake/par/flush", fi.handlePARFlush)
 	mux.HandleFunc("/fakeintake/par/stats", fi.handlePARStats)
+
+	// Remote Config — only meaningful when WithRemoteConfig is set; handlers
+	// no-op with 404 otherwise.
+	if fi.rc != nil {
+		if err := fi.initRC(); err != nil {
+			log.Printf("Remote Config: init failed, disabling: %v", err)
+			fi.rc = nil
+		}
+	}
+	mux.HandleFunc("/api/v0.1/configurations", fi.handleRCConfigurations)
+	mux.HandleFunc("/api/v0.1/org", fi.handleRCOrg)
+	mux.HandleFunc("/api/v0.1/status", fi.handleRCStatus)
+	mux.HandleFunc("/fakeintake/rc/config", fi.handleRCAddConfig)
+	mux.HandleFunc("/fakeintake/rc/configs", fi.handleRCListConfigs)
+	mux.HandleFunc("/fakeintake/rc/config/", fi.handleRCDeleteConfig)
+	mux.HandleFunc("/fakeintake/rc/stats", fi.handleRCStats)
 
 	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)

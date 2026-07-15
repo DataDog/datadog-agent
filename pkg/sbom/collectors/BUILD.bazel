@@ -1,1 +1,18 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collectors",
+    srcs = [
+        "collectors.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

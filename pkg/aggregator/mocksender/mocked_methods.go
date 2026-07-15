@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 func (m *MockSender) tagsWithCheckTags(tags []string) []string {
@@ -93,6 +94,11 @@ func (m *MockSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	m.Called(rawEvent, eventType)
 }
 
+// OpenmetricsBucket enables the openmetrics bucket mock call.
+func (m *MockSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
+}
+
 // HistogramBucket enables the histogram bucket mock call.
 func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
@@ -111,12 +117,17 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
+// SetInfraTagger sets the infra mode tagger on the mock sender.
+func (m *MockSender) SetInfraTagger(tagger *infratags.Tagger) {
+	m.infraTagger = tagger
+	m.Called(tagger)
+}
+
 // SetCheckService enables the setting of check service mock call.
 func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockSender) SetNoIndex(noIndex bool) {
 	m.Called(noIndex)
 }

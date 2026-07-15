@@ -14,13 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -55,6 +53,9 @@ type rcClient struct {
 	config            configcomp.Component
 	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
+	agentName         string
+	agentVersion      string
+	IPC               ipc.Component
 }
 
 // Dependencies defines the dependencies for the rcclient component.
@@ -73,76 +74,41 @@ type Dependencies struct {
 	IPC               ipc.Component
 }
 
-// NewRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
+// NewComponent must not populate any Fx groups or return any types that would be consumed as dependencies by
 // other components. To avoid dependency cycles between our components we need to have "pure leaf" components (i.e.
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
-func NewRemoteConfigClient(deps Dependencies) (rcclient.Component, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
+func NewComponent(deps Dependencies) (rcclient.Component, error) {
 	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
 		return nil, errors.New("Remote config client is missing agent name or version parameter")
-	}
-
-	// Append client options
-	optsWithDefault := []func(*client.Options){
-		client.WithPollInterval(5 * time.Second),
-		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
-	}
-
-	// We have to create the client in the constructor and set its name later
-	c, err := client.NewUnverifiedGRPCClient(
-		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
-		deps.IPC.GetAuthToken(),
-		deps.IPC.GetTLSClientConfig(),
-		optsWithDefault...,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var clientMRF *client.Client
-	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
-			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
-			deps.IPC.GetAuthToken(),
-			deps.IPC.GetTLSClientConfig(),
-			optsWithDefault...,
-		)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	rc := &rcClient{
 		listeners:         types.FilterListeners(deps.Listeners),
 		taskListeners:     types.FilterTaskListeners(deps.TaskListeners),
 		m:                 &sync.Mutex{},
-		client:            c,
-		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
 		config:            deps.Config,
 		sysprobeConfig:    deps.SysprobeConfig,
 		isSystemProbe:     deps.Params.IsSystemProbe,
+		agentName:         deps.Params.AgentName,
+		agentVersion:      deps.Params.AgentVersion,
+		IPC:               deps.IPC,
 	}
 
 	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
-				rc.start()
-				return nil
+				return rc.start()
 			},
 		})
 	}
 
 	deps.Lc.Append(compdef.Hook{
 		OnStop: func(context.Context) error {
-			rc.client.Close()
+			if rc.client != nil {
+				rc.client.Close()
+			}
 			return nil
 		},
 	})
@@ -150,8 +116,51 @@ func NewRemoteConfigClient(deps Dependencies) (rcclient.Component, error) {
 	return rc, nil
 }
 
+func (rc *rcClient) createGRPCClient() error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(rc.agentName, rc.agentVersion),
+	}
+
+	rc.client, err = client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		pkgconfigsetup.GetIPCPort(),
+		rc.IPC.GetAuthToken(),
+		rc.IPC.GetTLSClientConfig(),
+		optsWithDefault...,
+	)
+	if err != nil {
+		return err
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
+			ipcAddress,
+			pkgconfigsetup.GetIPCPort(),
+			rc.IPC.GetAuthToken(),
+			rc.IPC.GetTLSClientConfig(),
+			optsWithDefault...,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // start subscribes to AGENT_CONFIG configurations and starts the remote config client
-func (rc *rcClient) start() {
+func (rc *rcClient) start() error {
+	if err := rc.createGRPCClient(); err != nil {
+		return err
+
+	}
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -167,6 +176,8 @@ func (rc *rcClient) start() {
 		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
 		rc.clientMRF.Start()
 	}
+
+	return nil
 }
 
 // mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
@@ -347,6 +358,10 @@ func (rc *rcClient) SubscribeAgentTask() {
 
 // Subscribe is the generic way to start listening to a specific product update
 func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
 	rc.client.Subscribe(string(product), fn)
 }
 
@@ -356,7 +371,7 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 		return
 	}
 
-	var errs error
+	var errList []error
 
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
@@ -382,7 +397,7 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 			if err := rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC); err != nil {
-				errs = multierror.Append(errs, err)
+				errList = append(errList, err)
 			}
 		}
 
@@ -402,9 +417,11 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
 		pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
 		if err := rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC); err != nil {
-			errs = multierror.Append(errs, err)
+			errList = append(errList, err)
 		}
 	}
+
+	errs := errors.Join(errList...)
 
 	// Apply the new status to all configs
 	for cfgPath := range updates {

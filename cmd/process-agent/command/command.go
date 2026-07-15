@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -27,7 +27,7 @@ import (
 const LoggerName pkglogsetup.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", pkgconfigsetup.DefaultProcessAgentLogFile)
+var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", defaultpaths.GetDefaultProcessAgentLogFile())
 
 // OneShotLogParams are the log params that are given to commands
 var OneShotLogParams = log.ForOneShot(string(LoggerName), "info", true)
@@ -87,13 +87,11 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 		SilenceUsage: true,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, defaultpaths.GetDefaultConfFile(), "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
 	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
-	if flags.DefaultSysProbeConfPath != "" {
-		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
-	}
+	rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, defaultpaths.GetDefaultSysProbeConfFile(), "Path to system-probe.yaml config")
 
 	rootCmd.PersistentFlags().StringVarP(&globalParams.PidFilePath, "pid", "p", "", "Path to set pidfile for process")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")

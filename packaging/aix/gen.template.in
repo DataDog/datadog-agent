@@ -15,7 +15,7 @@ Fileset
  Bosboot required: N
  License agreement acceptance required: N
  Include license files in this package: N
- Requisites:
+ Requisites: *prereq bos.perf.libperfstat 7.1.0.0;
  ROOT Part: Y
  USRFiles
 __FILE_LIST__

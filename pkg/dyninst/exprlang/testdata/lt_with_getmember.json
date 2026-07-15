@@ -1,0 +1,22 @@
+{
+  "type": "lt",
+  "operation": "",
+  "left": {
+    "type": "unsupported",
+    "operation": "getmember",
+    "argument": [
+      {
+        "Ref": "x"
+      },
+      "I32"
+    ],
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": 100,
+    "error": ""
+  },
+  "error": ""
+}

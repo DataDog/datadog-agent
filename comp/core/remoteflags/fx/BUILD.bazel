@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/remoteflags/def",
+        "//comp/core/remoteflags/impl",
+        "//comp/core/remoteflags/impl-noop",
+        "//comp/def",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/config/remote/data",
+        "//pkg/remoteflags",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -223,7 +223,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
 	if err != nil {
 		if errors.Is(err, oci.ErrNoLayerMatchesAnnotations) {
 			// The extension is not available in the package, skip it.
@@ -362,8 +362,13 @@ func RemoveAll(ctx context.Context, pkg string, isExperiment bool, hooks Extensi
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)
 
+	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil
+	}
+
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
+	db, err := newExtensionsDB(dbPath)
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}

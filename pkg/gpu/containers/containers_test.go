@@ -278,7 +278,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesContainerWithMIGDevices", func(t *testing.T) {
 		// Get test devices with MIG enabled
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
 
 		// Test with MIG devices
 		container := &workloadmeta.Container{
@@ -375,7 +375,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("UUIDBasedMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
 		device, err := findDeviceForResourceName(devices, testutil.MIGChildrenUUIDs[5][0])
 		require.NoError(t, err)
 		require.Equal(t, device.GetDeviceInfo().UUID, testutil.MIGChildrenUUIDs[5][0])
@@ -383,7 +383,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("GKEWithMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
 		_, err := findDeviceForResourceName(devices, "nvidia3")
 		require.Error(t, err)
 	})

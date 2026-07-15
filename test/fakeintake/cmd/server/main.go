@@ -21,6 +21,12 @@ func main() {
 	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
 	dddevForward := flag.Bool("dddev-forward", false, "Forward POST payloads to dddev, using the env variable DD_API_KEY as API key")
 	retentionPeriodPtr := flag.Duration("retention-period", 15*time.Minute, "data retention period (use format: 1m, 10s, 1h), default: 15 minutes")
+	remoteConfig := flag.Bool("remoteconfig", true, "disable Remote Config endpoints (/api/v0.1/configurations etc.)")
+	rcOrgUUID := flag.String("rc-org-uuid", "", "Remote Config: org UUID (default 42)")
+	rcStatePath := flag.String("rc-state", "", "Remote Config: YAML file with initial config to preload")
+	rcVersion := flag.Uint64("rc-version", 0, "Remote Config: initial version counter (default 1)")
+	rcKeyPath := flag.String("rc-key-path", "", "Remote Config: ed25519 signing key path (default ~/.fakeintake/signing.key)")
+	rcKeyData := flag.String("rc-key-data", "", "Remote Config: hex-encoded 32-byte ed25519 seed (takes precedence over --rc-key-path; use for ephemeral envs)")
 
 	flag.Parse()
 
@@ -37,6 +43,21 @@ func main() {
 
 	if retentionPeriodPtr != nil {
 		fiOptions = append(fiOptions, fakeintake.WithRetention(*retentionPeriodPtr))
+	}
+
+	if *remoteConfig {
+		fiOptions = append(fiOptions, fakeintake.WithRemoteConfig(*rcOrgUUID))
+		if *rcKeyData != "" {
+			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigKeyData(*rcKeyData))
+		} else if *rcKeyPath != "" {
+			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigKeyPath(*rcKeyPath))
+		}
+		if *rcVersion != 0 {
+			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigVersion(*rcVersion))
+		}
+		if *rcStatePath != "" {
+			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigInitialState(*rcStatePath))
+		}
 	}
 
 	log.Println("⌛️ Starting fake intake")

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gotypeprinter",
+    srcs = ["printer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype/gotypeprinter",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/gotype",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

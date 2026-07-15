@@ -101,8 +101,8 @@ func TestConnectionsCheck_IsEnabled_Darwin(t *testing.T) {
 			sysCfg.Enabled = tc.syscfgEnabled
 
 			sysprobeYaml := configmock.NewSystemProbe(t)
-			sysprobeYaml.SetWithoutSource("network_config.enabled", tc.networkEnabled)
-			sysprobeYaml.SetWithoutSource("network_config.direct_send", tc.directSend)
+			sysprobeYaml.SetInTest("network_config.enabled", tc.networkEnabled)
+			sysprobeYaml.SetInTest("network_config.direct_send", tc.directSend)
 
 			check := &ConnectionsCheck{
 				syscfg:             sysCfg,

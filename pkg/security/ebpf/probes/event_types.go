@@ -41,7 +41,6 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 	ps := []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			hookFunc("hook_accept"),
 			hookFunc("hook_security_socket_bind"),
 			hookFunc("hook_security_socket_connect"),
 			hookFunc("hook_security_sk_classify_flow"),
@@ -73,8 +72,12 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_dev_get_valid_name"),
+			// dev_new_index was replaced by dev_index_reserve in kernel 6.6; both are best-effort
+			// alternatives used to resolve the ifindex of a newly registered device
 			hookFunc("hook_dev_new_index"),
 			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook_dev_index_reserve"),
+			hookFunc("rethook_dev_index_reserve"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
@@ -121,21 +124,96 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 			Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_capable"),
 				hookFunc("rethook_security_capable"),
-				hookFunc("hook_override_creds"),
-				hookFunc("hook_revert_creds"),
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
 						EBPFFuncName: "capabilities_usage_ticker",
 					},
 				},
+				// override_creds/revert_creds are inlined since kernel 6.13, so they are best-effort:
+				// where attachable (< 6.13, including kernels without BTF) they drive the override
+				// depth counter; on 6.13+ the cred/real_cred comparison is used instead
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_override_creds"),
+					hookFunc("hook_revert_creds"),
+				}},
 			},
 		},
 	}
 }
 
+// GetNetworkSelectors returns the probes that track network interfaces and sockets.
+// These probes must be loaded independently of the current ruleset or network filter actions as
+// these are used to track resources that are needed if we later dynamically load network rules
+// or network filter actions.
+func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
+	selectors := []manager.ProbesSelector{
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
+			&manager.AllOf{Selectors: NetworkVethSelectors()},
+		}},
+	}
+
+	// add probes depending on loaded modules
+	if loadedModules, err := utils.FetchLoadedModules(); err == nil {
+		if _, ok := loadedModules["nf_nat"]; ok {
+			selectors = append(selectors, NetworkNFNatSelectors()...)
+		}
+	}
+
+	return selectors
+}
+
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]manager.ProbesSelector {
+	linkIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		linkIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_linkat"),
+				hookFunc("rethook_do_linkat"),
+			}},
+			// Since 7.0, do_linkat was removed from the kernel so we need to hook the filename_linkat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_linkat"),
+				hookFunc("rethook_filename_linkat"),
+			}},
+		}
+	}
+
+	unlinkIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		unlinkIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_unlinkat"),
+				hookFunc("rethook_do_unlinkat"),
+			}},
+			// Since 7.0, do_unlinkat was removed from the kernel so we need to hook the filename_unlinkat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_unlinkat"),
+				hookFunc("rethook_filename_unlinkat"),
+			}},
+		}
+	}
+
+	rmdirIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		rmdirIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_rmdir"),
+				hookFunc("rethook_do_rmdir"),
+			}},
+			// Since 7.0, do_rmdir was removed from the kernel so we need to hook the filename_rmdir function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_rmdir"),
+				hookFunc("rethook_filename_rmdir"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -232,6 +310,8 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_io_openat"),
 				hookFunc("hook_io_openat2"),
 				hookFunc("rethook_io_openat2"),
+				hookFunc("hook_io_ftruncate"),
+				hookFunc("rethook_io_ftruncate"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_terminate_walk"),
@@ -248,14 +328,28 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			}},
 
 			// Mount probes
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
+			// The following functions may be inlined, partially inlined, or rewritten as ISRA clones.
+			// A OneOf selector is insufficient here, as some symbols may still be present even when the
+			// corresponding code has effectively been inlined, making the hook point ineffective.
+			// Therefore, we use a best-effort selector to ensure that mount operations
+			// are captured regardless of which hook point is used.
+			// Event deduplication is handled in the C code to prevent the same mount operation from being
+			// processed multiple times.
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_recursive_mnt"),
 				hookFunc("hook_propagate_mnt"),
+				hookFunc("hook_attach_mnt"),
+				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_make_visible"),
+				hookFunc("hook_mnt_set_mountpoint"),
+			}},
+			// The previous considerations do not apply to this mount hook point.
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
-				hookFunc("rethook_clone_mnt"),
 				hookFunc("hook_mnt_change_mountpoint"),
 				hookFunc("hook_cleanup_mnt"),
+				hookFunc("rethook_clone_mnt"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -267,12 +361,6 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", hasFentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "pivot_root", hasFentry, EntryAndExit)},
-			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_attach_mnt"),
-				hookFunc("hook___attach_mnt"),
-				hookFunc("hook_make_visible"),
-				hookFunc("hook_mnt_set_mountpoint"),
-			}},
 
 			// Rename probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -293,30 +381,34 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_unlinkat"),
-				hookFunc("rethook_do_unlinkat"),
-			}},
+			&manager.OneOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.AllOf{Selectors: []manager.ProbesSelector{
+						hookFunc("hook_do_unlinkat"),
+						hookFunc("rethook_do_unlinkat"),
+					}},
+					// Since 7.0, do_unlinkat was removed from the kernel so we need to hook the filename_unlinkat function instead
+					// It is also used by the io_uring code path
+					&manager.AllOf{Selectors: []manager.ProbesSelector{
+						hookFunc("hook_filename_unlinkat"),
+						hookFunc("rethook_filename_unlinkat"),
+					}},
+				},
+			},
 
 			// Rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_inode_rmdir"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_rmdir"),
-				hookFunc("rethook_do_rmdir"),
-			}},
+			&manager.BestEffort{Selectors: rmdirIOUringProbes},
 
 			// Unlink probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_vfs_unlink"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlink", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_linkat"),
-				hookFunc("rethook_do_linkat"),
-			}},
+			&manager.BestEffort{Selectors: unlinkIOUringProbes},
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -335,6 +427,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: linkIOUringProbes},
 
 			// selinux
 			// This needs to be best effort, as sel_write_disable is in the process of being removed
@@ -467,8 +560,13 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("rethook_vm_mmap_pgoff"),
 				hookFunc("hook_security_mmap_file"),
 			}},
+			// get_unmapped_area is inlined since kernel 6.13; fall back to __get_unmapped_area,
+			// which keeps pgoff in the same argument position, so we can still read the mmap offset
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_get_unmapped_area"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_get_unmapped_area"),
+					hookFunc("hook___get_unmapped_area"),
+				}},
 			}},
 		},
 
@@ -527,6 +625,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_get_pipe_info"),
 				hookFunc("rethook_get_pipe_info"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_io_issue_sqe"),
+				hookFunc("rethook_io_issue_sqe"),
 			}}},
 
 		// List of probes required to capture accept events
@@ -556,6 +658,14 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("rethook_io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", hasFentry, EntryAndExit)},
+		},
+		// List of probes required to capture socket events
+		"socket": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "socket", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_io_socket"),
+				hookFunc("rethook_io_socket"),
+			}},
 		},
 
 		// List of probes required to capture chdir events
@@ -611,29 +721,14 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		},
 	}
 
-	// Add probes required to track network interfaces and map network flows to processes
-	// networkEventTypes: dns, imds, packet, network_monitor
+	// Register the network event types so they are correctly reflected in the enabled_events map when
+	// requested by rules, activity dumps, security profiles or event sampling. The probes that track
+	// network interfaces and sockets are activated in updateProbes whenever the network
+	// feature is enabled (see GetNetworkSelectors), because they are required to track these resources.
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
 	for _, networkEventType := range networkEventTypes {
 		if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
-					&manager.AllOf{Selectors: NetworkVethSelectors()},
-				}},
-			}
-		}
-	}
-
-	// add probes depending on loaded modules
-	loadedModules, err := utils.FetchLoadedModules()
-	if err == nil {
-		if _, ok := loadedModules["nf_nat"]; ok {
-			for _, networkEventType := range networkEventTypes {
-				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
-				}
-			}
+			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{}
 		}
 	}
 

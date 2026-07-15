@@ -7,6 +7,8 @@
 # This file is sourced, never executed directly. Callers control set -e/set -u.
 # No validation of required variables is done here; each script validates its
 # own inputs after sourcing this file.
+# AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
+# any variable before sourcing this file.
 
 # ── Python version ────────────────────────────────────────────────────────────
 PYTHON_VERSION="3.13.12"
@@ -23,6 +25,23 @@ export RUST_VERSION
 
 BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
+
+# ── Agent source tree ─────────────────────────────────────────────────────────
+# AGENT_SRC is resolved by walking up from the calling script's directory to
+# the nearest .git ancestor. $0 in a sourced file still refers to the calling
+# script's path, so no caller-provided variable is needed.
+_dir=$(cd "$(dirname "$0")" && pwd)
+while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
+    _dir=$(dirname "$_dir")
+done
+if [ ! -e "$_dir/.git" ]; then
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$(dirname "$0")" >&2
+    printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
+    exit 1
+fi
+AGENT_SRC=$_dir
+unset _dir
+export AGENT_SRC
 
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time
@@ -46,18 +65,25 @@ NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
-# AGENT_BRANCH, AGENT_VERSION, and AGENT_BUILD are required inputs.
-# They must be set in the caller's environment before sourcing this file.
-# AGENT_VRMF is derived here; it is the four-component installp version string.
+# AGENT_VERSION: auto-detected from the source tree if not already set.
+# AGENT_BUILD: required input — must be set by the caller (cannot be derived).
+# AGENT_VRMF: four-component installp version string, derived here once both
+#             AGENT_VERSION and AGENT_BUILD are known.
 
-# Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u before the caller
-# validates AGENT_VERSION/AGENT_BUILD. The individual stage scripts call
-#   : "${AGENT_VERSION:?AGENT_VERSION must be set}"
-# after sourcing this file; that is where the empty-variable error is reported.
-# VRMF must be four pure integers (X.Y.Z.N) — strip any .gSHA suffix from AGENT_BUILD.
-AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "${AGENT_BUILD:-}" | sed 's/\..*//')
+if [ -z "${AGENT_VERSION:-}" ]; then
+    AGENT_VERSION=$(cd "$AGENT_SRC" && \
+        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
+    if [ -z "$AGENT_VERSION" ]; then
+        printf 'ERROR: env.sh: invoke agent.version returned empty output from %s\n' "$AGENT_SRC" >&2
+        exit 1
+    fi
+fi
 
-export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
+if [ -n "${AGENT_BUILD:-}" ]; then
+    AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+fi
+
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
@@ -71,8 +97,23 @@ if [ ! -x /opt/freeware/bin/gcc-8 ]; then
     printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
     exit 1
 fi
-CC=/opt/freeware/bin/gcc-8
-CXX=/opt/freeware/bin/g++-8
+
+# Create private gcc/g++ symlinks pointing to gcc-8 in $BUILD_DIR/bin and
+# prepend that directory to PATH. This lets us set CC=gcc (the generic name)
+# so Python records 'gcc' in _sysconfigdata_, not '/opt/freeware/bin/gcc-8'.
+# Customers can then build C extensions (e.g. ibm_db) with any gcc version in
+# their PATH, not just gcc-8 specifically.
+# /opt/freeware/bin/gcc already exists on the build host but points to gcc-13;
+# using a private directory avoids clobbering that symlink.
+mkdir -p "$BUILD_DIR/bin"
+ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
+ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
+# $BUILD_DIR/bin is prepended to PATH in the Go toolchain section below,
+# after that section establishes /opt/go/bin and /opt/freeware/bin, so our
+# directory wins the gcc/g++ name lookup.
+
+CC=gcc
+CXX=g++
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
@@ -97,7 +138,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
+PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 GOPATH=/home/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
@@ -108,16 +149,28 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# -p=1: one package compiled at a time; prevents multiple 3-4 GB Go compiler
-# processes from competing for RAM on the 4 GB AIX build host and causing
-# thrashing or OOM kills.
-GOFLAGS="-p=1"
+# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
+# at a time and cap the heap to prevent swap thrash. Each compile process can
+# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
+# On larger hosts, the default parallelism is fine.
+_mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
+    GOFLAGS="-p=1"
+    GOMEMLIMIT=2GiB
+    export GOFLAGS GOMEMLIMIT
+fi
+unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
-mkdir -p "$GOCACHE"
+# Give the build its own temp dir instead of the shared /tmp, so it is not
+# affected by a full /tmp or by unrelated files other processes leave there
+# (which can, for example, confuse cargo's workspace-root lookup during
+# wheel builds).
+TMPDIR=/opt/dd-build/buildtmp
+mkdir -p "$GOCACHE" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

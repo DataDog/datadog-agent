@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an issue where the Private Action Runner binary was built without
+    ``zlib`` and ``zstd`` compression support, causing invalid compressions
+    when forwarding logs through the event-platform pipeline.

@@ -36,13 +36,11 @@ func TestTags_NoMutation(t *testing.T) {
 	originalTags := origin.tags
 	originalLen := len(originalTags)
 
-	result := origin.Tags([]string{"proc1", "proc2"})
+	result := origin.Tags()
 
 	// Verify: Result contains all expected tags
 	assert.Contains(t, result, "tag1:value1")
 	assert.Contains(t, result, "tag2:value2")
-	assert.Contains(t, result, "proc1")
-	assert.Contains(t, result, "proc2")
 
 	// Verify: Original wasn't mutated
 	assert.Len(t, originalTags, originalLen, "origin.tags should not be modified")

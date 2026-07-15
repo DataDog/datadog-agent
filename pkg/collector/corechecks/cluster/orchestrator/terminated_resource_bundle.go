@@ -177,7 +177,7 @@ func getResource(obj interface{}) (interface{}, error) {
 		resource = deletedState.Obj
 	}
 
-	if resource == nil || (reflect.ValueOf(resource).Kind() == reflect.Ptr && reflect.ValueOf(resource).IsNil()) {
+	if resource == nil || (reflect.ValueOf(resource).Kind() == reflect.Pointer && reflect.ValueOf(resource).IsNil()) {
 		return nil, fmt.Errorf("object is nil, skipping, got type: %T", obj)
 	}
 

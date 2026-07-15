@@ -3,6 +3,7 @@ name: create-subcommand
 description: Add a new CLI subcommand to an agent binary (agent, cluster-agent, etc.)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[agent] [subcommand-name]"
+model: sonnet
 ---
 
 Add a new CLI subcommand to a Datadog Agent binary. Each agent binary uses Cobra commands registered via a central `subcommands.go` file.

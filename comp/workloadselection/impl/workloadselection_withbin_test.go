@@ -79,7 +79,7 @@ func TestNewComponent(t *testing.T) {
 
 			// Create mock components
 			mockConfig := config.NewMock(t)
-			mockConfig.SetWithoutSource("apm_config.workload_selection", tt.workloadSelectionEnabled)
+			mockConfig.SetInTest("apm_config.workload_selection", tt.workloadSelectionEnabled)
 			mockLog := logmock.New(t)
 
 			reqs := Requires{

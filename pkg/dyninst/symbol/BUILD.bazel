@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "symbol",
+    srcs = ["symbolicator.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symbol",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/gosym",
+        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+    ],
+)

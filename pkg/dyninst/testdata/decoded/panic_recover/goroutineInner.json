@@ -1,0 +1,78 @@
+[
+  {
+    "service": "panic_recover",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.goroutineInner",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.goroutineInner",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 192
+          },
+          {
+            "function": "main.goroutinePanic",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 185
+          },
+          {
+            "function": "main.main.func1",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "goroutineInner",
+          "location": {
+            "method": "main.goroutineInner"
+          }
+        },
+        "captures": {
+          "return": {
+            "captureExpressions": {
+              "@exception": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "synthetic from goroutineInner gid=1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "function did not return: panic was recovered by an ancestor frame"
+          }
+        ]
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -3,9 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from tasks.static_quality_gates.decisions import (
     EXCEPTION_APPROVERS,
-    PER_PR_THRESHOLD,
     ExceptionApprovalChecker,
-    identify_gates_exceeding_pr_threshold,
     should_bypass_failure,
 )
 from tasks.static_quality_gates.gates import GateMetricHandler
@@ -191,48 +189,6 @@ class TestBlockingFailureDetection(unittest.TestCase):
         ]
         has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
         self.assertFalse(has_blocking)
-
-
-class TestIdentifyGatesExceedingPrThreshold(unittest.TestCase):
-    """Test identify_gates_exceeding_pr_threshold against PER_PR_THRESHOLD."""
-
-    def setUp(self):
-        self.threshold = PER_PR_THRESHOLD
-        self.handler = GateMetricHandler("main", "dev")
-
-    def test_no_gates_exceeding(self):
-        """Gates with delta below the threshold are not returned."""
-        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold - 1}
-        self.handler.metrics["gate_b"] = {"relative_on_disk_size": 0}
-        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
-
-    def test_gate_exactly_at_threshold_not_returned(self):
-        """A gate at exactly the threshold is not considered exceeding."""
-        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold}
-        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
-
-    def test_gate_exceeding_threshold(self):
-        """A gate with delta strictly above the threshold is returned."""
-        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold + 1}
-        self.assertIn("gate_a", identify_gates_exceeding_pr_threshold(self.handler))
-
-    def test_only_exceeding_gates_returned(self):
-        """Only the gates that exceed the threshold are returned."""
-        self.handler.metrics["gate_ok"] = {"relative_on_disk_size": self.threshold - 1}
-        self.handler.metrics["gate_bad"] = {"relative_on_disk_size": self.threshold + 1}
-        result = identify_gates_exceeding_pr_threshold(self.handler)
-        self.assertIn("gate_bad", result)
-        self.assertNotIn("gate_ok", result)
-
-    def test_missing_delta_ignored(self):
-        """Gates with no relative_on_disk_size are ignored."""
-        self.handler.metrics["gate_a"] = {"current_on_disk_size": 10_000_000}
-        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
-
-    def test_negative_delta_not_returned(self):
-        """Gates with a negative delta (size reduction) are not returned."""
-        self.handler.metrics["gate_a"] = {"relative_on_disk_size": -1_000_000}
-        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
 
 
 class TestExceptionApprovalChecker(unittest.TestCase):

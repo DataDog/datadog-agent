@@ -13,9 +13,11 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"regexp"
 	"slices"
@@ -24,7 +26,6 @@ import (
 	"unicode"
 
 	"github.com/Masterminds/sprig/v3"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 )
@@ -70,13 +71,15 @@ type FieldNode struct {
 	Children            map[string]*FieldNode // Child fields
 }
 
-// AstFiles manages AST files and provides lazy loading of external packages.
-// External packages are loaded on-demand when their types are referenced.
+// AstFiles holds the AST files participating in code generation.
+//
+// Every file the generator may need to resolve symbols against — the model
+// package files plus any external package files whose types are referenced —
+// must be passed up-front via -input / -types-file / -extra-srcs. We rely on
+// the Bazel macro to declare these as inputs so the action stays hermetic;
+// there is no on-demand loading.
 type AstFiles struct {
 	files              []*ast.File       // Loaded AST files
-	cfg                *packages.Config  // Package loading configuration
-	loadedPackages     map[string]bool   // Tracks load attempts (success or failure)
-	packageShortNames  map[string]string // Maps import alias to full package path
 	packagePrefixCache map[string]string // Caches package name to qualifier mapping
 }
 
@@ -85,72 +88,23 @@ type AstFiles struct {
 // ============================================================================
 
 // LookupSymbol searches for a symbol across all loaded AST files.
-// If not found, attempts to lazy-load external packages to find the symbol.
 func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
-	// Search in currently loaded files
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj
 		}
 	}
-
-	// Attempt lazy loading of external packages
-	for _, importPath := range af.packageShortNames {
-		if af.loadedPackages[importPath] {
-			continue
-		}
-
-		if err := af.loadExternalPackage(importPath); err != nil {
-			continue
-		}
-
-		// Retry search in newly loaded files
-		for _, file := range af.files {
-			if obj := file.Scope.Lookup(symbol); obj != nil {
-				return obj
-			}
-		}
-	}
-
 	return nil
 }
 
-// loadExternalPackage loads an external package's AST files and appends them to the AstFiles.
-func (af *AstFiles) loadExternalPackage(pkgPath string) error {
-	if af.loadedPackages[pkgPath] {
-		return nil
-	}
-
-	af.loadedPackages[pkgPath] = true
-
-	pkgs, err := packages.Load(af.cfg, pkgPath)
-	if err != nil {
-		return fmt.Errorf("failed to load package %s: %w", pkgPath, err)
-	}
-
-	for _, pkg := range pkgs {
-		if pkg.Syntax != nil {
-			af.files = append(af.files, pkg.Syntax...)
-			if verbose {
-				log.Printf("Lazy-loaded external package %s (%d files)", pkgPath, len(pkg.Syntax))
-			}
-		}
-	}
-
-	return nil
-}
-
-// GetPackageForType determines the package prefix for a given type name.
-// Searches loaded AST files and lazy-loads external packages as needed.
-// Returns the package prefix (e.g., "eval.", "utils.") or empty string for model package types.
+// GetPackageForType determines the package prefix for a given type name by
+// searching the loaded AST files. Returns the package prefix (e.g., "eval.",
+// "utils.") or an empty string for model package types.
 func (af *AstFiles) GetPackageForType(typeName string) string {
-	// Search in currently loaded files
 	if prefix := af.searchLoadedFiles(typeName); prefix != "" || af.typeFoundInModel(typeName) {
 		return prefix
 	}
-
-	// Type not found - attempt lazy loading from imports
-	return af.lazyLoadAndSearch(typeName)
+	return ""
 }
 
 // searchLoadedFiles looks for a type in already loaded AST files and returns its package prefix
@@ -179,32 +133,6 @@ func (af *AstFiles) typeFoundInModel(typeName string) bool {
 		}
 	}
 	return false
-}
-
-// lazyLoadAndSearch attempts to lazy-load external packages and search for the type
-func (af *AstFiles) lazyLoadAndSearch(typeName string) string {
-	for shortName, importPath := range af.packageShortNames {
-		if af.loadedPackages[importPath] {
-			continue
-		}
-
-		if err := af.loadExternalPackage(importPath); err != nil {
-			if verbose {
-				log.Printf("Warning: %v", err)
-			}
-			continue
-		}
-
-		// Search in newly loaded files
-		for _, file := range af.files {
-			if obj := file.Scope.Lookup(typeName); obj != nil {
-				prefix := shortName + "."
-				af.packagePrefixCache[shortName] = prefix
-				return prefix
-			}
-		}
-	}
-	return ""
 }
 
 // getPrefixForPackage returns the appropriate prefix for a package name
@@ -244,61 +172,29 @@ func (af *AstFiles) Parse() []ast.Spec {
 	return specs
 }
 
-// newAstFiles loads the primary package and discovers its imports for lazy loading.
-// External packages are loaded on-demand when their types are encountered during analysis.
-func newAstFiles(cfg *packages.Config, primaryFile string) (*AstFiles, error) {
-	pkgs, err := packages.Load(cfg, "file="+primaryFile)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-		return nil, fmt.Errorf("failed to get syntax from package containing %s", primaryFile)
-	}
-
+// newAstFiles parses each input file with go/parser. The downstream code only
+// reads ast.File scopes and struct tags, so we don't need go/packages' import
+// graph or type info — and avoiding it keeps this generator hermetic under
+// Bazel (no Go toolchain required at action time). The caller is responsible
+// for passing every file whose types may be looked up during recursion,
+// including external package files; otherwise those types fall through
+// unresolved.
+func newAstFiles(files ...string) (*AstFiles, error) {
 	astFiles := &AstFiles{
-		files:              pkgs[0].Syntax,
-		cfg:                cfg,
-		loadedPackages:     make(map[string]bool),
-		packageShortNames:  make(map[string]string),
 		packagePrefixCache: make(map[string]string),
 	}
-
-	astFiles.discoverImports(pkgs[0].Syntax)
-
-	if verbose {
-		log.Printf("Loaded primary package with %d files and %d imports",
-			len(pkgs[0].Syntax), len(astFiles.packageShortNames))
-	}
-
-	return astFiles, nil
-}
-
-// discoverImports extracts import declarations from AST files to enable lazy loading
-func (af *AstFiles) discoverImports(files []*ast.File) {
+	fset := token.NewFileSet()
 	for _, file := range files {
-		for _, imp := range file.Imports {
-			importPath := strings.Trim(imp.Path.Value, `"`)
-			shortName := af.extractPackageName(imp, importPath)
-
-			af.packageShortNames[shortName] = importPath
-
-			if verbose {
-				log.Printf("Found import: %s → %s", shortName, importPath)
-			}
+		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", file, err)
 		}
+		astFiles.files = append(astFiles.files, f)
 	}
-}
-
-// extractPackageName determines the short name for an imported package
-func (af *AstFiles) extractPackageName(imp *ast.ImportSpec, importPath string) string {
-	if imp.Name != nil {
-		return imp.Name.Name // Explicit alias
+	if verbose {
+		log.Printf("Parsed %d input files", len(astFiles.files))
 	}
-
-	// Use last component of path
-	parts := strings.Split(importPath, "/")
-	return parts[len(parts)-1]
+	return astFiles, nil
 }
 
 // getFieldName extracts the field name from an AST expression
@@ -704,10 +600,6 @@ func processRegularField(field *ast.Field, module *common.Module, astFiles *AstF
 		return
 	}
 
-	if shouldSkipCopy(field) {
-		return
-	}
-
 	fullName := buildFullFieldName(fieldBasename, prefix)
 	fieldInfo, _, unqualifiedType := prepareFieldInfo(field, fieldBasename, prefix, module, astFiles)
 	if fieldInfo == nil {
@@ -770,14 +662,6 @@ func stripPackageQualifier(typeName string) string {
 // shouldSkipInterface checks if a type should be skipped (interfaces)
 func shouldSkipInterface(astFiles *AstFiles, typeName string) bool {
 	return typeName == "FieldHandlers" || isInterfaceType(astFiles, typeName)
-}
-
-// shouldSkipCopy checks if a field is tagged with `copy:"-"` to exclude it from deep copy generation.
-func shouldSkipCopy(field *ast.Field) bool {
-	if field.Tag == nil {
-		return false
-	}
-	return strings.Contains(field.Tag.Value, `copy:"-"`)
 }
 
 // qualifyFieldType adds appropriate package qualification to a field's type
@@ -1084,31 +968,42 @@ var eventDeepCopyTemplate string
 // ============================================================================
 
 var (
-	modelFile string
-	typesFile string
-	pkgname   string
-	output    string
-	verbose   bool
-	buildTags string
+	modelFile          string
+	typesFile          string
+	extraSrcs          string
+	pkgname            string
+	output             string
+	verbose            bool
+	buildTags          string
+	moduleNameOverride string
 )
 
 func init() {
 	flag.StringVar(&modelFile, "input", os.Getenv("GOFILE"), "Go file to generate from")
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
+	flag.StringVar(&extraSrcs, "extra-srcs", "", "Comma-separated list of additional .go files whose declarations the generator may need to look up (e.g. external package files for types referenced from the model).")
 	flag.StringVar(&pkgname, "package", "github.com/DataDog/datadog-agent/pkg/security/secl/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
 	flag.StringVar(&output, "output", "event_deep_copy_unix.go", "Generated output file")
+	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	flag.Parse()
 }
 
 func main() {
-	cfg := &packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
+	files := []string{modelFile}
+	if typesFile != "" && typesFile != modelFile {
+		files = append(files, typesFile)
+	}
+	if extraSrcs != "" {
+		for _, p := range strings.Split(extraSrcs, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				files = append(files, p)
+			}
+		}
 	}
 
-	astFiles, err := newAstFiles(cfg, modelFile)
+	astFiles, err := newAstFiles(files...)
 	if err != nil {
 		panic(err)
 	}
@@ -1145,8 +1040,12 @@ func createModule() *common.Module {
 	return module
 }
 
-// determineModuleName derives the module name from the output path
+// determineModuleName derives the module name from the override flag, the
+// output path, or the package basename — in that order.
 func determineModuleName() string {
+	if moduleNameOverride != "" {
+		return moduleNameOverride
+	}
 	moduleName := path.Base(path.Dir(output))
 	if moduleName == "." {
 		return path.Base(pkgname)
@@ -1221,33 +1120,13 @@ func executeTemplate(tmpl *template.Template, data TemplateData) string {
 	return output
 }
 
-// writeFormattedOutput writes the generated code to a temp file, formats it, and renames it
+// writeFormattedOutput formats the generated source with go/format and writes it to disk.
 func writeFormattedOutput(content string) {
-	tmpfile, err := os.CreateTemp(path.Dir(output), "event_deep_copy")
+	formatted, err := format.Source([]byte(content))
 	if err != nil {
-		panic(err)
+		log.Fatalf("formatting %s: %v\n%s", output, err, content)
 	}
-	defer os.Remove(tmpfile.Name())
-
-	if _, err := tmpfile.WriteString(content); err != nil {
+	if err := os.WriteFile(output, formatted, 0644); err != nil {
 		panic(err)
-	}
-
-	if err := tmpfile.Close(); err != nil {
-		panic(err)
-	}
-
-	formatWithGofmt(tmpfile.Name())
-
-	if err := os.Rename(tmpfile.Name(), output); err != nil {
-		panic(err)
-	}
-}
-
-// formatWithGofmt runs gofmt on the specified file
-func formatWithGofmt(filename string) {
-	cmd := exec.Command("gofmt", "-s", "-w", filename)
-	if gofmtOutput, err := cmd.CombinedOutput(); err != nil {
-		log.Fatal(string(gofmtOutput))
 	}
 }

@@ -241,9 +241,9 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 
 	envs, truncated, _ := collectPIDEnvVars(proc.Pid)
 
-	containerID, err := getProcContainerID(int(proc.Pid))
+	containerID, cgroupID, err := getProcContainerContext(int(proc.Pid))
 	if err != nil {
-		return nil, fmt.Errorf("snapshot failed for %d: couldn't get container ID: %w", proc.Pid, err)
+		return nil, fmt.Errorf("snapshot failed for %d: couldn't get container context: %w", proc.Pid, err)
 	}
 
 	return &ebpfless.Message{
@@ -253,6 +253,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 			PID:         uint32(proc.Pid),
 			Timestamp:   uint64(time.Unix(0, proc.CreateTime*int64(time.Millisecond)).UnixNano()),
 			ContainerID: containerID,
+			CGroupID:    cgroupID,
 			Exec: &ebpfless.ExecSyscallMsg{
 				File: ebpfless.FileSyscallMsg{
 					Filename: filename,

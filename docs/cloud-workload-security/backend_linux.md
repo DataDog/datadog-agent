@@ -413,6 +413,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "code": {
                     "type": "integer",
                     "description": "RCode is the response code present in the response"
+                },
+                "ips": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "IPs is the list of IP addresses resolved by the DNS response"
+                },
+                "cnames": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CNames is the list of CNAME targets returned by the DNS response"
                 }
             },
             "additionalProperties": false,
@@ -1972,15 +1986,11 @@ Workload Protection events for Linux systems have the following JSON schema:
             "properties": {
                 "socket_type": {
                     "type": "string",
-                    "description": "Socket file descriptor"
+                    "description": "Socket type"
                 },
                 "socket_family": {
                     "type": "string",
                     "description": "Socket family"
-                },
-                "filter_len": {
-                    "type": "integer",
-                    "description": "Length of the filter"
                 },
                 "socket_protocol": {
                     "type": "string",
@@ -1994,17 +2004,21 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Name of the option being set"
                 },
+                "filter_len": {
+                    "type": "integer",
+                    "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+                },
                 "is_filter_truncated": {
                     "type": "boolean",
-                    "description": "Filter truncated"
+                    "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
                 },
                 "filter": {
                     "type": "string",
-                    "description": "Filter instructions"
+                    "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
                 },
                 "filter_hash": {
                     "type": "string",
-                    "description": "Filter hash"
+                    "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
                 }
             },
             "additionalProperties": false,
@@ -2068,6 +2082,30 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "pid"
             ],
             "description": "SignalEventSerializer serializes a signal event to JSON"
+        },
+        "SocketEvent": {
+            "properties": {
+                "domain": {
+                    "type": "string",
+                    "description": "Socket domain"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Socket type"
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "domain",
+                "type",
+                "protocol"
+            ],
+            "description": "SocketEventSerializer serializes a socket event to JSON"
         },
         "SpliceEvent": {
             "properties": {
@@ -2503,6 +2541,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
+        },
+        "socket": {
+            "$ref": "#/$defs/SocketEvent"
         }
     },
     "additionalProperties": false,
@@ -2555,6 +2596,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `socket` | $ref | Please see [SocketEvent](#socketevent) |
 
 ## `AWSIMDSEvent`
 
@@ -3204,6 +3246,20 @@ Workload Protection events for Linux systems have the following JSON schema:
         "code": {
             "type": "integer",
             "description": "RCode is the response code present in the response"
+        },
+        "ips": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "IPs is the list of IP addresses resolved by the DNS response"
+        },
+        "cnames": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CNames is the list of CNAME targets returned by the DNS response"
         }
     },
     "additionalProperties": false,
@@ -3219,6 +3275,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `code` | RCode is the response code present in the response |
+| `ips` | IPs is the list of IP addresses resolved by the DNS response |
+| `cnames` | CNames is the list of CNAME targets returned by the DNS response |
 
 
 ## `EventContext`
@@ -5447,15 +5505,11 @@ Workload Protection events for Linux systems have the following JSON schema:
     "properties": {
         "socket_type": {
             "type": "string",
-            "description": "Socket file descriptor"
+            "description": "Socket type"
         },
         "socket_family": {
             "type": "string",
             "description": "Socket family"
-        },
-        "filter_len": {
-            "type": "integer",
-            "description": "Length of the filter"
         },
         "socket_protocol": {
             "type": "string",
@@ -5469,17 +5523,21 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Name of the option being set"
         },
+        "filter_len": {
+            "type": "integer",
+            "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
             "type": "boolean",
-            "description": "Filter truncated"
+            "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
             "type": "string",
-            "description": "Filter instructions"
+            "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
             "type": "string",
-            "description": "Filter hash"
+            "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
     },
     "additionalProperties": false,
@@ -5498,15 +5556,15 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `socket_type` | Socket file descriptor |
+| `socket_type` | Socket type |
 | `socket_family` | Socket family |
-| `filter_len` | Length of the filter |
 | `socket_protocol` | Socket protocol |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
-| `is_filter_truncated` | Filter truncated |
-| `filter` | Filter instructions |
-| `filter_hash` | Filter hash |
+| `filter_len` | Length of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
+| `is_filter_truncated` | Filter truncation flag (available when OptName == SO_ATTACH_FILTER) |
+| `filter` | Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
+| `filter_hash` | Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
 
 
 ## `SetrlimitEvent`
@@ -5594,6 +5652,44 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `SocketEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "domain": {
+            "type": "string",
+            "description": "Socket domain"
+        },
+        "type": {
+            "type": "string",
+            "description": "Socket type"
+        },
+        "protocol": {
+            "type": "string",
+            "description": "Socket protocol"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "domain",
+        "type",
+        "protocol"
+    ],
+    "description": "SocketEventSerializer serializes a socket event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `domain` | Socket domain |
+| `type` | Socket type |
+| `protocol` | Socket protocol |
+
 
 ## `SpliceEvent`
 

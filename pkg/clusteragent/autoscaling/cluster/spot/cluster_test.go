@@ -52,6 +52,7 @@ var deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", R
 // runs a fake pod scheduler and supports admission hooks.
 type fakeCluster struct {
 	t               *testing.T
+	ctx             context.Context
 	wlm             workloadmetamock.Mock
 	subscribed      chan struct{}
 	dynamicClient   dynamic.Interface
@@ -82,14 +83,16 @@ type fakeDeployment struct {
 
 // newFakeCluster creates a fakeCluster.
 func newFakeCluster(t *testing.T) *fakeCluster {
+	ctx := t.Context()
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(ctx),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	cluster := &fakeCluster{
 		t:             t,
+		ctx:           ctx,
 		wlm:           wlm,
 		dynamicClient: dynamicfake.NewSimpleDynamicClient(k8sscheme.Scheme),
 		subscribed:    make(chan struct{}),
@@ -109,7 +112,7 @@ func (c *fakeCluster) AddOnDemandNode(name string) {
 	})
 }
 
-// AddSpotNode adds a spot node with the Karpenter capacity-type label and NoSchedule taint.
+// AddSpotNode adds a spot node with the capacity-type node selector label and NoSchedule taint.
 func (c *fakeCluster) AddSpotNode(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -165,7 +168,7 @@ func (c *fakeCluster) createPending(pod *corev1.Pod) {
 	c.pendingPods[pod.UID] = pod
 	c.mu.Unlock()
 
-	async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
+	c.async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
 }
 
 // DeleteOwnerPods deletes all pods owned by the given ownerKind/namespace/ownerName.
@@ -212,7 +215,7 @@ func (c *fakeCluster) DeletePod(pod *workloadmeta.KubernetesPod) {
 	podCopy := pod.DeepCopy().(*workloadmeta.KubernetesPod)
 	podCopy.Phase = string(corev1.PodSucceeded)
 
-	async(c.wlm.Set, podCopy)
+	c.async(c.wlm.Set, podCopy)
 }
 
 func (c *fakeCluster) T() *testing.T {
@@ -222,7 +225,7 @@ func (c *fakeCluster) T() *testing.T {
 // WLM returns the workloadmeta component used by the scheduler.
 func (c *fakeCluster) WLM() workloadmeta.Component {
 	// Delay updates delivery to expose race conditions
-	return newDelayedWLM(c.wlm, 50*time.Millisecond)
+	return newDelayedWLM(c.ctx, c.wlm, 50*time.Millisecond)
 }
 
 func (c *fakeCluster) DynamicClient() dynamic.Interface {
@@ -236,7 +239,7 @@ func (c *fakeCluster) runPodScheduler() {
 	close(c.subscribed)
 	defer c.wlm.Unsubscribe(ch)
 
-	ctx := c.t.Context()
+	ctx := c.ctx
 	for {
 		select {
 		case <-ctx.Done():
@@ -256,7 +259,7 @@ func (c *fakeCluster) runPodScheduler() {
 					case corev1.PodPending:
 						c.trySchedule(pod.ID)
 					case corev1.PodSucceeded, corev1.PodFailed:
-						async(c.wlm.Unset, pod)
+						c.async(c.wlm.Unset, pod)
 					}
 				}
 			}
@@ -294,7 +297,7 @@ func (c *fakeCluster) trySchedule(uid string) {
 	pod.Spec.NodeName = nodeName
 	pod.Status.Phase = corev1.PodRunning
 
-	async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
+	c.async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
 }
 
 func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotations map[string]string, replicas int) *fakeDeployment {
@@ -473,10 +476,13 @@ func (d *fakeDeployment) ScaleDown(deleteFilter func([]*workloadmeta.KubernetesP
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func async(f func(workloadmeta.Entity), e workloadmeta.Entity) {
+func (c *fakeCluster) async(f func(workloadmeta.Entity), e workloadmeta.Entity) {
 	go func() {
-		time.Sleep(time.Duration(10+rand.N(40)) * time.Millisecond)
-		f(e)
+		select {
+		case <-time.After(time.Duration(10+rand.N(40)) * time.Millisecond):
+			f(e)
+		case <-c.ctx.Done():
+		}
 	}()
 }
 

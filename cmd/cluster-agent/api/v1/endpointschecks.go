@@ -10,16 +10,14 @@ package v1
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 )
 
 // Install registers v1 API endpoints for endpoints checks
-func installEndpointsCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/endpointschecks/configs/{nodeName}", api.WithTelemetryWrapper("getEndpointsConfigs", getEndpointsCheckConfigs(sc))).Methods("GET")
-	r.HandleFunc("/endpointschecks/configs", api.WithTelemetryWrapper("getAllEndpointsCheckConfigs", getAllEndpointsCheckConfigs(sc))).Methods("GET")
+func installEndpointsCheckEndpoints(r *http.ServeMux, sc clusteragent.ServerContext) {
+	r.HandleFunc("GET /endpointschecks/configs/{nodeName}", api.WithTelemetryWrapper("getEndpointsConfigs", getEndpointsCheckConfigs(sc)))
+	r.HandleFunc("GET /endpointschecks/configs", api.WithTelemetryWrapper("getAllEndpointsCheckConfigs", getAllEndpointsCheckConfigs(sc)))
 }
 
 // getEndpointsCheckConfigs is used by the node-agent's config provider
@@ -33,8 +31,7 @@ func getEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Respons
 			return
 		}
 
-		vars := mux.Vars(r)
-		nodeName := vars["nodeName"]
+		nodeName := r.PathValue("nodeName")
 		response, err := sc.ClusterCheckHandler.GetEndpointsConfigs(nodeName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

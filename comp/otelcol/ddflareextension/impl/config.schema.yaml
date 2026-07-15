@@ -1,0 +1,5 @@
+description: Config has the configuration for the extension enabling the health check extension, used to report the health status of the service.
+type: object
+allOf:
+  - x-pointer: true
+    $ref: go.opentelemetry.io/collector/config/confighttp.server_config

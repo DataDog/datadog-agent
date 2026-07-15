@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "coverage",
+    srcs = [
+        "command.go",
+        "command_nocoverage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/coverage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/impl",
+        "//pkg/system-probe/api/client",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)

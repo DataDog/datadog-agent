@@ -18,7 +18,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
@@ -27,7 +27,7 @@ import (
 	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
 	updaterFx "github.com/DataDog/datadog-agent/comp/updater/updater/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -50,7 +50,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
+			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", defaultpaths.GetDefaultUpdaterLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),

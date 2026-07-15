@@ -226,7 +226,7 @@ flake-finder-gitlab-ci.yml
 go.work.sum
 
 
-#### Cursor related files
+#### AI agents related files
 
 # Personal rules
 **/.cursor/rules/personal/
@@ -245,6 +245,10 @@ AUTO_JIRA.md
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
+# Codex
+.agents/
+.codex/
+
 # Zed config
 .zed
 
@@ -254,3 +258,6 @@ AUTO_JIRA.md
 
 # Ignoring compressed schema
 pkg/config/schema/compressed/*.zstd
+.python-nix-home
+.venv-nix
+flake.lock

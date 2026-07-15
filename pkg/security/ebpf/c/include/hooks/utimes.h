@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
+int __attribute__((always_inline)) trace__sys_utimes(void *ctx, const char *filename) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_UTIME)) {
         return 0;
     }
@@ -17,31 +17,30 @@ int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
     };
 
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)filename, NULL, NULL);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
 HOOK_SYSCALL_COMPAT_ENTRY1(utime, const char *, filename) {
-    return trace__sys_utimes(filename);
+    return trace__sys_utimes(ctx, filename);
 }
 
 HOOK_SYSCALL_ENTRY1(utime32, const char *, filename) {
-    return trace__sys_utimes(filename);
+    return trace__sys_utimes(ctx, filename);
 }
 
 HOOK_SYSCALL_COMPAT_TIME_ENTRY1(utimes, const char *, filename) {
-    return trace__sys_utimes(filename);
+    return trace__sys_utimes(ctx, filename);
 }
 
 HOOK_SYSCALL_COMPAT_TIME_ENTRY2(utimensat, int, dirfd, const char *, filename) {
-    return trace__sys_utimes(filename);
+    return trace__sys_utimes(ctx, filename);
 }
 
 HOOK_SYSCALL_COMPAT_TIME_ENTRY2(futimesat, int, dirfd, const char *, filename) {
-    return trace__sys_utimes(filename);
+    return trace__sys_utimes(ctx, filename);
 }
 
 int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {

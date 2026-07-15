@@ -20,9 +20,13 @@ ARG CI
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+    fi; \
+  done; \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -220,7 +224,8 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN apt-get purge -y adduser \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed
@@ -233,6 +238,11 @@ RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
   rm -rf /etc/services.d/otel ; \
   else \
   mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
+
+# Update if optional Agent Data Plane process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/agent-data-plane ]; then \
+  rm -rf /etc/services.d/data-plane ; \
+fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 

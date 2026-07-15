@@ -1,7 +1,7 @@
 # Datadog Agent - Project Overview for AI coding assistant
 
 ## Project Summary
-The Datadog Agent is a comprehensive monitoring and observability agent written primarily in Go. It collects metrics, traces, logs, and security events from systems and applications, forwarding them to the Datadog platform. This is the main repository for Agent versions 6 and 7.
+The Datadog Agent collects metrics, traces, logs, and security events and forwards them to the Datadog platform. Written primarily in Go; this is the main repository for Agent versions 6 and 7.
 
 ## Project Structure
 
@@ -17,20 +17,8 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
   - `privateactionrunner/` - Executing actions
 
 - `/pkg/` - Core Go packages and libraries
-  - `aggregator/` - Metrics aggregation
-  - `collector/` - Check scheduling and execution
-  - `config/` - Configuration management
-  - `logs/` - Log collection and processing
-  - `metrics/` - Metrics types and handling
-  - `network/` - Network monitoring
-  - `security/` - Security monitoring components
-  - `trace/` - APM tracing components
 
-- `/comp/` - Component-based architecture modules
-  - `core/` - Core components
-  - `metadata/` - Metadata collection
-  - `logs/` - Log components
-  - `trace/` - Trace components
+- `/comp/` - Component-based architecture modules (Fx components)
 
 - `/tasks/` - Python invoke tasks for development
   - Build, test, lint, and deployment automation
@@ -39,7 +27,7 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 - `/packages/` - The declarations of what goes into each package we build for distribution.
 
-- `/omnibus/` - The legacy build system. Still in used, but we are trying not to add to it.
+- `/omnibus/` - The legacy build system. Still in use, but we are trying not to add to it.
 
 
 ## Development Workflow
@@ -66,57 +54,16 @@ build the relevant component with `dda inv *.build`.
 
 ### Common Commands
 
-#### Building
-
 ```bash
-# install dda on mac OS
-brew install --cask dda
-
-# Install development tools
-dda inv install-tools
-
-# Build the main agent
-dda inv agent.build --build-exclude=systemd
-
-# Build specific components
-dda inv dogstatsd.build
-dda inv trace-agent.build
-dda inv system-probe.build
-
-# Build specific packages
-bazel build //packages/agent/linux:debian
-
-# Keep BUILD.bazel files in sync with go dependencies
-dda inv tidy
-```
-
-#### Testing
-```bash
-# Run all tests
-dda inv test
-
-# Test specific package
-dda inv test --targets=./pkg/aggregator
-bazel test //pkg/aggregator/...
-
-# Run Go linters
-dda inv linter.go
-
-# Run all linters
-dda inv linter.all
-```
-
-#### Running Locally
-```bash
-# Create dev config with testing API key
-echo "api_key: 0000001" > dev/dist/datadog.yaml
-
-# Run the agent
-./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+dda inv install-tools                                 # one-time: install dev tooling
+dda inv agent.build --build-exclude=systemd           # build the main agent
+dda inv <component>.build                             # build a component (dogstatsd, trace-agent, system-probe, …)
+dda inv linter.all                                    # run all linters
+./bin/agent/agent run -c bin/agent/dist/datadog.yaml  # run the built agent
 ```
 
 ### Development Configuration
-The development configuration file should be placed at `dev/dist/datadog.yaml`. After building, it gets copied to `bin/agent/dist/datadog.yaml`.
+Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" > dev/dist/datadog.yaml`); after building it is copied to `bin/agent/dist/datadog.yaml`.
 
 ## Key Components
 
@@ -141,56 +88,27 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - Quick reference: `.cursor/rules/system_probe_modules.mdc` for common patterns and pitfalls
 
 ### eBPF Bazel Build
-
-eBPF programs, runtime compilation bundles, and cgo godefs type definitions
-are built with Bazel. Two convenience targets in `pkg/ebpf/BUILD.bazel`
-cover the most common workflows:
-
-```bash
-# Build every eBPF .o program and runtime flattened .c file at once
-bazel build //pkg/ebpf:all_ebpf_programs
-
-# Verify all committed cgo godefs files are up to date.
-# Covers both Linux and Windows targets; incompatible tests are
-# skipped automatically via target_compatible_with.
-bazel test //pkg/ebpf:verify_generated_files
-```
-
-When a `verify_generated_files` test fails, run the corresponding
-`write_source_file` target to update the committed file:
-
-```bash
-# Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
-```
-
-Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
-`.gitignored` and generated during the build by `bazel_build_ebpf()`.  To update
-one locally: `bazel run //pkg/ebpf/bytecode:<name>_verify`.
-
-Key Bazel macros:
-- `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`
-- `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification
-- `runtime_compilation_bundle` (`bazel/rules/ebpf/runtime_compilation.bzl`) — flatten headers + generate integrity hash `.go` file
+eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel — see `bazel/AGENTS.md` (§ eBPF programs and code generation).
 
 ## Testing Strategy
 
 ### Unit Tests
-- Go tests run via `dda inv test` (not raw `go test`)
-- Python tests using pytest
-- Run with `dda inv test --targets=<package>`
+Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
-  arrive in **fakeintake** (a mock Datadog intake). By default the fakeintake forwards payloads to `dddev` org account.
+  arrive in **fakeintake**. By default it forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
   (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
 
+### Manual QA
+- When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
+- Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`
+
 ### Linting
-- Go: golangci-lint via `dda inv linter.go`
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
@@ -198,12 +116,7 @@ Key Bazel macros:
 ## Build System
 
 ### Invoke Tasks
-The project uses Python's Invoke framework with custom tasks. Main task categories:
-- `agent.*` - Core agent tasks
-- `test` - Testing tasks
-- `linter.*` - Linting tasks
-- `docker.*` - Docker image tasks
-- `release.*` - Release management
+The project uses Python's Invoke framework for custom tasks. Run `dda inv -l` to list them.
 
 ### Build Tags
 Go build tags control feature inclusion, some examples are:
@@ -212,21 +125,15 @@ Go build tags control feature inclusion, some examples are:
 - `docker` - Docker support
 - `ebpf` - eBPF support
 - `python` - Python check support
-- and MANY more, refer to ./tasks/build_tags.py for a full reference.
+- and MANY more, refer to `tasks/build_tags.bzl` (the source of truth) for a full reference.
+
+Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build tags and flavors").
 
 ## Important Files
-
-### Configuration
 - `datadog.yaml` - Main agent configuration
 - `modules.yml` - Go module definitions
 - `release.json` - Release version information
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
-
-### Documentation
-- `/docs/` - Internal documentation
-- `/docs/dev/` - Developer guides
-- `README.md` - Project overview
-- `CONTRIBUTING.md` - Contribution guidelines
 
 ## CI/CD Pipeline
 
@@ -235,16 +142,19 @@ Go build tags control feature inclusion, some examples are:
 - Defined in `.gitlab-ci.yml` and `.gitlab/` directory
 - Runs tests, builds, and deployments
 
+#### Fetching CI job logs locally
+
+`gitlab.ddbuild.io` is OAuth-gated, so `curl` can't fetch traces. Use
+`dda inv gitlab.print-job-trace <job_id>` (`dda` handles auth). The `<job_id>`
+is the trailing path of a `.../builds/<job_id>` URL, found in the `dd-gitlab/*`
+rows of `gh pr checks <pr_number>`. See `dda inv -l | grep gitlab` for more.
+
 ### GitHub Actions
-- Secondary CI for specific workflows
-- Tests about the pull-request settings or repository configuration
-- Release automation workflows
+Secondary CI: pull-request/repository-configuration checks and release automation.
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
-`docs/public/guidelines/` (contributing, coding style, components, etc.). When
-a PR changes behavior, configuration options, or APIs, update the corresponding
-documentation in the same PR — not as a follow-up.
+`docs/public/guidelines/` (contributing, coding style, components, etc.).
 
 ## Code Review
 
@@ -256,30 +166,16 @@ Code reviewer plugins for Go and Python are available from the
 
 See the marketplace README for installation instructions.
 
+Area-specific review rules live in `codereview_guideline.md` files co-located with the code they cover (e.g. `bazel/codereview_guideline.md` for Bazel changes). When reviewing a PR, search the repo for `codereview_guideline.md` files and load every one that is relevant to the changed files. Always load the one at the root of the repository in addition.
+
 ## Security Considerations
 
 ### Sensitive Data
 - Never commit API keys or secrets
 - Use secret backend for credentials
 
-## Module System
-The project uses Go modules with multiple sub-modules.
-TODO: Describe specific strategies for managing modules, including any invoke
-tasks.
-
 ## Platform Support
-- **Linux**: Full support (amd64, arm64)
-- **Windows**: Full support (Server 2016+, Windows 10+)
-- **macOS**: Supported
-- **AIX**: No support in this codebase yet, but we are working towards it.
-- **Container**: Docker, Kubernetes, ECS, containerd, and more
-
-## Best Practices
-1. **Always run linters before committing**: `dda inv linter.go`
-2. **Always test your changes**: `dda inv test --targets=<your_package>` `bazel test //pkg/... //comp/...`
-3. **Follow Go conventions**: Use gofmt, follow project structure
-4. **Update documentation**: Keep docs in sync with code changes
-6. **Check for security implications**: Review security-sensitive changes carefully
+Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus containers (Docker/Kubernetes/ECS/containerd). AIX is not yet supported but in progress.
 
 ## Troubleshooting Development Issues
 
@@ -293,49 +189,7 @@ tasks.
 
 ## Review guidelines
 
-The following are areas of particular concern for this codebase. They highlight
-project-specific risks that have led to production bugs in the Datadog Agent.
-
-### E2E coverage with fakeintake
-The E2E framework (`test/new-e2e/`) uses **fakeintake**, a mock Datadog intake
-that captures metrics, logs, traces, and check runs. When a change affects
-user-visible behavior (new metrics, changed log output, modified payloads),
-check whether an E2E test asserts the expected data arrives in fakeintake. Unit
-tests alone are not sufficient for validating the agent's end-to-end data
-pipeline.
-
-### Branch-conditional CI creates blind spots
-Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
-**not on PR branches**. This means some classes of bugs cannot be caught before
-merge. Be extra careful reviewing:
-- Packaging or installation changes (MSI, deb, rpm, BUILD.bazel)
-- Agent startup/shutdown sequences
-- Cross-component communication (e.g. system-probe ↔ agent)
-
-These changes are likely to need `qa/rc-required`.
-
-### Multi-platform divergence
-The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
-`runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
-bugs — typically the "other" platform is untested. The same applies to
-packaging: Windows MSI and Linux deb/rpm have independent logic that can
-silently diverge.
-
-### Concurrency and component lifecycle
-The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
-lifecycles. The most common bugs are send-on-closed-channel during shutdown and
-goroutine leaks. Changes that introduce goroutines or modify component lifecycle
-should have tests exercising startup and graceful shutdown.
-
-### Graceful degradation during startup
-Components initialize in stages — some dependencies may not be ready when others
-start. Functions exposed to UIs or APIs should return safe defaults when a
-dependency is unavailable, not propagate errors or panic.
-
-### Stale documentation
-If a PR changes behavior but doesn't update the corresponding docs, comments,
-or doc strings, flag it. Stale docs lead to bugs: contributors build on
-incorrect assumptions.
+See `codereview_guideline.md` in this directory for the full project-specific review checklist (E2E coverage, CI blind spots, multi-platform divergence, concurrency, graceful degradation, stale docs, Go-specific rules). Load it when reviewing any PR against this repo.
 
 ## Keeping AI context accurate
 
@@ -348,6 +202,7 @@ mistakes across sessions.
 ```
 AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
 ├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
+├── tasks/AGENTS.md                ← invoke tasks: categories, libs layout, Bazel migration idioms
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls

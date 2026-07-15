@@ -14,8 +14,6 @@ import (
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Execution status constants
@@ -55,7 +53,6 @@ func (e *DeletePodExecutor) Execute(ctx context.Context, action *kubeactions.Kub
 	// Get the pod first to verify UID matches resource_id
 	pod, err := e.clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Failed to get pod %s/%s: %v", namespace, name, err)
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("failed to get pod: %v", err),
@@ -63,37 +60,26 @@ func (e *DeletePodExecutor) Execute(ctx context.Context, action *kubeactions.Kub
 	}
 
 	if string(pod.UID) != resourceID {
-		log.Errorf("Pod %s/%s UID mismatch: expected %s, got %s - pod may have been replaced", namespace, name, resourceID, pod.UID)
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("pod UID mismatch: expected %s, got %s - pod may have been replaced since action was created", resourceID, pod.UID),
 		}
 	}
 
-	// Get delete_pod specific parameters
-	params := action.GetDeletePod()
-
 	// Build delete options
 	deleteOptions := metav1.DeleteOptions{}
-	if params != nil && params.GracePeriodSeconds != nil {
+	if params := action.GetDeletePod(); params != nil && params.GracePeriodSeconds != nil {
 		gracePeriod := *params.GracePeriodSeconds
 		deleteOptions.GracePeriodSeconds = &gracePeriod
-		log.Infof("Deleting pod %s/%s (uid=%s) with grace period %d seconds", namespace, name, resourceID, gracePeriod)
-	} else {
-		log.Infof("Deleting pod %s/%s (uid=%s) with default grace period", namespace, name, resourceID)
 	}
 
-	// Delete the pod
-	err = e.clientset.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions)
-	if err != nil {
-		log.Errorf("Failed to delete pod %s/%s: %v", namespace, name, err)
+	if err := e.clientset.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions); err != nil {
 		return ExecutionResult{
 			Status:  StatusFailed,
 			Message: fmt.Sprintf("failed to delete pod: %v", err),
 		}
 	}
 
-	log.Infof("Successfully deleted pod %s/%s", namespace, name)
 	return ExecutionResult{
 		Status:  StatusSuccess,
 		Message: fmt.Sprintf("pod %s/%s deleted", namespace, name),

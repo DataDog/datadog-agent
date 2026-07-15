@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,7 +26,6 @@ const (
 // scheduler schedules eligible pods onto spot instances.
 type scheduler struct {
 	config      Config
-	clock       clock.WithTicker
 	wlm         workloadmeta.Component
 	evictor     podEvictor
 	patcher     workloadPatcher
@@ -35,21 +33,24 @@ type scheduler struct {
 	isLeader    func() bool
 	tracker     *podTracker
 	controller  *workloadController
+	telemetry   *telemetry
+	events      *spotEventRecorder
 	synced      chan struct{}
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool) *scheduler {
+func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool, tel *telemetry, events *spotEventRecorder) *scheduler {
 	s := &scheduler{
-		config:   cfg,
-		clock:    clk,
-		wlm:      wlm,
-		evictor:  evictor,
-		patcher:  patcher,
-		isLeader: isLeader,
-		synced:   make(chan struct{}),
+		config:    cfg,
+		wlm:       wlm,
+		evictor:   evictor,
+		patcher:   patcher,
+		isLeader:  isLeader,
+		telemetry: tel,
+		events:    events,
+		synced:    make(chan struct{}),
 	}
 	defaultConfig := workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}
-	s.tracker = newPodTracker(clk, defaultConfig, s.getSpotConfig)
+	s.tracker = newPodTracker(defaultConfig, s.getSpotConfig, tel)
 	store := newSpotConfigStore()
 	s.configStore = store
 	s.controller = newWorkloadController(dynamicClient, defaultConfig, store, lister, s.tracker)
@@ -65,6 +66,7 @@ func (s *scheduler) Start(ctx context.Context) {
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
 	go s.rebalance(ctx)
+	go s.telemetry.start(ctx, s.configStore)
 }
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
@@ -107,14 +109,14 @@ func (s *scheduler) trackPodUpdates(ctx context.Context) {
 
 // checkOnDemandFallback periodically checks for pending spot pods and triggers on-demand fallback if needed.
 func (s *scheduler) checkOnDemandFallback(ctx context.Context) {
-	ticker := s.clock.NewTicker(checkOnDemandFallbackInterval)
+	ticker := time.NewTicker(checkOnDemandFallbackInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case now := <-ticker.C():
+		case now := <-ticker.C:
 			if s.isLeader() {
 				s.checkOnDemandFallbackOnce(ctx, now)
 			}
@@ -125,26 +127,28 @@ func (s *scheduler) checkOnDemandFallback(ctx context.Context) {
 // rebalance periodically evicts pods that are over the desired spot/on-demand ratio,
 // allowing the owning controller to recreate them with the correct scheduling.
 func (s *scheduler) rebalance(ctx context.Context) {
-	ticker := s.clock.NewTicker(rebalanceInterval)
+	ticker := time.NewTicker(rebalanceInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C():
+		case <-ticker.C:
 			if !s.isLeader() {
 				continue
 			}
-			uid, name, namespace := s.tracker.getPodToDelete(s.config.RebalanceStabilizationPeriod)
+			owner, uid, name, isSpot := s.tracker.getPodToDelete(s.config.RebalanceStabilizationPeriod)
 			if uid == "" {
 				continue
 			}
-			if err := s.evictor.evictPod(ctx, namespace, name, ""); err != nil {
-				log.Errorf("Failed to evict pod %s/%s for rebalancing: %v", namespace, name, err)
+			if err := s.evictor.evictPod(ctx, owner.Namespace, name, ""); err != nil {
+				log.Errorf("Failed to evict pod %s/%s (%s) for rebalancing: %v", owner.Namespace, name, uid, err)
 				continue
 			}
-			log.Infof("Evicted pod %s/%s for spot rebalancing", namespace, name)
+			log.Infof("Evicted pod %s/%s (%s) for rebalancing", owner.Namespace, name, uid)
+			s.telemetry.observeRebalanceEviction(owner, isSpot)
+			s.events.rebalancingEviction(owner.Namespace, name, isSpot)
 		}
 	}
 }
@@ -170,7 +174,7 @@ func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 
 	log.Debugf("Pod created via webhook for owner %s", o.directOwner)
 
-	if cfg.isDisabled(s.clock.Now()) {
+	if cfg.isDisabled(time.Now()) {
 		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", cfg.disabledUntil, o.directOwner)
 		s.tracker.admitNewOnDemandPod(o)
 		return unchanged()
@@ -220,16 +224,6 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	return ok
 }
 
-// Spot node label and taint.
-// The node label is Karpenter-specific; the taint uses our own namespace so we
-// control it independently of the cluster autoscaler.
-const (
-	spotNodeLabelKey   = "karpenter.sh/capacity-type"
-	spotNodeLabelValue = "spot"
-	spotNodeTaintKey   = "autoscaling.datadoghq.com/capacity-type"
-	spotNodeTaintValue = "interruptible"
-)
-
 func assignToSpot(pod *corev1.Pod) {
 	if pod.Spec.NodeSelector == nil {
 		pod.Spec.NodeSelector = map[string]string{}
@@ -262,11 +256,12 @@ func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		}
 		for uid, pod := range pods {
 			if err := s.evictor.evictPod(ctx, pod.topLevelOwner.Namespace, pod.name, corev1.PodPending); err != nil {
-				log.Errorf("Failed to evict timed-out pending spot pod %s of %s: %v", pod.name, pod.topLevelOwner, err)
+				log.Errorf("Failed to evict timed-out pending spot pod %s (%s) of %s: %v", pod.name, uid, pod.topLevelOwner, err)
 				continue
 			}
-			log.Infof("Evicted timed-out pending spot pod %s of %s for on-demand fallback", pod.name, pod.topLevelOwner)
+			log.Infof("Evicted timed-out pending spot pod %s (%s) of %s for on-demand fallback", pod.name, uid, pod.topLevelOwner)
 			s.tracker.deletePendingSpotPod(uid)
+			s.events.fallbackEviction(pod.topLevelOwner.Namespace, pod.name)
 		}
 	}
 }
@@ -292,5 +287,10 @@ func (s *scheduler) disableSpotScheduling(ctx context.Context, topLevelOwner obj
 		return nil
 	}
 	log.Infof("Disabling spot scheduling for %s until %v", topLevelOwner, disabledUntil)
-	return s.patcher.setDisabledUntil(ctx, topLevelOwner, disabledUntil)
+	err := s.patcher.setDisabledUntil(ctx, topLevelOwner, disabledUntil)
+	if err == nil {
+		s.telemetry.observeFallback(topLevelOwner)
+		s.events.schedulingDisabled(topLevelOwner, disabledUntil)
+	}
+	return err
 }

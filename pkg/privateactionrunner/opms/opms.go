@@ -18,10 +18,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -31,6 +32,8 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -39,8 +42,20 @@ const (
 	heartbeat       = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
 	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
 
-	serverTimeHeader = "X-Server-Time"
+	serverTimeHeader   = "X-Server-Time"
+	retryAfterMsHeader = "X-Retry-After-Ms"
+
+	// maxRetryAfter caps the X-Retry-After-Ms value the server can request, so
+	// a misconfigured or malicious server cannot push the runner into long
+	// idle stretches.
+	maxRetryAfter = 2 * time.Minute
 )
+
+type DequeueJSONRequest struct {
+	ID                 string `jsonapi:"primary,dequeue"`
+	RunnerStartedAt    string `json:"runner_started_at,omitempty" jsonapi:"attribute"`
+	LastTaskReceivedAt string `json:"last_task_received_at,omitempty" jsonapi:"attribute"`
+}
 
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
@@ -86,14 +101,19 @@ type HeartbeatJSONRequest struct {
 }
 
 type HealthCheckData struct {
-	ServerTime *time.Time `json:"server_time,omitempty"`
+	ServerTime *time.Time    `json:"server_time,omitempty"`
+	RetryAfter time.Duration `json:"retry_after_ms,omitempty"`
 }
 
 // Client is the OPMS client interface
 // Enrollment is intentionally omitted from this OPMS interface as the client requires a config.
 // Ensure enrollment is completed before instantiating this client.
 type Client interface {
-	DequeueTask(ctx context.Context) (*types.Task, error)
+	// DequeueTask fetches the next pending task. The returned duration is the
+	// server-requested retry delay from the X-Retry-After-Ms response header; a
+	// zero value means no hint was given and the caller should use its default
+	// interval.
+	DequeueTask(ctx context.Context) (*types.Task, time.Duration, error)
 	PublishSuccess(
 		ctx context.Context,
 		client actionsclientpb.Client,
@@ -120,14 +140,19 @@ type Client interface {
 type client struct {
 	config     *config.Config
 	httpClient *http.Client
+
+	runnerStartedAt    time.Time
+	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(cfg *config.Config) Client {
+func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	return &client{
 		httpClient: &http.Client{
-			Timeout: time.Millisecond * time.Duration(cfg.OpmsRequestTimeout),
+			Timeout:   time.Duration(cfg.OpmsRequestTimeout) * time.Millisecond,
+			Transport: httputils.CreateHTTPTransport(coreCfg),
 		},
-		config: cfg,
+		config:          cfg,
+		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
@@ -145,24 +170,43 @@ func (c *client) endpointURL(path string) string {
 	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
 }
 
-func (c *client) DequeueTask(ctx context.Context) (*types.Task, error) {
-	body, _, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), nil, nil, http.StatusOK)
+func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {
+	reqBody, err := c.buildDequeueRequestBody()
 	if err != nil {
-		return nil, fmt.Errorf("error making request to dequeue task: %w", err)
+		return nil, 0, fmt.Errorf("error building dequeue request body: %w", err)
+	}
+
+	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), bytes.NewReader(reqBody), nil, http.StatusOK)
+	retryAfter := parseRetryAfterMs(headers)
+	if err != nil {
+		return nil, retryAfter, fmt.Errorf("error making request to dequeue task: %w", err)
 	}
 
 	if len(body) == 0 {
-		return nil, nil
+		return nil, retryAfter, nil
 	}
 
 	res := &types.Task{
 		Raw: body,
 	}
 	if err := json.Unmarshal(body, res); err != nil {
-		return nil, fmt.Errorf("error unmarshaling dequeue task response: %w", err)
+		return nil, retryAfter, fmt.Errorf("error unmarshaling dequeue task response: %w", err)
 	}
 
-	return res, nil
+	now := time.Now().UTC()
+	c.lastTaskReceivedAt.Store(&now)
+
+	return res, retryAfter, nil
+}
+
+func (c *client) buildDequeueRequestBody() ([]byte, error) {
+	req := &DequeueJSONRequest{
+		RunnerStartedAt: c.runnerStartedAt.Format(time.RFC3339),
+	}
+	if t := c.lastTaskReceivedAt.Load(); t != nil {
+		req.LastTaskReceivedAt = t.Format(time.RFC3339)
+	}
+	return jsonapi.Marshal(req, jsonapi.MarshalClientMode())
 }
 
 func (c *client) PublishSuccess(
@@ -267,6 +311,24 @@ func (c *client) makeTaskUpdateRequest(
 	return resBody, err
 }
 
+// parseRetryAfterMs reads the X-Retry-After-Ms header and returns the
+// corresponding duration. Returns 0 if the header is absent, zero-valued, or
+// cannot be parsed — callers should treat 0 as "use default behaviour".
+func parseRetryAfterMs(headers http.Header) time.Duration {
+	if headers == nil {
+		return 0
+	}
+	val := headers.Get(retryAfterMsHeader)
+	if val == "" {
+		return 0
+	}
+	ms, err := strconv.ParseInt(val, 10, 64)
+	if err != nil || ms <= 0 {
+		return 0
+	}
+	return min(time.Duration(ms)*time.Millisecond, maxRetryAfter)
+}
+
 func createHealthCheckData(headers http.Header) *HealthCheckData {
 	response := &HealthCheckData{}
 
@@ -276,6 +338,7 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 				response.ServerTime = &serverTime
 			}
 		}
+		response.RetryAfter = parseRetryAfterMs(headers)
 	}
 
 	return response
@@ -283,15 +346,6 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	u, _ := url.Parse(c.endpointURL(healthCheckPath))
-	query := u.Query()
-	query.Add(app.RunnerVersionQueryParam, c.config.Version)
-	modesStr := modes.ToStrings(c.config.Modes)
-	query.Add(app.ModesQueryParam, strings.Join(modesStr, ","))
-	query.Add(app.PlatformQueryParam, runtime.GOOS)
-	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
-	query.Add(app.FlavorQueryParam, flavor.GetFlavor())
-	query.Add(app.ContainerizedQueryParam, strconv.FormatBool(env.IsContainerized()))
-	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
 	if err != nil {

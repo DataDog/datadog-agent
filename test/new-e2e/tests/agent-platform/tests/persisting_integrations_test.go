@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/cenkalti/backoff/v6"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -145,14 +148,30 @@ func (is *persistingIntegrationsSuite) SetupTestClient() *common.TestClient {
 	return VMclient
 }
 
+// retryRemoteCommand runs a remote shell command with bounded retry.
+//
+// The agent integration install command and pip resolve wheels from the
+// integrations-core CDN. During a release-pipeline rotation the TUF
+// metadata.staged snapshot returns 403 for a few minutes at a time, causing
+// the command to fail. The integrations-core release pipeline runs at least
+// once a day at 5AM CET and can also run during working hours. Retry to
+// absorb that window. 30 tries × 30s = 15 min max wait.
+func (is *persistingIntegrationsSuite) retryRemoteCommand(VMclient *common.TestClient, cmd string) {
+	_, err := backoff.Retry(is.T().Context(), func() (any, error) {
+		_, execErr := VMclient.Host.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
+	is.Require().NoError(err, "command failed after retries: %s", cmd)
+}
+
 func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.TestClient) {
 	// Make sure that the integration is not installed
 	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
 	is.Assert().NotContains(freezeRequirement, "datadog-nvml")
 
 	// Install the integration and its dependencies
-	VMclient.Host.MustExecute("sudo -u dd-agent datadog-agent integration install -t datadog-nvml==1.0.0")
-	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install grpcio==1.80.0 pynvml==13.0.1")
+	is.retryRemoteCommand(VMclient, "sudo -u dd-agent datadog-agent integration install -t datadog-nvml==1.0.0")
+	is.retryRemoteCommand(VMclient, "sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install grpcio==1.80.0 pynvml==13.0.1")
 
 	// Check that the integration is installed successfully
 	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
@@ -165,7 +184,7 @@ func (is *persistingIntegrationsSuite) InstallPackage(VMclient *common.TestClien
 	is.Assert().NotContains(freezeRequirement, packageName)
 
 	// Install the package
-	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install " + packageName)
+	is.retryRemoteCommand(VMclient, "sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install "+packageName)
 
 	// Check that the package is installed successfully
 	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))

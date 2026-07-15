@@ -2928,3 +2928,52 @@ probes:
       maxCollectionSize: 1024
     sampling:
       snapshotsPerSecond: 100
+  # testTakeContext exercises the context.Context trace-correlation path:
+  # the captured ctx carries an active dd-trace span, so the BPF chain walk
+  # writes a synthetic trace-context data item which the decoder surfaces
+  # both as top-level dd.trace_id / dd.span_id / dd.parent_id and inline
+  # at the captured ctx field. maxReferenceDepth: 2 lets the chase descend
+  # the interface header into the concrete context impl.
+  - id: testTakeContext
+    type: LOG_PROBE
+    where:
+      methodName: main.testTakeContext
+    captureSnapshot: true
+    capture:
+      maxReferenceDepth: 2
+  - id: testTimeUTC
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testTimeUTC
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testTimeFixedZone
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testTimeFixedZone
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testTimeMonotonic
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testTimeMonotonic
+    template: "{c}"
+    segments:
+      - json:
+          ref: "c"
+        dsl: "c"
+    captureSnapshot: true

@@ -7,6 +7,7 @@
 #include "events.h"
 #include "activity_dump.h"
 #include "span.h"
+#include "cgroup.h"
 #include <uapi/linux/filter.h>
 
 
@@ -112,8 +113,10 @@ static struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_typ
     return empty_policy;
 }
 
-// cache_syscall checks the event policy in order to see if the syscall struct can be cached
-static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
+// cache_syscall caches the syscall struct for the current task. Hook points that don't
+// follow up with another tail call should prefer cache_syscall_update_cgroup so the cached
+// cgroup inode is also refreshed.
+static void __attribute__((always_inline)) cache_syscall(void *ctx, struct syscall_cache_t *syscall) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
 
@@ -123,6 +126,18 @@ static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t 
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);
+}
+
+// cache_syscall_update_cgroup caches the syscall struct and then tail-calls
+// update_proc_cache_cgroup. It must be the very last function call in each hook point that
+// uses it: on success the tail call replaces the running program.
+static void __attribute__((always_inline)) cache_syscall_update_cgroup(void *ctx, struct syscall_cache_t *syscall) {
+    cache_syscall(ctx, syscall);
+
+    // keep the cached cgroup inode in sync with the kernel's view: a process may have
+    // migrated to a new cgroup since proc_cache was populated, and downstream consumers
+    // (cgroup/container context resolution) rely on this field being current.
+    bpf_tail_call_compat(ctx, &cache_syscall_progs, CACHE_SYSCALL_UPDATE_PROC_CACHE_CGROUP_KEY);
 }
 
 static struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
@@ -241,4 +256,9 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_imp
     return syscall;
 }
 
+static __attribute__((always_inline)) int capture_all_errors_enabled(void) {
+    u64 captured;
+    LOAD_CONSTANT("capture_all_errors_enabled", captured);
+    return captured != 0;
+}
 #endif

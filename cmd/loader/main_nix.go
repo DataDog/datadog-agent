@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
 	"golang.org/x/sys/unix"
@@ -27,6 +26,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -56,10 +56,7 @@ func main() {
 	}
 
 	// comp/trace/config/config*.go
-	logFile := "/var/log/datadog/trace-agent.log"
-	if runtime.GOOS == "darwin" {
-		logFile = "/opt/datadog-agent/logs/trace-agent.log"
-	}
+	logFile := defaultpaths.GetDefaultTraceAgentLogFile()
 	// cmd/trace-agent/subcommands/run/command.go
 	logparams := logdef.ForDaemon("TRACE-LOADER", "apm_config.log_file", logFile)
 	err = pkglogsetup.SetupLogger(
@@ -281,8 +278,8 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	// the loader needs to initialize the sockets in the same way as the trace-agent
 
 	traceCfgReceiverHost := "localhost"
-	if cfg.IsSet("bind_host") || cfg.IsConfigured("apm_config.apm_non_local_traffic") {
-		if cfg.IsSet("bind_host") {
+	if cfg.IsConfigured("bind_host") || cfg.IsConfigured("apm_config.apm_non_local_traffic") {
+		if cfg.IsConfigured("bind_host") {
 			traceCfgReceiverHost = cfg.GetString("bind_host")
 		}
 
@@ -295,18 +292,8 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		traceCfgReceiverHost = "0.0.0.0"
 	}
 
-	traceCfgReceiverPort := 8126
-	if cfg.IsSet("apm_config.receiver_port") {
-		traceCfgReceiverPort = cfg.GetInt("apm_config.receiver_port")
-	}
-
-	traceCfgReceiverSocket := ""
-	if runtime.GOOS == "linux" {
-		traceCfgReceiverSocket = "/var/run/datadog/apm.socket"
-	}
-	if cfg.IsSet("apm_config.receiver_socket") {
-		traceCfgReceiverSocket = cfg.GetString("apm_config.receiver_socket")
-	}
+	traceCfgReceiverPort := cfg.GetInt("apm_config.receiver_port")
+	traceCfgReceiverSocket := cfg.GetString("apm_config.receiver_socket")
 
 	// end of config initialization
 
@@ -362,7 +349,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	if configcheck.IsConfigEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
-		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))
+		ln, err := loader.GetTCPListener(net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(grpcPort)))
 		if err != nil {
 			return tcpFD, listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
 		}

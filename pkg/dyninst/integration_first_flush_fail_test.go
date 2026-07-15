@@ -101,8 +101,7 @@ import (
 //     is left in a state that prevents future events.
 func TestFirstFlushFailDropNotification(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
-	current := goleak.IgnoreCurrent()
-	t.Cleanup(func() { goleak.VerifyNone(t, current) })
+	t.Parallel()
 
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	var cfg testprogs.Config
@@ -259,6 +258,7 @@ func runFirstFlushFailScenario(
 	collector *tracePipeCollector,
 	variant firstFlushFailVariant,
 ) {
+	t.Parallel()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-first-flush-fail-"+variant.name)
 	defer cleanup()
 

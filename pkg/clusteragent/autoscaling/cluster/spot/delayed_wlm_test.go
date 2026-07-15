@@ -8,6 +8,8 @@
 package spot_test
 
 import (
+	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 // delivering each event bundle to subscribers.
 type delayedWLM struct {
 	workloadmeta.Component
+	ctx   context.Context
 	delay time.Duration
 
 	mu       sync.Mutex
@@ -29,9 +32,10 @@ type delayedSubscription struct {
 	done   chan struct{}
 }
 
-func newDelayedWLM(component workloadmeta.Component, delay time.Duration) *delayedWLM {
+func newDelayedWLM(ctx context.Context, component workloadmeta.Component, delay time.Duration) *delayedWLM {
 	return &delayedWLM{
 		Component: component,
+		ctx:       ctx,
 		delay:     delay,
 		channels:  make(map[chan workloadmeta.EventBundle]delayedSubscription),
 	}
@@ -42,27 +46,51 @@ func newDelayedWLM(component workloadmeta.Component, delay time.Duration) *delay
 func (d *delayedWLM) Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
 	realCh := d.Component.Subscribe(name, priority, filter)
 	wrappedCh := make(chan workloadmeta.EventBundle, 100)
+	type delayedEvents struct {
+		events    []workloadmeta.Event
+		deliverAt time.Time
+	}
+	intermediate := make(chan delayedEvents, 100)
 	done := make(chan struct{})
 
 	d.mu.Lock()
 	d.channels[wrappedCh] = delayedSubscription{realCh: realCh, done: done}
 	d.mu.Unlock()
 
+	// Producer: reads from realCh, acknowledges immediately, and stamps each
+	// bundle with a delivery time before queuing it to intermediate.
 	go func() {
-		defer close(wrappedCh)
+		defer close(intermediate)
 		for {
 			select {
 			case bundle, ok := <-realCh:
 				if !ok {
 					return
 				}
-				time.Sleep(d.delay)
-				select {
-				case wrappedCh <- bundle:
-				case <-done:
-					return
-				}
+				// Clone events before acknowledging: Acknowledge() signals the WLM
+				// that it may recycle the bundle, so the slice must be copied first.
+				events := slices.Clone(bundle.Events)
+				bundle.Acknowledge()
+				intermediate <- delayedEvents{events: events, deliverAt: time.Now().Add(d.delay)}
 			case <-done:
+				return
+			case <-d.ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Consumer: sleeps until each bundle's deliverAt before forwarding to wrappedCh,
+	// preserving delivery order while applying the configured delay.
+	go func() {
+		for delayed := range intermediate {
+			select {
+			case <-time.After(time.Until(delayed.deliverAt)):
+				wrappedCh <- workloadmeta.EventBundle{
+					Ch:     make(chan struct{}),
+					Events: delayed.events,
+				}
+			case <-d.ctx.Done():
 				return
 			}
 		}
@@ -71,7 +99,7 @@ func (d *delayedWLM) Subscribe(name string, priority workloadmeta.SubscriberPrio
 	return wrappedCh
 }
 
-// Unsubscribe stops the forwarding goroutine and unsubscribes from the real WLM.
+// Unsubscribe stops the producer/consumer goroutines and unsubscribes from the real WLM.
 func (d *delayedWLM) Unsubscribe(ch chan workloadmeta.EventBundle) {
 	d.mu.Lock()
 	sub, ok := d.channels[ch]

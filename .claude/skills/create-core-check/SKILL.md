@@ -3,6 +3,7 @@ name: create-core-check
 description: Create a new Go core check that collects metrics and sends them to Datadog
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[check-name]"
+model: sonnet
 ---
 
 Create a new Go-based core check for the Datadog Agent. Core checks collect metrics, service checks, or events and send them to Datadog at regular intervals.

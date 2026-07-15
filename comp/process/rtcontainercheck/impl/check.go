@@ -10,7 +10,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rtcontainercheck "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -38,8 +38,8 @@ type Provides struct {
 	Component rtcontainercheck.Component
 }
 
-// NewCheck creates a new rtcontainercheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new rtcontainercheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		rtContainerCheck: checks.NewRTContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}

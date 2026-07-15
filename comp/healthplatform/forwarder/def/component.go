@@ -7,20 +7,18 @@
 package forwarder
 
 import (
+	"context"
+
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// team: agent-health
+// team: fleet-remediation
 
-// IssueProvider provides the current set of issues to report.
-type IssueProvider interface {
-	GetAllIssues() (int, map[string]*healthplatformpayload.Issue)
-}
-
-// Component is the forwarder component.
+// Component is the stateless forwarder component. It POSTs a pre-built
+// HealthReport to the Datadog intake. The periodic tick is owned by the
+// egress component; the forwarder only handles the HTTP mechanics.
 type Component interface {
-	// SetProvider wires the issue provider after construction, breaking the
-	// circular fx dependency between core and forwarder.
-	// Must be called before the first send fires (i.e. from the core lifecycle start hook).
-	SetProvider(provider IssueProvider)
+	// Send POSTs the given report to the Datadog intake.
+	// The caller is responsible for building the report and choosing when to send.
+	Send(ctx context.Context, report *healthplatformpayload.HealthReport) error
 }

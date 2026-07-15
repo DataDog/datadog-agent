@@ -9,9 +9,9 @@ package mock
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // mockProvider mocks pipeline providing logic
@@ -49,4 +49,9 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 // NextPipelineChanWithInstance returns the next pipeline
 func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")
+}
+
+// GetPipelineMonitor returns a no-op pipeline monitor.
+func (p *mockProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("")
 }

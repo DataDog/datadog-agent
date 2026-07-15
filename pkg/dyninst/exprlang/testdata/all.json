@@ -1,17 +1,27 @@
 {
-  "type": "unsupported",
-  "operation": "all",
-  "argument": [
-    {
-      "ref": "collection"
+  "type": "all",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "collection",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "not",
+    "operation": "",
+    "left": {
+      "type": "isEmpty",
+      "operation": "",
+      "left": {
+        "type": "ref",
+        "ref": "@it",
+        "operation": "",
+        "error": ""
+      },
+      "error": ""
     },
-    {
-      "not": {
-        "isEmpty": {
-          "ref": "@it"
-        }
-      }
-    }
-  ],
+    "error": ""
+  },
   "error": ""
 }

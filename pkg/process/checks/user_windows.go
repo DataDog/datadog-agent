@@ -11,14 +11,10 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// On Windows the LookupIdProbe does nothing since we get the user info from the process itself.
-//
-//nolint:revive // TODO(PROC) Fix revive linter
-type LookupIdProbe struct{}
+// LookupIDProbe is a no-op on Windows since user info is obtained from the process itself.
+type LookupIDProbe struct{}
 
-// NewLookupIDProbe returns a new LookupIdProbe
-//
-//nolint:revive // TODO(PROC) Fix revive linter
-func NewLookupIDProbe(pkgconfigmodel.Reader) *LookupIdProbe {
-	return &LookupIdProbe{}
+// NewLookupIDProbe returns a new LookupIDProbe
+func NewLookupIDProbe(pkgconfigmodel.Reader) *LookupIDProbe {
+	return &LookupIDProbe{}
 }

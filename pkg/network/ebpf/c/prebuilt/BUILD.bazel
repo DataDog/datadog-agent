@@ -83,9 +83,3 @@ ebpf_program_suite(
     visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
-
-exports_files([
-    "conntrack.h",
-    "offsets.h",
-    "offset-guess.h",
-])

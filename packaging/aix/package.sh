@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/lib/env.sh"
 
 STAGE_NAME="package"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -145,7 +138,4 @@ cp "$BFF_SRC" "$BFF_OUT"
 ls -l "$BFF_OUT"
 log "Package ready: $BFF_OUT"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

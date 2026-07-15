@@ -373,7 +373,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))
-		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), tlmListenerID, l.transport)
+		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), "agent", tlmListenerID, l.transport)
 		packet.Contents = packet.Buffer[:n]
 		packet.Source = packets.UDS
 		packet.ListenerID = listenerID
@@ -421,5 +421,5 @@ func (l *UDSListener) clearTelemetry(id string) {
 	l.telemetryStore.tlmUDSConnections.Delete(id, l.transport)
 	l.telemetryStore.tlmUDSPackets.Delete(id, l.transport, "error")
 	l.telemetryStore.tlmUDSPackets.Delete(id, l.transport, "ok")
-	l.telemetryStore.tlmUDSPacketsBytes.Delete(id, l.transport)
+	l.telemetryStore.tlmUDSPacketsBytes.Delete("agent", id, l.transport)
 }

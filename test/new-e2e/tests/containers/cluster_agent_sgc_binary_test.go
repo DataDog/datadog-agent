@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -38,7 +37,7 @@ func TestClusterAgentBinarySuite(t *testing.T) {
 // cluster agent image with the correct permissions (550) and ownership
 // (root:secret-manager).
 func (suite *clusterAgentBinarySuite) TestSecretGenericConnectorPresenceAndPermissions() {
-	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(suite.T().Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
 	})

@@ -59,13 +59,13 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 	}
 
 	return &healthplatform.Issue{
-		Id:          IssueID,
-		IssueName:   "docker_file_tailing_disabled",
-		Title:       "Host Agent Cannot Tail Docker Log Files",
+		IssueName:   IssueName,
+		IssueType:   IssueType,
+		Title:       fmt.Sprintf("Docker log tailing disabled for '%s'", dockerDir),
 		Description: fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),
 		Category:    "permissions",
 		Location:    "logs-agent",
-		Severity:    "medium",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "logs",
 		Extra:       issueExtra,

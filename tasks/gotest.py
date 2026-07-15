@@ -4,12 +4,16 @@ High level testing tasks
 
 from __future__ import annotations
 
+import dataclasses
 import fnmatch
 import glob
 import operator
 import os
 import re
+import shutil
+import subprocess
 import sys
+import time
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -25,6 +29,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -43,9 +48,31 @@ from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 
+
+@dataclasses.dataclass
+class TestStats:
+    """Counts from a single test runner (go or bazel)."""
+
+    total: int = 0
+    passed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    duration_s: float = 0.0
+
+    def __add__(self, other: TestStats) -> TestStats:
+        return TestStats(
+            total=self.total + other.total,
+            passed=self.passed + other.passed,
+            failed=self.failed + other.failed,
+            skipped=self.skipped + other.skipped,
+            duration_s=self.duration_s + other.duration_s,
+        )
+
+
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
+MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
@@ -102,6 +129,278 @@ def build_standard_lib(
     ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
 
 
+def _target_to_bazel_pattern(target: str) -> str:
+    """Convert a Go test target path to a Bazel target pattern.
+
+    Examples:
+        '.'           -> '//...'
+        './'          -> '//...'
+        './pkg/util'  -> '//pkg/util/...'
+        './pkg/util/' -> '//pkg/util/...'
+        './pkg/...'   -> '//pkg/...'
+    """
+    if target in ('.', './'):
+        return '//...'
+    # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
+    rel = target.removeprefix('./').rstrip('/')
+    if rel.endswith('/...'):
+        return f'//{rel}'
+    return f'//{rel}/...'
+
+
+def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
+    """Remove patterns that are already covered by a broader pattern in the list.
+
+    Patterns are of the form '//some/path/...' .  Pattern B is subsumed by
+    pattern A when B's directory starts with A's directory, e.g.:
+        //comp/core/... is subsumed by //comp/...
+        //pkg/util/log/... is subsumed by //pkg/...
+        //...  subsumes everything.
+
+    The input list may contain duplicates; the output will not.
+    """
+    # Sort lexicographically so shorter (broader) patterns come before the
+    # longer (narrower) ones they subsume.
+    sorted_patterns = sorted(set(patterns))
+    result: list[str] = []
+    for pattern in sorted_patterns:
+        covered = any(pattern.startswith(kept[: -len('...')]) for kept in result)
+        if not covered:
+            result.append(pattern)
+    return result
+
+
+def _run_bazel(
+    *args: str,
+    verbose: bool = False,
+    **kwargs,
+) -> subprocess.CompletedProcess[str]:
+    """Execute a bazel command.
+
+    args: command args
+    verbose: Echo comand line to stdout.
+
+    Returns:
+       subprocess run result
+    """
+    resolved_bazel = shutil.which("bazelisk")
+    if not resolved_bazel:
+        raise Exit("bazelisk not found")
+    cmd = [resolved_bazel] + list(args)
+    if kwargs.get("verbose", True):
+        print(" ".join(cmd))
+    result = subprocess.run(
+        cmd,
+        encoding="utf-8",
+        capture_output=True,
+        **kwargs,
+    )
+    return result
+
+
+def get_bazel_test_targets(
+    ctx, flavor: AgentFlavor, modules: list[GoModule], bazel_flags: list[str] = None
+) -> dict[str, str]:
+    """Query Bazel for go_test targets within the scope of the given modules.
+
+    Returns a dict mapping Bazel label (without config hash) to Go import path.
+
+    Example:
+        {"//pkg/util/log:log_test": "github.com/DataDog/datadog-agent/pkg/util/log"}
+
+    The query is scoped to the same targets passed to go test, so
+    'dda inv test --targets=./pkg/util' only queries //pkg/util/...
+    instead of all of //...
+    """
+    bazel_patterns = []
+    for module in modules:
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            if module.path == '.':
+                full_target = target
+            else:
+                # Join module path with target, normalizing out any trailing '.' to
+                # avoid producing paths like './comp/core/.' which Bazel rejects.
+                rel = target.removeprefix('./')
+                joined = f'{module.path}/{rel}' if rel and rel != '.' else module.path
+                full_target = f'./{joined}'
+            bazel_patterns.append(_target_to_bazel_pattern(full_target))
+
+    if not bazel_patterns:
+        return {}
+
+    bazel_patterns = _minimize_bazel_patterns(bazel_patterns)
+
+    # Temporary: restrict queries to the top-level trees that have been migrated
+    # to Bazel.  Remove this filter when other trees (e.g. test/, tasks/) follow.
+    _BAZEL_QUERYABLE_ROOTS = ('//cmd/', '//comp/', '//pkg/')
+    bazel_patterns = [p for p in bazel_patterns if any(p.startswith(r) for r in _BAZEL_QUERYABLE_ROOTS)]
+    if not bazel_patterns:
+        return {}
+
+    scope = ' + '.join(bazel_patterns)
+    flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
+
+    # We must filter out the tests which are for the other flavors.
+    # The naming pattern of flavorized tests is {name}_test_{flavor}, so we
+    # can detect them by the suffix.
+    other_flavors_suffixes = [f'_test_{flvr.name}' for flvr in AgentFlavor if flvr != flavor]
+
+    def _keep(obj: dict) -> bool:
+        if obj.get('type') != 'RULE':
+            return False
+        rule = obj.get('rule', {})
+        label = rule.get('name', '')
+        if any(label.endswith(s) for s in other_flavors_suffixes):
+            return False
+        tags_attr = next((a for a in rule.get('attribute', []) if a['name'] == 'tags'), None)
+        if tags_attr and 'manual' in tags_attr.get('stringListValue', []):
+            return False
+        return True
+
+    targets = {}
+    with gitlab_section("Finding Bazel migrated tests", collapsed=True):
+        # -k (keep going) means Bazel exits non-zero when some packages fail to load but still
+        # streams valid results for the rest.  We iterate directly (not via list()) so that results
+        # already processed into `targets` are kept even when the generator raises at the end.
+        try:
+            for obj in bazel_query(f'kind(go_test, {scope})', _keep, flags=flags):
+                # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
+                label = obj['rule']['name']
+                package = label.split(':')[0]
+                dir_path = package[2:]  # strip //
+                targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+        except RuntimeError as e:
+            print(f"Warning: bazel query returned an error; results may be incomplete:\n{e}", file=sys.stderr)
+    return targets
+
+
+def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | None:
+    """Parse a Bazel test result summary line.
+
+    Returns (label, status, timing, cached) or None if not a result line.
+
+    Expected input formats:
+        //pkg/util/log:log_test                   PASSED in 0.521s
+        //pkg/aggregator/ckey:ckey_test           (cached) PASSED in 1.234s
+        //pkg/api/security:security_test          SKIPPED
+        //pkg/process/util:util_test              FAILED in 0.345s
+    """
+    line = line.strip()
+    if not line.startswith('//'):
+        return None
+    parts = line.split()
+    label = parts[0]
+    cached = '(cached)' in parts
+    for status in ('PASSED', 'FAILED', 'SKIPPED'):
+        if status in parts:
+            m = re.search(r'in ([\d.]+s)', line)
+            return (label, status, m.group(1) if m else None, cached)
+    return None
+
+
+def _run_bazel_tests(
+    ctx, flavor: AgentFlavor, targets: list[str], bazel_flags: list[str] = None, verbose: bool = False
+) -> TestStats:
+    """Run Bazel test targets and print results formatted like go test output.
+
+    Targets are batched so the total command length stays under 32000 chars,
+    which is a safe heuristic for Windows command-line limits.
+    TODO: relax this limit on Linux where the effective limit is ~2 MB.
+
+    Prints one ✓/∅/FAIL line per target then a DONE summary.
+    Returns a TestStats with counts from this run.
+    """
+
+    if not targets:
+        return TestStats()
+
+    # Windows-safe command-length limit.
+    # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
+    MAX_CMD_LENGTH = 32000
+    base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
+    if bazel_flags:
+        base_args.extend(bazel_flags)
+    fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
+
+    # Batch targets so no single invocation exceeds the limit.
+    batches: list[list[str]] = []
+    current_batch: list[str] = []
+    current_len = fixed_len
+    for target in targets:
+        target_len = len(target) + 1  # +1 for the separating space
+        if current_batch and current_len + target_len > MAX_CMD_LENGTH:
+            batches.append(current_batch)
+            current_batch = [target]
+            current_len = fixed_len + target_len
+        else:
+            current_batch.append(target)
+            current_len += target_len
+    if current_batch:
+        batches.append(current_batch)
+
+    # Lines written by Bazel that are not test results and should be hidden.
+    _NOISY_PREFIXES = ('Loading:', 'Analyzing:', 'INFO:', 'WARNING:', 'Computing main repo mapping:')
+
+    parsed_results: list[tuple[str, str, str | None, bool]] = []
+    run_failed = False  # Track an overall failure accross batches.
+    t_start = time.monotonic()
+
+    for batch in batches:
+        result = _run_bazel(*base_args, *batch, verbose=True)
+        output = result.stdout
+        if output:
+            # check output for the individual test pass/fail/skipped/cached.
+            if verbose:
+                print(output)
+            for line in output.splitlines():
+                parsed = _parse_bazel_test_line(line)
+                if parsed:
+                    parsed_results.append(parsed)
+
+        if result.returncode != 0:
+            run_failed = True
+            # Print the errors to the console/main log.  The individual test
+            # results .xml files have the details. Those get uploaded separately.
+            for line in result.stderr.splitlines():
+                if line.strip().startswith(_NOISY_PREFIXES):
+                    continue
+                print(line)
+
+    duration_s = time.monotonic() - t_start
+
+    # Print one formatted line per result.
+    n_passed = n_failed = n_skipped = 0
+    for label, status, timing, cached in parsed_results:
+        if status == 'PASSED':
+            symbol = color_message('✓', 'green')
+            n_passed += 1
+        elif status == 'SKIPPED':
+            symbol = color_message('∅', 'yellow')
+            n_skipped += 1
+        else:
+            symbol = color_message('FAIL', 'red')
+            n_failed += 1
+
+        timing_str = f' ({timing})' if timing else ''
+        cached_str = ' (cached)' if cached else ''
+        print(f'{symbol}  {label}{timing_str}{cached_str}')
+
+    total = n_passed + n_failed + n_skipped
+    # Treat a non-zero Bazel exit as a failure even if some result lines were parsed.
+    # This avoids reporting success when a later batch fails due to build/infra issues.
+    if run_failed:
+        if total == 0:
+            n_failed = len(targets)
+            total = n_failed
+        elif n_failed == 0:
+            n_failed += 1
+            total += 1
+
+    return TestStats(total=total, passed=n_passed, failed=n_failed, skipped=n_skipped, duration_s=duration_s)
+
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -115,6 +414,8 @@ def test_flavor(
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
+    exclude_packages: set[str] | None = None,
+    skip_tests_covered_by_bazel: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -143,35 +444,70 @@ def test_flavor(
         args["junit_file_flag"] = "--junitfile " + result_junit_path
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(list(modules), recursive)
+    module_list = list(modules)
+    packages = compute_gotestsum_cli_args(
+        module_list, recursive, ctx=ctx, build_tags=build_tags, exclude_packages=exclude_packages or None
+    )
 
-    with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
-        res = ctx.run(
-            command=cmd.format(
-                packages=packages,
-                cov_test_path=cov_test_path,
-                **args,
-            ),
-            env=env,
-            out_stream=test_profiler,
-            warn=True,
-        )
-        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-        if res is not None and res.exited == 130:
-            raise KeyboardInterrupt()
-
-    if res.exited is None or res.exited > 0:
-        result.failed = True
+    # When skip_tests_covered_by_bazel is True, packages was expanded by `go list`
+    # into individual package names and the list can be very long. Batch them to
+    # stay within Windows command-line length limits (same heuristic as
+    # _run_bazel_tests). Otherwise, treat the whole package list as one batch.
+    #
+    # NOTE: Multiple batches break proper JUnit XML output — each gotestsum
+    # invocation overwrites the previous batch's file, so only the last batch's
+    # results survive. This is a known limitation that we accept here because this
+    # mode is used only to measure test timing, not to load coverage data.
+    if skip_tests_covered_by_bazel:
+        MAX_CMD_LENGTH = 32000
+        package_list = packages.split()
+        batches: list[list[str]] = []
+        current_batch: list[str] = []
+        current_len = 0
+        for pkg in package_list:
+            pkg_len = len(pkg) + 1  # +1 for the separating space
+            if current_batch and current_len + pkg_len > MAX_CMD_LENGTH:
+                batches.append(current_batch)
+                current_batch = [pkg]
+                current_len = pkg_len
+            else:
+                current_batch.append(pkg)
+                current_len += pkg_len
+        if current_batch:
+            batches.append(current_batch)
     else:
-        lines = res.stdout.splitlines()
-        if lines is not None and 'DONE 0 tests' in lines[-1]:
-            cov_path = os.path.join(result.path, PROFILE_COV)
-            print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
-            try:
-                os.remove(cov_path)
-            except FileNotFoundError as e:
-                print(f"Could not remove coverage file {cov_path}\n{e}")
-            return
+        batches = [packages.split()]
+
+    res = None
+    for batch in batches:
+        batch_packages = ' '.join(batch)
+        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            res = ctx.run(
+                command=cmd.format(
+                    packages=batch_packages,
+                    cov_test_path=cov_test_path,
+                    **args,
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            if res is not None and res.exited == 130:
+                raise KeyboardInterrupt()
+
+        if res is not None and (res.exited is None or res.exited > 0):
+            result.failed = True
+        elif not skip_tests_covered_by_bazel:
+            lines = res.stdout.splitlines()
+            if lines is not None and 'DONE 0 tests' in lines[-1]:
+                cov_path = os.path.join(result.path, PROFILE_COV)
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
+                    os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Could not remove coverage file {cov_path}\n{e}")
+                return
 
     if result_junit:
         enrich_junitxml(result_junit, flavor)  # type: ignore
@@ -195,36 +531,31 @@ def sanitize_env_vars():
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
     """
     for env in os.environ:
-        # Allow the env var that enables NodeTreeModel for testing purposes
-        if env == "DD_CONF_NODETREEMODEL":
-            continue
         if env.startswith("DD_"):
             del os.environ[env]
 
 
 def _generate_unified_output(
     ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None = None, test_system: str = "unit"
-) -> None:
-    """Generate a UTOF JSON file alongside the test output JSON."""
-    if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
-        return
+) -> TestStats | None:
+    """Generate a UTOF JSON file alongside the test output JSON.
 
-    try:
-        from tasks.libs.testing.utof import format_report
-        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
+    Returns a TestStats with go test counts extracted from the UTOF summary,
+    or None if the unified output could not be generated.
+    """
+    from tasks.libs.testing.utof.go.generate import generate_unified_output
 
-        result_json = ResultJson.from_file(test_result.result_json_path)
-        metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor.name)
-        utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
-        utof_path = test_result.result_json_path.replace('.json', '_unified.json')
-        utof.write_json(utof_path)
-        print(f"Unified test output written to {utof_path}")
-        with gitlab_section("Unified test report", collapsed=False):
-            print(format_report(utof))
-    except Exception:
-        import traceback
-
-        print(f"Warning: Failed to generate unified test output:\n{traceback.format_exc()}")
+    utof = generate_unified_output(ctx, test_result.result_json_path, test_system, flavor.name, tw=tw)
+    if utof is None:
+        return None
+    s = utof.summary
+    return TestStats(
+        total=s.total,
+        passed=s.passed,
+        failed=s.failed,
+        skipped=getattr(s, 'skipped', 0),
+        duration_s=getattr(utof.metadata, 'duration_seconds', 0.0) or 0.0,
+    )
 
 
 def process_test_result(
@@ -235,7 +566,14 @@ def process_test_result(
     flavor: AgentFlavor,
     test_washer: bool,
     test_system: str = "unit",
-) -> bool:
+    skip_unified_output: bool = False,
+) -> tuple[bool, TestStats | None]:
+    """Process go test results.
+
+    Returns (success, go_stats). go_stats is None when skip_unified_output=True
+    or when the unified output could not be generated. Callers that only care
+    about success can unpack with: success, _ = process_test_result(...)
+    """
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
 
@@ -244,8 +582,10 @@ def process_test_result(
 
     if success:
         print(color_message("All tests passed", "green"))
-        _generate_unified_output(ctx, test_result, flavor, test_system=test_system)
-        return True
+        go_stats = (
+            None if skip_unified_output else _generate_unified_output(ctx, test_result, flavor, test_system=test_system)
+        )
+        return True, go_stats
 
     if test_washer or running_in_ci():
         if not test_washer:
@@ -260,11 +600,19 @@ def process_test_result(
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
-            _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
-            return True
+            go_stats = (
+                None
+                if skip_unified_output
+                else _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
+            )
+            return True, go_stats
 
-    _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
-    return False
+    go_stats = (
+        None
+        if skip_unified_output
+        else _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
+    )
+    return False, go_stats
 
 
 @task
@@ -297,6 +645,9 @@ def test(
     build_stdlib=False,
     test_washer=False,
     extra_args=None,
+    skip_tests_covered_by_bazel=False,
+    write_bazel_test_list=None,
+    run_bazel_tests=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -314,6 +665,12 @@ def test(
         dda inv test --module=. --race
     """
     sanitize_env_vars()
+
+    # Allow opting in to bazel integration via environment variable.
+    _bazel_env = os.environ.get("EXPERIMENTAL_USE_BAZEL_TESTS", "")
+    if _bazel_env not in ("", "0"):
+        skip_tests_covered_by_bazel = True
+        run_bazel_tests = True
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -412,8 +769,33 @@ def test(
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
+    exclude_packages: set[str] = set()
+    bazel_targets: dict[str, str] = {}
+    bazel_flags = []
+    if race:
+        bazel_flags.append("--config=gorace")
+    if unit_tests_tags:
+        # Critically important to sort the gotags because their order matters for configuration calculation.
+        # That is, you don't cache unless they come out the same way.
+        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(sorted(unit_tests_tags))}")
+    bazel_query_duration_s: float = 0.0
+    if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
+        _t0 = time.monotonic()
+        bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
+        bazel_query_duration_s = time.monotonic() - _t0
+        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets, in {bazel_query_duration_s:.3f}s")
+
+        if write_bazel_test_list:
+            with open(write_bazel_test_list, 'w') as f:
+                f.write('\n'.join(sorted(bazel_targets)) + '\n')
+            print(f"Bazel test targets written to {write_bazel_test_list}")
+
+        if skip_tests_covered_by_bazel:
+            exclude_packages = set(bazel_targets.values())
+            print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
+
     with gitlab_section("Running unit tests", collapsed=True):
-        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
+        result_junit = f"junit-out-{flavor.name}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -427,9 +809,13 @@ def test(
             test_profiler=test_profiler,
             coverage=coverage,
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
+            exclude_packages=exclude_packages or None,
+            skip_tests_covered_by_bazel=skip_tests_covered_by_bazel,
         )
 
-    # Output (only if tests ran)
+    # Go test output (only if tests ran)
+    go_success = True
+    go_stats: TestStats | None = None
     if test_result:
         if coverage and print_coverage:
             coverage_flavor(ctx)
@@ -440,10 +826,56 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(ctx, test_result, junit_tar, [result_junit], flavor, test_washer)
-        if not success:
-            raise Exit(code=1)
+        go_success, go_stats = process_test_result(
+            ctx,
+            test_result,
+            junit_tar,
+            [result_junit],
+            flavor,
+            test_washer,
+        )
 
+    # Bazel test output — displayed after go test results.
+    bazel_success = True
+    bazel_stats: TestStats | None = None
+    bazel_tests_duration_s: float = 0.0
+    if run_bazel_tests and bazel_targets:
+        print(f"\n{'=' * 12} Bazel tests {'=' * 12}")
+        with gitlab_section("Bazel test results", collapsed=True):
+            _t0 = time.monotonic()
+            bazel_stats = _run_bazel_tests(
+                ctx, flavor=flavor, targets=list(bazel_targets), bazel_flags=bazel_flags, verbose=verbose
+            )
+            bazel_tests_duration_s = time.monotonic() - _t0
+        bazel_success = bazel_stats.failed == 0
+        bazel_status = (
+            color_message('All tests passed', 'green') if bazel_success else color_message('Tests FAILED', 'red')
+        )
+        print(f"DONE {bazel_stats.total} tests in {bazel_tests_duration_s:.3f}s")
+        print(bazel_status)
+
+    # Combined summary in the same style as the go Test Report block.
+    if run_bazel_tests and (go_stats is not None or bazel_stats is not None):
+        combined = (go_stats or TestStats()) + (bazel_stats or TestStats())
+        all_ok = go_success and bazel_success
+        sep = "=" * 60
+        result_str = color_message("PASSED", "green") if all_ok else color_message("FAILED", "red")
+        parts = [f"{combined.total} total", f"{combined.passed} passed"]
+        if combined.failed:
+            parts.append(f"{combined.failed} failed")
+        if combined.skipped:
+            parts.append(f"{combined.skipped} skipped")
+        parts.append(f"in {combined.duration_s:.1f}s")
+        print(f"\n{sep}")
+        print(f"  Test Report (unit + bazel) \u2014 {result_str}")
+        print(sep)
+        print()
+        print("  ".join(parts))
+
+    if not go_success or not bazel_success:
+        raise Exit(code=1)
+
+    if test_result and not run_bazel_tests:
         print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
 
 
@@ -921,21 +1353,51 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
-    targets = []
+def compute_gotestsum_cli_args(
+    modules: list[GoModule],
+    recursive: bool = True,
+    ctx=None,
+    build_tags: list[str] | None = None,
+    exclude_packages: set[str] | None = None,
+) -> str:
+    """Compute the packages argument for gotestsum --packages.
+
+    When exclude_packages is provided, runs `go list` to enumerate packages by
+    name and filters out the excluded ones. ctx and build_tags are required in
+    that case (this is needed because go test / gotestsum have no native
+    exclusion syntax).
+    Otherwise, builds path glob patterns directly without running any subprocess.
+    """
+    tag_str = ' '.join(build_tags or [])
+    result = []
     for module in modules:
         if not module.should_test():
             continue
         for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
-            if not target_path.startswith('./'):
-                target_path = f"./{target_path}"
-            targets.append(target_path)
-    if recursive:
-        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
-    else:
-        packages = ' '.join(targets)
-    return packages
+            if exclude_packages is not None:
+                # Build the pattern relative to module.path — ctx.cd() below
+                # makes that the working directory, so do NOT prepend module.path.
+                t = target if target.startswith('./') else f'./{target}'
+                if recursive and not t.endswith('/...'):
+                    t = f'{t}/...'
+                with ctx.cd(module.path):
+                    res = ctx.run(
+                        f'go list -buildvcs=false -tags "{tag_str}" {t}',
+                        hide=True,
+                        warn=True,
+                    )
+                if res and res.stdout:
+                    for pkg in res.stdout.splitlines():
+                        if pkg not in exclude_packages:
+                            result.append(pkg)
+            else:
+                target_path = os.path.join(module.path, target)
+                if not target_path.startswith('./'):
+                    target_path = f"./{target_path}"
+                if recursive and not target_path.endswith('/...'):
+                    target_path = f"{target_path}/..."
+                result.append(target_path)
+    return ' '.join(result)
 
 
 @task

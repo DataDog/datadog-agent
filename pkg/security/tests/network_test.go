@@ -799,6 +799,11 @@ func TestRawPacketFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, progSpecs)
 
+		for _, prog := range progSpecs {
+			// check if len of proc insturctions is lower than the limit
+			assert.Less(t, len(prog.Instructions), opts.MaxProgSize)
+		}
+
 		colSpec := ebpf.CollectionSpec{
 			Programs: make(map[string]*ebpf.ProgramSpec),
 		}
@@ -831,7 +836,7 @@ func TestRawPacketFilter(t *testing.T) {
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
-		opts.NopInstLen = 3500
+		opts.NopInstLen = 1000
 		runTest(t, filters, opts)
 	})
 }

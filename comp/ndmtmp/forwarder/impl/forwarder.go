@@ -7,7 +7,7 @@
 package forwarderimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 )
@@ -19,7 +19,7 @@ type Dependencies struct {
 	Demultiplexer demultiplexer.Component
 }
 
-// GetForwarder returns the event platform forwarder from the demultiplexer.
-func GetForwarder(deps Dependencies) (forwarder.Component, error) {
+// NewComponent returns the event platform forwarder from the demultiplexer.
+func NewComponent(deps Dependencies) (forwarder.Component, error) {
 	return deps.Demultiplexer.GetEventPlatformForwarder()
 }

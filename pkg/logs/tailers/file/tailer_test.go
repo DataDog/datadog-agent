@@ -12,19 +12,20 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
@@ -139,7 +140,7 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
+	mockConfig.SetInTest("logs_config.close_timeout", 42)
 
 	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.StartFromBeginning()
@@ -243,7 +244,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 
 func (suite *TailerTestSuite) TestWithBlanklinesSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
 
 	// Recreate the tailer after config change so decoder uses SingleLineHandler
 	suite.tailer = NewTailer(suite.createTailerOptions(nil))
@@ -362,18 +363,18 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 
 func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
-	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
+	mockConfig.SetInTest("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
+	mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
 
 	// Enable auto multiline detection with aggregation (not just detection-only tagging)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
 	// Instead, enable full auto multiline on the source itself
 
-	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", false)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
 
 	autoML := true
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -399,30 +400,34 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	_, err = suite.testFile.WriteString("2024-01-01 10:00:01 [INFO] Next log\n")
 	suite.Nil(err)
 
-	// First message should be the aggregated multiline log with truncation
+	// The overflowed multiline group should fall back to standalone messages.
 	msg := <-suite.outputChan
 	tags := msg.Tags()
-
-	// Check for truncation tag with "auto_multiline" reason
-	suite.Contains(tags, message.TruncatedReasonTag("auto_multiline"))
-
-	// The content should contain the truncation flag
 	content := string(msg.GetContent())
-	suite.Contains(content, "...TRUNCATED...")
+	suite.Equal("2024-01-01 10:00:00 [ERROR] First line of multiline log message", content)
+	suite.NotContains(tags, message.TruncatedReasonTag("auto_multiline"))
+	suite.NotContains(tags, message.MultiLineSourceTag("auto_multiline"))
 
-	// Second message should be the single-line log
 	msg2 := <-suite.outputChan
-	suite.NotNil(msg2)
+	tags2 := msg2.Tags()
+	content2 := string(msg2.GetContent())
+	suite.Equal("continuation line that should be aggregated here", content2)
+	suite.NotContains(tags2, message.TruncatedReasonTag("auto_multiline"))
+	suite.NotContains(tags2, message.MultiLineSourceTag("auto_multiline"))
+
+	// Third message should be the next single-line log.
+	msg3 := <-suite.outputChan
+	suite.Equal("2024-01-01 10:00:01 [INFO] Next log", string(msg3.GetContent()))
 }
 
 func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
-	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", true)
+	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
@@ -494,6 +499,108 @@ func toInt(str string) int {
 		return int(value)
 	}
 	return 0
+}
+
+// TestStructuredMessagePreserved verifies that forwardMessages preserves
+// StateStructured messages (produced by the syslog file parser) instead of
+// re-wrapping them as StateUnstructured. The output message must carry the
+// full structured content (syslog metadata) and have a properly populated origin.
+func TestStructuredMessagePreserved(t *testing.T) {
+	testDir := t.TempDir()
+	testPath := filepath.Join(testDir, "syslog.log")
+	f, err := os.Create(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	outputChan := make(chan *message.Message, chanSize)
+	// attribute_parsing gates whether the syslog parser is installed at all
+	// (IsAttributeParsingEnabled); without it the decoder uses the noop parser
+	// and the message stays StateUnstructured. debug_attr_parsing gates the
+	// structured JSON envelope so the parser renders the "message"/"syslog"
+	// object this test asserts on.
+	attributeParsing := true
+	debugAttrParsing := true
+	source := sources.NewReplaceableSource(sources.NewLogSource("syslog-test", &config.LogsConfig{
+		Type:             config.FileType,
+		Path:             testPath,
+		Format:           config.SyslogFormat,
+		AttributeParsing: &attributeParsing,
+		DebugAttrParsing: &debugAttrParsing,
+	}))
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:      outputChan,
+		File:            NewFile(testPath, source.UnderlyingSource(), false),
+		SleepDuration:   10 * time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+
+	tailer := NewTailer(tailerOptions)
+
+	syslogLine := "<165>1 2024-01-15T10:30:00Z myhost myapp 1234 - - Hello structured world\n"
+	_, err = f.WriteString(syslogLine)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tailer.StartFromBeginning()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tailer.Stop()
+
+	select {
+	case msg := <-outputChan:
+		if msg.State != message.StateStructured {
+			t.Fatalf("expected StateStructured (%d), got state %d", message.StateStructured, msg.State)
+		}
+
+		rendered, err := msg.Render()
+		if err != nil {
+			t.Fatalf("failed to render structured message: %v", err)
+		}
+
+		renderedStr := string(rendered)
+		if !strings.Contains(renderedStr, `"syslog"`) {
+			t.Errorf("rendered output missing syslog metadata: %s", renderedStr)
+		}
+		if !strings.Contains(renderedStr, `"message"`) {
+			t.Errorf("rendered output missing message field: %s", renderedStr)
+		}
+		if !strings.Contains(renderedStr, "Hello structured world") {
+			t.Errorf("rendered output missing message body: %s", renderedStr)
+		}
+		if !strings.Contains(renderedStr, "myapp") {
+			t.Errorf("rendered output missing appname: %s", renderedStr)
+		}
+
+		if msg.Origin == nil {
+			t.Fatal("message origin is nil")
+		}
+		if msg.Origin.FilePath != testPath {
+			t.Errorf("expected origin FilePath %q, got %q", testPath, msg.Origin.FilePath)
+		}
+		if msg.Origin.Offset == "" {
+			t.Error("expected non-empty origin Offset")
+		}
+
+		if msg.Origin.Source() != "" {
+			t.Errorf("expected empty origin Source (syslog does not override source directly), got %q", msg.Origin.Source())
+		}
+		if msg.Origin.Service() != "" {
+			t.Errorf("expected empty origin Service (syslog does not override service), got %q", msg.Origin.Service())
+		}
+
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for message")
+	}
 }
 
 // Test_RotationThenShutdownNoGoroutineLeak tests the following scenario:

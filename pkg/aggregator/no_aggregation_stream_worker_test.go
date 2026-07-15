@@ -21,7 +21,7 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	noAggWorkerStreamCheckFrequency = 100 * time.Millisecond
 
 	opts := demuxTestOptions()
-	opts.EnableNoAggregationPipeline = true
+	opts.NoAggregationPipelineWorkersCount = 1
 
 	mockSerializer := &MockSerializerIterableSerie{}
 	mockSerializer.On("AreSeriesEnabled").Return(false)
@@ -29,7 +29,7 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 
 	deps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
-	demux.statsd.noAggStreamWorker.serializer = mockSerializer
+	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer
 
 	go demux.run()
 
@@ -40,5 +40,5 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	// the worker goroutine will panic with a nil pointer dereference, crashing
 	// the test process.
 	time.Sleep(200 * time.Millisecond)
-	demux.Stop(true)
+	demux.Stop()
 }

@@ -18,13 +18,14 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	forwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -55,18 +56,18 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle(), hostnameimpl.MockModule())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	resolver, _ := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}})
-	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
+	forwarderOpts := forwarderimpl.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	secrets := secretsmock.New(b)
 	forwarderOpts.Secrets = secrets
-	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
-	orchestratorForwarder := option.New[forwarder.Forwarder](forwarder.NoopForwarder{})
+	sharedForwarder := forwarderimpl.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
+	orchestratorForwarder := option.New[forwarder.Forwarder](forwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, filterList, "hostname")
-	defer demux.Stop(true)
+	defer demux.Stop()
 
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
 	matcher := filterlistimpl.NewNoopTagMatcher()

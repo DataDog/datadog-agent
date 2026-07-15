@@ -8,7 +8,7 @@
 #include "helpers/strings.h"
 #include <linux/prctl.h>
 
-long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
+long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int option, void * arg2) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -41,7 +41,7 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
         };
     }
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -69,7 +69,7 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
 }
 
 HOOK_SYSCALL_ENTRY2(prctl, int, option, void *, arg2) {
-    return trace__sys_prctl(SYNC_SYSCALL, option, arg2);
+    return trace__sys_prctl(ctx, SYNC_SYSCALL, option, arg2);
 }
 
 HOOK_SYSCALL_EXIT(prctl) {

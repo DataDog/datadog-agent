@@ -72,6 +72,16 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
+// otelAgentEnvVars lists DD_* environment variables that are consumed by the
+// otel-agent binary via CLI flags (envflag) rather than through the Datadog
+// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
+// emit spurious "Unknown environment variable" warnings for them.
+var otelAgentEnvVars = []string{
+	"DD_SYNC_DELAY",
+	"DD_SYNC_TO",
+	"DD_CORE_CONFIG",
+}
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
@@ -83,7 +93,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	//
 	// TODO: should be migrated to a dedicated comp or flavor of the config comp
 	//
-	pkgconfigsetup.InitConfigObjects(ddCfg, "")
+	pkgconfigsetup.InitConfigObjects()
 
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
@@ -103,7 +113,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +194,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
 
+	// The otel-agent forces zlib compression, which is incompatible with the v3
+	// metrics intake.
+	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
@@ -204,12 +219,20 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
+	}
+	// Standalone mode runs without a core Datadog Agent on the same host, so
+	// every client that would otherwise contact it over IPC (trace-agent
+	// hostname acquisition, remote tagger, remote workloadmeta, ...) must be
+	// disabled. cmd_port=-1 is the conventional way to express "no core agent
+	// IPC" and is honored by those callers; forcing it here means users only
+	// have to set DD_OTEL_STANDALONE=true.
+	if pkgconfig.GetBool("otel_standalone") {
+		pkgconfig.Set("cmd_port", -1, pkgconfigmodel.SourceAgentRuntime)
 	}
 	if pkgconfig.GetInt("cmd_port") <= 0 {
 		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
@@ -220,6 +243,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
+		// TODO: (OTEL-3079) Set disable_otel_scope_convention
+		// Agent feature based on feature gate after upgrading to Collector 0.155.0
+
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}
