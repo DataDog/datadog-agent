@@ -9,6 +9,7 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -919,7 +920,7 @@ func (s *testAgentUpgradeSuite) waitForAgentMSIInstalledState() error {
 			return nil, fmt.Errorf("Datadog Agent product is not registered yet: %w", err)
 		}
 		if strings.TrimSpace(productCode) == "" {
-			return nil, fmt.Errorf("Datadog Agent product code is empty")
+			return nil, errors.New("Datadog Agent product code is empty")
 		}
 
 		installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
@@ -927,7 +928,7 @@ func (s *testAgentUpgradeSuite) waitForAgentMSIInstalledState() error {
 			return nil, fmt.Errorf("Datadog Agent InstallPath is not restored yet: %w", err)
 		}
 		if strings.TrimSpace(installPath) == "" {
-			return nil, fmt.Errorf("Datadog Agent InstallPath is empty")
+			return nil, errors.New("Datadog Agent InstallPath is empty")
 		}
 
 		return nil, nil
