@@ -1690,6 +1690,544 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 	}
 }
 
+func TestHandleKubeKueueWorkload(t *testing.T) {
+	workloadID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueWorkload,
+		ID:   "default/job-sample",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "batch",
+			Namespace: "default",
+		},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	})
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "clusterqueue//cluster-batch",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "cluster-batch",
+		},
+		QueueType:        workloadmeta.KueueClusterQueue,
+		ClusterQueueName: "cluster-batch",
+	})
+	store.Set(&workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   "a100",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "a100",
+		},
+		NodeAffinityLabels: map[string]string{
+			"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector.initK8sResourcesMetaAsTags(
+		map[string]map[string]string{
+			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
+				"team": "workload_team",
+			},
+		},
+		map[string]map[string]string{
+			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
+				"owner": "workload_owner",
+			},
+		},
+	)
+
+	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "job-sample",
+				Namespace: "default",
+				UID:       "uid-job-sample",
+				Labels: map[string]string{
+					"team": "ml",
+				},
+				Annotations: map[string]string{
+					"owner": "team-a",
+				},
+			},
+			QueueName:        "batch",
+			ClusterQueueName: "cluster-batch",
+			PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+				{Name: "main", Flavors: map[string]string{"cpu": "default", "nvidia.com/gpu": "a100"}},
+				{Name: "sidecar", Flavors: map[string]string{"cpu": "default"}},
+			},
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:       kueueWorkloadSource,
+			EntityID:     types.NewEntityID(types.KueueWorkload, workloadID.ID),
+			IsComplete:   true,
+			HighCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"kueue_workload:job-sample",
+				"kueue_workload_uid:uid-job-sample",
+			},
+			LowCardTags: []string{
+				"gpu_device:nvidia_a100-sxm4-40gb",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kube_namespace:default",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"kueue_resource_flavor:a100",
+				"kueue_resource_flavor:default",
+				"workload_owner:team-a",
+				"workload_team:ml",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeKueueWorkloadClusterQueueFromLocalQueue(t *testing.T) {
+	workloadID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueWorkload,
+		ID:   "default/job-sample",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	// Local queue carries the cluster queue association; the workload itself
+	// has no ClusterQueueName, so it must be resolved from the local queue.
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "batch",
+			Namespace: "default",
+		},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "job-sample",
+				Namespace: "default",
+			},
+			QueueName: "batch",
+			// ClusterQueueName intentionally empty.
+		},
+		IsComplete: true,
+	})
+
+	require.Len(t, actual, 1)
+	assert.Subset(t, actual[0].LowCardTags, []string{
+		"kueue_local_queue:batch",
+		"kueue_cluster_queue:cluster-batch",
+	})
+}
+
+func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
+	tests := []struct {
+		name        string
+		podLabels   map[string]string
+		annotations map[string]string
+	}{
+		{
+			name: "job or single pod workload annotation",
+			podLabels: map[string]string{
+				kubernetes.KueuePodSetLabelKey: "main",
+			},
+			annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+			},
+		},
+		{
+			name: "pod group label",
+			podLabels: map[string]string{
+				kubernetes.KueuePodGroupNameLabelKey: "job-sample",
+				kubernetes.KueuePodSetLabelKey:       "main",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			const (
+				podUID      = "pod-uid"
+				containerID = "container-id"
+			)
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			})
+			store.Set(&workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueWorkload,
+					ID:   "default/job-sample",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "job-sample",
+					Namespace: "default",
+				},
+				QueueName:        "batch",
+				ClusterQueueName: "cluster-batch",
+				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+					{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
+				},
+			})
+			store.Set(&workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   "a100",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "a100",
+				},
+				NodeAffinityLabels: map[string]string{
+					"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+					"nvidia.com/gpu.family":  "Ampere",
+				},
+			})
+			store.Set(&workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   "h100",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "h100",
+				},
+				NodeAffinityLabels: map[string]string{
+					"nvidia.com/gpu.product": "NVIDIA-H100-80GB-HBM3",
+					"nvidia.com/gpu.family":  "Hopper",
+				},
+			})
+
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   podUID,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "pod",
+						Namespace:   "default",
+						Labels:      test.podLabels,
+						Annotations: test.annotations,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   containerID,
+							Name: "app",
+						},
+					},
+				},
+				IsComplete: true,
+			})
+
+			assert.Len(t, actual, 2)
+			for _, tagInfo := range actual {
+				if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+					continue
+				}
+				assert.Subset(t, tagInfo.LowCardTags, []string{
+					"gpu_architecture:ampere",
+					"gpu_device:nvidia_a100-sxm4-40gb",
+					"gpu_type:a100",
+					"gpu_vendor:nvidia",
+					"kueue_cluster_queue:cluster-batch",
+					"kueue_local_queue:batch",
+					"kueue_resource_flavor:a100",
+				})
+				assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
+					"kueue_workload:job-sample",
+				})
+				assert.NotContains(t, tagInfo.LowCardTags, "gpu_architecture:hopper")
+				assert.NotContains(t, tagInfo.LowCardTags, "gpu_device:nvidia_h100-80gb-hbm3")
+				assert.NotContains(t, tagInfo.LowCardTags, "gpu_type:h100")
+				assert.NotContains(t, tagInfo.LowCardTags, "kueue_resource_flavor:h100")
+				return
+			}
+			t.Fatal("container tag info not found")
+		})
+	}
+}
+
+func TestKueueWorkloadResourceFlavorTagsWithoutPodSetPropagateAllFlavors(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+	store.Set(&workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   "default/job-sample",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "job-sample",
+			Namespace: "default",
+		},
+		QueueName:        "batch",
+		ClusterQueueName: "cluster-batch",
+		PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+			{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+			{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Annotations: map[string]string{
+					kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+			"kueue_resource_flavor:a100",
+			"kueue_resource_flavor:h100",
+		})
+		assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
+			"kueue_workload:job-sample",
+		})
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
+func TestKueueWorkloadFallbackToPodQueueLabels(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+					kubernetes.KueuePodSetLabelKey:           "main",
+				},
+				Annotations: map[string]string{
+					kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		assert.NotContains(t, tagInfo.LowCardTags, "kueue_workload:missing-workload")
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
+func TestKueueWorkloadMissingPodSetAssignmentSkipsResourceFlavorTags(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+	store.Set(&workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   "default/job-sample",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "job-sample",
+			Namespace: "default",
+		},
+		QueueName:        "batch",
+		ClusterQueueName: "cluster-batch",
+		PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+			{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+					kubernetes.KueuePodSetLabelKey:           "main",
+				},
+				Annotations: map[string]string{
+					kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
+			"kueue_workload:job-sample",
+		})
+		assert.NotContains(t, tagInfo.LowCardTags, "kueue_resource_flavor:a100")
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 	const (
 		podUID      = "pod-uid"
@@ -3305,9 +3843,10 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:  "nvidia",
-				Device:  "tesla-v100",
-				GPUType: "v100",
+				Vendor:   "nvidia",
+				Device:   "tesla-v100",
+				GPUType:  "v100",
+				PCIBusID: "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3322,6 +3861,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 					},
 					StandardTags: []string{},
 				},
@@ -3337,9 +3877,10 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor:  "Nvidia",
-				Device:  "Tesla v100",
-				GPUType: "V100",
+				Vendor:   "Nvidia",
+				Device:   "Tesla v100",
+				GPUType:  "V100",
+				PCIBusID: "0000:00:1E.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3354,6 +3895,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 					},
 					StandardTags: []string{},
 				},
@@ -3377,6 +3919,7 @@ func TestHandleGPU(t *testing.T) {
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
+				PCIBusID:           "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3392,6 +3935,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
+						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -3418,6 +3962,7 @@ func TestHandleGPU(t *testing.T) {
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
 				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+				PCIBusID:           "0000:00:1e.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3433,6 +3978,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:mig-parent",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -3831,6 +4377,7 @@ func TestHandleProcess(t *testing.T) {
 		Device:             gpuDevice,
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
+		PCIBusID:           "0000:00:1e.0",
 	})
 
 	cfg := configmock.New(t)
@@ -4162,6 +4709,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
@@ -4202,6 +4750,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_pci_bus_id:0000:00:1e.0",
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,

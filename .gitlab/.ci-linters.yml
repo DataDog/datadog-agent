@@ -86,6 +86,8 @@ job-owners:
     - installer-amd64-oci
     - installer-arm64
     - installer-arm64-oci
+    - installer-fips-amd64-oci
+    - installer-fips-arm64-oci
     - installer-install-scripts
     - integration_tests_otel
     - invoke_unit_tests

@@ -39,7 +39,7 @@ var (
 		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
-		"js":     "v5",
+		"js":     "v6",
 		"php":    "v1",
 	}
 
@@ -798,7 +798,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -854,7 +854,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),

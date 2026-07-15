@@ -493,7 +493,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 func TestKubeServiceHealthPlatformReporting(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	cfg := configmock.New(t)
 
 	provider := KubeServiceConfigProvider{
