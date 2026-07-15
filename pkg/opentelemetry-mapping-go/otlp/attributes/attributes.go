@@ -748,7 +748,7 @@ func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""

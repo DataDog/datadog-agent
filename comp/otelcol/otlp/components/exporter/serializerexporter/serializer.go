@@ -188,7 +188,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 			if err != nil {
 				return ""
 			}
-			return s.Identifier
+			return s.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Provide(serializer.NewSerializer),
