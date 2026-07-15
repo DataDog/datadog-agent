@@ -366,13 +366,19 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	return s
 }
 
+// errNoListeners is returned by start when no listener could be created, leaving
+// DogStatsD with no way to receive metrics. It is the only startup failure that
+// dogstatsd_require_listener treats as fatal. The message is preserved verbatim
+// because operators may match on it; add context by wrapping rather than editing.
+var errNoListeners = errors.New("listening on neither udp nor socket, please check your configuration")
+
 func (s *dsdServer) startHook(context context.Context) error {
 	err := s.start(context)
 	if err == nil {
 		s.log.Debug("dogstatsd started")
 		return nil
 	}
-	if s.config.GetBool("dogstatsd_require_listener") {
+	if errors.Is(err, errNoListeners) && s.config.GetBool("dogstatsd_require_listener") {
 		return fmt.Errorf("dogstatsd start failed: %w", err)
 	}
 	s.log.Errorf("Could not start dogstatsd: %s", err)
@@ -451,7 +457,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return errors.New("listening on neither udp nor socket, please check your configuration")
+		return errNoListeners
 	}
 
 	s.packetsIn = packetsChannel

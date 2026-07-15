@@ -2482,11 +2482,11 @@ api_key:
 
 ## @param dogstatsd_require_listener - boolean - optional - default: false
 ## @env DD_DOGSTATSD_REQUIRE_LISTENER - boolean - optional - default: false
-## When enabled, DogStatsD fails to start (the process exits with a non-zero status) on any
-## startup error. The most common such error is being unable to create any listener (UDP
-## port, Unix socket, or named pipe), which would leave DogStatsD with no way to receive
-## metrics. When disabled, a startup failure is only logged and the process keeps running.
-## Enable this so a process supervisor can detect and restart a non-functional DogStatsD.
+## When enabled, DogStatsD fails to start (the process exits with a non-zero status) if it
+## cannot create any listener (UDP port, Unix socket, or named pipe), which would leave
+## DogStatsD with no way to receive metrics. When disabled, this failure is only logged and
+## the process keeps running. Enable this so a process supervisor can detect and restart a
+## non-functional DogStatsD.
 #
 # dogstatsd_require_listener: false
 
