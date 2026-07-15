@@ -852,7 +852,7 @@ func (p *EBPFProbe) rebuildDropActionRuleIDs() {
 	ruleIDs := make(map[uint32]string, len(p.rawPacketActionFilters))
 	for i, filter := range p.rawPacketActionFilters {
 		if i >= rawpacket.MaxDropActionFilters {
-			seclog.Errorf("too many drop action filters, indexes might be incorrect because of the kernel LRU, max is %d", rawpacket.MaxDropActionFilters)
+			seclog.Errorf("too many drop action filters, stop adding them is ruleID mapping, max is %d", rawpacket.MaxDropActionFilters)
 			break
 		}
 		ruleIDs[uint32(i)] = string(filter.RuleID)
@@ -876,11 +876,9 @@ func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
 }
 
 func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
-	iterator := droppedPacketsMap.Iterate()
-	var key uint64
-	var value uint64
-	for iterator.Next(&key, &value) {
-		_ = droppedPacketsMap.Delete(key)
+	zero := make([]uint32, p.numCPU)
+	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
+		_ = droppedPacketsMap.Put(i, zero)
 	}
 }
 

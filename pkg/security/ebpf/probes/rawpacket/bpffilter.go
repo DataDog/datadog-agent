@@ -38,7 +38,7 @@ const (
 )
 
 // MaxDropActionFilters is the maximum number of network drop action filters tracked in kernel.
-const MaxDropActionFilters = 512
+const MaxDropActionFilters = 256
 
 // ToTCAct converts a policy to a TCAct
 func (p Policy) ToTCAct() TCAct {

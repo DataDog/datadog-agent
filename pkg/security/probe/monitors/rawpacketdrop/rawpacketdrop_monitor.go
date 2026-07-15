@@ -10,6 +10,7 @@ package rawpacketdrop
 
 import (
 	"fmt"
+	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // RuleIDsProvider returns the current filter index to rule_id mapping.
@@ -30,6 +32,8 @@ type Monitor struct {
 	droppedMap   *lib.Map
 	ruleIDs      RuleIDsProvider
 	lastCounts   map[string]uint64
+	mu           sync.Mutex
+	numCPU       int
 }
 
 // NewMonitor returns a new Monitor.
@@ -38,48 +42,67 @@ func NewMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface, r
 	if err != nil {
 		return nil, err
 	}
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+	}
 
 	return &Monitor{
 		statsdClient: statsdClient,
 		droppedMap:   droppedMap,
 		ruleIDs:      ruleIDs,
 		lastCounts:   make(map[string]uint64),
+		numCPU:       numCPU,
 	}, nil
 }
 
 // ResetCounters clears user-space counters after the kernel map is reset.
 func (m *Monitor) ResetCounters() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.lastCounts = make(map[string]uint64)
 }
 
 // SendStats emits deltas from the kernel dropped_packets map grouped by rule_id.
 func (m *Monitor) SendStats() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// get the up to date corresponding rule IDs for each filter
 	ruleIDs := m.ruleIDs()
 	if len(ruleIDs) == 0 {
 		m.lastCounts = make(map[string]uint64)
 		return nil
 	}
-
 	currentCounts := make(map[string]uint64, len(ruleIDs))
-	iterator := m.droppedMap.Iterate()
 
-	var filterIndex uint64
+	perCPU := make([]uint32, m.numCPU)
+
 	var count uint64
-	for iterator.Next(&filterIndex, &count) {
-		ruleID, ok := ruleIDs[uint32(filterIndex)]
-		if !ok || ruleID == "" {
+	// get the current counts from the kernel map
+	for filterIndex, ruleID := range ruleIDs {
+		if ruleID == "" {
 			continue
+		}
+		if err := m.droppedMap.Lookup(filterIndex, &perCPU); err != nil {
+			seclog.Warnf("failed to lookup dropped_packets map: %s", err)
+			continue
+		}
+		count = 0
+		for _, value := range perCPU {
+			count += uint64(value)
 		}
 		currentCounts[ruleID] += count
 	}
+
 	for ruleID, count := range currentCounts {
 		last := m.lastCounts[ruleID]
-		delta := count - last
-		if delta < 0 {
-			seclog.Errorf("incorrect mapping leading to a negative delta for rule_id %s: %d", ruleID, delta)
+
+		if count < last {
+			seclog.Errorf("incorrect mapping leading to a negative delta for rule_id %s", ruleID)
 			continue
 		}
+		delta := count - last
 		if delta == 0 {
 			continue
 		}

@@ -41,7 +41,6 @@ const (
 	structRawPacketEventDataSize = 256
 
 	dropStatsKeyStackOffset = int16(-8)
-	dropStatsValStackOffset = int16(-16)
 )
 
 // ProgOpts defines options
@@ -109,38 +108,25 @@ func (opts *ProgOpts) WithDropStatsMapFd(fd int) *ProgOpts {
 
 func dropStatsIncrementInsts(filterIndex int, dropStatsMapFd int, nextLabel string) asm.Instructions {
 	incLabel := fmt.Sprintf("inc_drop_stat_%d", filterIndex)
-	initLabel := fmt.Sprintf("init_drop_stat_%d", filterIndex)
 
 	return asm.Instructions{
 		// Put the key on the stack
 		asm.Mov.Reg(asm.R1, asm.RFP).WithSymbol(incLabel),
 		asm.Add.Imm(asm.R1, int32(dropStatsKeyStackOffset)),
 		asm.Mov.Imm(asm.R2, int32(filterIndex)),
-		asm.StoreMem(asm.R1, 0, asm.R2, asm.DWord),
+		asm.StoreMem(asm.R1, 0, asm.R2, asm.Word),
 		// Lookup in the map
 		asm.LoadMapPtr(asm.R1, dropStatsMapFd),
 		asm.Mov.Reg(asm.R2, asm.RFP),
 		asm.Add.Imm(asm.R2, int32(dropStatsKeyStackOffset)),
 		asm.FnMapLookupElem.Call(),
-		asm.JEq.Imm(asm.R0, 0, initLabel),
-		// Increment if it exists
+		// should never happen
+		asm.JEq.Imm(asm.R0, 0, nextLabel),
+		// Increment
 		asm.Mov.Reg(asm.R5, asm.R0),
-		asm.LoadMem(asm.R6, asm.R5, 0, asm.DWord),
+		asm.LoadMem(asm.R6, asm.R5, 0, asm.Word),
 		asm.Add.Imm(asm.R6, 1),
-		asm.StoreMem(asm.R5, 0, asm.R6, asm.DWord),
-		asm.Ja.Label(nextLabel),
-		// Otherwise create the key and insert it
-		asm.Mov.Reg(asm.R3, asm.RFP).WithSymbol(initLabel),
-		asm.Add.Imm(asm.R3, int32(dropStatsValStackOffset)),
-		asm.Mov.Imm(asm.R4, 1),
-		asm.StoreMem(asm.R3, 0, asm.R4, asm.DWord),
-		asm.LoadMapPtr(asm.R1, dropStatsMapFd),
-		asm.Mov.Reg(asm.R2, asm.RFP),
-		asm.Add.Imm(asm.R2, int32(dropStatsKeyStackOffset)),
-		asm.Mov.Reg(asm.R3, asm.RFP),
-		asm.Add.Imm(asm.R3, int32(dropStatsValStackOffset)),
-		asm.Mov.Imm(asm.R4, 0),
-		asm.FnMapUpdateElem.Call(),
+		asm.StoreMem(asm.R5, 0, asm.R6, asm.Word),
 		asm.Ja.Label(nextLabel),
 	}
 }
@@ -270,6 +256,10 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 	)
 
 	for i, filter := range filters {
+		if i >= MaxDropActionFilters {
+			mErr = multierror.Append(mErr, fmt.Errorf("too many filters, stop adding filters, max is %d", MaxDropActionFilters))
+			break
+		}
 		filterInsts, err := FilterToInsts(i, filter, opts)
 		if err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bytecode for rule `%s`: %s", filter.RuleID, err))

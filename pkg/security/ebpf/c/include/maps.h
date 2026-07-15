@@ -98,7 +98,6 @@ BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_u
 BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabilities_usage_entry_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(sock_cookie_pid, u64, u32, 1); // max entries will be overridden at runtime
 BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
-BPF_LRU_MAP(dropped_packets, u64, u64, 512)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
@@ -140,6 +139,7 @@ BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
