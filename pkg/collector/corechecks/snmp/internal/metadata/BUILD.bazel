@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "metadata",
@@ -14,11 +15,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "metadata_test",
     srcs = ["store_test.go"],
     embed = [":metadata"],
-    gotags = ["test"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "@com_github_stretchr_testify//assert",

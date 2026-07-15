@@ -4,11 +4,23 @@ package datadog.remoteagent.v1;
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
-// This message contains fields that identify a Remote Agent instance.
+// RemoteAgent is the service exposed by the Core Agent for remote agents to manage their lifecycle (registration and
+// refresh) and to report operational events back to the Core Agent.
+service RemoteAgent {
+  // Registers a remote agent.
+  rpc RegisterRemoteAgent(datadog.remoteagent.v1.RegisterRemoteAgentRequest) returns (datadog.remoteagent.v1.RegisterRemoteAgentResponse);
+
+  // Refreshes a remote agent session.
+  rpc RefreshRemoteAgent(datadog.remoteagent.v1.RefreshRemoteAgentRequest) returns (datadog.remoteagent.v1.RefreshRemoteAgentResponse);
+
+  // Reports one or more operational events from a remote agent.
+  rpc ReportRemoteAgentEvent(datadog.remoteagent.v1.ReportRemoteAgentEventRequest) returns (datadog.remoteagent.v1.ReportRemoteAgentEventResponse);
+}
+
 message RegisterRemoteAgentRequest {
   // Process ID of the remote agent.
   string pid = 1;
-  // Flavor of the remoteAgent
+  // Flavor of the remote agent.
   //
   // This should be a stable, unique name for the agent instance (e.g., "otel_agent").
   string flavor = 2;
@@ -18,23 +30,26 @@ message RegisterRemoteAgentRequest {
   string display_name = 3;
   // gRPC endpoint address where the remote agent can be reached.
   //
-  // MUST be a valid gRPC endpoint address, such as "localhost:4317".
-  // MUST expose the `RemoteAgent` service.
-  // MUST be prefixed by the transport layer if not TCP (e.g., "unix:///opt/datadog-agent/run/trace-agent.sock").
-  //     Currently supported transport layers: ["tcp"]
-  // MUST be secured with TLS if using TCP, and SHOULD present a valid certificate where possible.
+  // MUST expose the `RemoteAgent` service, and MUST specify the scheme of the transport.
+  //
+  // Supported schemes:
+  // - "https://host:port" for TCP with TLS (recommended for network endpoints).
+  // - "unix:///absolute/path" for Unix domain socket with TLS.
+  //
+  // SHOULD present a valid certificate where possible.
   string api_endpoint_uri = 4;
-
   // List of services that the remote agent supports.
-  // service name MUST be the full name of the service, such as "datadog.remoteagent.status.v1.StatusProvider".
+  //
+  // Service names MUST be the full name of the gRPC service, such as "datadog.remoteagent.status.v1.StatusProvider".
   repeated string services = 5;
 }
 
 message RegisterRemoteAgentResponse {
-  // UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+  // UUID for the remote agent session.
   //
-  // The remoteAgent MUST include its session_id in all the response to the remoteAgentRegistry
-  // as a metadata named `session_id`. 
+  // This represents the unique session between the remote agent and the remote agent registry. The remote agent MUST
+  // include the session ID in all responses to the remote agent registry, specified as a metadata header named
+  // `session_id`.
   string session_id = 1;
   // Recommended refresh interval for the remote agent.
   //
@@ -46,7 +61,31 @@ message RegisterRemoteAgentResponse {
 }
 
 message RefreshRemoteAgentRequest {
-  // UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+  // UUID of the remote agent session to refresh.
   string session_id = 1;
 }
+
 message RefreshRemoteAgentResponse {}
+
+// Event is a single discrete event reported by a remote agent.
+message Event {
+  // A simple human-friendly description.
+  string message = 1;
+  // Details of the event.
+  oneof details {
+    // Invalid API key detected when forwarding.
+    InvalidApiKeyEvent invalid_api_key = 2;
+  }
+}
+
+// Invalid API key detected when forwarding.
+message InvalidApiKeyEvent {}
+
+message ReportRemoteAgentEventRequest {
+  // UUID of the remote agent session reporting the events.
+  string session_id = 1;
+  // The events being reported.
+  repeated Event events = 2;
+}
+
+message ReportRemoteAgentEventResponse {}

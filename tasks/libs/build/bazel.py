@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import ast
-import os
 import shlex
 import shutil
 import subprocess
@@ -98,9 +96,10 @@ def bazel(
     ctx: Context,
     *args: str,
     capture_output: bool = False,
-    sudo: bool = False,
     capture_stderr: bool = False,
-) -> None | str:
+    ignore_errors: bool = False,
+    sudo: bool = False,
+) -> str:
     """Execute a bazel command.
 
     capture_output: capture stdout.
@@ -109,56 +108,28 @@ def bazel(
         and the caller needs to process it.
     """
 
-    if not (resolved_bazel := shutil.which("bazel")):
+    if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise Exit(bazel_not_found_message("red"))
-    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    cmd = (("sudo",) if sudo else ()) + (bazelisk,) + args
+    cmdline = (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd)
+    print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
     kwargs = {}
     # Invoke terminolgy is subtle. "hide" means hide from the user.
     # In every other libray, that would be called capture, and the
     # act of capturing it would hide it from the user.
     # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-    if capture_output:
-        kwargs["hide"] = "both" if capture_stderr else "out"
+    if capture_output and capture_stderr:
+        kwargs["hide"] = "both"
+    elif capture_output:
+        kwargs["hide"] = "out"
+    elif capture_stderr:
+        kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
-    result = ctx.run(
-        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
-        echo=True,
-        in_stream=False,
-        **kwargs,
-    )
-    if not capture_output:
-        return None
+    result = ctx.run(cmdline, in_stream=False, warn=ignore_errors, **kwargs)
+    captured = []
+    if capture_output and result.ok:
+        captured.append(result.stdout)
     if capture_stderr:
-        return (result.stdout or "") + (result.stderr or "")
-    return result.stdout
-
-
-class BazelTools:
-    """Hermetic Bazel-managed tool paths; populated once on first instantiation."""
-
-    _paths = {}
-
-    def __new__(cls, ctx):
-        if not cls._paths:
-            labels = ("@com_github_tinylib_msgp//:msgp", "@rules_go//go")
-            bazel(ctx, "build", *labels)
-            root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
-            for line in bazel(
-                ctx,
-                "cquery",
-                f"config(set({' '.join(labels)}), target)",
-                "--output=starlark",
-                "--starlark:expr=target.label.name,target.files_to_run.executable.path",
-                capture_output=True,
-            ).splitlines():
-                name, path = ast.literal_eval(line)
-                cls._paths[name] = Path(root, path)
-        return super().__new__(cls)
-
-    def __getattr__(self, name):
-        return self._paths[name]
-
-    @property
-    def go_env(self):
-        return {"PATH": f"{self._paths['go_bin_runner'].parent}{os.pathsep}{os.getenv('PATH', '')}"}
+        captured.append(result.stderr)
+    return "".join(captured)

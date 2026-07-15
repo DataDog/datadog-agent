@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -36,6 +37,15 @@ func filterConfigsDropped(filter func(map[string]integration.Config), configs ..
 		}
 	}
 	return
+}
+
+// neverMatchProgram is a MatchingProgram that always returns false, used in
+// tests to simulate a config that does not match the current service's entity.
+type neverMatchProgram struct{}
+
+func (neverMatchProgram) IsMatched(workloadfilter.Filterable) bool { return false }
+func (neverMatchProgram) GetTargetType() workloadfilter.ResourceType {
+	return workloadfilter.ContainerType
 }
 
 func TestServiceFilterTemplatesEmptyOverrides(t *testing.T) {
@@ -82,6 +92,7 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
 	fooTpl := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"source":"foo"}`)}
 	barTpl := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"source":"bar"}`)}
+	fooInstrTpl := integration.Config{Name: "foo", Provider: names.InstrumentationChecks, LogsConfig: []byte(`{"source":"foo-instr"}`)}
 	fooNonFileTpl := integration.Config{Name: "foo", Provider: "xxx", LogsConfig: []byte(`{"source":"foo-nf"}`)}
 	barNonFileTpl := integration.Config{Name: "bar", Provider: "xxx", LogsConfig: []byte(`{"source":"bar-nf"}`)}
 	nothingDropped := []integration.Config{}
@@ -104,6 +115,54 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	t.Run("some checkNames, partial match", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{barTpl},
 			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+	})
+
+	t.Run("annotation overrides instrumentation check", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooInstrTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooInstrTpl, barTpl))
+	})
+
+	t.Run("annotation overrides both file and instrumentation check", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooTpl, fooInstrTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooTpl, fooInstrTpl, barTpl))
+	})
+}
+
+func TestServiceFilterTemplatesInstrumentationOverFile(t *testing.T) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
+		return filterConfigsDropped(svc.filterTemplatesInstrumentationOverFile, configs...)
+	}
+
+	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
+	fooFileTpl := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"source":"foo-file"}`)}
+	fooInstrTpl := integration.Config{Name: "foo", Provider: names.InstrumentationChecks, LogsConfig: []byte(`{"source":"foo-instr"}`)}
+	barFileTpl := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"source":"bar-file"}`)}
+	nothingDropped := []integration.Config{}
+
+	t.Run("file dropped when instrumentation check has same name", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFileTpl},
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, fooInstrTpl))
+	})
+
+	t.Run("instrumentation check is kept", func(t *testing.T) {
+		assert.NotContains(t,
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, fooInstrTpl),
+			fooInstrTpl)
+	})
+
+	t.Run("file kept when no instrumentation check exists", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, barFileTpl))
+	})
+
+	t.Run("file kept when instrumentation check has different name", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{entity: entity}, barFileTpl, fooInstrTpl))
+	})
+
+	t.Run("multiple files, only matching one dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFileTpl},
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, barFileTpl, fooInstrTpl))
 	})
 }
 
@@ -208,6 +267,53 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		assert.Contains(t, configs, logsOnlySibling.Digest(),
 			"logs-only sibling should be kept")
 	})
+
+	t.Run("instrumentation check overrides matched file check", func(t *testing.T) {
+		fileTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.File,
+			Instances: []integration.Data{[]byte("port: 6379")},
+			Source:    "file:redis/conf.yaml",
+		}
+		instrTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.InstrumentationChecks,
+			Instances: []integration.Data{[]byte("{}")},
+			Source:    "instrumentation:redis",
+		}
+		configs := map[string]integration.Config{
+			fileTpl.Digest():  fileTpl,
+			instrTpl.Digest(): instrTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, fileTpl.Digest(), "file template should be dropped in favour of the instrumentation check")
+		assert.Contains(t, configs, instrTpl.Digest(), "instrumentation template should be kept")
+	})
+
+	t.Run("file kept when instrumentation check does not match service", func(t *testing.T) {
+		fileTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.File,
+			Instances: []integration.Data{[]byte("port: 6379")},
+			Source:    "file:redis/conf.yaml",
+		}
+		instrTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.InstrumentationChecks,
+			Instances: []integration.Data{[]byte("{}")},
+			Source:    "instrumentation:redis",
+		}
+		instrTpl.SetMatchingPrograms(map[workloadfilter.ResourceType]integration.MatchingProgram{
+			workloadfilter.ContainerType: neverMatchProgram{},
+		})
+		configs := map[string]integration.Config{
+			fileTpl.Digest():  fileTpl,
+			instrTpl.Digest(): instrTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, fileTpl.Digest(), "file template should be kept when instrumentation check does not match the service")
+		assert.NotContains(t, configs, instrTpl.Digest(), "non-matching instrumentation template should be dropped")
+	})
 }
 
 func TestServiceFilterTemplatesCCA(t *testing.T) {
@@ -223,7 +329,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no CCA config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, logsTpl, noLogsTpl))
@@ -231,7 +337,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, ccaTpl))
@@ -239,7 +345,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, []integration.Config{ccaTpl},
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
@@ -247,7 +353,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config, CCA disabled", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", false)
+		mockConfig.SetInTest("logs_config.container_collect_all", false)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))

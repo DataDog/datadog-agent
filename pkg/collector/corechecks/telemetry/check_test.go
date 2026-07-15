@@ -71,20 +71,20 @@ func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 		gaugeMetricFamily(
 			"point__sent",
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
-				remoteAgentLabel: "agent-data-plane",
+				domainLabel:  "https://api.datadoghq.com",
+				emitterLabel: "agent-data-plane",
 			}, 12),
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.eu",
-				remoteAgentLabel: "other-remote-agent",
+				domainLabel:  "https://api.datadoghq.eu",
+				emitterLabel: "other-remote-agent",
 			}, 5),
 			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 100),
 		),
 		gaugeMetricFamily(
 			"point__dropped",
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
-				remoteAgentLabel: "agent-data-plane",
+				domainLabel:  "https://api.datadoghq.com",
+				emitterLabel: "agent-data-plane",
 			}, 3),
 		),
 	}
@@ -123,8 +123,8 @@ func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
 		gaugeMetricFamily(
 			pointSentMetric,
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
-				remoteAgentLabel: "agent-data-plane",
+				domainLabel:  "https://api.datadoghq.com",
+				emitterLabel: "agent-data-plane",
 			}, 12),
 		),
 	}
@@ -140,7 +140,7 @@ func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
 }
 
 func TestSendMergedMetrics(t *testing.T) {
-	sm := mocksender.CreateDefaultDemultiplexer()
+	sm := mocksender.CreateDefaultDemultiplexer(t)
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -173,7 +173,7 @@ func TestCheck(t *testing.T) {
 		reg.MustRegister(count)
 	}()
 
-	sm := mocksender.CreateDefaultDemultiplexer()
+	sm := mocksender.CreateDefaultDemultiplexer(t)
 
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")

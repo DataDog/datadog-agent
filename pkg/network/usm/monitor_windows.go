@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +39,13 @@ type WindowsMonitor struct {
 }
 
 // NewWindowsMonitor returns a new WindowsMonitor instance
-func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
+func NewWindowsMonitor(c *config.Config, dh driver.Handle) (_ Monitor, err error) {
+	defer func() {
+		if err != nil {
+			usmstate.Set(usmstate.NotRunning)
+		}
+	}()
+
 	di, err := http.NewDriverInterface(c, dh)
 	if err != nil {
 		return nil, err
@@ -64,6 +71,12 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableNativeTLSMonitoring)
 
 	telemetry := http.NewTelemetry("http")
+
+	if c.DiscoveryServiceMapEnabled {
+		usmstate.Set(usmstate.Restricted)
+	} else {
+		usmstate.Set(usmstate.Running)
+	}
 
 	return &WindowsMonitor{
 		di:         di,
@@ -148,5 +161,6 @@ func (m *WindowsMonitor) Stop() error {
 	err := m.di.Close()
 	m.hei.Close()
 	m.eventLoopWG.Wait()
+	usmstate.Set(usmstate.Stopped)
 	return err
 }

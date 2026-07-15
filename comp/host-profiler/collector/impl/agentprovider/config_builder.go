@@ -11,19 +11,26 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
 
 type confMap = map[string]any
+
+const (
+	infraAttributesName = "infraattributes"
+	hpflareName         = "hpflare"
+	ddprofilingName     = "ddprofiling"
+)
 
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
-	_ = converters.Set(profiling, "symbol_uploader::enabled", true)
+	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -35,7 +42,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 		}
 	}
 
-	_ = converters.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	_ = confmaputils.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
 
 	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
@@ -45,7 +52,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 func buildExporters(conf confMap, agent configManager) []any {
 	const (
 		endpointFormat     = "https://otlp.%s"
-		otlpHTTPNameFormat = "otlphttp/%s_%d"
+		otlpHTTPNameFormat = "otlp_http/%s_%d"
 		debugExporterName  = "debug"
 	)
 
@@ -60,6 +67,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-api-key"] = key
 		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
+		headers["dd-otel-metric-config"] = `{"resource_attributes_as_tags": true}`
 		return confMap{
 			"endpoint":    fmt.Sprintf(endpointFormat, site),
 			"compression": "zstd",
@@ -80,7 +88,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 			index := siteExporterCount[endpoint.site]
 			siteExporterCount[endpoint.site]++
 			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, index)
-			_ = converters.Set(exporters, exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key))
+			_ = confmaputils.Set(exporters, exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key))
 			profilesExporters = append(profilesExporters, exporterName)
 		}
 	}
@@ -103,7 +111,7 @@ func buildProcessors(conf confMap) []any {
 		"allow_hostname_override": true,
 		"cardinality":             2,
 	}
-	_ = converters.Set(processors, "infraattributes/default", infraattributes)
+	_ = confmaputils.Set(processors, infraAttributesName, infraattributes)
 
 	metadata := confMap{
 		"attributes": []any{
@@ -119,20 +127,20 @@ func buildProcessors(conf confMap) []any {
 			},
 		},
 	}
-	_ = converters.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
+	_ = confmaputils.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
 
 	conf["processors"] = processors
-	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
+	return []any{infraAttributesName, "resource/dd-profiler-internal-metadata"}
 }
 
 func buildMetricsTelemetry(conf confMap, healthMetrics healthMetricsConfig) {
 	if !healthMetrics.Enabled {
-		_ = converters.Set(conf, "service::telemetry::metrics::level", "none")
+		_ = confmaputils.Set(conf, "service::telemetry::metrics::level", "none")
 		return
 	}
 	host, portStr, _ := net.SplitHostPort(healthMetrics.Target)
 	port, _ := strconv.Atoi(portStr)
-	_ = converters.Set(conf, "service::telemetry::metrics::readers", []any{
+	_ = confmaputils.Set(conf, "service::telemetry::metrics::readers", []any{
 		confMap{"pull": confMap{"exporter": confMap{"prometheus": confMap{"host": host, "port": port}}}},
 	})
 }
@@ -142,16 +150,16 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		return
 	}
 
-	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
-	receivers, _ := converters.Ensure[confMap](conf, "receivers")
-	processors, _ := converters.Ensure[confMap](conf, "processors")
+	metricsPipeline, _ := confmaputils.Ensure[confMap](conf, "service::pipelines::metrics")
+	receivers, _ := confmaputils.Ensure[confMap](conf, "receivers")
+	processors, _ := confmaputils.Ensure[confMap](conf, "processors")
 
 	var metricsReceivers []any
 	metricsProcessors := profilesProcessors
 
 	if healthMetrics.Enabled {
-		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTarget(healthMetrics.Target)
-		processors["filter"] = converters.FilterProcessorConfig()
+		receivers["prometheus"] = confmaputils.PrometheusReceiverConfig("host-profiler-internal", healthMetrics.Target)
+		processors["filter"] = confmaputils.FilterProcessorConfig()
 		processors["cumulativetodelta"] = confMap{}
 		metricsProcessors = append([]any{"filter", "cumulativetodelta"}, profilesProcessors...)
 		metricsReceivers = append(metricsReceivers, "prometheus")
@@ -162,6 +170,18 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		metricsReceivers = append(metricsReceivers, "otlp")
 	}
 
+	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+		const containerIDProcessorName = "resource/dd-profiler-metrics-containerid"
+		processors[containerIDProcessorName] = confMap{
+			"attributes": []any{confMap{
+				"key":    version.OTelContainerIDKey,
+				"value":  containerID,
+				"action": "insert",
+			}},
+		}
+		metricsProcessors = append([]any{containerIDProcessorName}, metricsProcessors...)
+	}
+
 	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
 	metricsPipeline["exporters"] = profilesExporters
@@ -170,7 +190,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
-	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
+	profilesPipeline, _ := confmaputils.Ensure[confMap](config, "service::pipelines::profiles")
 
 	profilesProcessors := buildProcessors(config)
 	profilesExporters := buildExporters(config, agent)
@@ -184,17 +204,21 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
 	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflareextension.EffectivePort(agent.hostProfilerConfig.HPFlare.Port))}
-	_ = converters.Set(config, "extensions::hpflare/default", hpflareConf)
-	serviceExtensions := []any{"hpflare/default"}
+	_ = confmaputils.Set(config, "extensions::"+hpflareName, hpflareConf)
+	serviceExtensions := []any{hpflareName}
 	if agent.hostProfilerConfig.DDProfiling.Enabled {
 		ddprofilingConf := make(confMap)
 		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
-			_ = converters.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
+			_ = confmaputils.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
 		}
-		_ = converters.Set(config, "extensions::ddprofiling/default", ddprofilingConf)
-		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
+		if agent.hostProfilerConfig.DDProfiling.Port > 0 {
+			// The ddprofiling extension expects a bare port for its "endpoint" field.
+			_ = confmaputils.Set(ddprofilingConf, "endpoint", strconv.Itoa(agent.hostProfilerConfig.DDProfiling.Port))
+		}
+		_ = confmaputils.Set(config, "extensions::"+ddprofilingName, ddprofilingConf)
+		serviceExtensions = append(serviceExtensions, ddprofilingName)
 	}
-	_ = converters.Set(config, "service::extensions", serviceExtensions)
+	_ = confmaputils.Set(config, "service::extensions", serviceExtensions)
 
 	return config
 }

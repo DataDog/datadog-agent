@@ -1,7 +1,7 @@
 exporters:
   logging: {}
   debug: {}
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-api-key
 service:
@@ -12,4 +12,4 @@ service:
       exporters:
       - logging
       - debug
-      - otlphttp
+      - otlp_http

@@ -93,6 +93,8 @@ random_property: test
             {
                 File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
                 WriteAiUsageNativeHostExample(configFolder);
+                Directory.CreateDirectory(AiUsageManifestDir(projectLocation));
+                File.WriteAllText(Path.Combine(AiUsageManifestDir(projectLocation), "com.datadoghq.ai_prompt_logger.native_host.json"), "{}");
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
 
@@ -104,9 +106,10 @@ random_property: test
                 Assert.DoesNotContain("chrome_extension_id:", aiUsageYaml);
 
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
-                Assert.Contains("\"name\": \"com.datadoghq.ai_prompt_logger.native_host\"", manifest);
-                Assert.Contains("\"path\": \"" + Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe").Replace("\\", "\\\\") + "\"", manifest);
+                Assert.Contains("\"name\": \"com.datadoghq.ai_usage_agent.native_host\"", manifest);
+                Assert.Contains("\"path\": \"" + Path.Combine(projectLocation, "bin", "agent", "ai-usage-agent-native-host.exe").Replace("\\", "\\\\") + "\"", manifest);
                 Assert.Contains($"\"chrome-extension://{Constants.FallbackAiUsageChromeExtensionId}/\"", manifest);
+                Assert.False(File.Exists(Path.Combine(AiUsageManifestDir(projectLocation), "com.datadoghq.ai_prompt_logger.native_host.json")));
             });
         }
 
@@ -213,7 +216,12 @@ random_property: test
 
         private static string AiUsageManifestPath(string projectLocation)
         {
-            return Path.Combine(projectLocation, "bin", "agent", "dist", "com.datadoghq.ai_prompt_logger.native_host.json");
+            return Path.Combine(projectLocation, "bin", "agent", "dist", "com.datadoghq.ai_usage_agent.native_host.json");
+        }
+
+        private static string AiUsageManifestDir(string projectLocation)
+        {
+            return Path.Combine(projectLocation, "bin", "agent", "dist");
         }
 
         private static void WriteAiUsageNativeHostExample(string configFolder)

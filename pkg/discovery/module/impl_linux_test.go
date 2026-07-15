@@ -20,12 +20,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
-	gorillamux "github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -60,7 +60,7 @@ type testDiscoveryModule struct {
 func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
-	mux := gorillamux.NewRouter()
+	mux := http.NewServeMux()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)
@@ -81,14 +81,16 @@ func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
-	// Skip on CentOS 7 due to Rust binary not being statically linked
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-
-	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
-		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
+	// CentOS 7 arm64 is not a supported platform (arm64 support starts at CentOS 8)
+	// and the binary requires GLIBC_2.18 which is not available on CentOS 7 (glibc 2.17).
+	if runtime.GOARCH == "arm64" {
+		platform, err := kernel.Platform()
+		require.NoError(t, err)
+		platformVersion, err := kernel.PlatformVersion()
+		require.NoError(t, err)
+		if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
+			t.Skip("system-probe-lite requires GLIBC_2.18 on arm64; CentOS 7 (glibc 2.17) is unsupported on arm64")
+		}
 	}
 
 	curDir, err := testutil.CurDir()

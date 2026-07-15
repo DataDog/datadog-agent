@@ -18,13 +18,13 @@ type Config struct {
 // ProfilerOptions defines settings relevant to the profiler.
 type ProfilerOptions struct {
 	// Service the profiler will report with.
-	// Default: BuildInfo.Command (e.g. otel-agent)
+	// Default: DD_SERVICE, then BuildInfo.Command (e.g. otel-agent)
 	Service string `mapstructure:"service"`
 	// Env the profiler will report with.
-	// Default: none
+	// Default: DD_ENV, then none
 	Env string `mapstructure:"env"`
 	// Version the profiler will report with.
-	// Default: BuildInfo.Version (e.g. v0.117.0)
+	// Default: DD_VERSION, then BuildInfo.Version (e.g. v0.117.0)
 	Version string `mapstructure:"version"`
 	// Period in seconds the profiler will report with.
 	// Default: 60s

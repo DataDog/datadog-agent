@@ -199,12 +199,12 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-key-exp/out.yaml",
 		},
 		{
-			name:     "multiple-otlphttp-exporters",
+			name:     "multiple-otlp_http-exporters",
 			provided: "no_agent/multi-otlp-exp/in.yaml",
 			expected: "no_agent/multi-otlp-exp/out.yaml",
 		},
 		{
-			name:     "ignores-non-otlphttp",
+			name:     "ignores-non-otlp_http",
 			provided: "no_agent/ignore-non-otlp/in.yaml",
 			expected: "no_agent/ignore-non-otlp/out.yaml",
 		},
@@ -255,33 +255,123 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 		{
 			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
-			provided: "no_agent/int-metrics-infer-ep/in.yaml",
-			expected: "no_agent/int-metrics-infer-ep/out.yaml",
+			provided: "no_agent/metrics-infer-ep/in.yaml",
+			expected: "no_agent/metrics-infer-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
-			provided: "no_agent/int-metrics-bare-ep/in.yaml",
-			expected: "no_agent/int-metrics-bare-ep/out.yaml",
+			provided: "no_agent/metrics-bare-ep/in.yaml",
+			expected: "no_agent/metrics-bare-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
-			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
-			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
+			provided: "no_agent/metrics-prefer-ep/in.yaml",
+			expected: "no_agent/metrics-prefer-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
-			provided: "no_agent/int-metrics-existing-ep/in.yaml",
-			expected: "no_agent/int-metrics-existing-ep/out.yaml",
+			provided: "no_agent/metrics-existing-ep/in.yaml",
+			expected: "no_agent/metrics-existing-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-skipped-when-telemetry-level-none",
-			provided: "no_agent/int-metrics-level-none/in.yaml",
-			expected: "no_agent/int-metrics-level-none/out.yaml",
+			provided: "no_agent/metrics-level-none/in.yaml",
+			expected: "no_agent/metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-absent-user-metrics-pipeline",
+			provided: "no_agent/metrics-absent-reader/in.yaml",
+			expected: "no_agent/metrics-absent-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-receiver-conflict",
+			provided: "no_agent/metrics-reserved-recv/in.yaml",
+			expected: "no_agent/metrics-reserved-recv/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-processor-conflict",
+			provided: "no_agent/metrics-reserved-proc/in.yaml",
+			expected: "no_agent/metrics-reserved-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-pipeline-conflict",
+			provided: "no_agent/metrics-reserved-pipe/in.yaml",
+			expected: "no_agent/metrics-reserved-pipe/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-container-id-processor-conflict",
+			provided: "no_agent/reserved-cid-proc/in.yaml",
+			expected: "no_agent/reserved-cid-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-explicit-prometheus-reader",
+			provided: "no_agent/metrics-explicit-reader/in.yaml",
+			expected: "no_agent/metrics-explicit-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-first-valid-prometheus-reader",
+			provided: "no_agent/metrics-multi-readers/in.yaml",
+			expected: "no_agent/metrics-multi-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-periodic-reader",
+			provided: "no_agent/metrics-periodic-reader/in.yaml",
+			expected: "no_agent/metrics-periodic-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-empty-readers",
+			provided: "no_agent/metrics-empty-readers/in.yaml",
+			expected: "no_agent/metrics-empty-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-malformed-prometheus-reader",
+			provided: "no_agent/metrics-bad-reader/in.yaml",
+			expected: "no_agent/metrics-bad-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-null-readers",
+			provided: "no_agent/metrics-null-readers/in.yaml",
+			expected: "no_agent/metrics-null-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-mixed-reader",
+			provided: "no_agent/metrics-mixed-reader/in.yaml",
+			expected: "no_agent/metrics-mixed-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-by-user-pipeline",
+			provided: "no_agent/metrics-covered-user/in.yaml",
+			expected: "no_agent/metrics-covered-user/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-with-explicit-scheme-and-metrics-path",
+			provided: "no_agent/metrics-covered-path/in.yaml",
+			expected: "no_agent/metrics-covered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-custom-metrics-path",
+			provided: "no_agent/metrics-uncovered-path/in.yaml",
+			expected: "no_agent/metrics-uncovered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-https-scheme",
+			provided: "no_agent/metrics-uncovered-scheme/in.yaml",
+			expected: "no_agent/metrics-uncovered-scheme/out.yaml",
+		},
+		{
+			name:     "internal-metrics-partial-user-pipeline-coverage",
+			provided: "no_agent/metrics-partial-coverage/in.yaml",
+			expected: "no_agent/metrics-partial-coverage/out.yaml",
 		},
 		{
 			name:     "internal-metrics-skips-exporters-without-any-endpoint",
-			provided: "no_agent/int-metrics-mixed/in.yaml",
-			expected: "no_agent/int-metrics-mixed/out.yaml",
+			provided: "no_agent/metrics-mixed/in.yaml",
+			expected: "no_agent/metrics-mixed/out.yaml",
+		},
+		{
+			name:     "deprecated-otlphttp-name-accepted",
+			provided: "no_agent/deprecated-otlphttp/in.yaml",
+			expected: "no_agent/deprecated-otlphttp/out.yaml",
 		},
 	}
 
@@ -306,14 +396,14 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
-			name:          "errors-when-no-otlphttp",
+			name:          "errors-when-no-otlp_http",
 			provided:      "no_agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "empty-pipeline",
 			provided:      "no_agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",

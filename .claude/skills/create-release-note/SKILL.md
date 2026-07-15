@@ -3,6 +3,7 @@ name: create-release-note
 description: Create a reno release note for a PR or change
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[topic]"
+model: sonnet
 ---
 
 Create a release note file using the reno format. Release notes are **mandatory** for all PRs unless labeled `changelog/no-changelog`.
@@ -30,7 +31,6 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 4. **Target**: Which release notes directory?
    - `releasenotes/notes/` — Main agent (default, most common)
    - `releasenotes-dca/notes/` — Cluster Agent (DCA)
-   - `releasenotes-installscript/notes/` — Install script
 
 5. **APM-related?**: If the change affects `cmd/trace-agent` or `pkg/trace`, the content must be prefixed with `APM : ` and the topic should be prefixed with `apm-`.
 
@@ -48,6 +48,10 @@ reno --rel-notes-dir <directory> new <topic> --no-edit
 ```
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
+
+> **Always create the file with `reno`. The `<hash>` suffix is reno's unique note ID** — it must be a real, unique 16-character hex string that `reno` generates for you. Never hand-write a placeholder like `a1b2c3d4e5f6a7b8` or any sequential/guessed value: reno treats the suffix as the note's UID and fails `release-note-check` with a "UID collision" when two notes share one (this placeholder has broken `main` more than once).
+>
+> If `reno` is not installed, install it rather than creating the file by hand: `pip install reno` (see the [contributing guide](https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno)). Only if you genuinely cannot install it, generate a real random suffix with `openssl rand -hex 8` and name the file `<topic>-<hash>.yaml` — never a placeholder.
 
 Then **replace the template content** with only the relevant section. Remove all unused sections (don't leave them commented out — reno template comments are noisy).
 

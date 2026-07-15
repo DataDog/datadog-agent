@@ -98,6 +98,77 @@ func (s *configSuite) TestMultipleConfigs() {
 	}
 }
 
+// TestConfigJQReplaceTag exercises the jq config operation with a realistic
+// tag-replace scenario: an existing datadog.yaml carries a set of tags, and a jq
+// transform rewrites the staging environment tag to production while leaving the
+// other tags untouched. The new environment value is supplied as a typed jq
+// argument rather than being baked into the transform text.
+func (s *configSuite) TestConfigJQReplaceTag() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Seed a realistic multi-tag config.
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "jq-seed-tags",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"tags": ["env:staging", "team:fleet", "service:installer"]}`),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	// Replace the env:staging tag with the production value, leaving every other
+	// tag in place. Both the matched value ($old) and the replacement ($new) are
+	// supplied as typed jq arguments.
+	//
+	// The transform is written without spaces or string literals on purpose: the
+	// daemon command is dispatched through PowerShell on Windows, and PowerShell
+	// 5.1 cannot pass an argument that contains both spaces and double quotes to a
+	// native executable (it re-quotes the argument and the embedded quotes break
+	// it). Keeping the transform free of spaces means the serialized operations
+	// JSON stays compact, so it survives the PowerShell -> installer.exe handoff.
+	// Any jq transform exercised on Windows must observe the same constraint.
+	err = s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "jq-replace-tag",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationJQ,
+				FilePath:          "/datadog.yaml",
+				Transform:         `.tags|=map(if(.==$old)then($new)else(.)end)`,
+				Arguments:         []byte(`{"old":"env:staging","new":"env:prod"}`),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	assertTags := func(config map[string]any) {
+		rawTags, ok := config["tags"].([]interface{})
+		require.True(s.T(), ok, "tags should be a list")
+		tags := make([]string, len(rawTags))
+		for i, tag := range rawTags {
+			tags[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.ElementsMatch(s.T(), []string{"env:prod", "team:fleet", "service:installer"}, tags)
+	}
+
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	assertTags(config)
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	assertTags(config)
+}
+
 func (s *configSuite) TestConfigFailureCrash() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()

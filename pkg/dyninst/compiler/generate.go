@@ -662,6 +662,88 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			// The lookup writes the value element at sm->offset on success.
 			lastOpSize = op.ValByteSize
 			ops = append(ops, swissMapOps(op, exprIdx)...)
+		case *ir.PanicUnwindPrepareOp:
+			ops = append(ops, PanicUnwindPrepareOp{})
+		case *ir.PanicUnwindEvictSlotsOp:
+			ops = append(ops, PanicUnwindEvictSlotsOp{})
+		// any/all loop and conditional-control ops. These are emitted by
+		// emitAnyAllLoop and the predicate-body lowering when an any/all
+		// (or its desugared contains form) appears in template-segment or
+		// capture-expression position. Encoding mirrors appendConditionOps;
+		// the loop / control flow leaves a single boolean byte at sm->offset
+		// when it completes, which ExprSaveOp then records as the bool
+		// expression result. lastOpSize is left untouched: none of these ops
+		// is followed by an ir.DereferenceOp in the IR sequences emitAnyAllLoop
+		// produces.
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+		case *ir.ExprLoadAddressOp:
+			ops = appendExprLoadAddress(ops, injectionPC, op)
+		case *ir.ArrayLoopBeginOp:
+			ops = append(ops, ArrayLoopBeginOp{
+				Quantifier:     op.Quantifier,
+				ElemByteSize:   op.ElemByteSize,
+				CompileTimeLen: op.CompileTimeLen,
+				EndLabel:       op.EndLabel,
+			})
+		case *ir.ArrayLoopEndOp:
+			ops = append(ops, ArrayLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SliceLoopBeginOp:
+			ops = append(ops, SliceLoopBeginOp{
+				Quantifier:   op.Quantifier,
+				ElemByteSize: op.ElemByteSize,
+				EndLabel:     op.EndLabel,
+			})
+		case *ir.SliceLoopEndOp:
+			ops = append(ops, SliceLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SwissMapLoopBeginOp:
+			ops = append(ops, SwissMapLoopBeginOp{
+				Quantifier:               op.Quantifier,
+				KeyByteSize:              op.KeyByteSize,
+				ValByteSize:              op.ValByteSize,
+				EndLabel:                 op.EndLabel,
+				DirPtrOffset:             op.DirPtrOffset,
+				DirLenOffset:             op.DirLenOffset,
+				CtrlOffset:               op.CtrlOffset,
+				SlotsOffset:              op.SlotsOffset,
+				KeyInSlotOffset:          op.KeyInSlotOffset,
+				ValInSlotOffset:          op.ValInSlotOffset,
+				SlotSize:                 op.SlotSize,
+				GroupByteSize:            op.GroupByteSize,
+				TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+				GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+				GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			})
+		case *ir.SwissMapLoopEndOp:
+			ops = append(ops, SwissMapLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.EmitFilterSliceMarkerOp:
+			// Inline-pass marker for filter(slice, pred). Leaves the
+			// 8-byte source data_ptr at sm->offset; the trailing
+			// ExprSaveOp copies those 8 bytes into the event-root slot.
+			lastOpSize = 8
+			ops = append(ops, EmitFilterSliceMarkerOp{
+				FilterDataTypeID: op.FilterDataTypeID,
+				ElemByteSize:     op.ElemByteSize,
+			})
+		case *ir.EmitFilterMapMarkerOp:
+			// Inline-pass marker for filter(map, pred). Leaves the
+			// 8-byte source map pointer at sm->offset.
+			lastOpSize = 8
+			ops = append(ops, EmitFilterMapMarkerOp{
+				FilterDataTypeID: op.FilterDataTypeID,
+				SwissHeaderSize:  op.SwissHeaderSize,
+				UsedFieldOffset:  op.UsedFieldOffset,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -911,6 +993,57 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			ProcessSliceOp{SliceData: t.Data},
 			ReturnOp{},
 		}
+
+	case *ir.GoFilteredSliceType:
+		// The filter handle is 8 bytes (a source pointer). The decoder
+		// uses the type ID to find the per-element data items; BPF has
+		// no per-handle processing to do. We do need the data type's
+		// enqueue_pc generated, so push it onto the type queue.
+		g.typeQueue = append(g.typeQueue, t.Data)
+		// needed stays false: no ProcessType call is required for the
+		// handle, but addTypeHandler will still register an empty
+		// function (matching how unused types are emitted today).
+
+	case *ir.GoFilteredMapType:
+		// Same as GoFilteredSliceType.
+		g.typeQueue = append(g.typeQueue, t.Data)
+
+	case *ir.GoFilteredSliceDataType:
+		// Lower the stored EnqueueOps as the data type's enqueue_pc.
+		// This is the deferred filter loop body.
+		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
+		if err != nil {
+			return fid, needed, err
+		}
+		lowered, err := lowerExpressionOps(g, t.EnqueueOps, elemFunc, elemNeeded)
+		if err != nil {
+			return fid, needed, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = lowered
+
+	case *ir.GoFilteredMapDataType:
+		keyFunc, keyNeeded, err := g.addTypeHandler(t.KeyType)
+		if err != nil {
+			return fid, needed, err
+		}
+		valFunc, valNeeded, err := g.addTypeHandler(t.ValueType)
+		if err != nil {
+			return fid, needed, err
+		}
+		lowered, err := lowerMapFilterEnqueueOps(
+			g, t.EnqueueOps,
+			keyFunc, keyNeeded, t.KeyType,
+			valFunc, valNeeded, t.ValueType,
+			t.ValOffsetInPair,
+		)
+		if err != nil {
+			return fid, needed, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = lowered
 
 	case *ir.GoStringHeaderType:
 		g.typeQueue = append(g.typeQueue, t.Data)
@@ -1403,4 +1536,286 @@ func appendExprLoadAddress(ops []Op, pc uint64, op *ir.ExprLoadAddressOp) []Op {
 	}
 	// Variable is not available or not address-able. Return early.
 	return append(ops, ReturnOp{})
+}
+
+// lowerExpressionOps lowers the IR EnqueueOps stored on a
+// GoFilteredSliceDataType into compiler ops, producing the data type's
+// enqueue_pc body. It is the slice-filter analog to
+// appendConditionOps + addExpressionHandler combined: it handles the
+// union of ops that can appear in a filter's enqueue_pc (predicate body
+// ops + InitFilterSliceLoopOp / FilterSliceLoopStepOp + flow control).
+//
+// elemFunc / elemNeeded come from addTypeHandler(elementType); the
+// step-op lowering inserts a CallOp into elemFunc only if elemNeeded.
+// The lowered sequence terminates with ReturnOp.
+func lowerExpressionOps(
+	_ *generator,
+	irOps []ir.ExpressionOp,
+	elemFunc FunctionID,
+	elemNeeded bool,
+) ([]Op, error) {
+	ops := make([]Op, 0, len(irOps)+8)
+	for _, op := range irOps {
+		switch op := op.(type) {
+		// Predicate-body ops (shared with appendConditionOps).
+		case *ir.LocationOp:
+			// In a filter enqueue_pc the only valid LocationOp roles are
+			// @it (loop iterator). The body's bytes are at sm->offset in
+			// the loop scratch slot; emit an ExprAdvanceOffsetOp by the
+			// variable's loop base + field offset.
+			if op.Variable == nil || op.Variable.Role != ir.VariableRoleLoopIt {
+				return nil, fmt.Errorf(
+					"filter enqueue_pc: LocationOp must target @it (VariableRoleLoopIt), got role %v",
+					op.Variable.Role,
+				)
+			}
+			ops = append(ops, ExprAdvanceOffsetOp{
+				Offset: op.Variable.LoopBaseOffset + op.Offset,
+			})
+		case *ir.DereferenceOp:
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprStatusIdxNone,
+				NullAsZero:    op.NullAsZero,
+			})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprStatusIdxNone,
+			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, exprStatusIdxNone)...)
+		case *ir.ConditionCheckOp:
+			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+
+		// Filter-specific ops.
+		case *ir.InitFilterSliceLoopOp:
+			ops = append(ops, InitFilterSliceLoopOp{
+				ElemByteSize:      op.ElemByteSize,
+				IterScratchBudget: op.IterScratchBudget,
+				EndLabel:          op.EndLabel,
+			})
+		case *ir.FilterSliceLoopStepOp:
+			// Lower the step op into the explicit branch-emit-call-advance
+			// sequence described in the plan. The predicate body has left
+			// a 1-byte result at sm->offset; a CondJumpIfFalse over the
+			// emit + element handler avoids per-element chasing when the
+			// predicate rejected the element. After the call, the advance
+			// op bumps data_ptr / remaining and jumps back to BodyLabel.
+			skipCallLabel := ir.LabelID(0)
+			if elemNeeded {
+				// Allocate a fresh label local to this enqueue_pc by
+				// using a sentinel ID derived from BodyLabel + 1000000.
+				// Since labels are scoped to a function, we just need
+				// uniqueness within the enqueue_pc; we already have
+				// EndLabel + BodyLabel allocated from the irgen
+				// labelAllocator at type-synthesis time. A simple
+				// scheme: use BodyLabel + 0x40000000 as a "skip-call"
+				// marker. To stay safe we pick a label that's clearly
+				// out of range of normal allocation: BodyLabel +
+				// 0x10000.
+				skipCallLabel = op.BodyLabel + 0x10000
+				ops = append(ops, CondJumpOp{
+					Cond:  false, // jump when predicate result == 0
+					Label: skipCallLabel,
+				})
+				ops = append(ops, EmitFilterSliceElementOp{
+					ElemByteSize: op.ElemByteSize,
+				})
+				ops = append(ops, CallOp{FunctionID: elemFunc})
+				ops = append(ops, CondLabelOp{ID: skipCallLabel})
+			} else {
+				// Element type has no nested pointers to chase. Just
+				// conditionally emit; no call needed. The emit op itself
+				// no-ops when the predicate is false (it reads the
+				// result byte directly).
+				//
+				// To keep the BPF op semantics uniform, we still emit a
+				// CondJumpIfFalse over the EmitOp so the emit only runs
+				// on a true predicate. Allocate a skipEmit label.
+				skipEmitLabel := op.BodyLabel + 0x10000
+				ops = append(ops, CondJumpOp{
+					Cond:  false,
+					Label: skipEmitLabel,
+				})
+				ops = append(ops, EmitFilterSliceElementOp{
+					ElemByteSize: op.ElemByteSize,
+				})
+				ops = append(ops, CondLabelOp{ID: skipEmitLabel})
+			}
+			ops = append(ops, FilterSliceAdvanceOp{
+				ElemByteSize: op.ElemByteSize,
+				BodyLabel:    op.BodyLabel,
+			})
+		default:
+			return nil, fmt.Errorf(
+				"unexpected ir.Operation in filter slice enqueue_pc: %T", op,
+			)
+		}
+	}
+	ops = append(ops, ReturnOp{})
+	return ops, nil
+}
+
+// lowerMapFilterEnqueueOps is the map-filter analog of
+// lowerExpressionOps. It handles the same predicate-body ops, plus
+// InitFilterMapLoopOp / FilterMapLoopStepOp.
+func lowerMapFilterEnqueueOps(
+	g *generator,
+	irOps []ir.ExpressionOp,
+	keyFunc FunctionID, keyNeeded bool, keyType ir.Type,
+	valFunc FunctionID, valNeeded bool, valType ir.Type,
+	valOffsetInPair uint32,
+) ([]Op, error) {
+	ops := make([]Op, 0, len(irOps)+8)
+	for _, op := range irOps {
+		switch op := op.(type) {
+		// Predicate-body ops.
+		case *ir.LocationOp:
+			if op.Variable == nil || op.Variable.Role != ir.VariableRoleLoopIt {
+				return nil, fmt.Errorf(
+					"filter map enqueue_pc: LocationOp must target @it/@value (VariableRoleLoopIt), got role %v",
+					op.Variable.Role,
+				)
+			}
+			ops = append(ops, ExprAdvanceOffsetOp{
+				Offset: op.Variable.LoopBaseOffset + op.Offset,
+			})
+		case *ir.DereferenceOp:
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprStatusIdxNone,
+				NullAsZero:    op.NullAsZero,
+			})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprStatusIdxNone,
+			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, exprStatusIdxNone)...)
+		case *ir.ConditionCheckOp:
+			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+
+		// Filter-specific map ops.
+		case *ir.InitFilterMapLoopOp:
+			ops = append(ops, InitFilterMapLoopOp{
+				KeyByteSize:              op.KeyByteSize,
+				ValByteSize:              op.ValByteSize,
+				ValOffsetInPair:          op.ValOffsetInPair,
+				IterScratchBudget:        op.IterScratchBudget,
+				EndLabel:                 op.EndLabel,
+				DirPtrOffset:             op.DirPtrOffset,
+				DirLenOffset:             op.DirLenOffset,
+				CtrlOffset:               op.CtrlOffset,
+				SlotsOffset:              op.SlotsOffset,
+				KeyInSlotOffset:          op.KeyInSlotOffset,
+				ValInSlotOffset:          op.ValInSlotOffset,
+				SlotSize:                 op.SlotSize,
+				GroupByteSize:            op.GroupByteSize,
+				TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+				GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+				GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			})
+		case *ir.FilterMapLoopStepOp:
+			// Same as the slice step but emits a (k, v) pair and
+			// invokes the key and value handlers separately, with an
+			// IncrementOutputOffsetOp between them that accounts for
+			// the key handler's offsetShift.
+			skipCallLabel := op.BodyLabel + 0x10000
+			ops = append(ops, CondJumpOp{
+				Cond:  false,
+				Label: skipCallLabel,
+			})
+			ops = append(ops, EmitFilterMapElementOp{
+				KeyByteSize:     uint32(0), // filled below
+				ValByteSize:     uint32(0),
+				ValOffsetInPair: valOffsetInPair,
+			})
+			// The EmitFilterMapElementOp's KeyByteSize/ValByteSize
+			// come from InitFilterMapLoopOp above which already set
+			// them via the BPF filter_loop_state — we reuse those at
+			// runtime, so the EmitOp doesn't strictly need them.
+			// However, for symmetry with the slice case we encode
+			// them via the op so the BPF runtime has a self-contained
+			// reference.
+			//
+			// Realize the values now by walking back to the matching
+			// init op. Simpler: hoist them up via op.KeyTypeID/
+			// op.ValueTypeID instead.
+			keySize := keyType.GetByteSize()
+			valSize := valType.GetByteSize()
+			ops[len(ops)-1] = EmitFilterMapElementOp{
+				KeyByteSize:     keySize,
+				ValByteSize:     valSize,
+				ValOffsetInPair: valOffsetInPair,
+			}
+			// sm->offset is now at the payload start (key bytes).
+			keyShift := uint32(0)
+			if keyNeeded {
+				ops = append(ops, CallOp{FunctionID: keyFunc})
+				keyShift = g.typeFuncMetadata[keyType.GetID()].offsetShift
+			}
+			if valNeeded {
+				if valOffsetInPair > keyShift {
+					ops = append(ops, IncrementOutputOffsetOp{
+						Value: valOffsetInPair - keyShift,
+					})
+				}
+				ops = append(ops, CallOp{FunctionID: valFunc})
+			}
+			ops = append(ops, CondLabelOp{ID: skipCallLabel})
+			ops = append(ops, FilterMapAdvanceOp{
+				BodyLabel: op.BodyLabel,
+			})
+		default:
+			return nil, fmt.Errorf(
+				"unexpected ir.Operation in filter map enqueue_pc: %T", op,
+			)
+		}
+	}
+	ops = append(ops, ReturnOp{})
+	return ops, nil
 }

@@ -11,7 +11,7 @@
   review:
     name: '#action-platform-reviews'
     id: 'C0AG2UCHUKZ'
-'@datadog/agent-all':
+'@datadog/agent-community-eng':
   notification:
     name: '#datadog-agent-pipelines'
     id: 'CR5TV8QBY'
@@ -37,6 +37,8 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
+    # DO NOT FILL IN - team opted out of PR review notifications, see:
+    # https://github.com/DataDog/datadog-agent/pull/51716#issuecomment-4610991841
     name: ''
     id: ''
 '@datadog/agent-cspm':
@@ -74,12 +76,12 @@
   review:
     name: '#agent-discovery'
     id: 'C089ER2M7MZ'
-'@datadog/agent-health':
+'@datadog/fleet-remediation':
   notification:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
 '@datadog/agent-integrations':
   notification:
@@ -181,8 +183,8 @@
     id: 'C02HVGRLQ8Z'
 '@datadog/cloud-network-monitoring':
   notification:
-    name: '#cloud-network-monitoring'
-    id: 'CFB4213BJ'
+    name: '#cnm-agent'
+    id: 'C07FNUP1M3N'
   review:
     name: '#cnm-agent'
     id: 'C07FNUP1M3N'
@@ -221,13 +223,6 @@
   review:
     name: '#aaa-authn'
     id: 'C02S3STU39N'
-'@datadog/data-jobs-monitoring':
-  notification:
-    name: ''
-    id: ''
-  review:
-    name: '#data-jobs-monitoring'
-    id: 'C05DAN6ULF6'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
@@ -249,6 +244,13 @@
   review:
     name: '#database-monitoring'
     id: 'C011QG8MJBA'
+'@datadog/dd-agent-mcp':
+  notification:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
+  review:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
 '@datadog/debugger':
   notification:
     name: '#debugger-ops-prod'
@@ -258,8 +260,8 @@
     id: ''
 '@datadog/debugger-go':
   notification:
-    name: '#dynamic-instrumentation-go'
-    id: 'C04J1N8L2Q6'
+    name: '#debugger-go'
+    id: 'C09DBHFJE4E'
   review:
     name: '#debugger-go'
     id: 'C09DBHFJE4E'
@@ -268,8 +270,8 @@
     name: 'DEFAULT_SLACK_CHANNEL'
     id: 'C0795C1C2AE'
   review:
-    name: '#documentation'
-    id: 'C0DESMBQU'
+    name: ''
+    id: ''
 '@datadog/ebpf-platform':
   notification:
     name: '#ebpf-platform-ops'
@@ -291,10 +293,17 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/gpu-monitoring-agent':
+  notification:
+    name: '#gpu-monitoring-agent-ops'
+    id: 'C0APTNVCC04'
+  review:
+    name: '#gpu-monitoring-agent-reviews'
+    id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
-    name: '#injection-platform'
-    id: 'C06UEUW9A75'
+    name: '#injection-platform-alerts'
+    id: 'C09LN4BCCP7'
   review:
     name: '#injection-platform'
     id: 'C06UEUW9A75'

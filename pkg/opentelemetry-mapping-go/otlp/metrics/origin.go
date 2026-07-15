@@ -94,6 +94,7 @@ const (
 	OriginProductDetailNginxReceiver             OriginProductDetail = 234
 	OriginProductDetailNSXTReceiver              OriginProductDetail = 235
 	OriginProductDetailOracleDBReceiver          OriginProductDetail = 236
+	OriginProductDetailPodmanReceiver            OriginProductDetail = 521
 	OriginProductDetailPostgreSQLReceiver        OriginProductDetail = 237
 	OriginProductDetailPrometheusReceiver        OriginProductDetail = 238
 	OriginProductDetailRabbitMQReceiver          OriginProductDetail = 239
@@ -178,6 +179,8 @@ func originProductDetailFromScopeName(scopeName string) OriginProductDetail {
 		return OriginProductDetailNSXTReceiver
 	case "oracledbreceiver":
 		return OriginProductDetailOracleDBReceiver
+	case "podmanreceiver":
+		return OriginProductDetailPodmanReceiver
 	case "postgresqlreceiver":
 		return OriginProductDetailPostgreSQLReceiver
 	case "prometheusreceiver":

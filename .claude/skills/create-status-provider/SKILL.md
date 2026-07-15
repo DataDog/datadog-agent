@@ -3,6 +3,7 @@ name: create-status-provider
 description: Add a new section to the agent status output (agent status command)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[provider-name]"
+model: sonnet
 ---
 
 Add a new status provider to the Datadog Agent. Status providers contribute sections to the `agent status` output in JSON, plain text, and HTML formats.

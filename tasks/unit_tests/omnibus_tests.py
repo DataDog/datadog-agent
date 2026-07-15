@@ -55,7 +55,7 @@ class TestOmnibusCache(unittest.TestCase):
             for platform, get_dd_api_key_env in {
                 "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
                 "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
-                "win32": {"API_KEY_ORG2": "api-key"},
+                "win32": {"AGENT_API_KEY_ORG2": "api-key"},
             }.items():
                 with (
                     self.subTest(platform=platform),
@@ -80,6 +80,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)

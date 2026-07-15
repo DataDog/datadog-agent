@@ -18,7 +18,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -140,6 +140,13 @@ func (dca *datadogclusteragent) initMetadata() {
 	dca.metadata["agent_version"] = version.AgentVersion
 	dca.metadata["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	dca.metadata["flavor"] = flavor.GetFlavor()
+
+	podName, err := common.GetSelfPodName()
+	if err != nil {
+		dca.log.Debugf("Could not determine cluster-agent pod name: %s", err)
+		podName = ""
+	}
+	dca.metadata["pod_name"] = podName
 }
 
 func (dca *datadogclusteragent) getFeatureConfigs() {

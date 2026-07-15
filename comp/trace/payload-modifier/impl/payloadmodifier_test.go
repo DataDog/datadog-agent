@@ -86,9 +86,9 @@ func TestNewComponent_AzureAppServices(t *testing.T) {
 
 			// Create mock config
 			config := configmock.New(t)
-			config.SetWithoutSource("tags", tt.tags)
-			config.SetWithoutSource("extra_tags", tt.extraTags)
-			config.SetWithoutSource("dogstatsd_tags", tt.dogstatsdTags)
+			config.SetInTest("tags", tt.tags)
+			config.SetInTest("extra_tags", tt.extraTags)
+			config.SetInTest("dogstatsd_tags", tt.dogstatsdTags)
 
 			// Create component
 			deps := Dependencies{

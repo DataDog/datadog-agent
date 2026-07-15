@@ -9,7 +9,6 @@ package dockerpermissions
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -21,7 +20,7 @@ func init() {
 const (
 	// IssueName is the identifier for Docker permission issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "docker_file_tailing_disabled"
+	IssueName = "Docker File Tailing Disabled"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"
@@ -33,7 +32,7 @@ type dockerPermissionsModule struct {
 }
 
 // NewModule creates a new Docker permissions issue module
-func NewModule(config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &dockerPermissionsModule{
 		template: NewDockerPermissionIssue(),
 	}

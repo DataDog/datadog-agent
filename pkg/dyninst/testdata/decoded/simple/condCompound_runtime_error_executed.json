@@ -19,13 +19,7 @@
           "location": {
             "method": "main.condNilPtrStruct"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "tag == \"nilptr\" && x.I32 == 300",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

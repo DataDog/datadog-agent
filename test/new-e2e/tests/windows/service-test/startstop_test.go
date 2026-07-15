@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
@@ -551,6 +551,12 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
+	// Preserve timeout scales explicitly configured by specialized suites, such as
+	// the Driver Verifier suites. The zero value means no scale was configured.
+	if s.timeoutScale == 0 {
+		s.timeoutScale = defaultTimeoutScale
+	}
+
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
@@ -579,6 +585,14 @@ func (s *baseStartStopSuite) SetupSuite() {
 			s.T().Logf("Driver verifier output:\n%s", out)
 		}
 
+		// Driver Verifier adds system-wide kernel overhead that slows Go runtime and
+		// package init, causing user-mode services to exceed the default 30s SCM
+		// startup timeout (ServicesPipeTimeout) before reaching StartServiceCtrlDispatcher.
+		// Raise the timeout to 120s so security-agent and installer survive the extra load.
+		cmd = `Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name ServicesPipeTimeout -Value 120000 -Type DWORD`
+		_, err = host.Execute(cmd)
+		s.Require().NoError(err, "should increase SCM ServicesPipeTimeout for driver verifier")
+
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
 
@@ -600,6 +614,10 @@ func (s *baseStartStopSuite) SetupSuite() {
 		// Force a crash dump (via WER) on hard stop timeout so we capture goroutine
 		// state when a service hangs during shutdown. See servicemain.EnvCrashOnHardStopTimeout.
 		"DD_CRASH_ON_HARDSTOP_TIMEOUT": "1",
+		// Capture a Go execution trace of each service's startup into the logs folder,
+		// which collectAgentLogs() uploads as a CI artifact on failure. See
+		// servicemain.EnvStartupTraceDir.
+		"DD_STARTUP_TRACE_DIR": `C:\ProgramData\Datadog\logs`,
 	}
 	for _, svc := range s.getInstalledUserServices() {
 		err := windowsCommon.SetServiceEnvironment(host, svc, env)
@@ -627,10 +645,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 		}
 		return services
 	}
-
-	// By default driver verifier is disabled.
-	s.enableDriverVerifier = false
-	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {

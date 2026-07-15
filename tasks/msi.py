@@ -111,8 +111,8 @@ def sign_file(ctx, path, force=False):
     if dd_wcs_enabled or force:
         cert = os.environ.get('WINDOWS_SIGNING_CERT')
         config = os.environ.get('WINDOWS_SIGNING_CONFIG')
-        cert_args = f'--cert {cert} --config {config} ' if cert and config else ''
-        return ctx.run(f'dd-wcs sign {cert_args}"{path}"')
+        cert_args = f'--cert {cert} --key-info {config} ' if cert and config else ''
+        return ctx.run(f'C:/devtools/windows-code-signer.exe sign {cert_args} "{path}"')
 
 
 def _ensure_wix_tools(ctx):
@@ -502,7 +502,11 @@ def test(ctx, vstudio_root=None, arch="x64", debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
+        'dda inv -- -e schema.template '
+        '--schema=./pkg/config/schema/yaml/core_schema.yaml '
+        '--build-type=agent-py3 '
+        '--os-target=windows '
+        f'--output="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):

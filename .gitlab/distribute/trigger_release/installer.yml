@@ -13,10 +13,9 @@
   # We only want to allow automatically triggering agent-release-manangement
   # pipelines when everything goes well
   variables:
-    DD_PKG_ARCH: x86_64
     RELEASE_PRODUCT: datadog-installer
   script:
-    - !reference [.setup_dd_pkg]
+    - !reference [.log_dd_pkg_version]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
     - |
       echo "Using artifact gateway: $DD_PKG_GITLAB_URL"

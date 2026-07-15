@@ -8,6 +8,7 @@ package guiimpl
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,7 +16,6 @@ import (
 	"strings"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/gorilla/mux"
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -36,7 +36,7 @@ func checkPaths() []string {
 	return []string{
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
-		defaultpaths.PyChecksPath,                                // Integrations-core checks
+		defaultpaths.GetDefaultPyChecksPath(),                    // Integrations-core checks
 		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
 }
@@ -51,16 +51,16 @@ func getFleetPoliciesPath() string {
 }
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router) {
-	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
-	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
-	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
-	r.HandleFunc("/setConfig/{checkFolder}/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
-	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("DELETE")
-	r.HandleFunc("/setConfig/{checkFolder}/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("DELETE")
-	r.HandleFunc("/listChecks", http.HandlerFunc(listChecks)).Methods("POST")
-	r.HandleFunc("/listConfigs", http.HandlerFunc(listConfigs)).Methods("POST")
+func checkHandler(r *http.ServeMux) {
+	r.HandleFunc("POST /running", sendRunningChecks)
+	r.HandleFunc("POST /getConfig/{fileName}", getCheckConfigFile)
+	r.HandleFunc("POST /getConfig/{checkFolder}/{fileName}", getCheckConfigFile)
+	r.HandleFunc("POST /setConfig/{fileName}", setCheckConfigFile)
+	r.HandleFunc("POST /setConfig/{checkFolder}/{fileName}", setCheckConfigFile)
+	r.HandleFunc("DELETE /setConfig/{fileName}", setCheckConfigFile)
+	r.HandleFunc("DELETE /setConfig/{checkFolder}/{fileName}", setCheckConfigFile)
+	r.HandleFunc("POST /listChecks", listChecks)
+	r.HandleFunc("POST /listConfigs", listConfigs)
 }
 
 // Sends a list of all the current running checks
@@ -75,9 +75,7 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(html))
 }
 
-func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
-	val := vars[name]
-
+func getPathComponentFromRequest(val string, allowEmpty bool) (string, error) {
 	if (val == "" && allowEmpty) || (val != "" && !strings.Contains(val, "\\") && !strings.Contains(val, "/") && !strings.HasPrefix(val, ".")) {
 		return val, nil
 	}
@@ -85,11 +83,11 @@ func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty
 	return "", errors.New("invalid path component")
 }
 
-func getFileNameAndFolder(vars map[string]string) (fileName, checkFolder string, err error) {
-	if fileName, err = getPathComponentFromRequest(vars, "fileName", false); err != nil {
+func getFileNameAndFolder(r *http.Request) (fileName, checkFolder string, err error) {
+	if fileName, err = getPathComponentFromRequest(r.PathValue("fileName"), false); err != nil {
 		return "", "", err
 	}
-	if checkFolder, err = getPathComponentFromRequest(vars, "checkFolder", true); err != nil {
+	if checkFolder, err = getPathComponentFromRequest(r.PathValue("checkFolder"), true); err != nil {
 		return "", "", err
 	}
 	return fileName, checkFolder, nil
@@ -97,7 +95,7 @@ func getFileNameAndFolder(vars map[string]string) (fileName, checkFolder string,
 
 // Sends the specified config (.yaml) file
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	fileName, checkFolder, err := getFileNameAndFolder(r)
 	if err != nil {
 		w.WriteHeader(404)
 		return
@@ -143,7 +141,7 @@ type configFormat struct {
 // Overwrites a specific check's configuration (yaml) file with new data
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	fileName, checkFolder, err := getFileNameAndFolder(r)
 	if err != nil {
 		w.WriteHeader(404)
 		return
@@ -275,7 +273,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 		}
 
 		for _, file := range files {
-			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Type().IsRegular() {
+			if ext := filepath.Ext(file.Name()); ext == ".py" && resolveEntryType(filepath.Join(path, file.Name()), file).IsRegular() {
 				integrations = append(integrations, file.Name())
 			}
 		}
@@ -369,6 +367,20 @@ func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	w.Write(res)
 }
 
+// resolveEntryType returns entry's type, following symlinks so that
+// Bazel's runfiles-provided symlinked files/directories are classified correctly.
+func resolveEntryType(fullPath string, entry os.DirEntry) fs.FileMode {
+	t := entry.Type()
+	if t&fs.ModeSymlink == 0 {
+		return t
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return t
+	}
+	return info.Mode().Type()
+}
+
 // Helper function which returns all the filenames in a check config directory
 func readConfDir(path string) ([]string, error) {
 	var filenames []string
@@ -378,16 +390,18 @@ func readConfDir(path string) ([]string, error) {
 	}
 
 	for _, entry := range entries {
+		entryPath := filepath.Join(path, entry.Name())
+
 		// Some check configs are in nested subdirectories
-		if entry.IsDir() {
+		if resolveEntryType(entryPath, entry).IsDir() {
 			if filepath.Ext(entry.Name()) != ".d" {
 				continue
 			}
 
-			subEntries, err := os.ReadDir(filepath.Join(path, entry.Name()))
+			subEntries, err := os.ReadDir(entryPath)
 			if err == nil {
 				for _, subEntry := range subEntries {
-					if hasRightEnding(subEntry.Name()) && subEntry.Type().IsRegular() {
+					if hasRightEnding(subEntry.Name()) && resolveEntryType(filepath.Join(entryPath, subEntry.Name()), subEntry).IsRegular() {
 						// Save the full path of the config file {check_name.d}/{filename}
 						filenames = append(filenames, entry.Name()+"/"+subEntry.Name())
 					}
@@ -396,7 +410,7 @@ func readConfDir(path string) ([]string, error) {
 			continue
 		}
 
-		if hasRightEnding(entry.Name()) && entry.Type().IsRegular() {
+		if hasRightEnding(entry.Name()) && resolveEntryType(entryPath, entry).IsRegular() {
 			filenames = append(filenames, entry.Name())
 		}
 	}

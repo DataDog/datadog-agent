@@ -101,6 +101,8 @@ def run_golangci_lint(
                         instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
                     elif goos == "windows":
                         instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                    elif goos == "aix":
+                        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
                     else:
                         instr = "the appropriate cross-compilation toolchain"
                     print(
@@ -120,7 +122,8 @@ def run_golangci_lint(
     tags_arg = " ".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
-    targets_str = " ".join(f"{target}{'/...' if recursive else ''}" for target in targets)
+    targets_rec = [f"{target}/..." if not target.endswith("/...") else target for target in targets]
+    targets_str = " ".join(targets_rec if recursive else targets)
     cmd = (
         f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} '
         f'--build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {targets_str}'
@@ -290,9 +293,11 @@ def raise_if_errors(errors_found, suggestion_msg=None):
         raise Exit(message=message)
 
 
-def check_valid_mods(ctx):
+def _check_valid_mods():
     errors_found = []
     for mod in get_default_modules().values():
+        if mod.path == ".":
+            continue
         pattern = os.path.join(mod.full_path(), '*.go')
         if not glob.glob(pattern):
             errors_found.append(f"module {mod.import_path} does not contain *.go source files, so it is not a package")
@@ -302,7 +307,7 @@ def check_valid_mods(ctx):
 
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
-    check_valid_mods(ctx)
+    _check_valid_mods()
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
         ctx.run("go work sync")
@@ -348,7 +353,7 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx, verbose: bool = False):
-    check_valid_mods(ctx)
+    _check_valid_mods()
     (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose)
 
 
@@ -381,7 +386,7 @@ def _go_only_tidy(ctx, verbose: bool):
 
 def _bazel_tidy(ctx, verbose: bool):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel(ctx, "mod", "tidy")
+    bazel(ctx, "mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
     bazel(ctx, "run", "//:go", "work", "sync")
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
@@ -390,6 +395,8 @@ def _bazel_tidy(ctx, verbose: bool):
     bazel(ctx, "mod", "tidy")
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
     bazel(ctx, "run", "//:gazelle")
+    # 6. regenerate agent payload version file from go.mod
+    bazel(ctx, "run", "//tasks:write_agent_payload_version")
 
 
 @task(autoprint=True)
@@ -400,7 +407,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.10 linux/amd64"
+    # result is like "go version go1.26.4 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

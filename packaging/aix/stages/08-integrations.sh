@@ -58,7 +58,7 @@ trap cleanup EXIT
 # in the agent repo). Stage 10 copies agent-repo configs afterward, so
 # agent-repo files take precedence when both repos provide the same filename.
 
-AGENT_DIST_CONFD="${EMBEDDED%/embedded}/bin/agent/dist/conf.d"
+AGENT_DIST_CONFD="$AGENT_SRC/bin/agent/dist/conf.d"
 if [ -d "$AGENT_DIST_CONFD" ]; then
     for check_dir in "$AGENT_DIST_CONFD"/*.d; do
         [ -d "$check_dir" ] || continue
@@ -90,7 +90,7 @@ fi
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 
-PYTHON_CHECKS="lparstats openmetrics ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
+PYTHON_CHECKS="lparstats openmetrics process ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
 
 log "Installing Python checks: $PYTHON_CHECKS"
 

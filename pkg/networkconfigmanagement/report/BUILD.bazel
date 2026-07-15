@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "report",
+    srcs = ["payload.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/types",
+    ],
+)
+
+go_test(
+    name = "report_test",
+    srcs = ["payload_test.go"],
+    embed = [":report"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

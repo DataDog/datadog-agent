@@ -48,7 +48,7 @@ func TestSend(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
@@ -81,7 +81,7 @@ func TestSendHTTPError(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
@@ -128,10 +128,10 @@ func TestBuildIntakeURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			if tt.site != "" {
-				cfg.SetWithoutSource("site", tt.site)
+				cfg.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				cfg.SetWithoutSource("dd_url", tt.ddURL)
+				cfg.SetInTest("dd_url", tt.ddURL)
 			}
 			assert.Equal(t, tt.expected, buildIntakeURL(cfg))
 		})

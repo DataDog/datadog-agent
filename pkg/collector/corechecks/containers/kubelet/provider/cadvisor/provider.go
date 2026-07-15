@@ -71,14 +71,15 @@ type processCache struct {
 
 // Provider provides the metrics related to data collected from the `/metrics/cadvisor` Kubelet endpoint
 type Provider struct {
-	podFilter       workloadfilter.FilterBundle
-	containerFilter workloadfilter.FilterBundle
-	store           workloadmeta.Component
-	tagger          tagger.Component
-	podUtils        *common.PodUtils
-	fsUsageBytes    map[string]*processCache
-	memUsageBytes   map[string]*processCache
-	swapUsageBytes  map[string]*processCache
+	podFilter               workloadfilter.FilterBundle
+	containerFilter         workloadfilter.FilterBundle
+	store                   workloadmeta.Component
+	tagger                  tagger.Component
+	podUtils                *common.PodUtils
+	fsUsageBytes            map[string]*processCache
+	memUsageBytes           map[string]*processCache
+	swapUsageBytes          map[string]*processCache
+	useStatsSummaryAsSource bool
 	prometheus.Provider
 }
 
@@ -89,15 +90,18 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 
 	cadvisorConfig.IgnoreMetrics = ignoreMetrics
 
+	useStatsSummaryAsSource := common.UseStatsSummaryAsSource(config)
+
 	provider := &Provider{
-		podFilter:       filterStore.GetPodSharedMetricFilters(),
-		containerFilter: filterStore.GetContainerSharedMetricFilters(),
-		store:           store,
-		tagger:          tagger,
-		podUtils:        podUtils,
-		fsUsageBytes:    map[string]*processCache{},
-		memUsageBytes:   map[string]*processCache{},
-		swapUsageBytes:  map[string]*processCache{},
+		podFilter:               filterStore.GetPodSharedMetricFilters(),
+		containerFilter:         filterStore.GetContainerSharedMetricFilters(),
+		store:                   store,
+		tagger:                  tagger,
+		podUtils:                podUtils,
+		fsUsageBytes:            map[string]*processCache{},
+		memUsageBytes:           map[string]*processCache{},
+		swapUsageBytes:          map[string]*processCache{},
+		useStatsSummaryAsSource: useStatsSummaryAsSource,
 	}
 
 	transformers := prometheus.Transformers{
@@ -125,6 +129,33 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		"container_memory_swap":                            provider.containerMemorySwap,
 		"container_spec_memory_limit_bytes":                provider.containerSpecMemoryLimitBytes,
 		"container_spec_memory_swap_limit_bytes":           provider.containerSpecMemorySwapLimitBytes,
+	}
+
+	// When use_stats_summary_as_source is enabled, the summary provider emits
+	// the same series for these metrics from /stats/summary. Drop their
+	// cAdvisor transformers here to avoid double-counting: keeping both
+	// sources active produced roughly 2x sums on kubernetes.cpu.usage.total
+	// and kubernetes.memory.* (issue #50544).
+	//
+	// Notes:
+	// - container_memory_usage_bytes is NOT dropped: its transformer still
+	//   needs to populate memUsageBytes so kubernetes.memory.usage_pct can
+	//   be derived from container_spec_memory_limit_bytes (the summary
+	//   provider does not emit memory.usage_pct). The transformer suppresses
+	//   the kubernetes.memory.usage emission via useStatsSummaryAsSource.
+	// - container_fs_limit_bytes is dropped because the summary provider
+	//   already emits both filesystem.usage and filesystem.usage_pct.
+	if useStatsSummaryAsSource {
+		for _, name := range []string{
+			"container_cpu_usage_seconds_total",
+			"container_memory_working_set_bytes",
+			"container_fs_usage_bytes",
+			"container_fs_limit_bytes",
+			"container_network_receive_bytes_total",
+			"container_network_transmit_bytes_total",
+		} {
+			delete(transformers, name)
+		}
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{
@@ -281,7 +312,10 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		}
 		seenKeys[containerName] = true
 
-		sender.Gauge(metricName, sample.Value, "", tags)
+		// Empty metricName: cache-only path, mirrors processLimitMetric.
+		if metricName != "" {
+			sender.Gauge(metricName, sample.Value, "", tags)
+		}
 	}
 
 	for k, seen := range seenKeys {
@@ -289,6 +323,39 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 			delete(cache, k)
 		}
 	}
+}
+
+// isContainerMemoryLimitSet checks if the memory limit is set on the container level.
+// Returns True if this is the case, False otherwise.
+func isContainerMemoryLimitSet(pod *workloadmeta.KubernetesPod, containerName string) bool {
+	for _, c := range pod.GetAllContainers() {
+		if c.Name == containerName {
+			return c.Resources.MemoryLimit != nil && *c.Resources.MemoryLimit > 0
+		}
+	}
+
+	return false
+}
+
+// shouldSendMemoryLimits checks if the metric should be processed.
+// It checks:
+// - if the container name for that metric has a pod associated with it
+// - if the memory limit is set on the container level
+// Then it returns true if the metric should be processed, false otherwise.
+func (p *Provider) shouldSendMemoryLimits(pod *workloadmeta.KubernetesPod, sample *prom.Sample) bool {
+	// no pod, skip the metric
+	if pod == nil {
+		return false
+	}
+
+	// no container name, skip the metric
+	containerName := p.getContainerName(sample.Metric)
+	if containerName == "" {
+		return false
+	}
+
+	// The memory limit is set on the container level, so we should send the metric.
+	return isContainerMemoryLimitSet(pod, containerName)
 }
 
 func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricFamily, cache map[string]*processCache, pctMetricName string, sender sender.Sender) {
@@ -306,14 +373,20 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 			// is reported by this provider AND the kubelet provider.
 			// Without this tag it reports as two series;
 			// one with kube_static_cpus:N/A and one with kube_static_cpus:true/false
-			if strings.Contains(metricName, "memory.limits") {
+			// --------------------------------------------------------------
+			// The cAdvisor provider reports the metric when the memory limit is set on the pod level only.
+			// We only want to send the metric if the memory limit is set on the container level.
+			if metricName == "kubernetes.memory.limits" {
 				pod := p.getPodByMetricLabel(sample.Metric)
-				if pod != nil {
+				if p.shouldSendMemoryLimits(pod, sample) {
+					// shouldSendMemoryLimits checks if pod != nil, it's safe to use here.
 					tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+					sender.Gauge(metricName, sample.Value, "", tags)
 				}
+			} else {
+				sender.Gauge(metricName, sample.Value, "", tags)
 			}
 
-			sender.Gauge(metricName, sample.Value, "", tags)
 		}
 
 		if pctMetricName != "" && sample.Value > 0 {
@@ -535,6 +608,12 @@ func (p *Provider) containerMemoryUsageBytes(metricFam *prom.MetricFamily, sende
 		return
 	}
 	metricName := common.KubeletMetricsPrefix + "memory.usage"
+	// Suppress emission when the summary provider is the source of truth, but
+	// keep populating memUsageBytes so memory.usage_pct can still be computed
+	// from container_spec_memory_limit_bytes.
+	if p.useStatsSummaryAsSource {
+		metricName = ""
+	}
 	p.processUsageMetric(metricName, metricFam, p.memUsageBytes, nil, sender)
 }
 

@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 # Only the noop variant is built here. fx.go imports logssource/impl which
 # depends on pkg/logs/launchers → comp/logs-library/pipeline (not yet in
-# Bazel). See comp/anomalydetection/logssource/impl/BUILD.bazel.
+# Bazel). impl/ has no BUILD.bazel yet.
 go_library(
     name = "fx",
     srcs = ["fx_noop.go"],

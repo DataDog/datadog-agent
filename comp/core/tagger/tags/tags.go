@@ -105,6 +105,16 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+	// KueueLocalQueue is the tag for the admitted Kueue local queue name from pod labels
+	KueueLocalQueue = "kueue_local_queue"
+	// KueueClusterQueue is the tag for the admitted Kueue cluster queue name from pod labels
+	KueueClusterQueue = "kueue_cluster_queue"
+	// KueueResourceFlavor is the tag for the Kueue ResourceFlavor name
+	KueueResourceFlavor = "kueue_resource_flavor"
+	// KueueWorkload is the tag for the Kueue Workload name
+	KueueWorkload = "kueue_workload"
+	// KueueWorkloadUID is the tag for the Kueue Workload UID
+	KueueWorkloadUID = "kueue_workload_uid"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
 	// KubeStaticCPUsTag is the tag that describes a container's cpu management
@@ -143,6 +153,8 @@ const (
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUParentGPUUUID is the tag for the parent GPU UUID
 	GPUParentGPUUUID = "gpu_parent_uuid"
+	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
+	GPUPCIBusID = "gpu_pci_bus_id"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"
@@ -233,6 +245,8 @@ const (
 	MesosTask = "mesos_task"
 	// TaskDefinitionARN is the tag for the task definition ARN (Amazon Resource Name)
 	TaskDefinitionARN = "task_definition_arn"
+	// DaemonTaskDefinitionARN is the tag for the daemon task definition ARN (Amazon Resource Name)
+	DaemonTaskDefinitionARN = "daemon_task_definition_arn"
 
 	// HIGH CARDINALITY
 

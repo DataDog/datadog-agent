@@ -27,11 +27,11 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -44,8 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
-func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
+func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 	batch := metrics.MetricSampleBatch{
 		metrics.MetricSample{
 			Name:      "first",
@@ -100,10 +99,10 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer := &MockSerializerIterableSerie{}
 	mockSerializer.On("AreSeriesEnabled").Return(true)
 	mockSerializer.On("AreSketchesEnabled").Return(true)
-	opts.EnableNoAggregationPipeline = true
+	opts.NoAggregationPipelineWorkersCount = 1
 	deps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
-	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
+	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
 
@@ -111,7 +110,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	demux.SendSamplesWithoutAggregation(batch)
 	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
-	demux.Stop(true)
+	demux.Stop()
 
 	// nothing should be in the time sampler
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
@@ -129,7 +128,7 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
@@ -139,8 +138,92 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
-	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
-	demux.Stop(false)
+	require.Equal(t, 0, demux.Options().NoAggregationPipelineWorkersCount, "the no aggregation pipeline should be disabled by default")
+	demux.Stop()
+}
+
+func TestDemuxNoAggWorkersCount(t *testing.T) {
+	tests := []struct {
+		name          string
+		configured    int
+		expectedCount int
+	}{
+		{
+			name:          "configured count",
+			configured:    3,
+			expectedCount: 3,
+		},
+		{
+			name:          "zero disables no aggregation workers",
+			configured:    0,
+			expectedCount: 0,
+		},
+		{
+			name:          "negative disables no aggregation workers",
+			configured:    -2,
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := demuxTestOptions()
+			opts.NoAggregationPipelineWorkersCount = tt.configured
+			deps := createDemultiplexerAgentTestDeps(t)
+
+			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+			require.Len(t, demux.statsd.noAggStreamWorkers, tt.expectedCount)
+			require.Len(t, demux.noAggSerializers, tt.expectedCount)
+			if tt.expectedCount == 0 {
+				require.Nil(t, demux.statsd.noAggSamplesChan)
+				return
+			}
+			require.NotNil(t, demux.statsd.noAggSamplesChan)
+			for _, worker := range demux.statsd.noAggStreamWorkers {
+				require.Equal(t, demux.statsd.noAggSamplesChan, worker.samplesChan)
+			}
+		})
+	}
+}
+
+func TestDemuxNoAggWorkersUseSharedQueue(t *testing.T) {
+	opts := demuxTestOptions()
+	opts.NoAggregationPipelineWorkersCount = 3
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	for i := 0; i < 5; i++ {
+		demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{
+			{
+				Name:      fmt.Sprintf("metric.%d", i),
+				Value:     float64(i),
+				Mtype:     metrics.GaugeType,
+				Timestamp: 1657099120.0,
+			},
+		})
+	}
+
+	require.Len(t, demux.statsd.noAggSamplesChan, 5)
+
+	for i := 0; i < 5; i++ {
+		batch := <-demux.statsd.noAggSamplesChan
+		require.Len(t, batch, 1)
+		require.Equal(t, fmt.Sprintf("metric.%d", i), batch[0].Name)
+	}
+}
+
+func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
+	opts := demuxTestOptions()
+	opts.NoAggregationPipelineWorkersCount = 1
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{})
+
+	require.Len(t, demux.statsd.noAggSamplesChan, 0)
 }
 
 func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
@@ -153,7 +236,7 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	}).Return(nil).Once()
 
 	demux.AddAgentStartupTelemetry("7.0.0")
-	demux.Stop(true)
+	demux.Stop()
 
 	var shutdownEvent *event.Event
 	select {
@@ -168,17 +251,6 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
 
 	s.AssertExpectations(t)
-}
-
-func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
-	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
-	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
-
-	demux.AddAgentStartupTelemetry("7.0.0")
-	demux.ForceFlushToSerializer(time.Now(), true)
-	demux.Stop(false)
-
-	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
 }
 
 func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
@@ -245,7 +317,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	mockConfig.SetInTest("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -291,12 +363,12 @@ func TestUpdateTagFilterList(t *testing.T) {
 		}, time.Second, time.Millisecond)
 		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
 
-		metric := slices.IndexFunc(s.sketches, func(serie *metrics.SketchSeries) bool {
-			return serie.Name == "dist.metric"
+		metric := slices.IndexFunc(s.sketches, func(serie metrics.Distribution) bool {
+			return serie.GetName() == "dist.metric"
 		})
 
 		require.NotEqualf(-1, metric, "dist.metric not found in %+v", s.sketches)
-		tags := strings.Split(s.sketches[metric].Tags.Join(","), ",")
+		tags := strings.Split(s.sketches[metric].(*metrics.SketchSeries).Tags.Join(","), ",")
 		require.ElementsMatch(expected, tags)
 	}
 
@@ -310,7 +382,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	testCountBlocked([]string{"tag3:three", "tag4:four"}, 32.0)
 
 	// Reset the mock
-	s.sketches = []*metrics.SketchSeries{}
+	s.sketches = []metrics.Distribution{}
 
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
@@ -325,7 +397,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 
 	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
@@ -355,7 +427,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	mockConfig.SetInTest("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -424,13 +496,13 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	// result (only tag3:three) is stored in the strip cache.
 	sendAndFlush(1.0)
 
-	idx := slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
-		return ss.Name == "dist.metric"
+	idx := slices.IndexFunc(s.sketches, func(ss metrics.Distribution) bool {
+		return ss.GetName() == "dist.metric"
 	})
 	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
-	require.ElementsMatch([]string{"tag3:three"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+	require.ElementsMatch([]string{"tag3:three"}, strings.Split(s.sketches[idx].(*metrics.SketchSeries).Tags.Join(","), ","))
 
-	s.sketches = []*metrics.SketchSeries{}
+	s.sketches = []metrics.Distribution{}
 
 	// Update the filter list to exclude tag3 instead. SetTagFilterList calls
 	// SetAggregatorTagFilterList synchronously, which blocks until the
@@ -447,13 +519,13 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	// and the new rule is applied, keeping tag1 and tag2.
 	sendAndFlush(2.0)
 
-	idx = slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
-		return ss.Name == "dist.metric"
+	idx = slices.IndexFunc(s.sketches, func(ss metrics.Distribution) bool {
+		return ss.GetName() == "dist.metric"
 	})
 	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
-	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].(*metrics.SketchSeries).Tags.Join(","), ","))
 
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestUpdateMetricFilterList(t *testing.T) {
@@ -531,7 +603,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	testCountBlocked(false, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetMetricFilterList([]string{"another.metric"}, false)
@@ -560,10 +632,10 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),

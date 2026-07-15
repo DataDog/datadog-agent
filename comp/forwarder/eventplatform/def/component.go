@@ -37,12 +37,16 @@ const (
 	EventTypeContainerImages = "container-images"
 	// EventTypeContainerSBOM represents a container SBOM event
 	EventTypeContainerSBOM = "container-sbom"
+	// EventTypeGenResources represents a generic resources event
+	EventTypeGenResources = "genresources"
 	// EventTypeSoftwareInventory represents a software inventory event
 	EventTypeSoftwareInventory = "software-inventory"
 	// EventTypeEventManagement represents an event for the Event Management API
 	EventTypeEventManagement = "event-management"
 	// EventTypeKubeActions represents a kubernetes action result event
 	EventTypeKubeActions = "kube-actions"
+	// EventTypeAgentDiscovery represents an Agent Discovery configuration files event
+	EventTypeAgentDiscovery = "agentdiscovery"
 )
 
 // Component is the interface of the event platform forwarder component.

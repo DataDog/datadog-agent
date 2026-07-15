@@ -411,25 +411,29 @@ func (t *Tailer) forwardMessages() {
 		origin.FilePath = t.file.Path
 		origin.Fingerprint = t.fingerprint
 
+		providerTags := t.tagProvider.GetTags()
+
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
-		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, providerTags...)
 		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
-		// Ignore empty lines once the registry offset is updated
-		if len(output.GetContent()) == 0 {
+		if !output.HasContent() {
 			continue
 		}
 
-		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+		// Enrich the decoder output with the file-tailer origin.
+		// This mutates in-place to preserve the message's content state
+		// (e.g. StateStructured from syslog parser, StateUnstructured from
+		// plain text) rather than destructively re-wrapping via NewMessage.
+		output.Origin = origin
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- msg:
-			t.CapacityMonitor.AddIngress(msg)
+		case t.outputChan <- output:
+			t.CapacityMonitor.AddIngress(output)
 		case <-t.forwardContext.Done():
 		}
 	}

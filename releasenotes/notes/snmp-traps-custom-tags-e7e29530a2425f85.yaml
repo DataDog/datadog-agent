@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    SNMP traps listener now supports a ``network_devices.snmp_traps.tags``
+    configuration option to attach a user-supplied list of tags to every
+    forwarded trap and to every SNMP traps telemetry metric.

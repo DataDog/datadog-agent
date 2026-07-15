@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -53,17 +54,18 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname:              c.config.DestHostname,
-		DestPort:                  c.config.DestPort,
-		MaxTTL:                    c.config.MaxTTL,
-		Timeout:                   c.config.Timeout,
-		Protocol:                  c.config.Protocol,
-		TCPMethod:                 c.config.TCPMethod,
-		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
-		DisableWindowsDriver:      c.config.DisableWindowsDriver,
-		ReverseDNS:                true,
-		TracerouteQueries:         c.config.TracerouteQueries,
-		E2eQueries:                c.config.E2eQueries,
+		DestHostname:                    c.config.DestHostname,
+		DestPort:                        c.config.DestPort,
+		MaxTTL:                          c.config.MaxTTL,
+		Timeout:                         c.config.Timeout,
+		Protocol:                        c.config.Protocol,
+		TCPMethod:                       c.config.TCPMethod,
+		TCPSynParisTracerouteMode:       c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:            c.config.DisableWindowsDriver,
+		DisableSourcePublicIPCollection: c.config.DisableSourcePublicIPCollection,
+		ReverseDNS:                      true,
+		TracerouteQueries:               c.config.TracerouteQueries,
+		E2eQueries:                      c.config.E2eQueries,
 	}
 
 	path, err := c.traceroute.Run(context.TODO(), cfg)
@@ -77,6 +79,7 @@ func (c *Check) Run() error {
 	}
 
 	path.Namespace = c.config.Namespace
+	path.TestConfigID = c.config.TestConfigID
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
 	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
@@ -142,6 +145,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	config, err := NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return err
+	}
+	if provider != names.NetworkPathRemoteConfig {
+		config.TestConfigID = ""
 	}
 	c.config = config
 	return nil

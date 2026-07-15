@@ -15,6 +15,7 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,10 +30,12 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -69,6 +72,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -101,7 +105,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
+					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
 				}),
 				core.Bundle(core.WithSecrets()),
 				remotehostnameimpl.Module(),
@@ -178,10 +182,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
-						Settings: map[string]settings.RuntimeSetting{
-							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-						},
-						Config: c,
+						Settings: RuntimeSettings(),
+						Config:   c,
 					}
 				}),
 				settingsfx.Module(),
@@ -189,6 +191,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
+				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
+				configstreamconsumerfx.Module(),
 			)
 		},
 	}
@@ -366,48 +370,119 @@ func StopAgent(log log.Component) {
 	log.Info("See ya!")
 }
 
+// secAgentConfigPrefix is the config namespace for the security-agent.
+const secAgentConfigPrefix = "security_agent."
+
+func secAgentKey(sub string) string {
+	return secAgentConfigPrefix + sub
+}
+
+// buildProfilingSettings builds the internal profiling settings for the security-agent from its
+// configuration. It is the single source of truth shared by the boot-time setupInternalProfiling
+// path and the runtime internal_profiling setting, so enabling profiling on demand produces the
+// same profiler configuration as enabling it at boot (site, env, TRACE_AGENT_URL forwarding,
+// period, etc.).
+func buildProfilingSettings(config config.Component) profiling.Settings {
+	cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
+	cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
+
+	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+	var site string
+	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+	} else {
+		site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
+		if cfgURL != "" {
+			site = cfgURL
+		}
+	}
+
+	tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
+	tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+	tags = append(tags, "__dd_internal_profiling:datadog-agent")
+
+	return profiling.Settings{
+		ProfilingURL:         site,
+		Env:                  config.GetString(secAgentKey("internal_profiling.env")),
+		Service:              "security-agent",
+		Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
+		CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
+		MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
+		BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
+		WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+		WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
+		WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
+		WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
+		Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
+		Tags:                 tags,
+	}
+}
+
 func setupInternalProfiling(config config.Component) error {
 	if config.GetBool(secAgentKey("internal_profiling.enabled")) {
-		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
-		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
-
-		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
-		var site string
-		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-		} else {
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
-			if cfgURL != "" {
-				site = cfgURL
-			}
-		}
-
-		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
-		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
-		tags = append(tags, "__dd_internal_profiling:datadog-agent")
-
-		profSettings := profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  config.GetString(secAgentKey("internal_profiling.env")),
-			Service:              "security-agent",
-			Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
-			CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
-			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
-			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
-			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
-			WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
-			WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
-			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
-			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
-			Tags:                 tags,
-		}
-
-		return profiling.Start(profSettings)
+		return profiling.Start(buildProfilingSettings(config))
 	}
 
 	return nil
 }
 
-func secAgentKey(sub string) string {
-	return "security_agent." + sub
+// profilingRuntimeSetting toggles the security-agent internal profiler at runtime. It reuses
+// buildProfilingSettings so the runtime configuration matches the boot-time path exactly, rather
+// than going through the generic ProfilingRuntimeSetting which reads a different set of config keys.
+type profilingRuntimeSetting struct{}
+
+func (profilingRuntimeSetting) Name() string { return "internal_profiling" }
+
+func (profilingRuntimeSetting) Description() string {
+	return "Enable or disable security-agent internal profiling at runtime (accepts true, false, or restart)."
+}
+
+func (profilingRuntimeSetting) Hidden() bool { return true }
+
+func (profilingRuntimeSetting) Get(config config.Component) (interface{}, error) {
+	return config.GetBool(secAgentKey("internal_profiling.enabled")), nil
+}
+
+func (s profilingRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
+	if str, ok := v.(string); ok && strings.ToLower(str) == "restart" {
+		if err := s.Set(config, false, source); err != nil {
+			return err
+		}
+		return s.Set(config, true, source)
+	}
+
+	enable, err := commonsettings.GetBool(v)
+	if err != nil {
+		return fmt.Errorf("unsupported type for internal_profiling runtime setting: %w", err)
+	}
+
+	if enable {
+		if err := profiling.Start(buildProfilingSettings(config)); err != nil {
+			return err
+		}
+		config.Set(secAgentKey("internal_profiling.enabled"), true, source)
+	} else {
+		profiling.Stop()
+		config.Set(secAgentKey("internal_profiling.enabled"), false, source)
+	}
+
+	return nil
+}
+
+// RuntimeSettings returns all runtime settings exposed by the security-agent, keyed by setting
+// name. It is the single source of truth shared by the start subcommand and the Windows service
+// entrypoint, so both expose the same `security-agent config set ...` controls and cannot drift
+// per-platform.
+func RuntimeSettings() map[string]settings.RuntimeSetting {
+	goroutines := commonsettings.NewProfilingGoroutines()
+	goroutines.ConfigPrefix = secAgentConfigPrefix
+	period := commonsettings.NewProfilingPeriod()
+	period.ConfigPrefix = secAgentConfigPrefix
+
+	return map[string]settings.RuntimeSetting{
+		"log_level":                     commonsettings.NewLogLevelRuntimeSetting(),
+		"internal_profiling":            profilingRuntimeSetting{},
+		"internal_profiling_goroutines": goroutines,
+		"internal_profiling_period":     period,
+	}
 }

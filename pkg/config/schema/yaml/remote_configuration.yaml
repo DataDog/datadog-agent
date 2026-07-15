@@ -1,0 +1,172 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/remote_configuration.yaml.schema.json
+node_type: section
+type: object
+visibility: public
+description: |-
+  Configuration for Remote Configuration.
+  Remote Configuration allows you to configure your Agents from the Datadog UI.
+  See https://docs.datadoghq.com/agent/guide/setup_remote_config/ for more information.
+tags:
+- template_section:Common
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Set to true to enable Remote Configuration. Enabled by default.
+      Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
+      and must be explicitly enabled.
+    comment: Remote config
+  agent_config:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          agent_config.enabled gates the trace-agent's AGENT_CONFIG subscription.
+          Defaults to true. The trace-agent additionally inherits
+          remote_configuration.apm_sampling.enabled when the user has explicitly
+          set apm_sampling.enabled but NOT agent_config.enabled, preserving the
+          historical behavior where apm_sampling.enabled implicitly gated
+          AGENT_CONFIG too.
+  agent_integrations:
+    node_type: section
+    type: object
+    properties:
+      allow_list:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      allow_log_config_scheduling:
+        node_type: setting
+        type: boolean
+        default: false
+      block_list:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+  apm_sampling:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: Remote config products
+  apm_semantics:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          apm_semantics.enabled gates the trace-agent's APM_SEMANTIC_CORE_DD
+          subscription. Opt-in during initial rollout.
+  clients:
+    node_type: section
+    type: object
+    properties:
+      cache_bypass_limit:
+        node_type: setting
+        type: integer
+        default: 5
+      ttl_seconds:
+        node_type: setting
+        type: string
+        default: 30s
+        format: duration
+        tags:
+        - golang_type:duration
+  config_root:
+    node_type: setting
+    type: string
+    default: ''
+  delegated_auth:
+    node_type: section
+    type: object
+    properties:
+      aws:
+        node_type: section
+        type: object
+        properties:
+          region:
+            node_type: setting
+            type: string
+            default: ''
+      org_uuid:
+        node_type: setting
+        type: string
+        default: ''
+      provider:
+        node_type: setting
+        type: string
+        default: ''
+      refresh_interval_mins:
+        node_type: setting
+        type: integer
+        default: 60
+  director_root:
+    node_type: setting
+    type: string
+    default: ''
+  key:
+    node_type: setting
+    type: string
+    default: ''
+  max_backoff_interval:
+    node_type: setting
+    type: string
+    default: 2m0s
+    format: duration
+    tags:
+    - golang_type:duration
+  no_tls:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Delegated authentication for remote_configuration
+  no_tls_validation:
+    node_type: setting
+    type: boolean
+    default: false
+  no_websocket_echo:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Websocket echo test
+  org_status_refresh_interval:
+    node_type: setting
+    type: string
+    default: 1m0s
+    format: duration
+    tags:
+    - golang_type:duration
+  rc_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  refresh_interval:
+    node_type: setting
+    type: string
+    default: 0s

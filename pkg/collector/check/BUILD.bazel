@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "check",
@@ -10,12 +11,15 @@ go_library(
         "loader.go",
         "metadata.go",
         "retry.go",
+        "shadow.go",
+        "unwrap.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",
+        "//comp/healthplatform/store/def",
         "//comp/metadata/inventorychecks/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
@@ -27,22 +31,28 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "check_test",
     srcs = [
         "check_test.go",
         "id_test.go",
         "jmx_test.go",
         "metadata_test.go",
+        "shadow_test.go",
+        "unwrap_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":check"],
-    gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
+        "//comp/healthplatform/store/def",
+        "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

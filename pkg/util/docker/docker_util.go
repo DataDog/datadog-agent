@@ -84,11 +84,13 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	// client.New does not actually contact the daemon. Force a round-trip
-	// to verify availability. safeInfo tolerates daemons that emit invalid
-	// CIDRs in /info's DefaultAddressPools, which would otherwise fail the
-	// strict netip.Prefix decoding introduced by the moby v29 client.
-	if _, err := safeInfo(ctx, cli); err != nil {
+	// client.New does not actually contact the server. Force a round-trip to
+	// verify availability. Use Ping rather than Info: Ping only reads HTTP
+	// headers, while Info decodes the full /info JSON payload. Some daemons
+	// emit DefaultAddressPools[].Base values that are not valid CIDRs, which
+	// fail moby v29's strict netip.Prefix decoding and would prevent
+	// DockerUtil from initializing at all.
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
@@ -130,6 +132,31 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 // RawClient returns the underlying docker client being used by this object.
 func (d *DockerUtil) RawClient() *client.Client {
 	return d.cli
+}
+
+// CopyFromContainer wraps the Docker archive API for a single path.
+// The caller is responsible for closing the returned archive stream.
+func (d *DockerUtil) CopyFromContainer(ctx context.Context, containerID string, path string) (io.ReadCloser, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	result, err := d.cli.CopyFromContainer(ctx, containerID, client.CopyFromContainerOptions{SourcePath: path})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	return readCloserWithCancel{
+		ReadCloser: result.Content,
+		cancel:     cancel,
+	}, nil
+}
+
+type readCloserWithCancel struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r readCloserWithCancel) Close() error {
+	r.cancel()
+	return r.ReadCloser.Close()
 }
 
 // RawContainerList wraps around the docker client's ContainerList method.
@@ -387,6 +414,10 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, stats.Body)
+		stats.Body.Close()
+	}()
 	containerStats := &dcontainer.StatsResponse{}
 	err = json.NewDecoder(stats.Body).Decode(&containerStats)
 	if err != nil {

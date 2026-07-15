@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-func remote(corecompcfg.Component, string, ipc.Component) (config.RemoteClient, error) {
+func remote(corecompcfg.Component, string, ipc.Component, []string) (config.RemoteClient, error) {
 	return nil, errors.New("remote configuration is not supported in serverless")
 }
 

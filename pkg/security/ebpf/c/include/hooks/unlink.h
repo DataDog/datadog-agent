@@ -44,6 +44,15 @@ int hook_do_unlinkat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_unlinkat")
+int hook_filename_unlinkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
+    }
+    return 0;
+}
+
 HOOK_ENTRY("vfs_unlink")
 int hook_vfs_unlink(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -78,26 +87,19 @@ int hook_vfs_unlink(ctx_t *ctx) {
 
     approve_syscall(syscall, unlink_approvers);
 
-    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_UNLINK)) {
-        syscall->state = DISCARDED;
-    }
-
     u8 is_cgroupfs = is_cgroup2fs(dentry) && !is_runtime_request();
 
     if (syscall->state != ACCEPTED && is_cgroupfs) {
         syscall->state = INTERNAL;
     }
 
-    if (syscall->state == DISCARDED) {
-        return 0;
-    }
-
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
+    syscall->resolver.event_type = syscall->type;
     // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
     // to track cgroup lifecycle, and a discarder match here would drop them.
-    syscall->resolver.discarder_event_type = !is_cgroupfs ? dentry_resolver_discarder_event_type(syscall) : 0;
+    syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroupfs);
     syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -116,11 +118,7 @@ TAIL_CALL_FNC(dr_unlink_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_UNLINK);
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        syscall->state = DISCARDED;
-    }
+    apply_dentry_resolution_outcome(syscall, EVENT_UNLINK);
 
     return 0;
 }
@@ -135,8 +133,17 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
+    if (retval >= 0) {
+        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+    }
+
     if (syscall->state != DISCARDED) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
+            if (is_auid_discarder(EVENT_RMDIR)) {
+                monitor_discarded(EVENT_RMDIR);
+                return 0;
+            }
+
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
                 .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
@@ -156,6 +163,11 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                 return 0;
             }
 
+            if (is_auid_discarder(EVENT_UNLINK)) {
+                monitor_discarded(EVENT_UNLINK);
+                return 0;
+            }
+
             struct unlink_event_t event = {
                 .syscall.retval = retval,
                 .syscall_ctx.id = syscall->ctx_id,
@@ -171,16 +183,6 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             send_event(ctx, EVENT_UNLINK, event);
         }
-    } else {
-        if (syscall->unlink.flags & AT_REMOVEDIR) {
-            monitor_discarded(EVENT_RMDIR);
-        } else {
-            monitor_discarded(EVENT_UNLINK);
-        }
-    }
-
-    if (retval >= 0) {
-        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
     }
 
     return 0;
@@ -188,6 +190,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_unlinkat")
 int rethook_do_unlinkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
+}
+
+HOOK_EXIT("filename_unlinkat")
+int rethook_filename_unlinkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }

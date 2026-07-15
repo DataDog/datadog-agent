@@ -13,7 +13,9 @@ load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 load("@rules_cc//cc:defs.bzl", "cc_common")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
 load("//bazel/rules:version_info.bzl", "agent_version_defines")
-load("//bazel/toolchains/mingw:paths.bzl", "MINGW_PATH")
+
+_WINDRES = "@winlibs_mingw64//:windres"
+_WINDMC = "@winlibs_mingw64//:windmc"
 
 def _cc_env(ctx):
     """Returns (env, cc_toolchain) from the resolved CC toolchain."""
@@ -48,7 +50,7 @@ def _win_messagetable_impl(ctx):
     windmc_args.add(src)
 
     ctx.actions.run(
-        executable = MINGW_PATH + "/bin/windmc",
+        executable = ctx.executable._windmc,
         arguments = [windmc_args],
         inputs = [src],
         outputs = [rc_out, h_out, bin_out],
@@ -67,7 +69,7 @@ def _win_messagetable_impl(ctx):
     windres_args.add("-o", syso_out)
 
     ctx.actions.run(
-        executable = MINGW_PATH + "/bin/windres",
+        executable = ctx.executable._windres,
         arguments = [windres_args],
         env = env,
         inputs = depset([rc_out, bin_out], transitive = [cc_toolchain.all_files]),
@@ -83,6 +85,8 @@ _win_messagetable = rule(
     doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".mc"]),
+        "_windmc": attr.label(default = _WINDMC, executable = True, cfg = "exec", allow_single_file = True),
+        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
     } | CC_TOOLCHAIN_ATTRS,
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
@@ -129,7 +133,7 @@ def _win_resource_impl(ctx):
     windres_args.add("-o", syso_out)
 
     ctx.actions.run(
-        executable = MINGW_PATH + "/bin/windres",
+        executable = ctx.executable._windres,
         arguments = [windres_args],
         env = env,
         inputs = depset([src] + ctx.files.deps, transitive = [cc_toolchain.all_files]),
@@ -147,6 +151,7 @@ _win_resource = rule(
         "src": attr.label(mandatory = True, allow_single_file = [".rc"]),
         "deps": attr.label_list(allow_files = True),
         "defines": attr.string_dict(),
+        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
     } | CC_TOOLCHAIN_ATTRS,
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],

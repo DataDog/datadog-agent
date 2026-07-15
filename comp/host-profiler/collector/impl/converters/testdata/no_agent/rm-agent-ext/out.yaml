@@ -1,11 +1,12 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     custom:
         config: value
@@ -17,7 +18,7 @@ processors:
     batch:
         timeout: 10s
     cumulativetodelta/dd-hp-internal: {}
-    ddhostname/default: {}
+    ddhostname/dd-autoconfigured: {}
     filter/dd-hp-drop-internal:
         metrics:
             exclude:
@@ -34,7 +35,7 @@ processors:
             - action: upsert
               key: telemetry.distro.version
               value: 7.0.0-test
-    resourcedetection/default:
+    resourcedetection/dd-autoconfigured:
         detectors:
             - system
         system:
@@ -61,34 +62,32 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8889
+                        - localhost:8888
 service:
     extensions:
         - ddprofiling
         - custom
         - other
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
                 - batch
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus/dd-hp-internal
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - batch
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

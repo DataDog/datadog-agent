@@ -7,7 +7,11 @@
 
 package clusterchecks
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
 
 func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	// Update stats prior to starting isolate to ensure all checks are accounted for
@@ -24,7 +28,15 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 		}
 	}
 
-	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
+	// Distribution is keyed by digest; translate the caller's checkID.
+	d.store.RLock()
+	isolateDigest, isolateKnown := d.store.idToDigest[checkid.ID(isolateCheckID)]
+	d.store.RUnlock()
+
+	isolateNode := ""
+	if isolateKnown {
+		isolateNode = currentDistribution.runnerForConfig(isolateDigest)
+	}
 	if isolateNode == "" {
 		return types.IsolateResponse{
 			CheckID:    isolateCheckID,
@@ -34,22 +46,22 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 		}
 	}
 
-	proposedDistribution := newChecksDistribution(currentDistribution.runnerWorkers())
+	proposedDistribution := newConfigsDistribution(currentDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
-	for _, checkID := range currentDistribution.checksSortedByWorkersNeeded() {
-		if checkID == isolateCheckID {
-			// Keep the check to be isolated on its current runner
+	for _, digest := range currentDistribution.configsSortedByWorkersNeeded() {
+		if digest == isolateDigest {
+			// Keep the config to be isolated on its current runner
 			continue
 		}
 
-		workersNeededForCheck := currentDistribution.workersNeededForCheck(checkID)
-		runnerForCheck := currentDistribution.runnerForCheck(checkID)
-
+		config := currentDistribution.Configs[digest]
 		proposedDistribution.addToLeastBusy(
-			checkID,
-			workersNeededForCheck,
-			runnerForCheck,
+			digest,
+			config.CheckName,
+			config.WorkersNeeded,
+			config.Runner,
 			isolateNode,
+			false,
 		)
 	}
 

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "azure",
@@ -16,15 +17,14 @@ go_library(
         "//pkg/util/cachedfetch",
         "//pkg/util/hostname/validate",
         "//pkg/util/http",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v6//:backoff",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "azure_test",
     srcs = ["azure_test.go"],
     embed = [":azure"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

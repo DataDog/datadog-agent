@@ -10,7 +10,6 @@ package admissionprobe
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -22,7 +21,7 @@ func init() {
 const (
 	// IssueName is the identifier for admission controller connectivity issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "admission_controller_unreachable"
+	IssueName = "Admission Controller Unreachable"
 	// IssueID is the unique instance id used when reporting this issue.
 	// Note: kept separate from IssueName — probe.go and E2E tests use this value for issue.Id.
 	IssueID = "admission-controller-connectivity-failure"
@@ -33,7 +32,7 @@ type admissionProbeModule struct {
 }
 
 // NewModule creates a new admission probe issue module.
-func NewModule(config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &admissionProbeModule{
 		template: &AdmissionProbeIssue{},
 	}

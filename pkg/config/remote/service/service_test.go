@@ -201,12 +201,12 @@ func uptaneFactoryOption(coreAgentUptane *mockCoreAgentUptane) Option {
 
 func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock, opts ...Option) *CoreAgentService {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname", "test-hostname")
+	cfg.SetInTest("hostname", "test-hostname")
 
 	dir := t.TempDir()
-	cfg.SetWithoutSource("run_path", dir)
+	cfg.SetInTest("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
-	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
+	cfg.SetInTest("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
 	traceAgentEnv := testEnv
 	mockTelemetryReporter := &telemetryReporter{}
@@ -991,7 +991,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 
 	cfg := configmock.New(t)
 	dir := t.TempDir()
-	cfg.SetWithoutSource("run_path", dir)
+	cfg.SetInTest("run_path", dir)
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := (&telemetryReporter{})
@@ -1009,12 +1009,12 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service.api = api
 	service.mu.uptane = uptaneClient
 
-	cfg.SetWithoutSource("api_key", "updated")
+	cfg.SetInTest("api_key", "updated")
 	assert.Equal(t, "updated", updatedKey)
 
 	// We still use the new key even if the new org doesn't match the old org.
 	orgResponse.Uuid = "badUuid"
-	cfg.SetWithoutSource("api_key", "BAD_ORG")
+	cfg.SetInTest("api_key", "BAD_ORG")
 	assert.Equal(t, "BAD_ORG", updatedKey)
 
 }
@@ -1263,7 +1263,7 @@ func TestOrgStatus(t *testing.T) {
 func TestWithTraceAgentEnv(t *testing.T) {
 	cfg := configmock.New(t)
 	dir := t.TempDir()
-	cfg.SetWithoutSource("run_path", dir)
+	cfg.SetInTest("run_path", dir)
 
 	baseRawURL := "https://localhost"
 	traceAgentEnv := "dog"
@@ -1285,7 +1285,7 @@ func TestWithTraceAgentEnv(t *testing.T) {
 
 func TestWithDatabaseFileName(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("run_path", "/tmp")
+	cfg.SetInTest("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := &telemetryReporter{}
@@ -1335,7 +1335,7 @@ func TestWithRefreshInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("run_path", "/tmp")
+			cfg.SetInTest("run_path", "/tmp")
 
 			baseRawURL := "https://localhost"
 			mockTelemetryReporter := &telemetryReporter{}
@@ -1489,7 +1489,7 @@ func listsEqual(mustMatch []string) func(candidate []string) bool {
 
 func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("run_path", "/tmp")
+	cfg.SetInTest("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := &telemetryReporter{}
@@ -1507,7 +1507,7 @@ func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
 
 func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("run_path", "/tmp")
+	cfg.SetInTest("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := &telemetryReporter{}

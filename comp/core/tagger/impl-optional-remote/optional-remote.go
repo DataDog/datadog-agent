@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package optionalimpl contains the implementation of the optional remote
-// tagger. The optionalimpl allow clients to use either the remote tagger or
-// the noop tagger based on their configuration. This should only be used in
-// the trace-agent in an Azure App Services (AAS) Extension environment where
-// we are confident that the container tagging functionality provided by the
-// remote tagger is not needed.
-package optionalimpl
+// Package optionalremoteimpl contains the implementation of the optional remote
+// tagger. It allows clients to use either the remote tagger or the noop tagger
+// based on their configuration. This should only be used in the trace-agent in
+// an Azure App Services (AAS) Extension environment where we are confident that
+// the container tagging functionality provided by the remote tagger is not needed.
+package optionalremoteimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

@@ -38,7 +38,8 @@ import (
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
+	processapiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -71,7 +72,7 @@ func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
 	confMock := configmock.New(t)
-	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
+	confMock.SetInTest("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getRegistryJSON(context.Background(), mock)
@@ -85,14 +86,14 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	host, port, err := net.SplitHostPort(u.Host)
 	require.NoError(t, err)
 
-	confMock.SetWithoutSource("cmd_host", host)
-	confMock.SetWithoutSource("cmd_port", port)
-	confMock.SetWithoutSource("process_config.cmd_port", port)
+	confMock.SetInTest("cmd_host", host)
+	confMock.SetInTest("cmd_port", port)
+	confMock.SetInTest("process_config.cmd_port", port)
 }
 
 func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		processapiserver.Module(),
+		processapiserverimpl.Module(),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		mocktelemetry.Module(),
@@ -114,7 +115,7 @@ func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
 	confMock := configmock.New(t)
-	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
+	confMock.SetInTest("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getVersionHistory(context.Background(), mock)
@@ -147,7 +148,7 @@ process_config:
 	// Setting an unused port to avoid problem when test run next to running Process Agent
 	port := 56789
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.cmd_port", port)
+	cfg.SetInTest("process_config.cmd_port", port)
 
 	ipcComp := ipcmock.New(t)
 	remoteProvider := RemoteFlareProvider{
@@ -186,9 +187,9 @@ process_config:
 		listener.Close()
 
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.cmd_port", port)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		cfg.SetWithoutSource("process_config.cmd_port", port)
+		cfg.SetInTest("process_config.cmd_port", port)
+		cfg.SetInTest("process_config.process_discovery.enabled", true)
+		cfg.SetInTest("process_config.cmd_port", port)
 		setupProcessAPIServer(t)
 
 		content, err := remoteProvider.getProcessAgentFullConfig()
@@ -251,9 +252,9 @@ func TestProcessAgentChecks(t *testing.T) {
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetInTest("process_config.process_collection.enabled", true)
+		cfg.SetInTest("process_config.container_collection.enabled", true)
+		cfg.SetInTest("process_config.process_discovery.enabled", true)
 
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			var err error
@@ -293,9 +294,9 @@ func TestProcessAgentChecks(t *testing.T) {
 		listener.Close()
 
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.cmd_port", port)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		cfg.SetWithoutSource("process_config.cmd_port", port)
+		cfg.SetInTest("process_config.cmd_port", port)
+		cfg.SetInTest("process_config.process_discovery.enabled", true)
+		cfg.SetInTest("process_config.cmd_port", port)
 		setupProcessAPIServer(t)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)

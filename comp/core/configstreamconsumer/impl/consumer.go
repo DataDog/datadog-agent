@@ -3,43 +3,53 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package configstreamconsumerimpl implements the configstreamconsumer component
+// Package configstreamconsumerimpl implements the configstreamconsumer component.
+//
+// When enabled, NewComponent dials core, registers with the RAR, fetches the initial
+// snapshot, and seeds the global config builder before any other component reads config.
+// Global-builder writes are delegated to pkg/configstreambootstrap because the
+// pkgconfigusage depguard blocks pkg/config/setup imports from comp/.
 package configstreamconsumerimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"net"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff/v6"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// queryTimeout caps RegisterRemoteAgent and stream open; stream Recv uses ctx.
+const queryTimeout = 30 * time.Second
 
 // Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
 	compdef.In
 
-	Lifecycle    compdef.Lifecycle
-	Log          log.Component
-	IPC          ipc.Component
-	Telemetry    telemetry.Component
-	ConfigWriter model.Writer
-	Params       configstreamconsumer.Params
+	Lifecycle compdef.Lifecycle
+	Telemetry telemetry.Component
+	Params    configstreamconsumer.Params
 }
 
 // Provides defines the output of the configstreamconsumer component
@@ -51,22 +61,24 @@ type Provides struct {
 
 // consumer implements the configstreamconsumer.Component interface
 type consumer struct {
-	log          log.Component
-	ipc          ipc.Component
-	telemetry    telemetry.Component
-	params       configstreamconsumer.Params
-	configWriter model.Writer // writes streamed config into the local config.Component
+	log       log.Component
+	telemetry telemetry.Component
+	params    configstreamconsumer.Params
+
+	addr      string
+	vsockAddr string
+	authToken string
+	clientTLS *tls.Config
+	sessionID string
 
 	conn       *grpc.ClientConn
 	client     pb.AgentSecureClient
 	stream     pb.AgentSecure_StreamConfigEventsClient
 	streamLock sync.Mutex
 
-	effectiveConfig map[string]interface{}
-	configLock      sync.RWMutex
-	lastSeqID       int32
+	lastSeqID atomic.Int32
 
-	ready     bool
+	ready     atomic.Bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
@@ -81,58 +93,72 @@ type consumer struct {
 	droppedStaleUpdates  telemetry.Counter
 }
 
-// NewComponent creates a new configstreamconsumer component
+func (c *consumer) IsActive() bool { return c.ready.Load() }
+
+// noopConsumer is returned when configstream is disabled.
+type noopConsumer struct{}
+
+func (noopConsumer) IsActive() bool { return false }
+
+// NewComponent returns a no-op when configstream is disabled; otherwise it blocks until
+// the first snapshot lands (or ReadyTimeout) before returning.
 func NewComponent(reqs Requires) (Provides, error) {
-	p := reqs.Params
-	if p.ClientName == "" {
-		return Provides{}, errors.New("ClientName is required")
+	if reqs.Params.ClientName == "" {
+		return Provides{}, errors.New("configstreamconsumer: ClientName is required")
 	}
-	if p.CoreAgentAddress == "" {
-		return Provides{}, errors.New("CoreAgentAddress is required")
+
+	if !isEnabled(reqs.Params.CLIConfigPath) {
+		return Provides{Comp: noopConsumer{}}, nil
 	}
-	if p.SessionID == "" && p.SessionIDProvider == nil {
-		return Provides{}, fmt.Errorf("configstreamconsumer: neither SessionID nor SessionIDProvider set for client %s", p.ClientName)
+
+	bs := readSettings(reqs.Params.CLIConfigPath)
+	if !bs.RARRegistryEnabled {
+		return Provides{}, fmt.Errorf("configstream consumer requires remote_agent.registry.enabled=true; refusing to start %s without RAR", reqs.Params.ClientName)
 	}
-	if p.SessionID != "" && p.SessionIDProvider != nil {
-		return Provides{}, errors.New("exactly one of SessionID or SessionIDProvider must be set")
+
+	configstreambootstrap.SeedGlobalBuilder(bs, resolvedConfigFile(reqs.Params.CLIConfigPath))
+
+	authToken, err := pkgtoken.LoadAuthTokenFromPath(configstreambootstrap.AuthTokenFilepath())
+	if err != nil {
+		return Provides{}, fmt.Errorf("load auth token: %w", err)
 	}
+	clientTLS, err := cert.LoadClientTLSConfigFromPath(configstreambootstrap.IPCCertFilepath())
+	if err != nil {
+		return Provides{}, fmt.Errorf("load IPC cert: %w", err)
+	}
+
+	// Must drop before snapshot apply, otherwise streamed SourceEnvVar values get wiped too.
+	configstreambootstrap.DisableLocalEnvLayer(reqs.Params.ClientName)
 
 	c := &consumer{
-		log:             reqs.Log,
-		ipc:             reqs.IPC,
-		telemetry:       reqs.Telemetry,
-		params:          p,
-		configWriter:    reqs.ConfigWriter,
-		effectiveConfig: make(map[string]interface{}),
-		readyCh:         make(chan struct{}),
+		// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
+		// in system-probe's binary (log.Component depends on config).
+		log:       pkglog.NewWrapper(2),
+		telemetry: reqs.Telemetry,
+		params:    reqs.Params,
+		addr:      net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort)),
+		vsockAddr: bs.VSockAddr,
+		authToken: authToken,
+		clientTLS: clientTLS,
+		readyCh:   make(chan struct{}),
 	}
-
 	c.initMetrics()
 
-	// Block FX construction on the first snapshot so any component constructed
-	// after this one (including providers that read config eagerly, e.g.
-	// comp/trace/config.NewComponent or pkg/security/agent.StartRuntimeSecurity)
-	// sees the streamed values. The remoteagent RAR loop runs concurrently
-	// because it is also started during construction; see helper.Start.
 	if err := c.start(context.Background()); err != nil {
 		return Provides{}, err
 	}
 
-	reqs.Lifecycle.Append(compdef.Hook{
-		OnStop: c.stop,
-	})
-
+	reqs.Lifecycle.Append(compdef.Hook{OnStop: c.stop})
 	return Provides{Comp: c}, nil
 }
 
-// start initiates the config stream connection and blocks until the first config snapshot is
-// received. Returns an error if the snapshot is not received within ReadyTimeout (default 60s),
-// which aborts FX startup.
 func (c *consumer) start(_ context.Context) error {
-	// Use context.Background() so the stream lifetime is not bounded by the
-	// Fx startup context, which expires after app.StartTimeout (~5 minutes).
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.startTime = time.Now()
+
+	if err := c.registerWithBackoff(); err != nil {
+		return err
+	}
 
 	c.wg.Add(1)
 	go c.streamLoop()
@@ -143,17 +169,55 @@ func (c *consumer) start(_ context.Context) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	c.log.Infof("Waiting for initial configuration from core agent (timeout: %v)...", timeout)
+	c.log.Infof("configstreamconsumer[%s]: waiting for initial configuration (timeout: %v)...", c.params.ClientName, timeout)
 	if err := c.waitReady(ctx); err != nil {
 		c.cancel()
 		c.wg.Wait()
 		return fmt.Errorf("waiting for initial config snapshot: %w", err)
 	}
-	c.log.Infof("Initial configuration received from core agent.")
+	c.log.Infof("configstreamconsumer[%s]: initial configuration received.", c.params.ClientName)
 	return nil
 }
 
-// stop gracefully shuts down the consumer
+// registerWithBackoff retries forever until ctx is canceled, with no fallback.
+func (c *consumer) registerWithBackoff() error {
+	// Sentinel URI: the consumer registers no services, so core never dials back.
+	apiEndpointURI := "https://configstream-consumer/" + c.params.ClientName
+
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 500 * time.Millisecond
+	bo.MaxInterval = time.Minute
+	bo.Reset()
+	for attempt := 1; ; attempt++ {
+		client, conn, dialErr := helper.NewAgentSecureClient(c.addr, c.authToken, c.clientTLS, c.vsockAddr, c.log)
+		if dialErr == nil {
+			sessionID, _, regErr := helper.RegisterRemoteAgent(c.ctx, client, helper.RegistrationRequest{
+				Flavor:         flavor.GetFlavor(),
+				DisplayName:    c.params.ClientName,
+				APIEndpointURI: apiEndpointURI,
+			}, queryTimeout, 0, c.log)
+			if regErr == nil {
+				c.sessionID = sessionID
+				_ = conn.Close()
+				return nil
+			}
+			_ = conn.Close()
+			dialErr = regErr
+		}
+		if c.ctx.Err() != nil {
+			return c.ctx.Err()
+		}
+		// NextBackOff never returns backoff.Stop when MaxElapsedTime is 0 (the default).
+		next := bo.NextBackOff()
+		c.log.Warnf("configstreamconsumer[%s]: register attempt %d failed (%v); retrying in %s", c.params.ClientName, attempt, dialErr, next)
+		select {
+		case <-c.ctx.Done():
+			return c.ctx.Err()
+		case <-time.After(next):
+		}
+	}
+}
+
 func (c *consumer) stop(_ context.Context) error {
 	c.cancel()
 	c.streamLock.Lock()
@@ -168,7 +232,6 @@ func (c *consumer) stop(_ context.Context) error {
 	return nil
 }
 
-// waitReady blocks until the first config snapshot has been received and applied
 func (c *consumer) waitReady(ctx context.Context) error {
 	select {
 	case <-c.readyCh:
@@ -178,7 +241,6 @@ func (c *consumer) waitReady(ctx context.Context) error {
 	}
 }
 
-// streamLoop manages the lifecycle of the config stream connection
 func (c *consumer) streamLoop() {
 	defer c.wg.Done()
 
@@ -189,7 +251,6 @@ func (c *consumer) streamLoop() {
 		default:
 		}
 
-		// Establish connection and stream
 		if err := c.connectAndStream(); err != nil {
 			if err == context.Canceled || c.ctx.Err() != nil {
 				return
@@ -207,39 +268,22 @@ func (c *consumer) streamLoop() {
 	}
 }
 
-// connectAndStream establishes a gRPC connection and processes the config stream
 func (c *consumer) connectAndStream() error {
-	conn, err := grpc.NewClient(c.params.CoreAgentAddress,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.ipc.GetTLSClientConfig())),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(c.ipc.GetAuthToken())),
-	)
+	client, conn, err := helper.NewAgentSecureClient(c.addr, c.authToken, c.clientTLS, c.vsockAddr, c.log)
 	if err != nil {
 		return fmt.Errorf("failed to connect to core agent: %w", err)
 	}
-	// Ensure conn is closed when this invocation exits (EOF, error, or context cancel).
 	defer conn.Close()
 
 	c.streamLock.Lock()
 	c.conn = conn
-	c.client = pb.NewAgentSecureClient(conn)
+	c.client = client
 	c.streamLock.Unlock()
 
-	sessionID := c.params.SessionID
-	if c.params.SessionIDProvider != nil {
-		var err error
-		sessionID, err = c.params.SessionIDProvider.WaitSessionID(c.ctx)
-		if err != nil {
-			return fmt.Errorf("waiting for session ID: %w", err)
-		}
-	}
-	// Add session_id to gRPC metadata
-	md := metadata.New(map[string]string{"session_id": sessionID})
+	md := metadata.New(map[string]string{"session_id": c.sessionID})
 	ctxWithMetadata := metadata.NewOutgoingContext(c.ctx, md)
 
-	// Start streaming
-	stream, err := c.client.StreamConfigEvents(ctxWithMetadata, &pb.ConfigStreamRequest{
-		Name: c.params.ClientName,
-	})
+	stream, err := c.client.StreamConfigEvents(ctxWithMetadata, &pb.ConfigStreamRequest{Name: c.params.ClientName})
 	if err != nil {
 		return fmt.Errorf("failed to start config stream: %w", err)
 	}
@@ -248,9 +292,8 @@ func (c *consumer) connectAndStream() error {
 	c.stream = stream
 	c.streamLock.Unlock()
 
-	c.log.Infof("Config stream established for client %s", c.params.ClientName)
+	c.log.Infof("configstreamconsumer[%s]: stream established", c.params.ClientName)
 
-	// Process stream events
 	for {
 		event, err := stream.Recv()
 		if err != nil {
@@ -262,12 +305,11 @@ func (c *consumer) connectAndStream() error {
 		}
 
 		if err := c.handleConfigEvent(event); err != nil {
-			c.log.Errorf("Failed to handle config event: %v", err)
+			return fmt.Errorf("config event error: %w", err)
 		}
 	}
 }
 
-// handleConfigEvent processes a single config event from the stream
 func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 	switch e := event.Event.(type) {
 	case *pb.ConfigEvent_Snapshot:
@@ -279,86 +321,53 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 	}
 }
 
-// applySnapshot applies a complete config snapshot
 func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
-	// Reject out-of-order or server-restart snapshots. lastSeqID is never reset between
-	// reconnects: if the server restarts and its sequence counter resets to a lower value,
-	// we refuse the new snapshot and log an error. Sub-processes are expected to restart
-	// when the core agent restarts.
-	if snapshot.SequenceId <= c.lastSeqID {
+	if snapshot.SequenceId <= c.lastSeqID.Load() {
 		c.log.Errorf("Received snapshot with seq_id %d <= current %d; the core agent may have restarted. "+
-			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID)
+			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
 
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
-	// Convert protobuf settings to Go map
-	newConfig := make(map[string]interface{}, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		newConfig[setting.Key] = pbValueToGo(setting.Value)
+		configstreambootstrap.ApplySetting(setting.Key, setting.Value, setting.Source)
 	}
-
-	// Update effective config atomically
-	c.configLock.Lock()
-	c.effectiveConfig = newConfig
-	c.lastSeqID = snapshot.SequenceId
-	c.configLock.Unlock()
-
+	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
-	if c.configWriter != nil {
-		for _, setting := range snapshot.Settings {
-			c.configWriter.Set(setting.Key, newConfig[setting.Key], model.Source(setting.Source))
-		}
-	}
-
-	// Signal readiness once the snapshot is fully applied and config mirrored.
 	c.readyOnce.Do(func() {
 		close(c.readyCh)
-		c.ready = true
+		c.ready.Store(true)
 		duration := time.Since(c.startTime)
 		c.timeToFirstSnapshot.Set(duration.Seconds())
-		c.log.Infof("Received first config snapshot after %v", duration)
+		c.log.Infof("configstreamconsumer[%s]: first snapshot applied after %v", c.params.ClientName, duration)
 	})
 
 	return nil
 }
 
-// applyUpdate applies a single config update
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
-	// Check for stale update
-	if update.SequenceId <= c.lastSeqID {
-		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID)
+	if update.SequenceId <= c.lastSeqID.Load() {
+		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
 
-	// Detect discontinuity: trigger reconnect so the server sends a fresh snapshot.
-	if update.SequenceId != c.lastSeqID+1 {
-		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID+1, update.SequenceId)
+	if update.SequenceId != c.lastSeqID.Load()+1 {
+		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID.Load()+1, update.SequenceId)
 	}
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
-	newValue := pbValueToGo(update.Setting.Value)
-
-	c.configLock.Lock()
-	c.effectiveConfig[update.Setting.Key] = newValue
-	c.lastSeqID = update.SequenceId
-	c.configLock.Unlock()
-
+	configstreambootstrap.ApplySetting(update.Setting.Key, update.Setting.Value, update.Setting.Source)
+	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
-
-	if c.configWriter != nil {
-		c.configWriter.Set(update.Setting.Key, newValue, model.Source(update.Setting.Source))
-	}
 
 	return nil
 }
 
-// initMetrics initializes telemetry metrics
 func (c *consumer) initMetrics() {
 	c.timeToFirstSnapshot = c.telemetry.NewGauge(
 		"configstream_consumer",
@@ -384,26 +393,4 @@ func (c *consumer) initMetrics() {
 		[]string{},
 		"Number of stale config updates dropped",
 	)
-}
-
-// pbValueToGo converts a protobuf Value to a Go value
-func pbValueToGo(pbValue *structpb.Value) interface{} {
-	if pbValue == nil {
-		return nil
-	}
-
-	// AsInterface() converts all numbers to float64 (JSON semantics).
-	// Try to preserve integer types when the float has no fractional part.
-	result := pbValue.AsInterface()
-
-	if f, ok := result.(float64); ok {
-		// Only convert integers within float64's exact range (2^53); beyond that,
-		// float64 can't represent consecutive integers, so int64 conversion loses precision.
-		const maxExact float64 = 1 << 53
-		if f >= -maxExact && f <= maxExact && f == math.Trunc(f) {
-			return int64(f)
-		}
-	}
-
-	return result
 }

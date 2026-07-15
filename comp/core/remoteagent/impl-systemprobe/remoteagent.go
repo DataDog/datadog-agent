@@ -58,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	// Set the agent identity for log metrics partitioning so that
-	// logs.bytes_sent is tagged with remote_agent="system-probe".
+	// logs.bytes_sent is tagged with emitter="system-probe".
 	metrics.SetAgentIdentity("system-probe")
 
 	remoteagentImpl := &remoteagentImpl{
@@ -179,7 +179,7 @@ func collectComplianceFiles(logger log.Component, complianceDir string, files ma
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
-		// The remote_agent tag is set to "system-probe" via metrics.SetAgentIdentity() above.
+		// The emitter tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
 		"logs__encoded_bytes_sent",
 
@@ -201,6 +201,17 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"injector__pe_memory_allocation_failures",
 		"injector__pe_injection_context_allocated",
 		"injector__pe_injection_context_cleanedup",
+		"injector__crashes_during_injection",
+		"injector__crashes_post_injection",
+		"injector__boot_recovery_crash_boots_detected",
+		"injector__boot_recovery_driver_self_disabled",
+		"injector__boot_recovery_stability_timer_fired",
+
+		// eBPF metrics
+		"ebpf__core_load_success",
+		"ebpf__core_load_error",
+		"ebpf__core_remoteconfig_success",
+		"ebpf__core_remoteconfig_error",
 	))
 	if err != nil {
 		return nil, err

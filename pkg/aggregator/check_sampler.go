@@ -97,13 +97,14 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		return nil
 	}
 	ss := &metrics.SketchSeries{
-		Name: ctx.Name,
-		Tags: ctx.Tags(),
-		Host: ctx.Host,
-		// Interval: TODO: investigate
-		Points:     points,
-		ContextKey: ck,
-		Source:     ctx.source,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:   ctx.Name,
+			Tags:   ctx.Tags(),
+			Host:   ctx.Host,
+			Source: ctx.source,
+			// Interval: TODO: investigate
+		},
+		Points: points,
 	}
 
 	return ss

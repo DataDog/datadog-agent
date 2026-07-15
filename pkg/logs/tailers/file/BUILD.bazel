@@ -1,0 +1,70 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "file",
+    srcs = [
+        "file.go",
+        "fingerprint.go",
+        "fingerprint_mock.go",
+        "rotate.go",
+        "rotate_nix.go",
+        "rotate_windows.go",
+        "tailer.go",
+        "tailer_nix.go",
+        "tailer_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/file",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/logs-library/metrics",
+        "//comp/logs/auditor/def",
+        "//pkg/config/setup",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/internal/util",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/types",
+        "//pkg/logs/util/opener",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_spf13_afero//:afero",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "file_test",
+    srcs = [
+        "fingerprint_test.go",
+        "tailer_integration_test.go",
+        "tailer_test.go",
+        "tailer_windows_test.go",
+    ],
+    embed = [":file"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/types",
+        "//pkg/logs/util/opener",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_goleak//:goleak",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

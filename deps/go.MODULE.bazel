@@ -1,9 +1,19 @@
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.from_file(go_work = "//:go.work")
-use_repo(go_sdk, "go_host_compatible_sdk_label")
+go_sdk.from_file(
+    name = "go_work_sdk",
+    go_work = "//:go.work",
+)
+use_repo(go_sdk, "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+
+# Expose repos for legacy rules, inspired by https://github.com/bazel-contrib/bazel-gazelle/pull/2361
+inject_repo(
+    go_deps,
+    protobuf = "protobuf",
+    rules_proto = "rules_proto",
+)
 
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
@@ -31,6 +41,39 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source @@//pkg/opentelemetry-mapping-go/otlp/attributes/source:source",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/marshaler @@//pkg/serializer/marshaler:marshaler",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/types @@//pkg/serializer/types:types",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/hostname/validate @@//pkg/util/hostname/validate:validate",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/config @@//comp/core/config:config",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/log/def @@//comp/core/log/def:def",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/tagger/types @@//comp/core/tagger/types:types",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder @@//comp/forwarder/defaultforwarder:defaultforwarder",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/logs/agent/config @@//comp/logs/agent/config:config",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient @@//comp/otelcol/otlp/components/metricsclient:metricsclient",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil @@//comp/otelcol/otlp/testutil:testutil",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/create @@//pkg/config/create:create",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/model @@//pkg/config/model:model",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/setup @@//pkg/config/setup:setup",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/utils @@//pkg/config/utils:utils",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics @@//pkg/metrics:metrics",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate:obfuscate",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata @@//pkg/opentelemetry-mapping-go/inframetadata:inframetadata",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai @@//pkg/opentelemetry-mapping-go/inframetadata/gohai:gohai",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload @@//pkg/opentelemetry-mapping-go/inframetadata/payload:payload",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes @@//pkg/opentelemetry-mapping-go/otlp/attributes:attributes",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure @@//pkg/opentelemetry-mapping-go/otlp/attributes/azure:azure",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/ec2 @@//pkg/opentelemetry-mapping-go/otlp/attributes/ec2:ec2",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/gcp @@//pkg/opentelemetry-mapping-go/otlp/attributes/gcp:gcp",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics @@//pkg/opentelemetry-mapping-go/otlp/metrics:metrics",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer @@//pkg/serializer:serializer",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/tagset @@//pkg/tagset:tagset",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/config @@//pkg/trace/config:config",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/log @@//pkg/trace/log:log",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/otel/stats @@//pkg/trace/otel/stats:stats",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/stats @@//pkg/trace/stats:stats",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/network/driver @@//pkg/network/driver:driver",
     ],
 )
 go_deps.gazelle_override(
@@ -50,8 +93,26 @@ go_deps.gazelle_override(
     path = "google.golang.org/grpc",
 )
 go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=retrynotrace"],
+    path = "github.com/grpc-ecosystem/go-grpc-middleware/v2",
+)
+go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
+)
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=trivy_no_javadb"],
+    path = "github.com/aquasecurity/trivy",
+)
+go_deps.gazelle_override(
+    # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
+    # musl libc). Exclude the CGo test-helper files so Gazelle does not
+    # include them in the generated go_library BUILD rules.
+    build_extra_args = [
+        "-exclude=timeutils/strptime_cgo_testlib.go",
+        "-exclude=timeutils/strptime_cgo_test.go",
+    ],
+    path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
 )
 use_repo(
     go_deps,
@@ -61,7 +122,6 @@ use_repo(
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_participle",
     "com_github_alecthomas_units",
-    "com_github_alessio_shellescape",
     "com_github_aptly_dev_aptly",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
@@ -90,16 +150,16 @@ use_repo(
     "com_github_bhmj_jsonslice",
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
-    "com_github_cenkalti_backoff_v5",
+    "com_github_cenkalti_backoff_v6",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
-    "com_github_clbanning_mxj",
+    "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_community_go_cfclient_v2",
     "com_github_containerd_cgroups_v3",
-    "com_github_containerd_containerd",
     "com_github_containerd_containerd_api",
+    "com_github_containerd_containerd_v2",
     "com_github_containerd_errdefs",
     "com_github_containerd_typeurl_v2",
     "com_github_containernetworking_cni",
@@ -111,12 +171,6 @@ use_repo(
     "com_github_cyphar_filepath_securejoin",
     "com_github_data_dog_go_sqlmock",
     "com_github_datadog_agent_payload_v5",
-    "com_github_datadog_datadog_agent_comp_otelcol_collector_contrib_impl",
-    "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline",
-    "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
-    "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter",
-    "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter",
-    "com_github_datadog_datadog_api_client_go",
     "com_github_datadog_datadog_api_client_go_v2",
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
@@ -132,7 +186,6 @@ use_repo(
     "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
-    "com_github_datadog_viper",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
     "com_github_davecgh_go_spew",
@@ -156,7 +209,6 @@ use_repo(
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
-    "com_github_go_ini_ini",
     "com_github_go_jose_go_jose_v4",
     "com_github_go_json_experiment_json",
     "com_github_go_ole_go_ole",
@@ -173,7 +225,6 @@ use_repo(
     "com_github_golang_groupcache",
     "com_github_golang_jwt_jwt_v5",
     "com_github_golang_mock",
-    "com_github_golang_protobuf",
     "com_github_golangci_golangci_lint_v2",
     "com_github_google_btree",
     "com_github_google_cel_go",
@@ -183,14 +234,13 @@ use_repo(
     "com_github_google_gopacket",
     "com_github_google_shlex",
     "com_github_google_uuid",
-    "com_github_gorilla_mux",
     "com_github_gorilla_websocket",
     "com_github_gosnmp_gosnmp",
     "com_github_goware_modvendor",
-    "com_github_grpc_ecosystem_go_grpc_middleware",
+    "com_github_grpc_ecosystem_go_grpc_middleware_v2",
     "com_github_h2non_filetype",
     "com_github_hairyhenderson_go_codeowners",
-    "com_github_hashicorp_consul_api",
+    "com_github_hashicorp_consul_api_v2",
     "com_github_hashicorp_go_multierror",
     "com_github_hashicorp_go_retryablehttp",
     "com_github_hashicorp_go_version",
@@ -202,7 +252,6 @@ use_repo(
     "com_github_hashicorp_vault_api_auth_ldap",
     "com_github_hashicorp_vault_api_auth_userpass",
     "com_github_iceber_iouring_go",
-    "com_github_imdario_mergo",
     "com_github_invopop_jsonschema",
     "com_github_itchyny_gojq",
     "com_github_jackc_pgx_v5",
@@ -237,33 +286,52 @@ use_repo(
     "com_github_moby_moby_api",
     "com_github_moby_moby_client",
     "com_github_moby_sys_mountinfo",
-    "com_github_modelcontextprotocol_go_sdk",
     "com_github_mohae_deepcopy",
     "com_github_netsampler_goflow2",
     "com_github_nvidia_go_nvml",
     "com_github_oliveagle_jsonpath",
     "com_github_open_policy_agent_opa",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_connector_routingconnector",
     "com_github_open_telemetry_opentelemetry_collector_contrib_connector_spanmetricsconnector",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_exporter_loadbalancingexporter",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_dockerobserver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_ecsobserver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_hostobserver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_k8sobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_storage_filestorage",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_groupbyattrsprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_probabilisticsamplerprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourcedetectionprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_tailsamplingprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_transformprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_dockerstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_receivercreator",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_zipkinreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
     "com_github_openshift_api",
     "com_github_outcaste_io_ristretto",
-    "com_github_pahanini_go_grpc_bidirectional_streaming_example",
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
     "com_github_pkg_sftp",
@@ -288,7 +356,7 @@ use_repo(
     "com_github_pulumi_pulumi_command_sdk",
     "com_github_pulumi_pulumi_docker_sdk_v4",
     "com_github_pulumi_pulumi_eks_sdk_v4",
-    "com_github_pulumi_pulumi_gcp_sdk_v7",
+    "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
     "com_github_pulumi_pulumi_libvirt_sdk",
     "com_github_pulumi_pulumi_random_sdk_v4",
@@ -318,7 +386,6 @@ use_repo(
     "com_github_spf13_cast",
     "com_github_spf13_cobra",
     "com_github_spf13_pflag",
-    "com_github_stormcat24_protodep",
     "com_github_stretchr_testify",
     "com_github_swaggest_jsonschema_go",
     "com_github_syndtr_gocapability",
@@ -336,7 +403,6 @@ use_repo(
     "com_github_vibrantbyte_go_antpath",
     "com_github_vishvananda_netlink",
     "com_github_vishvananda_netns",
-    "com_github_vmihailenco_msgpack_v4",
     "com_github_vmihailenco_msgpack_v5",
     "com_github_wadey_gocovmerge",
     "com_github_weppos_publicsuffix_go",
@@ -348,7 +414,7 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
-    "in_gopkg_evanphx_json_patch_v4",
+    "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
@@ -383,7 +449,11 @@ use_repo(
     "io_opentelemetry_go_collector_component_componenttest",
     "io_opentelemetry_go_collector_config_confighttp",
     "io_opentelemetry_go_collector_config_confignet",
+    "io_opentelemetry_go_collector_config_configopaque",
+    "io_opentelemetry_go_collector_config_configoptional",
+    "io_opentelemetry_go_collector_config_configretry",
     "io_opentelemetry_go_collector_config_configtelemetry",
+    "io_opentelemetry_go_collector_config_configtls",
     "io_opentelemetry_go_collector_confmap",
     "io_opentelemetry_go_collector_confmap_provider_envprovider",
     "io_opentelemetry_go_collector_confmap_provider_fileprovider",
@@ -392,11 +462,16 @@ use_repo(
     "io_opentelemetry_go_collector_confmap_provider_yamlprovider",
     "io_opentelemetry_go_collector_confmap_xconfmap",
     "io_opentelemetry_go_collector_connector",
+    "io_opentelemetry_go_collector_connector_connectortest",
     "io_opentelemetry_go_collector_consumer",
+    "io_opentelemetry_go_collector_consumer_consumererror",
     "io_opentelemetry_go_collector_consumer_consumertest",
     "io_opentelemetry_go_collector_consumer_xconsumer",
     "io_opentelemetry_go_collector_exporter",
     "io_opentelemetry_go_collector_exporter_debugexporter",
+    "io_opentelemetry_go_collector_exporter_exporterhelper",
+    "io_opentelemetry_go_collector_exporter_exportertest",
+    "io_opentelemetry_go_collector_exporter_nopexporter",
     "io_opentelemetry_go_collector_exporter_otlpexporter",
     "io_opentelemetry_go_collector_exporter_otlphttpexporter",
     "io_opentelemetry_go_collector_extension",
@@ -409,6 +484,7 @@ use_repo(
     "io_opentelemetry_go_collector_pdata_pprofile",
     "io_opentelemetry_go_collector_processor",
     "io_opentelemetry_go_collector_processor_batchprocessor",
+    "io_opentelemetry_go_collector_processor_memorylimiterprocessor",
     "io_opentelemetry_go_collector_processor_processorhelper",
     "io_opentelemetry_go_collector_processor_processorhelper_xprocessorhelper",
     "io_opentelemetry_go_collector_processor_processortest",
@@ -433,8 +509,9 @@ use_repo(
     "io_temporal_go_sdk",
     "net_pgregory_rapid",
     "org_cloudfoundry_code_bbs",
+    "org_cloudfoundry_code_bbs_models",
     "org_cloudfoundry_code_garden",
-    "org_cloudfoundry_code_lager",
+    "org_cloudfoundry_code_lager_v3",
     "org_go4_intern",
     "org_go4_mem",
     "org_go4_netipx",
@@ -446,7 +523,6 @@ use_repo(
     "org_golang_x_arch",
     "org_golang_x_crypto",
     "org_golang_x_exp",
-    "org_golang_x_mobile",
     "org_golang_x_mod",
     "org_golang_x_net",
     "org_golang_x_oauth2",
@@ -457,14 +533,13 @@ use_repo(
     "org_golang_x_text",
     "org_golang_x_time",
     "org_golang_x_tools",
-    "org_golang_x_xerrors",
-    "org_mongodb_go_mongo_driver",
     "org_mongodb_go_mongo_driver_v2",
     "org_uber_go_atomic",
     "org_uber_go_automaxprocs",
     "org_uber_go_dig",
     "org_uber_go_fx",
     "org_uber_go_goleak",
+    "org_uber_go_mock",
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
@@ -477,6 +552,42 @@ go_deps.module_override(
     patches = ["//bazel/rules/protoc_go_inject_tag:add-outputdir-flag.patch"],
     path = "github.com/favadi/protoc-go-inject-tag",
 )
+
+# Swap msgp's `imports.Process` for `format.Source` (equivalent on msgp's output), removing the need for executing `go`
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
+    path = "github.com/tinylib/msgp",
+)
+
+# zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to
+# the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
+# makes zstd.a non-reproducible build-to-build, so every test linking it always misses
+# the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
+# path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
+# (a separate module pulled in by the OTel collector components) need the same treatment.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+    path = "github.com/DataDog/zstd",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
+    path = "github.com/DataDog/zstd_0",
+)
+
+# sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
+# time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
+# Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
+# The patch runs after Gazelle generates the BUILD file (see go_repository patches).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
+    path = "github.com/coreos/go-systemd/v22",
+)
+
+inject_repo(go_deps, "systemd")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

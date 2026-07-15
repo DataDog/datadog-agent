@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -28,8 +28,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
+	logagentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
 	inventoryagentmock "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -183,7 +184,7 @@ func TestGetPayload(t *testing.T) {
 		logSources.AddSource(src)
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
+		mockLogAgent := fxutil.Test[option.Option[logagentmock.Mock]](
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),

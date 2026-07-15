@@ -3,7 +3,7 @@ service:
     profiles:
       receivers: [profiling]
       processors: [batch, infraattributes]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
 receivers:
   profiling:
     symbol_uploader:
@@ -14,6 +14,6 @@ processors:
   infraattributes:
     allow_hostname_override: true
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-key

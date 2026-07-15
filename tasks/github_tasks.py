@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections import Counter
@@ -18,13 +19,17 @@ from tasks.libs.ciproviders.github_actions_tools import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_event
-from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
+from tasks.libs.owners.linter import (
+    ai_artefacts_have_owner,
+    codeowner_has_orphans,
+    directory_has_packages_without_owner,
+)
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
-ALL_TEAMS = '@datadog/agent-all'
+ALL_TEAMS = '@datadog/agent-community-eng'
 
 
 def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
@@ -110,7 +115,7 @@ def update_windows_runner_version(
 
 
 @task
-def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
+def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
     """
     Run multiple checks on the provided CODEOWNERS file
     """
@@ -125,7 +130,11 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
 
     # Define linters
-    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
+    linters = [
+        directory_has_packages_without_owner,
+        codeowner_has_orphans,
+        functools.partial(ai_artefacts_have_owner, ctx),
+    ]
 
     # Execute linters
     for linter in linters:

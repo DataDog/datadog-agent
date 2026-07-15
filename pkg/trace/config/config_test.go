@@ -37,39 +37,6 @@ func TestInAzureAppServices(t *testing.T) {
 	assert.False(t, isNotAzure)
 }
 
-func TestPeerTagsAggregation(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
-		cfg := New()
-		cfg.PeerTagsAggregation = false
-		assert.False(t, cfg.PeerTagsAggregation)
-		assert.Empty(t, cfg.PeerTags)
-		assert.Empty(t, cfg.ConfiguredPeerTags())
-	})
-
-	t.Run("default-enabled", func(t *testing.T) {
-		cfg := New()
-		assert.Empty(t, cfg.PeerTags)
-		assert.Equal(t, basePeerTags(), cfg.ConfiguredPeerTags())
-	})
-	t.Run("disabled-user-tags", func(t *testing.T) {
-		cfg := New()
-		cfg.PeerTagsAggregation = false
-		cfg.PeerTags = []string{"user_peer_tag"}
-		assert.False(t, cfg.PeerTagsAggregation)
-		assert.Empty(t, cfg.ConfiguredPeerTags())
-	})
-	t.Run("enabled-user-tags", func(t *testing.T) {
-		cfg := New()
-		cfg.PeerTags = []string{"user_peer_tag"}
-		assert.Equal(t, append(basePeerTags(), "user_peer_tag"), cfg.ConfiguredPeerTags())
-	})
-	t.Run("dedup", func(t *testing.T) {
-		cfg := New()
-		cfg.PeerTags = basePeerTags()[:2]
-		assert.Equal(t, basePeerTags(), cfg.ConfiguredPeerTags())
-	})
-}
-
 func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		cfg := New()
@@ -199,7 +166,7 @@ func TestEnableOPMFetchDefault(t *testing.T) {
 
 func TestConfiguredPeerTagsUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptPeerService maps to "x.custom.peer" instead of "peer.service".
-	customJSON := `{"version":"test","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

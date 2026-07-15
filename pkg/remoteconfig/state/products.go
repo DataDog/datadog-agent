@@ -16,6 +16,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentTask:                    {},
 	ProductAgentIntegrations:            {},
 	ProductAPMSampling:                  {},
+	ProductAPMSemanticCoreDD:            {},
 	ProductCWSDD:                        {},
 	ProductCWSCustom:                    {},
 	ProductCWSRemediation:               {},
@@ -36,7 +37,6 @@ var validProducts = map[string]struct{}{
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
-	ProductDataStreamsLiveMessages:      {},
 	ProductDataStreamsKafkaActions:      {},
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
@@ -47,6 +47,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
+	ProductNetworkPath:                  {},
 }
 
 const (
@@ -70,6 +71,11 @@ const (
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
+	// ProductAPMSemanticCoreDD is the employee-signed product that pushes
+	// semantic-core mapping updates (span tag equivalences, peer tag mappings)
+	// to the trace-agent. A future API-signed per-org variant will be
+	// ProductAPMSemanticCore (without the _DD suffix).
+	ProductAPMSemanticCoreDD = "APM_SEMANTIC_CORE_DD"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
@@ -115,8 +121,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
-	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
-	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is used for executing Kafka actions remotely
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
 	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
@@ -133,4 +137,6 @@ const (
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 	// ProductK8SActions receives Kubernetes actions to execute on cluster resources
 	ProductK8SActions = "K8S_ACTIONS"
+	// ProductNetworkPath configures Network Path scheduled tests
+	ProductNetworkPath = "NETWORK_PATH"
 )
