@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package smartadaptivesampling defines the smart adaptive sampling component.
-package smartadaptivesampling
+// Package severityprovider defines the severity provider component.
+package severityprovider
 
 import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 

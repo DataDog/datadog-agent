@@ -5,17 +5,17 @@
 
 //go:build !python
 
-// Package smartadaptivesamplingimpl implements the smart adaptive sampling component.
-package smartadaptivesamplingimpl
+// Package severityproviderimpl implements the severity provider component.
+package severityproviderimpl
 
 import (
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
-	smartadaptivesampling "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 )
 
-// Provides defines the smart adaptive sampling component output.
+// Provides defines the severity provider component output.
 type Provides struct {
-	Comp smartadaptivesampling.Component
+	Comp severityprovider.Component
 }
 
 type component struct{}
@@ -30,4 +30,4 @@ func (component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return severityeventsdef.SeverityLow, false
 }
 
-var _ smartadaptivesampling.Component = component{}
+var _ severityprovider.Component = component{}

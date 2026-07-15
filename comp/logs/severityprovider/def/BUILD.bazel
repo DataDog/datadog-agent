@@ -6,7 +6,7 @@ go_library(
         "bridge.go",
         "component.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def",
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def",
     visibility = ["//visibility:public"],
     deps = ["//comp/anomalydetection/severityevents/def"],
 )

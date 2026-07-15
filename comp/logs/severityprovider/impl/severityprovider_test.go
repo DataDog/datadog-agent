@@ -5,7 +5,7 @@
 
 //go:build test && python
 
-package smartadaptivesamplingimpl
+package severityproviderimpl
 
 import (
 	"context"

@@ -5,8 +5,8 @@
 
 //go:build python
 
-// Package smartadaptivesamplingimpl implements the smart adaptive sampling component.
-package smartadaptivesamplingimpl
+// Package severityproviderimpl implements the severity provider component.
+package severityproviderimpl
 
 import (
 	"context"
@@ -18,11 +18,11 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	smartadaptivesampling "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Requires defines the smart adaptive sampling component dependencies.
+// Requires defines the severity provider component dependencies.
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
@@ -30,9 +30,9 @@ type Requires struct {
 	Log       log.Component
 }
 
-// Provides defines the smart adaptive sampling component output.
+// Provides defines the severity provider component output.
 type Provides struct {
-	Comp smartadaptivesampling.Component
+	Comp severityprovider.Component
 }
 
 type readerState struct {
@@ -43,7 +43,7 @@ type component struct {
 	reader atomic.Pointer[readerState]
 }
 
-// NewComponent creates the smart adaptive sampling component.
+// NewComponent creates the severity provider component.
 func NewComponent(reqs Requires) (Provides, error) {
 	comp := &component{}
 	var unsubscribe func()
@@ -90,4 +90,4 @@ func (c *component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return severityeventsdef.SeverityLow, false
 }
 
-var _ smartadaptivesampling.Component = (*component)(nil)
+var _ severityprovider.Component = (*component)(nil)

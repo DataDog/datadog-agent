@@ -5,17 +5,17 @@
 
 //go:build test
 
-// Package mock provides a smart adaptive sampling component mock.
+// Package mock provides a severity provider component mock.
 package mock
 
 import (
 	"testing"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
-	smartadaptivesampling "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/def"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 )
 
-// Component is a configurable smart adaptive sampling mock.
+// Component is a configurable severity provider mock.
 type Component struct {
 	Level     severityeventsdef.SeverityLevel
 	Available bool
@@ -28,13 +28,13 @@ func (c *Component) Current() (severityeventsdef.SeverityLevel, bool) {
 
 // Provides defines the mock component output.
 type Provides struct {
-	Comp smartadaptivesampling.Component
+	Comp severityprovider.Component
 }
 
-// New creates a smart adaptive sampling mock.
+// New creates a severity provider mock.
 func New(t testing.TB) Provides {
 	t.Helper()
 	return Provides{Comp: &Component{}}
 }
 
-var _ smartadaptivesampling.Component = (*Component)(nil)
+var _ severityprovider.Component = (*Component)(nil)

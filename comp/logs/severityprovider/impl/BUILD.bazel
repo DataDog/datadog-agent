@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
-        "smartadaptivesampling.go",
-        "smartadaptivesampling_noop.go",
+        "severityprovider.go",
+        "severityprovider_noop.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling/impl",
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/severityprovider/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/config",
@@ -15,14 +15,14 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
-        "//comp/logs/smartadaptivesampling/def",
+        "//comp/logs/severityprovider/def",
         "//pkg/util/option",
     ],
 )
 
 go_test(
     name = "impl_test",
-    srcs = ["smartadaptivesampling_test.go"],
+    srcs = ["severityprovider_test.go"],
     embed = [":impl"],
     gotags = ["test"],
     deps = [

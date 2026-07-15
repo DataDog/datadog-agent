@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package smartadaptivesampling
+package severityprovider
 
 import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 

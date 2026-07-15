@@ -14,7 +14,7 @@ go_library(
         "//comp/logs/agent/mock",
         "//comp/logs/auditor/fx",
         "//comp/logs/auditor/mock",
-        "//comp/logs/smartadaptivesampling/fx",
+        "//comp/logs/severityprovider/fx",
         "//comp/logs/streamlogs/fx",
         "//pkg/util/fxutil",
     ],
