@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // Submission is the wire-format shared with the Python sidecar. The schema is
@@ -131,6 +132,7 @@ func (r *RecordingSender) DisableDefaultHostname(bool)                          
 func (r *RecordingSender) SetCheckCustomTags([]string)                                  {}
 func (r *RecordingSender) SetCheckService(string)                                       {}
 func (r *RecordingSender) SetNoIndex(bool)                                              {}
+func (r *RecordingSender) SetInfraTagger(*infratags.Tagger)                             {}
 func (r *RecordingSender) FinalizeCheckServiceTag()                                     {}
 func (r *RecordingSender) OrchestratorMetadata([]types.ProcessMessageBody, string, int) {}
 func (r *RecordingSender) OrchestratorManifest([]types.ProcessMessageBody, string)      {}

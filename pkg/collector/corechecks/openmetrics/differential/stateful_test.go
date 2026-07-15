@@ -145,64 +145,42 @@ func TestStatefulUseProcessStartTimeWithMarker(t *testing.T) {
 	}
 }
 
-// TestStatefulShareLabelsAcrossScrapes runs two consecutive scrapes with
-// share_labels configured. The single-scrape harness has already shown
-// share_labels diverges (worktickets/07007). This test asks the question:
-// is the divergence stable across scrapes (cache-of-bugs) or do additional
-// scrapes produce *new* divergent shapes (state corruption)?
-//
-// Both questions matter for the share_labels fix. If the cache amplifies
-// the bug, the fix needs to address invalidation; if not, the fix is
-// localized to first-scrape behaviour.
+// TestStatefulShareLabelsAcrossScrapes verifies Python-compatible cached
+// share_labels behavior. The config is keyed by the source metric; `match`
+// names join-key labels and `labels` names labels copied from the source.
+// With caching enabled, a source family that appears after a target cannot
+// affect that target on scrape 1, but its cached labels apply on scrape 2.
 func TestStatefulShareLabelsAcrossScrapes(t *testing.T) {
 	t.Parallel()
 
-	// Minimal share_labels-shaped payload: one target metric and one
-	// match-source metric. The share_labels config asks for `pod` to be
-	// joined from kube_pod_info into samples of kube_pod_status_phase.
 	payload := []byte(
-		"# TYPE kube_pod_info gauge\n" +
-			`kube_pod_info{namespace="default",pod="web-1"} 1` + "\n" +
-			`kube_pod_info{namespace="default",pod="web-2"} 1` + "\n" +
-			"# TYPE kube_pod_status_phase gauge\n" +
-			`kube_pod_status_phase{namespace="default",phase="Running"} 1` + "\n" +
-			`kube_pod_status_phase{namespace="default",phase="Pending"} 0` + "\n",
+		"# TYPE kube_pod_status_phase gauge\n" +
+			`kube_pod_status_phase{namespace="default",pod="web-1",phase="Running"} 1` + "\n" +
+			"# TYPE kube_pod_info gauge\n" +
+			`kube_pod_info{namespace="default",pod="web-1",node="node-a"} 1` + "\n",
 	)
 
 	sess, cleanup := setupSession(t, statefulInstance(map[string]interface{}{
 		"share_labels": map[string]interface{}{
-			"kube_pod_status_phase": map[string]interface{}{
-				"labels": []interface{}{"pod"},
-				"match":  []interface{}{"kube_pod_info"},
+			"kube_pod_info": map[string]interface{}{
+				"match":  []interface{}{"namespace", "pod"},
+				"labels": []interface{}{"node"},
 			},
 		},
 	}))
 	defer cleanup()
 
 	out1 := sess.Scrape(payload)
-	t.Logf("scrape 1: verdict=%s go=%d py=%d diffs=%d", out1.Verdict(), len(out1.GoSubs), len(out1.PySubs), len(out1.Diffs))
-	logStatefulErrors(t, out1)
+	requireNoErr(t, "scrape 1", out1)
+	requireAgree(t, "scrape 1", out1)
+	assertSubmissionTag(t, "scrape 1 go", out1.GoSubs, "diff.kube_pod_status_phase", "node:node-a", false)
+	assertSubmissionTag(t, "scrape 1 py", out1.PySubs, "diff.kube_pod_status_phase", "node:node-a", false)
 
 	out2 := sess.Scrape(payload)
-	t.Logf("scrape 2: verdict=%s go=%d py=%d diffs=%d", out2.Verdict(), len(out2.GoSubs), len(out2.PySubs), len(out2.Diffs))
-	logStatefulErrors(t, out2)
-
-	// The interesting question: did scrape 2's diff count differ from
-	// scrape 1's? If equal, the bug is stable across scrapes. If scrape 2
-	// is worse, caching amplifies the bug.
-	if len(out1.Diffs) != len(out2.Diffs) {
-		t.Errorf("share_labels divergence shape changed across scrapes: scrape1=%d scrape2=%d diffs",
-			len(out1.Diffs), len(out2.Diffs))
-	}
-
-	// If either scrape has diffs, log a sample for triage. Don't fail the
-	// test on the existence of diffs alone — worktickets/07007 already
-	// captures the share_labels bug. This test's value is the
-	// scrape1-vs-scrape2 comparison above.
-	if len(out1.Diffs) > 0 || len(out2.Diffs) > 0 {
-		t.Logf("share_labels divergence observed (expected; see 07007): scrape1=%d scrape2=%d diffs",
-			len(out1.Diffs), len(out2.Diffs))
-	}
+	requireNoErr(t, "scrape 2", out2)
+	requireAgree(t, "scrape 2", out2)
+	assertSubmissionTag(t, "scrape 2 go", out2.GoSubs, "diff.kube_pod_status_phase", "node:node-a", true)
+	assertSubmissionTag(t, "scrape 2 py", out2.PySubs, "diff.kube_pod_status_phase", "node:node-a", true)
 }
 
 // TestStatefulSampleDisappearsThenReturns covers a common production
@@ -330,6 +308,27 @@ func assertMonotonicCountFlush(t *testing.T, label string, subs []Submission, na
 	if matches[0].FlushFirstValue != wantFlush {
 		t.Errorf("%s: %q flush_first_value=%v, want %v", label, name, matches[0].FlushFirstValue, wantFlush)
 	}
+}
+
+func assertSubmissionTag(t *testing.T, label string, subs []Submission, name, tag string, want bool) {
+	t.Helper()
+	for _, submission := range subs {
+		if submission.Name != name {
+			continue
+		}
+		hasTag := false
+		for _, actualTag := range submission.Tags {
+			if actualTag == tag {
+				hasTag = true
+				break
+			}
+		}
+		if hasTag != want {
+			t.Errorf("%s: submission %q tag %q present=%v, want %v: %+v", label, name, tag, hasTag, want, submission)
+		}
+		return
+	}
+	t.Errorf("%s: no submission found for %q", label, name)
 }
 
 // assertNoSubmission checks that `subs` does NOT contain any submission

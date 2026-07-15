@@ -1,3 +1,11 @@
+## Current verification after Ali branch update
+
+Still open. The focused differential case reproduces the original result
+unchanged: both sides submit three metrics, but Go emits `gauge diff.m` while
+Python emits `monotonic_count diff.m.count` for the conflicting family.
+
+---
+
 ## Summary
 
 When a metric is declared with two different TYPE keywords in the same

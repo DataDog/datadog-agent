@@ -1,3 +1,26 @@
+## Resolution
+
+Closed after correcting the config-axis harness and rerunning the ticket's
+verification sweep.
+
+The previously reported transformer-knob correlations were downstream of an
+invalid `share_labels` generator, not evidence of independent transformer bugs.
+The generator inverted source/target and join-label semantics and used KSM names
+against the MSK fixture. After fixing those issues and making all generated
+names fixture-specific, the original seed-42 sweep produced:
+
+```text
+1000 configs/fixture × 2 fixtures × 4 knobs/config
+agree=2000
+```
+
+The focused valid `share_labels` cases and the corrected stateful cache test
+also agree. No independent divergence remains for `rename_labels`,
+`type_overrides`, distribution-bucket settings, health service checks, or
+metric matching in this sweep.
+
+---
+
 ## Summary
 
 The config-variation differential harness initially flagged several

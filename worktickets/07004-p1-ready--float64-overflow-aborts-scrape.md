@@ -1,3 +1,11 @@
+## Current verification after Ali branch update
+
+Still open. The now-runnable focused differential case reproduces unchanged:
+Go returns zero submissions with `strconv.ParseFloat ... value out of range`;
+Python submits one `+Inf` gauge.
+
+---
+
 ## Summary
 
 The Go scraper aborts the entire scrape with

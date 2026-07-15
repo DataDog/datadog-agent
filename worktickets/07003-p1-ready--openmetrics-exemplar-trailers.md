@@ -1,3 +1,22 @@
+## Current verification after Ali branch update
+
+Still open. Ali's streaming OpenMetrics parser now accepts exemplar trailers,
+but scraper selection still routes a `text/plain` response through the
+Prometheus parser. The differential payload server uses that common exporter
+content type, and the focused case still reports:
+
+```text
+go_rejected_py_accepted  go=0 py=4
+scrape: expected timestamp or new record, got "#"
+```
+
+So the remaining compatibility decision is whether the Prometheus/text path
+should tolerate exemplar trailers (as Python does), or whether content-type
+negotiation guarantees make this input unsupported. The existing ticket is
+valid until that decision is explicit.
+
+---
+
 ## Summary
 
 The Go scraper aborts the entire scrape with

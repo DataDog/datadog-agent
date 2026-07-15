@@ -33,25 +33,25 @@ All six share the same Python sidecar, payload server, and diff machinery.
 ## Prereqs
 
 - `uv` on `PATH` (the Python sidecar is a [PEP 723 inline-metadata](https://peps.python.org/pep-0723/) script)
-- a local clone of `integrations-core` at `~/dd/integrations-core` (the sidecar
-  pulls `datadog-checks-base` from there via a `file://` dependency — edit
-  `sidecar.py` if your clone lives elsewhere)
+- a local clone of `integrations-core` at `~/dd/integrations-core`; alternatively
+  pass `-integrations-core=/path/to/integrations-core` or set
+  `DD_INTEGRATIONS_CORE`. The harness asks `uv` to install the checkout's
+  `datadog-checks-base[deps,json]` package when it starts the sidecar.
 
 ## How to run
 
 ### Corpus replay (fast, no surprises expected)
 
 ```bash
-go test -tags openmetrics_differential -v -run TestOpenMetricsDifferential \
-    ./pkg/collector/corechecks/openmetrics/differential/
+dda inv test --targets=./pkg/collector/corechecks/openmetrics/differential \
+  --extra-args='-tags=openmetrics_differential -run=TestOpenMetricsDifferential -v -args -integrations-core=/path/to/integrations-core'
 ```
 
 ### Mutation differential (a few seconds, often surfaces bugs)
 
 ```bash
-go test -tags openmetrics_differential -v -run TestOpenMetricsMutation \
-    ./pkg/collector/corechecks/openmetrics/differential/ \
-    -mutation.iters=50 -mutation.ops=2 -mutation.seed=1
+dda inv test --targets=./pkg/collector/corechecks/openmetrics/differential \
+  --extra-args='-tags=openmetrics_differential -run=TestOpenMetricsMutation -v -args -integrations-core=/path/to/integrations-core -mutation.iters=50 -mutation.ops=2 -mutation.seed=1'
 ```
 
 Flags:
@@ -71,8 +71,8 @@ these are session-local triage artifacts, not durable test fixtures.
 ### Adversarial (hand-crafted spec corners, ~half second)
 
 ```bash
-go test -tags openmetrics_differential -v -run TestOpenMetricsAdversarial \
-    ./pkg/collector/corechecks/openmetrics/differential/
+dda inv test --targets=./pkg/collector/corechecks/openmetrics/differential \
+  --extra-args='-tags=openmetrics_differential -run=TestOpenMetricsAdversarial -v -args -integrations-core=/path/to/integrations-core'
 ```
 
 Each case in `adversarial.go` becomes a named subtest — e.g.

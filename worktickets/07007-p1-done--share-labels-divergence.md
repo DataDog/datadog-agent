@@ -1,3 +1,35 @@
+## Resolution
+
+Closed as an invalid harness finding after rebasing onto Ali's updated branch.
+
+The config mutator had inverted the `share_labels` schema:
+
+- It keyed the mapping by the intended **target** metric, but the key is the
+  **source** metric whose labels are collected.
+- It populated `match` with a source metric name, but `match` contains the
+  **join-label names** shared by source and target samples.
+- It used KSM metric and label names against the MSK fixture, turning many
+  generated knobs into no-ops.
+
+The stateful test repeated the same inversion, so its apparent agreement only
+proved that both implementations ignored a nonsensical join.
+
+The harness now generates valid, output-changing joins for both fixtures and
+uses fixture-specific metric and label vocabularies. A corrected stateful case
+also verifies the Python-compatible cache behavior: when the source family
+appears after its target, the copied label is absent on scrape 1 and present on
+scrape 2 in both implementations.
+
+Corrected evidence:
+
+- Focused stateless KSM and MSK `share_labels` comparisons: agree.
+- Corrected two-scrape cache/order comparison: agree on both scrapes.
+- Seed 42, 1000 configs per fixture, 4 knobs/config: `agree=2000`.
+
+No Go `share_labels` implementation bug remains demonstrated by this ticket.
+
+---
+
 ## Summary
 
 The Go scraper's implementation of `share_labels` (the label-join transformer)

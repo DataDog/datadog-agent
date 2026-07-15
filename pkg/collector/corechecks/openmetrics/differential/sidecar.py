@@ -1,9 +1,7 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
 # requires-python = ">=3.10,<3.14"
-# dependencies = [
-#   "datadog-checks-base[deps,json] @ file:///home/bits/dd/integrations-core/datadog_checks_base",
-# ]
+# dependencies = []
 # ///
 """OpenMetrics differential-testing Python sidecar.
 

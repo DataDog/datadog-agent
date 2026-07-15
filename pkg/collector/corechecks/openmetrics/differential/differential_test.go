@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -54,8 +55,8 @@ var fixtureCases = []fixtureCase{
 // runs the Go scraper against it, runs the Python check against the same URL
 // via the sidecar, and asserts the two emit equivalent submission sets.
 //
-// Run with:  go test -tags openmetrics_differential -v -run TestOpenMetricsDifferential \
-//                    ./pkg/collector/corechecks/openmetrics/differential/
+//	Run with:  go test -tags openmetrics_differential -v -run TestOpenMetricsDifferential \
+//	                   ./pkg/collector/corechecks/openmetrics/differential/
 func TestOpenMetricsDifferential(t *testing.T) {
 	t.Parallel()
 
@@ -126,6 +127,8 @@ func summarizeKinds(m map[string]int) string {
 
 // ---- Python sidecar ---------------------------------------------------------
 
+var integrationsCoreFlag = flag.String("integrations-core", "", "path to an integrations-core checkout for the Python sidecar")
+
 type pythonSidecarResp struct {
 	Submissions []Submission `json:"submissions"`
 	Error       string       `json:"error"`
@@ -148,20 +151,57 @@ func (p *pythonSidecar) Close() {
 	_, _ = p.cmd.Process.Wait()
 }
 
+func integrationsCorePath() (string, error) {
+	configured := *integrationsCoreFlag
+	if configured == "" {
+		configured = os.Getenv("DD_INTEGRATIONS_CORE")
+	}
+	if configured != "" {
+		if _, err := os.Stat(filepath.Join(configured, "datadog_checks_base")); err != nil {
+			return "", fmt.Errorf("DD_INTEGRATIONS_CORE=%s has no datadog_checks_base: %w", configured, err)
+		}
+		return configured, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(home, "dd", "integrations-core")
+	if _, err := os.Stat(filepath.Join(candidate, "datadog_checks_base")); err != nil {
+		return "", fmt.Errorf("integrations-core not found at %s; set DD_INTEGRATIONS_CORE: %w", candidate, err)
+	}
+	return candidate, nil
+}
+
 func startPythonSidecar(t *testing.T) (*pythonSidecar, error) {
 	t.Helper()
 
 	_, here, _, _ := runtime.Caller(0)
-	sidecarPath := filepath.Join(filepath.Dir(here), "sidecar.py")
-	if _, err := os.Stat(sidecarPath); err != nil {
-		return nil, fmt.Errorf("sidecar.py not found at %s: %w", sidecarPath, err)
+	sidecarCandidates := []string{"sidecar.py", filepath.Join(filepath.Dir(here), "sidecar.py")}
+	var sidecarPath string
+	for _, candidate := range sidecarCandidates {
+		if _, err := os.Stat(candidate); err == nil {
+			sidecarPath = candidate
+			break
+		}
+	}
+	if sidecarPath == "" {
+		return nil, fmt.Errorf("sidecar.py not found in candidates %v", sidecarCandidates)
 	}
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
 		return nil, fmt.Errorf("uv not on PATH: %w", err)
 	}
+	integrationsCore, err := integrationsCorePath()
+	if err != nil {
+		return nil, err
+	}
+	checksBase := filepath.Join(integrationsCore, "datadog_checks_base") + "[deps,json]"
 
-	cmd := exec.Command(uvPath, "run", "--quiet", sidecarPath)
+	cmd := exec.Command(uvPath, "run", "--quiet", "--with", checksBase, sidecarPath)
+	sourcePath := filepath.Join(integrationsCore, "datadog_checks_base")
+	cmd.Env = append(os.Environ(), "PYTHONPATH="+sourcePath+string(os.PathListSeparator)+os.Getenv("PYTHONPATH"))
 	cmd.Stderr = os.Stderr // surface Python tracebacks during development
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

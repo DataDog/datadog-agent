@@ -19,13 +19,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	configIters     = flag.Int("config.iters", 50, "number of (config x payload) iterations per seed fixture")
-	configKnobs     = flag.Int("config.knobs", 2, "number of config knobs to apply per generated config (0 = baseline only)")
-	configSeed      = flag.Int64("config.seed", 0, "config-mutator RNG seed (0 = derive from PID)")
-	configFailFast  = flag.Bool("config.failfast", false, "stop at the first divergent iteration")
+	configIters      = flag.Int("config.iters", 50, "number of (config x payload) iterations per seed fixture")
+	configKnobs      = flag.Int("config.knobs", 2, "number of config knobs to apply per generated config (0 = baseline only)")
+	configSeed       = flag.Int64("config.seed", 0, "config-mutator RNG seed (0 = derive from PID)")
+	configFailFast   = flag.Bool("config.failfast", false, "stop at the first divergent iteration")
 	configMutPayload = flag.Bool("config.mutate.payload", false, "also apply payload mutations on top of config variation")
 )
 
@@ -73,7 +75,7 @@ func TestOpenMetricsConfigDifferential(t *testing.T) {
 			t.Fatalf("load %s: %v", fx.payloadPath, err)
 		}
 
-		cm := NewConfigMutator(seed)
+		cm := NewConfigMutatorForFixture(seed, fx.name)
 		var pm *Mutator
 		if *configMutPayload {
 			pm = NewMutator(seed ^ 0xDEADBEEF) // independent RNG stream
@@ -176,6 +178,31 @@ func TestOpenMetricsConfigDifferential(t *testing.T) {
 			}
 			t.Logf("  %-50s %s", k, strings.Join(parts, " "))
 		}
+	}
+}
+
+func TestOpenMetricsShareLabelsDifferential(t *testing.T) {
+	sidecar, err := startPythonSidecar(t)
+	if err != nil {
+		t.Fatalf("python sidecar unavailable: %v", err)
+	}
+	t.Cleanup(sidecar.Close)
+
+	ps := newPayloadServer()
+	t.Cleanup(ps.Close)
+
+	for _, fixture := range fixtureCases {
+		fixture := fixture
+		t.Run(fixture.name, func(t *testing.T) {
+			payload, err := loadGzipped(fixture.payloadPath)
+			require.NoError(t, err)
+
+			config := baseConfig()
+			knobShareLabels(NewConfigMutatorForFixture(1, fixture.name), config)
+			out := runIteration(ps, sidecar, payload, config)
+			requireNoErr(t, fixture.name, out)
+			requireAgree(t, fixture.name, out)
+		})
 	}
 }
 

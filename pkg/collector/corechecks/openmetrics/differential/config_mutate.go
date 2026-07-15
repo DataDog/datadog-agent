@@ -24,12 +24,31 @@ import (
 // The named-knob design makes triage easier: when something diverges, we know
 // which knob produced the diverging config.
 type ConfigMutator struct {
-	rng *rand.Rand
+	rng         *rand.Rand
+	metricNames []string
+	labelNames  []string
 }
 
-// NewConfigMutator seeds a config mutator.
+// NewConfigMutator seeds a config mutator using the KSM fixture vocabulary.
 func NewConfigMutator(seed int64) *ConfigMutator {
-	return &ConfigMutator{rng: rand.New(rand.NewSource(seed))}
+	return NewConfigMutatorForFixture(seed, "ksm/wildcard")
+}
+
+// NewConfigMutatorForFixture seeds a config mutator with names that occur in
+// the selected fixture. Using names from a different fixture turns many config
+// knobs into no-ops and produces misleading attribution.
+func NewConfigMutatorForFixture(seed int64, fixtureName string) *ConfigMutator {
+	metricNames := kubeStateMetricNames
+	labelNames := kubeStateLabelNames
+	if fixtureName == "msk_jmx/wildcard" {
+		metricNames = mskMetricNames
+		labelNames = mskLabelNames
+	}
+	return &ConfigMutator{
+		rng:         rand.New(rand.NewSource(seed)),
+		metricNames: metricNames,
+		labelNames:  labelNames,
+	}
 }
 
 // baseConfig is the minimum-viable starting point. Every generated config
@@ -131,12 +150,28 @@ var kubeStateLabelNames = []string{
 	"daemonset", "replicaset", "service", "phase", "reason",
 }
 
+var mskMetricNames = []string{
+	"kafka_server_FetcherStats_FiveMinuteRate",
+	"kafka_server_FetcherStats_Count",
+	"kafka_server_ReplicaFetcherManager_Value",
+	"kafka_log_Log_Value",
+	"kafka_cluster_Partition_Value",
+	"kafka_server_BrokerTopicMetrics_OneMinuteRate",
+	"kafka_network_RequestMetrics_MeanRate",
+	"kafka_network_RequestMetrics_StdDev",
+}
+
+var mskLabelNames = []string{
+	"brokerHost", "brokerPort", "clientId", "name", "partition", "topic",
+	"error", "request", "version",
+}
+
 func (c *ConfigMutator) pickMetricName() string {
-	return kubeStateMetricNames[c.rng.Intn(len(kubeStateMetricNames))]
+	return c.metricNames[c.rng.Intn(len(c.metricNames))]
 }
 
 func (c *ConfigMutator) pickLabelName() string {
-	return kubeStateLabelNames[c.rng.Intn(len(kubeStateLabelNames))]
+	return c.labelNames[c.rng.Intn(len(c.labelNames))]
 }
 
 // ---- matching ----
@@ -268,17 +303,17 @@ func knobNoMonotonicCounter(c *ConfigMutator, cfg map[string]interface{}) {
 // ---- joins ----
 
 func knobShareLabels(c *ConfigMutator, cfg map[string]interface{}) {
-	// share_labels structure (matches both Go and Python check expectations):
-	//   share_labels:
-	//     <target_metric>:
-	//       labels: [<label1>, <label2>]
-	//       match: [<source_metric_regex>]
-	target := c.pickMetricName()
-	source := c.pickMetricName()
+	// share_labels is keyed by the source metric. `match` lists join-key
+	// labels and `labels` lists labels copied from that source. Keep a valid,
+	// output-changing join for each fixture; absent source metrics are ignored.
 	cfg["share_labels"] = map[string]interface{}{
-		target: map[string]interface{}{
-			"labels": []interface{}{c.pickLabelName(), c.pickLabelName()},
-			"match":  []interface{}{source},
+		"kube_pod_info": map[string]interface{}{
+			"match":  []interface{}{"namespace", "pod"},
+			"labels": []interface{}{"node", "pod_ip"},
+		},
+		"kafka_server_FetcherStats_FiveMinuteRate": map[string]interface{}{
+			"match":  []interface{}{"clientId", "name"},
+			"labels": []interface{}{"brokerHost", "brokerPort"},
 		},
 	}
 }
