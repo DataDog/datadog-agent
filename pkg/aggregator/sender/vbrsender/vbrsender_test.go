@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // timestampedCall records one call to GaugeWithTimestamp or CountWithTimestamp.
@@ -106,6 +107,7 @@ func (f *fakeSender) SetCheckCustomTags([]string)                               
 func (f *fakeSender) SetCheckService(string)                                       {}
 func (f *fakeSender) SetNoIndex(bool)                                              {}
 func (f *fakeSender) FinalizeCheckServiceTag()                                     {}
+func (f *fakeSender) SetInfraTagger(*infratags.Tagger)                             {}
 func (f *fakeSender) OrchestratorMetadata([]types.ProcessMessageBody, string, int) {}
 func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)      {}
 
