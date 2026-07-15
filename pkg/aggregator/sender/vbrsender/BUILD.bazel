@@ -15,6 +15,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/util/hostname",
         "//pkg/util/log",
     ],
 )
@@ -28,6 +29,7 @@ dd_agent_go_test(
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
+        "//pkg/util/infratags",
         "@com_github_stretchr_testify//require",
     ],
 )
