@@ -75,6 +75,10 @@ type StatKeeper struct {
 	// workflow's first llm span its cost, surviving response-slot churn.
 	llmGenUsage   map[llmConnKey]llmUsage
 	llmGenUsageMu sync.Mutex
+	// llmRespContent caches, per connection, the latest assistant answer text
+	// seen in a streamed response — reliable, unlike the churned head map.
+	llmRespContent   map[llmConnKey]string
+	llmRespContentMu sync.Mutex
 	// llmRespReader consumes streamed response-tail events (see llmo.go).
 	llmRespReader *ringbuf.Reader
 }
@@ -92,6 +96,31 @@ func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap, respHeadMap *ebpf
 	// improved algorithm).
 	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
 	h.llmGenUsage = make(map[llmConnKey]llmUsage)
+	h.llmRespContent = make(map[llmConnKey]string)
+}
+
+// cacheRespContent records, per connection, the latest assistant answer text.
+func (h *StatKeeper) cacheRespContent(key llmConnKey, content string) {
+	if h.llmRespContent == nil || content == "" {
+		return
+	}
+	h.llmRespContentMu.Lock()
+	defer h.llmRespContentMu.Unlock()
+	if len(h.llmRespContent) > 4096 {
+		h.llmRespContent = make(map[llmConnKey]string)
+	}
+	h.llmRespContent[key] = content
+}
+
+// lookupRespContent returns the cached assistant answer text for a connection.
+func (h *StatKeeper) lookupRespContent(key llmConnKey) (string, bool) {
+	if h.llmRespContent == nil {
+		return "", false
+	}
+	h.llmRespContentMu.Lock()
+	defer h.llmRespContentMu.Unlock()
+	c, ok := h.llmRespContent[key]
+	return c, ok
 }
 
 // cacheGenUsage records, per connection, the token usage of a tool-call

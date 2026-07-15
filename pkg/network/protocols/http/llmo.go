@@ -681,10 +681,17 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(data, info.provider)
 	}
 
-	// Response body head -> assistant message content (the AI's answer).
+	// Response body head -> assistant message content + tool calls.
 	if data, ok := h.lookupBody(h.llmRespHeadMap, &key); ok {
 		info.response = parseResponseText(data, info.provider)
 		info.toolCalls = parseToolCalls(data, info.provider)
+	}
+	// Prefer the streamed, per-connection cached answer over the head map: the
+	// head is a single slot overwritten by later responses, so at poll-batched
+	// processing time it may hold a different (e.g. tool_call) response with no
+	// text, leaving the span output empty.
+	if c, ok := h.lookupRespContent(key); ok && c != "" {
+		info.response = c
 	}
 
 	// Follow-up request: recover the tool_call generation's usage — cached by
@@ -750,8 +757,11 @@ func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 	return nil
 }
 
-// processLLMResponseEvent parses one response-tail event and, if it is a
-// tool-call generation, caches its token usage keyed by connection.
+// processLLMResponseEvent parses one streamed response-tail event and caches,
+// per connection: the token usage of a tool-call generation (for the follow-up
+// workflow's first llm span), and the latest assistant answer text (a reliable
+// source for the span output, since the per-connection head map is churned by
+// later responses before poll-batched processing reads it).
 func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	var ev llmRespEvent
 	if err := binary.Read(bytes.NewReader(sample), binary.LittleEndian, &ev); err != nil {
@@ -762,18 +772,23 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 		n = llmBodyBufferSize
 	}
 	tail := ev.Data[:n]
+	provider := responseProvider(tail)
 
-	var provider string
-	switch {
-	case isToolCallGen(tail, providerOpenAI):
-		provider = providerOpenAI
-	case isToolCallGen(tail, providerAnthropic):
-		provider = providerAnthropic
-	default:
-		return // not a tool-call generation; nothing to attribute
+	if isToolCallGen(tail, provider) {
+		in, out, tot := parseLLMUsage(tail, provider)
+		h.cacheGenUsage(ev.Key, llmUsage{input: in, output: out, total: tot})
 	}
-	in, out, tot := parseLLMUsage(tail, provider)
-	h.cacheGenUsage(ev.Key, llmUsage{input: in, output: out, total: tot})
+	if c := parseResponseText(tail, provider); c != "" {
+		h.cacheRespContent(ev.Key, c)
+	}
+}
+
+// responseProvider infers the provider from markers in a response tail.
+func responseProvider(tail []byte) string {
+	if bytes.Contains(tail, []byte("stop_reason")) || bytes.Contains(tail, []byte("input_tokens")) {
+		return providerAnthropic
+	}
+	return providerOpenAI
 }
 
 // resolveLLMService resolves the service name for a client PID using the same
