@@ -233,7 +233,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 	// Ensure services are still installed
 	// NOTE: will need to update this if we add or remove services
-	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServicesBeforeProcmgr())
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 	s.Assert().NoError(err, "services should still be installed")
 
 	s.uninstallAgent()
@@ -411,7 +411,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 	// Ensure services are still installed
 	// NOTE: will need to update this if we add or remove services
-	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServicesBeforeProcmgr())
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 	s.Assert().NoError(err, "services should still be installed")
 
 	// remove the test==1.0.0 from .post_python_installed_packages.txt
