@@ -10,6 +10,7 @@ package helmactionsimpl
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -98,9 +99,8 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 	// cannot accidentally (or deliberately) push a rollback Job out of the
 	// watcher's selector by shadowing labelManagedBy / labelComponent.
 	labels := map[string]string{}
-	for k, v := range opts.ExtraLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, opts.ExtraLabels)
+
 	labels[labelManagedBy] = managedByValue
 	labels[labelComponent] = componentValue
 	labels[labelRelease] = opts.Release

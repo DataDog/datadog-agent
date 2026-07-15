@@ -26,7 +26,7 @@ type RollbackInputs struct {
 	// Release is the name of the Helm release to roll back. Required.
 	Release string `json:"release"`
 	// ReleaseNamespace is the namespace of the Helm release. Required.
-	ReleaseNamespace string `json:"release_namespace"`
+	ReleaseNamespace string `json:"releaseNamespace"`
 	// Revision is the target revision number. A value of 0 means "previous
 	// revision" (helm's default behaviour).
 	Revision int `json:"revision"`
@@ -34,9 +34,9 @@ type RollbackInputs struct {
 	// it must have the RBAC permissions helm needs to act on the release
 	// (typically: read/write secrets in the release namespace, plus permissions
 	// on the resources the chart manages).
-	JobServiceAccountName string `json:"job_service_account_name"`
+	JobServiceAccountName string `json:"jobServiceAccountName"`
 	// JobNamespace is the namespace where the K8s Job will be created. Required.
-	JobNamespace string `json:"job_namespace,omitempty"`
+	JobNamespace string `json:"jobNamespace,omitempty"`
 	// Image overrides the helm container image. Defaults to DefaultHelmImage.
 	Image string `json:"image,omitempty"`
 	// Driver selects the helm storage backend that holds the release state.
@@ -47,14 +47,14 @@ type RollbackInputs struct {
 	// BackoffLimit overrides the Job's spec.backoffLimit. When nil, defaults to
 	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
-	BackoffLimit *int32 `json:"backoff_limit,omitempty"`
+	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
 	// TTLSecondsAfterFinished overrides the Job's spec.ttlSecondsAfterFinished.
 	// When nil, defaults to 1h so finished Jobs are garbage-collected by the
 	// TTL controller.
-	TTLSecondsAfterFinished *int32 `json:"ttl_seconds_after_finished,omitempty"`
+	TTLSecondsAfterFinished *int32 `json:"tTLSecondsAfterFinished,omitempty"`
 	// ExtraLabels are added to the Job and the Pod template, merged on top of
 	// the labels this package sets by default.
-	ExtraLabels map[string]string `json:"extra_labels,omitempty"`
+	ExtraLabels map[string]string `json:"extraLabels,omitempty"`
 }
 
 func (o RollbackInputs) Validate() error {
