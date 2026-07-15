@@ -57,6 +57,10 @@ type ntmConfig struct {
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
 
+	// defaultSetAtMode controls how setDefault attaches a newly created node to an existing inner node:
+	// mutateInPlace until flipped to copyOnWrite for good, once nodes may become shared elsewhere.
+	defaultSetAtMode *atomic.Bool
+
 	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
 	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
 
@@ -289,7 +293,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	}
 
 	parts := splitKey(key)
-	err = tree.setAt(parts, value, source)
+	err = tree.setAt(parts, value, source, copyOnWrite) // tree might already be shared
 	return tree, err
 }
 
@@ -323,7 +327,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
 	parts := splitKey(key)
-	_ = c.defaults.setAt(parts, value, model.SourceDefault)
+	_ = c.defaults.setAt(parts, value, model.SourceDefault, setAtMode(c.defaultSetAtMode.Load()))
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -581,6 +585,7 @@ func (c *ntmConfig) mergeAllLayers() error {
 		return err
 	}
 	c.root = merged
+	c.defaultSetAtMode.Store(bool(copyOnWrite)) // c.defaults just became reachable through c.root
 	return nil
 }
 
@@ -675,7 +680,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 		}
 	}
 	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(parts, actualValue, model.SourceEnvVar, mutateInPlace) // node is always new
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -1208,6 +1213,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
+		defaultSetAtMode:   atomic.NewBool(bool(mutateInPlace)),
 		allowDynamicSchema: atomic.NewBool(false),
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
