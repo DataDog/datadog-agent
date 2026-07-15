@@ -10,6 +10,8 @@ package mock
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -37,16 +39,29 @@ type Mock interface {
 }
 
 type mock struct {
-	mu        sync.Mutex
-	events    []Event
-	errorLogs []errortracking.ErrorLog
+	mu               sync.Mutex
+	events           []Event
+	errorLogs        []errortracking.ErrorLog
+	registeredEvents map[string]struct{}
 }
 
 var _ Mock = (*mock)(nil)
 
-// SendEvent records the event and returns nil. The payload is copied so a
-// caller reusing its buffer cannot corrupt what Events() later reports.
+// SendEvent validates eventType and eventPayload the same way the real
+// component does -- rejecting event types that weren't registered and
+// payloads that aren't valid JSON -- before recording the event. The payload
+// is copied so a caller reusing its buffer cannot corrupt what Events() later
+// reports.
 func (m *mock) SendEvent(eventType string, eventPayload []byte) error {
+	if _, ok := m.registeredEvents[eventType]; !ok {
+		return fmt.Errorf("payload type %q is not registered", eventType)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(eventPayload, &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, Event{Type: eventType, Payload: append([]byte(nil), eventPayload...)})
@@ -81,7 +96,15 @@ func (m *mock) ErrorLogs() []errortracking.ErrorLog {
 	return append([]errortracking.ErrorLog(nil), m.errorLogs...)
 }
 
-// New returns a new mock for the agenttelemetry component.
-func New(_ testing.TB) Mock {
-	return &mock{}
+// New returns a new mock for the agenttelemetry component. registeredEvents
+// lists the event types SendEvent will accept, mirroring the event names a
+// real deployment declares under profiles[].events in its agent_telemetry
+// config -- SendEvent rejects any other eventType, just as the real
+// component does for events that were never registered.
+func New(_ testing.TB, registeredEvents ...string) Mock {
+	m := &mock{registeredEvents: make(map[string]struct{}, len(registeredEvents))}
+	for _, e := range registeredEvents {
+		m.registeredEvents[e] = struct{}{}
+	}
+	return m
 }

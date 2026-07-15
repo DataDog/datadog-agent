@@ -6,15 +6,18 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.73.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -24,6 +27,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
