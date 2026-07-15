@@ -629,6 +629,7 @@ tags:
 			path.Namespace == "my-namespace" &&
 			path.Origin == payload.PathOriginNetworkPathIntegration &&
 			path.TestRunType == payload.TestRunTypeScheduled &&
+			path.TestConfigSource == payload.TestConfigSourceRemote &&
 			path.SourceProduct == payload.SourceProductNetworkPath &&
 			path.CollectorType == payload.CollectorTypeAgent &&
 			path.Source.Service == "frontend" &&
@@ -647,6 +648,29 @@ hostname: api.example.com
 	err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "file:network_path.yaml", names.File)
 	assert.NoError(t, err)
 	assert.Empty(t, check.config.TestConfigID)
+	assert.Equal(t, payload.TestConfigSourceLocal, check.testConfigSource)
+}
+
+func TestRunSetsLocalTestConfigSourceInPayload(t *testing.T) {
+	rawInstance := integration.Data("hostname: api.example.com")
+	rawInitConfig := integration.Data{}
+	expectedID := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstance, rawInitConfig)
+	sender := mocksender.NewMockSender(t, expectedID)
+	sender.SetupAcceptAll()
+
+	check := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		traceroute: &fakeTraceroute{path: payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{Hostname: "api.example.com"},
+		}},
+	}
+	assert.NoError(t, check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, rawInstance, rawInitConfig, "file:network_path.yaml[0]", names.File))
+	assert.NoError(t, check.Run())
+
+	sender.AssertCalled(t, "EventPlatformEvent", mock.MatchedBy(func(raw []byte) bool {
+		var path payload.NetworkPath
+		return json.Unmarshal(raw, &path) == nil && path.TestConfigSource == payload.TestConfigSourceLocal
+	}), eventplatform.EventTypeNetworkPath)
 }
 
 func TestFirstNonZero(t *testing.T) {

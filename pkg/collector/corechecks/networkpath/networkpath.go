@@ -38,10 +38,11 @@ const CheckName = "network_path"
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	config        *CheckConfig
-	lastCheckTime time.Time
-	traceroute    traceroute.Component
-	telemetryComp telemetryComp.Component
+	config           *CheckConfig
+	lastCheckTime    time.Time
+	traceroute       traceroute.Component
+	telemetryComp    telemetryComp.Component
+	testConfigSource payload.TestConfigSource
 }
 
 // Run executes the check
@@ -82,6 +83,7 @@ func (c *Check) Run() error {
 	path.TestConfigID = c.config.TestConfigID
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
+	path.TestConfigSource = c.testConfigSource
 	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
 	path.CollectorType = payload.CollectorTypeAgent
 
@@ -146,7 +148,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err != nil {
 		return err
 	}
-	if provider != names.NetworkPathRemoteConfig {
+	c.testConfigSource = payload.TestConfigSourceLocal
+	if provider == names.NetworkPathRemoteConfig {
+		c.testConfigSource = payload.TestConfigSourceRemote
+	} else {
 		config.TestConfigID = ""
 	}
 	c.config = config

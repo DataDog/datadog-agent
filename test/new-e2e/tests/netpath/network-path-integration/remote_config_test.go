@@ -214,6 +214,7 @@ func (s *remoteConfigTestSuite) assertLinuxLocalPaths(c *assert.CollectT, agentH
 		})
 		assertPayloadBase(c, np, agentHostname)
 		assert.Equal(c, payload.SourceProductNetworkPath, np.SourceProduct)
+		assert.Equal(c, payload.TestConfigSourceLocal, np.TestConfigSource)
 		assert.Equal(c, targetIP.String(), np.Destination.Hostname)
 		assert.Equal(c, port, np.Destination.Port)
 		require.Len(c, np.Traceroute.Runs, 1)
@@ -296,6 +297,7 @@ func containsAll(value string, substrings ...string) bool {
 func assertRemoteConfigPath(c *assert.CollectT, np *aggregator.Netpath, agentHostname string, expected remoteConfigPathExpectation) {
 	assertPayloadBase(c, np, agentHostname)
 	assert.Equal(c, payload.SourceProductNetworkPath, np.SourceProduct)
+	assert.Equal(c, payload.TestConfigSourceRemote, np.TestConfigSource)
 	assert.Equal(c, expected.hostname, np.Destination.Hostname)
 	assert.Equal(c, expected.protocol, np.Protocol)
 	assert.Equal(c, expected.port, np.Destination.Port)
