@@ -9413,6 +9413,17 @@ properties:
         type: boolean
         default: true
         comment: trace-agent's ol_proxy. Same rationale as evp_proxy above.
+  openmetrics:
+    node_type: section
+    type: object
+    properties:
+      use_core_loader:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          If true, then the OpenMetrics core check will be used.
+          Otherwise, the Python openmetrics check remains the default.
   orchestrator_explorer:
     $ref: orchestrator_explorer.yaml
   origin_detection_unified:
