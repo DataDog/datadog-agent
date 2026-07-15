@@ -12,7 +12,7 @@ use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
 
 use super::super::JobObject;
-use super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::command::{build_command, spawn_as_local_system};
 use super::primary_token::spawn_as_primary_token;
 
