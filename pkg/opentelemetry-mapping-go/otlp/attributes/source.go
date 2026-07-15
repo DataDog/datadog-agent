@@ -284,7 +284,11 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if hostFromAttributesHandler != nil {
 			hostFromAttributesHandler.OnHost(host)
 		}
-		return source.Source{Kind: source.HostnameKind, Identifier: host, SourceIdentifier: source.SourceIdentifier{Primary: host}}, true
+		return source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       host,
+			SourceIdentifier: source.SourceIdentifier{Primary: host},
+		}, true
 	}
 
 	return source.Source{}, false

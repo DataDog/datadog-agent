@@ -762,14 +762,18 @@ func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v, SourceIdentifier: source.SourceIdentifier{Primary: v}}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v,
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			return src.Identifier
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""

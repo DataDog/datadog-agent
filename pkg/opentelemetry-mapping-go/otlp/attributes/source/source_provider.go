@@ -41,26 +41,26 @@ type Source struct {
 	// Kind of source (serverless v. host).
 	Kind Kind
 	// Identifier that uniquely determines the source.
-	Identifier string
-	// SourceIdentifier contains the source's primary identifier and the
-	// dimensions needed to emit workload-specific running metrics.
+	//
+	// Deprecated: use SourceIdentifier.Primary instead for any new call
+	// site. This field remains for existing callers during migration
+	// (tracked in datadog-agent#51116); it will be removed once all
+	// callers have moved to SourceIdentifier.
+	Identifier       string
 	SourceIdentifier SourceIdentifier
-}
-
-// SourceIdentifier holds the identity of a telemetry source that requires
-// more than one identifying dimension.
-type SourceIdentifier struct {
-	Primary    string
-	Dimensions map[string]string
 }
 
 // Tag associated to a source.
 func (s Source) Tag() string {
-	identifier := s.Identifier
-	if identifier == "" {
-		identifier = s.SourceIdentifier.Primary
-	}
-	return fmt.Sprintf("%s:%s", s.Kind, identifier)
+	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier)
+}
+
+// SourceIdentifier holds the identity of a telemetry source, generalizing the
+// single-string Source.Identifier to support workloads that need more than
+// one identifying attribute.
+type SourceIdentifier struct {
+	Primary    string
+	Dimensions map[string]string
 }
 
 // Provider identifies a source.

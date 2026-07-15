@@ -387,7 +387,7 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
-// tagsFromDimensions converts an Source.Identifier.Dimensions map into a "key:value" tag slice
+// tagsFromDimensions converts a Source.SourceIdentifier.Dimensions map into a "key:value" tag slice
 func tagsFromDimensions(dims map[string]string) []string {
 	tags := make([]string, 0, len(dims))
 	for k, v := range dims {

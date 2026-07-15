@@ -309,7 +309,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname, SourceIdentifier: source.SourceIdentifier{Primary: hostname}}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname,
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 
 	// Create a single accessor for all resource-level semantic lookups below, avoiding
@@ -417,7 +421,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v, SourceIdentifier: source.SourceIdentifier{Primary: v}}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v,
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
@@ -511,7 +519,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname, SourceIdentifier: source.SourceIdentifier{Primary: hostname}}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname,
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
