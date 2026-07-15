@@ -51,10 +51,10 @@ func TestHostname(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitForTrace(t, &r, func(v *pb.AgentPayload) {
-				if n := len(v.TracerPayloads); n != 1 {
+				if n := len(v.IdxTracerPayloads); n != 1 {
 					t.Fatalf("expected %d tracer payloads, got %d", 1, n)
 				}
-				if n := len(v.TracerPayloads[0].Chunks); n != 1 {
+				if n := len(v.IdxTracerPayloads[0].Chunks); n != 1 {
 					t.Fatalf("expected %d traces, got %d", len(payload), n)
 				}
 				if v.HostName != expectedHostname {
@@ -83,10 +83,10 @@ func TestHostname(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			if n := len(v.TracerPayloads); n != 1 {
+			if n := len(v.IdxTracerPayloads); n != 1 {
 				t.Fatalf("expected %d tracer payloads, got %d", 1, n)
 			}
-			if n := len(v.TracerPayloads[0].Chunks); n != 1 {
+			if n := len(v.IdxTracerPayloads[0].Chunks); n != 1 {
 				t.Fatalf("expected %d traces, got %d", len(payload), n)
 			}
 			if v.HostName == "" {

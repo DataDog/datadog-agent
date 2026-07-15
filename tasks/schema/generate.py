@@ -157,10 +157,10 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     agent_bin_abs = os.path.abspath(agent_bin)
     with ctx.cd(output_dir):
         core_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
         sysprobe_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
 
     core_schema = yaml.safe_load(core_schema)
