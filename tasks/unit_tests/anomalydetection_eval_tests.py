@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from tasks.anomalydetection import (
+    _bayesian_evaluation_inputs,
     _ddeval_experiment_config,
     _DDEvalOptions,
     _load_completed_bayesian_report,
@@ -35,6 +36,17 @@ class TestAblationConfig(unittest.TestCase):
 
 
 class TestPipelineResume(unittest.TestCase):
+    def setUp(self):
+        self.evaluation_inputs = _bayesian_evaluation_inputs(
+            scenarios_dir="/tmp/scenarios",
+            sigma=30.0,
+            timeout=0,
+            scenarios="",
+            lock="",
+            eval_backend="ddeval",
+            ddeval_options=ddeval_options(),
+        )
+
     def _write_report(self, output_dir, **overrides):
         report = {
             "n_trials": 5,
@@ -43,6 +55,7 @@ class TestPipelineResume(unittest.TestCase):
             "seed": 42,
             "components": ["anomaly_scorer", "bocpd"],
             "eval_backend": "ddeval",
+            "evaluation_inputs": self.evaluation_inputs,
         }
         report.update(overrides)
         with open(os.path.join(output_dir, "report.json"), "w") as f:
@@ -59,6 +72,7 @@ class TestPipelineResume(unittest.TestCase):
                 n_trials=5,
                 seed=42,
                 eval_backend="ddeval",
+                evaluation_inputs=self.evaluation_inputs,
             )
 
         self.assertEqual(actual, expected)
@@ -73,6 +87,23 @@ class TestPipelineResume(unittest.TestCase):
                 n_trials=5,
                 seed=42,
                 eval_backend="ddeval",
+                evaluation_inputs=self.evaluation_inputs,
+            )
+
+        self.assertIsNone(actual)
+
+    def test_rejects_report_with_different_evaluation_inputs(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            self._write_report(output_dir)
+            changed_inputs = {**self.evaluation_inputs, "sigma": 60.0}
+
+            actual = _load_completed_bayesian_report(
+                output_dir,
+                components=["anomaly_scorer", "bocpd"],
+                n_trials=5,
+                seed=42,
+                eval_backend="ddeval",
+                evaluation_inputs=changed_inputs,
             )
 
         self.assertIsNone(actual)

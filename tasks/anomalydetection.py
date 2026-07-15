@@ -670,6 +670,7 @@ def _load_completed_bayesian_report(
     n_trials: int,
     seed: int,
     eval_backend: str,
+    evaluation_inputs: dict,
 ) -> dict | None:
     """Load a completed Bayesian report only when it matches the requested run."""
     report_path = os.path.join(output_dir, "report.json")
@@ -686,9 +687,51 @@ def _load_completed_bayesian_report(
         or report.get("seed") != seed
         or sorted(report.get("components", [])) != sorted(components)
         or report.get("eval_backend") != eval_backend
+        or report.get("evaluation_inputs") != evaluation_inputs
     ):
         return None
     return report
+
+
+def _bayesian_evaluation_inputs(
+    *,
+    scenarios_dir: str,
+    sigma: float,
+    timeout: int,
+    scenarios: str,
+    lock: str,
+    eval_backend: str,
+    ddeval_options: _DDEvalOptions | None,
+) -> dict:
+    """Return the score-affecting inputs used to validate resumable runs."""
+    selected_scenarios = (
+        sorted(s.strip() for s in scenarios.split(",") if s.strip()) if scenarios else sorted(SCENARIOS)
+    )
+    inputs = {
+        "scenarios": selected_scenarios if eval_backend == "local" else [],
+        "scenarios_dir": os.path.abspath(scenarios_dir) if eval_backend == "local" else "",
+        "sigma": float(sigma),
+        "timeout": int(timeout),
+        "locked_components": sorted(c.strip() for c in lock.split(",") if c.strip()),
+    }
+    if ddeval_options is not None:
+        template = None
+        if ddeval_options.config_template:
+            with open(ddeval_options.config_template) as f:
+                template = json.load(f)
+        inputs["ddeval"] = {
+            "service": ddeval_options.service,
+            "project": ddeval_options.project,
+            "dataset": ddeval_options.dataset,
+            "env": ddeval_options.env,
+            "test_drive": ddeval_options.test_drive,
+            "limit": ddeval_options.limit,
+            "where_in": ddeval_options.where_in,
+            "testbench_binary_s3_uri": ddeval_options.testbench_binary_s3_uri,
+            "scorer_binary_s3_uri": ddeval_options.scorer_binary_s3_uri,
+            "config_template": template,
+        }
+    return inputs
 
 
 def _run_bayesian_runs(
@@ -716,6 +759,15 @@ def _run_bayesian_runs(
     """
     run_scores: list[float] = []
     run_details: list[dict] = []
+    evaluation_inputs = _bayesian_evaluation_inputs(
+        scenarios_dir=scenarios_dir,
+        sigma=sigma,
+        timeout=timeout,
+        scenarios=scenarios,
+        lock=lock,
+        eval_backend=eval_backend,
+        ddeval_options=ddeval_options,
+    )
 
     for ri in range(m_runs):
         run_label = f"run_{ri:03d}"
@@ -739,6 +791,7 @@ def _run_bayesian_runs(
                 n_trials=n_trials,
                 seed=run_seed,
                 eval_backend=eval_backend,
+                evaluation_inputs=evaluation_inputs,
             )
             if report is not None and run_logger:
                 run_logger.detail(f"reusing completed {run_label}", Color.GREEN)
@@ -976,6 +1029,16 @@ def eval_bayesian(
     if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
 
+    evaluation_inputs = _bayesian_evaluation_inputs(
+        scenarios_dir=scenarios_dir,
+        sigma=sigma,
+        timeout=timeout,
+        scenarios=scenarios,
+        lock=",".join(sorted(locked_set)),
+        eval_backend=eval_backend,
+        ddeval_options=ddeval_options,
+    )
+
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
@@ -1132,6 +1195,7 @@ def eval_bayesian(
         "components": components_list,
         "locked": sorted(locked_set),
         "eval_backend": eval_backend,
+        "evaluation_inputs": evaluation_inputs,
         "best_combination": best,
         "trials": completed_trials,
         "failures": failed_trials,
@@ -1760,12 +1824,22 @@ def eval_pipeline(
     tune_dir = os.path.join(output_dir, "tune")
     tune_result = None
     if resume:
+        evaluation_inputs = _bayesian_evaluation_inputs(
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            timeout=timeout,
+            scenarios=scenarios,
+            lock="",
+            eval_backend=eval_backend,
+            ddeval_options=ddeval_options,
+        )
         tune_result = _load_completed_bayesian_report(
             tune_dir,
             components=best_combo["components"],
             n_trials=n_trials_tune,
             seed=tune_seed,
             eval_backend=eval_backend,
+            evaluation_inputs=evaluation_inputs,
         )
         if tune_result is not None:
             print(color_message("  Reusing completed fine-tuning run.", Color.GREEN))
