@@ -3874,9 +3874,9 @@ func (z OrgStatusResponse) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 12
+	// map header, size 13
 	// string "Package"
-	o = append(o, 0x8c, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
+	o = append(o, 0x8d, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
 	o = msgp.AppendString(o, z.Package)
 	// string "StableVersion"
 	o = append(o, 0xad, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
@@ -3924,6 +3924,12 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendArrayHeader(o, uint32(len(z.ExperimentExtensions)))
 	for za0002 := range z.ExperimentExtensions {
 		o = msgp.AppendString(o, z.ExperimentExtensions[za0002])
+	}
+	// string "RunningExtensions"
+	o = append(o, 0xb1, 0x52, 0x75, 0x6e, 0x6e, 0x69, 0x6e, 0x67, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.RunningExtensions)))
+	for za0003 := range z.RunningExtensions {
+		o = msgp.AppendString(o, z.RunningExtensions[za0003])
 	}
 	return
 }
@@ -4055,6 +4061,25 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "RunningExtensions":
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RunningExtensions")
+				return
+			}
+			if cap(z.RunningExtensions) >= int(zb0004) {
+				z.RunningExtensions = (z.RunningExtensions)[:zb0004]
+			} else {
+				z.RunningExtensions = make([]string, zb0004)
+			}
+			for za0003 := range z.RunningExtensions {
+				z.RunningExtensions[za0003], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RunningExtensions", za0003)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -4082,6 +4107,10 @@ func (z *PackageState) Msgsize() (s int) {
 	s += 21 + msgp.ArrayHeaderSize
 	for za0002 := range z.ExperimentExtensions {
 		s += msgp.StringPrefixSize + len(z.ExperimentExtensions[za0002])
+	}
+	s += 18 + msgp.ArrayHeaderSize
+	for za0003 := range z.RunningExtensions {
+		s += msgp.StringPrefixSize + len(z.RunningExtensions[za0003])
 	}
 	return
 }

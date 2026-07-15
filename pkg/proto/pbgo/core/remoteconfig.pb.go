@@ -1240,6 +1240,7 @@ type PackageState struct {
 	Completion              float32                `protobuf:"fixed32,16,opt,name=completion,proto3" json:"completion,omitempty"`
 	StableExtensions        []string               `protobuf:"bytes,17,rep,name=stable_extensions,json=stableExtensions,proto3" json:"stable_extensions,omitempty"`
 	ExperimentExtensions    []string               `protobuf:"bytes,18,rep,name=experiment_extensions,json=experimentExtensions,proto3" json:"experiment_extensions,omitempty"`
+	RunningExtensions       []string               `protobuf:"bytes,19,rep,name=running_extensions,json=runningExtensions,proto3" json:"running_extensions,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1354,6 +1355,13 @@ func (x *PackageState) GetStableExtensions() []string {
 func (x *PackageState) GetExperimentExtensions() []string {
 	if x != nil {
 		return x.ExperimentExtensions
+	}
+	return nil
+}
+
+func (x *PackageState) GetRunningExtensions() []string {
+	if x != nil {
+		return x.RunningExtensions
 	}
 	return nil
 }
@@ -2518,7 +2526,7 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x128\n" +
 	"\bpackages\x18\x02 \x03(\v2\x1c.datadog.config.PackageStateR\bpackages\x120\n" +
 	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\x12&\n" +
-	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\xda\x04\n" +
+	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\x89\x05\n" +
 	"\fPackageState\x12\x18\n" +
 	"\apackage\x18\x01 \x01(\tR\apackage\x12%\n" +
 	"\x0estable_version\x18\x02 \x01(\tR\rstableVersion\x12-\n" +
@@ -2533,7 +2541,8 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"completion\x18\x10 \x01(\x02R\n" +
 	"completion\x12+\n" +
 	"\x11stable_extensions\x18\x11 \x03(\tR\x10stableExtensions\x123\n" +
-	"\x15experiment_extensions\x18\x12 \x03(\tR\x14experimentExtensionsJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x15experiment_extensions\x18\x12 \x03(\tR\x14experimentExtensions\x12-\n" +
+	"\x12running_extensions\x18\x13 \x03(\tR\x11runningExtensionsJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\v\"\x84\x01\n" +
 	"\x10PackageStateTask\x12\x0e\n" +

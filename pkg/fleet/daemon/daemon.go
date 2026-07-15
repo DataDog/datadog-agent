@@ -799,17 +799,26 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.PackageStates {
+		runningVersion := runningVersions[pkg]
+		var runningExtensions []string
+		switch runningVersion {
+		case s.Experiment.Version:
+			runningExtensions = s.Experiment.Extensions
+		case s.Stable.Version:
+			runningExtensions = s.Stable.Extensions
+		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable.Version,
 			ExperimentVersion:       s.Experiment.Version,
 			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
-			RunningVersion:          runningVersions[pkg],
+			RunningVersion:          runningVersion,
 			RunningConfigVersion:    runningConfigVersions[pkg],
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 			StableExtensions:        s.Stable.Extensions,
 			ExperimentExtensions:    s.Experiment.Extensions,
+			RunningExtensions:       runningExtensions,
 		}
 
 		requestState, ok := tasksState[pkg]
