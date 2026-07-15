@@ -408,6 +408,10 @@ def _find_k8s_latest_job(content: list[str], job_name: str) -> JobLocation:
             if line and not line[0].isspace() and line.strip().endswith(':'):
                 return JobLocation(job_start, rules_line, extra_params_line, i)
 
+    # corner case if the yaml block was the last one in the file
+    if in_job:
+        return JobLocation(job_start, rules_line, extra_params_line, len(content))
+
     return JobLocation(None, None, None, None)
 
 
