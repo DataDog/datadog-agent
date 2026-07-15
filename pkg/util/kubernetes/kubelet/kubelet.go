@@ -314,13 +314,12 @@ func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) 
 	for _, pod := range pods {
 		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.InitContainers)
 		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.Containers)
-		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.EphemeralContainers)
 	}
 
 	return nil
 }
 
-func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[ContainerKey]ContainerPodResources, pod *Pod, containers []ContainerStatus) {
+func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[ContainerKey][]ContainerAllocatedResource, pod *Pod, containers []ContainerStatus) {
 	for i := range containers {
 		container := &containers[i] // take the pointer so that we can modify the original
 		key := ContainerKey{
@@ -328,47 +327,12 @@ func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[Contai
 			PodName:       pod.Metadata.Name,
 			ContainerName: container.Name,
 		}
-		resources, ok := containerResourcesMap[key]
+		allocatedResources, ok := containerResourcesMap[key]
 		if !ok {
 			continue
 		}
 
-		container.DynamicAllocatedResources = resources.DynamicResources
-
-		for _, device := range resources.Devices {
-			name := device.GetResourceName()
-			for _, id := range device.GetDeviceIds() {
-				container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, ContainerAllocatedResource{
-					Name: name,
-					ID:   id,
-				})
-			}
-		}
-		addDynamicResourcesToContainer(container, resources.DynamicResources)
-	}
-}
-
-func addDynamicResourcesToContainer(container *ContainerStatus, resources []ContainerDynamicResource) {
-	seen := make(map[ContainerAllocatedResource]struct{}, len(container.ResolvedAllocatedResources))
-	for _, resource := range container.ResolvedAllocatedResources {
-		seen[resource] = struct{}{}
-	}
-
-	for _, dynamicResource := range resources {
-		for _, claimResource := range dynamicResource.ClaimResources {
-			if claimResource.DriverName == "" || claimResource.DeviceName == "" {
-				continue
-			}
-			allocatedResource := ContainerAllocatedResource{
-				Name: claimResource.DriverName,
-				ID:   claimResource.DeviceName,
-			}
-			if _, ok := seen[allocatedResource]; ok {
-				continue
-			}
-			seen[allocatedResource] = struct{}{}
-			container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, allocatedResource)
-		}
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, allocatedResources...)
 	}
 }
 

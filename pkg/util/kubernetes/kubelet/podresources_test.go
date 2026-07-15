@@ -63,12 +63,7 @@ func TestGetContainerResourcesMap(t *testing.T) {
 								ClaimResources: []*podresourcesv1.ClaimResource{
 									{
 										DriverName: "gpu.nvidia.com",
-										PoolName:   "node-a",
 										DeviceName: "gpu-0",
-										ShareId:    ptr("share-1"),
-										CdiDevices: []*podresourcesv1.CDIDevice{
-											{Name: "gpu.nvidia.com/device=claim_gpu-0"},
-										},
 									},
 								},
 							},
@@ -89,7 +84,6 @@ func TestGetContainerResourcesMap(t *testing.T) {
 								ClaimResources: []*podresourcesv1.ClaimResource{
 									{
 										DriverName: "gpu.nvidia.com",
-										PoolName:   "node-a",
 										DeviceName: "gpu-1",
 									},
 								},
@@ -107,42 +101,23 @@ func TestGetContainerResourcesMap(t *testing.T) {
 	require.Len(t, resources, 3)
 
 	legacy := resources[ContainerKey{Namespace: "namespace", PodName: "pod", ContainerName: "legacy"}]
-	require.Len(t, legacy.Devices, 1)
-	require.Equal(t, "nvidia.com/gpu", legacy.Devices[0].GetResourceName())
-	require.Empty(t, legacy.DynamicResources)
+	require.Equal(t, []ContainerAllocatedResource{
+		{Name: "nvidia.com/gpu", ID: "GPU-1"},
+	}, legacy)
 
 	dra := resources[ContainerKey{Namespace: "namespace", PodName: "pod", ContainerName: "dra"}]
-	require.Empty(t, dra.Devices)
-	require.Len(t, dra.DynamicResources, 1)
-	require.Equal(t, ContainerDynamicResource{
-		ClaimName:      "claim",
-		ClaimNamespace: "namespace",
-		ClaimResources: []ContainerClaimResource{
-			{
-				DriverName: "gpu.nvidia.com",
-				PoolName:   "node-a",
-				DeviceName: "gpu-0",
-				ShareID:    "share-1",
-				CDIDevices: []string{"gpu.nvidia.com/device=claim_gpu-0"},
-			},
-		},
-	}, dra.DynamicResources[0])
+	require.Equal(t, []ContainerAllocatedResource{
+		{Name: "gpu.nvidia.com", ID: "gpu-0"},
+	}, dra)
 
 	mixed := resources[ContainerKey{Namespace: "namespace", PodName: "pod", ContainerName: "mixed"}]
-	require.Len(t, mixed.Devices, 1)
-	require.Len(t, mixed.DynamicResources, 1)
+	require.Equal(t, []ContainerAllocatedResource{
+		{Name: "example.com/device", ID: "device-1"},
+		{Name: "gpu.nvidia.com", ID: "gpu-1"},
+	}, mixed)
 }
 
-func ptr[T any](value T) *T {
-	return &value
-}
-
-func TestAddResourcesToContainerListAddsDynamicResources(t *testing.T) {
-	dynamicResource := ContainerClaimResource{
-		DriverName: "gpu.nvidia.com",
-		PoolName:   "node-a",
-		DeviceName: "gpu-0",
-	}
+func TestAddResourcesToContainerList(t *testing.T) {
 	ku := &KubeUtil{}
 	pod := &Pod{
 		Metadata: PodMetadata{
@@ -152,21 +127,10 @@ func TestAddResourcesToContainerListAddsDynamicResources(t *testing.T) {
 	}
 	containers := []ContainerStatus{{Name: "container"}}
 
-	ku.addResourcesToContainerList(map[ContainerKey]ContainerPodResources{
+	ku.addResourcesToContainerList(map[ContainerKey][]ContainerAllocatedResource{
 		{Namespace: "namespace", PodName: "pod", ContainerName: "container"}: {
-			Devices: []*podresourcesv1.ContainerDevices{
-				{
-					ResourceName: "nvidia.com/gpu",
-					DeviceIds:    []string{"GPU-1"},
-				},
-			},
-			DynamicResources: []ContainerDynamicResource{
-				{
-					ClaimName:      "claim",
-					ClaimNamespace: "namespace",
-					ClaimResources: []ContainerClaimResource{dynamicResource},
-				},
-			},
+			{Name: "nvidia.com/gpu", ID: "GPU-1"},
+			{Name: "gpu.nvidia.com", ID: "gpu-0"},
 		},
 	}, pod, containers)
 
@@ -174,5 +138,4 @@ func TestAddResourcesToContainerListAddsDynamicResources(t *testing.T) {
 		{Name: "nvidia.com/gpu", ID: "GPU-1"},
 		{Name: "gpu.nvidia.com", ID: "gpu-0"},
 	}, containers[0].ResolvedAllocatedResources)
-	require.Len(t, containers[0].DynamicAllocatedResources, 1)
 }
