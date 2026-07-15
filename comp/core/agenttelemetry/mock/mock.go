@@ -11,13 +11,11 @@ package mock
 import (
 	"context"
 	"sync"
+	"testing"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-
-	"go.uber.org/fx"
 )
 
 // Event captures a single SendEvent call.
@@ -36,13 +34,6 @@ type Mock interface {
 	Events() []Event
 	// ErrorLogs returns the error logs captured by SubmitErrorLog, in call order.
 	ErrorLogs() []errortracking.ErrorLog
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewMock),
-	)
 }
 
 type mock struct {
@@ -90,10 +81,7 @@ func (m *mock) ErrorLogs() []errortracking.ErrorLog {
 	return append([]errortracking.ErrorLog(nil), m.errorLogs...)
 }
 
-// NewMock returns a new mock for the agenttelemetry component. It returns the
-// component both as the public Component interface and as the richer Mock
-// interface so tests can assert on captured payloads.
-func NewMock() (agenttelemetry.Component, Mock) {
-	m := &mock{}
-	return m, m
+// New returns a new mock for the agenttelemetry component.
+func New(_ testing.TB) Mock {
+	return &mock{}
 }
