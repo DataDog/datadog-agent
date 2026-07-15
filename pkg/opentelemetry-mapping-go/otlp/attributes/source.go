@@ -174,7 +174,11 @@ type HostFromAttributesHandler interface {
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
-			return source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: taskARN.Str()}}, true
+			return source.Source{
+				Kind:             source.AWSECSFargateKind,
+				Identifier:       taskARN.Str(),
+				SourceIdentifier: source.SourceIdentifier{Primary: taskARN.Str()},
+			}, true
 		}
 	}
 
@@ -206,8 +210,9 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 				primary = dims["name"]
 			}
 			return source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: primary,
+				SourceIdentifier: source.SourceIdentifier{
 					Primary:    primary,
 					Dimensions: dims,
 				},
@@ -219,7 +224,11 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if hostFromAttributesHandler != nil {
 			hostFromAttributesHandler.OnHost(host)
 		}
-		return source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: host}}, true
+		return source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       host,
+			SourceIdentifier: source.SourceIdentifier{Primary: host},
+		}, true
 	}
 
 	return source.Source{}, false

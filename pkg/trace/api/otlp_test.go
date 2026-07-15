@@ -1393,7 +1393,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
-		assert.Equal(t, src.Identifier.Primary, tt.out)
+		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
