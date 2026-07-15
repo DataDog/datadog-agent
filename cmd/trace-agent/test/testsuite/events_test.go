@@ -103,10 +103,12 @@ func TestAPMEvents(t *testing.T) {
 
 func countEvents(p *pb.AgentPayload) int {
 	n := 0
-	for _, tp := range p.TracerPayloads {
+	for _, tp := range p.IdxTracerPayloads {
 		for _, chunk := range tp.Chunks {
 			for _, span := range chunk.Spans {
-				if sampler.IsAnalyzedSpan(span) {
+				// sampler.KeyAnalyzedSpans is stored as a numeric span attribute
+				// in the indexed payload format.
+				if v, ok := idxNumAttr(tp.Strings, span.Attributes, sampler.KeyAnalyzedSpans); ok && v == 1 {
 					n++
 				}
 			}

@@ -157,8 +157,15 @@ func (f Replacer) replaceAttributeAnyValue(re *regexp.Regexp, val *pb.AttributeA
 		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
 		return attributeAnyValFromString(replacedValue)
 	case pb.AttributeAnyValue_ARRAY_VALUE:
-		for _, value := range val.ArrayValue.Values {
-			*value = *f.replaceAttributeArrayValue(re, value, str) //todo test me
+		// Type and ArrayValue are independent fields, so an attribute may declare
+		// ARRAY_VALUE while carrying a nil ArrayValue; guard against that.
+		if val.ArrayValue != nil {
+			for _, value := range val.ArrayValue.Values {
+				if value == nil {
+					continue
+				}
+				*value = *f.replaceAttributeArrayValue(re, value, str)
+			}
 		}
 		return val
 	default:
