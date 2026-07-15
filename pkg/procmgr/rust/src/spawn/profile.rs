@@ -16,10 +16,10 @@
 //! | process-agent | `User=dd-agent` → [`SpawnProfile::Agent`] | `LocalSystem` → [`SpawnProfile::Privileged`] |
 //! | trace, PAR, DDOT, … | `User=dd-agent` → [`SpawnProfile::Agent`] | `ddagentuser` → [`SpawnProfile::Agent`] |
 //!
-//! - [`SpawnProfile::Agent`]: run as the Datadog agent service account (`dd-agent` on
+//! - [`SpawnProfile::Agent`]: spawn as the Datadog agent service account (`dd-agent` on
 //!   Linux, `ddagentuser` on Windows).
-//! - [`SpawnProfile::Privileged`]: run with the legacy SCM-like privilege level for
-//!   the process (on Windows that corresponds to `NT AUTHORITY\\SYSTEM`).
+//! - [`SpawnProfile::Privileged`]: spawn as `NT AUTHORITY\\SYSTEM` on Windows
+//!   (process-agent only), matching the `datadog-process-agent` service account.
 
 /// Procmgr process name for the process-agent (`processes.d` basename stem).
 pub const DATADOG_AGENT_PROCESS: &str = "datadog-agent-process";
@@ -27,12 +27,13 @@ pub const DATADOG_AGENT_PROCESS: &str = "datadog-agent-process";
 /// How a managed child process is spawned on the current platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpawnProfile {
-    /// Run as the agent service account (default for most processes).
-    Agent,
-    /// Run with the legacy privileged level for this process.
+    /// Spawn as the Datadog agent service account.
     ///
-    /// Platform-specific implementations map this to the equivalent privilege
-    /// source (e.g. Windows `LocalSystem` impersonation).
+    /// Linux: `dd-agent`. Windows: the `datadogagent` service account (`ddagentuser`).
+    Agent,
+    /// Spawn as `NT AUTHORITY\\SYSTEM` (LocalSystem).
+    ///
+    /// Windows process-agent only; matches the account configured for `datadog-process-agent`.
     Privileged,
 }
 
@@ -53,8 +54,8 @@ impl std::fmt::Display for SpawnProfile {
 
 /// Resolve the spawn profile for a process from its procmgr name.
 ///
-/// Unknown processes default to [`SpawnProfile::Agent`]. Only processes that ran
-/// with the legacy privileged SCM level use [`SpawnProfile::Privileged`].
+/// Unknown processes default to [`SpawnProfile::Agent`]. On Windows, only
+/// `datadog-agent-process` uses [`SpawnProfile::Privileged`].
 pub fn profile_for(process_name: &str) -> SpawnProfile {
     match process_name {
         DATADOG_AGENT_PROCESS if cfg!(windows) => SpawnProfile::Privileged,
