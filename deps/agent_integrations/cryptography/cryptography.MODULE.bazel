@@ -1,0 +1,61 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "cryptography_src",
+    files = {
+        "BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/BUILD.bazel",
+        "src/rust/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/BUILD.bazel",
+        "src/rust/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cargo_toml_env_vars.env",
+        "src/rust/cryptography-cffi/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-cffi/BUILD.bazel",
+        "src/rust/cryptography-cffi/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-cffi/cargo_toml_env_vars.env",
+        "src/rust/cryptography-crypto/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-crypto/BUILD.bazel",
+        "src/rust/cryptography-crypto/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-crypto/cargo_toml_env_vars.env",
+        "src/rust/cryptography-keepalive/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-keepalive/BUILD.bazel",
+        "src/rust/cryptography-keepalive/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-keepalive/cargo_toml_env_vars.env",
+        "src/rust/cryptography-key-parsing/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-key-parsing/BUILD.bazel",
+        "src/rust/cryptography-key-parsing/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-key-parsing/cargo_toml_env_vars.env",
+        "src/rust/cryptography-openssl/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-openssl/BUILD.bazel",
+        "src/rust/cryptography-openssl/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-openssl/cargo_toml_env_vars.env",
+        "src/rust/cryptography-x509-verification/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-x509-verification/BUILD.bazel",
+        "src/rust/cryptography-x509-verification/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-x509-verification/cargo_toml_env_vars.env",
+        "src/rust/cryptography-x509/BUILD.bazel": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-x509/BUILD.bazel",
+        "src/rust/cryptography-x509/cargo_toml_env_vars.env": "//deps/agent_integrations/cryptography:overlay/src/rust/cryptography-x509/cargo_toml_env_vars.env",
+    },
+    sha256 = "266f4ee051abb2f725b74ef8072b521ce1feacf685a3364fa6a6b45548db791a",
+    strip_prefix = "cryptography-48.0.1",
+    url = "https://files.pythonhosted.org/packages/12/45/870e7f4bef50e5f53b9f51d4428aee5290eedf58ba443f16b1ebb7ab8e66/cryptography-48.0.1.tar.gz",
+)
+
+cryptography_crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+cryptography_crate.annotation(
+    crate = "openssl-sys",
+    repositories = ["cryptography_crates"],
+    build_script_data = ["@@//deps/agent_integrations/cryptography:openssl_install_dir"],
+    build_script_env = {
+        "OPENSSL_DIR": "$(execpath @@//deps/agent_integrations/cryptography:openssl_install_dir)",
+        "OPENSSL_NO_VENDOR": "1",
+        "OPENSSL_STATIC": "0",
+    },
+)
+cryptography_crate.annotation(
+    crate = "pyo3",
+    repositories = ["cryptography_crates"],
+    crate_features = [
+        "abi3-py39",
+        "extension-module",
+    ],
+)
+cryptography_crate.from_cargo(
+    name = "cryptography_crates",
+    cargo_lock = "@cryptography_src//:Cargo.lock",
+    cargo_toml = "@cryptography_src//:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
+use_repo(cryptography_crate, "cryptography_crates")

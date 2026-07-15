@@ -1,0 +1,17 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**"]),
+)
+
+filegroup(
+    name = "cffi_build_data",
+    srcs = glob(["src/_cffi_src/**"]) + ["src/cryptography/__about__.py"],
+)
+
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+    "pyproject.toml",
+])

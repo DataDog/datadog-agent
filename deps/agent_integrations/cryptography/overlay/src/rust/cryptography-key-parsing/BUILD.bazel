@@ -1,0 +1,45 @@
+load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
+load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+
+OPENSSL_CFGS = [
+    "--cfg=CRYPTOGRAPHY_OPENSSL_350_OR_GREATER",
+]
+
+_ALIASES = dict(aliases(package_name = "src/rust/cryptography-key-parsing"))
+_ALIASES.update({
+    "//src/rust/cryptography-crypto": "cryptography_crypto",
+    "//src/rust/cryptography-openssl": "cryptography_openssl",
+    "//src/rust/cryptography-x509": "cryptography_x509",
+})
+
+rust_crate(
+    name = "cryptography-key-parsing",
+    aliases = _ALIASES,
+    binaries = {},
+    build_deps = [],
+    build_script = "build.rs",
+    build_script_data = [],
+    build_script_env = {},
+    build_script_toolchains = [],
+    build_script_tools = [],
+    crate_features = [],
+    crate_name = "cryptography_key_parsing",
+    crate_root = "src/lib.rs",
+    data = [],
+    deps = [
+        "//src/rust/cryptography-crypto",
+        "//src/rust/cryptography-openssl",
+        "//src/rust/cryptography-x509",
+        "@cryptography_crates//:asn1-0.24.1",
+        "@cryptography_crates//:cfg-if-1.0.4",
+        "@cryptography_crates//:openssl-0.10.79",
+        "@cryptography_crates//:openssl-sys-0.9.115",
+        "@cryptography_crates//:pem-3.0.6",
+    ],
+    edition = "2021",
+    is_proc_macro = False,
+    links = None,
+    rustc_flags = OPENSSL_CFGS,
+    target_compatible_with = RESOLVED_PLATFORMS,
+    version = "0.1.0",
+)

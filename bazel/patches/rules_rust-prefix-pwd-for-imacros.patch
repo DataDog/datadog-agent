@@ -1,0 +1,24 @@
+diff --git a/cargo/private/cargo_build_script.bzl b/cargo/private/cargo_build_script.bzl
+index f033ce0e62..380815edaf 100644
+--- a/cargo/private/cargo_build_script.bzl
++++ b/cargo/private/cargo_build_script.bzl
+@@ -225,6 +225,10 @@ def _pwd_flags_resource_dir(args):
+     """Prefix execroot-relative paths in -resource-dir arguments with ${pwd}."""
+     return _prefix_pwd_to_flag(args, ["-resource-dir=", "-resource-dir"])
+ 
++def _pwd_flags_imacros(args):
++    """Prefix execroot-relative paths in -imacros arguments with ${pwd}."""
++    return _prefix_pwd_to_flag(args, ["-imacros"])
++
+ _DIRECT_LIB_EXTENSIONS = (".a", ".o", ".so", ".dylib")
+ 
+ def _pwd_flags_direct_libs(args):
+@@ -257,7 +261,7 @@ def _pwd_paths(args):
+     return _prefix_pwd_to_paths(args)
+ 
+ def _pwd_flags(args):
+-    return _pwd_flags_direct_libs(_pwd_flags_fsanitize_ignorelist(_pwd_flags_isystem(_pwd_flags_L(_pwd_flags_B(_pwd_flags_resource_dir(_pwd_flags_sysroot(args)))))))
++    return _pwd_flags_direct_libs(_pwd_flags_imacros(_pwd_flags_fsanitize_ignorelist(_pwd_flags_isystem(_pwd_flags_L(_pwd_flags_B(_pwd_flags_resource_dir(_pwd_flags_sysroot(args))))))))
+ 
+ def _feature_enabled(ctx, feature_name, default = False):
+     """Check if a feature is enabled.

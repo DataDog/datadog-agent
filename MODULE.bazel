@@ -105,6 +105,8 @@ single_version_override(
     patches = [
         # Derives `-Cdlltool=<linker-dir>/dlltool.exe` automatically
         "//bazel/patches:rules_rust-derive-dlltool-from-linker.patch",
+        # Temporary until rules_rust includes bazelbuild/rules_rust#4116 in a release.
+        "//bazel/patches:rules_rust-prefix-pwd-for-imacros.patch",
     ],
 )
 

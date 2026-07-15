@@ -50,3 +50,6 @@ integration_dependency_wheels(
     arch = "x86_64",
     os = "windows",
 )
+
+# buildifier: leave-alone
+include("//deps/agent_integrations/cryptography:cryptography.MODULE.bazel")

@@ -1,0 +1,24 @@
+"""Inputs for building cryptography from source for FIPS Python integrations."""
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "openssl_install_dir",
+    srcs = ["@openssl//:openssl"],
+    output_group = "gen_dir",
+)
+
+filegroup(
+    name = "srcs",
+    srcs = ["@cryptography_src//:all_srcs"],
+)
+
+filegroup(
+    name = "cargo_lock",
+    srcs = ["@cryptography_src//:Cargo.lock"],
+)
+
+filegroup(
+    name = "pyproject",
+    srcs = ["@cryptography_src//:pyproject.toml"],
+)

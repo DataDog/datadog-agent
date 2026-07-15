@@ -1,0 +1,25 @@
+load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
+load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+
+rust_crate(
+    name = "cryptography-x509",
+    aliases = aliases(package_name = "src/rust/cryptography-x509"),
+    binaries = {},
+    build_deps = [],
+    build_script = "",
+    build_script_data = [],
+    build_script_env = {},
+    build_script_toolchains = [],
+    build_script_tools = [],
+    crate_features = [],
+    crate_name = "cryptography_x509",
+    crate_root = "src/lib.rs",
+    data = [],
+    deps = ["@cryptography_crates//:asn1-0.24.1"],
+    edition = "2021",
+    is_proc_macro = False,
+    links = None,
+    rustc_flags = [],
+    target_compatible_with = RESOLVED_PLATFORMS,
+    version = "0.1.0",
+)
