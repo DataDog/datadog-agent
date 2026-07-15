@@ -29,7 +29,8 @@ dd_agent_go_test(
     name = "tailers_test",
     srcs = ["tailer_test.go"],
     embed = [":tailers"],
-    flavors = ["base"],  # keep, other flavors do not build because they need kubelet tags.
+    # Only do base becuase other flavors do not build with the needed kubelet tags.
+    flavors = ["base"],  # keep
     deps = [
         "//pkg/logs/tailers/container",
         "@com_github_stretchr_testify//require",
