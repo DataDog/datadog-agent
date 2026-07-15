@@ -60,8 +60,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostIDKey):         testHostID,
 				string(conventions.HostNameKey):       testHostName,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testLiteralHost}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testLiteralHost,
+				SourceIdentifier: source.SourceIdentifier{Primary: testLiteralHost},
+			},
 		},
 		{
 			name: "custom hostname",
@@ -73,8 +77,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostIDKey):         testHostID,
 				string(conventions.HostNameKey):       testHostName,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testCustomName}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testCustomName,
+				SourceIdentifier: source.SourceIdentifier{Primary: testCustomName},
+			},
 		},
 		{
 			name: "container ID",
@@ -89,8 +97,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostIDKey):        testHostID,
 				string(conventions.HostNameKey):      testHostName,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testHostID,
+				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
+			},
 		},
 		{
 			name: "ECS Fargate",
@@ -102,8 +114,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.AWSECSTaskRevisionKey): "example-task-revision",
 				string(conventions.AWSECSLaunchtypeKey):   conventions.AWSECSLaunchtypeFargate.Value.AsString(),
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: "example-task-ARN"}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.AWSECSFargateKind,
+				Identifier:       "example-task-ARN",
+				SourceIdentifier: source.SourceIdentifier{Primary: "example-task-ARN"},
+			},
 		},
 		{
 			name: "Azure Container Apps (semconv v1.40.0 or later)",
@@ -117,8 +133,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
 						"replica_name":    "replica-1",
@@ -141,8 +158,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
 						"replica_name":    "replica-1",
@@ -163,8 +181,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
 						"replica_name":    "replica-1",
@@ -187,8 +206,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
 						"replica_name":    "replica-1",
@@ -210,8 +230,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "my-app",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary: "my-app",
 					Dimensions: map[string]string{
 						"name":            "my-app",
@@ -229,8 +250,9 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok: true,
 			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				Identifier: source.Identifier{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "",
+				SourceIdentifier: source.SourceIdentifier{
 					Primary:    "",
 					Dimensions: map[string]string{},
 				},
@@ -244,8 +266,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostNameKey):       testGCPHostname,
 				string(conventions.CloudAccountIDKey): testCloudAccount,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testGCPIntegrationHostname}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testGCPIntegrationHostname,
+				SourceIdentifier: source.SourceIdentifier{Primary: testGCPIntegrationHostname},
+			},
 		},
 		{
 			name: "GCP, no account id",
@@ -262,8 +288,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostIDKey):        testHostID,
 				string(conventions.HostNameKey):      testHostName,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testHostID,
+				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
+			},
 		},
 		{
 			name: "host id v. hostname",
@@ -271,8 +301,12 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.HostIDKey):   testHostID,
 				string(conventions.HostNameKey): testHostName,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: testHostID}},
+			ok: true,
+			src: source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       testHostID,
+				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
+			},
 		},
 		{
 			name:  "no hostname",
@@ -301,7 +335,11 @@ func TestLiteralHostNonString(t *testing.T) {
 	attrs.PutInt(AttributeHost, 1000)
 	src, ok := SourceFromAttrs(attrs, nil)
 	assert.True(t, ok)
-	assert.Equal(t, source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: "1000"}}, src)
+	assert.Equal(t, source.Source{
+		Kind:             source.HostnameKind,
+		Identifier:       "1000",
+		SourceIdentifier: source.SourceIdentifier{Primary: "1000"},
+	}, src)
 }
 
 func TestGetClusterName(t *testing.T) {

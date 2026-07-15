@@ -96,7 +96,7 @@ var _ source.Provider = (*noSourceProvider)(nil)
 type noSourceProvider struct{}
 
 func (*noSourceProvider) Source(context.Context) (source.Source, error) {
-	return source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: ""}}, nil
+	return source.Source{Kind: source.HostnameKind, Identifier: "", SourceIdentifier: source.SourceIdentifier{Primary: ""}}, nil
 }
 
 // defaultTranslator is the default metrics translator implementation.
@@ -387,7 +387,7 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
-// tagsFromDimensions converts an Source.Identifier.Dimensions map into a "key:value" tag slice
+// tagsFromDimensions converts a Source.SourceIdentifier.Dimensions map into a "key:value" tag slice
 func tagsFromDimensions(dims map[string]string) []string {
 	tags := make([]string, 0, len(dims))
 	for k, v := range dims {
@@ -525,7 +525,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier.Primary
+			host = src.Identifier
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -625,7 +625,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.Identifier.Dimensions))
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			}
 		}

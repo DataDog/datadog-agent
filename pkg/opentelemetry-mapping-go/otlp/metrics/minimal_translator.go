@@ -90,7 +90,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier.Primary
+			host = src.Identifier
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -156,7 +156,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 			case source.AzureContainerAppsKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
-					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.Identifier.Dimensions))
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			}
 		}

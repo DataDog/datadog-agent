@@ -78,7 +78,7 @@ func NewTranslatorWithHTTPClient(set component.TelemetrySettings, attributesTran
 
 func (t *Translator) hostNameAndServiceNameFromResource(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (host string, service string) {
 	if src, ok := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler); ok && src.Kind == source.HostnameKind {
-		host = src.Identifier.Primary
+		host = src.Identifier
 	}
 	if s, ok := res.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 		service = s.AsString()
@@ -88,7 +88,7 @@ func (t *Translator) hostNameAndServiceNameFromResource(ctx context.Context, res
 
 func (t *Translator) hostFromAttributes(ctx context.Context, attrs pcommon.Map) string {
 	if src, ok := t.attributesTranslator.AttributesToSource(ctx, attrs); ok && src.Kind == source.HostnameKind {
-		return src.Identifier.Primary
+		return src.Identifier
 	}
 	return ""
 }
