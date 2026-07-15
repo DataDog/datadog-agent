@@ -47,6 +47,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
+	ProductNetworkPath:                  {},
 }
 
 const (
@@ -136,4 +137,6 @@ const (
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 	// ProductK8SActions receives Kubernetes actions to execute on cluster resources
 	ProductK8SActions = "K8S_ACTIONS"
+	// ProductNetworkPath configures Network Path scheduled tests
+	ProductNetworkPath = "NETWORK_PATH"
 )
