@@ -60,6 +60,7 @@
 /bazel/                                 @DataDog/agent-build
 /bazel/configs/rust.bazelrc             @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
 /deps/                                  @DataDog/agent-build
+/deps/adp.json                          @DataDog/agent-data-plane @DataDog/agent-build
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
 # For now, agent-build are the experts in that.
@@ -349,6 +350,7 @@
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                         @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
+/omnibus/config/software/datadog-agent-data-plane.rb      @DataDog/agent-data-plane @DataDog/agent-build
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /deps/agent_integrations/               @DataDog/agent-build @DataDog/agent-integrations
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
