@@ -373,7 +373,7 @@ func (s *dsdServer) startHook(context context.Context) error {
 		return nil
 	}
 	if s.config.GetBool("dogstatsd_require_listener") {
-		return err
+		return fmt.Errorf("dogstatsd start failed: %w", err)
 	}
 	s.log.Errorf("Could not start dogstatsd: %s", err)
 	return nil

@@ -2203,16 +2203,17 @@ properties:
     default: false
     visibility: public
     description: |-
-      When enabled, DogStatsD fails to start (the process exits with a non-zero status) if it
-      cannot create any listener (UDP port, Unix socket, or named pipe). When disabled, such a
-      failure is only logged and the process keeps running with no way to receive metrics.
+      When enabled, DogStatsD fails to start (the process exits with a non-zero status) on any
+      startup error. The most common such error is being unable to create any listener (UDP
+      port, Unix socket, or named pipe), which would leave DogStatsD with no way to receive
+      metrics. When disabled, a startup failure is only logged and the process keeps running.
       Enable this so a process supervisor can detect and restart a non-functional DogStatsD.
     tags:
     - template_section:Dogstatsd
     comment: |-
-      When true, DogStatsD fails to start (the process exits non-zero) if no listener
-      (UDP port, UDS socket, or named pipe) could be created. When false, the failure is
-      only logged and the process keeps running without any way to receive metrics.
+      When true, DogStatsD fails to start (the process exits non-zero) on any startup error,
+      most commonly when no listener (UDP port, UDS socket, or named pipe) could be created.
+      When false, the failure is only logged and the process keeps running.
   bind_host:
     node_type: setting
     type: string
