@@ -262,8 +262,8 @@ fi
 # never fail the Agent install. The uninstaller uses the marker to remove only
 # Agent-installed Trajectory.
 # ==========================================================================
-TRAJECTORY_INSTALL_URL="${DD_TRAJECTORY_INSTALL_URL:-https://raw.githubusercontent.com/datadog-labs/trajectory/main/install.sh}"
-TRAJECTORY_CONFIG_DEFAULTS_URL="${DD_TRAJECTORY_CONFIG_DEFAULTS_URL:-https://raw.githubusercontent.com/DataDog/datadog-agent/main/cmd/agent/macos/trajectory/config.defaults.yaml}"
+TRAJECTORY_INSTALL_URL="https://raw.githubusercontent.com/datadog-labs/trajectory/main/install.sh"
+TRAJECTORY_CONFIG_DEFAULTS_URL="https://raw.githubusercontent.com/DataDog/datadog-agent/main/cmd/agent/macos/trajectory/config.defaults.yaml"
 TRAJECTORY_MARKER_RELPATH="state/dd-agent-eudm"
 
 if [ "$dd_install_trajectory" = "true" ]; then
