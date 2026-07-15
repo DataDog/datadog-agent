@@ -18,7 +18,7 @@ import (
 )
 
 // installRootProcmgrSpec describes a processes.d config whose binary and YAML both
-// live under the same MSI Program Files install root (ADP, PAR). DDOT is different:
+// live under the same MSI Program Files install root (PAR, ADP). DDOT is different:
 // its binary is under the fleet package path while processes.d stays on the install root.
 type installRootProcmgrSpec struct {
 	logLabel          string
@@ -35,16 +35,13 @@ func (s installRootProcmgrSpec) configRelPath() string {
 func (s installRootProcmgrSpec) renderConfig(installRootResolved string) string {
 	installRootRepl := filepath.ToSlash(filepath.Clean(installRootResolved))
 	etcRootRepl := filepath.ToSlash(filepath.Clean(paths.DatadogDataDir))
-	fleetPoliciesRepl := filepath.ToSlash(filepath.Clean(paths.FleetPoliciesDirForManagedProcess()))
-	log.Debugf("%s processes.d: template replace __%s_INSTALL_ROOT__=%q __%s_ETC_ROOT__=%q __%s_FLEET_POLICIES_DIR__=%q",
+	log.Debugf("%s processes.d: template replace __%s_INSTALL_ROOT__=%q __%s_ETC_ROOT__=%q",
 		s.logLabel, s.placeholderPrefix, installRootRepl,
-		s.placeholderPrefix, etcRootRepl,
-		s.placeholderPrefix, fleetPoliciesRepl)
+		s.placeholderPrefix, etcRootRepl)
 
 	config := s.embeddedConfig
 	config = strings.ReplaceAll(config, "__"+s.placeholderPrefix+"_INSTALL_ROOT__", installRootRepl)
 	config = strings.ReplaceAll(config, "__"+s.placeholderPrefix+"_ETC_ROOT__", etcRootRepl)
-	config = strings.ReplaceAll(config, "__"+s.placeholderPrefix+"_FLEET_POLICIES_DIR__", fleetPoliciesRepl)
 	return config
 }
 

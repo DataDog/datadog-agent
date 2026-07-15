@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -50,7 +50,7 @@ func (fam FindAndModifyAction) Run(ctx context.Context, task *types.Task, creden
 		return nil, err
 	}
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to MongoDB: %w", err)
 	}
@@ -63,7 +63,7 @@ func (fam FindAndModifyAction) Run(ctx context.Context, task *types.Task, creden
 	db := client.Database(cs.Database)
 	collection := db.Collection(inputs.Collection)
 
-	result := collection.FindOneAndUpdate(ctx, inputs.Filter, inputs.Update, inputs.Options)
+	result := collection.FindOneAndUpdate(ctx, inputs.Filter, inputs.Update, optionsLister[options.FindOneAndUpdateOptions]{inputs.Options})
 	if err := result.Err(); err != nil {
 		return nil, fmt.Errorf("Failed to find and modify document: %w", err)
 	}

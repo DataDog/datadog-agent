@@ -42,7 +42,6 @@ properties:
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
     - template_section:Common
-    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -1070,7 +1069,6 @@ properties:
 
           The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
           DD_PROXY_HTTP and DD_PROXY_HTTPS).
-        comment: Fips
       local_address:
         node_type: setting
         type: string
@@ -1115,6 +1113,7 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
+            comment: metrics options
           url:
             node_type: setting
             type: string
@@ -1146,6 +1145,7 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
+            comment: logs options
           url:
             node_type: setting
             type: string
@@ -1264,8 +1264,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -1540,6 +1541,7 @@ properties:
     example: <COMMAND_PATH>
     tags:
     - template_section:Agent
+    comment: secrets backend
   secret_backend_arguments:
     node_type: setting
     type: array
@@ -1689,7 +1691,6 @@ properties:
     tags:
     - template_section:LogsAgent
     comment: |-
-      Logs Agent
       External Use: modify those parameters to configure the logs-agent.
       enable the logs-agent:
   logs_config:
@@ -2023,6 +2024,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2177,7 +2186,6 @@ properties:
     description: Set this option to false to disable the Agent DogStatsD server.
     tags:
     - template_section:Dogstatsd
-    comment: Dogstatsd
   dogstatsd_port:
     node_type: setting
     type: integer
@@ -2203,6 +2211,7 @@ properties:
     example: localhost
     tags:
     - template_section:Dogstatsd
+    comment: statsd
   dogstatsd_socket:
     node_type: setting
     type: string
@@ -2218,6 +2227,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
   dogstatsd_origin_detection:
     node_type: setting
@@ -2807,9 +2817,7 @@ properties:
     description: Directory containing configuration templates for Autoconfig.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      Autoconfig
-      Where to look for check templates if no custom path is defined
+    comment: Where to look for check templates if no custom path is defined
   autoconf_config_files_poll:
     node_type: setting
     type: boolean
@@ -3387,9 +3395,7 @@ properties:
       If left empty, the CRI and Containerd checks are disabled.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      CRI
-      empty is disabled
+    comment: empty is disabled
   cri_connection_timeout:
     node_type: setting
     type: integer
@@ -3430,7 +3436,6 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
-    comment: Containerd
   containerd_namespaces:
     node_type: setting
     type: array
@@ -3476,7 +3481,6 @@ properties:
     example: <KUBLET_HOST>
     tags:
     - template_section:Kubelet
-    comment: Kubernetes
   kubernetes_http_kubelet_port:
     node_type: setting
     type: integer
@@ -5749,7 +5753,6 @@ properties:
       items:
         type: string
       type: array
-    comment: Forwarder
   agent_ipc:
     node_type: section
     type: object
@@ -6620,7 +6623,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Cloud Foundry
   cloud_foundry_buildpack:
     node_type: setting
     type: boolean
@@ -7016,7 +7018,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Data Plane
       log_file:
         node_type: setting
         type: string
@@ -7088,6 +7089,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      serializer_zstd_compressor_level:
+        node_type: setting
+        type: integer
+        default: 3
+        comment: |-
+          ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+          (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+          more efficient than the Agent. Forwarded to ADP over the config stream.
       stop_timeout:
         node_type: setting
         type: integer
@@ -7938,7 +7947,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Serializer
   enable_payloads:
     node_type: section
     type: object
@@ -8244,7 +8252,7 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Directory to store fleet policies
+    comment: Fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: integer
@@ -9217,7 +9225,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration (EUDM)
+        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
@@ -9495,7 +9503,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: Remote agents
           idle_timeout:
             node_type: setting
             type: string
@@ -9527,7 +9534,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Remote flags
   remote_policies:
     node_type: setting
     type: boolean
@@ -9772,7 +9778,6 @@ properties:
         default: false
         tags:
         - no-env
-        comment: Serverless Agent
       logs_enabled:
         node_type: setting
         type: boolean
@@ -10123,7 +10128,6 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Telemetry
           Enable telemetry metrics on the internals of the Agent.
           This create a lot of billable custom metrics.
       offlinereporter:
@@ -10320,7 +10324,9 @@ properties:
             format: duration
             tags:
             - golang_type:duration
-            comment: Remote process collector
+            comment: |-
+              The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
+              check is disabled.
       remote:
         node_type: section
         type: object
