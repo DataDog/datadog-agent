@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//pkg/collector/corechecks/networkpath",
+        "//pkg/networkpath/payload",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "networkpath_test",
+    srcs = ["provider_test.go"],
+    embed = [":networkpath"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//pkg/collector/corechecks/networkpath",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

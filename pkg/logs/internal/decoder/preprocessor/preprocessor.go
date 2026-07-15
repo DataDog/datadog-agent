@@ -70,9 +70,16 @@ func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
 
 	var label Label
-	if msg.ParsingExtra.IsMultiLine {
+	switch {
+	case msg.ParsingExtra.IsMultiLine:
 		label = noAggregate
-	} else {
+	case len(tokens) == 0:
+		// Empty lines tokenize to nothing, so token-based heuristics (notably the
+		// timestamp detector) would log errors about missing tokens. Skip the labeler
+		// and treat the line as a continuation, which matches the labeler's default
+		// label and lets a blank line fold into the current group.
+		label = aggregate
+	default:
 		labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
 		label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
 	}

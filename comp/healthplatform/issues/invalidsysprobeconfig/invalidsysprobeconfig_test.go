@@ -80,6 +80,7 @@ func TestBuildIssue_LocksContract(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, IssueName, issue.GetIssueName())
+	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, "system-probe", issue.GetLocation())
 	assert.Equal(t, []string{"config", "schema", "system-probe"}, issue.GetTags())
 	assert.Contains(t, issue.GetTitle(), "Datadog System-Probe Configuration")

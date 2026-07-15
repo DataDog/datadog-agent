@@ -93,7 +93,7 @@ This will create the `go.mod` and `go.sum` files in the module's root folder. **
         This will also add `require` directives for all required dependencies and compute the `go.sum` changes.
         ///
 
-    - A [`replace` directive](https://go.dev/ref/mod#go-mod-file-replac) in the main `go.mod` file to replace the module with the local path:
+    - A [`replace` directive](https://go.dev/ref/mod#go-mod-file-replace) in the main `go.mod` file to replace the module with the local path:
 
         ```
         // main go.mod file
@@ -149,7 +149,7 @@ For each module, you can specify:
 * `default` - for modules with default attribute values
 * `ignored` - for ignored modules.
 
-To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition [here](/tasks/libs/common/gomodules.py) for the list of attributes and their details.
+To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition [here](https://github.com/DataDog/datadog-agent/blob/main/tasks/libs/common/gomodules.py) for the list of attributes and their details.
 
 /// tip
 This file can be linted and checked by using `dda inv modules.validate [--fix-format]`.

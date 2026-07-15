@@ -2041,3 +2041,15 @@ func TestClearEnvVars(t *testing.T) {
 	cfg.(*ntmConfig).buildEnvVars()
 	assert.Equal(t, "default-b", cfg.GetString("b"))
 }
+
+func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.SetDefault("key", "value")
+	cfg.BuildSchema()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.Get("key")
+	}
+}

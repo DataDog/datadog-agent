@@ -44,7 +44,6 @@ dd_agent_go_test(
     ],
     embed = [":nodetreemodel"],
     deps = [
-        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "@com_github_spf13_cast//:cast",

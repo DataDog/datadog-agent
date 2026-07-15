@@ -546,6 +546,7 @@
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
+/comp/core/autodiscovery/providers/networkpath @DataDog/network-path @DataDog/container-platform
 /comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/ad-misconfiguration @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment @DataDog/gpu-monitoring-agent @DataDog/ebpf-platform @DataDog/fleet-remediation
@@ -808,6 +809,7 @@
 /tasks/macos.py                         @DataDog/windows-products
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
+/tasks/bazel.py                         @DataDog/agent-build
 /tasks/build_tags.py                    @DataDog/agent-build
 /tasks/build_tags.bzl                   @DataDog/agent-build
 /tasks/anomalydetection.py              @DataDog/q-branch
@@ -862,6 +864,7 @@
 /tasks/release_metrics/                 @DataDog/agent-delivery
 /tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/schema/                          @DataDog/agent-configuration
+/tasks/unit_tests/bazel_tests.py        @DataDog/agent-build
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
 /tasks/unit_tests/build_tags_tests.py   @DataDog/agent-build
 /tasks/unit_tests/libs/build/           @DataDog/agent-build

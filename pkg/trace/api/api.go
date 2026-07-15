@@ -835,7 +835,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if r.conf.HasFeature("convert-traces") {
+	if !r.conf.HasFeature("disable-convert-traces") {
 		r.handleTracesV1(v, w, req)
 		return
 	}

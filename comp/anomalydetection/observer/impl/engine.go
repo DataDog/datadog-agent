@@ -990,6 +990,10 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.mu.Unlock()
 	e.SetExtractors(extractors)
 	e.resetFull()
+	e.replayTimestampsDone.Store(0)
+	e.replayTimestampsTotal.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
 	e.maxCorrelations = storageCfg.MaxCorrelations
@@ -1079,6 +1083,26 @@ func (e *engine) ReplayStoredData() advanceResult {
 	return advanceResult{
 		anomalies: allAnomalies,
 	}
+}
+
+// FinishReplayStream flushes analysis through the latest observed data time.
+// Unlike ReplayStoredData, it does not reset analysis or walk storage: callers
+// have already advanced analysis synchronously as observations arrived.
+func (e *engine) FinishReplayStream() advanceResult {
+	var allAnomalies []observerdef.Anomaly
+
+	e.replayPhase.Store("detecting")
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		result := e.advanceWithReason(req.upToSec, req.reason)
+		allAnomalies = append(allAnomalies, result.anomalies...)
+	}
+
+	e.replayAdvances.Add(int64(len(endRequests)))
+	e.replayAnomalies.Store(int64(e.TotalAnomalyCount()))
+	e.replayPhase.Store("done")
+
+	return advanceResult{anomalies: allAnomalies}
 }
 
 // ReplayWithLiveSchedule replays stored data but only advances at the timestamps

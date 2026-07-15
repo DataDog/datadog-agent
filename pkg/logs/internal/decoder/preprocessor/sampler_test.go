@@ -415,14 +415,15 @@ func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {
 	assert.Nil(t, s.Flush())
 }
 
-// A message with no tokens (e.g. empty log line) never matches an existing entry
-// and is always treated as a new pattern.
-func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
+// A message with no content (e.g. empty log line) is ignored by the sampler: it is
+// passed through untouched and does not create or match a pattern entry. The guard
+// keys off HasContent(), so structured messages that carry metadata are still sampled.
+func TestAdaptiveSampler_EmptyContentIgnored(t *testing.T) {
 	s := newSampler(10, 5.0, 0)
-	msg := testMsg()
+	msg := message.NewMessage([]byte{}, nil, message.StatusInfo, 0)
 	out := s.Process(msg, nil)
-	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
-	require.Len(t, s.entries, 1)
+	assert.Same(t, msg, out, "empty-content message should pass through untouched")
+	require.Empty(t, s.entries, "empty-content message must not create a pattern entry")
 }
 
 func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {

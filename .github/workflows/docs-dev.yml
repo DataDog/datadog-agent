@@ -9,6 +9,12 @@ on:
     - main
     paths:
     - docs/**
+    - mkdocs.yml
+    - .dda/extend/commands/run/docs/**
+    - .dda/extend/pythonpath/utils/docs/**
+    - .lychee.toml
+    - .go-version
+    - .python-version
     - .github/workflows/docs-dev.yml
 
 permissions: {}

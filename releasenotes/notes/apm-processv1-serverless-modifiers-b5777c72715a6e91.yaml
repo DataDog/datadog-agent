@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: With trace conversion (``convert-traces``) enabled by default, traces
+    are now processed through the V1 pipeline. The V1 pipeline now applies the
+    serverless span discard filter, span modifier, and tracer payload modifier
+    that were previously only applied by the legacy pipeline. This restores
+    function tags, ``_dd.origin`` tagging, and internal-infrastructure span
+    filtering for serverless-init and Azure App Services deployments.
+  - |
+    APM: Fixed a potential trace-agent panic when a converted payload (for
+    example a v0.7 protobuf payload) contained a trace chunk with no spans.
+    Empty and nil chunks are now dropped during conversion and defensively
+    skipped during processing, instead of leaving nil entries that could crash
+    the processing worker.

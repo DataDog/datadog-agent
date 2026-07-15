@@ -30,10 +30,13 @@ def cmd(app: Application, *, check: bool) -> None:
             app.tools.uv.run(["pip", "install", "-q", *DEPENDENCIES])
 
         env_vars = EnvVars({"SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH})
-        build_command = ["mkdocs", "build", "--strict", "--clean"]
-        if check:
-            build_command.append("--no-directory-urls")
+        build_command = ["zensical", "build", "--strict", "--clean"]
+        cache_marker = Path(".cache", ".gitkeep")
+        try:
             app.subprocess.run(build_command, env=env_vars)
-            app.subprocess.exit_with(["linkchecker", "--config", ".linkcheckerrc", "site"], env=env_vars)
-        else:
-            app.subprocess.exit_with(build_command, env=env_vars)
+        finally:
+            cache_marker.parent.mkdir(parents=True, exist_ok=True)
+            cache_marker.touch()
+
+        if check:
+            app.subprocess.exit_with(["lychee", "--config", ".lychee.toml", "site"], env=env_vars)
