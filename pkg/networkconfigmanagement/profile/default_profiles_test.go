@@ -25,14 +25,14 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 
 		{
 			name:                      "Cisco ASA",
-			profile:                   DefaultProfile(t, "cisco-asa"),
-			fixture:                   loadFixture("cisco-asa", "running"),
+			profile:                   DefaultProfile(t, ProfileCiscoASA),
+			fixture:                   loadFixture(ProfileCiscoASA, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "Cisco IOS",
-			profile: DefaultProfile(t, "cisco-ios"),
-			fixture: loadFixture("cisco-ios", "running"),
+			profile: DefaultProfile(t, ProfileCiscoIOS),
+			fixture: loadFixture(ProfileCiscoIOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1760099696,
 				ConfigSize: 3781,
@@ -40,8 +40,8 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		},
 		{
 			name:    "JunOS",
-			profile: DefaultProfile(t, "junos"),
-			fixture: loadFixture("junos", "running"),
+			profile: DefaultProfile(t, ProfileJunos),
+			fixture: loadFixture(ProfileJunos, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				ConfigSize: 0,
 				Timestamp:  1730646727,
@@ -50,52 +50,52 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		},
 		{
 			name:                      "PAN-OS",
-			profile:                   DefaultProfile(t, "pan-os"),
-			fixture:                   loadFixture("pan-os", "running"),
+			profile:                   DefaultProfile(t, ProfilePanOS),
+			fixture:                   loadFixture(ProfilePanOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "AOSW",
-			profile:                   DefaultProfile(t, "aosw"),
-			fixture:                   loadFixture("aosw", "running"),
+			profile:                   DefaultProfile(t, ProfileAOSW),
+			fixture:                   loadFixture(ProfileAOSW, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "NXOS",
-			profile: DefaultProfile(t, "nxos"),
-			fixture: loadFixture("nxos", "running"),
+			profile: DefaultProfile(t, ProfileNXOS),
+			fixture: loadFixture(ProfileNXOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1767709263,
 			},
 		},
 		{
 			name:                      "TMOS",
-			profile:                   DefaultProfile(t, "tmos"),
-			fixture:                   loadFixture("tmos", "running"),
+			profile:                   DefaultProfile(t, ProfileTMOS),
+			fixture:                   loadFixture(ProfileTMOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "AOSCX",
-			profile:                   DefaultProfile(t, "aoscx"),
-			fixture:                   loadFixture("aoscx", "running"),
+			profile:                   DefaultProfile(t, ProfileAOSCX),
+			fixture:                   loadFixture(ProfileAOSCX, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "EOS",
-			profile:                   DefaultProfile(t, "eos"),
-			fixture:                   loadFixture("eos", "running"),
+			profile:                   DefaultProfile(t, ProfileEOS),
+			fixture:                   loadFixture(ProfileEOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "fortios",
-			profile:                   DefaultProfile(t, "fortios"),
-			fixture:                   loadFixture("fortios", "running"),
+			profile:                   DefaultProfile(t, ProfileFortiOS),
+			fixture:                   loadFixture(ProfileFortiOS, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "DellOS10",
-			profile: DefaultProfile(t, "dellos10"),
-			fixture: loadFixture("dellos10", "running"),
+			profile: DefaultProfile(t, ProfileDellOS10),
+			fixture: loadFixture(ProfileDellOS10, "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1491873902,
 			},
@@ -116,7 +116,7 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 }
 
 func Test_TMOSGetRunningValidator(t *testing.T) {
-	v := DefaultProfile(t, "tmos").Commands.GetRunning.Validator
+	v := DefaultProfile(t, ProfileTMOS).Commands.GetRunning.Validator
 	assert.NoError(t, v.Validate("#TMSH-VERSION: 17.1.3\n"))
 	assert.NoError(t, v.Validate("sys global-settings {\n"))
 	assert.NoError(t, v.Validate("ltm virtual /Common/x {\n"))
@@ -135,8 +135,8 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 	}{
 		{
 			name:    "Cisco IOS",
-			profile: DefaultProfile(t, "cisco-ios"),
-			fixture: loadFixture("cisco-ios", "startup"),
+			profile: DefaultProfile(t, ProfileCiscoIOS),
+			fixture: loadFixture(ProfileCiscoIOS, "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1765307830,
 				ConfigSize: 3163,
@@ -144,22 +144,22 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 		},
 		{
 			name:    "NXOS",
-			profile: DefaultProfile(t, "nxos"),
-			fixture: loadFixture("nxos", "startup"),
+			profile: DefaultProfile(t, ProfileNXOS),
+			fixture: loadFixture(ProfileNXOS, "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1767899167,
 			},
 		},
 		{
 			name:                      "AOSCX",
-			profile:                   DefaultProfile(t, "aoscx"),
-			fixture:                   loadFixture("aoscx", "startup"),
+			profile:                   DefaultProfile(t, ProfileAOSCX),
+			fixture:                   loadFixture(ProfileAOSCX, "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "EOS",
-			profile: DefaultProfile(t, "eos"),
-			fixture: loadFixture("eos", "startup"),
+			profile: DefaultProfile(t, ProfileEOS),
+			fixture: loadFixture(ProfileEOS, "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1392798871,
 				Author:    "admin",
@@ -167,8 +167,8 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 		},
 		{
 			name:                      "dellos10",
-			profile:                   DefaultProfile(t, "dellos10"),
-			fixture:                   loadFixture("dellos10", "startup"),
+			profile:                   DefaultProfile(t, ProfileDellOS10),
+			fixture:                   loadFixture(ProfileDellOS10, "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 	}

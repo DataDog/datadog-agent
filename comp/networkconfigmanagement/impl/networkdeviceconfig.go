@@ -66,7 +66,7 @@ func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstanc
 	var profile *ncmprofile.NCMProfile
 	if device.Profile != "" {
 		var ok bool
-		profile, ok = n.profiles[device.Profile]
+		profile, ok = n.profiles[ncmprofile.ProfileName(device.Profile)]
 		if !ok {
 			return fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, device.DeviceID())
 		}
