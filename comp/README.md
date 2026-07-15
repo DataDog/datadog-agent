@@ -412,6 +412,12 @@ send logs.
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
+### [comp/logs/smartadaptivesampling](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/smartadaptivesampling)
+
+*Datadog Team*: agent-log-pipelines q-branch
+
+Package smartadaptivesampling defines the smart adaptive sampling component.
+
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
