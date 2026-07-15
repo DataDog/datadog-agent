@@ -42,9 +42,10 @@ import (
 const localAgentImageEnv = "OPENMETRICS_E2E_AGENT_IMAGE"
 
 const (
-	configureOutcomeLoaded   = "loaded"
-	configureOutcomeFallback = "fallback"
-	configureReasonNone      = "none"
+	configureOutcomeLoaded           = "loaded"
+	configureOutcomeFallback         = "fallback"
+	configureReasonNone              = "none"
+	configureReasonUnsupportedConfig = "unsupported_config"
 )
 
 type openMetricsE2ESuite interface {
@@ -149,7 +150,7 @@ func (s *kindOpenMetricsCoreLoaderSuite) TestAutodiscoveryInstancesUseCoreLoader
 
 		telemetry += "\n" + clusterChecksTelemetry
 		assert.GreaterOrEqual(c, openMetricsConfigureTelemetryCount(telemetry, configureOutcomeLoaded, configureReasonNone), float64(3))
-		assert.GreaterOrEqual(c, openMetricsConfigureTelemetryOutcomeCount(telemetry, configureOutcomeFallback), float64(1))
+		assert.GreaterOrEqual(c, openMetricsConfigureTelemetryCount(telemetry, configureOutcomeFallback, configureReasonUnsupportedConfig), float64(1))
 		assert.True(c, hasOpenMetricsExecutionTelemetry(telemetry, "core"))
 		assert.True(c, hasOpenMetricsExecutionTelemetry(telemetry, "python"))
 	}, time.Minute, 5*time.Second)
@@ -524,7 +525,7 @@ func openMetricsFixtureADAnnotation() string {
         "prometheus_url": "http://%%host%%:8080/metrics",
         "namespace": "openmetrics_e2e_fallback",
         "metrics": ["go_memstats_alloc_bytes"],
-        "use_legacy_auth_encoding": true
+        "request_size": 16
       },
       {
         "openmetrics_endpoint": "http://%%host%%:8080/metrics",
