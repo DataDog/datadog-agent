@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 // Bundle defines the fx options for the health platform bundle.
 func Bundle() fxutil.BundleOptions {

@@ -57,10 +57,15 @@ bazel:test:macos-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --execution_log_compact_file=$CI_PROJECT_DIR/bazel-exec.log --config=no-dd-agent-go-tests //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
+  artifacts:
+    paths:
+      - junit-*.tgz
+      - bazel-bep-*.json
+      - bazel-exec.log
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]

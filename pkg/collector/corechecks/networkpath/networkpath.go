@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -78,6 +79,7 @@ func (c *Check) Run() error {
 	}
 
 	path.Namespace = c.config.Namespace
+	path.TestConfigID = c.config.TestConfigID
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
 	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
@@ -143,6 +145,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	config, err := NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return err
+	}
+	if provider != names.NetworkPathRemoteConfig {
+		config.TestConfigID = ""
 	}
 	c.config = config
 	return nil
