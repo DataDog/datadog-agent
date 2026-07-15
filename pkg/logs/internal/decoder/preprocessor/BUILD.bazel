@@ -35,6 +35,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/metrics",
@@ -62,6 +63,7 @@ go_test(
         "pattern_table_test.go",
         "preprocessor_test.go",
         "sampler_benchmark_test.go",
+        "sampler_smart_severity_profile_test.go",
         "sampler_test.go",
         "stack_trace_aggregator_test.go",
         "timestamp_detector_test.go",
@@ -73,6 +75,7 @@ go_test(
     embed = [":preprocessor"],
     gotags = ["test"],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
