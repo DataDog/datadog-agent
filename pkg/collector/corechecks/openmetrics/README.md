@@ -42,19 +42,19 @@ if err != nil {
 return scraper.Scrape(sender)
 ```
 
-`NewScraperFromYAML` accepts the same instance YAML as the generic
-`openmetrics` integration. The public wrapper deliberately keeps the
-configuration surface data-driven, so future core checks share the same parity
-suite and behavior.
+`NewScraperFromYAML` accepts generic `openmetrics` instance YAML and returns an
+unsupported-config error for options that still require the Python
+implementation. The public wrapper keeps the configuration surface data-driven
+so future core checks can share the parser, scraper, and compatibility tests.
 
 ## Validation Map
 
 ```mermaid
 flowchart LR
-    Upstream[integrations-core<br/>OpenMetrics tests] --> Ledger[Go parity ledger]
-    Ledger --> Unit[package unit tests]
-    Fixtures[upstream benchmark payloads] --> Smoke[fixture smoke test]
-    Fixtures --> Bench[Go vs Python benchmark]
+    Upstream[integrations-core<br/>OpenMetrics tests] --> Ledger[Migration inventory]
+    Ledger --> Unit[Focused Go behavior tests]
+    Fixtures[upstream benchmark payloads] --> Smoke[Go fixture smoke test]
+    Fixtures --> Bench[Go parser benchmarks]
     Kind[Kind e2e] --> Default[Python default loader]
     Kind --> Core[Go core loader + Python fallback]
     Unit --> CI[new-e2e-amp / unit CI]
@@ -63,6 +63,7 @@ flowchart LR
     Core --> CI
 ```
 
-The parity ledger only tracks tests applicable to the generic check behavior.
-Python-only constructor, subclass, decorator, and method-mutation seams are
-excluded from that ledger rather than counted as skips.
+The migration inventory is bookkeeping, not executable proof of one-to-one
+assertions. Behavioral confidence comes from the focused Go unit tests and the
+Python-default/core-loader fakeintake e2e suites. Python-only constructor,
+subclass, decorator, and method-mutation seams are excluded from the inventory.

@@ -7,22 +7,30 @@ package openmetrics
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +55,10 @@ type openmetricsScraper struct {
 	tags       []string
 
 	flushFirstValue bool
+
+	bearerTokenMu        sync.Mutex
+	cachedBearerToken    string
+	bearerTokenRefreshed time.Time
 }
 
 type scrapePrepass struct {
@@ -419,8 +431,13 @@ func (s *openmetricsScraper) fetch(sender sender.Sender) (*scrapeResponse, error
 			request.Header.Set("Accept", "text/plain")
 		}
 	}
-	if s.cfg.username != "" || s.cfg.password != "" {
-		request.SetBasicAuth(s.cfg.username, s.cfg.password)
+	if s.cfg.basicAuthConfigured {
+		authorization, err := basicAuthorization(s.cfg.username, s.cfg.password, s.cfg.legacyAuthEncoding)
+		if err != nil {
+			s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
+			return nil, err
+		}
+		request.Header.Set("Authorization", authorization)
 	}
 	if s.cfg.bearerTokenAuth {
 		token, err := s.bearerToken()
@@ -444,7 +461,24 @@ func (s *openmetricsScraper) fetch(sender sender.Sender) (*scrapeResponse, error
 		}
 		return nil, err
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	if response.StatusCode >= 400 && s.cfg.authToken != nil {
+		response.Body.Close()
+		s.cfg.authToken.reset()
+		if err := s.cfg.authToken.apply(request); err != nil {
+			s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
+			return nil, err
+		}
+		response, err = s.httpClient.Do(request)
+		if err != nil {
+			s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
+			if s.cfg.ignoreConnectionErrors {
+				log.Warnf("OpenMetrics endpoint %s is not accessible", s.cfg.endpoint)
+				return nil, nil
+			}
+			return nil, err
+		}
+	}
+	if response.StatusCode >= 400 {
 		response.Body.Close()
 		err := fmt.Errorf("unexpected status code %d scraping %s", response.StatusCode, s.cfg.endpoint)
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
@@ -470,6 +504,11 @@ func (s *openmetricsScraper) bearerToken() (string, error) {
 	if s.cfg.bearerToken != "" {
 		return s.cfg.bearerToken, nil
 	}
+	s.bearerTokenMu.Lock()
+	defer s.bearerTokenMu.Unlock()
+	if s.cachedBearerToken != "" && time.Since(s.bearerTokenRefreshed) <= s.cfg.bearerTokenRefreshInterval {
+		return s.cachedBearerToken, nil
+	}
 	path := s.cfg.bearerTokenPath
 	if path == "" {
 		path = defaultBearerTokenPath
@@ -478,7 +517,9 @@ func (s *openmetricsScraper) bearerToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(token)), nil
+	s.cachedBearerToken = strings.TrimSpace(string(token))
+	s.bearerTokenRefreshed = time.Now()
+	return s.cachedBearerToken, nil
 }
 
 func (s *openmetricsScraper) applyRawMetricPrefix(metric parsedMetric) parsedMetric {
@@ -541,9 +582,11 @@ func (s *openmetricsScraper) generateSampleData(metric parsedMetric, sender send
 		hostname := ""
 		if s.cfg.hostnameLabel != "" {
 			if labelValue, ok := labels[s.cfg.hostnameLabel]; ok {
-				hostname = labelValue
-				if s.cfg.hostnameFormat != "" {
-					hostname = strings.Replace(s.cfg.hostnameFormat, "<HOSTNAME>", hostname, 1)
+				if labelValue != "" {
+					hostname = labelValue
+					if s.cfg.hostnameFormat != "" {
+						hostname = strings.Replace(s.cfg.hostnameFormat, "<HOSTNAME>", hostname, 1)
+					}
 				}
 			}
 		}
@@ -652,21 +695,22 @@ func compileLabelExcluders(entries map[string]interface{}) (map[string]labelExcl
 func newHTTPClient(cfg *scraperConfig) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DisableKeepAlives = !cfg.persistConnections
-
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: !cfg.tlsVerify, //nolint:gosec // User-facing OpenMetrics option mirrors the Python check.
-	}
-	if cfg.tlsCACert != "" {
-		pemData, err := os.ReadFile(cfg.tlsCACert)
+	dialer := &net.Dialer{Timeout: cfg.timeout}
+	transport.DialContext = func(ctx context.Context, network string, address string) (net.Conn, error) {
+		conn, err := dialer.DialContext(ctx, network, address)
 		if err != nil {
 			return nil, err
 		}
-		roots, err := x509.SystemCertPool()
-		if err != nil {
-			roots = x509.NewCertPool()
-		}
-		if !roots.AppendCertsFromPEM(pemData) {
-			return nil, fmt.Errorf("unable to load CA certificate from %s", cfg.tlsCACert)
+		return &readTimeoutConn{Conn: conn, timeout: cfg.timeout}, nil
+	}
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: !cfg.tlsVerify || !cfg.tlsValidateHostname, //nolint:gosec // Chain verification is restored below when only hostname validation is disabled.
+	}
+	if cfg.tlsCACert != "" {
+		roots := x509.NewCertPool()
+		if err := appendCACertificates(roots, expandUserPath(cfg.tlsCACert)); err != nil {
+			return nil, err
 		}
 		tlsConfig.RootCAs = roots
 	}
@@ -690,11 +734,14 @@ func newHTTPClient(cfg *scraperConfig) (*http.Client, error) {
 		if privateKey == "" {
 			privateKey = cfg.tlsCert
 		}
-		cert, err := tls.LoadX509KeyPair(cfg.tlsCert, privateKey)
+		cert, err := loadX509KeyPair(expandUserPath(cfg.tlsCert), expandUserPath(privateKey), cfg.tlsPrivateKeyPassword)
 		if err != nil {
 			return nil, err
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	if cfg.tlsVerify && !cfg.tlsValidateHostname {
+		tlsConfig.VerifyConnection = verifyCertificateChain(tlsConfig.RootCAs)
 	}
 	transport.TLSClientConfig = tlsConfig
 
@@ -702,6 +749,9 @@ func newHTTPClient(cfg *scraperConfig) (*http.Client, error) {
 		transport.Proxy = nil
 	} else {
 		defaultProxy := transport.Proxy
+		if proxies := pkgconfigsetup.Datadog().GetProxies(); proxies != nil {
+			defaultProxy = httputils.GetProxyTransportFunc(proxies, pkgconfigsetup.Datadog())
+		}
 		transport.Proxy = func(request *http.Request) (*url.URL, error) {
 			if shouldBypassProxy(request.URL, cfg.noProxy) {
 				return nil, nil
@@ -716,13 +766,135 @@ func newHTTPClient(cfg *scraperConfig) (*http.Client, error) {
 		}
 	}
 
-	client := &http.Client{Timeout: cfg.timeout, Transport: transport}
+	client := &http.Client{Transport: transport}
+	if cfg.persistConnections {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, err
+		}
+		client.Jar = jar
+	}
 	if !cfg.allowRedirect {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
 	return client, nil
+}
+
+type readTimeoutConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c *readTimeoutConn) Read(buffer []byte) (int, error) {
+	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Read(buffer)
+}
+
+func basicAuthorization(username string, password string, legacyEncoding bool) (string, error) {
+	credentials := username + ":" + password
+	if !legacyEncoding {
+		return "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials)), nil
+	}
+
+	latin1 := make([]byte, 0, len(credentials))
+	for _, char := range credentials {
+		if char > 255 {
+			return "", fmt.Errorf("basic auth credentials contain character %q that cannot be encoded as latin-1", char)
+		}
+		latin1 = append(latin1, byte(char))
+	}
+	return "Basic " + base64.StdEncoding.EncodeToString(latin1), nil
+}
+
+func expandUserPath(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home + strings.TrimPrefix(path, "~")
+		}
+	}
+	return path
+}
+
+func appendCACertificates(pool *x509.CertPool, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		pemData, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !pool.AppendCertsFromPEM(pemData) {
+			return fmt.Errorf("unable to load CA certificate from %s", path)
+		}
+		return nil
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	loaded := false
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		pemData, err := os.ReadFile(path + string(os.PathSeparator) + entry.Name())
+		if err != nil {
+			return err
+		}
+		loaded = pool.AppendCertsFromPEM(pemData) || loaded
+	}
+	if !loaded {
+		return fmt.Errorf("unable to load CA certificates from %s", path)
+	}
+	return nil
+}
+
+func loadX509KeyPair(certPath string, keyPath string, password string) (tls.Certificate, error) {
+	if password == "" {
+		return tls.LoadX509KeyPair(certPath, keyPath)
+	}
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	block, rest := pem.Decode(keyPEM)
+	if block == nil {
+		return tls.Certificate{}, fmt.Errorf("unable to decode private key from %s", keyPath)
+	}
+	if !x509.IsEncryptedPEMBlock(block) { //nolint:staticcheck // Required for compatibility with encrypted PEM keys accepted by the Python check.
+		return tls.Certificate{}, unsupportedCoreConfig("tls_private_key_password with a non-legacy encrypted key")
+	}
+	decrypted, err := x509.DecryptPEMBlock(block, []byte(password)) //nolint:staticcheck // See compatibility note above.
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	decryptedPEM := append(pem.EncodeToMemory(&pem.Block{Type: block.Type, Bytes: decrypted}), rest...)
+	return tls.X509KeyPair(certPEM, decryptedPEM)
+}
+
+func verifyCertificateChain(roots *x509.CertPool) func(tls.ConnectionState) error {
+	return func(state tls.ConnectionState) error {
+		if len(state.PeerCertificates) == 0 {
+			return errors.New("server did not provide a TLS certificate")
+		}
+		intermediates := x509.NewCertPool()
+		for _, cert := range state.PeerCertificates[1:] {
+			intermediates.AddCert(cert)
+		}
+		_, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates})
+		return err
+	}
 }
 
 func tlsServerNameFromHostHeader(headers map[string]string) string {

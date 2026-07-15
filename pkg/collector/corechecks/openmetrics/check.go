@@ -47,12 +47,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	commonInstance := stripOpenMetricsHandledCommonConfig(data)
-	if err := c.CommonConfigure(senderManager, initConfig, commonInstance, source, provider); err != nil {
-		return err
-	}
-
-	cfg, err := parseConfig(data)
+	cfg, err := parseConfigWithInit(data, initConfig)
 	if err != nil {
 		if errors.Is(err, errUnsupportedCoreConfig) {
 			recordConfigureTelemetry(configureOutcomeFallback, unsupportedConfigTelemetryReason(err))
@@ -61,13 +56,28 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		recordConfigureTelemetry(configureOutcomeError, configureReasonParseConfig)
 		return err
 	}
+
+	commonInstance := stripOpenMetricsHandledCommonConfig(data)
+	if err := c.CommonConfigure(senderManager, initConfig, commonInstance, source, provider); err != nil {
+		return err
+	}
 	cfg.checkID = string(c.ID())
 	scraper, err := newScraper(cfg)
 	if err != nil {
+		if errors.Is(err, errUnsupportedCoreConfig) {
+			recordConfigureTelemetry(configureOutcomeFallback, unsupportedConfigTelemetryReason(err))
+			return fmt.Errorf("%w: %v", check.ErrSkipCheckInstance, err)
+		}
 		recordConfigureTelemetry(configureOutcomeError, configureReasonNewScraper)
 		return err
 	}
 	c.scraper = &Scraper{inner: scraper}
+	s, err := c.GetSender()
+	if err != nil {
+		recordConfigureTelemetry(configureOutcomeError, configureReasonNewScraper)
+		return err
+	}
+	s.FinalizeCheckServiceTag()
 	recordConfigureTelemetry(configureOutcomeLoaded, configureReasonNone)
 	return nil
 }

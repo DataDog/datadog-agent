@@ -36,6 +36,7 @@ type authTokenConfig struct {
 
 type authTokenReader interface {
 	read() (string, error)
+	reset()
 }
 
 type authTokenFileReader struct {
@@ -280,6 +281,12 @@ func (a *authTokenConfig) apply(request *http.Request) error {
 	return nil
 }
 
+func (a *authTokenConfig) reset() {
+	if a != nil {
+		a.reader.reset()
+	}
+}
+
 func (r *authTokenFileReader) read() (string, error) {
 	if r.token != "" {
 		return r.token, nil
@@ -298,6 +305,10 @@ func (r *authTokenFileReader) read() (string, error) {
 	}
 	r.token = match[1]
 	return r.token, nil
+}
+
+func (r *authTokenFileReader) reset() {
+	r.token = ""
 }
 
 func (r *authTokenOAuthReader) read() (string, error) {
@@ -352,6 +363,11 @@ func (r *authTokenOAuthReader) read() (string, error) {
 	r.token = token
 	r.expiration = time.Now().Add(parseTokenExpiration(payload["expires_in"]))
 	return r.token, nil
+}
+
+func (r *authTokenOAuthReader) reset() {
+	r.token = ""
+	r.expiration = time.Time{}
 }
 
 func (r *authTokenDCOSReader) read() (string, error) {
@@ -414,6 +430,10 @@ func (r *authTokenDCOSReader) read() (string, error) {
 	}
 	r.token = token
 	return r.token, nil
+}
+
+func (r *authTokenDCOSReader) reset() {
+	r.token = ""
 }
 
 func parseTokenExpiration(raw interface{}) time.Duration {

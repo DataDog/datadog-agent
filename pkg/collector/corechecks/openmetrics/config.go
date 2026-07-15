@@ -91,13 +91,15 @@ type instanceConfig struct {
 	Proxy                      map[string]interface{} `yaml:"proxy,omitempty"`
 	SkipProxy                  bool                   `yaml:"skip_proxy,omitempty"`
 	NoProxy                    interface{}            `yaml:"no_proxy,omitempty"`
-	AllowRedirects             bool                   `yaml:"allow_redirects,omitempty"`
-	Timeout                    int                    `yaml:"timeout,omitempty"`
-	PrometheusTimeout          int                    `yaml:"prometheus_timeout,omitempty"`
+	AllowRedirects             *bool                  `yaml:"allow_redirects,omitempty"`
+	Timeout                    float64                `yaml:"timeout,omitempty"`
+	PrometheusTimeout          float64                `yaml:"prometheus_timeout,omitempty"`
 	TLSVerify                  *bool                  `yaml:"tls_verify,omitempty"`
 	TLSCert                    string                 `yaml:"tls_cert,omitempty"`
 	TLSPrivateKey              string                 `yaml:"tls_private_key,omitempty"`
 	TLSCACert                  string                 `yaml:"tls_ca_cert,omitempty"`
+	TLSPrivateKeyPassword      string                 `yaml:"tls_private_key_password,omitempty"`
+	TLSValidateHostname        *bool                  `yaml:"tls_validate_hostname,omitempty"`
 	TLSUseHostHeader           bool                   `yaml:"tls_use_host_header,omitempty"`
 	TLSProtocolsAllowed        []string               `yaml:"tls_protocols_allowed,omitempty"`
 	TLSCiphers                 interface{}            `yaml:"tls_ciphers,omitempty"`
@@ -171,39 +173,58 @@ type scraperConfig struct {
 	sendHistogramBuckets              bool
 	sendDistributionBuckets           bool
 
-	headers             map[string]string
-	username            string
-	password            string
-	bearerTokenAuth     bool
-	bearerTokenPath     string
-	bearerToken         string
-	tlsVerify           bool
-	tlsCert             string
-	tlsPrivateKey       string
-	tlsCACert           string
-	tlsUseHostHeader    bool
-	tlsProtocolsAllowed []string
-	tlsCiphers          []string
-	skipProxy           bool
-	proxy               map[string]string
-	noProxy             []string
-	allowRedirect       bool
-	authToken           *authTokenConfig
-	checkID             string
+	headers                    map[string]string
+	username                   string
+	password                   string
+	basicAuthConfigured        bool
+	legacyAuthEncoding         bool
+	bearerTokenAuth            bool
+	bearerTokenPath            string
+	bearerToken                string
+	bearerTokenRefreshInterval time.Duration
+	tlsVerify                  bool
+	tlsCert                    string
+	tlsPrivateKey              string
+	tlsCACert                  string
+	tlsPrivateKeyPassword      string
+	tlsValidateHostname        bool
+	tlsUseHostHeader           bool
+	tlsProtocolsAllowed        []string
+	tlsCiphers                 []string
+	skipProxy                  bool
+	proxy                      map[string]string
+	noProxy                    []string
+	allowRedirect              bool
+	authToken                  *authTokenConfig
+	checkID                    string
 }
 
 func parseConfig(raw []byte) (*scraperConfig, error) {
+	return parseConfigWithInit(raw, nil)
+}
+
+func parseConfigWithInit(raw []byte, initRaw []byte) (*scraperConfig, error) {
 	rawConfig, err := decodeRawConfig(raw)
 	if err != nil {
 		return nil, err
 	}
+	initConfig, err := decodeRawConfig(initRaw)
+	if err != nil {
+		return nil, err
+	}
+	effectiveRawConfig := mergeInitConfig(initConfig, rawConfig)
 	latestConfig := hasRawKey(rawConfig, "openmetrics_endpoint")
-	if err := validateRawConfig(rawConfig, latestConfig); err != nil {
+	if err := validateRawConfig(effectiveRawConfig, latestConfig); err != nil {
+		return nil, err
+	}
+
+	effectiveRaw, err := yaml.Marshal(effectiveRawConfig)
+	if err != nil {
 		return nil, err
 	}
 
 	var instance instanceConfig
-	if err := yaml.Unmarshal(raw, &instance); err != nil {
+	if err := yaml.Unmarshal(effectiveRaw, &instance); err != nil {
 		return nil, err
 	}
 
@@ -232,6 +253,10 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	bearerTokenRefreshInterval := 60
+	if hasRawKey(effectiveRawConfig, "bearer_token_refresh_interval") {
+		bearerTokenRefreshInterval = instance.BearerTokenRefreshInterval
+	}
 
 	cfg := &scraperConfig{
 		mode:                              mode,
@@ -259,7 +284,7 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 		healthServiceCheckName:            "openmetrics.health",
 		ignoreConnectionErrors:            boolDefaultPtr(instance.IgnoreConnectionErrors, false),
 		telemetry:                         boolDefaultPtr(instance.Telemetry, false),
-		persistConnections:                boolDefaultPtr(instance.PersistConnections, true),
+		persistConnections:                boolDefaultPtr(instance.PersistConnections, false) || instance.TLSUseHostHeader,
 		timeout:                           defaultTimeout,
 		maxReturnedMetrics:                instance.MaxReturnedMetrics,
 		useLatestSpec:                     boolDefaultPtr(instance.UseLatestSpec, false),
@@ -278,29 +303,34 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 		headers:                           mergeHeaders(instance.Headers, instance.ExtraHeaders),
 		username:                          instance.Username,
 		password:                          instance.Password,
+		basicAuthConfigured:               hasRawKey(effectiveRawConfig, "username") && hasRawKey(effectiveRawConfig, "password"),
+		legacyAuthEncoding:                rawBoolDefault(effectiveRawConfig, "use_legacy_auth_encoding", true),
 		bearerTokenAuth:                   bearerTokenAuth,
 		bearerTokenPath:                   instance.BearerTokenPath,
+		bearerTokenRefreshInterval:        time.Duration(bearerTokenRefreshInterval) * time.Second,
 		tlsVerify:                         boolDefaultPtr(instance.TLSVerify, true),
 		tlsCert:                           instance.TLSCert,
 		tlsPrivateKey:                     instance.TLSPrivateKey,
 		tlsCACert:                         instance.TLSCACert,
+		tlsPrivateKeyPassword:             instance.TLSPrivateKeyPassword,
+		tlsValidateHostname:               boolDefaultPtr(instance.TLSValidateHostname, true),
 		tlsUseHostHeader:                  instance.TLSUseHostHeader,
 		tlsProtocolsAllowed:               append([]string(nil), instance.TLSProtocolsAllowed...),
 		tlsCiphers:                        tlsCiphers,
 		skipProxy:                         instance.SkipProxy,
 		proxy:                             proxy,
 		noProxy:                           noProxy,
-		allowRedirect:                     instance.AllowRedirects,
+		allowRedirect:                     boolDefaultPtr(instance.AllowRedirects, true),
 		authToken:                         authToken,
 	}
-	if !hasRawKey(rawConfig, "skip_proxy") && hasRawKey(rawConfig, "no_proxy") {
+	if !hasRawKey(effectiveRawConfig, "skip_proxy") && hasRawKey(effectiveRawConfig, "no_proxy") {
 		cfg.skipProxy = rawAffirmative(instance.NoProxy)
 	}
 
 	if instance.Timeout > 0 {
-		cfg.timeout = time.Duration(instance.Timeout) * time.Second
+		cfg.timeout = time.Duration(instance.Timeout * float64(time.Second))
 	} else if instance.PrometheusTimeout > 0 {
-		cfg.timeout = time.Duration(instance.PrometheusTimeout) * time.Second
+		cfg.timeout = time.Duration(instance.PrometheusTimeout * float64(time.Second))
 	}
 	if cfg.maxReturnedMetrics == 0 {
 		cfg.maxReturnedMetrics = defaultMetricLimit
@@ -457,6 +487,22 @@ func hasRawKey(config map[string]interface{}, key string) bool {
 	return ok
 }
 
+func mergeInitConfig(initConfig map[string]interface{}, instanceConfig map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for _, key := range []string{"timeout", "skip_proxy", "log_requests", "tls_ignore_warning"} {
+		if value, ok := initConfig[key]; ok {
+			out[key] = value
+		}
+	}
+	if value, ok := initConfig["proxy"]; ok {
+		out["proxy"] = value
+	}
+	for key, value := range instanceConfig {
+		out[key] = value
+	}
+	return out
+}
+
 func validateRawConfig(config map[string]interface{}, latestConfig bool) error {
 	if err := validateUnsupportedRawOptions(config); err != nil {
 		return err
@@ -545,9 +591,11 @@ func validateRawProxy(config map[string]interface{}) error {
 }
 
 func validateRawTLSOptions(config map[string]interface{}) error {
-	if value, ok := config["tls_use_host_header"]; ok {
-		if _, ok := value.(bool); !ok {
-			return errors.New("setting `tls_use_host_header` must be a boolean")
+	for _, setting := range []string{"tls_use_host_header", "tls_validate_hostname"} {
+		if value, ok := config[setting]; ok {
+			if _, ok := value.(bool); !ok {
+				return fmt.Errorf("setting `%s` must be a boolean", setting)
+			}
 		}
 	}
 	for _, setting := range []string{"tls_protocols_allowed"} {
@@ -556,8 +604,12 @@ func validateRawTLSOptions(config map[string]interface{}) error {
 		}
 	}
 	if value, ok := config["tls_ciphers"]; ok {
-		if _, err := parseTLSCiphers(value); err != nil {
+		ciphers, err := parseTLSCiphers(value)
+		if err != nil {
 			return err
+		}
+		if _, err := tlsCipherSuites(ciphers); err != nil {
+			return unsupportedCoreConfig(err.Error())
 		}
 	}
 	return nil
@@ -569,14 +621,48 @@ func validateUnsupportedRawOptions(config map[string]interface{}) error {
 		if !ok {
 			return errors.New("setting `auth_type` must be a string")
 		}
-		if authType != "" && authType != "basic" {
+		if authType != "" && !strings.EqualFold(authType, "basic") {
 			return unsupportedCoreConfig(fmt.Sprintf("auth_type `%s`", authType))
 		}
 	}
-	if legacyAuthEncoding, ok := config["use_legacy_auth_encoding"].(bool); ok && legacyAuthEncoding {
-		return unsupportedCoreConfig("use_legacy_auth_encoding")
+
+	for _, setting := range []string{
+		"metric_patterns", "connect_timeout", "read_timeout", "request_size",
+		"tls_protocols_allowed",
+		"aws_host", "aws_region", "aws_service", "ntlm_domain",
+		"kerberos_auth", "kerberos_cache", "kerberos_delegate", "kerberos_force_initiate",
+		"kerberos_hostname", "kerberos_keytab", "kerberos_principal",
+	} {
+		if _, ok := config[setting]; ok {
+			return unsupportedCoreConfig(setting)
+		}
+	}
+	if rawAffirmative(config["log_requests"]) {
+		return unsupportedCoreConfig("log_requests")
+	}
+	if rawAffirmative(config["tls_ignore_warning"]) {
+		return unsupportedCoreConfig("tls_ignore_warning")
+	}
+	if rawAffirmative(config["disable_generic_tags"]) {
+		return unsupportedCoreConfig("disable_generic_tags")
+	}
+	if value, ok := config["enable_legacy_tags_normalization"]; ok && !rawAffirmative(value) {
+		return unsupportedCoreConfig("enable_legacy_tags_normalization")
+	}
+	if value, ok := config["min_collection_interval"]; ok {
+		if _, ok := value.(int); !ok {
+			return unsupportedCoreConfig("fractional min_collection_interval")
+		}
 	}
 	return nil
+}
+
+func rawBoolDefault(config map[string]interface{}, key string, defaultValue bool) bool {
+	value, ok := config[key]
+	if !ok {
+		return defaultValue
+	}
+	return rawAffirmative(value)
 }
 
 func unsupportedCoreConfig(setting string) error {

@@ -146,6 +146,41 @@ auth_type: digest
 	require.ErrorContains(t, err, "auth_type `digest`")
 }
 
+func TestConfigureFinalizesServiceTag(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
+
+	instance := integration.Data([]byte(`
+openmetrics_endpoint: http://127.0.0.1/metrics
+metrics: []
+service: instance-service
+`))
+	initConfig := integration.Data([]byte("service: init-service\n"))
+	omCheck := newCheck().(*Check)
+	omCheck.BuildID(integration.FakeConfigHash, instance, initConfig)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSender := mocksender.NewMockSenderWithSenderManager(omCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, omCheck.Configure(senderManager, integration.FakeConfigHash, instance, initConfig, "test", "provider"))
+	mockSender.Mock.AssertCalled(t, "SetCheckService", "init-service")
+	mockSender.Mock.AssertCalled(t, "SetCheckService", "instance-service")
+	mockSender.Mock.AssertNumberOfCalls(t, "FinalizeCheckServiceTag", 1)
+}
+
+func TestBasicAuthorizationEncodingParity(t *testing.T) {
+	legacy, err := basicAuthorization("caf\u00e9", "cr\u00e8me", true)
+	require.NoError(t, err)
+	require.Equal(t, "Basic Y2Fm6TpjcuhtZQ==", legacy)
+
+	utf8, err := basicAuthorization("caf\u00e9", "cr\u00e8me", false)
+	require.NoError(t, err)
+	require.Equal(t, "Basic Y2Fmw6k6Y3LDqG1l", utf8)
+
+	_, err = basicAuthorization("snowman \u2603", "password", true)
+	require.ErrorContains(t, err, "cannot be encoded as latin-1")
+}
+
 func TestLatestConfigValidationParity(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
@@ -851,6 +886,22 @@ ignore_tags:
 	run.sender.AssertMetricMissing(t, "Gauge", "test.go_memstats_other_bytes")
 }
 
+func TestEmptyHostnameLabelDoesNotOverrideDefaultHostname(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+hostname_label: node
+hostname_format: <HOSTNAME>.cluster
+`, `
+# TYPE app_up gauge
+app_up{node=""} 1
+`)
+
+	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"node:", "endpoint:" + run.endpoint})
+}
+
 func TestLatestExcludeAllByLabelAndRawLineFilters(t *testing.T) {
 	payload := `
 # TYPE kept gauge
@@ -1061,7 +1112,7 @@ collect_histogram_buckets: false
 	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.count", 5, "", []string{"route:/", "endpoint:" + run.endpoint}, false)
 }
 
-func TestTLSOptions(t *testing.T) {
+func TestTLSHostAndCipherOptions(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
@@ -1073,8 +1124,6 @@ metrics: []
 headers:
   Host: metrics.example.com:8443
 tls_use_host_header: true
-tls_protocols_allowed:
-  - TLSv1.2
 tls_ciphers:
   - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
 `), nil, "test", "provider")
@@ -1083,9 +1132,80 @@ tls_ciphers:
 	transport, ok := omCheck.scraper.inner.httpClient.Transport.(*http.Transport)
 	require.True(t, ok)
 	require.Equal(t, "metrics.example.com", transport.TLSClientConfig.ServerName)
-	require.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
-	require.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MaxVersion)
 	require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, transport.TLSClientConfig.CipherSuites)
+}
+
+func TestAllowRedirectsFalseAcceptsRedirectResponse(t *testing.T) {
+	run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+allow_redirects: false
+`, "# TYPE app_up gauge\napp_up 1\n", http.StatusFound, "text/plain; version=0.0.4")
+
+	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"endpoint:" + run.endpoint})
+}
+
+func TestPersistConnectionsPersistsCookies(t *testing.T) {
+	var requests atomic.Int32
+	run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+persist_connections: true
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if requests.Add(1) == 1 {
+			http.SetCookie(w, &http.Cookie{Name: "session", Value: "openmetrics"})
+		} else {
+			cookie, err := request.Cookie("session")
+			require.NoError(t, err)
+			require.Equal(t, "openmetrics", cookie.Value)
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte("# TYPE app_up gauge\napp_up 1\n"))
+		require.NoError(t, err)
+	}))
+
+	run.run(t)
+	run.run(t)
+}
+
+func TestAuthTokenRefreshesAndRetriesAfterRejection(t *testing.T) {
+	tokenPath := filepath.Join(t.TempDir(), "auth-token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("first-token\n"), 0o600))
+
+	var requests atomic.Int32
+	run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+auth_token:
+  reader:
+    type: file
+    path: `+tokenPath+`
+  writer:
+    type: header
+    name: Authorization
+    value: Bearer <TOKEN>
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if requests.Add(1) == 1 {
+			require.Equal(t, "Bearer first-token", request.Header.Get("Authorization"))
+			require.NoError(t, os.WriteFile(tokenPath, []byte("second-token\n"), 0o600))
+			http.Error(w, "expired", http.StatusUnauthorized)
+			return
+		}
+		require.Equal(t, "Bearer second-token", request.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte("# TYPE app_up gauge\napp_up 1\n"))
+		require.NoError(t, err)
+	}))
+
+	run.run(t)
+	require.Equal(t, int32(2), requests.Load())
+	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"endpoint:" + run.endpoint})
 }
 
 func TestProxyNoProxyBypassesProxy(t *testing.T) {
@@ -2133,6 +2253,7 @@ metrics:
   - app_up
 bearer_token_auth: true
 bearer_token_path: `+tokenPath+`
+bearer_token_refresh_interval: 0
 `, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		count := requestCount.Add(1)
 		if count == 1 {
