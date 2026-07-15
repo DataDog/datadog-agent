@@ -7,7 +7,6 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
-use crate::spawn;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -157,6 +156,11 @@ impl ManagedProcess {
         &self.config
     }
 
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
+    }
+
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
     }
@@ -233,7 +237,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let handle = spawn::spawn_managed_child(&self.name, &self.config)?;
+        let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
         info!(
@@ -242,31 +246,6 @@ impl ManagedProcess {
             self.pid.map_or("unknown".to_string(), |p| p.to_string()),
             self.config.command
         );
-
-        // Assign the child to a Job Object so TerminateJobObject can kill
-        // the entire descendant tree.  Ideally we would assign the job
-        // *atomically at creation time* via PROC_THREAD_ATTRIBUTE_JOB_LIST,
-        // eliminating the small race window where a very fast child could
-        // fork before assignment.  Rust's CommandExt::raw_attribute() is
-        // nightly-only (rust-lang/rust#114854), so we assign post-spawn
-        // for now.  In practice the window is negligible as managed
-        // processes are long-running services that don't immediately fork.
-        #[cfg(windows)]
-        if let Some(pid) = self.pid {
-            match platform::JobObject::new() {
-                Ok(job) => match job.assign_process(pid) {
-                    Ok(()) => {
-                        self.job_object = Some(job);
-                    }
-                    Err(e) => {
-                        warn!("[{}] failed to assign to job object: {e:#}", self.name);
-                    }
-                },
-                Err(e) => {
-                    warn!("[{}] failed to create job object: {e:#}", self.name);
-                }
-            }
-        }
 
         self.handle = Some(handle);
         self.transition_to(ProcessState::Running);

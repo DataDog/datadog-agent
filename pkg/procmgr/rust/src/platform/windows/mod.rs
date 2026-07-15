@@ -14,7 +14,7 @@ mod spawn;
 mod wide;
 
 pub(crate) use pipe_security::create_pipe_server;
-pub(crate) use spawn::spawn_child;
+pub(crate) use spawn::spawn_child_handle;
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -79,6 +79,11 @@ unsafe impl Send for JobObject {}
 unsafe impl Sync for JobObject {}
 
 impl JobObject {
+    /// Raw Win32 job object handle (for `PROC_THREAD_ATTRIBUTE_JOB_LIST` at spawn time).
+    pub(crate) fn raw(&self) -> HANDLE {
+        self.handle
+    }
+
     /// Create a new anonymous Job Object configured for kill-on-close.
     pub fn new() -> Result<Self> {
         unsafe {
@@ -109,8 +114,11 @@ impl JobObject {
         }
     }
 
-    /// Assign a process (by PID) to this Job Object. Must be called before
-    /// the child spawns its own children for complete coverage.
+    /// Assign a process (by PID) to this Job Object post-spawn.
+    ///
+    /// Prefer `PROC_THREAD_ATTRIBUTE_JOB_LIST` at `CreateProcessAsUserW` time when
+    /// possible. When using this fallback, call before the child spawns its own
+    /// children for complete coverage.
     pub fn assign_process(&self, pid: u32) -> Result<()> {
         unsafe {
             let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);

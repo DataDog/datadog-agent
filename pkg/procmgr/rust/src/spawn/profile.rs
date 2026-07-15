@@ -5,8 +5,8 @@
 
 //! Platform spawn profiles for managed child processes.
 //!
-//! Process YAML stays portable (command, args, env, restart, etc.). Identity and
-//! privilege level are chosen here from the process name, not from config fields.
+//! Process YAML stays portable (command, args, env, restart, etc.). Service account
+//! identity is chosen here from the process name, not from config fields.
 //!
 //! Profiles mirror legacy supervisor units (systemd / Windows SCM), not a single
 //! account name across platforms:

@@ -32,7 +32,7 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 /// Agent service account resolved from installer state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AgentAccount {
-    /// Well-known LocalSystem account (spawn inherits supervisor when procmgr runs as SYSTEM).
+    /// Well-known LocalSystem account (duplicate or inherit the supervisor token).
     LocalSystem,
     /// Well-known LocalService account (`LogonUserW` expects a NULL password).
     LocalService,
@@ -49,7 +49,7 @@ pub(crate) enum AgentAccount {
 }
 
 impl AgentAccount {
-    /// True when agent-profile children may inherit the LocalSystem procmgr supervisor token.
+    /// True for `LocalSystem`: use supervisor token duplication instead of `LogonUserW`.
     pub(crate) fn inherits_supervisor_token(&self) -> bool {
         matches!(self, AgentAccount::LocalSystem)
     }

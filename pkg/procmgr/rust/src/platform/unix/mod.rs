@@ -11,7 +11,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
 
-pub(crate) use spawn::spawn_child;
+pub(crate) use spawn::spawn_child_handle;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
