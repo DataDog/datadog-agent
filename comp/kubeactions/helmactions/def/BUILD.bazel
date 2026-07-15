@@ -8,4 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def",
     visibility = ["//visibility:public"],
+    deps = ["@io_k8s_api//batch/v1:batch"],
 )
