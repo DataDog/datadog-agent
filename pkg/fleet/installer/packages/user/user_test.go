@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+// These tests assert Go's os/user error types (UnknownGroupError /
+// UnknownUserError), which differ on AIX, so they are excluded there.
+//go:build !windows && !aix
 
 package user
 
