@@ -20,6 +20,9 @@ type schedulerConfigs struct {
 	workers                    int
 	flushInterval              time.Duration
 	syntheticsSchedulerEnabled bool
+	// namespace is the default NDM namespace stamped on emitted paths, mirroring
+	// the network_path integration. Individual tests may override it.
+	namespace string
 }
 
 func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
@@ -27,6 +30,7 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 		syntheticsSchedulerEnabled: agentConfig.GetBool("synthetics.collector.enabled"),
 		workers:                    agentConfig.GetInt("synthetics.collector.workers"),
 		flushInterval:              agentConfig.GetDuration("synthetics.collector.flush_interval"),
+		namespace:                  agentConfig.GetString("network_devices.namespace"),
 	}
 }
 
