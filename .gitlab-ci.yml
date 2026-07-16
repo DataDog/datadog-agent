@@ -932,6 +932,17 @@ workflow:
     when: on_success
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
+  # When fakeintake changes, run e2e against the freshly built PR image
+  # (v<sha>) instead of the pinned tag. Every e2e job inherits this rule
+  # through this base, so the override can never be missed on a fakeintake PR.
+  # Requires publish_fakeintake in needs (see .needs_new_e2e_template) so the
+  # image exists before the job runs.
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
   - changes:
       paths:
         - .gitlab/test/e2e/e2e.yml
@@ -977,14 +988,9 @@ workflow:
   - <<: *if_windows_installer_changes
     when: on_success
 
+# fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
   - changes:
       paths:
         - test/new-e2e/test-infra-definition/*
@@ -1476,18 +1482,13 @@ workflow:
         - .go-version
       compare_to: $COMPARE_TO_BRANCH
 
+# Gates build/publish/version-check jobs on fakeintake changes. Image-consuming
+# e2e jobs get FAKEINTAKE_IMAGE_OVERRIDE from .on_e2e_main_release_or_rc instead
+# (that base is inherited by every e2e job), so it is not set here.
 .on_fakeintake_changes:
   - changes:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
-
-.on_fakeintake_changes_with_image_override:
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
 
 .on_fakeintake_changes_on_main:
   - changes:

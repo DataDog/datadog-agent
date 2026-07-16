@@ -145,6 +145,14 @@
   - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
+  # On fakeintake PRs e2e runs against the v<sha> image (via
+  # FAKEINTAKE_IMAGE_OVERRIDE) so it must wait for publish_fakeintake. On main
+  # e2e uses the pinned tag, so it must wait for publish_fakeintake_pinned.
+  # Both are optional: absent on non-fakeintake pipelines.
+  - job: publish_fakeintake
+    optional: true
+  - job: publish_fakeintake_pinned
+    optional: true
 
 new-e2e-base-coverage:
   extends: .new_e2e_template
@@ -448,13 +456,10 @@ new-e2e-privateactionrunner:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - job: publish_fakeintake
-      optional: true
     - qa_agent_linux
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.except_mergequeue]
-    - !reference [.on_fakeintake_changes_with_image_override]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:

@@ -187,12 +187,20 @@ SSH in and inspect the agent directly.
 Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
 `components/datadog/fakeintake/docker.go`) resolves through
 `test/fakeintake/version.ImageURL(...)`: it uses `$FAKEINTAKE_IMAGE_OVERRIDE`
-when set (CI sets this to the PR-built `v<sha>` image whenever
-`test/fakeintake/**` changes, so e2e exercises fakeintake changes on the PR
-that makes them), otherwise the pinned tag from `test/fakeintake/version/VERSION`.
-`WithImageURL(...)` on any fakeintake provisioner still wins over both. See
-`test/fakeintake/AGENTS.md` § "Image version pinning" for the full workflow
-(bumping VERSION, the strictly-increasing CI check, publish jobs).
+when set, otherwise the pinned tag from `test/fakeintake/version/VERSION`.
+`WithImageURL(...)` on any fakeintake provisioner still wins over both.
+
+CI wiring (`.gitlab-ci.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
+by every e2e job through its team rule (`.on_<team>_or_e2e_changes`) — sets
+`FAKEINTAKE_IMAGE_OVERRIDE` to the PR-built `v<sha>` image whenever
+`test/fakeintake/**` changes. So a fakeintake PR runs the **whole** e2e suite
+against the PR's image (including mixed PRs), and no e2e job can miss the
+override. `.needs_new_e2e_template` gains optional needs on `publish_fakeintake`
+(PR `v<sha>`) and `publish_fakeintake_pinned` (main pinned tag) so e2e waits for
+the image to exist. Plain `.on_fakeintake_changes` is for non-consuming
+build/publish/version-check jobs only. See `test/fakeintake/AGENTS.md`
+§ "Image version pinning" for the full workflow (bumping VERSION, the
+strictly-increasing CI check, publish jobs).
 
 ## Key files
 
