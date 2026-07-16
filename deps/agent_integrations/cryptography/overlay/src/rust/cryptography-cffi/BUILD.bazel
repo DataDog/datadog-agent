@@ -1,5 +1,8 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
-load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+load(
+    "@@//deps/agent_integrations/cryptography:rust_crate.bzl",
+    "cryptography_rust_crate",
+)
 
 _IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
 
@@ -24,13 +27,14 @@ _BUILD_SCRIPT_TOOLS = [] if _REPO_ROOT_PKG else ["@@//deps/agent_integrations/cr
 
 _PYO3_PYTHON = "python3" if _REPO_ROOT_PKG else "$(execpath @@//deps/agent_integrations/cryptography:python_build_tool)"
 
-rust_crate(
+cryptography_rust_crate(
     name = "cryptography-cffi",
     aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-cffi"),
     binaries = {},
     build_deps = [] if _IS_CHECKED_IN_OVERLAY else ["@cryptography_crates//:cc-1.2.61"],
     build_script = "" if _IS_CHECKED_IN_OVERLAY else "build.rs",
     build_script_data = _BUILD_SCRIPT_DATA,
+    build_script_rundir = ".",
     build_script_env = {
         "CRYPTOGRAPHY_BUILD_OPENSSL_PY": "$(execpath {})".format(_BUILD_OPENSSL_PY),
         "PYO3_PYTHON": _PYO3_PYTHON,

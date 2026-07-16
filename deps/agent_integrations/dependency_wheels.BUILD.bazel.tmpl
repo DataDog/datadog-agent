@@ -25,7 +25,7 @@ filegroup(
 
 copy_native_extension(
     name = "cryptography_rust_extension_unpatched",
-    src = "@cryptography_src//src/rust:cryptography_rust",
+    src = "@cs//src/rust:cryptography_rust",
     out = "{extension_filename}",
 )
 
@@ -58,7 +58,7 @@ py_wheel(
         "cffi>=2.0.0; platform_python_implementation != 'PyPy'",
         "typing-extensions>=4.13.2; python_version < '3.11'",
     ],
-    # @cryptography_src extracts the sdist with sources under src/. py_wheel
+    # @cs extracts the sdist with sources under src/. py_wheel
     # otherwise preserves that prefix in archive paths, so strip it to install
     # the package as cryptography/...
     strip_path_prefixes = ["src/"],
@@ -66,8 +66,8 @@ py_wheel(
         ":cryptography_rust_extension_for_wheel": "platlib/cryptography/hazmat/bindings/{extension_filename}",
     },
     deps = [
-        "@cryptography_src//:cryptography_package_data",
-        "@cryptography_src//:cryptography_py",
+        "@cs//:cryptography_package_data",
+        "@cs//:cryptography_py",
     ],
 )
 

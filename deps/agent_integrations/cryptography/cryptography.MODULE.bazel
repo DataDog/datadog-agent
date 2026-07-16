@@ -1,11 +1,17 @@
 integration_cryptography_source = use_repo_rule(
     "//deps/agent_integrations/cryptography:source.bzl",
-    "integration_cryptography_source",
+    "csrc",
 )
 
-integration_cryptography_source(name = "cryptography_src")
+integration_cryptography_source(name = "cs")
 
 cryptography_crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+inject_repo(
+    cryptography_crate,
+    winlibs_mingw64 = "winlibs_mingw64",
+)
+
 cryptography_crate.annotation(
     build_script_data = ["@@//deps/agent_integrations/cryptography:openssl_install_dir"],
     build_script_env = {
@@ -14,6 +20,20 @@ cryptography_crate.annotation(
         "OPENSSL_STATIC": "0",
     },
     crate = "openssl-sys",
+    repositories = ["cryptography_crates"],
+)
+cryptography_crate.annotation(
+    build_script_env = {
+        "PYO3_MINGW_DLLTOOL": "$(execpath @@//deps/agent_integrations/cryptography:mingw_dlltool_wrapper)",
+        "PYO3_NO_PYTHON": "1",
+        "PYO3_REAL_MINGW_DLLTOOL": "$(execpath @winlibs_mingw64//:dlltool)",
+    },
+    build_script_tools = [
+        "@@//deps/agent_integrations/cryptography:mingw_dlltool_wrapper",
+        "@winlibs_mingw64//:dlltool",
+    ],
+    crate = "pyo3-build-config",
+    crate_features = ["generate-import-lib"],
     repositories = ["cryptography_crates"],
 )
 cryptography_crate.annotation(
@@ -26,8 +46,8 @@ cryptography_crate.annotation(
 )
 cryptography_crate.from_cargo(
     name = "cryptography_crates",
-    cargo_lock = "@cryptography_src//:Cargo.lock",
-    cargo_toml = "@cryptography_src//:Cargo.toml",
+    cargo_lock = "@cs//:Cargo.lock",
+    cargo_toml = "@cs//:Cargo.toml",
     platform_triples = [
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",

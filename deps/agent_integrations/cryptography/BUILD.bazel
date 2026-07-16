@@ -1,6 +1,6 @@
 """Inputs for building cryptography from source for FIPS Python integrations."""
 
-load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
+load("@pycb//:requirements.bzl", "requirement")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
@@ -19,6 +19,12 @@ py_binary(
     name = "copy_file_tool",
     srcs = ["copy_file.py"],
     main = "copy_file.py",
+)
+
+py_binary(
+    name = "mingw_dlltool_wrapper",
+    srcs = ["mingw_dlltool_wrapper.py"],
+    main = "mingw_dlltool_wrapper.py",
 )
 
 filegroup(
@@ -42,15 +48,15 @@ filegroup(
 
 filegroup(
     name = "srcs",
-    srcs = ["@cryptography_src//:all_srcs"],
+    srcs = ["@cs//:all_srcs"],
 )
 
 filegroup(
     name = "cargo_lock",
-    srcs = ["@cryptography_src//:Cargo.lock"],
+    srcs = ["@cs//:Cargo.lock"],
 )
 
 filegroup(
     name = "pyproject",
-    srcs = ["@cryptography_src//:pyproject.toml"],
+    srcs = ["@cs//:pyproject.toml"],
 )

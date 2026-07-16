@@ -1,5 +1,8 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
-load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+load(
+    "@@//deps/agent_integrations/cryptography:rust_crate.bzl",
+    "cryptography_rust_crate",
+)
 
 _IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
 
@@ -10,13 +13,14 @@ OPENSSL_CFGS = [
     "--cfg=CRYPTOGRAPHY_OPENSSL_350_OR_GREATER",
 ]
 
-rust_crate(
+cryptography_rust_crate(
     name = "cryptography-openssl",
     aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-openssl"),
     binaries = {},
     build_deps = [],
     build_script = "" if _IS_CHECKED_IN_OVERLAY else "build.rs",
     build_script_data = [],
+    build_script_rundir = ".",
     build_script_env = {},
     build_script_toolchains = [],
     build_script_tools = [],

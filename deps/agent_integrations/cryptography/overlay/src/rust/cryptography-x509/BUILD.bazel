@@ -1,11 +1,14 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
-load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+load(
+    "@@//deps/agent_integrations/cryptography:rust_crate.bzl",
+    "cryptography_rust_crate",
+)
 
 _IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
 
 _TARGET_COMPATIBLE_WITH = ["@platforms//:incompatible"] if _IS_CHECKED_IN_OVERLAY else RESOLVED_PLATFORMS
 
-rust_crate(
+cryptography_rust_crate(
     name = "cryptography-x509",
     aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-x509"),
     binaries = {},

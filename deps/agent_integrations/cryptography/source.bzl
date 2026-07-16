@@ -31,6 +31,14 @@ _CRYPTOGRAPHY_RUST_OVERLAY_FILES = [
     "src/rust/cryptography-x509/cargo_toml_env_vars.env",
 ]
 
+_PYTHON3_DLL_A_LOCKFILE_PACKAGE = """
+[[package]]
+name = "python3-dll-a"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b66f9171950e674e64bad3456e11bb3cca108e5c34844383cfe277f45c8a7a8"
+""".strip()
+
 _HEX_DIGITS = "0123456789abcdefABCDEF"
 
 def _is_full_commit_hash(ref):
@@ -98,6 +106,55 @@ def _patch_cryptography_cffi_build_script(rctx):
         fail("Could not patch {}: expected build_openssl.py invocation not found".format(path))
     rctx.file(path, content.replace(old, new))
 
+def _patch_pyo3_build_config_lockfile(rctx):
+    """Adds the optional PyO3 Windows import-library generator crate to Cargo.lock.
+
+    pyo3-build-config needs either a discoverable Python interpreter/library or
+    its `generate-import-lib` feature on Windows. CI does not provide a Python
+    interpreter in the Rust build-script environment, so the Bazel annotation
+    enables `generate-import-lib`. The upstream cryptography lockfile does not
+    include that optional dependency because cryptography does not enable it, so
+    add the pinned crate explicitly in the fetched source repository.
+    """
+    path = "Cargo.lock"
+    content = rctx.read(path)
+
+    if 'name = "python3-dll-a"' not in content:
+        insert_before = '\n[[package]]\nname = "pyo3"\n'
+        if insert_before not in content:
+            fail("Could not patch {}: pyo3 package stanza not found".format(path))
+        content = content.replace(
+            insert_before,
+            "\n" + _PYTHON3_DLL_A_LOCKFILE_PACKAGE + "\n" + insert_before,
+            1,
+        )
+
+    old = """[[package]]
+name = "pyo3-build-config"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e368e7ddfdeb98c9bca7f8383be1648fd84ab466bf2bc015e94008db6d35611e"
+dependencies = [
+ "target-lexicon",
+]
+"""
+    new = """[[package]]
+name = "pyo3-build-config"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e368e7ddfdeb98c9bca7f8383be1648fd84ab466bf2bc015e94008db6d35611e"
+dependencies = [
+ "python3-dll-a",
+ "target-lexicon",
+]
+"""
+    if old in content:
+        content = content.replace(old, new, 1)
+    elif new not in content:
+        fail("Could not patch {}: pyo3-build-config 0.28.3 dependency stanza not found".format(path))
+
+    rctx.file(path, content)
+
 def _integration_cryptography_source_impl(rctx):
     python_version = rctx.attr.python_version
     release_info = read_effective_release_json(rctx, rctx.attr._release_info)
@@ -140,6 +197,7 @@ def _integration_cryptography_source_impl(rctx):
         Label("//deps/agent_integrations/cryptography/overlay:BUILD.bazel"),
     )
     _patch_cryptography_cffi_build_script(rctx)
+    _patch_pyo3_build_config_lockfile(rctx)
     _template_cryptography_rust_overlay(rctx)
 
     return rctx.repo_metadata(reproducible = _is_full_commit_hash(commit))
@@ -159,3 +217,9 @@ integration_cryptography_source = repository_rule(
     },
     doc = "Fetches the integrations-lockfile-selected cryptography sdist and overlays Bazel metadata.",
 )
+
+# Short alias used from MODULE.bazel to keep Bzlmod's canonical repository path
+# short. This matters on Windows because cryptography-cffi's build.rs invokes a
+# rules_python py_binary from the Rust build script's runfiles tree, and native
+# cffi extension loading is sensitive to long physical paths.
+csrc = integration_cryptography_source

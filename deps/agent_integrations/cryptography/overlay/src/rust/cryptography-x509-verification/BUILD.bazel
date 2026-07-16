@@ -1,5 +1,8 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
-load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
+load(
+    "@@//deps/agent_integrations/cryptography:rust_crate.bzl",
+    "cryptography_rust_crate",
+)
 
 _IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
 
@@ -21,7 +24,7 @@ _ALIASES.update({
 
 _ALIASES = {} if _IS_CHECKED_IN_OVERLAY else _ALIASES
 
-rust_crate(
+cryptography_rust_crate(
     name = "cryptography-x509-verification",
     aliases = _ALIASES,
     binaries = {},
