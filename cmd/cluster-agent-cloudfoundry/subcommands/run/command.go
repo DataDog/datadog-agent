@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/bbs"
-	"github.com/cloudfoundry-community/go-cfclient/v2"
+	cfconfig "github.com/cloudfoundry/go-cfclient/v3/config"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -280,12 +280,17 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 	pollInterval := time.Second * time.Duration(config.GetInt("cloud_foundry_cc.poll_interval"))
 
 	// Create the CF client
-	ccClient, err := cloudfoundry.NewCFClient(&cfclient.Config{
-		ApiAddress:        config.GetString("cloud_foundry_cc.url"),
-		ClientID:          config.GetString("cloud_foundry_cc.client_id"),
-		ClientSecret:      config.GetString("cloud_foundry_cc.client_secret"),
-		SkipSslValidation: config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
-	})
+	ccOpts := []cfconfig.Option{
+		cfconfig.ClientCredentials(config.GetString("cloud_foundry_cc.client_id"), config.GetString("cloud_foundry_cc.client_secret")),
+	}
+	if config.GetBool("cloud_foundry_cc.skip_ssl_validation") {
+		ccOpts = append(ccOpts, cfconfig.SkipTLSValidation())
+	}
+	ccCfg, err := cfconfig.New(config.GetString("cloud_foundry_cc.url"), ccOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CC client config: %v", err)
+	}
+	ccClient, err := cloudfoundry.NewCFClient(ccCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CC client: %v", err)
 	}
@@ -293,7 +298,7 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 	ccCache, err := cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
 		CCAPIClient:        ccClient,
 		PollInterval:       pollInterval,
-		AppsBatchSize:      config.GetInt("cloud_foundry_cc.apps_batch_size"),
+		AppsBatchSize:      cloudfoundry.PerPage(config.GetInt("cloud_foundry_cc.apps_batch_size")),
 		RefreshCacheOnMiss: config.GetBool("cluster_agent.refresh_on_cache_miss"),
 		ServeNozzleData:    config.GetBool("cluster_agent.serve_nozzle_data"),
 		SidecarsTags:       config.GetBool("cluster_agent.sidecars_tags"),
