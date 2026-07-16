@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "runexecutor",
@@ -43,5 +44,16 @@ go_library(
         "//pkg/version",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "runexecutor_test",
+    srcs = ["command_test.go"],
+    embed = [":runexecutor"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
     ],
 )
