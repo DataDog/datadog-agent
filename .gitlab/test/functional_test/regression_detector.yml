@@ -131,64 +131,115 @@ trigger-single-machine-performance-regression_detector-main:
   variables:
     SMP_ALLOW_FAILURE: "false"
 
-# SMP Manual Experiment Runner (POC): post/refresh "Comment 1" — the checkbox
-# selection comment listing every experiment under test/regression/cases/ at
-# the PR HEAD. Upserted via the pr-commenter service keyed on `header`, so it
-# is sticky and independent of the "Regression Detector" results comment.
-# Refreshes on dev-branch pipelines and whenever experiment configs change, so
-# adding an experiment on a branch updates the list.
-smp-manual-experiment-runner-comment:
+# SMP Experiment Selection (POC): post/refresh the checkbox comment that drives
+# the agent regression_detector run. Every `cases/` directory under
+# test/regression (any depth, minus the ebpf suites) is a selectable folder;
+# expanding it reveals its individual experiments. The `quality_gates` suite is
+# pre-checked (it runs by default). Refreshes on dev-branch pipelines and
+# whenever experiment configs change, so adding an experiment on a branch
+# updates the list.
+#
+# Rendering + the state-preserving merge are done by `smp experiments list
+# --format github-comment` (the CLI owns discovery, the checkbox format, and the
+# merge); this job is just the GitHub-API glue: resolve the PR, read the current
+# comment, feed it to the CLI as --previous-comment, and edit the comment in
+# place so ticked selections PERSIST across pipelines. The comment is read-
+# modify-written directly via the GitHub API (not the pr-commenter service).
+# Because it is posted with the octo-sts token, it is authored by the same bot
+# as the "Gitlab CI Configuration Changes" comment (which quotes this job's YAML,
+# marker included) -- so the comment is identified by the marker on the FIRST
+# line of the body (startswith), not by author. The
+# `single-machine-performance-regression_detector` job reads it back at run time
+# with the same finder and `smp experiments parse-comment`.
+smp-experiment-selection-comment:
   stage: functional_test
-  image:
-    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
-    entrypoint: [""] # disable entrypoint script for the pr-commenter image
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs: []
+  # Child pipelines cannot !reference .dd_octo_sts from .gitlab-ci.yml, so the
+  # octo-sts id_token is declared inline (same aud as .dd_octo_sts).
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+    # Needed to fetch the smp CLI (which now renders the comment). SMP_ACCOUNT is
+    # a pipeline global (also used by the merge_base_check job).
+    SMP_VERSION: dev-pr4640-02fd123f5 # dev build with the `smp experiments` command group (SMP PR 4640)
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
   rules:
     - !reference [.except_coverage_pipeline]
     - !reference [.on_dev_branches_with_artifact_changes]
     - changes:
         paths:
-          - test/regression/cases/**/*
+          - test/regression/**/*
         compare_to: main
   allow_failure: true # never block a pipeline on the convenience comment
   script:
     - |
-      MARKER="<!-- smp-manual-runner:experiments -->"
-      {
-        echo "${MARKER}"
-        echo "### SMP Manual Experiment Runner"
-        echo ""
-        echo "Select experiments to run, then **play the \`single-machine-performance-regression_detector-manual\` job** in the SMP child pipeline for this commit."
-        echo ""
-        for d in $(find test/regression/cases -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort); do
-          echo "- [ ] ${d}"
-        done
-      } > comment_body.md
-      cat comment_body.md
-    # Escape newlines and quotes so the body is a valid JSON string value
-    # (same transform as the Regression Detector results comment).
-    - MESSAGE=$(sed -z 's/\n/\\n/g; s/"/\\"/g' comment_body.md)
-    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"SMP Manual Experiment Runner", "message":"'"${MESSAGE}"'"}'
-    - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
-    - |
       set +e
-      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
-          -H "$(authanywhere)" \
-          -H "X-DdOrigin: curl" \
-          -X PATCH \
-          -d "${PR_COMMENT_JSON_PAYLOAD}")
-      exitcode=$?
+      MARKER="<!-- smp-experiment-selection -->"
+      ROOT="test/regression"
+      # --- Resolve PR + read the existing selection comment (best effort) ---
+      GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr 2>/dev/null)
+      PR_NUMBER=""
+      if [ -n "${GITHUB_TOKEN}" ]; then
+        PR_NUMBER=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/DataDog/datadog-agent/commits/${CI_COMMIT_SHA}/pulls" \
+          | jq -r '.[0].number // empty')
+      fi
+      if [ -z "${PR_NUMBER}" ]; then
+        echo "No PR for ${CI_COMMIT_SHA}; nothing to post (dev branch without a PR)."
+        exit 0
+      fi
+      # Our comment is the one whose body STARTS WITH the marker (the CI-config
+      # diff comment only contains the marker inside a fenced code block). Grab
+      # its id (to edit in place) and body (to feed the CLI merge).
+      COMMENTS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100")
+      COMMENT_ID=$(printf '%s' "${COMMENTS}" | jq -r --arg m "${MARKER}" 'map(select(.body | startswith($m))) | last | .id // empty')
+      printf '%s' "${COMMENTS}" | jq -r --arg m "${MARKER}" 'map(select(.body | startswith($m))) | last | .body // empty' > prev_comment.md
       set -e
-      echo "${out}"
-      # Dev branches without a PR return an error from the service; tolerate it.
-      exit 0
+      # --- Fetch the smp CLI (needs the single-machine-performance AWS creds) ---
+      AWS_NAMED_PROFILE="single-machine-performance"
+      SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_LOGIN) || exit $?
+      SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_TOKEN) || exit $?
+      aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+      aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+      aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+      aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+      chmod +x smp
+      # --- Render the merged comment. The CLI owns discovery, the checkbox
+      # format, and the state-preserving merge (via --previous-comment). Only
+      # pass --previous-comment when a prior comment exists (else: fresh render,
+      # quality_gates ticked by default). --exclude-path drops the ebpf subtree.
+      PREV_ARG=""
+      if [ -n "${COMMENT_ID}" ]; then PREV_ARG="--previous-comment prev_comment.md"; fi
+      ./smp experiments list \
+        --target-config-dir "${ROOT}" \
+        --exclude-path ebpf \
+        --format github-comment \
+        --default-select quality_gates \
+        ${PREV_ARG} \
+        --instructions "Tick a folder to run all of it, or expand it to tick individual experiments, then re-run the single-machine-performance-regression_detector job (it re-reads this comment at run time). The quality_gates suite runs by default." \
+        > comment_body.md
+      cat comment_body.md
+      # --- Edit in place if the comment exists, else create it ---
+      PAYLOAD=$(jq -Rs '{body: .}' comment_body.md)
+      if [ -n "${COMMENT_ID}" ]; then
+        echo "Updating existing selection comment ${COMMENT_ID}"
+        curl -s -X PATCH -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/DataDog/datadog-agent/issues/comments/${COMMENT_ID}" \
+          -d "${PAYLOAD}" -o /dev/null -w "HTTP %{http_code}\n"
+      else
+        echo "Creating selection comment on PR #${PR_NUMBER}"
+        curl -s -X POST -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments" \
+          -d "${PAYLOAD}" -o /dev/null -w "HTTP %{http_code}\n"
+      fi
   artifacts:
     expire_in: 1 day
     paths:
       - comment_body.md
-      - pr_comment_payload.json
     when: always
 

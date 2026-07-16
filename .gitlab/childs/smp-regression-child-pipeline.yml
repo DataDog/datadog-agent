@@ -151,11 +151,59 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
-    # Optional experiment subset filter. Empty for every normal job (they never
-    # set EXPERIMENT_FILTER), so their submit command is unchanged. The manual
-    # runner job sets EXPERIMENT_FILTER in its before_script.
+    # Experiment subset filter. Only jobs that set READ_SELECTION_COMMENT (the
+    # agent regression_detector) read the PR "SMP Experiment Selection" comment
+    # and pass the ticked paths to `smp job submit`. The ebpf/metal jobs leave
+    # READ_SELECTION_COMMENT unset, so EXPERIMENT_FILTER_ARG stays empty and
+    # their submit command is unchanged (they run unfiltered).
+    #
+    # Selection semantics:
+    #   - Comment exists  -> it is the source of truth. `smp experiments preview`
+    #     resolves the ticks to the exact experiments AND exits 1 on an empty /
+    #     all-stale / duplicate-name selection, so a "run nothing" comment fails
+    #     the job loudly (allow_failure keeps it non-blocking on dev branches).
+    #   - No comment at all (main-branch gate, or a dev push with no PR) -> run
+    #     the default quality_gates suite. This is NOT an empty selection; there
+    #     is simply no PR context, and the gate must still run.
+    # We must always pass a NON-EMPTY --experiment-path-filter: an empty value
+    # fails submit ("nothing to submit"), and OMITTING the flag runs the ENTIRE
+    # suite -- neither is what we want.
     - EXPERIMENT_FILTER_ARG=""
-    - if [ -n "${EXPERIMENT_FILTER}" ]; then EXPERIMENT_FILTER_ARG="--experiment-name-allow-filter ${EXPERIMENT_FILTER}"; fi
+    - |
+      if [ "${READ_SELECTION_COMMENT:-false}" = "true" ]; then
+        # Best effort: mint a GitHub token, resolve the PR, fetch the selection
+        # comment (the one whose body STARTS WITH the marker -- the CI config-diff
+        # comment only contains the marker inside a code block; this finder MUST
+        # match the smp-experiment-selection-comment writer).
+        set +e
+        GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr 2>/dev/null)
+        PR_NUMBER=""
+        if [ -n "${GITHUB_TOKEN}" ]; then
+          PR_NUMBER=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/DataDog/datadog-agent/commits/${CI_COMMIT_SHA}/pulls" \
+            | jq -r '.[0].number // empty')
+        fi
+        : > selection_comment.md
+        if [ -n "${PR_NUMBER}" ]; then
+          curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100" \
+            | jq -r 'map(select(.body | startswith("<!-- smp-experiment-selection -->"))) | last | .body // empty' > selection_comment.md
+        fi
+        set -e
+        if [ -s selection_comment.md ]; then
+          echo "Selection comment found on PR #${PR_NUMBER}; it is the source of truth."
+          # preview both VALIDATES (exit 1 on empty/stale/duplicate) and prints
+          # the exact experiments that will run.
+          echo "Experiments that will run:"
+          ./smp experiments preview --comment selection_comment.md --target-config-dir "${CONFIG_DIR}" --format text
+          SELECTED=$(./smp experiments parse-comment --comment selection_comment.md --format path-filter)
+        else
+          SELECTED="quality_gates"
+          echo "No selection comment for ${CI_COMMIT_SHA}; running the default quality_gates suite."
+        fi
+        EXPERIMENT_FILTER_ARG="--experiment-path-filter ${SELECTED}"
+        echo "Experiment path filter: ${SELECTED}"
+      fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
     - else
@@ -302,13 +350,24 @@ single-machine-performance-regression_detector:
       allow_failure: false
     - when: on_success
       allow_failure: true
+  # Child pipelines cannot !reference .dd_octo_sts from .gitlab-ci.yml, so the
+  # octo-sts id_token is declared inline (same aud as .dd_octo_sts). Used to
+  # mint a GitHub token to read the experiment-selection PR comment.
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.27.0
+    SMP_VERSION: dev-pr4640-02fd123f5 # dev build with the `smp experiments` command group (SMP PR 4640)
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
+    # Tells the shared run template to read the PR selection comment and turn the
+    # ticked boxes into --experiment-path-filter values (see the template's
+    # "experiment subset filter" block). Only this job sets it; the ebpf/metal
+    # jobs leave it unset and therefore run unfiltered.
+    READ_SELECTION_COMMENT: "true"
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
@@ -390,116 +449,6 @@ single-machine-performance-regression_detector-pr-comment:
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
     # and gracefully handle the case when the commit being tested is not a PR
-    - |
-      set +e
-      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
-          -H "$(authanywhere)" \
-          -H "X-DdOrigin: curl" \
-          -X PATCH \
-          -d "${PR_COMMENT_JSON_PAYLOAD}")
-      exitcode=$?
-      set -e
-      if [ -n "${out}" ]; then
-        if [ $exitcode -eq 0 ]; then
-          echo $out
-        else
-          echo $out >&2
-        fi
-      fi
-      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
-        exit 0
-      fi
-      exit $exitcode
-
-# =============================================================================
-# SMP Manual Experiment Runner (POC)
-#
-# A manually-triggered variant of the regression detector that runs ONLY the
-# subset of experiments a developer ticked in the "SMP Manual Experiment
-# Runner" PR comment. It reuses the same baseline/comparison images and deps as
-# the normal agent-team run by extending the shared run template.
-# =============================================================================
-single-machine-performance-regression_detector-manual:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  when: manual
-  allow_failure: true
-  # Child pipelines cannot !reference .dd_octo_sts from .gitlab-ci.yml, so the
-  # octo-sts id_token is declared inline (same aud as .dd_octo_sts).
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  variables:
-    SMP_TEAM_NAME: agent
-    SMP_API_URL: api_url
-    SMP_VERSION: v0.27.0
-    BOT_LOGIN: bot_login
-    BOT_TOKEN: bot_token
-    CONFIG_DIR: test/regression
-  before_script:
-    # Replicate the run template's before_script (overridden when we set our own).
-    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
-    # Mint a GitHub token scoped to PR comments (write implies read).
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
-    # Resolve the PR associated with this commit.
-    - |
-      PR_NUMBER=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-        "https://api.github.com/repos/DataDog/datadog-agent/commits/${CI_COMMIT_SHA}/pulls" \
-        | jq -r '.[0].number // empty')
-      if [ -z "${PR_NUMBER}" ]; then
-        echo "ERROR: no PR found for commit ${CI_COMMIT_SHA}; cannot read experiment selection."
-        exit 1
-      fi
-      echo "Reading experiment selection from PR #${PR_NUMBER}"
-    # Read the "SMP Manual Experiment Runner" comment and parse the ticked
-    # experiments into a CSV. We match on BOTH the pr-commenter bot author and
-    # the hidden marker: the "Gitlab CI Configuration Changes" comment quotes
-    # this job's YAML (which contains the marker literal), so a marker-only
-    # match would also select that comment and find no ticked boxes. This sed
-    # is identical to smp-manual-runner-poc/parse_selected_experiments.sh.
-    - |
-      COMMENT_BODY=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-        "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100" \
-        | jq -r 'map(select((.user.login | contains("pr-commenter")) and (.body | contains("<!-- smp-manual-runner:experiments -->")))) | last | .body // empty')
-      export EXPERIMENT_FILTER=$(printf '%s\n' "${COMMENT_BODY}" \
-        | sed -n -E 's/^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]+([^[:space:]]+).*/\1/p' \
-        | paste -sd, -)
-      if [ -z "${EXPERIMENT_FILTER}" ]; then
-        echo "ERROR: no experiments ticked in the 'SMP Manual Experiment Runner' comment; nothing to run."
-        exit 1
-      fi
-      echo "Selected experiments: ${EXPERIMENT_FILTER}"
-
-# Comment 2: post the manual run's report under a DISTINCT header so it never
-# clobbers the checkbox selection comment. Mirrors the normal pr-comment job.
-single-machine-performance-regression_detector-manual-pr-comment:
-  stage: functional_test
-  image:
-    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
-    entrypoint: [""] # disable entrypoint script for the pr-commenter image
-  tags: ["arch:amd64", "specific:true"]
-  needs:
-    - job: single-machine-performance-regression_detector-manual
-  artifacts:
-    expire_in: 1 weeks
-    paths:
-      - report_as_json_string.txt
-      - pr_comment_payload.json
-  variables:
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
-  allow_failure: true
-  script:
-    - |
-      if [[ ! -s "outputs/report.md" ]]
-      then
-          echo "ERROR: Regression Detector report not found -- no PR comment posted"
-          exit 1
-      fi
-    - cat outputs/report.md outputs/decision_record.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
-    - cat report_as_json_string.txt
-    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"SMP Manual Experiment Results", "message":"'"$(cat report_as_json_string.txt)"'"}'
-    - printf "%s\n" "PR comment JSON payload:${PR_COMMENT_JSON_PAYLOAD}"
-    - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
     - |
       set +e
       out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Resolve the target lading.yaml for the explain-lading-config skill.
 #
-# Scope: experiments under `test/regression/cases/` and
+# Scope: experiments under any `cases/` directory beneath `test/regression/`
+# (e.g. `test/regression/quality_gates/cases/`), plus the root
 # `test/regression/x-disabled-cases/`.
 # The skill deliberately does not enumerate `ebpf/cases/` (split-mode)
-# or `ebpf/config-only/cases/` yet. They have different semantics.
+# or `ebpf/config-only/cases/`. They have different semantics.
 #
 # Usage:
 #   resolve-lading-config.sh [ARG]
@@ -24,7 +25,7 @@
 #   - glob with '*' or '?' — matched against experiment names, not paths
 #
 # Experiment name = the case directory name, i.e. the parent of `lading/`
-# in `test/regression/cases/<case>/lading/lading.yaml`.
+# in `test/regression/<group>/cases/<case>/lading/lading.yaml`.
 
 set -euo pipefail
 
@@ -38,9 +39,9 @@ repo_root() {
 require_regression_dir() {
     local root
     root="$(repo_root)"
-    if [[ ! -d "$root/test/regression/cases" ]]; then
+    if [[ ! -d "$root/test/regression" ]]; then
         cat >&2 <<EOF
-no test/regression/cases/ directory under $root
+no test/regression/ directory under $root
 
 This script must run from inside the DataDog/datadog-agent repository.
 \`cd\` into the repo (or a subdirectory of it) and re-run.
@@ -49,20 +50,20 @@ EOF
     fi
 }
 
-# Emit NUL-delimited paths for all lading.yaml files under
-# test/regression/cases (active) and test/regression/x-disabled-cases.
+# Emit NUL-delimited paths for all lading.yaml files under test/regression,
+# excluding the ebpf suites (ebpf/cases, ebpf/config-only) which have
+# different semantics. Experiments live under a `cases/` dir at any depth
+# (e.g. quality_gates/cases/<case>), plus the root x-disabled-cases/.
 find_configs() {
     local root
     root="$(repo_root)"
-    local d
-    for d in cases x-disabled-cases; do
-        [[ -d "$root/test/regression/$d" ]] || continue
-        find "$root/test/regression/$d" -type f -name lading.yaml -print0
-    done
+    [[ -d "$root/test/regression" ]] || return 0
+    find "$root/test/regression" -type f -name lading.yaml \
+        -not -path "*/ebpf/*" -print0
 }
 
 # Extract the display name for a lading.yaml path:
-# .../{cases,x-disabled-cases}/<case>/lading/lading.yaml -> <case>
+# .../<group>/cases/<case>/lading/lading.yaml -> <case>
 display_name() {
     local path="$1"
     basename "$(dirname "$(dirname "$path")")"

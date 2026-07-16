@@ -41,9 +41,10 @@ Override the checkout location with `LADING_DIR` if needed.
 ## Step 2: Determine target file
 
 Use `.claude/skills/explain-lading-config/scripts/resolve-lading-config.sh` to
-avoid ad-hoc matching. The script enumerates experiments under
-`test/regression/cases/` (active) and `test/regression/x-disabled-cases/`
-(disabled). Each experiment is a `<case>/lading/lading.yaml` addressed by its
+avoid ad-hoc matching. The script enumerates experiments under any `cases/`
+directory beneath `test/regression/` (e.g. `test/regression/quality_gates/cases/`,
+active) and the root `test/regression/x-disabled-cases/` (disabled). Each
+experiment is a `<case>/lading/lading.yaml` addressed by its
 case-directory name; disabled rows are flagged with a trailing `(disabled)`
 column in the listing. `ebpf/cases/` (split-mode) and
 `ebpf/config-only/cases/` are intentionally out of scope; if a user asks about
