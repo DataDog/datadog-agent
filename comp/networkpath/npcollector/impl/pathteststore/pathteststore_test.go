@@ -152,6 +152,21 @@ func Test_pathtestStore_add_when_full(t *testing.T) {
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
 }
 
+func TestPathtestStoreRefreshesTestConfigID(t *testing.T) {
+	store := NewPathtestStore(Config{
+		ContextsLimit: 2,
+		TTL:           10 * time.Minute,
+		Interval:      time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
+
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a"}
+	store.Add(initial)
+	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-b"})
+
+	assert.Len(t, store.contexts, 1)
+	assert.Equal(t, "dynamic-b", store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+}
+
 func Test_pathtestStore_flush(t *testing.T) {
 	logger := logmock.New(t)
 	setMockTimeNow(mockTimeJan2)

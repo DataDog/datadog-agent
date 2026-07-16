@@ -15,9 +15,10 @@ import (
 
 // Filter represent one filter
 type Filter struct {
-	Type        FilterType
-	matchDomain *regexp.Regexp
-	matchIPCidr netip.Prefix
+	Type         FilterType
+	TestConfigID string
+	matchDomain  *regexp.Regexp
+	matchIPCidr  netip.Prefix
 }
 
 // ConnFilter class
@@ -72,9 +73,10 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 		}
 
 		filters = append(filters, Filter{
-			Type:        cfg.Type,
-			matchDomain: matchDomainRe,
-			matchIPCidr: matchIPCidr,
+			Type:         cfg.Type,
+			TestConfigID: cfg.TestConfigID,
+			matchDomain:  matchDomainRe,
+			matchIPCidr:  matchIPCidr,
 		})
 	}
 	return &ConnFilter{
@@ -84,7 +86,15 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 
 // IsIncluded return true if the matching domain and ip of a connection should be included
 func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
+	isIncluded, _ := f.Evaluate(domain, ip)
+	return isIncluded
+}
+
+// Evaluate returns whether a connection is included and the test config ID of
+// the winning rule. Local and built-in rules have no test config ID.
+func (f *ConnFilter) Evaluate(domain string, ip netip.Addr) (bool, string) {
 	isIncluded := true
+	testConfigID := ""
 	if domain == "" {
 		isIncluded = false
 	}
@@ -101,6 +111,7 @@ func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 			}
 		}
 		if matched {
+			testConfigID = filter.TestConfigID
 			if filter.Type == FilterTypeExclude {
 				isIncluded = false
 			} else {
@@ -108,5 +119,8 @@ func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 			}
 		}
 	}
-	return isIncluded
+	if !isIncluded {
+		return false, ""
+	}
+	return true, testConfigID
 }

@@ -126,6 +126,7 @@ func parseRemoteDynamicConfig(raw []byte) (remoteConfigEnvelope, bool, error) {
 		if filterConfig.MatchDomain == "" && filterConfig.MatchIP == "" {
 			return remoteConfigEnvelope{}, true, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
 		}
+		envelope.Config.Filters[i].TestConfigID = envelope.TestConfigID
 	}
 	_, validationErrors := connfilter.NewConnFilter(envelope.Config.Filters, "", false)
 	if len(validationErrors) > 0 {

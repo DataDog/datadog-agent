@@ -35,6 +35,9 @@ func TestDynamicRemoteConfigLifecycle(t *testing.T) {
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["dynamic"].State)
 	assert.False(t, collector.filter.IsIncluded("other.local.example", netip.Addr{}))
 	assert.True(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}), "RC must override a matching local filter")
+	included, testConfigID := collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "dynamic", testConfigID)
 
 	// An invalid replacement is rejected atomically and preserves the last valid
 	// config for the same RC path.
@@ -43,10 +46,14 @@ func TestDynamicRemoteConfigLifecycle(t *testing.T) {
 	}, callback)
 	assert.Equal(t, state.ApplyStateError, statuses["dynamic"].State)
 	assert.True(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}))
+	_, testConfigID = collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.Equal(t, "dynamic", testConfigID, "an invalid replacement must preserve attribution from the last valid config")
 
 	// Deletion removes the RC layer while preserving local filters.
 	collector.UpdateRemoteConfig(map[string]state.RawConfig{}, callback)
 	assert.False(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}))
+	_, testConfigID = collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.Empty(t, testConfigID)
 }
 
 func TestDynamicRemoteConfigConflictFallsBackToLocal(t *testing.T) {
@@ -101,6 +108,14 @@ func TestParseRemoteDynamicConfigValidation(t *testing.T) {
 			require.ErrorContains(t, err, tt.err)
 		})
 	}
+}
+
+func TestParseRemoteDynamicConfigAnnotatesFilters(t *testing.T) {
+	envelope, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`))
+	require.NoError(t, err)
+	assert.True(t, dynamic)
+	require.Len(t, envelope.Config.Filters, 1)
+	assert.Equal(t, "dynamic-a", envelope.Config.Filters[0].TestConfigID)
 }
 
 func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCollectorImpl {

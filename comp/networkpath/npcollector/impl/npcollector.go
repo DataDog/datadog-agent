@@ -207,43 +207,48 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 }
 
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) bool {
+	shouldSchedule, _ := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
+	return shouldSchedule
+}
+
+func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) (bool, string) {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
-		return false
+		return false, ""
 	}
 	if conn.SystemProbeConn {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1)
-		return false
+		return false, ""
 	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1)
-		return false
+		return false, ""
 	}
 	// only ipv4 is supported currently
 	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
 	if conn.Domain == "" && conn.Family != model.ConnectionFamily_v4 {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1)
-		return false
+		return false, ""
 	}
 
 	if s.shouldSkipNetflowAgentSource(conn, origin) {
-		return false
+		return false, ""
 	}
 
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1)
-		return false
+		return false, ""
 	}
 
 	s.filterMutex.RLock()
-	included := s.filter.IsIncluded(conn.Domain, conn.Dest.Addr())
+	included, testConfigID := s.filter.Evaluate(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
 	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
-		return false
+		return false, ""
 	}
 
-	return true
+	return true, testConfigID
 }
 
 func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
@@ -308,11 +313,13 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if !s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets) {
+		shouldSchedule, testConfigID := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
+		if !shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		pathtest.TestConfigID = testConfigID
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -431,6 +438,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 	path.Origin = ptest.Pathtest.Origin
 	path.TestRunType = payload.TestRunTypeDynamic
+	path.TestConfigID = ptest.Pathtest.TestConfigID
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
 		path.SourceProduct = payload.SourceProductNetflow

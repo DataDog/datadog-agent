@@ -219,7 +219,10 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 			assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
 
 			if domain == hostTrafficRemoteConfigDomain {
+				assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
 				remoteConfigMatch = match
+			} else {
+				assert.Empty(c, match.TestConfigID)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)

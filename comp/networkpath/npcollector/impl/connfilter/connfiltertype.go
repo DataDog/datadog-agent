@@ -31,4 +31,5 @@ type Config struct {
 	MatchDomain         string                  `json:"match_domain,omitempty" mapstructure:"match_domain"`
 	MatchDomainStrategy MatchDomainStrategyType `json:"match_domain_strategy,omitempty" mapstructure:"match_domain_strategy"`
 	MatchIP             string                  `json:"match_ip,omitempty" mapstructure:"match_ip"`
+	TestConfigID        string                  `json:"-" mapstructure:"-"`
 }

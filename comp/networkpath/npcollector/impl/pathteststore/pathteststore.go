@@ -186,6 +186,9 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
 		return
 	}
+	// Refresh attribution from the latest admission without creating a second
+	// context for the same path.
+	pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
 	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
 }
 
