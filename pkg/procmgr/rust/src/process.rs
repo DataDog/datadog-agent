@@ -7,6 +7,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
+use crate::spawn::{SpawnProfile, profile_for, spawn_user_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
@@ -127,7 +128,7 @@ pub struct ManagedProcess {
     name: String,
     uuid: String,
     config: ProcessConfig,
-    profile: spawn::SpawnProfile,
+    profile: SpawnProfile,
     user: String,
     state: ProcessState,
     pid: Option<u32>,
@@ -154,8 +155,8 @@ impl ManagedProcess {
     }
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
-        let profile = spawn::profile_for(&name);
-        let user = spawn::spawn_user_for(&name, profile);
+        let profile = profile_for(&name);
+        let user = spawn_user_for(&name, profile);
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
@@ -283,7 +284,7 @@ impl ManagedProcess {
         }
     }
 
-    pub fn profile(&self) -> spawn::SpawnProfile {
+    pub fn profile(&self) -> SpawnProfile {
         self.profile
     }
 
@@ -311,7 +312,7 @@ impl ManagedProcess {
 
     /// Re-resolve the intended spawn account from current installer/platform state.
     fn refresh_intended_user(&mut self) {
-        self.user = spawn::spawn_user_for(&self.name, self.profile);
+        self.user = spawn_user_for(&self.name, self.profile);
     }
 
     fn transition_to(&mut self, next: ProcessState) {
