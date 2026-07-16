@@ -189,12 +189,8 @@ mod tests {
             .or_else(|_| lookup_account_sid("", username))
             .expect("Administrator SID");
 
-        let account = account_name_from_sid_lookup(
-            &sid,
-            computer_domain,
-            username.to_string(),
-        )
-        .expect("account");
+        let account = account_name_from_sid_lookup(&sid, computer_domain, username.to_string())
+            .expect("account");
         assert_eq!(
             account.display(),
             AccountName::new("", username).display(),
