@@ -492,12 +492,13 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 
 	npCollector.runTracerouteForPath(&pathteststore.PathtestContext{
 		Pathtest: &common.Pathtest{
-			Hostname:     "10.0.0.2",
-			Port:         443,
-			Protocol:     payload.ProtocolTCP,
-			Namespace:    "netflow-ns",
-			Origin:       payload.PathOriginNetflow,
-			TestConfigID: "dynamic-a",
+			Hostname:         "10.0.0.2",
+			Port:             443,
+			Protocol:         payload.ProtocolTCP,
+			Namespace:        "netflow-ns",
+			Origin:           payload.PathOriginNetflow,
+			TestConfigID:     "dynamic-a",
+			TestConfigSource: payload.TestConfigSourceRemote,
 		},
 	})
 
@@ -505,6 +506,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, payload.SourceProductNetflow, emittedPath.SourceProduct)
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 	assert.Equal(t, "dynamic-a", emittedPath.TestConfigID)
+	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
 }
 
 func Test_NpCollector_runTracerouteForPath_RequiresOrigin(t *testing.T) {
@@ -1205,8 +1207,10 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	local := <-collector.pathtestInputChan
 	assert.Equal(t, "remote.example.com", remote.Hostname)
 	assert.Equal(t, "dynamic-a", remote.TestConfigID)
+	assert.Equal(t, payload.TestConfigSourceRemote, remote.TestConfigSource)
 	assert.Equal(t, "local.example.com", local.Hostname)
 	assert.Empty(t, local.TestConfigID)
+	assert.Empty(t, local.TestConfigSource)
 }
 
 func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {

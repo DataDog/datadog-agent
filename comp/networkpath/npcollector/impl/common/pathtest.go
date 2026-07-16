@@ -33,6 +33,7 @@ type Pathtest struct {
 	Namespace         string
 	Origin            payload.PathOrigin
 	TestConfigID      string
+	TestConfigSource  payload.TestConfigSource
 	Metadata          PathtestMetadata
 }
 

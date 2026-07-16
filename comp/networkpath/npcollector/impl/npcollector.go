@@ -320,6 +320,9 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		}
 		pathtest := s.makePathtest(conn, origin)
 		pathtest.TestConfigID = testConfigID
+		if testConfigID != "" {
+			pathtest.TestConfigSource = payload.TestConfigSourceRemote
+		}
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -439,6 +442,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Origin = ptest.Pathtest.Origin
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.TestConfigID = ptest.Pathtest.TestConfigID
+	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
 		path.SourceProduct = payload.SourceProductNetflow

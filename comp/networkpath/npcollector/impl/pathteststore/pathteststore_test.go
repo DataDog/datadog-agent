@@ -159,12 +159,13 @@ func TestPathtestStoreRefreshesTestConfigID(t *testing.T) {
 		Interval:      time.Minute,
 	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
 
-	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a"}
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigSource: "remote"}
 	store.Add(initial)
-	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-b"})
+	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443})
 
 	assert.Len(t, store.contexts, 1)
-	assert.Equal(t, "dynamic-b", store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigSource)
 }
 
 func Test_pathtestStore_flush(t *testing.T) {

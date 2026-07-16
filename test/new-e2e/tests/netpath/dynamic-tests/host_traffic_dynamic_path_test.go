@@ -220,9 +220,11 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 
 			if domain == hostTrafficRemoteConfigDomain {
 				assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
+				assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
 				remoteConfigMatch = match
 			} else {
 				assert.Empty(c, match.TestConfigID)
+				assert.Empty(c, match.TestConfigSource)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
