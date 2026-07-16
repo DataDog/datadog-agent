@@ -337,7 +337,7 @@ impl ManagedProcess {
         }
     }
 
-    /// Send a Unix signal to the entire process group (works even after take_child).
+    /// Send a Unix signal to the entire process group (works even after take_handle).
     /// Used by tests that need to send specific signals for cleanup.
     #[cfg(unix)]
     pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
@@ -583,7 +583,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_state_after_take_child_still_running() {
+    async fn test_state_after_take_handle_still_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
@@ -611,7 +611,7 @@ pub mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_send_signal_works_after_take_child() {
+    async fn test_send_signal_works_after_take_handle() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
