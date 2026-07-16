@@ -8,9 +8,13 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 core = { path = "../../core" }
+dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260715-fcd8f9716b61", default-features = false, features = ["dd-sds"] }
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+serde_yaml = "0.9.34"
 
 [lib]
 crate-type = ["cdylib"]

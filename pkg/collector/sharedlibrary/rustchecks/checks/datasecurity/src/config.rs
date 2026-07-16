@@ -3,11 +3,19 @@ use core::AgentCheck;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::scanning::ScanningRule;
+
 impl CheckConfig {
     /// Reads the check instance config into a `CheckConfig`.
     pub fn from_instance(check: &AgentCheck) -> Result<Self> {
         Ok(Self {
             task_id: check.instance.get("task_id").unwrap_or_default(),
+            // `scanning_rules` is common to every sub task; `scan_data` is the
+            // list of sub tasks to run against it.
+            scanning_rules: check
+                .instance
+                .get("scanning_rules")
+                .context("reading scanning_rules from instance config")?,
             scan_data: check
                 .instance
                 .get("scan_data")
@@ -23,6 +31,9 @@ impl CheckConfig {
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckConfig {
     pub task_id: String,
+    #[serde(default)]
+    pub scanning_rules: Vec<ScanningRule>,
+    #[serde(default)]
     pub scan_data: Vec<SubTask>,
 }
 
