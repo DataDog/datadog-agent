@@ -2663,6 +2663,117 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_workers_count: 1
 
+## @param metric_lookback - custom object - optional
+## Configure the local metric lookback rings. The first supported DogStatsD use
+## case captures selected normal DogStatsD bucketed points/sketches and final
+## no-aggregation points by exact name. An optional monitor can forward retained
+## high-resolution ranges after a watched metric breaches its configured
+## short-window max-minus-min range threshold.
+#
+# metric_lookback:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_METRIC_LOOKBACK_ENABLED - boolean - optional - default: false
+#   # Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed
+#   # by enabled_checks.
+#
+#   enabled: false
+
+#   # @param enabled_checks - list of strings - optional - default: []
+#   # @env DD_METRIC_LOOKBACK_ENABLED_CHECKS - space-separated list of strings - optional - default: []
+#   # Optional check-name allowlist for metric lookback shadow checks. When empty, all supported
+#   # checks are eligible.
+#
+#   enabled_checks: []
+
+#   # @param capacity - integer - optional - default: 262144
+#   # @env DD_METRIC_LOOKBACK_CAPACITY - integer - optional - default: 262144
+#   # Total number of records retained across each lookback ring's shards. Series points and
+#   # sketches use separate rings.
+#
+#   capacity: 262144
+
+#   # @param shard_count - integer - optional - default: 16
+#   # @env DD_METRIC_LOOKBACK_SHARD_COUNT - integer - optional - default: 16
+#   # Number of independent shards used by each lookback ring.
+#
+#   shard_count: 16
+
+#   # @param dogstatsd - custom object - optional
+#   # Configure exact-name DogStatsD admission into metric lookback.
+#
+#   dogstatsd:
+
+#     # @param metric_names - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_DOGSTATSD_METRIC_NAMES - space-separated list of strings - optional - default: []
+#     # Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+#     # auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
+#
+#     metric_names: []
+
+#   # @param monitor - custom object - optional
+#   # Configure a metric lookback monitor for egress.
+#
+#   monitor:
+
+#     # @param mode - string - optional - default: "disabled"
+#     # @env DD_METRIC_LOOKBACK_MONITOR_MODE - string - optional - default: "disabled"
+#     # Controls monitor operation. Valid values are:
+#     #   - disabled: do not run the monitor or monitor-driven egress.
+#     #   - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+#     #   - enabled: run the monitor and let monitor decisions control egress.
+#
+#     mode: "disabled"
+
+#     # @param metric_name - string - optional - default: ""
+#     # @env DD_METRIC_LOOKBACK_MONITOR_METRIC_NAME - string - optional - default: ""
+#     # Exact metric name watched by the monitor.
+#
+#     metric_name: ""
+
+#     # @param evaluation_interval - duration - optional - default: "30s"
+#     # @env DD_METRIC_LOOKBACK_MONITOR_EVALUATION_INTERVAL - duration - optional - default: "30s"
+#     # Approximate width of each monitor evaluation window. Shorter windows can detect
+#     # breaches sooner; longer windows evaluate more retained points together.
+#
+#     evaluation_interval: "30s"
+
+#     # @param range_epsilon - float - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
+#     # The monitor computes a window range as the maximum retained point value minus the minimum
+#     # retained point value in each completed evaluation window, or in each configured tag partition.
+#     # Egress forwards retained ranges after that window range is greater than this epsilon.
+#
+#     range_epsilon: 0
+
+#     # @param partition_tags - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS - space-separated list of strings - optional - default: []
+#     # Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+#     # monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+#     # tuple independently and breaches if any partition exceeds range_epsilon.
+#
+#     partition_tags: []
+
+#   # @param egress - custom object - optional
+#   # Configure monitor-triggered egress ranges.
+#
+#   egress:
+
+#     # @param pre_trigger_window - duration - optional - default: "0s"
+#     # @env DD_METRIC_LOOKBACK_EGRESS_PRE_TRIGGER_WINDOW - duration - optional - default: "0s"
+#     # Extra retained time to forward before a breach or unknown monitor window.
+#     # This captures context before the monitor-triggering window.
+#
+#     pre_trigger_window: "0s"
+
+#     # @param post_recovery_window - duration - optional - default: "30s"
+#     # @env DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW - duration - optional - default: "30s"
+#     # Extra retained time to forward after the first healthy monitor window that
+#     # suppresses egress. The default approximates the previous two-healthy-window behavior.
+#
+#     post_recovery_window: "30s"
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.

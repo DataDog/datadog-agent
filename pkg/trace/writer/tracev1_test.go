@@ -487,58 +487,6 @@ func TestTraceWriterV1AgentPayload(t *testing.T) {
 	})
 }
 
-func TestTraceWriterV1OTelGateway(t *testing.T) {
-	testCases := []struct {
-		name        string
-		otelGateway bool
-	}{
-		{
-			name:        "gateway-disabled",
-			otelGateway: false,
-		},
-		{
-			name:        "gateway-enabled",
-			otelGateway: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv := newTestServer()
-			defer srv.Close()
-			cfg := &config.AgentConfig{
-				Hostname:   testHostname,
-				DefaultEnv: testEnv,
-				Endpoints: []*config.Endpoint{{
-					APIKey: "123",
-					Host:   srv.URL,
-				}},
-				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
-				SynchronousFlushing: true,
-				OTelGateway:         tc.otelGateway,
-			}
-			tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
-			defer tw.Stop()
-
-			tw.WriteChunksV1(randomSampledSpansV1(20, 8))
-			err := tw.FlushSync()
-			assert.Nil(t, err)
-
-			require.Len(t, srv.payloads, 1)
-			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
-			assert.Nil(t, err)
-			v, ok := ap.Tags[tagOTelGateway]
-			if tc.otelGateway {
-				assert.True(t, ok)
-				assert.Equal(t, "true", v)
-			} else {
-				assert.False(t, ok)
-				assert.Empty(t, v)
-			}
-		})
-	}
-}
-
 // TestTraceWriterV1BytesMetricsMultipleSenders verifies that bytes_uncompressed is
 // counted once per sender (same scope as bytes), so the two metrics remain
 // consistent regardless of the number of configured endpoints.

@@ -14,10 +14,10 @@ Explain what a lading regression test config does, grounded in lading source cod
 
 ```bash
 # 1. Verify the lading checkout exists and is on a known branch
-bash .claude/skills/explain-lading-config/scripts/validate-lading-checkout.sh
+bash .agents/skills/explain-lading-config/scripts/validate-lading-checkout.sh
 
 # 2. Resolve $ARGUMENTS to a lading.yaml path (exact/substring/glob/path)
-bash .claude/skills/explain-lading-config/scripts/resolve-lading-config.sh "$ARGUMENTS"
+bash .agents/skills/explain-lading-config/scripts/resolve-lading-config.sh "$ARGUMENTS"
 
 # 3. Read the resolved file, then ground every field in lading source
 #    (see references/source-reading.md for the full strategy).
@@ -29,7 +29,7 @@ Defaults must be resolved to concrete values, not function names. Full workflow 
 
 ## Step 1: Validate lading checkout
 
-Run `.claude/skills/explain-lading-config/scripts/validate-lading-checkout.sh`.
+Run `.agents/skills/explain-lading-config/scripts/validate-lading-checkout.sh`.
 
 - Exit 0: script prints the current branch on stdout. If it is not `main`, warn
   the user that explanations are grounded in a non-main branch, then continue.
@@ -40,7 +40,7 @@ Override the checkout location with `LADING_DIR` if needed.
 
 ## Step 2: Determine target file
 
-Use `.claude/skills/explain-lading-config/scripts/resolve-lading-config.sh` to
+Use `.agents/skills/explain-lading-config/scripts/resolve-lading-config.sh` to
 avoid ad-hoc matching. The script enumerates experiments under
 `test/regression/cases/` (active) and `test/regression/x-disabled-cases/`
 (disabled). Each experiment is a `<case>/lading/lading.yaml` addressed by its

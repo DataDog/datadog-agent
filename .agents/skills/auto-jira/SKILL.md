@@ -169,9 +169,9 @@ Every interaction must be clearly attributed as coming from Auto-JIRA.
 
 | Platform             | Format |
 |----------------------|--------|
-| **Jira comment**     | End with: `— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)` |
-| **GitHub PR body**   | Include: `_Created by [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)._` |
-| **GitHub comment**   | End with: `_— [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)_` |
+| **Jira comment**     | End with: `— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)` |
+| **GitHub PR body**   | Include: `_Created by [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)._` |
+| **GitHub comment**   | End with: `_— [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)_` |
 | **Commit**           | Co-author line: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` |
 
 ---
@@ -257,7 +257,7 @@ If Critic rejects: fix the issues, try again, get a clean APPROVED before contin
 4. **Never use `git add -A` or `git add .`** — stage specific files by name.
 5. **Always draft** — PRs are created as drafts and left for humans to take from there.
 6. **Never commit `AUTO_JIRA.md`** — local tracking only.
-7. **Never modify `.claude/skills/auto-jira/`** — the auto-jira skill must not edit itself. If a ticket would require changes to these files, skip it.
+7. **Never modify `.agents/skills/auto-jira/`** — the auto-jira skill must not edit itself. If a ticket would require changes to these files, skip it.
 
 ---
 
