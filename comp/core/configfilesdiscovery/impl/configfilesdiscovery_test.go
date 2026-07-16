@@ -8,7 +8,6 @@ package configfilesdiscoveryimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -516,32 +515,15 @@ func TestSchedulerFlushesConfigCollectionBatchOnTimeout(t *testing.T) {
 	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
 }
 
-func TestSchedulerFlushesConfigCollectionBatchOnMaxCollectedConfigs(t *testing.T) {
-	sender := &recordingCollectedConfigSender{}
-	collector := &recordingConfigCollector{
-		files: []ConfigFile{
-			{
-				Path:    "/etc/redis/redis.conf",
-				Content: []byte("port 6379\n"),
-			},
-		},
+func TestConfigCollectionBatchFlushesOnMaxCollectedConfigs(t *testing.T) {
+	var batch collectedConfigBatch
+	for range configCollectionBatchMaxCollectedConfigs - 1 {
+		batch.add(pendingCollectedConfig{})
 	}
-	s := newADScheduler(
-		targetResolver{},
-		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
-		map[string]ConfigCollector{testRedisIntegrationName: collector},
-		sender,
-	)
-	defer s.Stop()
+	assert.False(t, batch.shouldFlush())
 
-	configs := make([]integration.Config, 0, configCollectionBatchMaxCollectedConfigs)
-	for i := 0; i < configCollectionBatchMaxCollectedConfigs; i++ {
-		configs = append(configs, checkConfig(testRedisIntegrationName, fmt.Sprintf("docker://container-%d", i)))
-	}
-	s.Schedule(configs)
-
-	batches := sender.waitForBatches(t, 1)
-	require.Len(t, batches[0], configCollectionBatchMaxCollectedConfigs)
+	batch.add(pendingCollectedConfig{})
+	assert.True(t, batch.shouldFlush())
 }
 
 func TestSchedulerFlushesOversizedConfigCollectionAlone(t *testing.T) {
