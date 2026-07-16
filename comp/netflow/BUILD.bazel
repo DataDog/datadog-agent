@@ -1,2 +1,13 @@
-# Stub: intermediate package not yet migrated to Bazel.
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "netflow",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/netflow/config/fx",
+        "//comp/netflow/server/fx",
+        "//pkg/util/fxutil",
+    ],
+)

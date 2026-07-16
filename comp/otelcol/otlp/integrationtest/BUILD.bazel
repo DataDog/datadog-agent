@@ -11,6 +11,7 @@ go_library(
 dd_agent_go_test(
     name = "integrationtest_test",
     srcs = ["integration_test.go"],
+    data = ["integration_test_config.yaml"],
     embed = [":integrationtest"],
     flavors = [
         "base",
