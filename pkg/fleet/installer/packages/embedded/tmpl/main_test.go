@@ -7,8 +7,6 @@
 package main
 
 import (
-	"embed"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,9 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
-
-//go:embed gen
-var genFS embed.FS
 
 // TestGenerationIsUpToDate tests that the generated templates are up to date.
 //
@@ -36,8 +31,22 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	err := generate(generated)
 	assert.NoError(t, err)
 	newGeneratedFS := os.DirFS(generated)
-	currentGeneratedFS, err := fs.Sub(genFS, "gen")
-	assert.NoError(t, err)
+	currentGeneratedFS := os.DirFS(checkedInGenDir())
 
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
+}
+
+// checkedInGenDir locates the checked-in gen/ directory (embedded/gen, a sibling
+// of tmpl/, outside the gazelle-excluded tmpl/ tree). Its path relative to the
+// working directory differs by test runner: `go test`/dda inv chdir into the
+// source file's own directory (tmpl/), while Bazel's go_test chdirs into the
+// BUILD file's directory (embedded/) since this target's srcs cross package
+// directories.
+func checkedInGenDir() string {
+	for _, candidate := range []string{"gen", filepath.Join("..", "gen")} {
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return "gen"
 }

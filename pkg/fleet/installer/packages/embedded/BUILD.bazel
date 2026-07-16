@@ -106,12 +106,12 @@ go_binary(
 go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
-    embed = [":tmpl_lib"],
-    # keep
-    embedsrcs = service_srcs + glob([
+    # keep: main_test.go reads gen/ from disk (relative path), not via go:embed
+    data = service_srcs + glob([
         "gen/debrpm-nocap/**",
         "gen/oci-nocap/**",
     ]),
+    embed = [":tmpl_lib"],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",
