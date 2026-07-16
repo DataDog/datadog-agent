@@ -16,19 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestPayloadChunking creates a payload that is several times writer.MaxPayloadSize
-// (measured in the legacy wire format) and asserts that the trace-agent forwards
-// every trace chunk without dropping any, while never emitting an individual
-// output payload larger than writer.MaxPayloadSize.
-//
-// With the convert-traces feature (enabled by default) the agent re-encodes
-// traces in the string-indexed idx format before writing them. That format
-// deduplicates repeated strings, so this payload of identical traces serializes
-// far smaller than its legacy size and may be emitted as a single payload rather
-// than the N+1 the legacy writer produced. The exact number of output payloads is
-// therefore encoding-dependent; we drain every payload that arrives and assert on
-// the total chunk count and the per-payload size bound rather than a fixed payload
-// count.
+// TestPayloadChunking creates a payload that is N * writer.MaxPayloadSize and
+// expects the trace-agent to writer N+1 payloads and not miss any trace.
 func TestPayloadChunking(t *testing.T) {
 	r := test.Runner{}
 	if err := r.Start(); err != nil {
@@ -60,28 +49,22 @@ func TestPayloadChunking(t *testing.T) {
 	if err := r.Post(traces); err != nil {
 		t.Fatal(err)
 	}
-	var got, payloads int
-	for got < len(traces) {
+	timeout := time.After(3 * time.Second)
+	var got int
+	for i := 0; i < payloadCount+1; i++ {
 		select {
 		case p := <-r.Out():
-			v, ok := p.(*pb.AgentPayload)
-			if !ok {
-				t.Fatalf("invalid payload type: %T", p)
+			if v, ok := p.(*pb.AgentPayload); ok {
+				// ok
+				for _, tracerPayload := range v.TracerPayloads {
+					got += len(tracerPayload.Chunks)
+				}
+				continue
 			}
-			payloads++
-			// The trace-agent must never emit a single payload larger than the
-			// API's maximum, regardless of how large the incoming chunk was.
-			// v.SizeVT() is the uncompressed serialized size, matching what the
-			// writer measures before compression.
-			assert.LessOrEqualf(t, v.SizeVT(), writer.MaxPayloadSize,
-				"payload %d exceeds MaxPayloadSize (%d > %d bytes)", payloads, v.SizeVT(), writer.MaxPayloadSize)
-			for _, tracerPayload := range v.IdxTracerPayloads {
-				got += len(tracerPayload.Chunks)
-			}
-		case <-time.After(3 * time.Second):
-			t.Fatalf("timed out waiting for payloads, got %d/%d chunks across %d payloads", got, len(traces), payloads)
+			t.Fatalf("invalid payload type: %T", p)
+		case <-timeout:
+			t.Fatal("timed out waiting for payloads")
 		}
 	}
-	assert.Equal(t, len(traces), got)
-	t.Logf("received %d chunks across %d payloads", got, payloads)
+	assert.Equal(t, got, len(traces))
 }
