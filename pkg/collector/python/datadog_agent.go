@@ -561,9 +561,14 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 var (
-	telemetryMap  = map[string]*agentTelemetryMetric{}
+	telemetryMap  = map[agentTelemetryMetricKey]*agentTelemetryMetric{}
 	telemetryLock = sync.Mutex{}
 )
+
+type agentTelemetryMetricKey struct {
+	checkName  string
+	metricName string
+}
 
 type agentTelemetryMetric struct {
 	metric     any
@@ -571,8 +576,8 @@ type agentTelemetryMetric struct {
 	labelNames []string
 }
 
-func agentTelemetryMetricKey(checkName string, metricName string) string {
-	return checkName + "." + metricName
+func newAgentTelemetryMetricKey(checkName string, metricName string) agentTelemetryMetricKey {
+	return agentTelemetryMetricKey{checkName: checkName, metricName: metricName}
 }
 
 func sortedLabelNames(labels map[string]string) []string {
@@ -597,7 +602,7 @@ func sameStringSlice(left []string, right []string) bool {
 }
 
 func lazyInitTelemetryMetric(checkName string, metricName string, metricType string, labelNames []string) (*agentTelemetryMetric, error) {
-	key := agentTelemetryMetricKey(checkName, metricName)
+	key := newAgentTelemetryMetricKey(checkName, metricName)
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
 

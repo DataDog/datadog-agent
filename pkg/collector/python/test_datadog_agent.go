@@ -137,7 +137,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 
 func resetAgentTelemetryForTest() {
 	telemetryLock.Lock()
-	telemetryMap = map[string]*agentTelemetryMetric{}
+	telemetryMap = map[agentTelemetryMetricKey]*agentTelemetryMetric{}
 	telemetryLock.Unlock()
 	telemetryimpl.GetCompatComponent().Reset()
 }
@@ -170,6 +170,31 @@ func metricLabels(metricIndex int, family *dto.MetricFamily) map[string]string {
 		labels[label.GetName()] = label.GetValue()
 	}
 	return labels
+}
+
+func testAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t *testing.T) {
+	resetAgentTelemetryForTest()
+
+	leftKey := newAgentTelemetryMetricKey("a.b", "c")
+	rightKey := newAgentTelemetryMetricKey("a", "b.c")
+	telemetryMap[leftKey] = &agentTelemetryMetric{
+		metric:     "left-value",
+		metricType: "counter",
+		labelNames: []string{"check_name"},
+	}
+	telemetryMap[rightKey] = &agentTelemetryMetric{
+		metric:     "right-value",
+		metricType: "gauge",
+		labelNames: []string{"state"},
+	}
+
+	require.Len(t, telemetryMap, 2)
+	assert.Equal(t, "counter", telemetryMap[leftKey].metricType)
+	assert.Equal(t, []string{"check_name"}, telemetryMap[leftKey].labelNames)
+	assert.Equal(t, "left-value", telemetryMap[leftKey].metric)
+	assert.Equal(t, "gauge", telemetryMap[rightKey].metricType)
+	assert.Equal(t, []string{"state"}, telemetryMap[rightKey].labelNames)
+	assert.Equal(t, "right-value", telemetryMap[rightKey].metric)
 }
 
 func testEmitAgentTelemetryWithLabels(t *testing.T) {
