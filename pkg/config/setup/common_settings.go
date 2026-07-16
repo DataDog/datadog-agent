@@ -58,6 +58,21 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// on indefinitely. Takes precedence over checks.vbr_compression_dry_run
 	// when non-empty.
 	config.BindEnvAndSetDefault("checks.vbr_compression_shadow_host_suffix", "")
+	// VBR compressor tuning (see pkg/aggregator/internal/vbr.Config): the
+	// shipped tolerance is max(vbr_compression_epsilon*scale,
+	// vbr_compression_floor), where scale is an EWMA (smoothing factor
+	// vbr_compression_alpha) of the signal's magnitude. vbr_compression_warmup
+	// leading samples per context ship verbatim and seed the scale estimate
+	// before compression engages. Defaults match vbrsender's previous
+	// hardcoded values.
+	config.BindEnvAndSetDefault("checks.vbr_compression_epsilon", 0.02)
+	config.BindEnvAndSetDefault("checks.vbr_compression_alpha", 0.3)
+	// Setting this to 0 disables the floor entirely: tolerance becomes purely
+	// vbr_compression_epsilon*scale, however small that gets for a
+	// near-zero-scale signal — see vbrsender_floor_bound_samples_total for
+	// visibility into how often the floor binds with a non-zero value.
+	config.BindEnvAndSetDefault("checks.vbr_compression_floor", 1e-3)
+	config.BindEnvAndSetDefault("checks.vbr_compression_warmup", 2)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 

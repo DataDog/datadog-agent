@@ -6558,6 +6558,12 @@ properties:
     node_type: section
     type: object
     properties:
+      vbr_compression_alpha:
+        node_type: setting
+        type: number
+        default: 0.3
+        tags:
+        - golang_type:float64
       vbr_compression_checks:
         node_type: setting
         type: array
@@ -6580,6 +6586,30 @@ properties:
           \ through the\ncompressor for measurement (see the vbrsender_samples_total\
           \ /\nvbrsender_breakpoints_total telemetry), but ship their original,\n\
           uncompressed data \u2014 nothing the compressor produces is actually sent."
+      vbr_compression_epsilon:
+        node_type: setting
+        type: number
+        default: 0.02
+        tags:
+        - golang_type:float64
+        comment: |-
+          VBR compressor tuning (see pkg/aggregator/internal/vbr.Config): the
+          shipped tolerance is max(vbr_compression_epsilon*scale,
+          vbr_compression_floor), where scale is an EWMA (smoothing factor
+          vbr_compression_alpha) of the signal's magnitude. vbr_compression_warmup
+          leading samples per context ship verbatim and seed the scale estimate
+          before compression engages. Defaults match vbrsender's previous
+          hardcoded values.
+      vbr_compression_floor:
+        node_type: setting
+        type: number
+        default: 0.001
+        tags:
+        - golang_type:float64
+        comment: "Setting this to 0 disables the floor entirely: tolerance becomes\
+          \ purely\nvbr_compression_epsilon*scale, however small that gets for a\n\
+          near-zero-scale signal \u2014 see vbrsender_floor_bound_samples_total for\n\
+          visibility into how often the floor binds with a non-zero value."
       vbr_compression_shadow_host_suffix:
         node_type: setting
         type: string
@@ -6591,6 +6621,10 @@ properties:
           \ Doubles shipped metric volume for compressed\nchecks; intended for short,\
           \ deliberate comparison windows, not left\non indefinitely. Takes precedence\
           \ over checks.vbr_compression_dry_run\nwhen non-empty."
+      vbr_compression_warmup:
+        node_type: setting
+        type: integer
+        default: 2
   clc_runner_enabled:
     node_type: setting
     type: boolean

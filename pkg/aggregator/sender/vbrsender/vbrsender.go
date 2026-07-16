@@ -36,6 +36,16 @@ import (
 // time rather than stored directly, since a ratio gauge can't be usefully
 // aggregated across time or hosts the way two counters can.
 //
+// tlmFloorBoundSamples/tlmFloorBoundBreakpoints are the same pair, narrowed
+// to samples processed while Floor (rather than Epsilon*scale) set the
+// tolerance — the regime a near-zero-scale signal (e.g. a small offset
+// metric) can spend all its time in, since Floor is a single global
+// constant shared by every check/metric regardless of its typical
+// magnitude. tlmFloorBoundSamples minus tlmFloorBoundBreakpoints is how
+// many points were swallowed specifically because of Floor, isolating that
+// from ordinary Epsilon*scale-driven compression (which tlmSamples minus
+// tlmBreakpoints alone can't distinguish).
+//
 // tlmContexts tracks how many distinct contexts (metric+tags combinations)
 // are being compressed for a check. Contexts never expire once created (see
 // contextState), so this is the signal to watch for unbounded growth from a
@@ -75,6 +85,16 @@ var (
 		[]string{"check_name", "metric_name"},
 		"Number of breakpoints shipped by the VBR compressor, by check and metric name",
 		exportedMetric)
+	tlmFloorBoundSamples = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"vbrsender", "floor_bound_samples_total",
+		[]string{"check_name", "metric_name"},
+		"Number of samples processed while Floor (not Epsilon*scale) set the tolerance, by check and metric name",
+		exportedMetric)
+	tlmFloorBoundBreakpoints = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"vbrsender", "floor_bound_breakpoints_total",
+		[]string{"check_name", "metric_name"},
+		"Number of breakpoints shipped while Floor set the tolerance, by check and metric name — floor_bound_samples_total minus this is how many points were swallowed specifically because of Floor",
+		exportedMetric)
 	tlmContexts = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		"vbrsender", "contexts",
 		[]string{"check_name"},
@@ -92,13 +112,22 @@ var (
 		exportedMetric)
 )
 
-// defaultConfig holds the global (not per-metric) VBR compressor
-// parameters. Placeholder values pending real-world tuning.
-var defaultConfig = vbr.Config{
-	Epsilon: 0.02,
-	Alpha:   0.3,
-	Floor:   1e-3,
-	Warmup:  2,
+// compressorConfig returns the VBR compressor tuning parameters from the
+// checks.vbr_compression_* config settings (not per-metric — shared by
+// every compressed context). Read fresh whenever a new context is created;
+// a context's own compressor keeps whatever config was live at that time
+// for its lifetime, matching vbrCompressedCheckNames()'s same no-hot-reload
+// behavior. Setting checks.vbr_compression_floor to 0 disables the floor
+// entirely: Epsilon*scale (however small) always wins over a 0 Floor, since
+// both factors are non-negative.
+func compressorConfig() vbr.Config {
+	cfg := setup.Datadog()
+	return vbr.Config{
+		Epsilon: cfg.GetFloat64("checks.vbr_compression_epsilon"),
+		Alpha:   cfg.GetFloat64("checks.vbr_compression_alpha"),
+		Floor:   cfg.GetFloat64("checks.vbr_compression_floor"),
+		Warmup:  cfg.GetInt("checks.vbr_compression_warmup"),
+	}
 }
 
 // windowDuration is how often a compressed context force-closes and ships a
@@ -255,11 +284,17 @@ type contextState struct {
 	kind     metricKind
 
 	compressor *vbr.Compressor
+	// cfg is the compressor's own config, kept alongside it so floorBound
+	// can recompute whether Floor is currently the binding tolerance term
+	// without re-reading (possibly-changed-since) live config.
+	cfg vbr.Config
 
-	tlmSamples             telemetry.SimpleCounter
-	tlmBreakpoints         telemetry.SimpleCounter
-	tlmScaleDeviationSum   telemetry.SimpleCounter
-	tlmScaleDeviationCount telemetry.SimpleCounter
+	tlmSamples               telemetry.SimpleCounter
+	tlmBreakpoints           telemetry.SimpleCounter
+	tlmFloorBoundSamples     telemetry.SimpleCounter
+	tlmFloorBoundBreakpoints telemetry.SimpleCounter
+	tlmScaleDeviationSum     telemetry.SimpleCounter
+	tlmScaleDeviationCount   telemetry.SimpleCounter
 
 	// Rate: previous raw (value, timestamp), mirrors pkg/metrics/rate.go.
 	hasPreviousRate   bool
@@ -289,6 +324,14 @@ type contextState struct {
 	// point is closing — the compressor's closed point has no memory of a
 	// running sum to split, so there is nothing to attribute it to.
 	pendingSum float64
+}
+
+// floorBound reports whether Floor, rather than Epsilon*scale, currently
+// sets this context's tolerance — mirroring vbr.Compressor's own internal
+// updateScaleAndTolerance formula exactly, using the compressor's current
+// Scale() (its EWMA estimate after the most recently processed sample).
+func (ctx *contextState) floorBound() bool {
+	return ctx.cfg.Epsilon*ctx.compressor.Scale() < ctx.cfg.Floor
 }
 
 // Sender wraps a real sender.Sender. Gauge/Count/Rate/MonotonicCount are
@@ -444,16 +487,20 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	if !ok {
 		tagsCopy := make([]string, len(tags))
 		copy(tagsCopy, tags)
+		cfg := compressorConfig()
 		ctx = &contextState{
-			metric:                 metric,
-			hostname:               hostname,
-			tags:                   tagsCopy,
-			kind:                   kind,
-			compressor:             vbr.New(defaultConfig),
-			tlmSamples:             tlmSamples.WithValues(s.checkName, metric),
-			tlmBreakpoints:         tlmBreakpoints.WithValues(s.checkName, metric),
-			tlmScaleDeviationSum:   tlmScaleDeviationSum.WithValues(s.checkName, metric),
-			tlmScaleDeviationCount: tlmScaleDeviationCount.WithValues(s.checkName, metric),
+			metric:                   metric,
+			hostname:                 hostname,
+			tags:                     tagsCopy,
+			kind:                     kind,
+			compressor:               vbr.New(cfg),
+			cfg:                      cfg,
+			tlmSamples:               tlmSamples.WithValues(s.checkName, metric),
+			tlmBreakpoints:           tlmBreakpoints.WithValues(s.checkName, metric),
+			tlmFloorBoundSamples:     tlmFloorBoundSamples.WithValues(s.checkName, metric),
+			tlmFloorBoundBreakpoints: tlmFloorBoundBreakpoints.WithValues(s.checkName, metric),
+			tlmScaleDeviationSum:     tlmScaleDeviationSum.WithValues(s.checkName, metric),
+			tlmScaleDeviationCount:   tlmScaleDeviationCount.WithValues(s.checkName, metric),
 		}
 		s.contexts[key] = ctx
 		s.tlmContexts.Inc()
@@ -475,8 +522,12 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		// used to accept or reject this same sample.
 		ctx.tlmScaleDeviationSum.Add(math.Abs(value - ctx.compressor.Scale()))
 		ctx.tlmScaleDeviationCount.Inc()
+		floorBound := ctx.floorBound()
+		if floorBound {
+			ctx.tlmFloorBoundSamples.Inc()
+		}
 		for _, bp := range bps {
-			s.ship(ctx, bp)
+			s.ship(ctx, bp, floorBound)
 		}
 	}
 
@@ -577,8 +628,14 @@ func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (floa
 	return rawValue, true
 }
 
-func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
+// ship forwards bp as a breakpoint for ctx. floorBound is whether Floor set
+// the tolerance at the time bp was produced (see contextState.floorBound),
+// so tlmFloorBoundBreakpoints can track its share of tlmBreakpoints.
+func (s *Sender) ship(ctx *contextState, bp vbr.Point, floorBound bool) {
 	ctx.tlmBreakpoints.Inc()
+	if floorBound {
+		ctx.tlmFloorBoundBreakpoints.Inc()
+	}
 
 	// For Count/MonotonicCount, ship the accumulated pendingSum instead of
 	// bp.Value — see pendingSum's doc comment. This must happen
@@ -629,8 +686,9 @@ func (s *Sender) maybeFlushWindow(now float64) {
 	}
 	s.lastFlushTs = now
 	for _, ctx := range s.contexts {
+		floorBound := ctx.floorBound()
 		for _, bp := range ctx.compressor.FlushWindow(now) {
-			s.ship(ctx, bp)
+			s.ship(ctx, bp, floorBound)
 		}
 	}
 }
