@@ -903,7 +903,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_take_handle_still_running() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
@@ -931,7 +931,7 @@ pub mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_works_after_take_handle() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
@@ -989,7 +989,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "sleeper".into(),
             test_helpers::test_uuid(),
@@ -1015,7 +1015,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
@@ -1063,7 +1063,7 @@ pub mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_sigterm() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "sig-test".into(),
             test_helpers::test_uuid(),
@@ -1436,7 +1436,7 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnFailure;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
