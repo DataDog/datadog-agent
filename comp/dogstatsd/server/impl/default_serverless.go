@@ -11,13 +11,13 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
 const (
 	googleCloudRunServiceNameEnvVar = "K_SERVICE"
 	azureContainerAppNameEnvVar     = "CONTAINER_APP_NAME"
 	azureAppServiceNameEnvVar       = "WEBSITE_STACK"
-	microVMImageARNEnvVar           = "AWS_LAMBDA_MICROVM_IMAGE_ARN"
 )
 
 // GetDefaultMetricSource returns the default metric source based on build tags
@@ -31,7 +31,7 @@ func GetDefaultMetricSource() metrics.MetricSource {
 	if _, ok := os.LookupEnv(azureAppServiceNameEnvVar); ok {
 		return metrics.MetricSourceAzureAppServiceCustom
 	}
-	if _, ok := os.LookupEnv(microVMImageARNEnvVar); ok {
+	if _, ok := os.LookupEnv(serverlessenv.MicroVMImageARNEnvVar); ok {
 		return metrics.MetricSourceAWSMicroVMCustom
 	}
 
