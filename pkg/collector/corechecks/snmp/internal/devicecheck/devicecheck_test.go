@@ -861,13 +861,18 @@ profiles:
 	assert.Equal(t, 0, len(deviceCk.GetInterfaceBandwidthState()))
 }
 
-func TestDeviceCheck_WithPing(t *testing.T) {
+// skipIfPingUnsupported skips ping-enabled devicecheck tests on AIX, where
+// pinger.New (pinger_aix.go) is unsupported — AIX has no unprivileged ICMP
+// datagram sockets — so NewDeviceCheck fails to build the check when ping is
+// enabled, before the test can inject the mock pinger.
+func skipIfPingUnsupported(t *testing.T) {
 	if runtime.GOOS == "aix" {
-		// pinger.New is not supported on AIX (pinger_aix.go: no unprivileged
-		// ICMP datagram sockets), so NewDeviceCheck fails to build the check
-		// when ping is enabled.
 		t.Skip("pinger is not supported on AIX")
 	}
+}
+
+func TestDeviceCheck_WithPing(t *testing.T) {
+	skipIfPingUnsupported(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1011,6 +1016,7 @@ profiles:
 }
 
 func TestDeviceCheck_WithFailingPing(t *testing.T) {
+	skipIfPingUnsupported(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
