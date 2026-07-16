@@ -18,6 +18,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -68,12 +69,22 @@ func (f *fakeExecutor) RunPrepared(ctx context.Context, _ *runners.PreparedWorkf
 	return f.output, f.runErr
 }
 
+// shortSocketPath returns a Unix socket path short enough for the ~104-byte sun_path
+// limit on macOS. t.TempDir() embeds the (long) test name and overflows it there.
+func shortSocketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "par")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "e.sock")
+}
+
 // startTestServer serves a real executor gRPC server on a Unix socket and returns a
 // connected client. The server is stopped and the connection closed via t.Cleanup.
 func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	t.Helper()
 
-	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	socketPath := shortSocketPath(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -264,7 +275,7 @@ func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.SetReady(true)
 
-	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	socketPath := shortSocketPath(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -297,7 +308,7 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	srv := NewServer(fake, "test-version")
 	srv.SetReady(true)
 
-	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	socketPath := shortSocketPath(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -398,7 +409,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.SetReady(true)
 
-	socketPath := filepath.Join(t.TempDir(), "exec.sock")
+	socketPath := shortSocketPath(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
