@@ -127,7 +127,7 @@ def get_stack_json_resources(ctx: Context, full_stack_name: str) -> Any:
 def get_aws_wrapper(
     aws_account: str,
 ) -> str:
-    return f"aws-vault exec sso-{aws_account}-account-admin -- "
+    return f"aws-vault exec sso-{aws_account}-account-admin-8h -- "
 
 
 def get_aws_cmd(
@@ -172,7 +172,7 @@ def get_aws_instance_password_data(
 def get_image_description(ctx: Context, ami_id: str) -> Any:
     buffer = StringIO()
     ctx.run(
-        f"aws-vault exec sso-agent-sandbox-account-admin -- aws ec2 describe-images --image-ids {ami_id}",
+        f"aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ec2 describe-images --image-ids {ami_id}",
         out_stream=buffer,
     )
     result = json.loads(buffer.getvalue())

@@ -87,8 +87,10 @@ bazel:test:windows-amd64:
 .bazel:test:flavor:
   extends: [ .bazel:test, .bazel:test:reporting ]
   script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || echo 'Failed to fetch an API key, no metrics will be emitted'; export DD_API_KEY
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_event_json_file=$BEP_FILE --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v --build_event_json_file=$BEP_FILE --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR --emit-metrics
 
 # macOS flavor variant: re-installs dda in both script and after_script since
 # macOS shell executors run each phase in a fresh shell.
@@ -96,8 +98,8 @@ bazel:test:windows-amd64:
   extends: .bazel:test:flavor
   script:
     - !reference [.install_python_dependencies]
-    - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_event_json_file=$BEP_FILE --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - !reference [.macos_setup_go]
+    - !reference [.bazel:test:flavor, script]
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -169,5 +171,14 @@ bazel:test:windows-amd64:base:
   extends: [ .bazel:runner:windows-amd64, .bazel:test ]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --keep_going --build_tests_only --config=base
-      //pkg/... //comp/... //cmd/...
+      bazel test --keep_going --build_tests_only --config=base --test_arg=-test.v
+      --build_event_json_file=$CI_PROJECT_DIR/bazel-bep-base.json
+      //pkg/... //comp/... //cmd/...;
+      dda inv -- -e bazel.ensure-test-parity
+      --bep $CI_PROJECT_DIR/bazel-bep-base.json
+      --flavor-name base
+  artifacts:
+    when: always
+    paths:
+      - bazel-bep-*.json
+    expire_in: 1 week
