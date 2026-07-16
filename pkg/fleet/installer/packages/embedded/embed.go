@@ -26,31 +26,31 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed tmpl/gen/oci/*.service
-//go:embed tmpl/gen/debrpm/*.service
+//go:embed gen/oci/*.service
+//go:embed gen/debrpm/*.service
 var systemdUnits embed.FS
 
 // DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
 //
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+//go:embed gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
-//go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
+//go:embed gen/windows/datadog-agent-ddot.yaml
 var DDOTWindowsProcmgrConfig string
 
 // ADPWindowsProcmgrConfig is the codegen-rendered process manager config for ADP on Windows
 // (see embedded/tmpl/main.go). Install time replaces __ADP_*__ placeholders.
 //
-//go:embed tmpl/gen/windows/datadog-agent-data-plane.yaml
+//go:embed gen/windows/datadog-agent-data-plane.yaml
 var ADPWindowsProcmgrConfig string
 
 // PARWindowsProcmgrConfig is the codegen-rendered process manager config for PAR on Windows
 // (see embedded/tmpl/main.go). Install time replaces __PAR_*__ placeholders.
 //
-//go:embed tmpl/gen/windows/datadog-agent-action.yaml
+//go:embed gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
 
 // SystemdUnitType is the type of systemd unit.
@@ -69,5 +69,5 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"
 	}
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
+	return systemdUnits.ReadFile(filepath.Join("gen", dir, name))
 }

@@ -112,7 +112,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
         generated_path = (
-            REPO_ROOT / "pkg/fleet/installer/packages/embedded/tmpl/gen/windows/datadog-agent-data-plane.yaml"
+            REPO_ROOT / "pkg/fleet/installer/packages/embedded/gen/windows/datadog-agent-data-plane.yaml"
         )
         generated = generated_path.read_text()
         embed_go = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/embed.go").read_text()
@@ -123,6 +123,6 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn("__ADP_INSTALL_ROOT__", generated)
         self.assertIn("__ADP_ETC_ROOT__", generated)
         self.assertIn("agent-data-plane.exe", generated)
-        self.assertIn("tmpl/gen/windows/datadog-agent-data-plane.yaml", embed_go)
+        self.assertIn("gen/windows/datadog-agent-data-plane.yaml", embed_go)
         self.assertIn("ADPWindowsProcmgrConfig", embed_go)
         self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
