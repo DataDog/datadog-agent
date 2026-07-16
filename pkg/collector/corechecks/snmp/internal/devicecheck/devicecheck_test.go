@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -861,6 +862,12 @@ profiles:
 }
 
 func TestDeviceCheck_WithPing(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		// pinger.New is not supported on AIX (pinger_aix.go: no unprivileged
+		// ICMP datagram sockets), so NewDeviceCheck fails to build the check
+		// when ping is enabled.
+		t.Skip("pinger is not supported on AIX")
+	}
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
