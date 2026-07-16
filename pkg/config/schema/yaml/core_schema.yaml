@@ -6697,22 +6697,6 @@ properties:
         type: boolean
         default: false
         comment: Config files discovery
-      heartbeat_interval:
-        node_type: setting
-        type: string
-        default: 1h0m0s
-        format: duration
-        tags:
-        - golang_type:duration
-        comment: Interval between config files discovery heartbeat collections.
-      heartbeat_jitter:
-        node_type: setting
-        type: string
-        default: 10m0s
-        format: duration
-        tags:
-        - golang_type:duration
-        comment: Random jitter applied around config files discovery heartbeat scheduling. Values are clamped to the smaller of 1h and half the heartbeat interval.
       forwarder:
         node_type: section
         type: object
@@ -6813,6 +6797,20 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      heartbeat_interval:
+        node_type: setting
+        type: string
+        default: 1h0m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      heartbeat_jitter:
+        node_type: setting
+        type: string
+        default: 10m0s
+        format: duration
+        tags:
+        - golang_type:duration
   container_exclude:
     node_type: setting
     type: array
