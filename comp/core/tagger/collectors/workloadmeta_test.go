@@ -3843,10 +3843,12 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:   "nvidia",
-				Device:   "tesla-v100",
-				GPUType:  "v100",
-				PCIBusID: "0000:00:1e.0",
+				Vendor:            "nvidia",
+				Device:            "tesla-v100",
+				GPUType:           "v100",
+				PCIBusID:          "0000:00:1e.0",
+				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
+				FabricCliqueID:    7,
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3862,6 +3864,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
+						"gpu_fabric_clique_id:7",
 					},
 					StandardTags: []string{},
 				},

@@ -2254,6 +2254,14 @@ type GPU struct {
 	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
 	PCIBusID string
 
+	// FabricClusterUUID identifies the NVLink fabric cluster that contains the GPU.
+	// Empty when the GPU is not registered with a fabric cluster.
+	FabricClusterUUID string
+
+	// FabricCliqueID identifies the P2P clique within the NVLink fabric cluster.
+	// It is meaningful only when FabricClusterUUID is set.
+	FabricCliqueID uint32
+
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
 
