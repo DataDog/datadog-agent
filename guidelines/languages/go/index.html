@@ -4017,9 +4017,9 @@
   
 
 
-<h1 id="go-guidelines">Go guidelines</h1>
+<h1 id="go-guidelines">Go guidelines<a class="headerlink" href="#go-guidelines" title="Permanent link">&para;</a></h1>
 <hr />
-<h2 id="imports">Imports</h2>
+<h2 id="imports">Imports<a class="headerlink" href="#imports" title="Permanent link">&para;</a></h2>
 <p>The imports defined in the <code>imports ( ... )</code> block of each Go file should be separated into the following sections, in order.</p>
 <ol>
 <li>Standard library packages (e.g. <code>fmt</code>, <code>net/http</code>)</li>
@@ -4051,7 +4051,7 @@
 </div>
 </div>
 </details>
-<h2 id="public-apis">Public APIs</h2>
+<h2 id="public-apis">Public APIs<a class="headerlink" href="#public-apis" title="Permanent link">&para;</a></h2>
 <p>Go <a href="https://go.dev/doc/modules/layout#package-or-command-with-supporting-packages">supports</a> the use of private <code>internal</code> packages to control the public API of a Go module. This prevents packages from being used outside of the parent module, which is useful for decoupling different parts of our codebase.</p>
 <p>When adding new code, carefully consider what API is exported by both taking care of what symbols are uppercase and by making judicious use of <code>internal</code> directories.</p>
 <ol>
@@ -4119,7 +4119,7 @@
 </div>
 <p>In this way, no new public API is exposed on the <code>a</code> folder: <code>ExampleStruct</code> remains private to <code>a</code>, while we have improved encapsulation as we wanted.</p>
 </details>
-<h2 id="atomics">Atomics</h2>
+<h2 id="atomics">Atomics<a class="headerlink" href="#atomics" title="Permanent link">&para;</a></h2>
 <details class="warning">
 <summary>Avoid atomics!</summary>
 <p>Atomics are a <em>very</em> low-level concept and full of subtle gotchas and dramatic performance differences across platforms. If you can use something higher-level, such as something from the standard library's <code>sync</code> <a href="https://pkg.go.dev/sync">package</a>, prefer to do so. Otherwise, if you are in search of performance, be sure to benchmark your work carefully and on multiple platforms.</p>
@@ -4185,12 +4185,12 @@
 </li>
 </ul>
 </div>
-<h2 id="testing">Testing</h2>
-<h3 id="failing-fast">Failing fast</h3>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<h3 id="failing-fast">Failing fast<a class="headerlink" href="#failing-fast" title="Permanent link">&para;</a></h3>
 <p>The functions in <a href="https://pkg.go.dev/github.com/stretchr/testify/require"><code>github.com/stretchr/testify/require</code></a> automatically abort the test when an assertion fails, whereas <a href="https://pkg.go.dev/github.com/stretchr/testify/assert"><code>github.com/stretchr/testify/assert</code></a> does not.</p>
 <p>For example, given an error, <code>assert.NoError(t, err)</code> causes the test to be marked as a failure, but continues to the next statement, possibly leading to a <code>nil</code> dereference or other such failure. In contrast, <code>require.NoError(t, err)</code> aborts the test when an error is encountered.</p>
 <p>Where a test makes a sequence of independent assertions, <code>assert</code> is a good choice. When each assertion depends on the previous having been successful, use <code>require</code>.</p>
-<h3 id="time">Time</h3>
+<h3 id="time">Time<a class="headerlink" href="#time" title="Permanent link">&para;</a></h3>
 <p>Tests based on time are a major source of flakes. If you find yourself thinking something like "the ticker should run three times in 500ms", you will be disappointed at how often that is not true in CI. Even if that test is not flaky, it will take at least 500ms to run. Summing such delays over thousands of tests means <em>very</em> long test runs and slower work for everyone.</p>
 <p>When the code you are testing requires time, the first strategy is to remove that requirement. For example, if you are testing the functionality of a poller, factor the code such that the tests can call the <code>poll()</code> method directly, instead of waiting for a Ticker to do so.</p>
 <p>Where this is not possible, refactor the code to use a Clock from <a href="https://pkg.go.dev/github.com/benbjohnson/clock"><code>github.com/benbjohnson/clock</code></a>. In production, create a <code>clock.Clock</code>, and in tests, inject a <code>clock.Mock</code>. When time should pass in your test execution, call <code>clock.Add(..)</code> to deterministically advance the clock.</p>
@@ -4217,7 +4217,7 @@
 </span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">    </span><span class="c1">// ...</span>
 </span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="logging">Logging</h2>
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
 <p>Logging utilizes the <a href="https://pkg.go.dev/log/slog"><code>log/slog</code></a> package as its underlying framework.
 You can access logging through <code>pkg/util/log</code> and the <code>comp/core/log</code> component wrappers.
 Using the component wrapper is recommended, as it adheres to <a href="https://datadoghq.dev/datadog-agent/components/overview/">component best practices</a>.</p>
