@@ -1,2 +1,12 @@
-# Stub: intermediate package not yet migrated to Bazel.
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otelcol",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/otelcol/collector/fx-pipeline",
+        "//pkg/util/fxutil",
+    ],
+)
