@@ -63,7 +63,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
 # gazelle:exclude pkg/cli/subcommands/check
-# gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
