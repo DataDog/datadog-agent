@@ -318,7 +318,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 			return s.processMatchedEntry(i, msg, now, detectionOnly, passThrough)
 		}
 	}
-	return s.trackNewPattern(msg, tokens, now, passThrough)
+	return s.trackNewPattern(msg, tokens, now)
 }
 
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
@@ -368,20 +368,16 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 // trackNewPattern records a never-before-seen pattern, evicting the
 // least-frequently-matched entry when the table is full, and emits the message.
-func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time, passThrough bool) *message.Message {
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time) *message.Message {
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
 		s.entries = s.entries[:len(s.entries)-1]
 	}
-	initialCredits := s.config.BurstSize - 1
-	if passThrough {
-		initialCredits = s.config.BurstSize
-	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
 		tokens:     tokens,
-		credits:    initialCredits,
+		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
 		sampled:    0,
