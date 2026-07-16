@@ -178,6 +178,14 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
     "timeline_end": 1708203600,
     "detectors_enabled": ["bocpd"],
     "correlators_enabled": ["time_cluster"],
+    "component_configs": {
+      "bocpd": {
+        "enabled": true,
+        "warmup_points": 120,
+        "hazard": 0.05,
+        "aggregations": ["avg", "count"]
+      }
+    },
     "total_anomaly_periods": 2
   },
   "anomaly_periods": [

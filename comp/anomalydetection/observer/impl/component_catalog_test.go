@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -13,6 +14,58 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
+
+func TestEffectiveComponentConfigMapsIncludesDefaultsAndOverrides(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd": json.RawMessage(`{"enabled":false,"hazard":0.2}`),
+	})
+	require.NoError(t, err)
+
+	_, _, _, _, components := defaultCatalog().Instantiate(settings)
+	configs, err := effectiveComponentConfigMaps(snapshotComponentConfigs(components))
+	require.NoError(t, err)
+
+	bocpdJSON, err := json.Marshal(configs["bocpd"])
+	require.NoError(t, err)
+	var bocpd struct {
+		Enabled      bool     `json:"enabled"`
+		Hazard       float64  `json:"hazard"`
+		WarmupPoints int      `json:"warmup_points"`
+		Aggregations []string `json:"aggregations"`
+	}
+	require.NoError(t, json.Unmarshal(bocpdJSON, &bocpd))
+	require.False(t, bocpd.Enabled)
+	require.Equal(t, 0.2, bocpd.Hazard)
+	require.Equal(t, DefaultBOCPDConfig().WarmupPoints, bocpd.WarmupPoints)
+	require.Equal(t, []string{"avg", "count"}, bocpd.Aggregations)
+
+	rrcfJSON, err := json.Marshal(configs["rrcf"])
+	require.NoError(t, err)
+	var rrcf struct {
+		Enabled bool `json:"enabled"`
+		Metrics []struct {
+			Namespace string `json:"namespace"`
+			Name      string `json:"name"`
+			Aggregate string `json:"aggregate"`
+		} `json:"metrics"`
+	}
+	require.NoError(t, json.Unmarshal(rrcfJSON, &rrcf))
+	require.True(t, rrcf.Enabled)
+	require.Len(t, rrcf.Metrics, len(DefaultRRCFMetrics()))
+	require.Equal(t, "avg", rrcf.Metrics[0].Aggregate)
+
+	logMetricsJSON, err := json.Marshal(configs["log_metrics_extractor"])
+	require.NoError(t, err)
+	var logMetrics struct {
+		Enabled       bool     `json:"enabled"`
+		MaxEvalBytes  int      `json:"max_eval_bytes"`
+		ExcludeFields []string `json:"exclude_fields"`
+	}
+	require.NoError(t, json.Unmarshal(logMetricsJSON, &logMetrics))
+	require.True(t, logMetrics.Enabled)
+	require.Equal(t, DefaultLogMetricsExtractorConfig().MaxEvalBytes, logMetrics.MaxEvalBytes)
+	require.Contains(t, logMetrics.ExcludeFields, "timestamp")
+}
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
 // every catalog detector either implements observerdef.SeriesRemover or is

@@ -232,7 +232,8 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, components := catalog.Instantiate(settings)
+	componentConfigs := snapshotComponentConfigs(components)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -315,6 +316,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
+		componentConfigs:     componentConfigs,
 		obsCh:                make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
@@ -432,10 +434,11 @@ func NewComponent(deps Requires) (Provides, error) {
 // It is a thin driver around the engine, which holds storage, extractors,
 // detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
-	engine     *engine
-	catalog    *componentCatalog
-	obsCh      chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	engine           *engine
+	catalog          *componentCatalog
+	componentConfigs map[string]componentConfigSnapshot
+	obsCh            chan observation
+	handleFunc       observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	telemetry         *observerTelemetry
 	digestCleanup     func() // flushes detect digest recording file
@@ -759,6 +762,14 @@ func (o *observerImpl) CatalogEntries() []CatalogEntry {
 	return result
 }
 
+// EffectiveComponentConfigs returns the resolved component configuration used
+// to construct the current engine. Implements DebugView.
+func (o *observerImpl) EffectiveComponentConfigs() (map[string]map[string]any, error) {
+	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
+	return effectiveComponentConfigMaps(o.componentConfigs)
+}
+
 // Flush blocks until all observations currently queued in the dispatch channel
 // have been processed by the engine. Implements DebugView.
 func (o *observerImpl) Flush() {
@@ -770,10 +781,12 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, components := o.catalog.Instantiate(settings)
+	componentConfigs := snapshotComponentConfigs(components)
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	o.componentConfigs = componentConfigs
 	o.replayMu.Unlock()
 }
 

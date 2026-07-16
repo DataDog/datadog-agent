@@ -88,15 +88,10 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 		}
 	}
 
-	// Build component configs from catalog + settings.
-	entries := tb.debug.CatalogEntries()
-	componentConfigs := make(map[string]map[string]any, len(entries))
-	for _, e := range entries {
-		enabled := e.DefaultEnabled
-		if v, ok := tb.settings.Enabled[e.Name]; ok {
-			enabled = v
-		}
-		componentConfigs[e.Name] = map[string]any{"enabled": enabled}
+	componentConfigs, err := tb.debug.EffectiveComponentConfigs()
+	if err != nil {
+		tb.mu.RUnlock()
+		return fmt.Errorf("collecting effective component configs: %w", err)
 	}
 
 	replayStats := tb.replayStats

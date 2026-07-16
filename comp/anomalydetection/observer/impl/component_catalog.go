@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -57,6 +58,117 @@ type componentInstance struct {
 	instance     any
 	enabled      bool
 	activeConfig any // config actually passed to factory (nil for parameterless components)
+}
+
+// componentConfigSnapshot is the resolved configuration for one catalog
+// component. It intentionally excludes the runtime instance so retaining
+// metadata does not keep disabled components alive.
+type componentConfigSnapshot struct {
+	enabled bool
+	config  any
+}
+
+// snapshotComponentConfigs captures the exact enabled state and typed config
+// selected by Instantiate. Keeping this derived from componentInstance avoids
+// duplicating the catalog's default/override resolution rules in the testbench.
+func snapshotComponentConfigs(components map[string]*componentInstance) map[string]componentConfigSnapshot {
+	snapshots := make(map[string]componentConfigSnapshot, len(components))
+	for name, component := range components {
+		snapshots[name] = componentConfigSnapshot{
+			enabled: component.enabled,
+			config:  component.activeConfig,
+		}
+	}
+	return snapshots
+}
+
+// effectiveComponentConfigMaps converts resolved typed configs into the same
+// JSON object shape accepted by the testbench: "enabled" and component
+// hyperparameters are siblings. A fresh map is returned on every call.
+func effectiveComponentConfigMaps(snapshots map[string]componentConfigSnapshot) (map[string]map[string]any, error) {
+	configs := make(map[string]map[string]any, len(snapshots))
+	for name, snapshot := range snapshots {
+		fields := make(map[string]any)
+		if snapshot.config != nil {
+			data, err := json.Marshal(componentConfigMetadataValue(snapshot.config))
+			if err != nil {
+				return nil, fmt.Errorf("marshaling effective config for %q: %w", name, err)
+			}
+			if err := json.Unmarshal(data, &fields); err != nil {
+				return nil, fmt.Errorf("decoding effective config for %q: %w", name, err)
+			}
+		}
+		fields["enabled"] = snapshot.enabled
+		configs[name] = fields
+	}
+	return configs, nil
+}
+
+// componentConfigMetadataValue supplies readable JSON representations for
+// config fields that are intentionally excluded from their runtime JSON form.
+// All other configs use their existing JSON tags, keeping metadata aligned
+// with the testbench input schema.
+func componentConfigMetadataValue(config any) any {
+	switch cfg := config.(type) {
+	case BOCPDConfig:
+		aggregations := make([]string, len(cfg.Aggregations))
+		for i, aggregation := range cfg.Aggregations {
+			aggregations[i] = observerdef.AggregateString(aggregation)
+		}
+		return struct {
+			BOCPDConfig
+			Aggregations []string `json:"aggregations"`
+		}{BOCPDConfig: cfg, Aggregations: aggregations}
+
+	case RRCFConfig:
+		metrics := cfg.Metrics
+		if len(metrics) == 0 {
+			metrics = DefaultRRCFMetrics()
+		}
+		type metricConfig struct {
+			Namespace string `json:"namespace"`
+			Name      string `json:"name"`
+			Aggregate string `json:"aggregate"`
+		}
+		metadataMetrics := make([]metricConfig, len(metrics))
+		for i, metric := range metrics {
+			metadataMetrics[i] = metricConfig{
+				Namespace: metric.Namespace,
+				Name:      metric.Name,
+				Aggregate: observerdef.AggregateString(metric.Agg),
+			}
+		}
+		return struct {
+			RRCFConfig
+			Metrics []metricConfig `json:"metrics"`
+		}{RRCFConfig: cfg, Metrics: metadataMetrics}
+
+	case LogMetricsExtractorConfig:
+		return struct {
+			MaxEvalBytes  int      `json:"max_eval_bytes"`
+			IncludeFields []string `json:"include_fields,omitempty"`
+			ExcludeFields []string `json:"exclude_fields,omitempty"`
+		}{
+			MaxEvalBytes:  cfg.MaxEvalBytes,
+			IncludeFields: sortedStringSet(cfg.IncludeFields),
+			ExcludeFields: sortedStringSet(cfg.ExcludeFields),
+		}
+
+	default:
+		return config
+	}
+}
+
+func sortedStringSet(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // ConfigReader provides read access to a key-value configuration source.
