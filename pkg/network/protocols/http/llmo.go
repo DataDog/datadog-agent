@@ -437,6 +437,17 @@ func parseLLMUsage(raw []byte, provider string) (inputTokens, outputTokens, tota
 // One span per request — there is intentionally no aggregation. model and
 // prompt may be empty if the body was not captured (e.g. the first request on
 // a connection) or could not be parsed.
+// llmoSessionID groups all LLM activity on one client connection into a single
+// LLM Observability session, so multiple conversations/generations over the
+// same keep-alive connection appear together under one session in the UI.
+func llmoSessionID(k types.ConnectionKey) string {
+	return "conn-" +
+		strconv.FormatUint(k.SrcIPLow, 10) + "-" +
+		strconv.Itoa(int(k.SrcPort)) + "-" +
+		strconv.FormatUint(k.DstIPLow, 10) + "-" +
+		strconv.Itoa(int(k.DstPort))
+}
+
 func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
 	// Only emit a span when we resolved a real service AND captured LLM payload
 	// data. Without a resolved service (PID→service inference failed) or any
@@ -475,6 +486,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 		llmobs.WithMLApp(info.service),
 		llmobs.WithModelName(info.model),
 		llmobs.WithModelProvider(info.provider),
+		llmobs.WithSessionID(llmoSessionID(connKey)),
 		llmobs.WithStartTime(start),
 	)
 
@@ -559,6 +571,7 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 
 	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
 		llmobs.WithMLApp(info.service),
+		llmobs.WithSessionID(llmoSessionID(connKey)),
 		llmobs.WithStartTime(start),
 	)
 
