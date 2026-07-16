@@ -70,10 +70,14 @@ def check_version_bump(ctx):
 
     with open(VERSION_FILE) as f:
         new_version_raw = f.read()
-    base_version_raw = ctx.run(f"git show {base_branch}:{VERSION_FILE}", hide=True).stdout
-
     new_version = _parse_version(new_version_raw)
-    base_version = _parse_version(base_version_raw)
+
+    # The VERSION file may not exist on the base branch yet — this is the case on
+    # the PR that first introduces the pinning scheme, and after any baseline
+    # reset. `git show` exits non-zero then, so use warn=True and treat a missing
+    # base file as version 0 so the initial bump (v1+) passes instead of crashing.
+    base_version_result = ctx.run(f"git show {base_branch}:{VERSION_FILE}", hide=True, warn=True)
+    base_version = _parse_version(base_version_result.stdout) if base_version_result.ok else 0
 
     if new_version <= base_version:
         raise Exit(
