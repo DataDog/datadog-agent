@@ -133,23 +133,12 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	//
 	// Stage 1: Mutate privileged *command args* (the --cfgpath value) so dd-procmgr's embedded privileged
 	// catalog validation rejects the privileged spawn request.
-	mutatePS := psRemote(
-		`$p = '%s'; $old = '%s'; $new = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c.Replace($old, $new); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8`,
-		cfgPath, expectedCfgSlash, tamperedCfgSlash,
-	)
-	_, err = host.Execute(mutatePS)
+	_, err = host.Execute(replaceProcessesDYaml(cfgPath, expectedCfgSlash, tamperedCfgSlash))
 	require.NoError(s.T(), err)
 
-	// If the privileged catalog validation is enforced, dd-procmgr should refuse to spawn
-	// the privileged process with the mutated args, so process-agent should not come back.
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
-		assert.NoError(ct, err)
-
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
-		assert.NoError(ct, err)
-		assertField(ct, out, "State", "Failed")
+		assertPrivilegedCatalogRejection(ct, host, cli, processAgentProcessName)
 	}, 120*time.Second, 3*time.Second)
 
 	// Restore original YAML and ensure dd-procmgr can spawn the process-agent again.
@@ -161,22 +150,15 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 
 	// Stage 2: Inject a disallowed env var into privileged process YAML. The catalog allows
 	// no config-supplied env vars (fleet policy dir comes from the registry at runtime).
-	envMutatePS := psRemote(
-		"$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $nl = [Environment]::NewLine; $repl = 'start_limit_burst: 5' + $nl + 'env:' + $nl + '  DD_MALICIOUS_VAR: tampered'; $c = $c.Replace('start_limit_burst: 5', $repl); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8",
+	_, err = host.Execute(psRemote(
+		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $o=$c; $nl=[Environment]::NewLine; $repl='start_limit_burst: 5'+$nl+'env:'+$nl+'  DD_MALICIOUS_VAR: tampered'; $c=$c.Replace('start_limit_burst: 5',$repl); if ($o -eq $c) { exit 1 }; $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
 		cfgPath,
-	)
-	_, err = host.Execute(envMutatePS)
+	))
 	require.NoError(s.T(), err)
 
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
-
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
-		assert.NoError(ct, err)
-
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
-		assert.NoError(ct, err)
-		assertField(ct, out, "State", "Failed")
+		assertPrivilegedCatalogRejection(ct, host, cli, processAgentProcessName)
 	}, 120*time.Second, 3*time.Second)
 
 	restore()
@@ -188,22 +170,12 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnfor
 	// Stage 3: Mutate privileged *stdio* (stdout) so it violates the inherit/null allowlist.
 	// This should make dd-procmgr refuse the privileged spawn request.
 	stdoutFile := `C:/Windows/Temp/dd-procmgr-priv-stdout.log`
-	stdioMutatePS := psRemote(
-		`$p = '%s'; $c = Get-Content -Raw -LiteralPath $p; $o = $c; $c = $c.Replace('stdout: inherit', 'stdout: %s'); if ($o -eq $c) { exit 1 }; Set-Content -LiteralPath $p -Value $c -Encoding utf8`,
-		cfgPath, stdoutFile,
-	)
-	_, err = host.Execute(stdioMutatePS)
+	_, err = host.Execute(replaceProcessesDYaml(cfgPath, "stdout: inherit", "stdout: "+stdoutFile))
 	require.NoError(s.T(), err)
 
 	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
-
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
-		assert.NoError(ct, err)
-
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
-		assert.NoError(ct, err)
-		assertField(ct, out, "State", "Failed")
+		assertPrivilegedCatalogRejection(ct, host, cli, processAgentProcessName)
 	}, 120*time.Second, 3*time.Second)
 
 	restore()

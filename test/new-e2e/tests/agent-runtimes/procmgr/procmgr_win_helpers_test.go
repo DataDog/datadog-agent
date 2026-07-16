@@ -94,10 +94,12 @@ func psProcessAbsentByName(name string) string {
 	)
 }
 
-func replaceProcessesDYamlLine(yamlPath, oldLine, newLine string) string {
+// replaceProcessesDYaml applies old→new in processes.d YAML without a UTF-8 BOM.
+// Set-Content -Encoding utf8 adds a BOM on Windows PowerShell 5.1, which breaks dd-procmgr parsing.
+func replaceProcessesDYaml(yamlPath, old, new string) string {
 	return psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-		yamlPath, oldLine, newLine,
+		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $o=$c; $c=$c.Replace('%s','%s'); if ($o -eq $c) { exit 1 }; $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+		yamlPath, old, new,
 	)
 }
 
@@ -146,6 +148,22 @@ func waitProcmgrDescribeRunning(
 	return pid
 }
 
+func assertPrivilegedCatalogRejection(
+	ct *assert.CollectT,
+	host *e2ecomponents.RemoteHost,
+	cli string,
+	processName string,
+) {
+	ct.Helper()
+
+	_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
+	assert.NoError(ct, err)
+
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processName))
+	assert.NoError(ct, err)
+	assertField(ct, out, "State", "Failed")
+}
+
 func assertReloadAfterDescriptionChange(
 	t *testing.T,
 	host *e2ecomponents.RemoteHost,
@@ -160,11 +178,11 @@ func assertReloadAfterDescriptionChange(
 	t.Helper()
 
 	t.Cleanup(func() {
-		_, _ = host.Execute(replaceProcessesDYamlLine(yamlPath, e2eLine, originalLine))
+		_, _ = host.Execute(replaceProcessesDYaml(yamlPath, e2eLine, originalLine))
 		_, _ = host.Execute(reloadCmd)
 	})
 
-	host.MustExecute(replaceProcessesDYamlLine(yamlPath, originalLine, e2eLine))
+	host.MustExecute(replaceProcessesDYaml(yamlPath, originalLine, e2eLine))
 
 	reloadOut, err := host.Execute(reloadCmd)
 	require.NoError(t, err)
