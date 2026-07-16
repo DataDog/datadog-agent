@@ -2056,9 +2056,7 @@ properties:
             default: false
             visibility: public
             description: '[Preview] Enables Synthetics tests.'
-            comment: |-
-              Generic resources configuration
-              Synthetics configuration
+            comment: Synthetics configuration
           workers:
             node_type: setting
             type: integer
@@ -4017,7 +4015,6 @@ properties:
           It should contain less than 100 characters and should not contain any of
           `<`, `>`, `\n`, `\t`, `\r` characters.
           This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
-        comment: Network Devices Monitoring
       default_scan:
         node_type: section
         type: object
@@ -4959,7 +4956,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Network Config Management
       metadata:
         node_type: section
         type: object
@@ -5077,9 +5073,7 @@ properties:
         visibility: public
         description: The number of concurrent workers used to perform reverse DNS
           lookups.
-        comment: |-
-          Data Observability
-          Reverse DNS Enrichment
+        comment: Reverse DNS Enrichment
       chan_size:
         node_type: setting
         type: integer
