@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# gazelle:exclude dotnet_detector_test.go
-
 go_library(
     name = "privileged",
     srcs = [
@@ -38,17 +36,22 @@ go_library(
 go_test(
     name = "privileged_test",
     srcs = [
+        "dotnet_detector_test.go",
         "go_detector_test.go",
         "injector_test.go",
         "tracer_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/**"]) + select({
+        "@rules_go//go/platform:linux": ["//pkg/network/usm/sharedlibraries/testutil/fmapper"],
+        "//conditions:default": [],
+    }),
     embed = [":privileged"],
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/languagedetection/languagemodels",
             "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/sharedlibraries/testutil",
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -57,6 +60,7 @@ go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/languagedetection/languagemodels",
             "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/sharedlibraries/testutil",
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
