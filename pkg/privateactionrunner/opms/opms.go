@@ -423,6 +423,7 @@ func (c *client) makeRequest(
 	}
 	req.Header.Set(app.JwtHeaderName, signedJWT)
 	req.Header.Set(app.VersionHeaderName, c.config.Version)
+	req.Header.Set(app.InstanceIDHeaderName, c.config.RunnerInstanceId)
 	modesStr := modes.ToStrings(c.config.Modes)
 	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
 	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -104,6 +105,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
 		RunnerId:                  runnerID,
+		RunnerInstanceId:          uuid.New().String(),
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil

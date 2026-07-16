@@ -19,11 +19,12 @@ import (
 )
 
 type PrepareEncryptionHandler struct {
-	store *encryptioncontext.Store
+	store            *encryptioncontext.Store
+	runnerInstanceID string
 }
 
-func NewPrepareEncryptionHandler(store *encryptioncontext.Store) *PrepareEncryptionHandler {
-	return &PrepareEncryptionHandler{store: store}
+func NewPrepareEncryptionHandler(store *encryptioncontext.Store, runnerInstanceID string) *PrepareEncryptionHandler {
+	return &PrepareEncryptionHandler{store: store, runnerInstanceID: runnerInstanceID}
 }
 
 type PrepareEncryptionInputs struct {
@@ -31,8 +32,9 @@ type PrepareEncryptionInputs struct {
 }
 
 type PrepareEncryptionOutputs struct {
-	KeyType   string `json:"keyType"`
-	PublicKey string `json:"publicKey"`
+	KeyType          string `json:"keyType"`
+	PublicKey        string `json:"publicKey"`
+	RunnerInstanceId string `json:"runnerInstanceId"`
 }
 
 // Run generates an HPKE DHKEM(P-256) key pair and returns the public key.
@@ -57,7 +59,8 @@ func (handler *PrepareEncryptionHandler) Run(
 	handler.store.Set(inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
-		KeyType:   encryptioncontext.KeyTypeHPKE,
-		PublicKey: base64.StdEncoding.EncodeToString(privateKey.PublicKey().Bytes()),
+		KeyType:          encryptioncontext.KeyTypeHPKE,
+		PublicKey:        base64.StdEncoding.EncodeToString(privateKey.PublicKey().Bytes()),
+		RunnerInstanceId: handler.runnerInstanceID,
 	}, nil
 }

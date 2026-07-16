@@ -31,6 +31,7 @@ type Config struct {
 	OrgId                 int64
 	PrivateKey            *ecdsa.PrivateKey
 	RunnerId              string
+	RunnerInstanceId      string
 	Urn                   string
 	Tags                  []observability.Tag
 

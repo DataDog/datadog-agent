@@ -75,7 +75,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			store := encryptioncontext.NewStore()
-			handler := NewPrepareEncryptionHandler(store)
+			handler := NewPrepareEncryptionHandler(store, "test-runner-instance")
 
 			output, err := handler.Run(context.Background(), newTask("task-abc", testCase.inputs), nil)
 			if testCase.wantErr {
@@ -87,6 +87,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok, "unexpected output type %T", output)
 			require.Equal(t, encryptioncontext.KeyTypeHPKE, result.KeyType)
+			require.Equal(t, "test-runner-instance", result.RunnerInstanceId)
 			assertHPKESealRoundTrip(t, store, testCase.inputs["encryptionContextId"].(string), result)
 		})
 	}
@@ -94,7 +95,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 
 func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
 	store := encryptioncontext.NewStore()
-	handler := NewPrepareEncryptionHandler(store)
+	handler := NewPrepareEncryptionHandler(store, "test-runner-instance")
 
 	runs := []string{"first", "second"}
 	results := make([]*PrepareEncryptionOutputs, 0, len(runs))
@@ -122,7 +123,7 @@ func TestInternalBundleGetAction(t *testing.T) {
 	}
 
 	store := encryptioncontext.NewStore()
-	bundle := NewInternal(store)
+	bundle := NewInternal(store, "test-runner-instance")
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			action := bundle.GetAction(testCase.actionName)
