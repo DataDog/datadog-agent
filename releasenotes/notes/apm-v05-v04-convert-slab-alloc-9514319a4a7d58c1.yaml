@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    APM: Reduced memory allocations when decoding incoming v0.4 and v0.5 trace
+    payloads with the ``convert-traces`` feature enabled (the default). Span
+    attributes are now batch-allocated while converting to the internal trace
+    format, lowering allocation counts and garbage-collection pressure in the
+    trace-agent receiver. This has no effect when ``convert-traces`` is disabled.

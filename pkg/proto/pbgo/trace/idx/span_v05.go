@@ -79,6 +79,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 		tp.Chunks = make([]*InternalTraceChunk, sz)
 	}
 	chunkConvertedFields := ChunkConvertedFields{}
+	convertedTagSet := false
 	for i := range tp.Chunks {
 		sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 		if err != nil {
@@ -100,6 +101,13 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 			}
 			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, dictSize, newZeroRef); err != nil {
 				return err
+			}
+			if !convertedTagSet {
+				// _dd.convertedv1 marks that this payload was converted from the v0.5
+				// wire format. It is a debugging aid, so we only tag the first span of
+				// the payload rather than paying the allocation on every span.
+				tp.Chunks[i].Spans[j].SetStringAttribute("_dd.convertedv1", "v05")
+				convertedTagSet = true
 			}
 			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, tp.Chunks[i].Spans[j].ParentID())
 		}
@@ -205,22 +213,26 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if s.span.Attributes == nil && sz > 0 {
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
-	for sz > 0 {
-		sz--
-		var key, val uint32
-		key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
-		if err != nil {
-			return bts, err
-		}
-		val, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
-		if err != nil {
-			return bts, err
-		}
-		s.handlePromotedMetaFields(key, val, convertedFields)
-		s.span.Attributes[key] = &AnyValue{
-			Value: &AnyValue_StringValueRef{
-				StringValueRef: val,
-			},
+	if sz > 0 {
+		// Slab-allocate the AnyValue containers and their string-ref oneof wrappers
+		// for every meta entry in two allocations, rather than two per entry. The map
+		// holds pointers into these backing arrays, which live as long as the span.
+		values := make([]AnyValue, sz)
+		refs := make([]AnyValue_StringValueRef, sz)
+		for i := uint32(0); i < sz; i++ {
+			var key, val uint32
+			key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			val, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			s.handlePromotedMetaFields(key, val, convertedFields)
+			refs[i].StringValueRef = val
+			values[i].Value = &refs[i]
+			s.span.Attributes[key] = &values[i]
 		}
 	}
 	// Metrics (10)
@@ -231,25 +243,28 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if s.span.Attributes == nil && sz > 0 {
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
-	for sz > 0 {
-		sz--
-		var (
-			key uint32
-			val float64
-		)
-		key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
-		if err != nil {
-			return bts, err
-		}
-		val, bts, err = parseFloat64Bytes(bts)
-		if err != nil {
-			return bts, err
-		}
-		s.handlePromotedMetricsFields(key, val, convertedFields)
-		s.span.Attributes[key] = &AnyValue{
-			Value: &AnyValue_DoubleValue{
-				DoubleValue: val,
-			},
+	if sz > 0 {
+		// Slab-allocate the AnyValue containers and their double oneof wrappers for
+		// every metric in two allocations, rather than two per metric.
+		values := make([]AnyValue, sz)
+		doubles := make([]AnyValue_DoubleValue, sz)
+		for i := uint32(0); i < sz; i++ {
+			var (
+				key uint32
+				val float64
+			)
+			key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			val, bts, err = parseFloat64Bytes(bts)
+			if err != nil {
+				return bts, err
+			}
+			s.handlePromotedMetricsFields(key, val, convertedFields)
+			doubles[i].DoubleValue = val
+			values[i].Value = &doubles[i]
+			s.span.Attributes[key] = &values[i]
 		}
 	}
 	// Type (11)
@@ -257,7 +272,6 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	s.SetStringAttribute("_dd.convertedv1", "v05")
 	return bts, nil
 }
 
