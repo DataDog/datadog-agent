@@ -37,10 +37,11 @@ func (v *baseDogstatsdReplaySuite) uploadCaptureFile(captureData []byte, remoteP
 
 // TestReplayWithTagEnrichment tests that replayed metrics are enriched with tags from tagger state.
 func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
-	// DADP-72: dogstatsd-replay sends packets to the Unix Domain Socket (dogstatsd_socket).
-	// When ADP is the DSD handler it listens on UDP 8125 only — the UDS is not active, so
-	// replayed packets are silently dropped and never reach the intake. Skip for the ADP sweep.
-	v.T().Skip("dogstatsd-replay targets UDS; ADP listens on UDP 8125 only — skipping for ADP sweep (DADP-72)")
+	// DADP-72: dogstatsd-replay sends DSD packets to the UDS socket and loads tagger state
+	// via DogstatsdSetTaggerState on the core agent. ADP is a separate process with its own
+	// tagger and does not share that replay state, so replayed metrics arrive at fakeintake
+	// without the enriched container/pod tags that this test asserts. Skip for the ADP sweep.
+	v.T().Skip("dogstatsd-replay tagger state is not shared with ADP; tag enrichment unavailable (DADP-72)")
 	captureFile := "/tmp/metrics_capture.zstd"
 	v.uploadCaptureFile(metricsWithTagsCapture, captureFile)
 

@@ -74,8 +74,10 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adpEnabled bool) {
 		// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
 		choice(fips && adpEnabled, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
 		// DADP-72: the compiled-default flip (data_plane.enabled=true) enables ADP globally.
-		// The FIPS ADP binary enforces TLS and cannot connect to the plain HTTP fakeintake, so
-		// disable ADP for non-ADP FIPS variants to keep internal DSD active.
+		// FIPS JMX metrics don't reach fakeintake when the FIPS ADP binary handles DSD
+		// (root cause under investigation in Saluki — config stream delivers dogstatsd_socket
+		// correctly so ADP should bind UDS, but something in the FIPS binary fails).
+		// Disable ADP for non-ADP FIPS variants to keep internal DSD active for this sweep.
 		choice(fips && !adpEnabled, dockeragentparams.WithAgentServiceEnvVariable("DD_DATA_PLANE_ENABLED", pulumi.String("false")), none),
 		dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
 	}
