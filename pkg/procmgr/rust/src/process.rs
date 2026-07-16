@@ -437,7 +437,9 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         self.stop_requested = false;
-        self.transition_to(ProcessState::Stopped);
+        if self.state != ProcessState::Stopped {
+            self.transition_to(ProcessState::Stopped);
+        }
         self.pid = None;
         #[cfg(windows)]
         {
