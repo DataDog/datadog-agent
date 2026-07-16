@@ -9,6 +9,12 @@
 //! hard-coding `/bin/sh`, `/bin/true`, etc., so the same test source compiles
 //! (and, where possible, runs) on both Unix and Windows.
 
+/// Sleep duration for unit-test child processes.
+///
+/// Windows CI uses `ping -n` for sleeps; keep this short so parallel lib tests
+/// finish quickly and logs stay readable.
+pub const UNIT_TEST_SLEEP_SECS: u32 = 5;
+
 /// Command that succeeds immediately (exit 0).
 #[cfg(unix)]
 pub fn true_cmd() -> (&'static str, Vec<String>) {
@@ -48,6 +54,17 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
         "ping.exe",
         vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
     )
+}
+
+/// [`sleep_cmd`] with [`UNIT_TEST_SLEEP_SECS`] for lib unit tests.
+pub fn unit_sleep_cmd() -> (&'static str, Vec<String>) {
+    sleep_cmd(UNIT_TEST_SLEEP_SECS)
+}
+
+/// [`ProcessConfig`] for a short-lived sleep child in unit tests.
+pub fn unit_sleep_process_config() -> crate::config::ProcessConfig {
+    let (cmd, args) = unit_sleep_cmd();
+    make_config(cmd, args)
 }
 
 /// Shell command + flag for running an inline script.
@@ -233,6 +250,9 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         args,
         stdout: "null".to_string(),
         stderr: "null".to_string(),
+        // Short stop timeout so Windows tests escalate to force-kill quickly when
+        // CTRL_BREAK does not stop ping-based sleep children.
+        stop_timeout: Some(2),
         ..Default::default()
     }
 }
