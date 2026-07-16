@@ -4440,7 +4440,7 @@
 <li><strong>dda tooling</strong> - Install by following the <a href="../../../setup/required/">development requirements</a></li>
 </ul>
 <h3 id="cloud-provider-setup">Cloud Provider Setup</h3>
-<p>You need access to the <code>account-admin</code> role on the <code>agent-sandbox</code> AWS account, with the SSO profile (<code>sso-agent-sandbox-account-admin</code>) already in your <code>~/.aws/config</code> and an active aws-vault session. AWS authentication is handled outside of <code>e2e.setup</code> — typically by your org's onboarding tooling, or manually with <code>aws-vault login</code>.</p>
+<p>You need access to the <code>account-admin-8h</code> role on the <code>agent-sandbox</code> AWS account, with the SSO profile (<code>sso-agent-sandbox-account-admin-8h</code>) already in your <code>~/.aws/config</code> and an active aws-vault session. AWS authentication is handled outside of <code>e2e.setup</code> — typically by your org's onboarding tooling, or manually with <code>aws-vault login</code>.</p>
 <p>For Azure / GCP tests, pass <code>--with-azure</code> / <code>--with-gcp</code> when running the setup task (see below).</p>
 <h3 id="one-time-setup">One-time setup</h3>
 <p>Run the setup task once on a fresh machine. The default path is AWS-only and asks at most one question (your GitHub team, used to tag resources). It auto-creates the EC2 keypair (using your existing aws-vault session) and generates a Pulumi passphrase.</p>
@@ -4500,7 +4500,7 @@ This method relies on updating an existing agent package with the local Go binar
 By default, the image is names <code>agent</code> unless you override it with the <code>--target-image</code> option.</p>
 <p>Then push the image to a registry:
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Login to ECR</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin-8h<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>aws<span class="w"> </span>ecr<span class="w"> </span>get-login-password<span class="w"> </span>--region<span class="w"> </span>us-east-1<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>docker<span class="w"> </span>login<span class="w"> </span>--username<span class="w"> </span>AWS<span class="w"> </span>--password-stdin<span class="w"> </span><span class="m">376334461865</span>.dkr.ecr.us-east-1.amazonaws.com
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># Push the image</span>

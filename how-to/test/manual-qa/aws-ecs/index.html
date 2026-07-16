@@ -4089,7 +4089,7 @@ Use this to test ECS-specific agent behavior or Fargate integrations.</p>
 <h2 id="connect">Connect</h2>
 <p>The agent runs as an ECS task. Use the ECS console or the AWS CLI to inspect
 task logs and container status:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin<span class="w"> </span>--<span class="w"> </span>aws<span class="w"> </span>ecs<span class="w"> </span>list-tasks<span class="w"> </span>--cluster<span class="w"> </span>&lt;cluster-name&gt;
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin-8h<span class="w"> </span>--<span class="w"> </span>aws<span class="w"> </span>ecs<span class="w"> </span>list-tasks<span class="w"> </span>--cluster<span class="w"> </span>&lt;cluster-name&gt;
 </span></code></pre></div>
 <h2 id="destroy">Destroy</h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.destroy-ecs
