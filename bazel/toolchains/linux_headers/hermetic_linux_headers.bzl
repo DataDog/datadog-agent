@@ -2,10 +2,15 @@
 
 _NAME = "linux_headers"
 
-_ARCH_MAP = {
+_CANONICAL_ARCH = {
+    "aarch64": "aarch64",
+    "amd64": "x86_64",
+    "arm64": "aarch64",
+    "x86_64": "x86_64",
+}
+
+_KERNEL_ARCH = {
     "aarch64": "arm64",
-    "amd64": "x86",
-    "arm64": "arm64",
     "x86_64": "x86",
 }
 
@@ -80,13 +85,14 @@ def _linux_headers_impl(rctx):
         _write_stub(rctx)
         return
 
-    target_arch = rctx.attr.target_arch or rctx.os.arch
-    kernel_arch = _ARCH_MAP.get(target_arch)
-    if not kernel_arch:
+    requested_arch = rctx.attr.target_arch or rctx.os.arch
+    target_arch = _CANONICAL_ARCH.get(requested_arch)
+    if not target_arch:
         fail("unsupported architecture '{}'; supported architectures: {}".format(
-            target_arch,
-            ", ".join(sorted(_ARCH_MAP.keys())),
+            requested_arch,
+            ", ".join(sorted(_CANONICAL_ARCH.keys())),
         ))
+    kernel_arch = _KERNEL_ARCH[target_arch]
     if target_arch not in rctx.attr.arch_urls or target_arch not in rctx.attr.arch_sha256s:
         fail("missing URL or checksum for '{}'".format(target_arch))
 
