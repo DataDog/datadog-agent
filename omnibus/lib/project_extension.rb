@@ -299,7 +299,7 @@ module Omnibus
     def staged_extra_package_source(source)
       base_dir = ENV["OMNIBUS_BASE_DIR"]
       source = source.to_s
-      return source if base_dir.nil? || base_dir.empty? || !source.start_with?("/") || File.exist?(source)
+      return source if base_dir.nil? || base_dir.empty? || !source.start_with?("/")
 
       staged_source = File.join(base_dir, source.sub(%r{\A/+}, ""))
       File.exist?(staged_source) ? staged_source : source
