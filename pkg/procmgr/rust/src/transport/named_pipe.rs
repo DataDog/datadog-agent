@@ -8,12 +8,14 @@ use log::info;
 use std::ffi::OsString;
 use std::future::Future;
 use std::io;
+use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
-use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, HANDLE};
 
 use crate::platform::{create_pipe_server, pipe_client_may_mutate};
 
@@ -45,11 +47,35 @@ pub fn cleanup(_path: &Path) {}
 // NamedPipeIo — wrapper for tonic's `Connected` trait
 // ---------------------------------------------------------------------------
 
-/// Pipe client authorization evaluated once at connect time.
-#[derive(Clone, Copy, Debug, Default)]
+/// Pipe client authorization resolved lazily on first use.
+///
+/// `ImpersonateNamedPipeClient` impersonates the client that wrote the last message
+/// read from the pipe, so the check cannot run at accept time. Mutating RPC handlers
+/// run only after HTTP/2 has read from the connection, so [`Self::may_mutate`] is safe
+/// to call from [`crate::grpc::caller_auth::require_privileged_pipe_client`].
+#[derive(Clone)]
 pub struct PipeCallerAuth {
+    pipe: PipeHandle,
+    may_mutate: Arc<OnceLock<bool>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PipeHandle(HANDLE);
+
+impl PipeCallerAuth {
+    fn new(pipe: &NamedPipeServer) -> Self {
+        Self {
+            pipe: PipeHandle(pipe.as_raw_handle() as HANDLE),
+            may_mutate: Arc::new(OnceLock::new()),
+        }
+    }
+
     /// `true` when the client is LocalSystem or in the built-in Administrators group.
-    pub may_mutate: bool,
+    pub fn may_mutate(&self) -> bool {
+        *self
+            .may_mutate
+            .get_or_init(|| pipe_client_may_mutate(self.pipe.0))
+    }
 }
 
 /// Newtype around [`NamedPipeServer`] that implements
@@ -60,7 +86,8 @@ struct NamedPipeIo {
 }
 
 impl NamedPipeIo {
-    fn new(pipe: NamedPipeServer, caller: PipeCallerAuth) -> Self {
+    fn new(pipe: NamedPipeServer) -> Self {
+        let caller = PipeCallerAuth::new(&pipe);
         Self { pipe, caller }
     }
 }
@@ -69,7 +96,7 @@ impl tonic::transport::server::Connected for NamedPipeIo {
     type ConnectInfo = PipeCallerAuth;
 
     fn connect_info(&self) -> Self::ConnectInfo {
-        self.caller
+        self.caller.clone()
     }
 }
 
@@ -176,8 +203,7 @@ async fn accept_loop(
         server = create_pipe_server(&ServerOptions::new(), &pipe_name)
             .context("failed to create next named pipe instance")?;
 
-        let may_mutate = pipe_client_may_mutate(&connected);
-        let io = NamedPipeIo::new(connected, PipeCallerAuth { may_mutate });
+        let io = NamedPipeIo::new(connected);
 
         if tx.send(Ok(io)).await.is_err() {
             break;

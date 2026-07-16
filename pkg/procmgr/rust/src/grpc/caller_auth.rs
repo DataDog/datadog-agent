@@ -14,7 +14,7 @@ pub(crate) fn require_privileged_pipe_client<T>(request: &Request<T>) -> Result<
     let may_mutate = request
         .extensions()
         .get::<PipeCallerAuth>()
-        .map(|auth| auth.may_mutate)
+        .map(PipeCallerAuth::may_mutate)
         .unwrap_or(false);
     if !may_mutate {
         return Err(Status::permission_denied(

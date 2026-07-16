@@ -5,8 +5,6 @@
 
 //! Named-pipe client identity for gRPC authorization.
 
-use std::os::windows::io::AsRawHandle;
-use tokio::net::windows::named_pipe::NamedPipeServer;
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
     AllocateAndInitializeSid, CheckTokenMembership, FreeSid, GetTokenInformation, IsWellKnownSid,
@@ -20,11 +18,13 @@ use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
 /// Returns whether the connected pipe client may invoke mutating gRPC methods.
 ///
-/// Uses `ImpersonateNamedPipeClient` once at accept time. Clients must connect with at
-/// least `SECURITY_IDENTIFICATION` (tokio's default; COAT uses go-winio identification).
-pub(crate) fn pipe_client_may_mutate(server: &NamedPipeServer) -> bool {
-    let handle = server.as_raw_handle() as HANDLE;
-    if unsafe { ImpersonateNamedPipeClient(handle) } == 0 {
+/// Must be called only after at least one message has been read from the pipe: the named
+/// pipe filesystem impersonates the security context of the last message read
+/// ([`ImpersonateNamedPipeClient`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient)).
+/// Clients must connect with at least `SECURITY_IDENTIFICATION` (tokio's default; COAT
+/// uses go-winio identification).
+pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
+    if unsafe { ImpersonateNamedPipeClient(pipe) } == 0 {
         log::warn!(
             "ImpersonateNamedPipeClient failed: {}",
             std::io::Error::last_os_error()
