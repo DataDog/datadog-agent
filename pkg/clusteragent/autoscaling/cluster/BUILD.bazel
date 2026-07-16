@@ -50,7 +50,15 @@ dd_agent_go_test(
         "fips",
     ],
     deps = [
+        "//pkg/clusteragent/autoscaling",
         "//pkg/clusteragent/autoscaling/cluster/model",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_sigs_karpenter//pkg/apis/v1:apis",
     ],
 )

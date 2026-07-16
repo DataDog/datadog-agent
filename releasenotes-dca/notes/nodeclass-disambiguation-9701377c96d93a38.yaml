@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Karpenter ``NodePool`` autoscaling now tries to automatically resolve
+    which ``EC2NodeClass``/``NodeClass`` to use when more than one exists for
+    a given provider, based on the ``NodePool``'s ``kubernetes.io/os`` and
+    ``kubernetes.io/arch`` requirements matched against the NodeClass names.
+    Previously, having more than one NodeClass of the same provider type
+    always caused NodePool creation/update to fail with a
+    "too many NodeClasses found" error.
