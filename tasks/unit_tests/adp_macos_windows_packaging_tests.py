@@ -111,9 +111,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertNotIn("aws_lc_fips", omnibus_project)
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
-        generated_path = (
-            REPO_ROOT / "pkg/fleet/installer/packages/embedded/gen/windows/datadog-agent-data-plane.yaml"
-        )
+        generated_path = REPO_ROOT / "pkg/fleet/installer/packages/embedded/gen/windows/datadog-agent-data-plane.yaml"
         generated = generated_path.read_text()
         embed_go = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/embed.go").read_text()
         adp_procmgr = (
