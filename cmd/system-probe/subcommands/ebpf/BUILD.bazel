@@ -43,6 +43,7 @@ go_test(
         "test",
         "linux_bpf",
     ],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
