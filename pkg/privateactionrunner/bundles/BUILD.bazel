@@ -43,6 +43,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/kubernetes/discovery",
         "//pkg/privateactionrunner/bundles/mongodb",
         "//pkg/privateactionrunner/bundles/remoteaction",
+        "//pkg/privateactionrunner/bundles/remoteaction/agent",
         "//pkg/privateactionrunner/bundles/remoteaction/internalactions",
         "//pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
         "//pkg/privateactionrunner/bundles/remoteaction/networks",

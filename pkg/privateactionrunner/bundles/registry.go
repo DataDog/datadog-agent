@@ -42,6 +42,7 @@ import (
 	com_datadoghq_kubernetes_discovery "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
+	com_datadoghq_remoteaction_agent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/agent"
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
 	com_datadoghq_remoteaction_networkconfigmanagement "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
@@ -59,6 +60,7 @@ type Registry struct {
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
+			"com.datadoghq.remoteaction.agent":                   com_datadoghq_remoteaction_agent.NewAgent(ipcClient),
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
