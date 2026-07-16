@@ -133,7 +133,7 @@ message PackageState {
   float  completion = 16;
   repeated string stable_extensions = 17;
   repeated string experiment_extensions = 18;
-  repeated string running_extensions = 19;
+  map<string, bool> running_extensions = 19;
 }
 
 message PackageStateTask {

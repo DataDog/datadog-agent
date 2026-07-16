@@ -1240,7 +1240,7 @@ type PackageState struct {
 	Completion              float32                `protobuf:"fixed32,16,opt,name=completion,proto3" json:"completion,omitempty"`
 	StableExtensions        []string               `protobuf:"bytes,17,rep,name=stable_extensions,json=stableExtensions,proto3" json:"stable_extensions,omitempty"`
 	ExperimentExtensions    []string               `protobuf:"bytes,18,rep,name=experiment_extensions,json=experimentExtensions,proto3" json:"experiment_extensions,omitempty"`
-	RunningExtensions       []string               `protobuf:"bytes,19,rep,name=running_extensions,json=runningExtensions,proto3" json:"running_extensions,omitempty"`
+	RunningExtensions       map[string]bool        `protobuf:"bytes,19,rep,name=running_extensions,json=runningExtensions,proto3" json:"running_extensions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1359,7 +1359,7 @@ func (x *PackageState) GetExperimentExtensions() []string {
 	return nil
 }
 
-func (x *PackageState) GetRunningExtensions() []string {
+func (x *PackageState) GetRunningExtensions() map[string]bool {
 	if x != nil {
 		return x.RunningExtensions
 	}
@@ -2381,7 +2381,7 @@ type ConfigSubscriptionState_TrackedClient struct {
 
 func (x *ConfigSubscriptionState_TrackedClient) Reset() {
 	*x = ConfigSubscriptionState_TrackedClient{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[33]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2393,7 +2393,7 @@ func (x *ConfigSubscriptionState_TrackedClient) String() string {
 func (*ConfigSubscriptionState_TrackedClient) ProtoMessage() {}
 
 func (x *ConfigSubscriptionState_TrackedClient) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[33]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2526,7 +2526,7 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x128\n" +
 	"\bpackages\x18\x02 \x03(\v2\x1c.datadog.config.PackageStateR\bpackages\x120\n" +
 	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\x12&\n" +
-	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\x89\x05\n" +
+	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\x84\x06\n" +
 	"\fPackageState\x12\x18\n" +
 	"\apackage\x18\x01 \x01(\tR\apackage\x12%\n" +
 	"\x0estable_version\x18\x02 \x01(\tR\rstableVersion\x12-\n" +
@@ -2541,8 +2541,11 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"completion\x18\x10 \x01(\x02R\n" +
 	"completion\x12+\n" +
 	"\x11stable_extensions\x18\x11 \x03(\tR\x10stableExtensions\x123\n" +
-	"\x15experiment_extensions\x18\x12 \x03(\tR\x14experimentExtensions\x12-\n" +
-	"\x12running_extensions\x18\x13 \x03(\tR\x11runningExtensionsJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x15experiment_extensions\x18\x12 \x03(\tR\x14experimentExtensions\x12b\n" +
+	"\x12running_extensions\x18\x13 \x03(\v23.datadog.config.PackageState.RunningExtensionsEntryR\x11runningExtensions\x1aD\n" +
+	"\x16RunningExtensionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\v\"\x84\x01\n" +
 	"\x10PackageStateTask\x12\x0e\n" +
@@ -2661,7 +2664,7 @@ func file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_remoteconfig_remoteconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_datadog_remoteconfig_remoteconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_datadog_remoteconfig_remoteconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_datadog_remoteconfig_remoteconfig_proto_goTypes = []any{
 	(TaskState)(0),                                // 0: datadog.config.TaskState
 	(ConfigSubscriptionProducts)(0),               // 1: datadog.config.ConfigSubscriptionProducts
@@ -2697,10 +2700,11 @@ var file_datadog_remoteconfig_remoteconfig_proto_goTypes = []any{
 	(*ResetStateConfigResponse)(nil),              // 31: datadog.config.ResetStateConfigResponse
 	(*TracerPredicateV1)(nil),                     // 32: datadog.config.TracerPredicateV1
 	(*TracerPredicates)(nil),                      // 33: datadog.config.TracerPredicates
-	nil,                                           // 34: datadog.config.GetStateConfigResponse.ConfigStateEntry
-	nil,                                           // 35: datadog.config.GetStateConfigResponse.DirectorStateEntry
-	nil,                                           // 36: datadog.config.GetStateConfigResponse.TargetFilenamesEntry
-	(*ConfigSubscriptionState_TrackedClient)(nil), // 37: datadog.config.ConfigSubscriptionState.TrackedClient
+	nil,                                           // 34: datadog.config.PackageState.RunningExtensionsEntry
+	nil,                                           // 35: datadog.config.GetStateConfigResponse.ConfigStateEntry
+	nil,                                           // 36: datadog.config.GetStateConfigResponse.DirectorStateEntry
+	nil,                                           // 37: datadog.config.GetStateConfigResponse.TargetFilenamesEntry
+	(*ConfigSubscriptionState_TrackedClient)(nil), // 38: datadog.config.ConfigSubscriptionState.TrackedClient
 }
 var file_datadog_remoteconfig_remoteconfig_proto_depIdxs = []int32{
 	7,  // 0: datadog.config.ConfigMetas.roots:type_name -> datadog.config.TopMeta
@@ -2722,33 +2726,34 @@ var file_datadog_remoteconfig_remoteconfig_proto_depIdxs = []int32{
 	16, // 16: datadog.config.Client.client_updater:type_name -> datadog.config.ClientUpdater
 	17, // 17: datadog.config.ClientUpdater.packages:type_name -> datadog.config.PackageState
 	18, // 18: datadog.config.PackageState.task:type_name -> datadog.config.PackageStateTask
-	0,  // 19: datadog.config.PackageStateTask.state:type_name -> datadog.config.TaskState
-	19, // 20: datadog.config.PackageStateTask.error:type_name -> datadog.config.TaskError
-	20, // 21: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
-	22, // 22: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
-	3,  // 23: datadog.config.ConfigSubscriptionRequest.action:type_name -> datadog.config.ConfigSubscriptionRequest.Action
-	1,  // 24: datadog.config.ConfigSubscriptionRequest.products:type_name -> datadog.config.ConfigSubscriptionProducts
-	13, // 25: datadog.config.ConfigSubscriptionResponse.client:type_name -> datadog.config.Client
-	8,  // 26: datadog.config.ConfigSubscriptionResponse.target_files:type_name -> datadog.config.File
-	13, // 27: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
-	23, // 28: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
-	8,  // 29: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
-	2,  // 30: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
-	34, // 31: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
-	35, // 32: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
-	36, // 33: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
-	13, // 34: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
-	30, // 35: datadog.config.GetStateConfigResponse.config_subscription_states:type_name -> datadog.config.ConfigSubscriptionState
-	37, // 36: datadog.config.ConfigSubscriptionState.tracked_clients:type_name -> datadog.config.ConfigSubscriptionState.TrackedClient
-	32, // 37: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
-	28, // 38: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
-	28, // 39: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
-	1,  // 40: datadog.config.ConfigSubscriptionState.TrackedClient.products:type_name -> datadog.config.ConfigSubscriptionProducts
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	34, // 19: datadog.config.PackageState.running_extensions:type_name -> datadog.config.PackageState.RunningExtensionsEntry
+	0,  // 20: datadog.config.PackageStateTask.state:type_name -> datadog.config.TaskState
+	19, // 21: datadog.config.PackageStateTask.error:type_name -> datadog.config.TaskError
+	20, // 22: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
+	22, // 23: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
+	3,  // 24: datadog.config.ConfigSubscriptionRequest.action:type_name -> datadog.config.ConfigSubscriptionRequest.Action
+	1,  // 25: datadog.config.ConfigSubscriptionRequest.products:type_name -> datadog.config.ConfigSubscriptionProducts
+	13, // 26: datadog.config.ConfigSubscriptionResponse.client:type_name -> datadog.config.Client
+	8,  // 27: datadog.config.ConfigSubscriptionResponse.target_files:type_name -> datadog.config.File
+	13, // 28: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
+	23, // 29: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
+	8,  // 30: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
+	2,  // 31: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
+	35, // 32: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
+	36, // 33: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
+	37, // 34: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
+	13, // 35: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
+	30, // 36: datadog.config.GetStateConfigResponse.config_subscription_states:type_name -> datadog.config.ConfigSubscriptionState
+	38, // 37: datadog.config.ConfigSubscriptionState.tracked_clients:type_name -> datadog.config.ConfigSubscriptionState.TrackedClient
+	32, // 38: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
+	28, // 39: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
+	28, // 40: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
+	1,  // 41: datadog.config.ConfigSubscriptionState.TrackedClient.products:type_name -> datadog.config.ConfigSubscriptionProducts
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteconfig_remoteconfig_proto_init() }
@@ -2762,7 +2767,7 @@ func file_datadog_remoteconfig_remoteconfig_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteconfig_remoteconfig_proto_rawDesc), len(file_datadog_remoteconfig_remoteconfig_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   34,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -800,12 +800,24 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.PackageStates {
 		runningVersion := runningVersions[pkg]
-		var runningExtensions []string
+		var installedExtensions []string
 		switch runningVersion {
 		case s.Experiment.Version:
-			runningExtensions = s.Experiment.Extensions
+			installedExtensions = s.Experiment.Extensions
 		case s.Stable.Version:
-			runningExtensions = s.Stable.Extensions
+			installedExtensions = s.Stable.Extensions
+		}
+		var runningExtensions map[string]bool
+		if len(installedExtensions) > 0 {
+			runningExtensions = make(map[string]bool, len(installedExtensions))
+			for _, ext := range installedExtensions {
+				switch ext {
+				case "ddot":
+					runningExtensions[ext] = d.env.OTelCollectorEnabled
+				default:
+					runningExtensions[ext] = false
+				}
+			}
 		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,

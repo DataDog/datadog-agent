@@ -569,75 +569,97 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 
 func TestRefreshStateRunningExtensions(t *testing.T) {
 	// The stable channel matches the running agent version, so its extensions are the running ones.
-	testPackageStates := map[string]repository.PackageState{
-		"datadog-agent": {
-			Stable:     repository.VersionState{Version: version.AgentPackageVersion, Extensions: []string{"ddot"}},
-			Experiment: repository.VersionState{Version: "7.51.0", Extensions: []string{"other"}},
+	tests := []struct {
+		name                 string
+		otelCollectorEnabled bool
+		expectedRunning      map[string]bool
+	}{
+		{
+			name:                 "ddot not running",
+			otelCollectorEnabled: false,
+			expectedRunning:      map[string]bool{"ddot": false},
+		},
+		{
+			name:                 "ddot running",
+			otelCollectorEnabled: true,
+			expectedRunning:      map[string]bool{"ddot": true},
 		},
 	}
-	testConfigStates := map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "config-stable-1",
-			Experiment: "config-exp-1",
-		},
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testPackageStates := map[string]repository.PackageState{
+				"datadog-agent": {
+					Stable:     repository.VersionState{Version: version.AgentPackageVersion, Extensions: []string{"ddot"}},
+					Experiment: repository.VersionState{Version: "7.51.0", Extensions: []string{"other"}},
+				},
+			}
+			testConfigStates := map[string]repository.State{
+				"datadog-agent": {
+					Stable:     "config-stable-1",
+					Experiment: "config-exp-1",
+				},
+			}
+
+			bm := &testBoostrapper{}
+			installExperimentFunc = bm.InstallExperiment
+			pm := &testPackageManager{}
+			pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+			pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.ConfigAndPackageStates{
+				PackageStates: testPackageStates,
+				ConfigStates:  testConfigStates,
+			}, nil)
+			rcc := newTestRemoteConfigClient(t)
+			rc := &remoteConfig{client: rcc}
+			taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+			require.NoError(t, err)
+			secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+			require.NoError(t, err)
+
+			testEnv := &env.Env{
+				RemoteUpdates:        true,
+				ConfigID:             "test-config-id-123",
+				OTelCollectorEnabled: tc.otelCollectorEnabled,
+			}
+			daemon := newDaemon(
+				rc,
+				func(_ *env.Env) installer.Installer { return pm },
+				testEnv,
+				taskDB,
+				30*time.Second,
+				1*time.Hour,
+				secretsPubKey,
+				secretsPrivKey,
+			)
+			i := &testInstaller{
+				daemonImpl: daemon,
+				rcc:        rcc,
+				pm:         pm,
+				bm:         bm,
+			}
+			i.Start(context.Background())
+			defer i.Stop()
+
+			i.daemonImpl.refreshState(context.Background())
+
+			require.Eventually(t, func() bool {
+				state := i.rcc.GetInstallerState()
+				return state != nil && len(state.Packages) > 0
+			}, 1*time.Second, 10*time.Millisecond)
+
+			state := i.rcc.GetInstallerState()
+			require.NotNil(t, state)
+			require.Len(t, state.Packages, 1)
+
+			pkg := state.Packages[0]
+			assert.Equal(t, "datadog-agent", pkg.Package)
+			assert.Equal(t, []string{"ddot"}, pkg.StableExtensions)
+			assert.Equal(t, []string{"other"}, pkg.ExperimentExtensions)
+			assert.Equal(t, tc.expectedRunning, pkg.RunningExtensions, "RunningExtensions should map each running-channel extension to its running state")
+
+			pm.AssertExpectations(t)
+		})
 	}
-
-	bm := &testBoostrapper{}
-	installExperimentFunc = bm.InstallExperiment
-	pm := &testPackageManager{}
-	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.ConfigAndPackageStates{
-		PackageStates: testPackageStates,
-		ConfigStates:  testConfigStates,
-	}, nil)
-	rcc := newTestRemoteConfigClient(t)
-	rc := &remoteConfig{client: rcc}
-	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
-	require.NoError(t, err)
-	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	testEnv := &env.Env{
-		RemoteUpdates: true,
-		ConfigID:      "test-config-id-123",
-	}
-	daemon := newDaemon(
-		rc,
-		func(_ *env.Env) installer.Installer { return pm },
-		testEnv,
-		taskDB,
-		30*time.Second,
-		1*time.Hour,
-		secretsPubKey,
-		secretsPrivKey,
-	)
-	i := &testInstaller{
-		daemonImpl: daemon,
-		rcc:        rcc,
-		pm:         pm,
-		bm:         bm,
-	}
-	i.Start(context.Background())
-	defer i.Stop()
-
-	i.daemonImpl.refreshState(context.Background())
-
-	require.Eventually(t, func() bool {
-		state := i.rcc.GetInstallerState()
-		return state != nil && len(state.Packages) > 0
-	}, 1*time.Second, 10*time.Millisecond)
-
-	state := i.rcc.GetInstallerState()
-	require.NotNil(t, state)
-	require.Len(t, state.Packages, 1)
-
-	pkg := state.Packages[0]
-	assert.Equal(t, "datadog-agent", pkg.Package)
-	assert.Equal(t, []string{"ddot"}, pkg.StableExtensions)
-	assert.Equal(t, []string{"other"}, pkg.ExperimentExtensions)
-	assert.Equal(t, []string{"ddot"}, pkg.RunningExtensions, "RunningExtensions should be the running channel's extensions")
-
-	pm.AssertExpectations(t)
 }
 
 func TestDecryptSecrets(t *testing.T) {
