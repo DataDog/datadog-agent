@@ -502,7 +502,6 @@ properties:
     tags:
     - golang_type:duration
     comment: |-
-      Delegated authentication for logs
       Duration during which the host tags will be submitted with log events.
       duration-formatted string (parsed by `time.ParseDuration`)
   experimental_adaptive_sampling:
@@ -874,3 +873,4 @@ properties:
     node_type: setting
     type: integer
     default: 1
+comment: Delegated authentication for logs
