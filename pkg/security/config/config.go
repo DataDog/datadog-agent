@@ -4,6 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package config holds config related files
+//
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/config_doc -input config.go -output ../../../docs/cloud-workload-security/workload_protection_agent_config.schema.json
 package config
 
 import (
@@ -169,300 +171,648 @@ type Policy struct {
 
 // RuntimeSecurityConfig holds the configuration for the runtime security agent
 type RuntimeSecurityConfig struct {
-	// RuntimeEnabled defines if the runtime security module should be enabled
+	// description: Defines if the runtime security module should be enabled
+	// visibility: public
+	// default_value: false
 	RuntimeEnabled bool
-	// PoliciesDir defines the folder in which the policy files are located
+
+	// description: PoliciesDir defines the folder in which the policy files are located
+	// visibility: private
+	// default_value: /etc/datadog-agent/runtime-security.d
 	PoliciesDir string
-	// PolicyMonitorEnabled enable policy monitoring
+
+	// description: PolicyMonitorEnabled enable policy monitoring
+	// visibility: private
+	// default_value: false
 	PolicyMonitorEnabled bool
-	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
+
+	// description: PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
+	// visibility: private
+	// default_value: false
 	PolicyMonitorPerRuleEnabled bool
-	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
+
+	// description: PolicyMonitorReportInternalPolicies enable internal policies monitoring
+	// visibility: private
+	// default_value: false
 	PolicyMonitorReportInternalPolicies bool
-	// RuleCacheEnabled defines if the rule cache should be enabled
+
+	// description: RuleCacheEnabled defines if the rule cache should be enabled
+	// visibility: private
+	// default_value: true
 	RuleCacheEnabled bool
-	// SocketPath is the path to the socket that is used to communicate with the security agent
+
+	// description: SocketPath is the path to the socket that is used to communicate with the security agent
+	// visibility: private
+	// default_value: ${install_path}/run/runtime-security.sock
 	SocketPath string
-	// SocketPath is the path to the socket that is used to communicate with system-probe
+
+	// description: SocketPath is the path to the socket that is used to communicate with system-probe
+	// visibility: private
+	// default_value: ""
 	CmdSocketPath string
-	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+
+	// description: EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+	// visibility: private
+	// default_value: 40
 	EventServerBurst int
-	// EventServerRate defines the grpc server rate at which events can be sent
+
+	// description: EventServerRate defines the grpc server rate at which events can be sent
+	// visibility: private
+	// default_value: 10
 	EventServerRate int
-	// EventServerRetention defines an event retention period so that some fields can be resolved
+
+	// description: EventServerRetention defines an event retention period so that some fields can be resolved
+	// visibility: private
+	// default_value: 6s
 	EventServerRetention time.Duration
-	// EventRetryQueueThreshold defines the maximum size of the event queue after which we force sending events even if not resolved
+
+	// description: EventRetryQueueThreshold defines the maximum size of the event queue after which we force sending events even if not resolved
+	// visibility: private
+	// default_value: 512
 	EventRetryQueueThreshold int
-	// FIMEnabled determines whether fim rules will be loaded
+
+	// description: FIMEnabled determines whether fim rules will be loaded
+	// visibility: private
+	// default_value: false
 	FIMEnabled bool
-	// SelfTestEnabled defines if the self tests should be executed at startup or not
+
+	// description: SelfTestEnabled defines if the self tests should be executed at startup or not
+	// visibility: private
+	// default_value: true
 	SelfTestEnabled bool
-	// SelfTestSendReport defines if a self test event will be emitted
+
+	// description: SelfTestSendReport defines if a self test event will be emitted
+	// visibility: private
+	// default_value: true
 	SelfTestSendReport bool
-	// RemoteConfigurationEnabled defines whether to use remote monitoring
+
+	// description: RemoteConfigurationEnabled defines whether to use remote monitoring
+	// visibility: private
+	// default_value: true
 	RemoteConfigurationEnabled bool
-	// RemoteConfigurationDumpPolicies defines whether to dump remote config policy
+
+	// description: RemoteConfigurationDumpPolicies defines whether to dump remote config policy
+	// visibility: public
+	// default_value: false
 	RemoteConfigurationDumpPolicies bool
-	// LogPatterns pattern to be used by the logger for trace level
+
+	// description: LogPatterns pattern to be used by the logger for trace level
+	// visibility: private
+	// default_value: []
 	LogPatterns []string
-	// LogTags tags to be used by the logger for trace level
+
+	// description: LogTags tags to be used by the logger for trace level
+	// visibility: private
+	// default_value: []
 	LogTags []string
-	// EnvAsTags convert envs to tags
+
+	// description: EnvAsTags convert envs to tags
+	// visibility: private
+	// default_value: []
 	EnvAsTags []string
-	// HostServiceName string
+
+	// description: HostServiceName string
+	// visibility: private
+	// default_value: ""
 	HostServiceName string
-	// OnDemandEnabled defines whether the on-demand probes should be enabled
+
+	// description: OnDemandEnabled defines whether the on-demand probes should be enabled
+	// visibility: private
+	// default_value: true
 	OnDemandEnabled bool
-	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+
+	// description: OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	// visibility: private
+	// default_value: true
 	OnDemandRateLimiterEnabled bool
-	// ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
+
+	// description: ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
+	// visibility: private
+	// default_value: false
 	ReducedProcPidCacheSize bool
 
-	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
+	// description: InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
+	// visibility: private
+	// default_value: false
 	InternalMonitoringEnabled bool
 
-	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	// description: ActivityDumpEnabled defines if the activity dump manager should be enabled
+	// visibility: private
+	// default_value: true
 	ActivityDumpEnabled bool
-	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
-	// operation.
+
+	// description: ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup operation.
+	// visibility: private
+	// default_value: 30s
 	ActivityDumpCleanupPeriod time.Duration
-	// ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve
-	// missing container tags.
+
+	// description: ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve missing container tags.
+	// visibility: private
+	// default_value: 60s
 	ActivityDumpTagsResolutionPeriod time.Duration
-	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
+
+	// description: ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
+	// visibility: private
+	// default_value: 60s
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpLoadControlMinDumpTimeout defines minimal duration of a activity dump recording
+
+	// description: ActivityDumpLoadControlMinDumpTimeout defines minimal duration of a activity dump recording
+	// visibility: private
+	// default_value: 10m
 	ActivityDumpLoadControlMinDumpTimeout time.Duration
 
-	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
-	// of activity dumps based on cgroups.
+	// description: ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation of activity dumps based on cgroups.
+	// visibility: private
+	// default_value: 5
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
+
+	// description: ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
+	// visibility: private
+	// default_value: false
 	ActivityDumpTraceSystemdCgroups bool
 
-	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
-	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
-	// to this list.
+	// description: ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added to this list.
+	// visibility: private
+	// default_value: ["exec", "open", "dns", "imds"]
 	ActivityDumpTracedEventTypes []model.EventType
-	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+
+	// description: ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+	// visibility: private
+	// default_value: 900s
 	ActivityDumpCgroupDumpTimeout time.Duration
-	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
+
+	// description: ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
+	// visibility: private
+	// default_value: 500
 	ActivityDumpRateLimiter uint16
-	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
+
+	// description: ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
+	// visibility: private
+	// default_value: 4500s
 	ActivityDumpCgroupWaitListTimeout time.Duration
-	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
-	// arguments for dumps.
+
+	// description: ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process arguments for dumps.
+	// visibility: private
+	// default_value: false
 	ActivityDumpCgroupDifferentiateArgs bool
-	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
-	// this field empty to prevent writing any output to disk.
+
+	// description: ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave this field empty to prevent writing any output to disk.
+	// visibility: private
+	// default_value: ${run_path}/runtime-security/profiles
 	ActivityDumpLocalStorageDirectory string
-	// ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
+
+	// description: ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
+	// visibility: private
+	// default_value: ["profile"]
 	ActivityDumpLocalStorageFormats []StorageFormat
-	// ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
+
+	// description: ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
+	// visibility: private
+	// default_value: false
 	ActivityDumpLocalStorageCompression bool
-	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
-	// When the limit is reached, the oldest dumps will be deleted first.
+
+	// description: ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally. When the limit is reached, the oldest dumps will be deleted first.
+	// visibility: private
+	// default_value: 100
 	ActivityDumpLocalStorageMaxDumpsCount int
-	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
-	// process.
+
+	// description: ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same process.
+	// visibility: private
+	// default_value: 60s
 	ActivityDumpSyscallMonitorPeriod time.Duration
-	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
+
+	// description: ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
+	// visibility: private
+	// default_value: 25
 	ActivityDumpMaxDumpCountPerWorkload int
-	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
-	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
-	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
+
+	// description: ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
+	// visibility: private
+	// default_value: []
 	ActivityDumpWorkloadDenyList []string
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
+
+	// description: ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
+	// visibility: private
+	// default_value: true
 	ActivityDumpTagRulesEnabled bool
-	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
+
+	// description: ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
+	// visibility: private
+	// default_value: 10s
 	ActivityDumpSilentWorkloadsDelay time.Duration
-	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
+
+	// description: ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
+	// visibility: private
+	// default_value: 10s
 	ActivityDumpSilentWorkloadsTicker time.Duration
 
 	// # Dynamic configuration fields:
-	// ActivityDumpMaxDumpSize defines the maximum size of a dump
+
+	// description: ActivityDumpMaxDumpSize defines the maximum size of a dump
+	// visibility: private
+	// default_value: 1750
 	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
-	EventSamplingOpenEnabled    bool
-	EventSamplingOpenRate       int
-	EventSamplingConnectEnabled bool
-	EventSamplingConnectRate    int
-	EventSamplingBindEnabled    bool
-	EventSamplingBindRate       int
-	EventSamplingDNSEnabled     bool
-	EventSamplingDNSRate        int
+	// description: EventSamplingOpenEnabled defines if the agent should sample open events
+	// visibility: private
+	// default_value: false
+	EventSamplingOpenEnabled bool
 
-	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
+	// description: EventSamplingOpenRate defines the rate at which the agent should sample open events
+	// visibility: private
+	// default_value: 500
+	EventSamplingOpenRate int
+
+	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
+	// visibility: private
+	// default_value: false
+	EventSamplingConnectEnabled bool
+
+	// description: EventSamplingConnectRate defines the rate at which the agent should sample connect events
+	// visibility: private
+	// default_value: 500
+	EventSamplingConnectRate int
+
+	// description: EventSamplingBindEnabled defines if the agent should sample bind events
+	// visibility: private
+	// default_value: false
+	EventSamplingBindEnabled bool
+
+	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
+	// visibility: private
+	// default_value: 500
+	EventSamplingBindRate int
+
+	// description: EventSamplingDNSEnabled defines if the agent should sample DNS events
+	// visibility: private
+	// default_value: false
+	EventSamplingDNSEnabled bool
+
+	// description: EventSamplingDNSRate defines the rate at which the agent should sample DNS events
+	// visibility: private
+	// default_value: 500
+	EventSamplingDNSRate int
+
+	// description: SecurityProfileEnabled defines if the Security Profile manager should be enabled
+	// visibility: private
+	// default_value: true
 	SecurityProfileEnabled bool
-	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
+
+	// description: SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
+	// visibility: private
+	// default_value: false
 	SecurityProfileV2Enabled bool
-	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
+
+	// description: SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
+	// visibility: private
+	// default_value: 20
 	SecurityProfileMaxImageTags int
-	// SecurityProfileDir defines the directory in which Security Profiles are stored
+
+	// description: SecurityProfileDir defines the directory in which Security Profiles are stored
+	// visibility: private
+	// default_value: ${run_path}/runtime-security/profiles
 	SecurityProfileDir string
-	// SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
+
+	// description: SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
+	// visibility: private
+	// default_value: true
 	SecurityProfileWatchDir bool
-	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
+
+	// description: SecurityProfileCacheSize defines the count of Security Profiles held in cache
+	// visibility: private
+	// default_value: 10
 	SecurityProfileCacheSize int
-	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
+
+	// description: SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
+	// visibility: private
+	// default_value: 400
 	SecurityProfileMaxCount int
-	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
+
+	// description: SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
+	// visibility: private
+	// default_value: 3
 	SecurityProfileDNSMatchMaxDepth int
-	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
+
+	// description: SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
+	// visibility: private
+	// default_value: 0s
 	SecurityProfileNodeEvictionTimeout time.Duration
-	// SecurityProfileSampleRefreshPeriod defines the minimum interval between sample refresh events for the same dedup cookie
+
+	// description: SecurityProfileSampleRefreshPeriod defines the minimum interval between sample refresh events for the same dedup cookie
+	// visibility: private
+	// default_value: 30s
 	SecurityProfileSampleRefreshPeriod time.Duration
-	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
+
+	// description: SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
+	// visibility: private
+	// default_value: 60m
 	SecurityProfileCleanupDelay time.Duration
-	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
+
+	// description: SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
+	// visibility: private
+	// default_value: ["exec", "dns", "bind", "connect", "open"]
 	SecurityProfileV2EventTypes []model.EventType
-	// SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling.
-	// The tag may be "*" to match any tag for the given image name.
+
+	// description: SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling. The tag may be "*" to match any tag for the given image name.
+	// visibility: private
+	// default_value: []
 	SecurityProfileV2ExcludedImages []string
-	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
+
+	// description: SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
+	// visibility: private
+	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
 
-	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	// visibility: private
+	// default_value: ["exec"]
 	AnomalyDetectionEventTypes []model.EventType
-	// AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events
-	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
-	// event.
+
+	// description: AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
+	// visibility: private
+	// default_value: 900s
 	AnomalyDetectionDefaultMinimumStablePeriod time.Duration
-	// AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events
-	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
-	// event.
+
+	// description: AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
+	// visibility: private
+	// default_value: {"exec": "900s", "dns": "900s"}
 	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
-	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
-	// hasn't reached a stable state is considered as unstable.
+
+	// description: AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that hasn't reached a stable state is considered as unstable.
+	// visibility: private
+	// default_value: 1h
 	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
-	// AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is
-	// considered unstable
+
+	// description: AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is considered unstable
+	// visibility: private
+	// default_value: 5000000
 	AnomalyDetectionUnstableProfileSizeThreshold int64
-	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
-	// because of workload warm up
+
+	// description: AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for because of workload warm up
+	// visibility: private
+	// default_value: 180s
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
-	// AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
+
+	// description: AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
+	// visibility: private
+	// default_value: 1m
 	AnomalyDetectionRateLimiterPeriod time.Duration
-	// AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
+
+	// description: AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
+	// visibility: private
+	// default_value: 10
 	AnomalyDetectionRateLimiterNumEventsAllowed int
-	// AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
+
+	// description: AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
+	// visibility: private
+	// default_value: 256
 	AnomalyDetectionRateLimiterNumKeys int
-	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
-	// rules they might have matched.
+
+	// description: AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the rules they might have matched.
+	// visibility: private
+	// default_value: true
 	AnomalyDetectionTagRulesEnabled bool
-	// AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
+
+	// description: AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
+	// visibility: private
+	// default_value: false
 	AnomalyDetectionSilentRuleEventsEnabled bool
-	// AnomalyDetectionEnabled defines if we should send anomaly detection events
+
+	// description: AnomalyDetectionEnabled defines if we should send anomaly detection events
+	// visibility: private
+	// default_value: true
 	AnomalyDetectionEnabled bool
 
-	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
+	// description: SBOMResolverEnabled defines if the SBOM resolver should be enabled
+	// visibility: private
+	// default_value: false
 	SBOMResolverEnabled bool
-	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
-	// the SBOMs of short-lived and periodical workloads
+
+	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// visibility: private
+	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
-	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// visibility: private
+	// default_value: false
 	SBOMResolverHostEnabled bool
-	// SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
+
+	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
+	// visibility: private
+	// default_value: 1m
 	SBOMResolverEnrichmentInterval time.Duration
-	// SBOMResolverForwardInterval defines the interval for forwarding SBOMs
+
+	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
+	// visibility: private
+	// default_value: 20s
 	SBOMResolverForwardInterval time.Duration
-	// SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
+
+	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
+	// visibility: private
+	// default_value: 3s
 	SBOMResolverRefreshInterval time.Duration
-	// SBOMResolverGeneratePolicies defines if the SBOM resolver should generate runtime security policies based on the computed SBOMs
+
+	// description: SBOMResolverGeneratePolicies defines if the SBOM resolver should generate runtime security policies based on the computed SBOMs
+	// visibility: private
+	// default_value: false
 	SBOMResolverGeneratePolicies bool
 
-	// HashResolverEnabled defines if the hash resolver should be enabled
+	// description: HashResolverEnabled defines if the hash resolver should be enabled
+	// visibility: public
+	// default_value: true
 	HashResolverEnabled bool
-	// HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash
+
+	// description: HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash
+	// visibility: public
+	// default_value: 5242880
 	HashResolverMaxFileSize int64
-	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
+
+	// description: HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
+	// visibility: public
+	// default_value: 500
 	HashResolverMaxHashRate int
-	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
+
+	// description: HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
+	// visibility: public
+	// default_value: ["sha1", "sha256", "ssdeep"]
 	HashResolverHashAlgorithms []model.HashAlgorithm
-	// HashResolverEventTypes defines the list of event which files may be hashed
+
+	// description: HashResolverEventTypes defines the list of event which files may be hashed
+	// visibility: public
+	// default_value: ["exec", "open"]
 	HashResolverEventTypes []model.EventType
-	// HashResolverCacheSize defines the number of hashes to keep in cache
+
+	// description: HashResolverCacheSize defines the number of hashes to keep in cache
+	// visibility: public
+	// default_value: 500
 	HashResolverCacheSize int
-	// HashResolverReplace is used to apply specific hash to specific file path
+
+	// description: HashResolverReplace is used to apply specific hash to specific file path
+	// visibility: public
+	// default_value: {}
 	HashResolverReplace map[string]string
 
-	// SysCtlEnabled defines if the sysctl event should be enabled
+	// description: SysCtlEnabled defines if the sysctl event should be enabled
+	// visibility: private
+	// default_value: true
 	SysCtlEnabled bool
-	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+
+	// description: SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+	// visibility: private
+	// default_value: true
 	SysCtlEBPFEnabled bool
-	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
+
+	// description: SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
+	// visibility: private
+	// default_value: true
 	SysCtlSnapshotEnabled bool
-	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
+
+	// description: SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
+	// visibility: private
+	// default_value: 1h
 	SysCtlSnapshotPeriod time.Duration
-	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+
+	// description: SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+	// visibility: private
+	// default_value: ["netdev_rss_key", "stable_secret"]
 	SysCtlSnapshotIgnoredBaseNames []string
-	// SysCtlSnapshotKernelCompilationFlags defines the list of kernel compilation flags that should be collected by the agent
+
+	// description: SysCtlSnapshotKernelCompilationFlags defines the list of kernel compilation flags that should be collected by the agent
+	// visibility: private
+	// default_value: {}
 	SysCtlSnapshotKernelCompilationFlags map[string]uint8
 
-	// UserSessionsCacheSize defines the size of the User Sessions cache size
+	// description: UserSessionsCacheSize defines the size of the User Sessions cache size
+	// visibility: private
+	// default_value: 1024
 	UserSessionsCacheSize int
-	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
+
+	// description: SSHUserSessionsEnabled defines if SSH user session features should be enabled
+	// visibility: public
+	// default_value: true
 	SSHUserSessionsEnabled bool
 
-	// CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so
-	// IS_UNHANDLED_ERROR treats every negative syscall return as handled.
+	// description: CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled.
+	// visibility: warning
+	// default_value: false
 	CaptureAllSyscallErrorsEnabled bool
 
-	// EBPFLessEnabled enables the ebpfless probe
+	// description: EBPFLessEnabled enables the ebpfless probe
+	// visibility: warning
+	// default_value: false
 	EBPFLessEnabled bool
-	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
+
+	// description: EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
+	// visibility: private
+	// default_value: localhost:5678
 	EBPFLessSocket string
 
 	// Enforcement capabilities
-	// EnforcementEnabled defines if the enforcement capability should be enabled
+	// description: EnforcementEnabled defines if the enforcement capability should be enabled
+	// visibility: private
+	// default_value: true
 	EnforcementEnabled bool
-	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
+
+	// description: EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
+	// visibility: private
+	// default_value: false
 	EnforcementRawSyscallEnabled bool
-	EnforcementBinaryExcluded    []string
+
+	// description: EnforcementBinaryExcluded defines the list of binaries that are excluded from the enforcement
+	// visibility: public
+	// default_value: []
+	EnforcementBinaryExcluded []string
+
+	// description: EnforcementRuleSourceAllowed defines the list of rule sources that are allowed
+	// visibility: public
+	// default_value: ["file", "remote-config"]
 	EnforcementRuleSourceAllowed []string
-	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
+
+	// description: EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
+	// visibility: private
+	// default_value: true
 	EnforcementDisarmerContainerEnabled bool
-	// EnforcementDisarmerContainerMaxAllowed defines the maximum number of different containers that can trigger an enforcement rule
-	// within a period before the enforcement is disarmed for this rule
+
+	// description: EnforcementDisarmerContainerMaxAllowed defines the maximum number of different containers that can trigger an enforcement rule within a period before the enforcement is disarmed for this rule
+	// visibility: private
+	// default_value: 5
 	EnforcementDisarmerContainerMaxAllowed int
-	// EnforcementDisarmerContainerPeriod defines the period during which EnforcementDisarmerContainerMaxAllowed is checked
+
+	// description: EnforcementDisarmerContainerPeriod defines the period during which EnforcementDisarmerContainerMaxAllowed is checked
+	// visibility: private
+	// default_value: 1m
 	EnforcementDisarmerContainerPeriod time.Duration
-	// EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
+
+	// description: EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
+	// visibility: private
+	// default_value: true
 	EnforcementDisarmerExecutableEnabled bool
-	// EnforcementDisarmerExecutableMaxAllowed defines the maximum number of different executables that can trigger an enforcement rule
-	// within a period before the enforcement is disarmed for this rule
+
+	// description: EnforcementDisarmerExecutableMaxAllowed defines the maximum number of different executables that can trigger an enforcement rule within a period before the enforcement is disarmed for this rule
+	// visibility: private
+	// default_value: 5
 	EnforcementDisarmerExecutableMaxAllowed int
-	// EnforcementDisarmerExecutablePeriod defines the period during which EnforcementDisarmerExecutableMaxAllowed is checked
+
+	// description: EnforcementDisarmerExecutablePeriod defines the period during which EnforcementDisarmerExecutableMaxAllowed is checked
+	// visibility: private
+	// default_value: 1m
 	EnforcementDisarmerExecutablePeriod time.Duration
 
-	//WindowsFilenameCacheSize is the max number of filenames to cache
+	// description: WindowsFilenameCacheSize is the max number of filenames to cache
+	// visibility: private
+	// default_value: 16384
 	WindowsFilenameCacheSize int
-	//WindowsRegistryCacheSize is the max number of registry paths to cache
+
+	// description: WindowsRegistryCacheSize is the max number of registry paths to cache
+	// visibility: private
+	// default_value: 4096
 	WindowsRegistryCacheSize int
 
-	// ETWEventsChannelSize windows specific ETW channel buffer size
+	// description: ETWEventsChannelSize windows specific ETW channel buffer size
+	// visibility: private
+	// default_value: 16384
 	ETWEventsChannelSize int
 
-	//ETWEventsMaxBuffers sets the maximumbuffers argument to ETW
+	// description: ETWEventsMaxBuffers sets the maximumbuffers argument to ETW
+	// visibility: private
+	// default_value: 0
 	ETWEventsMaxBuffers int
 
-	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	// description: WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	// visibility: private
+	// default_value: false
 	WindowsProbeBlockOnChannelSend bool
 
+	// description: WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	// visibility: private
+	// default_value: 4096
 	WindowsWriteEventRateLimiterMaxAllowed int
-	WindowsWriteEventRateLimiterPeriod     time.Duration
 
-	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
+	// description: WindowsWriteEventRateLimiterPeriod defines the period during which WindowsWriteEventRateLimiterMaxAllowed is checked
+	// visibility: private
+	// default_value: 1s
+	WindowsWriteEventRateLimiterPeriod time.Duration
+
+	// description: IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
+	// visibility: private
+	// default_value: 169.254.169.254
 	IMDSIPv4 uint32
 
-	// EventGRPCServer defines which process should be used to send events and activity dumps
+	// description: EventGRPCServer defines which process should be used to send events and activity dumps
+	// visibility: private
+	// default_value: ""
 	EventGRPCServer string
 
-	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
+	// description: SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
+	// visibility: private
+	// default_value: false
 	SendPayloadsFromSystemProbe bool
 
-	// FileMetadataResolverEnabled defines if the file metadata is enabled
+	// description: FileMetadataResolverEnabled defines if the file metadata is enabled
+	// visibility: private
+	// default_value: false
 	FileMetadataResolverEnabled bool
 }
 
