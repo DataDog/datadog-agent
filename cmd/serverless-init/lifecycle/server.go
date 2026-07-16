@@ -96,6 +96,11 @@ const (
 	// other deadline. Lifecycle responses are expected to be small; 5s is
 	// generous even for slow platform connections.
 	mirrorResponseTimeout = 5 * time.Second
+
+	// maxRunBodyBytes caps the /run request body (runHookPayload) buffered in
+	// handleRun. The payload is expected to be small; a 1 MiB cap prevents a
+	// misconfigured RunMicrovm call from forcing an unbounded read.
+	maxRunBodyBytes int64 = 1 << 20
 )
 
 // flushMode controls whether and how telemetry is flushed during a lifecycle hook.
@@ -120,7 +125,7 @@ type LogsFlusher interface {
 // SampleDrainer blocks until all metric samples enqueued before the call have
 // been consumed by the aggregator worker. Must be called before Flush to ensure
 // lifecycle metrics emitted via AddEnhancedMetric are included in the flush.
-// Satisfied by *serverlessMetrics.ServerlessMetricAgent.
+// Optional: a nil SampleDrainer disables draining (see flushAll).
 type SampleDrainer interface {
 	WaitForPendingSamples()
 }
@@ -234,7 +239,7 @@ func NewServer(
 	//   - No forwarder: flushTimeout (flush budget)
 	//   - /run, /resume, /suspend, /terminate: forwardTimeout (default 1s)
 	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
-	//   - /validate: validateTimeout (default 60s, matching platform /validate timeout)
+	//   - /validate: validateTimeout (default 1s)
 	// plus writeTimeoutHeadroom (heartbeat.Stop() before /suspend and
 	// /terminate, and the final mirrored-response write). Use the largest of
 	// all applicable budgets so the HTTP server does not close the
@@ -540,8 +545,19 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// original payload to the user app. Without this, the forwarder path would
 	// consume r.Body before the decode, losing the instance_id tag on all
 	// subsequent lifecycle metrics.
-	bodyBytes, _ := io.ReadAll(r.Body)
+	//
+	// MaxBytesReader bounds the read so a misconfigured runHookPayload cannot
+	// force unbounded memory growth; a read error (oversized or otherwise)
+	// aborts before any state is mutated, since forwarding a silently
+	// truncated body would be worse than failing the hook outright.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRunBodyBytes)
+	bodyBytes, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
+	if err != nil {
+		log.Debugf("MicroVM lifecycle: could not read run body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	var body runBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse run body: %v", err)
