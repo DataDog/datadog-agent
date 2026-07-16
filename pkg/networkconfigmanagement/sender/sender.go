@@ -28,6 +28,7 @@ const (
 	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
 	ncmConfigSizeMetric                = "ncm.config_size"
+	ncmStoreConfigsEvictedMetric       = "datadog.ncm.store.configs_evicted"
 
 	ncmRunningConfigTypeTag = "config_type:running"
 	ncmStartupConfigTypeTag = "config_type:startup"
@@ -59,6 +60,19 @@ func (s *NCMSender) SetDeviceTags(deviceTags []string) {
 
 func (s *NCMSender) getDeviceTags() []string {
 	return utils.CopyStrings(s.deviceTags)
+}
+
+// SendStoreEvictionMetrics sends metrics about a local config store eviction run.
+// Eviction is a store-wide event, not scoped to a single device, so device tags are
+// omitted; only common agent tags plus a status tag are attached.
+func (s *NCMSender) SendStoreEvictionMetrics(evictedCount int, err error) {
+	tags := utils.GetCommonAgentTags()
+	if err != nil {
+		tags = append(tags, "status:error")
+	} else {
+		tags = append(tags, "status:ok")
+	}
+	s.Sender.Count(ncmStoreConfigsEvictedMetric, float64(evictedCount), s.agentHostname, tags)
 }
 
 // SendNCMCheckMetrics sends metrics about the check itself to Datadog

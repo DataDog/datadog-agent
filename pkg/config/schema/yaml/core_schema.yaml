@@ -4960,6 +4960,24 @@ properties:
                 type: boolean
                 default: false
                 comment: Network Config Management
+          store:
+            node_type: section
+            type: object
+            properties:
+              max_configs_per_device:
+                node_type: setting
+                type: integer
+                default: 50
+              max_raw_config_store_bytes:
+                node_type: setting
+                type: integer
+                default: 2000000000
+                tags:
+                - golang_type:int64
+              min_configs_per_device:
+                node_type: setting
+                type: integer
+                default: 3
       metadata:
         node_type: section
         type: object

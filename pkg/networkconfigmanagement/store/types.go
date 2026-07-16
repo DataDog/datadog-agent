@@ -22,4 +22,10 @@ type ConfigStore interface {
 	GetConfig(configUUID string) (string, *types.ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error)
 	GetAllConfigMetadata() ([]*types.ConfigMetadata, error)
+	// UpdateStoreConfig sets the eviction policy parameters from datadog.yaml, called at agent start-up.
+	UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64)
+	// EvictConfigs runs the eviction policy using the parameters set by UpdateStoreConfig.
+	EvictConfigs() ([]string, error)
+	// NeedsEviction reports whether the store currently exceeds the size threshold set by UpdateStoreConfig.
+	NeedsEviction() (bool, error)
 }

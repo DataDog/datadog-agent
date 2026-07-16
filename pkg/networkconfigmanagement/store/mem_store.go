@@ -131,6 +131,15 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 	return rawConfig, &meta, nil
 }
 
+// UpdateStoreConfig is a no-op for the in-memory store (eviction is not enforced in tests).
+func (m *memConfigStore) UpdateStoreConfig(_ int, _ int, _ int64) {}
+
+// EvictConfigs is a no-op for the in-memory store.
+func (m *memConfigStore) EvictConfigs() ([]string, error) { return nil, nil }
+
+// NeedsEviction always reports false: the in-memory store used in tests doesn't track size.
+func (m *memConfigStore) NeedsEviction() (bool, error) { return false, nil }
+
 // GetAllConfigMetadata returns metadata for every stored config across all devices,
 // sorted by ConfigUUID for deterministic ordering.
 func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
