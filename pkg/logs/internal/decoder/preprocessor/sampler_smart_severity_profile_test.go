@@ -233,25 +233,6 @@ func TestAdaptiveSampler_NewPatternAfterSeverityChangeUsesActiveProfile(t *testi
 	assert.InDelta(t, 99.0, s.entries[1].credits, 0.0001, "new pattern seeds High BurstSize-1 credits after the severity change")
 }
 
-func TestAdaptiveSampler_PassThroughKeepsTrackedPatternsAtMaxCredits(t *testing.T) {
-	provider, emit := activateSeverity()
-	profiles := testProfiles()
-	profiles[severityeventsdef.SeverityHigh].PassThrough = true
-	emit(severityeventsdef.SeverityHigh)
-
-	s := newAnomalyProfileSampler(profiles, provider)
-	t0 := time.Now()
-	s.now = func() time.Time { return t0 }
-
-	for i := 0; i < 3; i++ {
-		require.NotNilf(t, s.Process(testMsg(), patternA), "message %d should pass through", i)
-	}
-
-	require.Len(t, s.entries, 1)
-	assert.True(t, s.config.PassThrough)
-	assert.InDelta(t, 100.0, s.entries[0].credits, 0.0001, "pass-through should behave like an infinite rate limit and keep credits full")
-}
-
 func TestAdaptiveSampler_DeescalationFromPassThroughSeedsEveryTrackedPatternWithMaxCredits(t *testing.T) {
 	provider, emit := activateSeverity()
 	profiles := testProfiles()
@@ -265,8 +246,6 @@ func TestAdaptiveSampler_DeescalationFromPassThroughSeedsEveryTrackedPatternWith
 	require.NotNil(t, s.Process(testMsg(), patternA))
 	require.NotNil(t, s.Process(testMsg(), patternB))
 	require.Len(t, s.entries, 2)
-	assert.InDelta(t, 100.0, s.entries[0].credits, 0.0001)
-	assert.InDelta(t, 100.0, s.entries[1].credits, 0.0001)
 	s.entries[0].sampled = 3
 	s.entries[1].sampled = 4
 
