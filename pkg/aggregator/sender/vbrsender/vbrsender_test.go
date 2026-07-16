@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
@@ -572,6 +573,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	s := newSender(fake, false, "check_scale_deviation_test", "", "")
 
 	values := []float64{10, 20, 15, 100, 12}
+	alpha := compressorConfig().Alpha
 	var scale float64
 	var hasScale bool
 	expectedSum := 0.0
@@ -587,7 +589,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 		if !hasScale {
 			scale, hasScale = abs, true
 		} else {
-			scale = defaultConfig.Alpha*abs + (1-defaultConfig.Alpha)*scale
+			scale = alpha*abs + (1-alpha)*scale
 		}
 		expectedSum += math.Abs(v - scale)
 	}
@@ -595,6 +597,42 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	ctx := s.contexts[contextKeyFor("my.gauge", "host", nil)]
 	require.EqualValues(t, len(values), ctx.tlmScaleDeviationCount.Get(), "every Gauge sample must be observed exactly once")
 	require.InDelta(t, expectedSum, ctx.tlmScaleDeviationSum.Get(), 1e-9)
+}
+
+func TestFloorBoundTelemetry_TracksSwallowedPointsWhenFloorDominates(t *testing.T) {
+	// A dedicated check name: see TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale.
+	fake := &fakeSender{}
+	s := newSender(fake, false, "check_floor_bound_dominates_test", "", "")
+
+	// A near-zero-scale signal: with the default config (Epsilon=0.02,
+	// Floor=1e-3), Epsilon*scale (~2e-8) is many orders of magnitude below
+	// Floor, so every sample here is floor-bound.
+	for i := 0; i < 20; i++ {
+		s.compressAt(kindGauge, "my.tiny_gauge", 1e-6, "host", nil, float64(i), false)
+	}
+
+	ctx := s.contexts[contextKeyFor("my.tiny_gauge", "host", nil)]
+	require.EqualValues(t, 20, ctx.tlmSamples.Get())
+	require.EqualValues(t, 20, ctx.tlmFloorBoundSamples.Get(), "every sample should be floor-bound given the signal's tiny scale")
+	require.NotZero(t, ctx.tlmBreakpoints.Get())
+	require.Equal(t, ctx.tlmBreakpoints.Get(), ctx.tlmFloorBoundBreakpoints.Get(), "every breakpoint shipped for this signal must also be floor-bound")
+}
+
+func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest("checks.vbr_compression_floor", 0.0)
+	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.vbr_compression_floor", 1e-3) })
+
+	fake := &fakeSender{}
+	s := newSender(fake, false, "check_floor_bound_disabled_test", "", "")
+
+	for i := 0; i < 20; i++ {
+		s.compressAt(kindGauge, "my.tiny_gauge", 1e-6, "host", nil, float64(i), false)
+	}
+
+	ctx := s.contexts[contextKeyFor("my.tiny_gauge", "host", nil)]
+	require.EqualValues(t, 20, ctx.tlmSamples.Get())
+	require.Zero(t, ctx.tlmFloorBoundSamples.Get(), "with Floor disabled, no sample should ever be floor-bound")
+	require.Zero(t, ctx.tlmFloorBoundBreakpoints.Get())
 }
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
