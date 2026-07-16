@@ -185,9 +185,15 @@ mod tests {
         // domain-joined CI hosts (where USERNAME is a domain principal).
         let username = "Administrator";
         let computer_domain = std::env::var("COMPUTERNAME").expect("COMPUTERNAME");
-        let sid = lookup_account_sid(&computer_domain, username)
+        let sid = match lookup_account_sid(&computer_domain, username)
             .or_else(|_| lookup_account_sid("", username))
-            .expect("Administrator SID");
+        {
+            Ok(sid) => sid,
+            Err(e) => {
+                eprintln!("skipping: built-in Administrator not available: {e:#}");
+                return;
+            }
+        };
 
         let account = account_name_from_sid_lookup(&sid, computer_domain, username.to_string())
             .expect("account");

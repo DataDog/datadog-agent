@@ -499,7 +499,7 @@ mod tests {
     }
 
     fn sleep_def(name: &str) -> ProcessDefinition {
-        sleep_def_secs(name, 60)
+        sleep_def_secs(name, test_helpers::UNIT_TEST_SLEEP_SECS)
     }
 
     fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
@@ -509,6 +509,7 @@ mod tests {
             config: ProcessConfig {
                 command: cmd.to_string(),
                 args,
+                stop_timeout: Some(2),
                 ..Default::default()
             },
         }
@@ -551,7 +552,10 @@ mod tests {
         };
 
         // Reload with modified config (different args)
-        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
+        config_loader.set(vec![sleep_def_secs(
+            "svc-a",
+            test_helpers::UNIT_TEST_SLEEP_SECS + 5,
+        )]);
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
         assert!(result.added.is_empty());
@@ -560,7 +564,7 @@ mod tests {
 
         // Config should be updated and process restarted with a new PID
         let procs = mgr.processes().await;
-        let expected_args = sleep_def_secs("_", 120).config.args;
+        let expected_args = sleep_def_secs("_", test_helpers::UNIT_TEST_SLEEP_SECS + 5).config.args;
         assert_eq!(procs[0].config().args, expected_args);
         assert!(
             procs[0].is_running(),
@@ -583,12 +587,15 @@ mod tests {
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         // Don't start svc-a — leave it in Created state
-        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
+        config_loader.set(vec![sleep_def_secs(
+            "svc-a",
+            test_helpers::UNIT_TEST_SLEEP_SECS + 5,
+        )]);
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
 
         let procs = mgr.processes().await;
-        let expected_args = sleep_def_secs("_", 120).config.args;
+        let expected_args = sleep_def_secs("_", test_helpers::UNIT_TEST_SLEEP_SECS + 5).config.args;
         assert_eq!(procs[0].config().args, expected_args);
         assert!(
             !procs[0].is_running(),
@@ -748,14 +755,11 @@ mod tests {
         mgr.handle_start("svc-a", &exit_tx).await?;
 
         // Create a runtime process
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "runtime-svc".to_string(),
             ProcessConfig {
-                command: cmd.to_string(),
-                args,
                 auto_start: false,
-                ..Default::default()
+                ..test_helpers::unit_sleep_process_config()
             },
             &exit_tx,
         )
@@ -798,15 +802,12 @@ mod tests {
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "svc-b".to_string(),
             ProcessConfig {
-                command: cmd.to_string(),
-                args,
                 after: vec!["svc-a".to_string()],
                 auto_start: false,
-                ..Default::default()
+                ..test_helpers::unit_sleep_process_config()
             },
             &exit_tx,
         )
@@ -827,14 +828,11 @@ mod tests {
     async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "auto-svc".to_string(),
             ProcessConfig {
-                command: cmd.to_string(),
-                args,
                 auto_start: true,
-                ..Default::default()
+                ..test_helpers::unit_sleep_process_config()
             },
             &exit_tx,
         )
@@ -861,14 +859,11 @@ mod tests {
     async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "manual-svc".to_string(),
             ProcessConfig {
-                command: cmd.to_string(),
-                args,
                 auto_start: false,
-                ..Default::default()
+                ..test_helpers::unit_sleep_process_config()
             },
             &exit_tx,
         )
@@ -914,15 +909,12 @@ mod tests {
     async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "cond-svc".to_string(),
             ProcessConfig {
-                command: cmd.to_string(),
-                args,
                 auto_start: true,
                 condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
-                ..Default::default()
+                ..test_helpers::unit_sleep_process_config()
             },
             &exit_tx,
         )
@@ -950,15 +942,12 @@ mod tests {
 
         // Reload with a new process that has an after-dependency, which
         // forces a non-alphabetical order (svc-b before svc-api).
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         config_loader.set(vec![
             ProcessDefinition {
                 name: "svc-api".to_string(),
                 config: ProcessConfig {
-                    command: cmd.to_string(),
-                    args,
                     after: vec!["svc-b".to_string()],
-                    ..Default::default()
+                    ..test_helpers::unit_sleep_process_config()
                 },
             },
             sleep_def("svc-b"),
