@@ -386,6 +386,11 @@ def dict_to_gotype(inp):
 
 
 def to_vartype(node, setting_default):
+    if node.get('type') == 'array':
+        tags = node.get('tags')
+        if tags:
+            if 'golang_type:[]int' in tags:
+                return f"[]int{setting_default}"
     return f"{dict_to_gotype(node)}{setting_default}"
 
 
