@@ -81,11 +81,6 @@ unsafe impl Send for JobObject {}
 unsafe impl Sync for JobObject {}
 
 impl JobObject {
-    /// Raw Win32 job object handle (for `PROC_THREAD_ATTRIBUTE_JOB_LIST` at spawn time).
-    pub(crate) fn raw(&self) -> HANDLE {
-        self.handle
-    }
-
     /// Create a new anonymous Job Object configured for kill-on-close.
     pub fn new() -> Result<Self> {
         unsafe {

@@ -10,7 +10,6 @@ mod logon;
 mod managed;
 mod primary_token;
 mod privileged;
-mod proc_thread_attrs;
 mod profiles;
 mod stdio;
 

@@ -101,7 +101,7 @@ pub(super) fn spawn_as_primary_token(
                 .as_ref()
                 .map(|w| w.as_ptr())
                 .unwrap_or(std::ptr::null()),
-            &mut si,
+            &si,
             &mut pi,
         )
     };

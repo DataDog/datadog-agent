@@ -37,10 +37,7 @@ pub(super) fn spawn_agent_profile(
     }
 
     spawn_as_primary_token(process_name, request, &account)
-        .map(|handle| {
-            assign_child_to_job(process_name, job, &handle);
-            handle
-        })
+        .inspect(|handle| assign_child_to_job(process_name, job, handle))
         .with_context(|| {
         format!(
             "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
