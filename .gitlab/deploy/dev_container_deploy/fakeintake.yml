@@ -38,12 +38,22 @@ publish_fakeintake_latest:
 # job can't itself refuse to clobber a tag. The immutability guarantee instead comes from
 # tasks/fakeintake.py's check-version-bump task (see fakeintake_check_version_bump job),
 # which enforces a strictly-increasing VERSION and is re-evaluated in the merge queue.
+# Publishes the pinned tag (fakeintake:<VERSION>) authoritatively from main only,
+# when the VERSION file changes (i.e. a fakeintake bump just merged). The pinned
+# tag is a release artifact, so it is never published from feature branches —
+# only main writes it. Gating on the VERSION file (not any fakeintake change)
+# means a bump always targets a brand-new tag, so a republish never rewrites the
+# content of an already-released version.
 publish_fakeintake_pinned:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
     - !reference [.except_mergequeue]
-    - !reference [.on_fakeintake_changes_on_main]
+    - <<: *if_main_branch
+      changes:
+        paths:
+          - test/fakeintake/version/VERSION
+        compare_to: $COMPARE_TO_BRANCH
   needs:
     - job: docker_build_fakeintake
       optional: false

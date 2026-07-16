@@ -138,6 +138,18 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
+# Any e2e job that deploys a fakeintake must wait for its image to publish.
+# On fakeintake PRs e2e runs against the v<sha> image (via
+# FAKEINTAKE_IMAGE_OVERRIDE) -> publish_fakeintake. On main it uses the pinned
+# tag -> publish_fakeintake_pinned. Both optional: absent on non-fakeintake
+# pipelines. Reference this from every e2e needs block (directly or via
+# .needs_new_e2e_template) so no fakeintake-deploying job can race the image.
+.needs_fakeintake_publish:
+  - job: publish_fakeintake
+    optional: true
+  - job: publish_fakeintake_pinned
+    optional: true
+
 .needs_new_e2e_template:
   - go_e2e_deps
   - job: go_e2e_test_binaries
@@ -145,14 +157,7 @@
   - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
-  # On fakeintake PRs e2e runs against the v<sha> image (via
-  # FAKEINTAKE_IMAGE_OVERRIDE) so it must wait for publish_fakeintake. On main
-  # e2e uses the pinned tag, so it must wait for publish_fakeintake_pinned.
-  # Both are optional: absent on non-fakeintake pipelines.
-  - job: publish_fakeintake
-    optional: true
-  - job: publish_fakeintake_pinned
-    optional: true
+  - !reference [.needs_fakeintake_publish]
 
 new-e2e-base-coverage:
   extends: .new_e2e_template
@@ -297,6 +302,7 @@ new-e2e-containers-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -335,6 +341,7 @@ new-e2e-containers-openshift-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
@@ -532,6 +539,7 @@ new-e2e-npm-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -1031,6 +1039,7 @@ new-e2e-otel-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
@@ -1097,6 +1106,7 @@ new-e2e-otel:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:

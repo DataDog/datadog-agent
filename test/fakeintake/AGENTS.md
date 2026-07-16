@@ -222,9 +222,23 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   `test/fakeintake/**` changes, and every suite now honors that override
   globally — so your PR's fakeintake is exercised regardless of the pin.
 - **On merge to main**, `publish_fakeintake_pinned` publishes the image under
-  the tag in `VERSION`. Other branches keep using their own pinned tag until
-  they rebase onto a main that bumped it — no branch is affected by a
-  fakeintake change until it explicitly picks up the new pin.
+  the tag in `VERSION`. The pinned tag is a release artifact — it is published
+  authoritatively from `main` only, never from feature branches. Other branches
+  keep using their own pinned tag until they rebase onto a main that bumped it —
+  no branch is affected by a fakeintake change until it explicitly picks up the
+  new pin. On the main pipeline, e2e waits for `publish_fakeintake_pinned` (via
+  the optional need in `.needs_fakeintake_publish`) so it never runs against a
+  not-yet-published tag.
+- **Known limitation — cross-pipeline publish window.** Because the pinned tag
+  is published only after the bump merges to main, there is a window (the main
+  pipeline's fakeintake build + publish, up to ~10-20 min) during which the new
+  `vN` does not yet exist. A *different* PR that rebases onto the just-bumped
+  main during this window resolves to `vN` and its e2e will fail to pull the
+  image until the publish completes. This is rare (fakeintake changes are
+  infrequent) and self-healing: re-run the affected e2e once main has finished
+  publishing. Eliminating it entirely would require publishing at the
+  merge-queue gate; that trade-off was intentionally declined in favor of a
+  simpler main-only publish.
 - `:latest` is still published (`publish_fakeintake_latest`) for external/manual
   consumers, but no test references it anymore.
 
