@@ -10,6 +10,7 @@ package severityproviderimpl
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,7 @@ type fakeObserverComponent struct {
 	sub               severityeventsdef.SeverityEventsReaderSubscription
 	err               error
 	unsubscribeCalled bool
+	config            severityeventsdef.SeverityEventsConfiguration
 }
 
 func (f *fakeObserverComponent) GetHandle(string) observerdef.Handle { return nil }
@@ -60,7 +62,8 @@ func (f *fakeObserverComponent) SubscribeSeverityEvents(severityeventsdef.Severi
 	return severityeventsdef.SeverityEventsSubscription{}, nil
 }
 
-func (f *fakeObserverComponent) SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+func (f *fakeObserverComponent) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	f.config = cfg
 	if f.err != nil {
 		return severityeventsdef.SeverityEventsReaderSubscription{}, f.err
 	}
@@ -69,13 +72,14 @@ func (f *fakeObserverComponent) SubscribeSeverityEventsReader(severityeventsdef.
 
 var _ observerdef.Component = (*fakeObserverComponent)(nil)
 
-func newComponent(t *testing.T, enabled bool, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
+func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
 	t.Helper()
 	lifecycle := compdef.NewTestLifecycle(t)
 	provides, err := NewComponent(Requires{
 		Lifecycle: lifecycle,
 		Config: config.NewMockWithOverrides(t, map[string]interface{}{
 			anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey: enabled,
+			smartSeverityProfilesCooldownConfigKey:                       cooldown,
 		}),
 		Observer: observer,
 		Log:      noopLogComponent{},
@@ -85,7 +89,7 @@ func newComponent(t *testing.T, enabled bool, observer option.Option[observerdef
 }
 
 func TestLifecycleDisabled(t *testing.T) {
-	comp, lifecycle := newComponent(t, false, option.New[observerdef.Component](&fakeObserverComponent{}))
+	comp, lifecycle := newComponent(t, false, 0, option.New[observerdef.Component](&fakeObserverComponent{}))
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -94,7 +98,7 @@ func TestLifecycleDisabled(t *testing.T) {
 }
 
 func TestLifecycleNoObserverProvided(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, option.None[observerdef.Component]())
+	comp, lifecycle := newComponent(t, true, 0, option.None[observerdef.Component]())
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -103,7 +107,7 @@ func TestLifecycleNoObserverProvided(t *testing.T) {
 }
 
 func TestLifecyclePropagatesSubscriptionError(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
+	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
 	assert.ErrorIs(t, lifecycle.Start(context.Background()), assert.AnError)
 
 	_, ok := comp.Current()
@@ -117,9 +121,10 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 		Reader:      reader,
 		Unsubscribe: func() { observer.unsubscribeCalled = true },
 	}
-	comp, lifecycle := newComponent(t, true, option.New[observerdef.Component](observer))
+	comp, lifecycle := newComponent(t, true, 500*time.Millisecond, option.New[observerdef.Component](observer))
 
 	require.NoError(t, lifecycle.Start(context.Background()))
+	assert.Equal(t, int64(1), observer.config.CooldownSecs)
 	level, ok := comp.Current()
 	require.True(t, ok)
 	assert.Equal(t, severityeventsdef.SeverityHigh, level)
