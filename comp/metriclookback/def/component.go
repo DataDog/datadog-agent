@@ -6,7 +6,18 @@
 // Package metriclookback defines the metric lookback component.
 package metriclookback
 
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+)
+
 // team: q-branch
 
 // Component is the metric lookback component.
-type Component interface{}
+type Component interface {
+	// NewSenderManager returns the sender manager used exclusively by metric
+	// lookback shadow checks. It returns nil when lookback is unavailable in the
+	// current Agent build.
+	NewSenderManager(context.Context, string) sender.SenderManager
+}

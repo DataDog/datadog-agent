@@ -53,6 +53,18 @@ func TestMetricLookbackComponentProvidesDogStatsDFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, provides.Comp)
 	require.NotNil(t, provides.DogStatsDLookbackFactory)
+
+	shadowManager := provides.Comp.NewSenderManager(context.Background(), "default-host")
+	require.NotNil(t, shadowManager)
+	shadowSender, err := shadowManager.GetSender(checkid.ID("gpu:shadow"))
+	require.NoError(t, err)
+	shadowSender.Gauge("shadow.metric", 42, "", nil)
+	shadowSender.Commit()
+	retained := provides.Comp.(component).retention.Series()
+	require.Len(t, retained, 1)
+	require.Equal(t, "shadow.metric", retained[0].Name)
+	require.Equal(t, "default-host", retained[0].Host)
+
 	lookback := provides.DogStatsDLookbackFactory(serializermocks.NewMetricSerializer(t))
 	require.NotNil(t, lookback)
 	stopLookbackOnCleanup(t, lookback)

@@ -7,7 +7,6 @@
 package collector
 
 import (
-	"context"
 	"expvar"
 	"fmt"
 	"slices"
@@ -71,8 +70,6 @@ type CheckScheduler struct {
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
 	shadowSenderManager sender.SenderManager
-	shadowSenderContext context.Context
-	shadowSenderCancel  context.CancelFunc
 	shadowCoreLoader    check.Loader
 	infraTagger         *infratags.Tagger // nil = no infra mode tagging
 	m                   sync.RWMutex
@@ -94,6 +91,17 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	}
 
 	return checkScheduler
+}
+
+// SetMetricLookbackShadowSenderManager sets the sender manager used by metric
+// lookback shadow checks loaded by this scheduler.
+func (s *CheckScheduler) SetMetricLookbackShadowSenderManager(senderManager sender.SenderManager) {
+	if s == nil {
+		return
+	}
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.shadowSenderManager = senderManager
 }
 
 // Schedule schedules configs to checks
@@ -165,17 +173,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop releases scheduler-owned resources.
-func (s *CheckScheduler) Stop() {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	if s.shadowSenderCancel != nil {
-		s.shadowSenderCancel()
-		s.shadowSenderCancel = nil
-		s.shadowSenderContext = nil
-	}
-}
+// Stop satisfies the autodiscovery scheduler interface.
+func (s *CheckScheduler) Stop() {}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {

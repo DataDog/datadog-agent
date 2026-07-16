@@ -27,7 +27,6 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/collector/loaders",
         "//pkg/collector/metriclookback",
-        "//pkg/collector/metriclookback/lookbacksender",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/infratags",

@@ -7,9 +7,25 @@
 
 package run
 
-import "go.uber.org/fx"
+import (
+	"context"
+
+	"go.uber.org/fx"
+
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+)
+
+type unavailableMetricLookback struct{}
+
+func (unavailableMetricLookback) NewSenderManager(context.Context, string) sender.SenderManager {
+	return nil
+}
 
 func metriclookbackModule() fx.Option {
-	// Metric lookback is a default-off full Agent experiment; keep it out of non-Python Agent binaries.
-	return fx.Options()
+	// Keep concrete metric lookback retention out of non-Python Agent binaries,
+	// while satisfying shared Agent startup wiring with an unavailable component.
+	return fx.Provide(func() metriclookbackdef.Component {
+		return unavailableMetricLookback{}
+	})
 }

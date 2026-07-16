@@ -8,7 +8,7 @@
 package collector
 
 import (
-	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,18 +34,10 @@ func shadowCandidatesByInstance(config integration.Config) map[int]shadowCandida
 	return byInstance
 }
 
-func (s *CheckScheduler) ensureShadowSenderContext() context.Context {
-	if s.shadowSenderContext == nil {
-		s.shadowSenderContext, s.shadowSenderCancel = context.WithCancel(context.Background())
-	}
-	return s.shadowSenderContext
-}
-
 func (s *CheckScheduler) loadShadowCheck(candidate shadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
 	shadowSenderManager := s.shadowSenderManager
 	if shadowSenderManager == nil {
-		shadowSenderManager = lookbacksender.NewSenderManager(s.ensureShadowSenderContext(), "", nil, nil)
-		s.shadowSenderManager = shadowSenderManager
+		return nil, errors.New("metric lookback shadow sender manager is not configured")
 	}
 	shadowCheckID := check.ShadowID(sourceCheckID)
 	checkSenderManager := &shadowCheckSenderManager{

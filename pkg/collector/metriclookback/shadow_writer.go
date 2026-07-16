@@ -22,7 +22,7 @@ import (
 // normal check sender path.
 func NewSenderManager(ctx context.Context, defaultHostname string, retention *corelookback.Retention) sender.SenderManager {
 	if retention == nil {
-		return lookbacksender.NewSenderManager(ctx, defaultHostname, nil, nil)
+		return nil
 	}
 	return lookbacksender.NewSenderManager(ctx, defaultHostname, shadowWriter{retention: retention}, nil)
 }

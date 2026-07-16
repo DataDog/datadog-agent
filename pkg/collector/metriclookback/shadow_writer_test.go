@@ -19,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+func TestNewSenderManagerRequiresRetention(t *testing.T) {
+	require.Nil(t, NewSenderManager(context.Background(), "default-host", nil))
+}
+
 func TestNewSenderManagerWritesShadowCheckSamples(t *testing.T) {
 	retention := corelookback.NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	manager := NewSenderManager(context.Background(), "default-host", retention)

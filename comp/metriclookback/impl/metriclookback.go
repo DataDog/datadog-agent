@@ -7,6 +7,7 @@
 package metriclookbackimpl
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -15,6 +16,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectormetriclookback "github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/metriclookback"
 	metriclookbackdogstatsd "github.com/DataDog/datadog-agent/pkg/metriclookback/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/metriclookback/monitor"
@@ -34,7 +37,15 @@ type Provides struct {
 	DogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory
 }
 
-type component struct{}
+type component struct {
+	retention *metriclookback.Retention
+}
+
+// NewSenderManager returns a shadow-check sender manager backed by the shared
+// metric lookback retention ring.
+func (c component) NewSenderManager(ctx context.Context, defaultHostname string) sender.SenderManager {
+	return collectormetriclookback.NewSenderManager(ctx, defaultHostname, c.retention)
+}
 
 // NewComponent creates the metric lookback component.
 func NewComponent(req Requires) (Provides, error) {
@@ -43,7 +54,7 @@ func NewComponent(req Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	return Provides{Comp: component{}, DogStatsDLookbackFactory: factory}, nil
+	return Provides{Comp: component{retention: retention}, DogStatsDLookbackFactory: factory}, nil
 }
 
 const (
