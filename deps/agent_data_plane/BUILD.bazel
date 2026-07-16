@@ -1,0 +1,41 @@
+"""Agent Data Plane (ADP) - prebuilt binary shipped alongside the agent.
+
+Replaces omnibus/config/software/datadog-agent-data-plane.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
+load(":archives.bzl", "adp_archive_renames", "adp_archive_targets")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_files(
+    name = "binary_files",
+    srcs = adp_archive_targets("binary"),
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+)
+
+pkg_files(
+    name = "license_files",
+    srcs = adp_archive_targets("license_files") + adp_archive_targets("license_3rdparty"),
+    prefix = "LICENSES",
+    renames = adp_archive_renames("license_3rdparty", "LICENSE-agent-data-plane-3rdparty.csv"),
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":binary_files",
+        ":license_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)

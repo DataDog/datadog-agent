@@ -1,0 +1,87 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "1.4.0"
+
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/saluki"
+
+HASHES = {
+    "linux-amd64": "3904f9ab8a11f6f21211ee87792122d3e66a72f0c103482057d44d11549738b8",
+    "linux-arm64": "c6dcca770e7df20266c68af73138cfa43db68aace57699c7557408e77925d7cc",
+    "fips-linux-amd64": "0f5d9c921a998f2b0b6b299deb3f194963f41fb0d32d55b4f6719d4da6fff7af",
+    "fips-linux-arm64": "9d079994e841d4986ae0efbefe009d3cd45b4b4c8e8831579d26c493b28c3d8d",
+    "darwin-amd64": "7586ef3041bcd11f9dad1baf7a7f26ff4e2dc239ef59c2d28ebd0e0879f41568",
+    "darwin-arm64": "e40ad02931ba893de49427d9c3a1c4683a0f615a58e96287fdd47e1b089b7699",
+    "windows-amd64": "a2692fa7d961b8e1b1f01ddcf86060f542195124397e69bfacf152ceda47d436",
+    "fips-windows-amd64": "30199587a487bf3312bad913929ee6a951e244f3cbdeafccec4ac8edbaf05cb9",
+}
+
+_BUILD_FILE_CONTENT = """\
+filegroup(
+    name = "binary",
+    srcs = glob(["**/agent-data-plane", "**/agent-data-plane.exe"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_3rdparty",
+    srcs = glob(["**/LICENSE-3rdparty.csv"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_files",
+    srcs = glob(["**/LICENSES/**"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
+# The Windows zip's entries use a literal "\" in the filename rather than "/"
+# as a path separator (e.g. "bin\agent-data-plane.exe" is one flat file, not
+# a "bin" directory). Bazel's label syntax forbids "\" outright, so no
+# glob()/filegroup can ever reference it as-is: convert those into real
+# nested paths before _BUILD_FILE_CONTENT's glob patterns see them.
+# FIXME(agent-build) remove this once https://github.com/DataDog/saluki/pull/2122
+# is part of a release
+_WINDOWS_PATCH_CMDS = ["""\
+for f in *; do
+  case "$f" in
+    *\\\\*)
+      new=$(printf '%s' "$f" | tr '\\\\' '/')
+      mkdir -p "$(dirname "$new")"
+      mv -- "$f" "$new"
+      ;;
+  esac
+done
+"""]
+
+# (os, hash key); the repo name suffix is the hash key with "-" replaced by "_"
+_ARTIFACTS = [
+    ("linux", "linux-amd64"),
+    ("linux", "linux-arm64"),
+    ("linux", "fips-linux-amd64"),
+    ("linux", "fips-linux-arm64"),
+    ("darwin", "darwin-amd64"),
+    ("darwin", "darwin-arm64"),
+    ("windows", "windows-amd64"),
+    ("windows", "fips-windows-amd64"),
+]
+
+[
+    http_archive(
+        name = "agent_data_plane_{}".format(hash_key.replace("-", "_")),
+        build_file_content = _BUILD_FILE_CONTENT,
+        patch_cmds = _WINDOWS_PATCH_CMDS if os == "windows" else [],
+        sha256 = HASHES[hash_key],
+        url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
+            base = SOURCE_URL_BASE,
+            ext = "zip" if os == "windows" else "tar.gz",
+            # The hash key doubles as the archive filename's target suffix,
+            # except the Windows FIPS artifact: saluki CI publishes it with a
+            # trailing "-fips" (windows-amd64-fips.zip) rather than the
+            # "fips-" prefix used by Linux.
+            target = "windows-amd64-fips" if hash_key == "fips-windows-amd64" else hash_key,
+            version = VERSION,
+        ),
+    )
+    for os, hash_key in _ARTIFACTS
+]
