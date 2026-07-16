@@ -7,6 +7,7 @@ package runners
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -226,6 +227,10 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, l
 				log.String(observability.JobIDTagName, task.Data.Attributes.JobId))
 
 			if err != nil {
+				if errors.Is(err, opms.ErrJobNotFound) {
+					logger.Info("Task no longer exists remotely; stopping heartbeat")
+					return
+				}
 				logger.Error("Failed to send heartbeat", log.ErrorField(err))
 			} else {
 				logger.Info("Heartbeat sent successfully")
