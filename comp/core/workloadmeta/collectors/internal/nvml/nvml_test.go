@@ -64,6 +64,7 @@ func TestPull(t *testing.T) {
 		require.ElementsMatch(t, expectedGPUActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
 		require.Equal(t, "0000:00:1e.0", gpu.PCIBusID)
+		require.Empty(t, gpu.FabricClusterUUID)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
