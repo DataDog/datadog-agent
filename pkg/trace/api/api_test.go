@@ -403,6 +403,57 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 }
 
+// TestHandleTracesNilSpanDoesNotPanic verifies that a v0.4 JSON body carrying a
+// nil span (`[[null]]`) does not panic in the request handler. The panic would
+// occur in the inline firstService helper (which reads Chunks[0].Spans[0])
+// before the spans are sanitized in Process. Covers both the legacy (pb) and
+// converted (idx) handler paths.
+func TestHandleTracesNilSpanDoesNotPanic(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		delete(conf.Features, "convert-traces") // exercise the legacy pb path
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+		defer server.Close()
+
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBufferString("[[null]]"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		select {
+		case p := <-r.out:
+			// Handler accepted the payload without panicking (nil spans are
+			// stripped later in Process, not in the handler).
+			assert.Len(t, p.TracerPayload.Chunks, 1)
+		case <-time.After(5 * time.Second):
+			t.Fatal("no data received on r.out")
+		}
+	})
+
+	t.Run("converted", func(t *testing.T) {
+		conf := newTestReceiverConfig() // convert-traces enabled by default
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+		defer server.Close()
+
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBufferString("[[null]]"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		// The converted path must respond without the handler panicking; the
+		// all-nil chunk is dropped during conversion so no payload is enqueued.
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
 func TestReceiverJSONDecoder(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)

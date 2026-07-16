@@ -886,10 +886,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}()
 
 	firstService := func(tp *pb.TracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service
+		// Use the nil-safe helper: a decoded payload can carry nil chunks/spans
+		// (e.g. v0.4 JSON `[[null]]`), so indexing Chunks[0].Spans[0] directly
+		// would panic before the spans are sanitized in Process.
+		if span, ok := getFirstSpan(tp); ok {
+			return span.Service
+		}
+		return ""
 	}
 
 	start := time.Now()
@@ -1000,10 +1006,15 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	}()
 
 	firstService := func(tp *idx.InternalTracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service()
+		// Use the nil-safe helper: a decoded payload can carry nil chunks/spans,
+		// so indexing Chunks[0].Spans[0] directly would panic.
+		if span, ok := getFirstSpanV1(tp); ok {
+			return span.Service()
+		}
+		return ""
 	}
 
 	start := time.Now()
@@ -1267,6 +1278,11 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
+		// A decoded span slice may contain nil entries (e.g. v0.1 JSON `[null]`);
+		// skip them rather than dereferencing s.TraceID.
+		if s == nil {
+			continue
+		}
 		byID[s.TraceID] = append(byID[s.TraceID], s)
 	}
 	for _, t := range byID {

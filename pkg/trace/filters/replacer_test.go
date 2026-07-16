@@ -315,3 +315,37 @@ func TestReplaceAttributeAnyValue_NilArrayAndElement(t *testing.T) {
 		assert.Nil(t, got.ArrayValue.Values[0])
 	})
 }
+
+// TestReplaceAttributeAnyValue_NilValue ensures the replacer tolerates a nil
+// span-event attribute value (e.g. attributes["k"] = nil, a valid msgpack decode
+// result) without dereferencing val.Type.
+func TestReplaceAttributeAnyValue_NilValue(t *testing.T) {
+	f := Replacer{}
+	re := regexp.MustCompile("secret")
+
+	assert.NotPanics(t, func() {
+		assert.Nil(t, f.replaceAttributeAnyValue(re, nil, "?"))
+	})
+}
+
+// TestReplace_NilSpanEventAttributeValue ensures the full V0 Replace path does
+// not panic when a span event carries a nil attribute value, for both the
+// wildcard rule and a keyed rule.
+func TestReplace_NilSpanEventAttributeValue(t *testing.T) {
+	for _, key := range []string{"*", "cc"} {
+		t.Run(key, func(t *testing.T) {
+			tr := NewReplacer([]*config.ReplaceRule{{Name: key, Pattern: "secret", Re: regexp.MustCompile("secret"), Repl: "?"}})
+			trace := pb.Trace{
+				{
+					Resource: "res",
+					SpanEvents: []*pb.SpanEvent{
+						{Name: "evt", Attributes: map[string]*pb.AttributeAnyValue{"cc": nil}},
+					},
+				},
+			}
+			assert.NotPanics(t, func() {
+				tr.Replace(trace)
+			})
+		})
+	}
+}

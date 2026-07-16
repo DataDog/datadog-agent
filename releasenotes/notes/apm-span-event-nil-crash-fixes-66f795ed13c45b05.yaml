@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    APM: Fix trace-agent crashes on malformed trace payloads that contain nil
+    entries: nil spans, span links, or span events, and nil span-event attribute
+    values. Nil entries are now dropped during decoding, conversion and
+    processing instead of being dereferenced by normalization, obfuscation, tag
+    replacement, root-span detection, the receiver's first-span lookup, or v1
+    payload serialization.

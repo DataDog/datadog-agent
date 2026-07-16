@@ -4846,3 +4846,82 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+// TestProcessV1StripsNilSpans verifies that the V1 (idx) Process pipeline does
+// not panic on a chunk carrying nil span entries. normalizeTraceChunkV1 now
+// compacts them away, so GetRootV1, the sanitization loop, ReplaceV1 and
+// serialization never dereference a nil span (ProcessV1 runs in a worker
+// goroutine with no recover, so a nil span there would crash the process).
+func TestProcessV1StripsNilSpans(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{
+		ServiceRef:  st.Add("svc"),
+		SpanID:      1,
+		ResourceRef: st.Add("res"),
+		TypeRef:     st.Add("web"),
+		Start:       uint64(time.Now().Add(-time.Second).UnixNano()),
+		Duration:    uint64((500 * time.Millisecond).Nanoseconds()),
+	})
+	chunk := testutil.TraceChunkV1WithSpanAndPriority(span, 2)
+	// Inject nil span entries before, between and after the valid span.
+	chunk.Spans = []*idx.InternalSpan{nil, span, nil}
+
+	assert.NotPanics(t, func() {
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+	})
+
+	payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.NotEmpty(t, payloads, "no payloads were written")
+	require.Len(t, payloads[0].TracerPayload.Chunks, 1)
+	// Nil spans dropped: only the valid span survives.
+	require.Len(t, payloads[0].TracerPayload.Chunks[0].Spans, 1)
+}
+
+// TestProcessStripsNilSpans verifies that the V0 Process pipeline does not panic
+// on a decoded payload carrying nil span pointers (e.g. v0.4 JSON `[[null]]`) or
+// nil span-link/event entries. Nil spans would otherwise be dereferenced by
+// GetRoot before obfuscation/replacement even run. Nils are stripped in place.
+func TestProcessStripsNilSpans(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	now := time.Now()
+	valid := &pb.Span{
+		TraceID:    1,
+		SpanID:     1,
+		Service:    "svc",
+		Name:       "op",
+		Resource:   "res",
+		Start:      now.Add(-time.Second).UnixNano(),
+		Duration:   (500 * time.Millisecond).Nanoseconds(),
+		SpanLinks:  []*pb.SpanLink{nil, {TraceID: 2}},
+		SpanEvents: []*pb.SpanEvent{nil, {Name: "evt"}},
+	}
+	// Chunk with nil spans before, between and after the valid span.
+	chunk := testutil.TraceChunkWithSpans([]*pb.Span{nil, valid, nil})
+
+	assert.NotPanics(t, func() {
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(chunk),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+	})
+
+	// Nil spans and nil link/event entries were stripped in place.
+	require.Len(t, chunk.Spans, 1)
+	require.NotNil(t, chunk.Spans[0])
+	assert.NotContains(t, chunk.Spans[0].SpanLinks, (*pb.SpanLink)(nil))
+	assert.NotContains(t, chunk.Spans[0].SpanEvents, (*pb.SpanEvent)(nil))
+}

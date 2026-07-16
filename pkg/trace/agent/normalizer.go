@@ -452,14 +452,18 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	firstSpan := t.Spans[0]
 
+	// Drop nil span entries in place rather than merely skipping them:
+	// downstream V1 consumers (GetRootV1, the ProcessV1 sanitization loop,
+	// ReplaceV1, serialization) dereference every span with no nil guard and run
+	// in a worker goroutine with no recover. Native decoders do not currently
+	// emit nil spans, but compacting here keeps that invariant robust for any
+	// future idx source rather than relying on a `continue` that silently lets
+	// nils pass through to a crash.
+	kept := t.Spans[:0]
 	for _, span := range t.Spans {
 		if span == nil {
 			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
 		}
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
@@ -469,6 +473,15 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
 		spanIDs[span.SpanID()] = struct{}{}
+		kept = append(kept, span)
+	}
+	t.Spans = kept
+
+	// If every span was nil the chunk is now empty; drop it so GetRootV1 (which
+	// returns nil for an empty chunk) is never handed to root.Resource().
+	if len(t.Spans) == 0 {
+		ts.TracesDropped.EmptyTrace.Inc()
+		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
 	return nil

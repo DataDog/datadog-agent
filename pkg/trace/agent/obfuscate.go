@@ -238,6 +238,11 @@ func (a *Agent) ObfuscateSpan(span *pb.Span) {
 func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled && spanEvent != nil {
 		for k, v := range spanEvent.Attributes {
+			// A nil attribute value is a valid msgpack decode result (e.g.
+			// attributes["cc"] = nil); skip it rather than dereferencing v.Type.
+			if v == nil {
+				continue
+			}
 			if !a.obfuscator.ShouldObfuscateCCKey(k) {
 				continue
 			}
