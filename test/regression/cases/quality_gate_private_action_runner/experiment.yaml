@@ -1,0 +1,38 @@
+# Private Action Runner idle experiment. Runs the standalone
+# `privateactionrunner` binary on its own (not the full agent) so that
+# `total_pss_bytes` reflects only the runner's resident memory. This bounds the
+# runner's baseline footprint with no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  # Run only the Private Action Runner instead of the default agent entrypoint
+  # (/bin/entrypoint.sh), so the measured process tree is just the runner.
+  command: /opt/datadog-agent/embedded/bin/privateactionrunner
+  arguments:
+    - run
+    - --cfgpath=/etc/datadog-agent/datadog.yaml
+  cpu_allotment: 4
+  # Set to 20% higher than the memory_usage check value.
+  memory_allotment: 72 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+checks:
+  - name: memory_usage
+    description: "Memory usage quality gate. This puts a bound on the resident memory of the standalone Private Action Runner process."
+    bounds:
+      series: total_pss_bytes
+      # Initial bound. Calibrate against the first SMP run and, when updating it,
+      # update the memory_allotment in the target section to 20% higher.
+      upper_bound: "60 MiB"
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

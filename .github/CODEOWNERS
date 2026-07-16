@@ -983,6 +983,7 @@
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
+/test/regression/cases/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host

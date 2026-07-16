@@ -1,0 +1,13 @@
+generator: []
+
+blackhole:
+  # Absorb any HTTP egress the runner attempts against the configured dd_url so
+  # it never blocks on the network. With self-enrollment disabled and no active
+  # workload the runner is essentially idle, so this is mostly a safety net.
+  - http:
+      binding_addr: "127.0.0.1:9091"
+
+# target_metrics scrapes Prometheus/expvar endpoints on the target. The
+# standalone runner does not expose its metrics on those surfaces (it emits
+# DogStatsD), so this is intentionally empty.
+target_metrics: []
