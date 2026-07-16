@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"

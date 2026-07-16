@@ -149,7 +149,6 @@ use_repo(
     "com_github_bhmj_jsonslice",
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
-    "com_github_cenkalti_backoff_v6",
     "com_github_cenkalti_backoff_v7",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
