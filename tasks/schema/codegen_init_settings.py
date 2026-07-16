@@ -556,6 +556,7 @@ config_setup_func_names = [
     'remoteflags',
     'OTLP',
     'setupProcesses',
+    'setupPrivateActionRunner',
     'anomalyDetection',
     'initMainSystemProbeConfig',
     'initCWSSystemProbeConfig',
