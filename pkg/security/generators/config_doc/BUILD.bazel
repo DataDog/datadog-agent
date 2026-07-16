@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "config_doc_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/config_doc",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "config_doc",
+    embed = [":config_doc_lib"],
+    visibility = ["//visibility:public"],
+)

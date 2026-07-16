@@ -16,9 +16,13 @@ docs/cloud-workload-security/
     # event types and fields of the SECL language
 --- secl.json
 
+    # workload protection agent configuration settings
+--- workload_protection_agent_config.schema.json
+
     # final documentation files
 --- agent_expressions.md # SECL part
 --- backend.md # backend event part
+--- workload_protection_agent_config.md
 ```
 
 ### Agent Expressions - SECL
@@ -64,6 +68,76 @@ These lines generate this field for all events containing a File sub-event, for 
 | `chmod.file.change_time` | int | Change time of the file |
 
 The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates)).
+
+### Workload Protection Agent configuration
+
+The Workload Protection Agent configuration documentation is based on the following files:
+
+- `pkg/security/config/config.go` - the source code of the `RuntimeSecurityConfig` struct containing the settings documentation
+- `pkg/security/generators/config_doc/main.go` - the Go generator that extracts public and warning settings into JSON
+- `docs/cloud-workload-security/workload_protection_agent_config.schema.json` - the JSON representing the documented settings extracted from the source code
+- `tasks/libs/cws/templates/workload_protection_agent_config.md` - the Jinja2 template used for the final generation
+- `tasks/libs/cws/config_doc_gen.py` - the Python script that renders the template
+
+The generated markdown file is published on the documentation site at `/security/workload_protection/workload_protection_agent_config`. It is pulled from this repository during the documentation build (see `pull_config.yaml` in the `documentation` repository), the same way as `linux_expressions.md`.
+
+#### Editing files
+
+Documented settings are defined as comments on fields of the `RuntimeSecurityConfig` struct in `pkg/security/config/config.go`.
+
+Supported comment keys:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `description` | yes | Human-readable description of the setting |
+| `visibility` | yes | `public`, `warning`, or `private` |
+| `default_value` | recommended | Default value displayed in the documentation |
+
+The Go type is inferred from the struct field declaration. Settings with `visibility: public` are included in the main `system-probe` table. Settings with `visibility: warning` are included in a separate **Advanced settings** table preceded by a disruption warning. Settings with `visibility: private` are omitted from the generated documentation.
+
+The YAML key is automatically inferred from `NewRuntimeSecurityConfig` (and helper functions returning a config key). The environment variable name is automatically inferred from that key using the same convention as the Agent config (`DD_` prefix, uppercase, `.` replaced by `_`). For example, `runtime_security_config.hash_resolver.max_file_size` becomes `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_FILE_SIZE`.
+
+For example, the following comments on the `RuntimeEnabled` field in `config.go`:
+
+```go
+// description: Defines if the runtime security module should be enabled
+// visibility: public
+// default_value: false
+RuntimeEnabled bool
+```
+
+generate the following table row:
+
+| Environment variable | `system-probe.yaml` attribute | Type | Default | Description |
+| -------------------- | ----------------------------- | ---- | ------- | ----------- |
+| `DD_RUNTIME_SECURITY_CONFIG_ENABLED` | `runtime_security_config.enabled` | bool | false | Defines if the runtime security module should be enabled |
+
+Settings with `visibility: warning` are documented in a separate table:
+
+```go
+// description: EBPFLessEnabled enables the ebpfless probe
+// visibility: warning
+// default_value: false
+EBPFLessEnabled bool
+```
+
+#### Generating the documentation
+
+1. Extract the JSON schema from `config.go`:
+
+```sh
+go generate ./pkg/security/config/config.go
+```
+
+2. Render the final markdown file:
+
+```sh
+dda inv -e security-agent.generate-cws-documentation
+# or directly:
+bazel run //docs/cloud-workload-security:cws_docs
+```
+
+`cws_docs` regenerates all CWS markdown files, including `workload_protection_agent_config.md`, from their committed JSON schemas.
 
 ### Backend event
 
