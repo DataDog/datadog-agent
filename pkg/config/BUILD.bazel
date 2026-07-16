@@ -15,6 +15,7 @@ _OS_TARGET = select({
     "@platforms//os:linux": "linux",
     "@platforms//os:windows": "windows",
     "@platforms//os:macos": "darwin",
+    "@platforms//os:aix": "aix",
 })
 
 schema_template_config(

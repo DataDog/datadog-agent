@@ -159,15 +159,6 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
-## Use local object file tools
-find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
-use_repo(find_system_otool, "otool")
-
-register_toolchains(
-    "@otool//:all",
-    dev_dependency = True,
-)
-
 register_toolchains(
     "//bazel/toolchains/patchelf:patchelf_built_toolchain",
     dev_dependency = True,
@@ -214,7 +205,22 @@ register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
 ## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
-linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
+linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:hermetic_linux_headers.bzl", "linux_headers_extension")
+
+# snapshot.ubuntu.com is mirrored through the ADMS Bazel downloader.
+linux_headers_ext.configure(
+    arch_sha256s = {
+        "aarch64": "bc6d614bc03a0bdbe35b2ab71a86118194f66a7f75d10f02d65e9eb30088ff2e",
+        "x86_64": "00deb560f75ee2947f298ba687b386e3df920d8e3cca9dcd8eedc64c0755f42e",
+    },
+    arch_urls = {
+        "aarch64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_arm64.deb",
+        "x86_64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_amd64.deb",
+    },
+    common_sha256 = "fa7ec534c2fec2f287158073f1d9fe8f285ced726d5c1d040cb66f658fb5eba7",
+    common_url = "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110_6.8.0-110.110_all.deb",
+    header_release = "6.8.0-110",
+)
 use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################

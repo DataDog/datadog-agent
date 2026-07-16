@@ -7,19 +7,16 @@ package com_datadoghq_remoteaction_internal
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto/ecdh"
+	"crypto/hpke"
 	"encoding/base64"
 	"errors"
 	"fmt"
-
-	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
-
-const keyTypeCurve25519 = "curve25519"
 
 type PrepareEncryptionHandler struct {
 	store *encryptioncontext.Store
@@ -38,7 +35,7 @@ type PrepareEncryptionOutputs struct {
 	PublicKey string `json:"publicKey"`
 }
 
-// Run generates a Curve25519 key pair and returns the public key.
+// Run generates an HPKE DHKEM(P-256) key pair and returns the public key.
 func (handler *PrepareEncryptionHandler) Run(
 	_ context.Context,
 	task *types.Task,
@@ -52,15 +49,15 @@ func (handler *PrepareEncryptionHandler) Run(
 		return nil, errors.New("encryptionContextId is required")
 	}
 
-	publicKey, privateKey, err := box.GenerateKey(rand.Reader)
+	privateKey, err := hpke.DHKEM(ecdh.P256()).GenerateKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate Curve25519 key pair: %w", err)
+		return nil, fmt.Errorf("failed to generate HPKE key pair: %w", err)
 	}
 
 	handler.store.Set(inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
-		KeyType:   keyTypeCurve25519,
-		PublicKey: base64.StdEncoding.EncodeToString(publicKey[:]),
+		KeyType:   encryptioncontext.KeyTypeHPKE,
+		PublicKey: base64.StdEncoding.EncodeToString(privateKey.PublicKey().Bytes()),
 	}, nil
 }
