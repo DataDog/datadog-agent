@@ -13,33 +13,33 @@ import (
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// Enable/disable private action runner
-	config.BindEnvAndSetDefault(PAREnabled, false)
+	config.BindEnvAndSetDefault("private_action_runner.enabled", false)
 
 	// Log file
-	config.BindEnvAndSetDefault(PARLogFile, "${log_path}/private-action-runner.log")
+	config.BindEnvAndSetDefault("private_action_runner.log_file", "${log_path}/private-action-runner.log")
 
 	// Identity / enrollment configuration
-	config.BindEnvAndSetDefault(PARSelfEnroll, true)
-	config.BindEnvAndSetDefault(PARApiKeyOnlyEnrollment, false)
-	config.BindEnvAndSetDefault(PARIdentityFilePath, "")
-	config.BindEnvAndSetDefault(PARIdentityUseK8sSecret, true)
-	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
-	config.BindEnvAndSetDefault(PARPrivateKey, "")
-	config.BindEnvAndSetDefault(PARUrn, "")
-	config.BindEnvAndSetDefault(PARSkipConnectionCreation, false)
+	config.BindEnvAndSetDefault("private_action_runner.self_enroll", true)
+	config.BindEnvAndSetDefault("private_action_runner.api_key_only_enrollment", false)
+	config.BindEnvAndSetDefault("private_action_runner.identity_file_path", "")
+	config.BindEnvAndSetDefault("private_action_runner.identity_use_k8s_secret", true)
+	config.BindEnvAndSetDefault("private_action_runner.identity_secret_name", "private-action-runner-identity")
+	config.BindEnvAndSetDefault("private_action_runner.private_key", "")
+	config.BindEnvAndSetDefault("private_action_runner.urn", "")
+	config.BindEnvAndSetDefault("private_action_runner.skip_connection_creation", false)
 
 	// General config
-	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
-	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
-	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
-	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
-	config.ParseEnvSplitComma(PARActionsAllowlist)
+	config.BindEnvAndSetDefault("private_action_runner.task_concurrency", 5)
+	config.BindEnvAndSetDefault("private_action_runner.task_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("private_action_runner.actions_allowlist", []string{})
+	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
+	config.ParseEnvSplitComma("private_action_runner.actions_allowlist")
 
 	// HTTP action
-	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
-	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
-	config.ParseEnvSplitComma(PARHttpAllowlist)
-	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
+	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
+	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
+	config.ParseEnvSplitComma("private_action_runner.http_allowlist")
+	config.BindEnvAndSetDefault("private_action_runner.http_allow_imds_endpoint", false)
 
 	// Restricted shell allow-lists are opt-in restrictions layered on top of
 	// the backend-injected lists. By default, they act as a no-op, allowing
@@ -54,11 +54,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	//     handled as a special case in the operator-side intersection: when
 	//     it appears in the operator list, every backend command in the
 	//     "rshell:" namespace is admitted.
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
-	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
+	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
-	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedCommands, config)
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
+	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
-	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
+	config.BindEnvAndSetDefault("private_action_runner.opms_extra_headers", map[string]string{})
 }
