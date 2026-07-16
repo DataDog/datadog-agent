@@ -271,20 +271,16 @@ func TestSenderManagerRejectsSenderForDifferentCheckID(t *testing.T) {
 	assert.ErrorContains(t, err, "sender ID cpu:shadow does not match check ID disk:shadow")
 }
 
-func TestSenderManagerDefaultSenderAndNoopWriter(t *testing.T) {
-	manager := NewSenderManager(context.Background(), "default-host", nil, nil)
+func TestSenderManagerRequiresWriterAndProvidesDefaultSender(t *testing.T) {
+	require.Nil(t, NewSenderManager(context.Background(), "default-host", nil, nil))
 
+	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, nil)
+	require.NotNil(t, manager)
 	defaultSender, err := manager.GetDefaultSender()
 	require.NoError(t, err)
 	defaultSender.Gauge("metric.default", 1, "", nil)
 	defaultSender.Commit()
 	assert.Equal(t, int64(0), defaultSender.GetSenderStats().MetricSamples)
-
-	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
-	require.NoError(t, err)
-	gotSender.Gauge("metric.gauge", 1, "", nil)
-	gotSender.Commit()
-	assert.Equal(t, int64(1), gotSender.GetSenderStats().MetricSamples)
 }
 
 type testContextKey struct{}

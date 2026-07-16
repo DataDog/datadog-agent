@@ -26,6 +26,7 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//pkg/collector/corechecks/networkpath",
+        "//pkg/networkpath/payload",
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

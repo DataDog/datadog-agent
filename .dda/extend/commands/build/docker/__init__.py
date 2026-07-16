@@ -499,7 +499,7 @@ def cmd(
             [
                 "aws-vault",
                 "exec",
-                "sso-agent-sandbox-account-admin",
+                "sso-agent-sandbox-account-admin-8h",
                 "--",
                 "aws",
                 "ecr",

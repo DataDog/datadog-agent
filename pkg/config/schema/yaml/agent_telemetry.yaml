@@ -35,9 +35,8 @@ properties:
     node_type: setting
     type: integer
     default: 1
-    comment: |-
-      default compression first setup inside the next bindEnvAndSetLogsConfigKeys() function ...
-      ... and overridden by the following two lines - do not switch these 3 lines order
+    comment: '... and overridden by the following two lines - do not switch these
+      3 lines order'
   connection_reset_interval:
     node_type: setting
     type: integer

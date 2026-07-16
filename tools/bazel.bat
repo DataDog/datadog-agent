@@ -37,7 +37,7 @@ if defined XDG_CACHE_HOME (
   set startup_options="--output_user_root=!bazel_home!"
   :: Use container-scoped `outputBase` to prevent races on `outputUserRoot\<same workspace hash>\server\jvm.out`
   if defined DOTNET_RUNNING_IN_CONTAINER set startup_options=!startup_options! "--output_base=%SYSTEMDRIVE%\bob"
-  if not defined CI set extra_args="--disk_cache=!bazel_home!\disk-cache"
+  set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
   if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"

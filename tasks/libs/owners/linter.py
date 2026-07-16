@@ -71,7 +71,7 @@ def ai_artefacts_have_owner(ctx, owners):
     """Check that every AI artefact file has an explicit owner in CODEOWNERS — i.e. is not
     solely covered by a broad catch-all rule like /.*  or /*.md, and has a non-empty owner list.
 
-    AI artefacts are: AGENTS.md, CLAUDE.md, GEMINI.md (any depth), and everything under .claude/.
+    AI artefacts are AGENTS.md, CLAUDE.md, and GEMINI.md at any depth, plus everything under .agents/ or .claude/.
     """
 
     # Collect all AI artefact paths from tracked files only (respects .gitignore).
@@ -80,7 +80,8 @@ def ai_artefacts_have_owner(ctx, owners):
     ai_files = [
         p
         for p in tracked
-        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith(".claude/")) and not os.path.islink(p)
+        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith((".claude/", ".agents/")))
+        and not os.path.islink(p)
     ]
 
     unowned = []
@@ -102,6 +103,30 @@ def ai_artefacts_have_owner(ctx, owners):
             print(color_message(f"\t- /{path}", "orange"), file=sys.stderr)
 
     return bool(unowned)
+
+
+def skills_use_agents_directory(ctx, _owners=None):
+    """Fail if any file is tracked under the repo-root `.claude/skills/`, which must remain a symlink
+    into the canonical `.agents/skills/`. This prevents regressing the layout when a skill is created
+    under `.claude/skills/` directly. Nested `.claude/skills/` elsewhere in the tree is out of scope.
+    """
+    tracked = ctx.run("git ls-files", hide=True).stdout.splitlines()
+    # Only a real (non-symlink) `.claude/skills/` directory yields tracked child paths.
+    offenders = [p for p in tracked if p.startswith(".claude/skills/")]
+    if offenders:
+        print(
+            color_message(
+                "Skills must live under `.agents/skills/` with `.claude/skills` as a symlink into it"
+                " (`.claude/skills` -> ../.agents/skills). The following files are tracked under"
+                " `.claude/skills/` and must be moved to `.agents/skills/`:",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        for path in offenders:
+            print(color_message(f"	- {path}", "orange"), file=sys.stderr)
+
+    return bool(offenders)
 
 
 def _get_static_root(pattern):

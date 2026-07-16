@@ -125,7 +125,7 @@ If no open sprint is found or the edit fails, log a warning in `AUTO_JIRA.md` an
 mcp__atlassian__addCommentToJiraIssue(
   cloudId="datadoghq.atlassian.net",
   issueIdOrKey="<KEY>",
-  body="Starting autonomous implementation.\n\n— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)"
+  body="Starting autonomous implementation.\n\n— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)"
 )
 ```
 
@@ -167,7 +167,7 @@ Add a comment on the Jira ticket with the PR link and move on:
 ```
 PR opened (draft): <URL>
 
-— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)
+— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)
 ```
 
 ### When blocked
@@ -187,7 +187,7 @@ PR (if any): <URL>
 
 Needs: <specific human action required>
 
-— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)
+— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)
 ```
 
 ---

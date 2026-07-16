@@ -13,7 +13,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",
-        "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/agent",
         "//pkg/trace/api",
         "//pkg/trace/info",
@@ -32,7 +31,6 @@ dd_agent_go_test(
     embed = [":trace"],
     deps = [
         "//pkg/proto/pbgo/trace",
-        "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/api",
         "//pkg/trace/sampler",
         "//pkg/trace/traceutil",

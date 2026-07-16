@@ -1,6 +1,6 @@
 You are reviewing the SKILL.md files added or modified by this pull request,
 against Anthropic's official skill-creator guidelines. Identify each changed
-file under `.claude/skills/**/SKILL.md` from the PR diff, score it on the
+file under `.agents/skills/**/SKILL.md` from the PR diff, score it on the
 dimensions below, and emit one finding per changed SKILL.md anchored to that
 file's path and to the lines you are scoring.
 

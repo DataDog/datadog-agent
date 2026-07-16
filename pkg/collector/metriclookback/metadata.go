@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package metriclookback contains helpers for 1Hz check metric lookback.
+// Package metriclookback contains collector/check integration helpers for metric lookback.
 package metriclookback
 
 import (

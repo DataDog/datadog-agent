@@ -34,7 +34,7 @@ This skill handles: fetching full ticket context, codebase analysis, branching, 
 - What is changed
 - Motivation (link to the Jira ticket: `https://datadoghq.atlassian.net/browse/<KEY>`)
 - How changes were validated
-- Attribution footer: `_Created by [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.claude/skills/auto-jira/SKILL.md)._`
+- Attribution footer: `_Created by [Auto-JIRA](https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)._`
 
 **Labels:**
 

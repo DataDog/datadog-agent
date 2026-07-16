@@ -134,7 +134,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 			continue
 		}
 
-		histBounds := [2]float64{float64(bucket), float64(bucket + 1)}
+		histBounds := [2]float64{float64(bucket), float64(bucket)}
 		metric := &Metric{
 			Name:     nvlinkFECHistoryMetricName,
 			Type:     metrics.HistogramType,

@@ -9,6 +9,7 @@ new-e2e-agent-platform-install-script-macos-x64:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy]
     - !reference [.manual]
+  retry: !reference [.retry_only_infra_failure, retry]
   variables:
     TARGETS: ./tests/agent-platform/tests
     EXTRA_PARAMS: --run TestMacosInstallScript

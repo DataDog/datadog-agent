@@ -36,7 +36,7 @@ except (OSError, json.JSONDecodeError, KeyError):
     SCENARIOS = []
 
 S3_BUCKET = "qbranch-gensim-recordings"
-AWS_PROFILE = "sso-agent-sandbox-account-admin"
+AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
