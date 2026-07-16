@@ -344,8 +344,9 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # Compiling the ./tests/containers binary from source needs ~20Gi (matches new-e2e-containers-eks-init).
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
