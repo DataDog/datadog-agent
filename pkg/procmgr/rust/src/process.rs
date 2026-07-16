@@ -232,8 +232,8 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<()> {
-        // Through CreateProcess: std-handle reads for inherit and handle inheritance
-        // must not race with AttachConsole/FreeConsole on another thread.
+        // On Windows, serialize spawn with console attach/detach and std-handle
+        // inheritance checks (CreateProcess reads inherit flags at spawn time).
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
