@@ -29,9 +29,20 @@ type mockHooks struct {
 	preInstallErr  error
 	postInstallErr error
 	preRemoveErr   error
+
+	// preInstallCalls counts PreInstallExtension invocations. preInstallFailFrom,
+	// when >0, makes PreInstallExtension return an error from that (1-indexed) call
+	// onward — used to fail the rollback pre-install while letting the forward one
+	// succeed.
+	preInstallCalls    int
+	preInstallFailFrom int
 }
 
 func (m *mockHooks) PreInstallExtension(_ context.Context, _ string, _ string) error {
+	m.preInstallCalls++
+	if m.preInstallFailFrom > 0 && m.preInstallCalls >= m.preInstallFailFrom {
+		return errors.New("pre-install-failed")
+	}
 	return m.preInstallErr
 }
 
@@ -351,6 +362,32 @@ func TestInstallSingleRollsBackOnPostInstallFailure(t *testing.T) {
 
 	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
 	assert.NoError(t, statErr, "old sentinel file should be restored after post-install failure rollback")
+}
+
+// TestInstallSingleRestoresBackupWhenRollbackPreInstallFails verifies that a
+// failing pre-install hook during rollback does not prevent the previous
+// extension from being restored. The previous installation was already removed
+// on the replace path, so skipping the restore would leave no extension at all.
+func TestInstallSingleRestoresBackupWhenRollbackPreInstallFails(t *testing.T) {
+	extPath := setupReplaceTest(t)
+	s := fixtures.NewServer(t)
+	// postInstallErr triggers rollback; preInstallFailFrom=2 lets the forward
+	// pre-install (call 1) succeed but fails the rollback pre-install (call 2).
+	hooks := &mockHooks{postInstallErr: errors.New("post-install-failed"), preInstallFailFrom: 2}
+
+	err := Install(
+		context.Background(),
+		oci.NewDownloader(&env.Env{}, http.DefaultClient),
+		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
+		[]string{fixtureExtensionName},
+		false,
+		hooks,
+		nil,
+	)
+	require.Error(t, err)
+
+	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
+	assert.NoError(t, statErr, "old sentinel file should be restored even when the rollback pre-install hook fails")
 }
 
 // TestInstallSinglePreRemoveFailurePreservesExtension verifies that when the pre-remove

@@ -259,7 +259,8 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 			if backupDir != "" {
 				if hookErr := hooks.PreInstallExtension(ctx, pkg.Name, extension); hookErr != nil {
 					log.Errorf("Failed pre-install hook during rollback for extension %s: %v", extension, hookErr)
-				} else if renameErr := paths.Rename(ctx, backupDir, extensionPath); renameErr != nil {
+				}
+				if renameErr := paths.Rename(ctx, backupDir, extensionPath); renameErr != nil {
 					log.Errorf("Failed to restore previous extension %s from %s: %v", extension, backupDir, renameErr)
 				} else if hookErr := hooks.PostInstallExtension(ctx, pkg.Name, extension, isExperiment); hookErr != nil {
 					log.Errorf("Failed post-install hook during rollback for extension %s: %v", extension, hookErr)
