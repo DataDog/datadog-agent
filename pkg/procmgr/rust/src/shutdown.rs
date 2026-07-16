@@ -35,7 +35,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     fn sleep_config() -> crate::config::ProcessConfig {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::unit_sleep_cmd();
         test_helpers::make_config(cmd, args)
     }
 
