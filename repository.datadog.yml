@@ -18,6 +18,12 @@ branches:
       - agent-supply-chain
 ---
 schema-version: v1
+kind: mergegate
+rules:
+  - require: bewaire
+    strict_on_error: false
+---
+schema-version: v1
 kind: buildimpactanalysis
 team: ci-interfaces
 preprocess: true
