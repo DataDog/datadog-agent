@@ -51,7 +51,7 @@ impl ProcessManager {
         }
     }
 
-    async fn start(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
+    async fn start_configured_processes(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
@@ -72,7 +72,7 @@ impl ProcessManager {
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-        self.start(&exit_tx).await;
+        self.start_configured_processes(&exit_tx).await;
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
