@@ -22,7 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// HealthRequest is the request for the Health RPC.
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -59,18 +58,12 @@ func (*HealthRequest) Descriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{0}
 }
 
-// HealthResponse reports whether the executor is ready to accept actions. The
-// control plane gates dispatch on `ready` so it never sends an action before
-// the executor can run it (e.g. before remote-config signing keys are loaded).
+// HealthResponse reports whether the executor can accept actions.
 type HealthResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Ready bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
-	// protocol_version lets the control plane negotiate compatibility with the executor.
-	ProtocolVersion uint32 `protobuf:"varint,2,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
-	// active_actions is the number of actions currently running in the executor.
-	ActiveActions int32 `protobuf:"varint,3,opt,name=active_actions,json=activeActions,proto3" json:"active_actions,omitempty"`
-	// version is the executor build version.
-	Version       string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ready         bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
+	ActiveActions int32                  `protobuf:"varint,2,opt,name=active_actions,json=activeActions,proto3" json:"active_actions,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,13 +105,6 @@ func (x *HealthResponse) GetReady() bool {
 	return false
 }
 
-func (x *HealthResponse) GetProtocolVersion() uint32 {
-	if x != nil {
-		return x.ProtocolVersion
-	}
-	return 0
-}
-
 func (x *HealthResponse) GetActiveActions() int32 {
 	if x != nil {
 		return x.ActiveActions
@@ -133,9 +119,8 @@ func (x *HealthResponse) GetVersion() string {
 	return ""
 }
 
-// RunActionRequest carries the raw task bytes exactly as dequeued from OPMS so
-// the executor can verify the task signature itself. The control plane forwards
-// these bytes unmodified and parses only unverified routing fields for heartbeats.
+// RunActionRequest carries the raw task bytes as dequeued from OPMS so the executor
+// can verify the task signature itself.
 type RunActionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Task          []byte                 `protobuf:"bytes,1,opt,name=task,proto3" json:"task,omitempty"`
@@ -180,8 +165,8 @@ func (x *RunActionRequest) GetTask() []byte {
 	return nil
 }
 
-// RunActionResponse is one event in the RunAction result stream. The stream ends
-// with exactly one ActionResult; zero or more ActionStatus messages may precede it.
+// RunActionResponse is one event in the RunAction stream, ending with exactly one
+// ActionResult optionally preceded by ActionStatus updates.
 type RunActionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Event:
@@ -309,9 +294,7 @@ func (x *ActionStatus) GetMessage() string {
 	return ""
 }
 
-// ActionResult is the terminal outcome of an action: either a success output or
-// a structured error matching the OPMS publish contract. The control plane
-// publishes this outcome to OPMS verbatim.
+// ActionResult is the terminal outcome: a success output or a structured error.
 type ActionResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Outcome:
@@ -383,12 +366,10 @@ type isActionResult_Outcome interface {
 }
 
 type ActionResult_Output struct {
-	// output is the JSON-encoded action output on success.
 	Output []byte `protobuf:"bytes,1,opt,name=output,proto3,oneof"`
 }
 
 type ActionResult_Error struct {
-	// error is the structured failure (verification, credential, allowlist, timeout, ...).
 	Error *errorcode.ActionPlatformError `protobuf:"bytes,2,opt,name=error,proto3,oneof"`
 }
 
@@ -401,12 +382,11 @@ var File_datadog_privateactionrunner_executor_proto protoreflect.FileDescriptor
 const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\n" +
 	"*datadog/privateactionrunner/executor.proto\x12$datadog.privateactionrunner.executor\x1a,datadog/privateactionrunner/error_code.proto\"\x0f\n" +
-	"\rHealthRequest\"\x92\x01\n" +
+	"\rHealthRequest\"g\n" +
 	"\x0eHealthResponse\x12\x14\n" +
-	"\x05ready\x18\x01 \x01(\bR\x05ready\x12)\n" +
-	"\x10protocol_version\x18\x02 \x01(\rR\x0fprotocolVersion\x12%\n" +
-	"\x0eactive_actions\x18\x03 \x01(\x05R\ractiveActions\x12\x18\n" +
-	"\aversion\x18\x04 \x01(\tR\aversion\"&\n" +
+	"\x05ready\x18\x01 \x01(\bR\x05ready\x12%\n" +
+	"\x0eactive_actions\x18\x02 \x01(\x05R\ractiveActions\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"&\n" +
 	"\x10RunActionRequest\x12\x12\n" +
 	"\x04task\x18\x01 \x01(\fR\x04task\"\xb8\x01\n" +
 	"\x11RunActionResponse\x12L\n" +

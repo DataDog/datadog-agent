@@ -238,7 +238,6 @@ func TestHealthReportsReadinessAndVersion(t *testing.T) {
 	resp, err := client.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	assert.False(t, resp.GetReady())
-	assert.Equal(t, ProtocolVersion, resp.GetProtocolVersion())
 	assert.Equal(t, "test-version", resp.GetVersion())
 
 	srv.SetReady(true)
@@ -275,8 +274,7 @@ func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
 	served := make(chan error, 1)
 	go func() {
 		served <- Serve(ctx, lis, srv, ServeOptions{
-			OrphanIdleTimeout: 40 * time.Millisecond,
-			PollInterval:      10 * time.Millisecond,
+			IdleShutdownTimeout: 40 * time.Millisecond,
 		})
 	}()
 

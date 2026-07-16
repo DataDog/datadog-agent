@@ -291,16 +291,25 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		p.logger.Info("Private action runner executor ready to accept actions")
 	}()
 
-	lis, err := executor.Listen(executor.DefaultSocketPath)
-	if err != nil {
-		return fmt.Errorf("failed to listen on executor socket %q: %w", executor.DefaultSocketPath, err)
+	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
+	if socketPath == "" {
+		socketPath = executor.DefaultSocketPath
 	}
-	p.logger.Info("Private action runner executor listening on " + executor.DefaultSocketPath)
+	lis, err := executor.Listen(socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)
+	}
+	p.logger.Info("Private action runner executor listening on " + socketPath)
 
 	p.executorDone = make(chan struct{})
+	// Drain bounded by the task timeout: that's the longest an in-flight action can run.
+	drainTimeout := 60 * time.Second
+	if cfg.TaskTimeoutSeconds != nil {
+		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
+	}
 	serveOpts := executor.ServeOptions{
-		DrainTimeout:      30 * time.Second,
-		OrphanIdleTimeout: 5 * time.Minute,
+		DrainTimeout:        drainTimeout,
+		IdleShutdownTimeout: time.Duration(p.coreConfig.GetInt(privateactionrunner.PARExecutorIdleShutdownTimeoutSeconds)) * time.Second,
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()

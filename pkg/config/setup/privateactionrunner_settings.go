@@ -35,6 +35,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
 	config.ParseEnvSplitComma(PARActionsAllowlist)
 
+	// Executor mode (split deployment). Empty socket path uses the platform default.
+	config.BindEnvAndSetDefault(PARExecutorSocketPath, "")
+	config.BindEnvAndSetDefault(PARExecutorIdleShutdownTimeoutSeconds, 300)
+
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})

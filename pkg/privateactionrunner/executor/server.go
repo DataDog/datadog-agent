@@ -25,9 +25,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
 
-// ProtocolVersion is the control<->executor gRPC contract version reported by Health.
-const ProtocolVersion uint32 = 1
-
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
 	RunPrepared(ctx context.Context, prepared *runners.PreparedWorkflowTask) (interface{}, error)
@@ -72,10 +69,9 @@ func (s *Server) SetReady(ready bool) {
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
 	s.touch()
 	return &pb.HealthResponse{
-		Ready:           s.ready.Load(),
-		ProtocolVersion: ProtocolVersion,
-		ActiveActions:   s.active.Load(),
-		Version:         s.version,
+		Ready:         s.ready.Load(),
+		ActiveActions: s.active.Load(),
+		Version:       s.version,
 	}, nil
 }
 
@@ -147,11 +143,10 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	})
 }
 
-// ServeOptions tunes drain and orphan-safety; zero values disable each bound.
+// ServeOptions tunes drain and idle-shutdown behavior; zero values disable each bound.
 type ServeOptions struct {
-	DrainTimeout      time.Duration // bounds graceful drain on stop; 0 waits forever
-	OrphanIdleTimeout time.Duration // >0: self-exit after this long idle with no in-flight actions
-	PollInterval      time.Duration // orphan watchdog poll period (default 5s)
+	DrainTimeout        time.Duration // bounds graceful drain on stop; 0 waits forever
+	IdleShutdownTimeout time.Duration // >0: self-exit after this long idle with no in-flight actions
 }
 
 // Serve serves the Executor on lis until ctx is cancelled or the orphan watchdog fires,
@@ -163,12 +158,8 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 	serveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if opts.OrphanIdleTimeout > 0 {
-		poll := opts.PollInterval
-		if poll <= 0 {
-			poll = 5 * time.Second
-		}
-		go srv.watchOrphan(serveCtx, cancel, opts.OrphanIdleTimeout, poll)
+	if opts.IdleShutdownTimeout > 0 {
+		go srv.watchIdle(serveCtx, cancel, opts.IdleShutdownTimeout)
 	}
 
 	errCh := make(chan error, 1)
@@ -185,7 +176,17 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 	}
 }
 
-func (s *Server) watchOrphan(ctx context.Context, cancel context.CancelFunc, idle, poll time.Duration) {
+// idlePollCap bounds how often watchIdle checks for inactivity.
+const idlePollCap = 5 * time.Second
+
+func (s *Server) watchIdle(ctx context.Context, cancel context.CancelFunc, idle time.Duration) {
+	poll := idle / 2
+	if poll > idlePollCap {
+		poll = idlePollCap
+	}
+	if poll <= 0 {
+		poll = time.Millisecond
+	}
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
 	for {

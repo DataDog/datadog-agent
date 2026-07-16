@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutorClient interface {
-	// RunAction runs a single action and streams status updates ending in a final ActionResult.
+	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(ctx context.Context, in *RunActionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RunActionResponse], error)
 	// Health reports executor readiness and liveness; used to gate dispatch.
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
@@ -74,7 +74,7 @@ func (c *executorClient) Health(ctx context.Context, in *HealthRequest, opts ...
 // All implementations must embed UnimplementedExecutorServer
 // for forward compatibility.
 type ExecutorServer interface {
-	// RunAction runs a single action and streams status updates ending in a final ActionResult.
+	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(*RunActionRequest, grpc.ServerStreamingServer[RunActionResponse]) error
 	// Health reports executor readiness and liveness; used to gate dispatch.
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)

@@ -1,6 +1,5 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
-load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
 exports_files(["executor.proto"])
 
@@ -70,17 +69,4 @@ go_proto_library(
     proto = ":executor_proto",
     visibility = ["//visibility:public"],
     deps = [":errorcode_go_proto"],
-)
-
-_LINUX_OR_WINDOWS = select({
-    "@platforms//os:linux": [],
-    "@platforms//os:windows": [],
-    "//conditions:default": ["@platforms//:incompatible"],
-})
-
-rust_prost_library(
-    name = "executor_rust_proto",
-    proto = ":executor_proto",
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    visibility = ["//visibility:public"],
 )
