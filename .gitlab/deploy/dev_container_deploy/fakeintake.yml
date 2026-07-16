@@ -49,7 +49,10 @@ publish_fakeintake_pinned:
   stage: dev_container_deploy
   rules:
     - !reference [.except_mergequeue]
-    - <<: *if_main_branch
+    # NB: inline the main-branch condition — YAML anchors (*if_main_branch) are
+    # file-local and this file is a separate GitLab include, so `<<: *anchor`
+    # from .gitlab-ci.yml is not resolvable here (only !reference works cross-file).
+    - if: $CI_COMMIT_BRANCH == "main"
       changes:
         paths:
           - test/fakeintake/version/VERSION
