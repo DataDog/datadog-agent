@@ -23,6 +23,7 @@ from tasks.libs.owners.linter import (
     ai_artefacts_have_owner,
     codeowner_has_orphans,
     directory_has_packages_without_owner,
+    skills_use_agents_directory,
 )
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
@@ -134,6 +135,7 @@ def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
         directory_has_packages_without_owner,
         codeowner_has_orphans,
         functools.partial(ai_artefacts_have_owner, ctx),
+        functools.partial(skills_use_agents_directory, ctx),
     ]
 
     # Execute linters

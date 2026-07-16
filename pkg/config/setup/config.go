@@ -1144,8 +1144,8 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
-// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, and
-// Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
 // is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
@@ -1168,7 +1168,7 @@ func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLooku
 	}
 
 	switch {
-	case goos == "linux", goos == "darwin":
+	case goos == "linux", goos == "darwin", goos == "aix":
 		return
 	case goos == "windows":
 		if config.GetBool("process_manager.enabled") {

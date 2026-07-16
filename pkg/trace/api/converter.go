@@ -28,12 +28,9 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 	reg := semantics.DefaultRegistry()
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
-	// Empty or nil chunks are dropped at conversion so they never enter the idx
-	// payload. This mirrors the legacy pb.TracerPayload path, which removed empty
-	// chunks before processing, and avoids leaving nil entries in the slice.
-	idxChunks := make([]*idx.InternalTraceChunk, 0, len(payload.Chunks))
+	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
 	chunkConvertedFields := idx.ChunkConvertedFields{}
-	for _, chunk := range payload.Chunks {
+	for chunkIndex, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
 		}
@@ -181,27 +178,26 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				idxSpans[spanIndex].SetStringAttribute("_dd.convertedv1", originPayloadVersion)
 			}
 		}
-		idxChunk := &idx.InternalTraceChunk{
+		idxChunks[chunkIndex] = &idx.InternalTraceChunk{
 			Strings:      stringTable,
 			Attributes:   chunkAttrs,
 			Spans:        idxSpans,
 			DroppedTrace: chunk.DroppedTrace,
 		}
-		idxChunk.SetOrigin(chunk.Origin)
-		idxChunk.ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
-		if chunk.Priority != int32(sampler.PriorityNone) && idxChunk.Priority == int32(sampler.PriorityNone) {
+		idxChunks[chunkIndex].SetOrigin(chunk.Origin)
+		idxChunks[chunkIndex].ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
+		if chunk.Priority != int32(sampler.PriorityNone) && idxChunks[chunkIndex].Priority == int32(sampler.PriorityNone) {
 			// If the chunk has a priority set and none on any internal span then use the chunk's priority
-			idxChunk.Priority = chunk.Priority
+			idxChunks[chunkIndex].Priority = chunk.Priority
 		}
-		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
+		if chunkDm, ok := idxChunks[chunkIndex].GetAttributeAsString("_dd.p.dm"); ok && idxChunks[chunkIndex].SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
 			samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32)
 			if err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
 			}
-			idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
+			idxChunks[chunkIndex].SetSamplingMechanism(uint32(samplingMechanism))
 		}
-		idxChunks = append(idxChunks, idxChunk)
 	}
 	idxPayload := &idx.InternalTracerPayload{
 		Strings:    stringTable,

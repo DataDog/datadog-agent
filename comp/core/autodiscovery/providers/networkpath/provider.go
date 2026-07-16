@@ -29,7 +29,7 @@ import (
 const (
 	scheduledType = "scheduled"
 	dynamicType   = "dynamic"
-	configSource  = names.NetworkPathRemoteConfig + ":scheduled"
+	configSource  = names.NetworkPathRemoteConfig + ":" + scheduledType
 )
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
@@ -45,7 +45,8 @@ type Provider struct {
 }
 
 type remoteConfigEnvelope struct {
-	Type         string           `json:"type"`
+	Type string `json:"type"`
+	// TestConfigID identifies the scheduled test definition shared by all endpoints in Config.
 	TestConfigID string           `json:"test_config_id"`
 	Config       *scheduledConfig `json:"config"`
 }

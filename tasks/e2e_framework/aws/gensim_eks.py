@@ -214,7 +214,7 @@ def submit_gensim_eks(
     try:
         aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
     except Exception:
-        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin-8h -- "
 
     kubeconfig_path = _find_kubeconfig(stack_name)
     if os.path.exists(kubeconfig_path):
@@ -681,7 +681,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: st
         local_config = config.get_local_config(config_path)
         aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
     except (ValidationError, Exit):
-        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin-8h -- "
 
     short_stack = full_stack_name.split("/")[-1]
 

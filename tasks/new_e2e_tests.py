@@ -91,6 +91,13 @@ def _check_e2e_local_config_or_exit(
             "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
             1,
         )
+
+    # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
+    # rename like account-admin -> account-admin-8h). No-op if already present.
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
+
+    setup_aws_sso_config(cfg, interactive=False)
+
     azure_missing = cfg is None or cfg.configParams.azure is None
     gcp_missing = cfg is None or cfg.configParams.gcp is None
     if azure_missing:
@@ -654,7 +661,7 @@ def run(
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
             sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
+                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
                 hide=True,
             ).stdout.strip()
             registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
@@ -1506,7 +1513,7 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
     )
     if ecr_password_res.exited != 0:
         ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
+            "aws-vault exec sso-agent-qa-account-admin-8h -- aws ecr get-login-password", hide=True, warn=True
         )
     if ecr_password_res.exited != 0:
         print(

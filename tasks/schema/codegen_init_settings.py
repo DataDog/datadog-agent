@@ -70,6 +70,18 @@ class CodeGeneratorTarget:
             sourcecode = self.filesystem[filename]
             output_func_header(funcname, sourcecode)
             for row in settings:
+                # pattern
+                if row[1].startswith('pattern_'):
+                    suffix_list = get_suffixes_for_pattern(row[1])
+                    for suffix in suffix_list:
+                        keyname = join_key(row[0], suffix)
+                        if keyname not in self.buffer:
+                            continue
+                        setting = self.buffer[keyname]
+                        self.buffer[keyname].done = True
+                        sourcecode = sourcecode + setting.sourcecode
+                    continue
+                # single setting
                 keyname = row[0]
                 if keyname not in self.buffer:
                     continue
@@ -148,10 +160,12 @@ class CodeGeneratorTarget:
                 f.write('\n'.join(self.filesystem[filename]))
 
 
-def join_key(path, field):
-    if path == '':
+def join_key(prefix, field):
+    if prefix == '':
         return field
-    return f"{path}.{field}"
+    if prefix.endswith('.'):
+        return f"{prefix}{field}"
+    return f"{prefix}.{field}"
 
 
 def _is_node_leaf(node):
@@ -184,6 +198,12 @@ def retrieve_hint(hints_obj, keyname):
         for row in perFilenameFuncSettings['settings']:
             if row[0] == keyname:
                 return {'kind': row[1], 'internal_comment': row[2]}
+            elif row[1].startswith('pattern_') and keyname.startswith(row[0]):
+                # When multiple settings are created for a prefix, only add the
+                # comment to the first such setting.
+                internal_comment = row[2]
+                row[2] = ''
+                return {'kind': row[1], 'internal_comment': internal_comment}
     return None
 
 
@@ -378,6 +398,43 @@ def retrieve_method_to_declare(keypath, schema):
     return 'BindEnvAndSetDefault'
 
 
+def get_suffixes_for_pattern(pattern):
+    if pattern == 'pattern_logs_config':
+        return [
+            'logs_dd_url',
+            'dd_url',
+            'additional_endpoints',
+            'use_compression',
+            'compression_kind',
+            'zstd_compression_level',
+            'compression_level',
+            'batch_wait',
+            'connection_reset_interval',
+            'logs_no_ssl',
+            'batch_max_concurrent_send',
+            'batch_max_content_size',
+            'batch_max_size',
+            'input_chan_size',
+            'sender_backoff_factor',
+            'sender_backoff_base',
+            'sender_backoff_max',
+            'sender_recovery_interval',
+            'sender_recovery_reset',
+            'use_v2_api',
+            'dev_mode_no_ssl',
+        ]
+    elif pattern == 'pattern_delegate_auth':
+        return [
+            'delegated_auth.org_uuid',
+            'delegated_auth.refresh_interval_mins',
+            'delegated_auth.provider',
+            'delegated_auth.aws.region',
+            'api_key',
+        ]
+    else:
+        raise RuntimeError(f"unknown pattern: {pattern}")
+
+
 def env_parser_to_func_call(name, env_parser, get_vartype):
     parser_func = None
     is_method_key_vartype = False
@@ -504,7 +561,7 @@ def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
     Entry point for code generation.
     schema          - loaded schema object (dict with schema['properities'])
     filename_filter - optional function to filter output filenames (or None)
-    hints           - hints object
+    hints           - hints object, used for func order (if keep_orig_order) and comments (always)
     keep_orig_order - bool, whether to use order from the hints object
     outsource_dir   - the directory to output source code to
     """

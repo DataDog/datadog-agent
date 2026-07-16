@@ -7,7 +7,6 @@
 package collector
 
 import (
-	"context"
 	"expvar"
 	"fmt"
 	"slices"
@@ -24,13 +23,10 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,8 +70,6 @@ type CheckScheduler struct {
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
 	shadowSenderManager sender.SenderManager
-	shadowSenderContext context.Context
-	shadowSenderCancel  context.CancelFunc
 	shadowCoreLoader    check.Loader
 	infraTagger         *infratags.Tagger // nil = no infra mode tagging
 	m                   sync.RWMutex
@@ -97,6 +91,17 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	}
 
 	return checkScheduler
+}
+
+// SetMetricLookbackShadowSenderManager sets the sender manager used by metric
+// lookback shadow checks loaded by this scheduler.
+func (s *CheckScheduler) SetMetricLookbackShadowSenderManager(senderManager sender.SenderManager) {
+	if s == nil {
+		return
+	}
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.shadowSenderManager = senderManager
 }
 
 // Schedule schedules configs to checks
@@ -168,17 +173,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop releases scheduler-owned resources.
-func (s *CheckScheduler) Stop() {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	if s.shadowSenderCancel != nil {
-		s.shadowSenderCancel()
-		s.shadowSenderCancel = nil
-		s.shadowSenderContext = nil
-	}
-}
+// Stop satisfies the autodiscovery scheduler interface.
+func (s *CheckScheduler) Stop() {}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
@@ -194,7 +190,7 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 func (s *CheckScheduler) getChecks(config integration.Config, includeShadowChecks bool) ([]check.Check, error) {
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
-	var shadowCandidates map[int]metriclookback.ShadowCandidate
+	var shadowCandidates map[int]shadowCandidate
 	if includeShadowChecks {
 		shadowCandidates = shadowCandidatesByInstance(config)
 	}
@@ -293,18 +289,6 @@ func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, boo
 	}
 }
 
-func shadowCandidatesByInstance(config integration.Config) map[int]metriclookback.ShadowCandidate {
-	candidates := metriclookback.SelectShadowCandidates([]integration.Config{config}, metriclookback.ShadowPolicyOptionsFromConfig(setup.Datadog()))
-	if len(candidates) == 0 {
-		return nil
-	}
-	byInstance := make(map[int]metriclookback.ShadowCandidate, len(candidates))
-	for _, candidate := range candidates {
-		byInstance[candidate.InstanceIndex] = candidate
-	}
-	return byInstance
-}
-
 func (s *CheckScheduler) loadCheckInstance(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int, selectedInstanceLoader string) loadInstanceResult {
 	result := loadInstanceResult{loaderErrors: make(map[string]error, len(s.loaders))}
 	for _, loader := range s.loaders {
@@ -334,67 +318,6 @@ func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, ch
 		return
 	}
 	chkSender.SetInfraTagger(s.infraTagger)
-}
-
-func (s *CheckScheduler) ensureShadowSenderContext() context.Context {
-	if s.shadowSenderContext == nil {
-		s.shadowSenderContext, s.shadowSenderCancel = context.WithCancel(context.Background())
-	}
-	return s.shadowSenderContext
-}
-
-func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
-	shadowSenderManager := s.shadowSenderManager
-	if shadowSenderManager == nil {
-		shadowSenderManager = lookbacksender.NewSenderManager(s.ensureShadowSenderContext(), "", nil, nil)
-		s.shadowSenderManager = shadowSenderManager
-	}
-	shadowCheckID := check.ShadowID(sourceCheckID)
-	checkSenderManager := &shadowCheckSenderManager{
-		SenderManager: shadowSenderManager,
-		shadowCheckID: shadowCheckID,
-	}
-	loadedCheck, err := loader.Load(checkSenderManager, candidate.SourceConfig, candidate.Instance, candidate.InstanceIndex)
-	if err != nil {
-		checkSenderManager.DestroySender(shadowCheckID)
-		return nil, err
-	}
-	if !checkSenderManager.RegisterCallbackID(loadedCheck.ID()) {
-		log.Warnf("Unable to register metric lookback rtloader callback route for shadow check %s loaded as %s", shadowCheckID, loadedCheck.ID())
-	}
-	s.applyInfraTagger(checkSenderManager, candidate.SourceConfig.Name, shadowCheckID)
-	return check.NewShadowCheckForSource(loadedCheck, sourceCheckID, candidate.ShadowInterval, checkSenderManager), nil
-}
-
-type shadowCheckSenderManager struct {
-	sender.SenderManager
-	shadowCheckID       checkid.ID
-	unregisterCallbacks []func()
-}
-
-func (m shadowCheckSenderManager) GetSender(checkid.ID) (sender.Sender, error) {
-	return m.SenderManager.GetSender(m.shadowCheckID)
-}
-
-func (m shadowCheckSenderManager) SetSender(s sender.Sender, _ checkid.ID) error {
-	return m.SenderManager.SetSender(s, m.shadowCheckID)
-}
-
-func (m *shadowCheckSenderManager) DestroySender(checkid.ID) {
-	for _, unregister := range m.unregisterCallbacks {
-		unregister()
-	}
-	m.unregisterCallbacks = nil
-	m.SenderManager.DestroySender(m.shadowCheckID)
-}
-
-func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) bool {
-	unregister, ok := collectoraggregator.RegisterCheckSenderManager(id, m)
-	if !ok {
-		return false
-	}
-	m.unregisterCallbacks = append(m.unregisterCallbacks, unregister)
-	return true
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
