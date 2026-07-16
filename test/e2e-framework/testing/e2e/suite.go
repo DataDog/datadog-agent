@@ -236,11 +236,10 @@ func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
 	bs.T().Logf(format, args...)
 }
 
-// FailNow satisfies the common.Context interface by logging the message and stopping the test.
+// FailNow satisfies the common.Context interface by recording a structured assertion and stopping the test.
 func (bs *BaseSuite[Env]) FailNow(format string, args ...any) {
 	bs.T().Helper()
-	bs.T().Logf(format, args...)
-	bs.T().FailNow()
+	bs.Require().FailNow(fmt.Sprintf(format, args...))
 }
 
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
@@ -302,7 +301,7 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 		defer func() {
 			utils.Logf(bs.T(), "Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
-			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
+			bs.Require().FailNow("TearDownSuite called after SetupSuite failed")
 		}()
 
 		// run environment diagnose
@@ -333,7 +332,8 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
-		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
+		// Record a non-fatal assertion before panicking so AfterTest observes the failure.
+		bs.Assert().Fail("failed to update environment", "%v", err)
 		panic(err)
 	}
 }
@@ -612,7 +612,8 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
+		// Record a non-fatal assertion before panicking so AfterTest observes the failure.
+		bs.Assert().Fail("failed to restore original environment", "%v", err)
 		panic(err)
 	}
 }
