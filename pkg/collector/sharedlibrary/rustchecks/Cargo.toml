@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "core", 
+    "core",
     "checks/example",
+    "checks/no-symbols",
 ]
 resolver = "2"
 
