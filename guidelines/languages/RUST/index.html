@@ -4483,15 +4483,15 @@
   
 
 
-<h1 id="rust-in-the-datadog-agent">Rust in the Datadog Agent</h1>
+<h1 id="rust-in-the-datadog-agent">Rust in the Datadog Agent<a class="headerlink" href="#rust-in-the-datadog-agent" title="Permanent link">&para;</a></h1>
 <p>This document describes how Rust components are built and integrated in the Datadog Agent repository.</p>
-<h2 id="overview">Overview</h2>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The Datadog Agent uses <a href="https://github.com/bazelbuild/rules_rust">rules_rust</a> for building Rust code with Bazel and <a href="https://github.com/dzbarsky/rules_rs">rules_rs</a> to manage Cargo crates. This enables seamless integration with the existing Go and Python codebase, consistent toolchain management, and reproducible builds across the repository.</p>
 <blockquote>
 <p><strong>Important:</strong> We strongly encourage using Bazel directly for all Rust operations (building, testing, except Cargo.toml management) rather than Cargo. While Cargo may work for some local development tasks, Bazel is the source of truth for builds and ensures consistency with CI. All instructions in this document use Bazel commands.</p>
 </blockquote>
-<h2 id="toolchain-configuration">Toolchain Configuration</h2>
-<h3 id="bazel-module-configuration">Bazel Module Configuration</h3>
+<h2 id="toolchain-configuration">Toolchain Configuration<a class="headerlink" href="#toolchain-configuration" title="Permanent link">&para;</a></h2>
+<h3 id="bazel-module-configuration">Bazel Module Configuration<a class="headerlink" href="#bazel-module-configuration" title="Permanent link">&para;</a></h3>
 <p>The Rust toolchain is configured in <a href="https://github.com/DataDog/datadog-agent/blob/main/MODULE.bazel">MODULE.bazel</a>:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">bazel_dep</span><span class="p">(</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;rules_rust&quot;</span><span class="p">,</span> <span class="n">version</span> <span class="o">=</span> <span class="s2">&quot;0.68.1&quot;</span><span class="p">)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -4512,12 +4512,12 @@
 <p><strong>Important:</strong> This is a global toolchain configuration that is used across the entire codebase of <code>datadog-agent</code>. The configuration in <a href="https://github.com/DataDog/datadog-agent/blob/main/MODULE.bazel">MODULE.bazel</a> <strong>should not be changed</strong> without proper testing to ensure
 that all <code>rust</code> components are still working.</p>
 </blockquote>
-<h2 id="crate-management">Crate Management</h2>
+<h2 id="crate-management">Crate Management<a class="headerlink" href="#crate-management" title="Permanent link">&para;</a></h2>
 <p>All external Rust crates are managed <strong>centrally</strong> through a single <a href="https://doc.rust-lang.org/cargo/reference/workspaces.html">Cargo workspace</a> defined in the root <a href="https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml">Cargo.toml</a>. Individual components <strong>must not</strong> declare their own dependency versions — all versions live in the root <code>[workspace.dependencies]</code> section, and component <code>Cargo.toml</code> files reference them with <code>.workspace = true</code>.</p>
 <blockquote>
 <p><strong>Important:</strong> Do not add crate versions directly in a component's <code>Cargo.toml</code>. Every external dependency must be declared in the root <a href="https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml">Cargo.toml</a> under <code>[workspace.dependencies]</code>. This ensures consistent versions across all Rust components, a single <code>Cargo.lock</code>, and a single source of truth for Bazel crate resolution.</p>
 </blockquote>
-<h3 id="how-it-works">How It Works</h3>
+<h3 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
 <p>The root <a href="https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml">Cargo.toml</a> defines three things:</p>
 <ol>
 <li><strong><code>[workspace]</code></strong> — lists all Rust component directories as <code>members</code></li>
@@ -4540,7 +4540,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">tokio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="n">features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;macros&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rt-multi-thread&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;signal&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>This produces a single <code>Cargo.lock</code> at the repository root — all components share the same resolved dependency graph.</p>
-<h3 id="bazel-integration">Bazel Integration</h3>
+<h3 id="bazel-integration">Bazel Integration<a class="headerlink" href="#bazel-integration" title="Permanent link">&para;</a></h3>
 <p>The workspace is registered once in <a href="https://github.com/DataDog/datadog-agent/blob/main/deps/crates.MODULE.bazel">deps/crates.MODULE.bazel</a>, pointing to the root <code>Cargo.toml</code> and <code>Cargo.lock</code>:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">crate</span> <span class="o">=</span> <span class="n">use_extension</span><span class="p">(</span><span class="s2">&quot;@rules_rs//rs:extensions.bzl&quot;</span><span class="p">,</span> <span class="s2">&quot;crate&quot;</span><span class="p">)</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">crate</span><span class="o">.</span><span class="n">from_cargo</span><span class="p">(</span>
@@ -4556,7 +4556,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">use_repo</span><span class="p">(</span><span class="n">crate</span><span class="p">,</span> <span class="s2">&quot;crates&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <p>All components reference crates from this single repository: <code>@crates//:&lt;crate_name&gt;</code>. There is intentionally only one <code>crate.from_cargo</code> entry — do not add per-component entries.</p>
-<h3 id="adding-dependencies-to-an-existing-component">Adding Dependencies to an Existing Component</h3>
+<h3 id="adding-dependencies-to-an-existing-component">Adding Dependencies to an Existing Component<a class="headerlink" href="#adding-dependencies-to-an-existing-component" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
 <p><strong>Add the dependency version to the root <a href="https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml">Cargo.toml</a></strong> under <code>[workspace.dependencies]</code> (skip if the crate is already listed):
@@ -4590,9 +4590,9 @@ that all <code>rust</code> components are still working.</p>
 <p><strong>Commit both the root <code>Cargo.toml</code> and <code>Cargo.lock</code></strong></p>
 </li>
 </ol>
-<h2 id="adding-a-new-rust-component">Adding a New Rust Component</h2>
+<h2 id="adding-a-new-rust-component">Adding a New Rust Component<a class="headerlink" href="#adding-a-new-rust-component" title="Permanent link">&para;</a></h2>
 <p>Follow these steps to add a new Rust component to the repository.</p>
-<h3 id="step-1-create-the-directory-structure">Step 1: Create the Directory Structure</h3>
+<h3 id="step-1-create-the-directory-structure">Step 1: Create the Directory Structure<a class="headerlink" href="#step-1-create-the-directory-structure" title="Permanent link">&para;</a></h3>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>&lt;path_to_your_component&gt;
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>├── BUILD.bazel
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>├── Cargo.toml
@@ -4604,7 +4604,7 @@ that all <code>rust</code> components are still working.</p>
 <blockquote>
 <p><strong>Note:</strong> The component directory does <strong>not</strong> contain a <code>Cargo.lock</code> — the single lock file lives at the repository root.</p>
 </blockquote>
-<h3 id="step-2-add-your-component-to-the-cargo-workspace">Step 2: Add Your Component to the Cargo Workspace</h3>
+<h3 id="step-2-add-your-component-to-the-cargo-workspace">Step 2: Add Your Component to the Cargo Workspace<a class="headerlink" href="#step-2-add-your-component-to-the-cargo-workspace" title="Permanent link">&para;</a></h3>
 <p>Edit the root <a href="https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml">Cargo.toml</a>:</p>
 <ol>
 <li>
@@ -4625,7 +4625,7 @@ that all <code>rust</code> components are still working.</p>
 </span></code></pre></div></p>
 </li>
 </ol>
-<h3 id="step-3-create-your-components-cargotoml">Step 3: Create Your Component's <code>Cargo.toml</code></h3>
+<h3 id="step-3-create-your-components-cargotoml">Step 3: Create Your Component's <code>Cargo.toml</code><a class="headerlink" href="#step-3-create-your-components-cargotoml" title="Permanent link">&para;</a></h3>
 <p>The component <code>Cargo.toml</code> must <strong>not</strong> contain any dependency version numbers. Use <code>.workspace = true</code> to inherit versions from the root:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[package]</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my_component&quot;</span>
@@ -4654,7 +4654,7 @@ that all <code>rust</code> components are still working.</p>
 <blockquote>
 <p><strong>Do not</strong> add <code>version = "..."</code> to dependencies in component <code>Cargo.toml</code> files. If the crate you need is not yet in the root <code>[workspace.dependencies]</code>, add it there first.</p>
 </blockquote>
-<h3 id="step-4-regenerate-the-lock-file">Step 4: Regenerate the Lock File</h3>
+<h3 id="step-4-regenerate-the-lock-file">Step 4: Regenerate the Lock File<a class="headerlink" href="#step-4-regenerate-the-lock-file" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>cargo<span class="w"> </span>generate-lockfile
 </span></code></pre></div>
 <blockquote>
@@ -4662,7 +4662,7 @@ that all <code>rust</code> components are still working.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 </span></code></pre></div></p>
 </blockquote>
-<h3 id="step-5-create-buildbazel">Step 5: Create BUILD.bazel</h3>
+<h3 id="step-5-create-buildbazel">Step 5: Create BUILD.bazel<a class="headerlink" href="#step-5-create-buildbazel" title="Permanent link">&para;</a></h3>
 <p>All components share the single <code>@crates</code> repository for external dependencies:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">load</span><span class="p">(</span><span class="s2">&quot;@rules_rust//rust:defs.bzl&quot;</span><span class="p">,</span> <span class="s2">&quot;rust_binary&quot;</span><span class="p">,</span> <span class="s2">&quot;rust_library&quot;</span><span class="p">,</span> <span class="s2">&quot;rust_test&quot;</span><span class="p">)</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
@@ -4698,7 +4698,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-13-32"><a id="__codelineno-13-32" name="__codelineno-13-32" href="#__codelineno-13-32"></a>    <span class="p">],</span>
 </span><span id="__span-13-33"><a id="__codelineno-13-33" name="__codelineno-13-33" href="#__codelineno-13-33"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="step-6-build-and-test">Step 6: Build and Test</h3>
+<h3 id="step-6-build-and-test">Step 6: Build and Test<a class="headerlink" href="#step-6-build-and-test" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Build</span>
 </span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>bazel<span class="w"> </span>build<span class="w"> </span>//pkg/your/component/rust:my_component
 </span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>bazel<span class="w"> </span>build<span class="w"> </span>//pkg/your/component/rust:my_binary
@@ -4706,8 +4706,8 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="c1"># Test</span>
 </span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>bazel<span class="w"> </span><span class="nb">test</span><span class="w"> </span>//pkg/your/component/rust:my_component_test
 </span></code></pre></div>
-<h2 id="build-target-types">Build Target Types</h2>
-<h3 id="rust_library">rust_library</h3>
+<h2 id="build-target-types">Build Target Types<a class="headerlink" href="#build-target-types" title="Permanent link">&para;</a></h2>
+<h3 id="rust_library">rust_library<a class="headerlink" href="#rust_library" title="Permanent link">&para;</a></h3>
 <p>For Rust libraries (produces <code>.rlib</code>):</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">rust_library</span><span class="p">(</span>
 </span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;my_lib&quot;</span><span class="p">,</span>
@@ -4717,7 +4717,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="n">deps</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;@crates//:serde&quot;</span><span class="p">],</span>
 </span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="rust_shared_library">rust_shared_library</h3>
+<h3 id="rust_shared_library">rust_shared_library<a class="headerlink" href="#rust_shared_library" title="Permanent link">&para;</a></h3>
 <p>For C-compatible shared libraries (produces <code>.so</code>/<code>.dylib</code>), useful for FFI with Go via cgo:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">rust_shared_library</span><span class="p">(</span>
 </span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;libmy_lib&quot;</span><span class="p">,</span>
@@ -4728,7 +4728,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="n">deps</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;@crates//:serde&quot;</span><span class="p">],</span>
 </span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="rust_binary">rust_binary</h3>
+<h3 id="rust_binary">rust_binary<a class="headerlink" href="#rust_binary" title="Permanent link">&para;</a></h3>
 <p>For executable binaries:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">rust_binary</span><span class="p">(</span>
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;my_tool&quot;</span><span class="p">,</span>
@@ -4737,7 +4737,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="n">deps</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;:my_lib&quot;</span><span class="p">],</span>
 </span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="rust_test">rust_test</h3>
+<h3 id="rust_test">rust_test<a class="headerlink" href="#rust_test" title="Permanent link">&para;</a></h3>
 <p>For unit and integration tests:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Unit tests (embedded in library)</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="n">rust_test</span><span class="p">(</span>
@@ -4761,7 +4761,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-18-20"><a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>    <span class="p">],</span>
 </span><span id="__span-18-21"><a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="p">)</span>
 </span></code></pre></div>
-<h2 id="platform-restrictions">Platform Restrictions</h2>
+<h2 id="platform-restrictions">Platform Restrictions<a class="headerlink" href="#platform-restrictions" title="Permanent link">&para;</a></h2>
 <p>To restrict targets to specific platforms, use <code>target_compatible_with</code>:</p>
 <div class="language-starlark highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">rust_library</span><span class="p">(</span>
 </span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;linux_only_lib&quot;</span><span class="p">,</span>
@@ -4771,7 +4771,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="p">],</span>
 </span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="p">)</span>
 </span></code></pre></div>
-<h2 id="release-builds">Release Builds</h2>
+<h2 id="release-builds">Release Builds<a class="headerlink" href="#release-builds" title="Permanent link">&para;</a></h2>
 <p>For optimized release builds with size optimization, use the <code>release</code> config:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>bazel<span class="w"> </span>build<span class="w"> </span>--config<span class="o">=</span>release<span class="w"> </span>//pkg/your/component/rust:my_binary
 </span></code></pre></div>
@@ -4781,7 +4781,7 @@ that all <code>rust</code> components are still working.</p>
 - Single codegen unit for maximum optimization
 - Symbol stripping</p>
 <p>The configuration lives in <a href="https://github.com/DataDog/datadog-agent/blob/main/bazel/configs/rust.bazelrc">bazel/configs/rust.bazelrc</a> and is shared by all Rust components.</p>
-<h2 id="ci-integration">CI Integration</h2>
+<h2 id="ci-integration">CI Integration<a class="headerlink" href="#ci-integration" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>TODO:</strong> Describe how to add rust build to CI.</p>
 </blockquote>
@@ -4800,8 +4800,8 @@ that all <code>rust</code> components are still working.</p>
 </span></code></pre></div>
 (or just <code>bazel build --config=lint //...</code> for a one-off check)</p>
 </blockquote>
-<h2 id="local-development-tips">Local Development Tips</h2>
-<h3 id="common-bazel-commands">Common Bazel Commands</h3>
+<h2 id="local-development-tips">Local Development Tips<a class="headerlink" href="#local-development-tips" title="Permanent link">&para;</a></h2>
+<h3 id="common-bazel-commands">Common Bazel Commands<a class="headerlink" href="#common-bazel-commands" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Build a target</span>
 </span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>bazel<span class="w"> </span>build<span class="w"> </span>//pkg/your/component/rust:my_component
 </span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
@@ -4817,7 +4817,7 @@ that all <code>rust</code> components are still working.</p>
 </span><span id="__span-23-13"><a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="c1"># Check crate resolution</span>
 </span><span id="__span-23-14"><a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>bazel<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;@crates//...&quot;</span>
 </span></code></pre></div>
-<h3 id="updating-dependencies">Updating Dependencies</h3>
+<h3 id="updating-dependencies">Updating Dependencies<a class="headerlink" href="#updating-dependencies" title="Permanent link">&para;</a></h3>
 <p>After modifying any <code>Cargo.toml</code>, regenerate the lock file from the repository root:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Alternatively, you can use cargo build command to do the same</span>
 </span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>cargo<span class="w"> </span>generate-lockfile
@@ -4825,7 +4825,7 @@ that all <code>rust</code> components are still working.</p>
 <p>Bazel will fail if <code>Cargo.toml</code> and <code>Cargo.lock</code> are out of sync:
 <div class="language-text highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 </span></code></pre></div></p>
-<h2 id="further-reading">Further Reading</h2>
+<h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="https://bazelbuild.github.io/rules_rust/">rules_rust documentation</a> - Rust toolchain and build rules</li>
 <li><a href="https://github.com/dzbarsky/rules_rs">rules_rs documentation</a> - Crate management</li>
