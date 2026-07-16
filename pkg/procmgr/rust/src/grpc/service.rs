@@ -122,7 +122,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
-        require_privileged_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -148,7 +147,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
-        require_privileged_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -171,9 +169,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
     async fn reload_config(
         &self,
-        request: Request<proto::ReloadConfigRequest>,
+        _request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        require_privileged_pipe_client(&request)?;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::ReloadConfig { reply: reply_tx })

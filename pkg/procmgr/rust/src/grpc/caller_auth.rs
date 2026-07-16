@@ -8,7 +8,10 @@ use tonic::{Request, Status};
 #[cfg(windows)]
 use crate::transport::PipeCallerAuth;
 
-/// Mutating RPCs require an Administrator or LocalSystem pipe client on Windows.
+/// `Create` requires an Administrator or LocalSystem pipe client on Windows.
+///
+/// `Start`, `Stop`, and `ReloadConfig` stay open to the agent user for now (dd-procmgr CLI
+/// and current supervision flows); revisit tightening in a follow-up.
 #[cfg(windows)]
 pub(crate) fn require_privileged_pipe_client<T>(request: &Request<T>) -> Result<(), Status> {
     let may_mutate = request
