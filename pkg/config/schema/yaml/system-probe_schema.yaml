@@ -558,11 +558,9 @@ properties:
         default:
         - 53
         items:
-          type: number
+          type: integer
         visibility: public
         description: A list of ports that should be monitored for DNS traffic.
-        tags:
-        - golang_type:[]int
       allow_netlink_conntracker_fallback:
         node_type: setting
         type: boolean
