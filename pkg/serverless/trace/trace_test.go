@@ -20,9 +20,20 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
+
+// newV1SpanWithAttrs builds an idx.InternalSpan carrying the given string attributes.
+func newV1SpanWithAttrs(attrs map[string]string) *idx.InternalSpan {
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{})
+	for k, v := range attrs {
+		span.SetStringAttribute(k, v)
+	}
+	return span
+}
 
 func setupTraceAgentTest(t *testing.T) {
 	// ensure a free port is used for starting the trace agent
@@ -122,6 +133,35 @@ func TestFilterSpanFromRuntimeLegitimateSpan(t *testing.T) {
 		},
 	}
 	assert.False(t, filterSpan(&legitimateSpan))
+}
+
+func TestFilterSpanV1FromRuntimeHttpSpan(t *testing.T) {
+	span := newV1SpanWithAttrs(map[string]string{
+		"http.url": "http://127.0.0.1:8125/",
+	})
+	assert.True(t, filterSpanV1(span))
+}
+
+func TestFilterSpanV1FromRuntimeTcpSpan(t *testing.T) {
+	span := newV1SpanWithAttrs(map[string]string{
+		"tcp.remote.host": "127.0.0.1",
+		"tcp.remote.port": "8125",
+	})
+	assert.True(t, filterSpanV1(span))
+}
+
+func TestFilterSpanV1FromRuntimeDnsSpan(t *testing.T) {
+	localhost := newV1SpanWithAttrs(map[string]string{"dns.address": "127.0.0.1"})
+	nonRoutable := newV1SpanWithAttrs(map[string]string{"dns.address": "0.0.0.0"})
+	assert.True(t, filterSpanV1(localhost))
+	assert.True(t, filterSpanV1(nonRoutable))
+}
+
+func TestFilterSpanV1FromRuntimeLegitimateSpan(t *testing.T) {
+	span := newV1SpanWithAttrs(map[string]string{
+		"http.url": "http://www.datadoghq.com",
+	})
+	assert.False(t, filterSpanV1(span))
 }
 
 func TestGetDDOriginCloudServices(t *testing.T) {
