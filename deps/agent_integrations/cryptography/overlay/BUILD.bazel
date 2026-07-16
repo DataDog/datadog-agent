@@ -1,3 +1,5 @@
+load("@rules_python//python:defs.bzl", "py_library")
+
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
@@ -7,7 +9,41 @@ filegroup(
 
 filegroup(
     name = "cffi_build_data",
-    srcs = glob(["src/_cffi_src/**"]) + ["src/cryptography/__about__.py"],
+    srcs = glob(
+        [
+            "src/_cffi_src/**",
+            "src/cryptography/__about__.py",
+        ],
+        allow_empty = True,
+    ),
+)
+
+filegroup(
+    name = "build_openssl_py",
+    srcs = glob(
+        ["src/_cffi_src/build_openssl.py"],
+        allow_empty = True,
+    ),
+)
+
+py_library(
+    name = "cryptography_py",
+    srcs = glob(
+        ["src/cryptography/**/*.py"],
+        allow_empty = True,
+    ),
+    imports = ["src"],
+)
+
+filegroup(
+    name = "cryptography_package_data",
+    srcs = glob(
+        [
+            "src/cryptography/**/*.pyi",
+            "src/cryptography/**/py.typed",
+        ],
+        allow_empty = True,
+    ),
 )
 
 exports_files([

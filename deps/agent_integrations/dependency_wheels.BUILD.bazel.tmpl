@@ -1,5 +1,87 @@
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("@@//deps/agent_integrations/cryptography:native_extension.bzl", "copy_native_extension")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+
+filegroup(
+    name = "dependency_wheels_without_cryptography",
+    srcs = [{wheel_srcs}],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "upstream_cryptography_wheel",
+    srcs = [{cryptography_wheel_src}],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dependency_wheels_upstream",
+    srcs = [
+        ":dependency_wheels_without_cryptography",
+        ":upstream_cryptography_wheel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+copy_native_extension(
+    name = "cryptography_rust_extension_unpatched",
+    src = "@cryptography_src//src/rust:cryptography_rust",
+    out = "{extension_filename}",
+)
+
+rewrite_rpath(
+    name = "cryptography_rust_extension_for_wheel",
+    inputs = [":cryptography_rust_extension_unpatched"],
+)
+
+# TODO: Once this is validated by install_wheels/import tests, make this the
+# default dependency_wheels replacement for FIPS builds.
+py_wheel(
+    name = "cryptography_wheel",
+    distribution = "cryptography",
+    version = "{cryptography_version}",
+    python_tag = "{python_tag}",
+    abi = "{abi_tag}",
+    platform = "{platform_tag}",
+    summary = "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
+    homepage = "https://github.com/pyca/cryptography",
+    license = "Apache-2.0 OR BSD-3-Clause",
+    python_requires = ">=3.9,!=3.9.0,!=3.9.1",
+    project_urls = {
+        "changelog": "https://cryptography.io/en/latest/changelog/",
+        "documentation": "https://cryptography.io/",
+        "homepage": "https://github.com/pyca/cryptography",
+        "issues": "https://github.com/pyca/cryptography/issues",
+        "source": "https://github.com/pyca/cryptography/",
+    },
+    requires = [
+        "cffi>=2.0.0; platform_python_implementation != 'PyPy'",
+        "typing-extensions>=4.13.2; python_version < '3.11'",
+    ],
+    # @cryptography_src extracts the sdist with sources under src/. py_wheel
+    # otherwise preserves that prefix in archive paths, so strip it to install
+    # the package as cryptography/...
+    strip_path_prefixes = ["src/"],
+    data_files = {
+        ":cryptography_rust_extension_for_wheel": "platlib/cryptography/hazmat/bindings/{extension_filename}",
+    },
+    deps = [
+        "@cryptography_src//:cryptography_package_data",
+        "@cryptography_src//:cryptography_py",
+    ],
+)
+
+filegroup(
+    name = "dependency_wheels_with_rebuilt_cryptography",
+    srcs = [
+        ":dependency_wheels_without_cryptography",
+        ":cryptography_wheel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 filegroup(
     name = "dependency_wheels",
-    srcs = [{wheel_srcs}],
+    srcs = [":dependency_wheels_upstream"],
     visibility = ["//visibility:public"],
 )

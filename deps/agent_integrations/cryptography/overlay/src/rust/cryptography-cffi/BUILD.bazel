@@ -1,36 +1,54 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
 load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
 
+_IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
+
+_TARGET_COMPATIBLE_WITH = ["@platforms//:incompatible"] if _IS_CHECKED_IN_OVERLAY else RESOLVED_PLATFORMS
+
+_REPO_ROOT_PKG = "/".join(package_name().split("/")[:-3])
+
+_BUILD_OPENSSL_PY = "@@//deps/agent_integrations/cryptography:placeholder_build_openssl_py" if _REPO_ROOT_PKG else "//:build_openssl_py"
+
+_CFFI_BUILD_DATA = "@@//deps/agent_integrations/cryptography:placeholder_cffi_build_data" if _REPO_ROOT_PKG else "//:cffi_build_data"
+
+_BUILD_SCRIPT_DATA = [
+    _BUILD_OPENSSL_PY,
+    _CFFI_BUILD_DATA,
+] if _REPO_ROOT_PKG else [
+    _BUILD_OPENSSL_PY,
+    _CFFI_BUILD_DATA,
+    "@@//deps/agent_integrations/cryptography:openssl_install_dir",
+]
+
+_BUILD_SCRIPT_TOOLS = [] if _REPO_ROOT_PKG else ["@@//deps/agent_integrations/cryptography:python_build_tool"]
+
+_PYO3_PYTHON = "python3" if _REPO_ROOT_PKG else "$(execpath @@//deps/agent_integrations/cryptography:python_build_tool)"
+
 rust_crate(
     name = "cryptography-cffi",
-    aliases = aliases(package_name = "src/rust/cryptography-cffi"),
+    aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-cffi"),
     binaries = {},
-    build_deps = ["@cryptography_crates//:cc-1.2.61"],
-    build_script = "build.rs",
-    build_script_data = [
-        "//:cffi_build_data",
-        "@@//deps/agent_integrations/cryptography:openssl_install_dir",
-    ],
+    build_deps = [] if _IS_CHECKED_IN_OVERLAY else ["@cryptography_crates//:cc-1.2.61"],
+    build_script = "" if _IS_CHECKED_IN_OVERLAY else "build.rs",
+    build_script_data = _BUILD_SCRIPT_DATA,
     build_script_env = {
-        # Temporary macOS prototype escape hatch: use a host Python with cffi
-        # installed under /tmp/cryptography-cffi-py.
-        "PYO3_PYTHON": "/Users/alex.lopez/.pyenv/versions/3.12.2/bin/python3",
-        "PYTHONPATH": "/tmp/cryptography-cffi-py",
+        "CRYPTOGRAPHY_BUILD_OPENSSL_PY": "$(execpath {})".format(_BUILD_OPENSSL_PY),
+        "PYO3_PYTHON": _PYO3_PYTHON,
     },
     build_script_toolchains = [],
-    build_script_tools = [],
+    build_script_tools = _BUILD_SCRIPT_TOOLS,
     crate_features = [],
     crate_name = "cryptography_cffi",
     crate_root = "src/lib.rs",
     data = [],
-    deps = [
-        "@cryptography_crates//:openssl-sys-0.9.115",
-        "@cryptography_crates//:pyo3-0.28.3",
-    ],
     edition = "2021",
     is_proc_macro = False,
     links = None,
     rustc_flags = [],
-    target_compatible_with = RESOLVED_PLATFORMS,
+    target_compatible_with = _TARGET_COMPATIBLE_WITH,
     version = "0.1.0",
+    deps = [] if _IS_CHECKED_IN_OVERLAY else [
+        "@cryptography_crates//:openssl-sys-0.9.115",
+        "@cryptography_crates//:pyo3-0.28.3",
+    ],
 )

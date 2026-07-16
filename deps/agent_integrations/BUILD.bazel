@@ -1,3 +1,4 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -35,6 +36,95 @@ entrypoints_dirname = select({
     "//conditions:default": "bin",
 })
 
+selects.config_setting_group(
+    name = "non_fips_flavor",
+    match_any = [
+        "//packages/agent:base_flavor",
+        "//packages/agent:heroku_flavor",
+        "//packages/agent:iot_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_x86_64_fips",
+    match_all = [
+        "//:linux_x86_64",
+        "//packages/agent:fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_x86_64_non_fips",
+    match_all = [
+        "//:linux_x86_64",
+        ":non_fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_arm64_fips",
+    match_all = [
+        "//:linux_arm64",
+        "//packages/agent:fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_arm64_non_fips",
+    match_all = [
+        "//:linux_arm64",
+        ":non_fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_x86_64_fips",
+    match_all = [
+        "//:macos_x86_64",
+        "//packages/agent:fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_x86_64_non_fips",
+    match_all = [
+        "//:macos_x86_64",
+        ":non_fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_arm64_fips",
+    match_all = [
+        "//:macos_arm64",
+        "//packages/agent:fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_arm64_non_fips",
+    match_all = [
+        "//:macos_arm64",
+        ":non_fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64_fips",
+    match_all = [
+        "//:windows_x86_64",
+        "//packages/agent:fips_flavor",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64_non_fips",
+    match_all = [
+        "//:windows_x86_64",
+        ":non_fips_flavor",
+    ],
+)
+
 install_wheels(
     name = "integrations",
     srcs = [
@@ -42,11 +132,16 @@ install_wheels(
         "@pip//file",
     ] + select(
         {
-            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
-            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
-            "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
-            "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
-            "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
+            ":linux_x86_64_fips": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels_with_rebuilt_cryptography"],
+            ":linux_x86_64_non_fips": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels_upstream"],
+            ":linux_arm64_fips": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels_with_rebuilt_cryptography"],
+            ":linux_arm64_non_fips": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels_upstream"],
+            ":macos_x86_64_fips": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels_with_rebuilt_cryptography"],
+            ":macos_x86_64_non_fips": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels_upstream"],
+            ":macos_arm64_fips": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels_with_rebuilt_cryptography"],
+            ":macos_arm64_non_fips": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels_upstream"],
+            ":windows_x86_64_fips": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels_with_rebuilt_cryptography"],
+            ":windows_x86_64_non_fips": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels_upstream"],
         },
         no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
     ),

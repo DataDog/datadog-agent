@@ -1,11 +1,43 @@
 """Inputs for building cryptography from source for FIPS Python integrations."""
 
+load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
 package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "python_build_tool",
+    srcs = ["python_build_tool.py"],
+    main = "python_build_tool.py",
+    deps = [
+        requirement("cffi"),
+        requirement("setuptools"),
+    ],
+)
+
+py_binary(
+    name = "copy_file_tool",
+    srcs = ["copy_file.py"],
+    main = "copy_file.py",
+)
 
 filegroup(
     name = "openssl_install_dir",
-    srcs = ["@openssl//:openssl"],
+    srcs = ["@openssl"],
     output_group = "gen_dir",
+)
+
+filegroup(
+    name = "placeholder_build_openssl_py",
+    srcs = ["placeholder_build_openssl.py"],
+)
+
+filegroup(
+    name = "placeholder_cffi_build_data",
+    srcs = [
+        "placeholder_about.py",
+        "placeholder_build_openssl.py",
+    ],
 )
 
 filegroup(

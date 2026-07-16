@@ -1,2 +1,4 @@
+cffi==2.0.0  # Build-time dependency for cryptography's CFFI Rust crate
 hatchling==1.31.0  # Build backend used by integration packages
 installer==1.0.1  # Wheel installer
+setuptools==80.9.0  # Build-time dependency for cryptography's CFFI Rust crate

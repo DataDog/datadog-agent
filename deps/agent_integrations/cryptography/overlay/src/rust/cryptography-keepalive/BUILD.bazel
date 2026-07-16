@@ -1,9 +1,13 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
 load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
 
+_IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
+
+_TARGET_COMPATIBLE_WITH = ["@platforms//:incompatible"] if _IS_CHECKED_IN_OVERLAY else RESOLVED_PLATFORMS
+
 rust_crate(
     name = "cryptography-keepalive",
-    aliases = aliases(package_name = "src/rust/cryptography-keepalive"),
+    aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-keepalive"),
     binaries = {},
     build_deps = [],
     build_script = "",
@@ -15,11 +19,11 @@ rust_crate(
     crate_name = "cryptography_keepalive",
     crate_root = "src/lib.rs",
     data = [],
-    deps = ["@cryptography_crates//:pyo3-0.28.3"],
     edition = "2021",
     is_proc_macro = False,
     links = None,
     rustc_flags = [],
-    target_compatible_with = RESOLVED_PLATFORMS,
+    target_compatible_with = _TARGET_COMPATIBLE_WITH,
     version = "0.1.0",
+    deps = [] if _IS_CHECKED_IN_OVERLAY else ["@cryptography_crates//:pyo3-0.28.3"],
 )

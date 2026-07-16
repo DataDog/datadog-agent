@@ -1,10 +1,25 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
 load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
 
-_ALIASES = dict(aliases(package_name = "src/rust/cryptography-x509-verification"))
+_IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
+
+_TARGET_COMPATIBLE_WITH = ["@platforms//:incompatible"] if _IS_CHECKED_IN_OVERLAY else RESOLVED_PLATFORMS
+
+_SRC_RUST = "//" + "/".join(package_name().split("/")[:-1])
+
+_CRYPTOGRAPHY_X509 = _SRC_RUST + "/cryptography-x509"
+
+_ALIASES = {
+    label: crate_name
+    for label, crate_name in aliases(package_name = "src/rust/cryptography-x509-verification").items()
+    if not label.startswith("//src/rust/")
+}
+
 _ALIASES.update({
-    "//src/rust/cryptography-x509": "cryptography_x509",
+    _CRYPTOGRAPHY_X509: "cryptography_x509",
 })
+
+_ALIASES = {} if _IS_CHECKED_IN_OVERLAY else _ALIASES
 
 rust_crate(
     name = "cryptography-x509-verification",
@@ -20,14 +35,14 @@ rust_crate(
     crate_name = "cryptography_x509_verification",
     crate_root = "src/lib.rs",
     data = [],
-    deps = [
-        "//src/rust/cryptography-x509",
-        "@cryptography_crates//:asn1-0.24.1",
-    ],
     edition = "2021",
     is_proc_macro = False,
     links = None,
     rustc_flags = [],
-    target_compatible_with = RESOLVED_PLATFORMS,
+    target_compatible_with = _TARGET_COMPATIBLE_WITH,
     version = "0.1.0",
+    deps = [] if _IS_CHECKED_IN_OVERLAY else [
+        _CRYPTOGRAPHY_X509,
+        "@cryptography_crates//:asn1-0.24.1",
+    ],
 )

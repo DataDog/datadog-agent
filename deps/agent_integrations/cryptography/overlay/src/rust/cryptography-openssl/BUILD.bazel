@@ -1,6 +1,10 @@
 load("@cryptography_crates//:defs.bzl", "RESOLVED_PLATFORMS", "aliases")
 load("@rules_rs//rs:rust_crate.bzl", "rust_crate")
 
+_IS_CHECKED_IN_OVERLAY = package_name().startswith("deps/agent_integrations/cryptography/overlay/")
+
+_TARGET_COMPATIBLE_WITH = ["@platforms//:incompatible"] if _IS_CHECKED_IN_OVERLAY else RESOLVED_PLATFORMS
+
 OPENSSL_CFGS = [
     "--cfg=CRYPTOGRAPHY_OPENSSL_320_OR_GREATER",
     "--cfg=CRYPTOGRAPHY_OPENSSL_350_OR_GREATER",
@@ -8,10 +12,10 @@ OPENSSL_CFGS = [
 
 rust_crate(
     name = "cryptography-openssl",
-    aliases = aliases(package_name = "src/rust/cryptography-openssl"),
+    aliases = {} if _IS_CHECKED_IN_OVERLAY else aliases(package_name = "src/rust/cryptography-openssl"),
     binaries = {},
     build_deps = [],
-    build_script = "build.rs",
+    build_script = "" if _IS_CHECKED_IN_OVERLAY else "build.rs",
     build_script_data = [],
     build_script_env = {},
     build_script_toolchains = [],
@@ -20,17 +24,17 @@ rust_crate(
     crate_name = "cryptography_openssl",
     crate_root = "src/lib.rs",
     data = [],
-    deps = [
+    edition = "2021",
+    is_proc_macro = False,
+    links = None,
+    rustc_flags = OPENSSL_CFGS,
+    target_compatible_with = _TARGET_COMPATIBLE_WITH,
+    version = "0.1.0",
+    deps = [] if _IS_CHECKED_IN_OVERLAY else [
         "@cryptography_crates//:cfg-if-1.0.4",
         "@cryptography_crates//:foreign-types-0.3.2",
         "@cryptography_crates//:foreign-types-shared-0.1.1",
         "@cryptography_crates//:openssl-0.10.79",
         "@cryptography_crates//:openssl-sys-0.9.115",
     ],
-    edition = "2021",
-    is_proc_macro = False,
-    links = None,
-    rustc_flags = OPENSSL_CFGS,
-    target_compatible_with = RESOLVED_PLATFORMS,
-    version = "0.1.0",
 )
