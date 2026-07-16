@@ -17,19 +17,19 @@ import (
 
 // contextImpl is a struct that implements context.Context but has no
 // context.Context field of its own, so it is not a link in a walkable context
-// chain (like rapid.Context, whose context methods delegate to the request's
-// context). It is captured as a plain struct argument, so the debugger must
-// capture its fields normally rather than treating it as a context to
-// chain-walk. Its non-empty interface fields, each backed by a concrete type
-// from another package, are the ones that regressed to
-// "UnknownType(...) out of bounds" when such a struct was wrongly handled as a
-// context.
+// chain (for example rapid.Context, whose context methods forward to the
+// request's context). It is captured as a plain struct argument, so the
+// debugger must capture its fields normally rather than treating it as a
+// context to chain-walk. Each interface field below is backed by a concrete
+// type from a different package (time, bytes, strings, errors); resolving those
+// cross-package concrete types is what regressed to "UnknownType(...) out of
+// bounds" when such a struct was wrongly handled as a context.
 type contextImpl struct {
-	logger    fmt.Stringer // time.Duration (foreign)
-	responder io.Writer    // *bytes.Buffer (foreign)
-	decoder   io.Reader    // *strings.Reader (foreign)
-	params    error        // *errors.errorString (foreign, unexported)
-	secrets   fmt.Stringer // time.Time (foreign)
+	logger    fmt.Stringer // concrete type: time.Duration
+	responder io.Writer    // concrete type: *bytes.Buffer
+	decoder   io.Reader    // concrete type: *strings.Reader
+	params    error        // concrete type: *errors.errorString (unexported)
+	secrets   fmt.Stringer // concrete type: time.Time
 }
 
 var _ context.Context = (*contextImpl)(nil)

@@ -492,14 +492,14 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1543392
       GoKind: 22
-      Pointee: 167 StructureType context.backgroundCtx
+      Pointee: 167 GoContextImplementationType context.backgroundCtx
     - __kind: PointerType
       ID: 177
       Name: '*context.cancelCtx'
       ByteSize: 8
       GoRuntimeType: 1718496
       GoKind: 22
-      Pointee: 178 StructureType context.cancelCtx
+      Pointee: 178 GoContextImplementationType context.cancelCtx
     - __kind: PointerType
       ID: 627
       Name: '*context.deadlineExceededError'
@@ -513,42 +513,42 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1408096
       GoKind: 22
-      Pointee: 154 StructureType context.emptyCtx
+      Pointee: 154 GoContextImplementationType context.emptyCtx
     - __kind: PointerType
       ID: 155
       Name: '*context.stopCtx'
       ByteSize: 8
       GoRuntimeType: 1408256
       GoKind: 22
-      Pointee: 156 StructureType context.stopCtx
+      Pointee: 156 GoContextImplementationType context.stopCtx
     - __kind: PointerType
       ID: 185
       Name: '*context.timerCtx'
       ByteSize: 8
       GoRuntimeType: 1718688
       GoKind: 22
-      Pointee: 186 StructureType context.timerCtx
+      Pointee: 186 GoContextImplementationType context.timerCtx
     - __kind: PointerType
       ID: 168
       Name: '*context.todoCtx'
       ByteSize: 8
       GoRuntimeType: 1543552
       GoKind: 22
-      Pointee: 169 StructureType context.todoCtx
+      Pointee: 169 GoContextImplementationType context.todoCtx
     - __kind: PointerType
       ID: 162
       Name: '*context.valueCtx'
       ByteSize: 8
       GoRuntimeType: 1543072
       GoKind: 22
-      Pointee: 163 StructureType context.valueCtx
+      Pointee: 163 GoContextImplementationType context.valueCtx
     - __kind: PointerType
       ID: 164
       Name: '*context.withoutCancelCtx'
       ByteSize: 8
       GoRuntimeType: 1543232
       GoKind: 22
-      Pointee: 165 StructureType context.withoutCancelCtx
+      Pointee: 165 GoContextImplementationType context.withoutCancelCtx
     - __kind: PointerType
       ID: 447
       Name: '*crypto/aes.KeySizeError'
@@ -1550,7 +1550,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 2306784
       GoKind: 22
-      Pointee: 119 StructureType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
+      Pointee: 119 DDTraceSpanType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
     - __kind: PointerType
       ID: 147
       Name: '*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.spanContext'
@@ -1599,7 +1599,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1419776
       GoKind: 22
-      Pointee: 161 StructureType gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion.glsContext
+      Pointee: 161 GoContextImplementationType gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion.glsContext
     - __kind: PointerType
       ID: 807
       Name: '*gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry.client'
@@ -1976,7 +1976,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1408736
       GoKind: 22
-      Pointee: 159 StructureType net.onlyValuesCtx
+      Pointee: 159 GoContextImplementationType net.onlyValuesCtx
     - __kind: PointerType
       ID: 349
       Name: '*net.result·2'
@@ -2539,7 +2539,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1614240
       GoKind: 22
-      Pointee: 171 StructureType os/signal.signalCtx
+      Pointee: 171 GoContextImplementationType os/signal.signalCtx
     - __kind: PointerType
       ID: 505
       Name: '*os/user.UnknownGroupIdError'
@@ -3881,7 +3881,7 @@ Types:
         - Name: data
           Offset: 8
           Type: 17 VoidPointerType unsafe.Pointer
-    - __kind: StructureType
+    - __kind: GoContextImplementationType
       ID: 167
       Name: context.backgroundCtx
       GoRuntimeType: 1797472
@@ -3889,7 +3889,10 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 154 StructureType context.emptyCtx
+          Type: 154 GoContextImplementationType context.emptyCtx
+      ContextOffset: -1
+      KeyOffset: -1
+      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 178
       Name: context.cancelCtx
@@ -3936,12 +3939,15 @@ Types:
       GoRuntimeType: 1458336
       GoKind: 25
       RawFields: []
-    - __kind: StructureType
+    - __kind: GoContextImplementationType
       ID: 154
       Name: context.emptyCtx
       GoRuntimeType: 1591424
       GoKind: 25
       RawFields: []
+      ContextOffset: -1
+      KeyOffset: -1
+      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 156
       Name: context.stopCtx
@@ -3966,7 +3972,7 @@ Types:
       RawFields:
         - Name: cancelCtx
           Offset: 0
-          Type: 178 StructureType context.cancelCtx
+          Type: 178 GoContextImplementationType context.cancelCtx
         - Name: timer
           Offset: 80
           Type: 187 PointerType *time.Timer
@@ -3975,7 +3981,7 @@ Types:
           Type: 189 GoTimeType time.Time
       KeyOffset: -1
       ValueOffset: -1
-    - __kind: StructureType
+    - __kind: GoContextImplementationType
       ID: 169
       Name: context.todoCtx
       GoRuntimeType: 1797696
@@ -3983,7 +3989,10 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 154 StructureType context.emptyCtx
+          Type: 154 GoContextImplementationType context.emptyCtx
+      ContextOffset: -1
+      KeyOffset: -1
+      ValueOffset: -1
     - __kind: GoContextImplementationType
       ID: 163
       Name: context.valueCtx
