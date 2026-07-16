@@ -50,7 +50,11 @@ type Source struct {
 
 // Tag associated to a source.
 func (s Source) Tag() string {
-	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier)
+	identifier := s.Identifier
+	if identifier == "" {
+		identifier = s.SourceIdentifier.Primary
+	}
+	return fmt.Sprintf("%s:%s", s.Kind, identifier)
 }
 
 // SourceIdentifier holds the identity of a telemetry source, generalizing the
