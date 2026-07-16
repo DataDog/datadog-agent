@@ -82,6 +82,7 @@ dd_agent_go_test(
         "//pkg/logs/message",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
+        "//pkg/remoteconfig/state",
         "//pkg/trace/teststatsd",
         "//pkg/util/fxutil",
         "//pkg/util/log",

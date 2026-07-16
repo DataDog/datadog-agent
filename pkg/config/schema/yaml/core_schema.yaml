@@ -1710,6 +1710,23 @@ properties:
     - platform_only:windows,linux
     - template_section:CoreAgent
     properties:
+      remote_config:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configuration for Network Path tests delivered through Remote
+          Configuration.
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              Enables Network Path scheduled tests and Dynamic Test filters delivered through Remote Configuration.
+              This setting does not enable Dynamic Tests; configure a monitoring source separately.
       connections_monitoring:
         node_type: section
         type: object
@@ -2017,14 +2034,6 @@ properties:
             type: integer
             default: 1
       netflow_monitoring:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-      remote_config:
         node_type: section
         type: object
         properties:
