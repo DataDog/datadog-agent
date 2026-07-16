@@ -30,6 +30,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	slurmutil "github.com/DataDog/datadog-agent/pkg/process/util/slurm"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -38,7 +39,9 @@ const (
 	gpuMetricsNs = "gpu."
 )
 
-// logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+// logLimitCheck is shared across this package's check-level warnings (streams, cuda events,
+// cache refresh errors, Slurm identity resolution, etc.) to bound log volume for persistent
+// per-run conditions without going permanently silent after the first occurrence.
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
 var _ check.IssueAwareCheck = (*Check)(nil)
@@ -170,6 +173,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
+
+	if pkgconfigsetup.Datadog().GetBool("gpu.slurm_job_tagging.enabled") {
+		c.workloadTagCache.SetSlurmProvider(slurmutil.InitSharedProvider())
+	}
+
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
