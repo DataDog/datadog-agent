@@ -58,7 +58,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
 # gazelle:exclude cmd/iot-agent
-# gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
