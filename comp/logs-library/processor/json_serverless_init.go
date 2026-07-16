@@ -28,7 +28,7 @@ var JSONServerlessInitEncoder Encoder = &jsonServerlessInitEncoder{}
 // cachedTags uses atomic.Pointer so that SetServerlessInitTagCache (called from
 // the lifecycle server goroutine on /run) and Encode (called from log processor
 // goroutines) are race-free without a lock on the hot read path.
-// nil means "not yet initialized"; Encode initialises it via CAS on first use.
+// nil means "not yet initialized"; Encode initialises it with a plain Store on first use.
 type jsonServerlessInitEncoder struct {
 	cachedTags atomic.Pointer[string]
 }
