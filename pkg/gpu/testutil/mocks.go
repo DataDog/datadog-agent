@@ -63,6 +63,13 @@ var DefaultNvidiaDriverVersion = "470.57.02"
 // DefaultMemoryBusWidth is the memory bus width for the default device returned by the mock
 var DefaultMemoryBusWidth = uint32(256)
 
+// DefaultPCIBusIDFields are the PCI bus ID fields for the default device returned by the mock.
+var DefaultPCIBusIDFields = nvml.PciInfo{
+	Domain: 0,
+	Bus:    0,
+	Device: 0x1e,
+}
+
 // DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMajor = 7
 
@@ -538,6 +545,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 16, nvml.SUCCESS
+		},
+		GetPciInfoFunc: func() (nvml.PciInfo, nvml.Return) {
+			return DefaultPCIBusIDFields, nvml.SUCCESS
 		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 			if isMIGOrVGPUUnsupported {

@@ -238,8 +238,7 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 }
 
 // WithV3MetricsDisabled forces the Agent onto the V2 series intake API by setting
-// DD_USE_V3_API_SERIES_ENABLED=false. V3 is the default, so this opts back out in order to
-// exercise the V2 wire format and /api/v2/series routing.
+// DD_USE_V3_API_SERIES_ENABLED=false.
 func WithV3MetricsDisabled() func(*Params) error {
 	return func(p *Params) error {
 		return WithAgentServiceEnvVariable(

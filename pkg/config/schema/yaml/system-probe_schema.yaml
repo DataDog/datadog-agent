@@ -26,6 +26,7 @@ properties:
         platform_default:
           linux: ${run_path}/sysprobe.sock
           darwin: ${run_path}/sysprobe.sock
+          aix: ${run_path}/sysprobe.sock
           windows: \\.\pipe\dd_system_probe
       log_file:
         node_type: setting
