@@ -20,8 +20,8 @@ func TestNetworkPathTestConfigSourceJSON(t *testing.T) {
 		expectField bool
 	}{
 		{name: "unset", expectField: false},
-		{name: "local", source: TestConfigSourceLocal, expectField: true},
 		{name: "remote", source: TestConfigSourceRemote, expectField: true},
+		{name: "other", source: TestConfigSourceOther, expectField: true},
 	}
 
 	for _, tt := range tests {

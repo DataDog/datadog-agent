@@ -149,10 +149,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return err
 	}
 	switch provider {
-	case names.File:
-		c.testConfigSource = payload.TestConfigSourceLocal
 	case names.NetworkPathRemoteConfig:
 		c.testConfigSource = payload.TestConfigSourceRemote
+	default:
+		c.testConfigSource = payload.TestConfigSourceOther
 	}
 	if provider != names.NetworkPathRemoteConfig {
 		config.TestConfigID = ""

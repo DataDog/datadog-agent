@@ -649,7 +649,22 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 		{
 			name:                 "file",
 			provider:             names.File,
-			expectedConfigSource: payload.TestConfigSourceLocal,
+			expectedConfigSource: payload.TestConfigSourceOther,
+		},
+		{
+			name:                 "container",
+			provider:             names.Container,
+			expectedConfigSource: payload.TestConfigSourceOther,
+		},
+		{
+			name:                 "kubernetes",
+			provider:             names.Kubernetes,
+			expectedConfigSource: payload.TestConfigSourceOther,
+		},
+		{
+			name:                 "kubernetes container",
+			provider:             names.KubeContainer,
+			expectedConfigSource: payload.TestConfigSourceOther,
 		},
 		{
 			name:                 "network path remote config",
@@ -658,8 +673,14 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 			expectedTestConfigID: "test-config-a",
 		},
 		{
-			name:     "generic remote config",
-			provider: names.RemoteConfig,
+			name:                 "generic remote config",
+			provider:             names.RemoteConfig,
+			expectedConfigSource: payload.TestConfigSourceOther,
+		},
+		{
+			name:                 "unknown",
+			provider:             "unknown",
+			expectedConfigSource: payload.TestConfigSourceOther,
 		},
 	}
 
@@ -679,7 +700,7 @@ hostname: api.example.com
 	}
 }
 
-func TestRunSetsLocalTestConfigSourceInPayload(t *testing.T) {
+func TestRunSetsOtherTestConfigSourceInPayload(t *testing.T) {
 	rawInstance := integration.Data("hostname: api.example.com")
 	rawInitConfig := integration.Data{}
 	expectedID := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstance, rawInitConfig)
@@ -697,7 +718,7 @@ func TestRunSetsLocalTestConfigSourceInPayload(t *testing.T) {
 
 	sender.AssertCalled(t, "EventPlatformEvent", mock.MatchedBy(func(raw []byte) bool {
 		var path payload.NetworkPath
-		return json.Unmarshal(raw, &path) == nil && path.TestConfigSource == payload.TestConfigSourceLocal
+		return json.Unmarshal(raw, &path) == nil && path.TestConfigSource == payload.TestConfigSourceOther
 	}), eventplatform.EventTypeNetworkPath)
 }
 

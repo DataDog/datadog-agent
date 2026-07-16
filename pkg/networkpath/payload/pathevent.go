@@ -118,16 +118,15 @@ const (
 	TestRunTypeTriggered TestRunType = "triggered"
 )
 
-// TestConfigSource defines where a scheduled Network Path product test was configured.
-// It is intentionally unset for Synthetics network paths, which are always remotely configured
-// and do not need to distinguish between local and remote configuration.
+// TestConfigSource identifies whether a scheduled Network Path product test was configured
+// through Network Path Remote Configuration or another source.
 type TestConfigSource string
 
 const (
-	// TestConfigSourceLocal is a scheduled Network Path product test configured locally on the Agent.
-	TestConfigSourceLocal TestConfigSource = "local"
 	// TestConfigSourceRemote is a scheduled Network Path product test configured through Network Path Remote Configuration.
 	TestConfigSourceRemote TestConfigSource = "remote"
+	// TestConfigSourceOther is a scheduled Network Path product test configured through any other source.
+	TestConfigSourceOther TestConfigSource = "other"
 )
 
 // SourceProduct defines the product that originated the path
