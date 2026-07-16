@@ -94,7 +94,6 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	// executor-mode state (on-demand par-executor).
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
 	executorDone    chan struct{}
@@ -134,8 +133,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: runner}, nil
 }
 
-// NewExecutorComponent creates a privateactionrunner component in on-demand executor
-// mode: it serves the local control<->executor gRPC service instead of polling OPMS.
+// NewExecutorComponent creates a privateactionrunner component in on-demand executor mode.
 func NewExecutorComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
@@ -245,8 +243,7 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 	return errChan
 }
 
-// StartExecutor starts the on-demand executor gRPC server instead of the OPMS
-// polling loop. It is idempotent via startOnce.
+// StartExecutor starts the on-demand executor gRPC server. Idempotent via startOnce.
 func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 	var err error
 	p.started = true
@@ -258,7 +255,6 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	// Cancelling this context (via Stop) also triggers the gRPC server's graceful stop.
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 
@@ -289,7 +285,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	go p.encryptionStore.Start()
 	keysManager.Start(ctx)
-	// Signal readiness only once signing keys are loaded.
 	go func() {
 		keysManager.WaitForReady()
 		p.executorServer.SetReady(true)
@@ -304,13 +299,10 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	p.executorDone = make(chan struct{})
 	serveOpts := executor.ServeOptions{
-		DrainTimeout: 30 * time.Second,
-		// Orphan safety net; larger than the control plane's idle timeout, which is
-		// the normal termination path.
+		DrainTimeout:      30 * time.Second,
 		OrphanIdleTimeout: 5 * time.Minute,
 	}
-	// mTLS via the agent IPC cert: only a client with a cert signed by the same
-	// authority can dispatch actions to the executor.
+	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
@@ -330,7 +322,6 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		return nil // Never started, nothing to stop
 	}
 
-	// Cancel the serve context (graceful gRPC stop) and wait for startup to settle.
 	p.cancelStart()
 	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
 	defer cancelWaitCtx()

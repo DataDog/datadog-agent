@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package runexecutor implements the run-executor subcommand, which runs the
-// on-demand Go executor serving the local control<->executor gRPC service.
+// Package runexecutor implements the run-executor subcommand for the on-demand Go executor.
 package runexecutor
 
 import (

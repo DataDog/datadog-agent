@@ -36,16 +36,13 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
 
-// fakeExecutor stands in for the execute-one-action core so these tests exercise only
-// the gRPC streaming/serialization/error-mapping plumbing, not real bundle execution.
+// fakeExecutor stands in for the execute-one-action core so tests exercise only gRPC plumbing.
 type fakeExecutor struct {
 	prepared   *runners.PreparedWorkflowTask
 	prepareErr error
 	output     interface{}
 	runErr     error
-	// runGate, when non-nil, blocks RunPrepared until closed (or ctx cancelled),
-	// so tests can hold an action in-flight.
-	runGate chan struct{}
+	runGate    chan struct{} // when non-nil, blocks RunPrepared until closed, to hold an action in-flight
 
 	gotRawTask []byte
 }
@@ -69,8 +66,7 @@ func (f *fakeExecutor) RunPrepared(ctx context.Context, _ *runners.PreparedWorkf
 	return f.output, f.runErr
 }
 
-// shortSocketPath returns a Unix socket path short enough for the ~104-byte sun_path
-// limit on macOS. t.TempDir() embeds the (long) test name and overflows it there.
+// shortSocketPath returns a socket path short enough for macOS's ~104-byte sun_path limit.
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "par")
@@ -79,8 +75,7 @@ func shortSocketPath(t *testing.T) string {
 	return filepath.Join(dir, "e.sock")
 }
 
-// startTestServer serves a real executor gRPC server on a Unix socket and returns a
-// connected client. The server is stopped and the connection closed via t.Cleanup.
+// startTestServer serves a real executor on a socket and returns a connected client.
 func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	t.Helper()
 
@@ -110,8 +105,7 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	return pb.NewExecutorClient(conn)
 }
 
-// runAction drives the server-streaming RunAction to completion and returns the
-// single terminal ActionResult.
+// runAction drives RunAction to completion and returns the terminal ActionResult.
 func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.ActionResult {
 	t.Helper()
 
@@ -146,7 +140,6 @@ func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
 	rawTask := []byte(`{"data":{"id":"task-1","attributes":{"job_id":"job-1"}}}`)
 	result := runAction(t, client, rawTask)
 
-	// Raw task bytes must reach the core unmodified (signature verification).
 	assert.Equal(t, rawTask, fake.gotRawTask)
 
 	require.NotNil(t, result.GetOutput(), "expected a success output, got error: %v", result.GetError())
@@ -176,8 +169,7 @@ func TestServeRunActionReturnsStructuredErrorOnFailure(t *testing.T) {
 }
 
 func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
-	// Each structured error code must reach the control plane intact; plain
-	// (uncoded) errors default to INTERNAL_ERROR.
+	// Each structured error code must reach the control plane intact; plain errors → INTERNAL_ERROR.
 	cases := []struct {
 		name     string
 		err      error
@@ -192,7 +184,6 @@ func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Most failures surface from PrepareTask; the allowlist case from RunPrepared.
 			fake := &fakeExecutor{prepareErr: tc.err}
 			if tc.wantCode == aperrorpb.ActionPlatformErrorCode_ACTION_ERROR {
 				fake = &fakeExecutor{
@@ -229,7 +220,7 @@ func TestServeRunActionWrapsPlainRunErrorAsActionError(t *testing.T) {
 
 func TestServeRunActionRejectedWhenNotReady(t *testing.T) {
 	fake := &fakeExecutor{prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}}}
-	srv := NewServer(fake, "test-version") // ready defaults to false
+	srv := NewServer(fake, "test-version")
 
 	client := startTestServer(t, srv)
 
@@ -289,7 +280,6 @@ func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
 		})
 	}()
 
-	// No client ever connects → the executor is orphaned and must self-exit.
 	select {
 	case err := <-served:
 		require.NoError(t, err)
@@ -320,16 +310,13 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: []byte(`{"data":{"id":"t"}}`)})
 	require.NoError(t, err)
 
-	// Wait until the action is genuinely in-flight.
 	require.Eventually(t, func() bool { return srv.active.Load() == 1 }, time.Second, 5*time.Millisecond)
 
-	// Ask the executor to stop while the action is mid-run, then let it finish.
+	// Stop mid-run, then let the action finish: graceful drain must still deliver its output.
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 	close(gate)
 
-	// Graceful drain must let the in-flight action complete: the client still
-	// receives its terminal output rather than a broken stream.
 	var result *pb.ActionResult
 	for {
 		resp, err := stream.Recv()
@@ -350,8 +337,6 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 		t.Fatal("serve did not return after drain")
 	}
 }
-
-// --- mTLS (slice 7) -------------------------------------------------------
 
 func newTestCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
 	t.Helper()
@@ -400,7 +385,6 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageServerAuth)
 	clientCert := newLeafCert(t, ca, caKey, "par-control", x509.ExtKeyUsageClientAuth)
 
-	// Server presents its cert and requires a client cert signed by the CA.
 	serverTLS := &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -433,7 +417,6 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 		return pb.NewExecutorClient(conn)
 	}
 
-	// A client presenting a CA-signed cert completes the mTLS handshake.
 	authed := dial(&tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caPool,
@@ -442,7 +425,6 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	_, err = authed.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err, "client with a valid IPC-style cert should be accepted")
 
-	// A client with no client cert is rejected at the TLS layer.
 	anon := dial(&tls.Config{RootCAs: caPool, ServerName: "localhost"})
 	shortCtx, shortCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shortCancel()

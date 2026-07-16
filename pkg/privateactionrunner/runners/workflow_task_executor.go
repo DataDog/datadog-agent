@@ -90,15 +90,13 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	}, nil, nil
 }
 
-// RunPrepared runs a prepared task under its effective per-task timeout, returning the
-// action output or an error (timeouts surface as a timeout error). It is the single
+// RunPrepared runs a prepared task under its effective per-task timeout. It is the single
 // run+timeout seam shared by the OPMS loop and the executor gRPC handler.
 func (e *WorkflowTaskExecutor) RunPrepared(
 	ctx context.Context,
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	// Effective timeout: the task's own timeout if set, else the runner default.
 	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
 	if timeoutSeconds == nil {
 		timeoutSeconds = e.config.TaskTimeoutSeconds

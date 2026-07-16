@@ -14,12 +14,10 @@ import (
 	"time"
 )
 
-// DefaultSocketPath is the default local socket the executor listens on and the
-// control plane dials.
+// DefaultSocketPath is the default socket the executor listens on and the control plane dials.
 const DefaultSocketPath = "/opt/datadog-agent/run/par-executor.sock"
 
-// Listen creates the executor's listening Unix domain socket, removing any stale
-// socket file from a previous run first.
+// Listen creates the executor's Unix socket, removing any stale socket file first.
 func Listen(address string) (net.Listener, error) {
 	if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
 		return nil, err

@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package executor implements the on-demand Go executor half of the split Private
-// Action Runner: a local gRPC server that the Rust control plane dials to run a
-// single action and stream the outcome back.
+// Package executor is the on-demand Go executor of the split Private Action Runner:
+// a local gRPC server the Rust control plane dials to run one action.
 package executor
 
 import (
@@ -29,8 +28,6 @@ import (
 // ProtocolVersion is the control<->executor gRPC contract version reported by Health.
 const ProtocolVersion uint32 = 1
 
-// actionExecutor is the execute-one-action core the server dispatches to,
-// satisfied by *runners.WorkflowTaskExecutor.
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
 	RunPrepared(ctx context.Context, prepared *runners.PreparedWorkflowTask) (interface{}, error)
@@ -43,10 +40,9 @@ type Server struct {
 	executor actionExecutor
 	version  string
 
-	ready  atomic.Bool
-	active atomic.Int32
-	// lastActivity is the unix-nanos timestamp of the last Health/RunAction.
-	lastActivity atomic.Int64
+	ready        atomic.Bool
+	active       atomic.Int32
+	lastActivity atomic.Int64 // unix-nanos of the last Health/RunAction
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
@@ -59,7 +55,6 @@ func NewServer(executor actionExecutor, version string) *Server {
 	return s
 }
 
-// touch records activity for the orphan watchdog.
 func (s *Server) touch() {
 	s.lastActivity.Store(time.Now().UnixNano())
 }
@@ -68,12 +63,12 @@ func (s *Server) idleFor() time.Duration {
 	return time.Since(time.Unix(0, s.lastActivity.Load()))
 }
 
-// SetReady marks the executor ready (or not) to accept actions; RunAction is gated on it.
+// SetReady marks the executor ready (or not) to accept actions.
 func (s *Server) SetReady(ready bool) {
 	s.ready.Store(ready)
 }
 
-// Health reports readiness and liveness so the control plane can gate dispatch.
+// Health reports readiness and liveness.
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
 	s.touch()
 	return &pb.HealthResponse{
@@ -85,8 +80,7 @@ func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthRespo
 }
 
 // RunAction verifies and runs a single action, streaming a terminal ActionResult back.
-// Action failures are returned as a structured ActionPlatformError in the result; a
-// gRPC-level error is reserved for transport/protocol problems.
+// Action failures come back as a structured error in the result, not a gRPC error.
 func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActionServer) error {
 	ctx := stream.Context()
 	logger := log.FromContext(ctx)
@@ -105,7 +99,7 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		s.touch()
 	}()
 
-	// Keep the raw bytes on the task so signature verification sees the unmodified envelope.
+	// Raw bytes must stay unmodified for signature verification.
 	task := &types.Task{Raw: req.GetTask()}
 	if err := json.Unmarshal(req.GetTask(), task); err != nil {
 		logger.Error("could not parse task", log.ErrorField(err))
@@ -143,7 +137,6 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 	})
 }
 
-// sendError streams a terminal ActionResult carrying the structured PAR error.
 func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	return stream.Send(&pb.RunActionResponse{
 		Event: &pb.RunActionResponse_Result{
@@ -154,26 +147,19 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	})
 }
 
-// ServeOptions tunes drain and orphan-safety behavior. Zero values disable the
-// corresponding bound (wait forever to drain; never self-exit).
+// ServeOptions tunes drain and orphan-safety; zero values disable each bound.
 type ServeOptions struct {
-	// DrainTimeout bounds graceful drain on stop; 0 waits indefinitely.
-	DrainTimeout time.Duration
-	// OrphanIdleTimeout, if > 0, self-exits after this long idle with no in-flight
-	// actions, so a stray executor cannot linger if the control plane disappears.
-	OrphanIdleTimeout time.Duration
-	// PollInterval is how often the orphan watchdog checks (default 5s).
-	PollInterval time.Duration
+	DrainTimeout      time.Duration // bounds graceful drain on stop; 0 waits forever
+	OrphanIdleTimeout time.Duration // >0: self-exit after this long idle with no in-flight actions
+	PollInterval      time.Duration // orphan watchdog poll period (default 5s)
 }
 
-// Serve registers the Executor service on a fresh gRPC server and serves it on lis
-// until ctx is cancelled or the orphan watchdog fires, then stops gracefully bounded
-// by the drain timeout. Pass grpcOpts (e.g. TLS creds) to secure the socket.
+// Serve serves the Executor on lis until ctx is cancelled or the orphan watchdog fires,
+// then stops gracefully bounded by the drain timeout. Pass grpcOpts to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
 
-	// serveCtx is cancelled either by the caller (ctx) or by the orphan watchdog.
 	serveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -199,8 +185,6 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 	}
 }
 
-// watchOrphan self-exits (cancels serveCtx) once the executor has been idle with no
-// in-flight actions for longer than idle — the control plane is presumed gone.
 func (s *Server) watchOrphan(ctx context.Context, cancel context.CancelFunc, idle, poll time.Duration) {
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
@@ -217,7 +201,6 @@ func (s *Server) watchOrphan(ctx context.Context, cancel context.CancelFunc, idl
 	}
 }
 
-// stopGracefully drains in-flight actions, force-stopping after drainTimeout.
 func stopGracefully(grpcServer *grpc.Server, drainTimeout time.Duration) {
 	done := make(chan struct{})
 	go func() {
@@ -231,7 +214,7 @@ func stopGracefully(grpcServer *grpc.Server, drainTimeout time.Duration) {
 	select {
 	case <-done:
 	case <-time.After(drainTimeout):
-		grpcServer.Stop() // force-stop wedged in-flight actions
+		grpcServer.Stop()
 		<-done
 	}
 }

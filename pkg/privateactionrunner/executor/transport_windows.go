@@ -15,8 +15,7 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-// DefaultSocketPath is the default named pipe the executor listens on and the
-// control plane dials on Windows.
+// DefaultSocketPath is the named pipe the executor listens on and the control plane dials.
 const DefaultSocketPath = `\\.\pipe\dd-par-executor`
 
 // Listen creates the executor's listening named pipe.
