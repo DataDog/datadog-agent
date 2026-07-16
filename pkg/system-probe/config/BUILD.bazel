@@ -1,5 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
@@ -44,7 +43,7 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "config_test",
     srcs = [
         "adjust_discovery_test.go",
@@ -53,6 +52,7 @@ dd_agent_go_test(
         "config_test.go",
     ],
     embed = [":config"],
+    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
