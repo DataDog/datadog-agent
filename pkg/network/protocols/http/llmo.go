@@ -448,7 +448,7 @@ func llmoSessionID(k types.ConnectionKey) string {
 		strconv.Itoa(int(k.DstPort))
 }
 
-func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
+func (h *StatKeeper) emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
 	// Only emit a span when we resolved a real service AND captured LLM payload
 	// data. Without a resolved service (PID→service inference failed) or any
 	// model/prompt/response (e.g. first request on a connection, before the body
@@ -461,7 +461,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	// + tool result in its history) is emitted as a workflow with child llm +
 	// tool spans instead of a single flat span.
 	if len(info.reqToolCalls) > 0 && len(info.toolResults) > 0 {
-		emitWorkflowSpan(path, connKey, latencyNs, info)
+		h.emitWorkflowSpan(path, connKey, latencyNs, info)
 		return
 	}
 	// On a tool-workflow connection, the conversation is shown as the agent
@@ -559,7 +559,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 // which our single-slot-per-connection capture has overwritten by the time the
 // follow-up is processed — and the tool span's timing is approximate (the tool
 // runs in-process, so we split the follow-up request's latency into thirds).
-func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
+func (h *StatKeeper) emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
 	if !ensureLLMOTracer() {
 		return
 	}
@@ -569,11 +569,10 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 	t2 := start.Add(time.Duration(2 * latencyNs / 3))
 	tags := map[string]string{"http.url": path, "llm.source": "apm-lite-ebpf"}
 
-	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
-		llmobs.WithMLApp(info.service),
-		llmobs.WithSessionID(llmoSessionID(connKey)),
-		llmobs.WithStartTime(start),
-	)
+	// Attach to the connection's persistent agent workflow so multiple separate
+	// conversations on the same connection group under one workflow (the agent
+	// span stays open and is finished by the idle reaper).
+	actx := h.getOrCreateWorkflow(connKey, info.service, start)
 
 	// Base input messages (system + user), shared by both generations.
 	var baseInput []llmobs.LLMMessage
@@ -646,10 +645,53 @@ func emitWorkflowSpan(path string, connKey types.ConnectionKey, latencyNs float6
 	}
 	llm2.AnnotateLLMIO(finalInput, []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}, annotations...)
 	llm2.Finish(llmobs.WithFinishTime(end))
+	// The persistent agent span is finished by the idle reaper, not here.
+}
 
-	// The agent's own I/O: the user prompt in, the model's final answer out.
-	agent.AnnotateTextIO(info.prompt, info.response)
-	agent.Finish(llmobs.WithFinishTime(end))
+// llmWorkflow is a persistent per-connection agent span that groups the
+// separate conversations seen on that connection into one workflow.
+type llmWorkflow struct {
+	agent    *llmobs.AgentSpan
+	ctx      context.Context
+	lastSeen time.Time
+}
+
+// getOrCreateWorkflow returns the context of the connection's persistent agent
+// span, starting (and remembering) one on first use. The agent is left open so
+// later conversations on the same connection attach as children; the idle
+// reaper (reapLLMWorkflows) finishes it.
+func (h *StatKeeper) getOrCreateWorkflow(connKey types.ConnectionKey, service string, start time.Time) context.Context {
+	key := newLLMConnKey(connKey)
+	if h.llmWorkflows == nil {
+		h.llmWorkflows = make(map[llmConnKey]*llmWorkflow)
+	}
+	if wf, ok := h.llmWorkflows[key]; ok {
+		wf.lastSeen = start
+		return wf.ctx
+	}
+	agent, ctx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
+		llmobs.WithMLApp(service),
+		llmobs.WithSessionID(llmoSessionID(connKey)),
+		llmobs.WithStartTime(start),
+	)
+	h.llmWorkflows[key] = &llmWorkflow{agent: agent, ctx: ctx, lastSeen: start}
+	return ctx
+}
+
+// reapLLMWorkflows finishes and drops per-connection agent workflows that have
+// been idle past the timeout (the conversation/connection is considered done).
+// If force is set, all workflows are finished (shutdown). Callers hold h.mux.
+func (h *StatKeeper) reapLLMWorkflows(force bool) {
+	if h.llmWorkflows == nil {
+		return
+	}
+	now := time.Now()
+	for key, wf := range h.llmWorkflows {
+		if force || now.Sub(wf.lastSeen) > 15*time.Second {
+			wf.agent.Finish(llmobs.WithFinishTime(wf.lastSeen))
+			delete(h.llmWorkflows, key)
+		}
+	}
 }
 
 // captureLLMBody marks the connection as LLM traffic (so the eBPF write hook
