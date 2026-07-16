@@ -52,6 +52,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -76,10 +77,6 @@ const (
 	postResume    = "POST " + pathResume
 	postTerminate = "POST " + pathTerminate
 
-	// flushWorkerCount is the number of goroutines launched by flushAll:
-	// one each for the metric, trace, and logs flushers.
-	flushWorkerCount = 3
-
 	baseMetricPrefix    = "aws.lambda.enhanced.microvm."
 	runMetricName       = baseMetricPrefix + "run"
 	suspendMetricName   = baseMetricPrefix + "suspend"
@@ -87,8 +84,8 @@ const (
 	terminateMetricName = baseMetricPrefix + "terminate"
 	validateMetricName  = baseMetricPrefix + "validate"
 
-	lambdaMicroVMIDKey = "lambda_microvm_id"      // for map[string]string trace tags: key only
-	lambdaMicroVMID    = lambdaMicroVMIDKey + ":" // for []string log/metric tags: key:value concatenated
+	lambdaMicroVMIDKey    = "lambda_microvm_id"      // for map[string]string trace tags: key only
+	lambdaMicroVMIDPrefix = lambdaMicroVMIDKey + ":" // for []string log/metric tags: "key:" prefix, concatenate with the id
 
 	// mirrorResponseTimeout is the deadline for writing the mirrored response
 	// back to the platform after the handler's main work (forward + optional
@@ -96,6 +93,11 @@ const (
 	// other deadline. Lifecycle responses are expected to be small; 5s is
 	// generous even for slow platform connections.
 	mirrorResponseTimeout = 5 * time.Second
+
+	// maxRunBodyBytes caps the /run request body (runHookPayload) buffered in
+	// handleRun. The payload is expected to be small; a 1 MiB cap prevents a
+	// misconfigured RunMicrovm call from forcing an unbounded read.
+	maxRunBodyBytes int64 = 1 << 20
 )
 
 // flushMode controls whether and how telemetry is flushed during a lifecycle hook.
@@ -120,7 +122,7 @@ type LogsFlusher interface {
 // SampleDrainer blocks until all metric samples enqueued before the call have
 // been consumed by the aggregator worker. Must be called before Flush to ensure
 // lifecycle metrics emitted via AddEnhancedMetric are included in the flush.
-// Satisfied by *serverlessMetrics.ServerlessMetricAgent.
+// Optional: a nil SampleDrainer disables draining (see flushAll).
 type SampleDrainer interface {
 	WaitForPendingSamples()
 }
@@ -171,7 +173,7 @@ type Server struct {
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
 	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
-	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /run
+	baseLogTags    []string          // startup log tag snapshot; lambda_microvm_id is appended at /run
 	traceTagSetter TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
 	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
 
@@ -230,15 +232,10 @@ func NewServer(
 	if c, ok := childHandle.(*Child); ok {
 		s.child = c
 	}
-	// WriteTimeout must cover the full handler wall-clock for every path:
-	//   - No forwarder: flushTimeout (flush budget)
-	//   - /run, /resume, /suspend, /terminate: forwardTimeout (default 1s)
-	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
-	//   - /validate: validateTimeout (default 60s, matching platform /validate timeout)
-	// plus writeTimeoutHeadroom (heartbeat.Stop() before /suspend and
-	// /terminate, and the final mirrored-response write). Use the largest of
-	// all applicable budgets so the HTTP server does not close the
-	// platform-facing connection before the handler writes the response.
+	// WriteTimeout must cover the full wall-clock of every hook path (see
+	// forwardTimeout/readyTimeout/validateTimeout on Forwarder, and
+	// writeTimeoutHeadroom above), or the HTTP server closes the
+	// platform-facing connection before the handler finishes writing.
 	maxTimeout := s.flushTimeout
 	if s.fwd != nil {
 		// /terminate uses flushSequential: flush runs after the forward, so its
@@ -246,6 +243,7 @@ func NewServer(
 		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
 	}
 	writeTimeout := maxTimeout + writeTimeoutHeadroom
+	log.Debugf("MicroVM lifecycle: server WriteTimeout=%s (maxTimeout=%s + writeTimeoutHeadroom=%s)", writeTimeout, maxTimeout, writeTimeoutHeadroom)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.handler(),
@@ -256,16 +254,20 @@ func NewServer(
 }
 
 // SetLogsTagSetter wires a LogsTagSetter and a baseline tag slice into the server.
-// Must be called before the first /run request. baseTags is the startup tag
-// snapshot; lambda_microvm_id is appended to it when /run fires.
-func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseTags []string) {
+// Optional: never calling it is a supported no-op (logs tagging disabled), as
+// production callers do when their own LogsTagSetter is nil. If called, it
+// must happen before the first /run request. baseLogTags is the startup log
+// tag snapshot; lambda_microvm_id is appended to it when /run fires.
+func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseLogTags []string) {
 	s.logsTagSetter = setter
-	s.baseTags = baseTags
+	s.baseLogTags = baseLogTags
 }
 
 // SetTraceTagSetter wires a TraceTagSetter and a baseline trace tag map into the
-// server. Must be called before the first /run request. baseTraceTags is the
-// startup trace tag snapshot; lambda_microvm_id is added to it when /run fires.
+// server. Optional: never calling it is a supported no-op (trace tagging
+// disabled), as production callers do when their own TraceTagSetter is nil.
+// If called, it must happen before the first /run request. baseTraceTags is
+// the startup trace tag snapshot; lambda_microvm_id is added to it when /run fires.
 func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[string]string) {
 	s.traceTagSetter = setter
 	s.baseTraceTags = baseTraceTags
@@ -432,11 +434,30 @@ func (s *Server) flushAll(flushCtx context.Context) {
 			log.Warnf("MicroVM lifecycle: timed out waiting for pending samples to drain")
 		}
 	}
-	flushDone := make(chan struct{}, flushWorkerCount)
-	go func() { s.metricFlusher.Flush(); flushDone <- struct{}{} }()
-	go func() { s.traceFlusher.Flush(); flushDone <- struct{}{} }()
-	go func() { s.logsFlusher.Flush(flushCtx); flushDone <- struct{}{} }()
-	s.waitForFlushes(flushCtx, flushDone)
+	var wg sync.WaitGroup
+	wg.Go(s.metricFlusher.Flush)
+	wg.Go(s.traceFlusher.Flush)
+	wg.Go(func() { s.logsFlusher.Flush(flushCtx) })
+	s.waitForFlushes(flushCtx, &wg)
+}
+
+// waitForFlushes waits for wg (the goroutines launched by flushAll: metric,
+// trace, logs), bounded by flushCtx. If flushCtx expires first, the remaining
+// flushes are abandoned and the handler can return to the platform promptly;
+// wg.Done() never blocks, so the abandoned goroutines still exit on their own
+// without leaking.
+func (s *Server) waitForFlushes(flushCtx context.Context, wg *sync.WaitGroup) {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		log.Info("MicroVM lifecycle: flush complete")
+	case <-flushCtx.Done():
+		log.Warnf("MicroVM lifecycle: flush timed out after %s", s.flushTimeout)
+	}
 }
 
 // handleWithForwarder runs the agent-side path (metric emission, optionally
@@ -540,8 +561,19 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// original payload to the user app. Without this, the forwarder path would
 	// consume r.Body before the decode, losing the instance_id tag on all
 	// subsequent lifecycle metrics.
-	bodyBytes, _ := io.ReadAll(r.Body)
+	//
+	// MaxBytesReader bounds the read so a misconfigured runHookPayload cannot
+	// force unbounded memory growth; a read error (oversized or otherwise)
+	// aborts before any state is mutated, since forwarding a silently
+	// truncated body would be worse than failing the hook outright.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRunBodyBytes)
+	bodyBytes, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
+	if err != nil {
+		log.Debugf("MicroVM lifecycle: could not read run body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	var body runBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse run body: %v", err)
@@ -551,7 +583,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
 		if s.logsTagSetter != nil {
-			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseTags...), lambdaMicroVMID+body.MicroVMID))
+			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseLogTags...), lambdaMicroVMIDPrefix+body.MicroVMID))
 		}
 		if s.traceTagSetter != nil {
 			tags := maps.Clone(s.baseTraceTags)
@@ -663,7 +695,7 @@ func (s *Server) dispatchHook(metricName, path string, mode flushMode, w http.Re
 func (s *Server) emitLifecycleMetric(name string) {
 	var extraTags []string
 	if id := s.instanceID.Load(); id != "" {
-		extraTags = []string{lambdaMicroVMID + id}
+		extraTags = []string{lambdaMicroVMIDPrefix + id}
 	}
 	emitMetric(s.metricEmitter, s.metricSource, name, extraTags...)
 }
@@ -674,23 +706,4 @@ func (s *Server) emitLifecycleMetric(name string) {
 func emitMetric(emitter MetricEmitter, source metrics.MetricSource, name string, tags ...string) {
 	timestamp := float64(time.Now().UnixNano()) / float64(time.Second)
 	emitter.AddEnhancedMetric(name, 1.0, source, timestamp, tags...)
-}
-
-// waitForFlushes collects exactly 3 completion signals from flushDone — one
-// per goroutine launched by flushAll (metric, trace, logs). The select inside
-// the loop applies a single shared deadline across all three: if flushCtx
-// expires at any iteration the remaining flushes are abandoned and the handler
-// can return to the platform promptly. The caller allocates flushDone with
-// cap=3 so the three goroutines can send without blocking even after an early
-// return here, preventing goroutine leaks.
-func (s *Server) waitForFlushes(flushCtx context.Context, flushDone <-chan struct{}) {
-	for i := 0; i < flushWorkerCount; i++ {
-		select {
-		case <-flushDone:
-		case <-flushCtx.Done():
-			log.Warnf("MicroVM lifecycle: flush timed out after %s", s.flushTimeout)
-			return
-		}
-	}
-	log.Info("MicroVM lifecycle: flush complete")
 }
