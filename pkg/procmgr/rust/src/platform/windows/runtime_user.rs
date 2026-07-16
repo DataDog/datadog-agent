@@ -185,7 +185,9 @@ mod tests {
         // domain-joined CI hosts (where USERNAME is a domain principal).
         let username = "Administrator";
         let computer_domain = std::env::var("COMPUTERNAME").expect("COMPUTERNAME");
-        let sid = match lookup_account_sid(&computer_domain, username)
+        // Resolve via the local SAM only. COMPUTERNAME\Administrator can block on
+        // domain-joined hosts while Windows contacts a domain controller.
+        let sid = match lookup_account_sid(".", username)
             .or_else(|_| lookup_account_sid("", username))
         {
             Ok(sid) => sid,
