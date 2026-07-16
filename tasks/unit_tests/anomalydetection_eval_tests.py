@@ -9,13 +9,23 @@ from tasks.anomalydetection import (
 )
 from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
+    DETECTORS,
     SUPPORTED_CORRELATORS,
     _anchor_combos,
     _build_optuna_config,
     _combo_to_config,
     _full_stack_combo,
+    _sample_component_params,
     random_component_combinations,
 )
+
+
+class MinimumTrial:
+    def suggest_float(self, _name, low, _high, **_kwargs):
+        return low
+
+    def suggest_int(self, _name, low, _high, **_kwargs):
+        return low
 
 
 class TestAblationConfig(unittest.TestCase):
@@ -60,6 +70,17 @@ class TestAblationConfig(unittest.TestCase):
 
                 config = _combo_to_config(detectors=["bocpd"], correlators=[correlator])
                 self.assertTrue(config["components"][correlator]["enabled"])
+
+    def test_robust_detectors_have_constrained_tuning_spaces(self):
+        self.assertIn("holt_residual", DETECTORS)
+        self.assertIn("tukey_biweight", DETECTORS)
+
+        trial = MinimumTrial()
+        holt = _sample_component_params(trial, "holt_residual")
+        tukey = _sample_component_params(trial, "tukey_biweight")
+
+        self.assertLessEqual(holt["beta"], holt["alpha"])
+        self.assertEqual(tukey["min_points"], tukey["window_size"])
 
 
 class TestPipelineResume(unittest.TestCase):

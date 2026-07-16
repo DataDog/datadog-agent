@@ -42,7 +42,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
+DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
 
@@ -507,6 +507,30 @@ def _sample_component_params(trial, component: str) -> dict:
             "margin_pct": margin_pct,
         }
 
+    def sample_holt_residual() -> dict:
+        alpha = trial.suggest_float("holt_residual.alpha", 0.05, 0.5)
+        beta_ratio = trial.suggest_float("holt_residual.beta_ratio", 0.05, 0.75)
+        return {
+            "alpha": alpha,
+            "beta": alpha * beta_ratio,
+            "residual_window": trial.suggest_int("holt_residual.residual_window", 20, 90),
+            "z_threshold": trial.suggest_float("holt_residual.z_threshold", 2.5, 8.0),
+            "confirm_m": trial.suggest_int("holt_residual.confirm_m", 1, 3),
+            "min_deviation_mad": trial.suggest_float("holt_residual.min_deviation_mad", 1.5, 6.0),
+            "refractory": trial.suggest_int("holt_residual.refractory", 5, 60),
+        }
+
+    def sample_tukey_biweight() -> dict:
+        window_size = trial.suggest_int("tukey_biweight.window_size", 30, 120)
+        return {
+            "window_size": window_size,
+            "min_points": window_size,
+            "biweight_c": trial.suggest_float("tukey_biweight.biweight_c", 3.5, 6.0),
+            "z_threshold": trial.suggest_float("tukey_biweight.z_threshold", 2.5, 10.0),
+            "score_every": trial.suggest_int("tukey_biweight.score_every", 1, 6),
+            "cooldown_points": trial.suggest_int("tukey_biweight.cooldown_points", 5, 60),
+        }
+
     space = {
         "anomaly_scorer": sample_anomaly_scorer,
         "bocpd": lambda: {
@@ -526,12 +550,14 @@ def _sample_component_params(trial, component: str) -> dict:
             # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
             "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
+        "holt_residual": sample_holt_residual,
         "rrcf": lambda: {
             # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
             # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
             "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
             "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
         },
+        "tukey_biweight": sample_tukey_biweight,
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
             # "min_cluster_size_before_emit": trial.suggest_int(...),
