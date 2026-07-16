@@ -26,6 +26,12 @@ func TestExtractSimpleGPUName(t *testing.T) {
 			expected: "nvidia",
 		},
 		{
+			name:     "known dra gpu resource",
+			gpuName:  GpuNvidiaDRA,
+			found:    true,
+			expected: "nvidia",
+		},
+		{
 			name:     "unknown gpu resource",
 			gpuName:  ResourceGPU("cpu"),
 			found:    false,
@@ -37,6 +43,41 @@ func TestExtractSimpleGPUName(t *testing.T) {
 			actual, found := ExtractSimpleGPUName(test.gpuName)
 			assert.Equal(t, test.found, found)
 			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestIsNvidiaKubernetesResource(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceName string
+		expected     bool
+	}{
+		{
+			name:         "device plugin generic GPU",
+			resourceName: string(GpuNvidiaGeneric),
+			expected:     true,
+		},
+		{
+			name:         "DRA GPU driver",
+			resourceName: string(GpuNvidiaDRA),
+			expected:     true,
+		},
+		{
+			name:         "MIG GPU",
+			resourceName: "nvidia.com/mig-3g.20gb",
+			expected:     true,
+		},
+		{
+			name:         "non-NVIDIA resource",
+			resourceName: string(GpuAMD),
+			expected:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, IsNvidiaKubernetesResource(test.resourceName))
 		})
 	}
 }
