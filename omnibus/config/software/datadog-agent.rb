@@ -294,15 +294,6 @@ build do
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
 
-  if windows_target?
-    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
-    # the Bazel target installs the .exe into bin/agent (Windows convention; see
-    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
-    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
-    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
-    command "bazel run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-  end
-
   # APM Hands Off config file
   if linux_target?
     copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"

@@ -56,13 +56,14 @@ EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
+SALUKI_SRC=$BUILD_DIR/saluki
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache
 
 # Number of available CPUs — nproc does not exist on AIX; lsdev is in /usr/sbin
 NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 
-export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
+export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE SALUKI_SRC WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
 # AGENT_VERSION: auto-detected from the source tree if not already set.

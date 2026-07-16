@@ -1,0 +1,12 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json
+title: Basic schema for unit test
+properties:
+  my_setting:
+    node_type: setting
+    type: string
+    default: abc
+    visibility: public
+    description: simple setting
+    tags:
+    - full-agent-only:true

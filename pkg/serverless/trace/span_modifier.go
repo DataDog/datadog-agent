@@ -8,7 +8,6 @@ package trace
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -22,33 +21,10 @@ type spanModifier struct {
 }
 
 // ModifySpan applies extra logic to the given span
-func (s *spanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
+func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	// ensure all spans have tag _dd.origin in addition to span.Origin
 	if origin := span.Meta[ddOriginTagName]; origin == "" {
 		traceutil.SetMeta(span, ddOriginTagName, s.ddOrigin)
-	}
-	// Origin is canonically a chunk-level attribute (and stats aggregation reads
-	// it from the chunk). The serverless cloud origin is only known to the agent,
-	// not the tracer, so populate the chunk origin here when it is not already
-	// set. Guarded so a tracer-provided origin is never overwritten.
-	if chunk != nil && chunk.Origin == "" {
-		chunk.Origin = s.ddOrigin
-	}
-}
-
-// ModifySpanV1 is the V1 (idx) equivalent of ModifySpan.
-func (s *spanModifier) ModifySpanV1(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
-	// ensure all spans have tag _dd.origin in addition to span.Origin
-	if origin, ok := span.GetAttributeAsString(ddOriginTagName); !ok || origin == "" {
-		span.SetStringAttribute(ddOriginTagName, s.ddOrigin)
-	}
-	// Origin is canonically a chunk-level attribute in the v1 representation (and
-	// stats aggregation reads it from the chunk). The serverless cloud origin is
-	// only known to the agent, not the tracer, so populate the chunk origin here
-	// when it is not already set. Guarded so a tracer-provided origin is never
-	// overwritten.
-	if chunk != nil && chunk.Origin() == "" {
-		chunk.SetOrigin(s.ddOrigin)
 	}
 }
 

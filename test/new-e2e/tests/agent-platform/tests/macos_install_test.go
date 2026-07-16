@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	macosAgentAPIPort  = 5001
-	macosGUIPort       = 5002
-	macosAuthTokenPath = "/opt/datadog-agent/etc/auth_token"
+	macosAgentAPIPort       = 5001
+	macosGUIPort            = 5002
+	macosAuthTokenPath      = "/opt/datadog-agent/etc/auth_token"
+	macosSysprobeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 )
 
 type macosInstallSuite struct {
@@ -110,6 +111,8 @@ func (m *macosInstallSuite) enableSysprobeForRestartTest(macosTestClient *common
 
 	m.EventuallyWithT(func(c *assert.CollectT) {
 		macosLaunchdPID(c, macosTestClient, "system/com.datadoghq.sysprobe")
+		// Wait for the sysprobe socket to be available, since testAgentRestart dials it directly.
+		macosTestClient.MustExecuteOn(c, "sudo test -S "+macosSysprobeSocketPath)
 	}, 20*time.Second, 1*time.Second)
 }
 

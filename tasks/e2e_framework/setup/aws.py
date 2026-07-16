@@ -15,6 +15,9 @@ SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
 DEFAULT_KEY_TYPE = "rsa"
+# Accounts not listed here default to 'account-admin'. Keep in sync with the
+# `profile:` entries in test/e2e-framework/resources/aws/environmentDefaults.go.
+ACCOUNT_ADMIN_ROLE_BY_ACCOUNT = {"agent-sandbox": "account-admin-8h"}
 
 
 def _default_keypair_name(account: str, user: str) -> str:
@@ -170,8 +173,7 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
 
     aws = config.configParams.aws
 
-    # agent-sandbox
-    role = 'account-admin'
+    role = ACCOUNT_ADMIN_ROLE_BY_ACCOUNT.get(aws.account, 'account-admin')
     acct_id = 376334461865
     start_url = 'https://d-906757b57c.awsapps.com/start/#'
     region = 'us-east-1'
