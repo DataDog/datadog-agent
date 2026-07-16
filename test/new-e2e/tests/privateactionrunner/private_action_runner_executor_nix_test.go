@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -40,11 +42,24 @@ type linuxPrivateActionRunnerExecutorSuite struct {
 
 func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 	t.Parallel()
-	// Disable idle self-shutdown so the executor stays up for the whole test
-	// (it would otherwise self-exit after being idle with no in-flight actions).
-	config := GenerateTestPrivateActionRunnerConfig(t) + `  executor:
+
+	// Fake remote-config TUF roots. Without a fakeintake this environment has no
+	// RC backend, so the remote config service would otherwise start against the
+	// production roots and fail; the deterministic fake roots let it initialize
+	// cleanly so the executor starts up properly.
+	rcRoot, err := fakeintake.RCRootJSON()
+	require.NoError(t, err, "failed to build fake RC root")
+
+	// PAR enabled with a valid identity; idle self-shutdown disabled so the
+	// executor stays up for the whole test (it would otherwise self-exit after
+	// being idle with no in-flight actions).
+	config := GenerateTestPrivateActionRunnerConfig(t) + fmt.Sprintf(`  executor:
     idle_shutdown_timeout_seconds: 0
-`
+remote_configuration:
+  config_root: '%s'
+  director_root: '%s'
+`, rcRoot, rcRoot)
+
 	e2e.Run(t, &linuxPrivateActionRunnerExecutorSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
