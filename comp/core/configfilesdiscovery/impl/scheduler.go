@@ -454,7 +454,7 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 	}
 
 	if len(files) == 0 {
-		s.finishCollection(watch, time.Time{})
+		s.finishCollection(watch, s.clock.Now().Add(s.nextHeartbeatDelay()))
 		return pendingCollectedConfig{}, false
 	}
 	if !s.isActiveWatch(watch) {

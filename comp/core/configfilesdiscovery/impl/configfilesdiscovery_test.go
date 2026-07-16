@@ -781,7 +781,7 @@ func TestSchedulerUnscheduleStopsHeartbeats(t *testing.T) {
 	}, 50*time.Millisecond, 5*time.Millisecond)
 }
 
-func TestSchedulerStopsHeartbeatingMissingFiles(t *testing.T) {
+func TestSchedulerContinuesHeartbeatingAfterEmptyCollection(t *testing.T) {
 	mockClock := clock.NewMock()
 	sender := &recordingCollectedConfigSender{}
 	collector := &recordingConfigCollector{
@@ -820,15 +820,18 @@ func TestSchedulerStopsHeartbeatingMissingFiles(t *testing.T) {
 	mockClock.Add(time.Hour)
 	collector.waitForRuns(t, 2)
 	assert.Len(t, sender.recordedCollectedConfigs(), 1)
-	require.Eventually(t, func() bool {
-		nextCollection, inFlight, ok := watchedConfigState(s, config)
-		return ok && !inFlight && nextCollection.IsZero()
-	}, time.Second, 10*time.Millisecond)
+	waitForWatchScheduled(t, s, config)
 
-	mockClock.Add(2 * time.Hour)
-	require.Never(t, func() bool {
-		return len(collector.recordedRuns()) > 2
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	collector.setFiles([]ConfigFile{
+		{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6380\n"),
+		},
+	})
+
+	mockClock.Add(time.Hour)
+	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
+	assert.Equal(t, []byte("port 6380\n"), collectedConfigs[1].ConfigFiles[0].Content)
 }
 
 func TestSchedulerRetriesAfterFailedSend(t *testing.T) {
