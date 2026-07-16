@@ -131,6 +131,14 @@
         "prPriority": 10
       },
       {
+        "description": "Update rshell commit pins daily",
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/DataDog/rshell"],
+        "matchUpdateTypes": ["digest"],
+        "enabled": true,
+        "schedule": ["* 2-6 * * *"]
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
