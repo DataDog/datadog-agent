@@ -29,28 +29,38 @@ import (
 
 // mockFlusher counts how many times Flush was called and records when each
 // Flush call returned. The completedAt pointer is nil until the first Flush.
+// onFlush, if set, is invoked after each Flush — used by tests that need to
+// synchronize deterministically on flush completion instead of sleeping.
 type mockFlusher struct {
 	count       atomic.Int32
 	completedAt atomic.Pointer[time.Time]
+	onFlush     func()
 }
 
 func (m *mockFlusher) Flush() {
 	m.count.Add(1)
 	now := time.Now()
 	m.completedAt.Store(&now)
+	if m.onFlush != nil {
+		m.onFlush()
+	}
 }
 
 // mockLogsAgent counts how many times Flush was called and records when each
-// call returned.
+// call returned. onFlush, if set, is invoked after each Flush.
 type mockLogsAgent struct {
 	count       atomic.Int32
 	completedAt atomic.Pointer[time.Time]
+	onFlush     func()
 }
 
 func (m *mockLogsAgent) Flush(_ context.Context) {
 	m.count.Add(1)
 	now := time.Now()
 	m.completedAt.Store(&now)
+	if m.onFlush != nil {
+		m.onFlush()
+	}
 }
 
 // mockSampleDrainer counts how many times WaitForPendingSamples was called.
@@ -117,6 +127,35 @@ func TestHandleRunParsesInstanceID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
+}
+
+// TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
+// aborts the handler before any state is mutated, rather than silently
+// proceeding with a truncated/empty body. errReader is defined in
+// forwarder_test.go.
+func TestHandleRun_BodyReadError_Returns500(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+	req := httptest.NewRequest(http.MethodPost, pathRun, io.NopCloser(errReader{}))
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, "", srv.instanceID.Load(), "instance ID must not be set when the body could not be read")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "run metric must not be emitted when the body could not be read")
+}
+
+// TestHandleRun_OversizedBody_Returns500 verifies that a /run body exceeding
+// maxRunBodyBytes is rejected instead of being buffered unbounded.
+func TestHandleRun_OversizedBody_Returns500(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+	oversized := strings.NewReader(strings.Repeat("a", int(maxRunBodyBytes)+1))
+	req := httptest.NewRequest(http.MethodPost, pathRun, oversized)
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, "", srv.instanceID.Load(), "instance ID must not be set when the body exceeds the cap")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "run metric must not be emitted when the body exceeds the cap")
 }
 
 // TestHandleRunWithForwarderParsesInstanceID verifies that when a forwarder is
@@ -471,23 +510,36 @@ func TestHandleSuspend_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	assert.Contains(t, emitter.getEmitted(), suspendMetricName, "metric must still be emitted")
 }
 
-// Parallelism pin: with a slow user-app forward, flush mocks must complete
-// BEFORE the forward returns. A sequential "forward then flush" implementation
-// would flip this ordering. (A "flush then forward" implementation would also
-// pass this assertion, but that variant is benign: it's still bounded and
-// telemetry still flushes — just slower. The assertion catches the
-// correctness-violating ordering.)
+// Parallelism pin: the upstream handler blocks until all three flush mocks
+// have signaled completion, then responds. A sequential "forward then flush"
+// implementation would deadlock this handler (flush never runs until the
+// forward it's waiting on returns) and the test would fail via timeout rather
+// than a flaky sleep-based race. (A "flush then forward" implementation would
+// also pass, but that variant is benign: still bounded, telemetry still
+// flushes — just slower. This only catches the correctness-violating
+// ordering.)
 func TestHandleSuspend_WithForwarder_FlushCompletesBeforeForwardReturns(t *testing.T) {
-	forwardCompletedAt := atomic.Pointer[time.Time]{}
+	const flushWorkerCount = 3 // metric, trace, logs flushers signaled below
+	flushesDone := make(chan struct{}, flushWorkerCount)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(150 * time.Millisecond) // give flush mocks ample time to land first
-		now := time.Now()
-		forwardCompletedAt.Store(&now)
+		for i := 0; i < flushWorkerCount; i++ {
+			select {
+			case <-flushesDone:
+			case <-time.After(2 * time.Second):
+				t.Errorf("timed out waiting for flush #%d to complete before the forward returned", i+1)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 		w.WriteHeader(200)
 	}))
 	defer upstream.Close()
 
 	srv, metric, trace, logs, _, _ := newTestServer()
+	signal := func() { flushesDone <- struct{}{} }
+	metric.onFlush = signal
+	trace.onFlush = signal
+	logs.onFlush = signal
 	srv.fwd = &Forwarder{
 		target:               upstream.URL,
 		client:               &http.Client{},
@@ -498,19 +550,10 @@ func TestHandleSuspend_WithForwarder_FlushCompletesBeforeForwardReturns(t *testi
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
 
-	require.NotNil(t, forwardCompletedAt.Load(), "forward must have completed")
-	fwd := *forwardCompletedAt.Load()
-	for _, name := range []struct {
-		label string
-		ts    *time.Time
-	}{
-		{"metric", metric.completedAt.Load()},
-		{"trace", trace.completedAt.Load()},
-		{"logs", logs.completedAt.Load()},
-	} {
-		require.NotNilf(t, name.ts, "%s flush must have completed", name.label)
-		assert.Truef(t, name.ts.Before(fwd), "%s flush_completed_ts must precede forward_completed_ts (parallel execution)", name.label)
-	}
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, int32(1), metric.count.Load())
+	assert.Equal(t, int32(1), trace.count.Load())
+	assert.Equal(t, int32(1), logs.count.Load())
 }
 
 // Dial-error pin: when the user app is not listening, /suspend returns 503
@@ -856,14 +899,9 @@ func TestServeAndStopGracefulShutdown(t *testing.T) {
 // WriteTimeout on the underlying http.Server.
 //
 // Without a forwarder, WriteTimeout is flushTimeout+writeTimeoutHeadroom (flush
-// budget + heartbeat.Stop() + write headroom).
-//
-// With a forwarder, WriteTimeout is max(flushTimeout, forwardTimeout)+writeTimeoutHeadroom.
-// The forwardTimeout (default 30s) exceeds the flush budget (default 5s), so
-// the forwarder-path WriteTimeout must be sized to forwardTimeout+writeTimeoutHeadroom,
-// not flushTimeout+writeTimeoutHeadroom. Otherwise the HTTP server closes the
-// platform-facing connection before the handler can write the mirrored response
-// for any user app that responds after the flush-only deadline.
+// budget + heartbeat.Stop() + write headroom). The forwarder case (WriteTimeout
+// sized to forwardTimeout+flushTimeout) is covered by
+// TestNewServerWithForwarderWriteTimeoutCoversForwardBudget below.
 func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
 	flushTimeout := 5 * time.Second
 	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, nil)
@@ -910,7 +948,7 @@ func TestInstanceIDTagAppearsInMetricsAfterRun(t *testing.T) {
 		}
 	}
 	require.NotNil(t, found, "suspend metric must be emitted")
-	assert.Contains(t, found.extraTags, lambdaMicroVMID+"vm-abc123")
+	assert.Contains(t, found.extraTags, lambdaMicroVMIDPrefix+"vm-abc123")
 }
 
 // errorReader is a helper io.Reader that always returns the provided error.
@@ -1229,11 +1267,11 @@ func TestSetLogsTagSetter_WiresFields(t *testing.T) {
 	baseTags := []string{"region:us-east-1"}
 	srv.SetLogsTagSetter(setter, baseTags)
 	assert.Equal(t, setter, srv.logsTagSetter)
-	assert.Equal(t, baseTags, srv.baseTags)
+	assert.Equal(t, baseTags, srv.baseLogTags)
 }
 
 // TestHandleRun_UpdatesLogTagsWithMicroVMID is the primary feature test:
-// /run with a microvmId body calls SetLogsTags with baseTags + lambdaMicroVMID + id.
+// /run with a microvmId body calls SetLogsTags with baseLogTags + lambdaMicroVMIDPrefix + id.
 func TestHandleRun_UpdatesLogTagsWithMicroVMID(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
@@ -1243,7 +1281,7 @@ func TestHandleRun_UpdatesLogTagsWithMicroVMID(t *testing.T) {
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called exactly once on /run")
-	assert.Equal(t, []string{"env:prod", "region:us-east-1", lambdaMicroVMID + "vm-abc123"}, setter.lastCall())
+	assert.Equal(t, []string{"env:prod", "region:us-east-1", lambdaMicroVMIDPrefix + "vm-abc123"}, setter.lastCall())
 }
 
 // TestHandleRun_NoMicroVmID_DoesNotUpdateLogTags verifies that when the platform
@@ -1273,9 +1311,9 @@ func TestHandleRun_NilLogsTagSetter_DoesNotPanic(t *testing.T) {
 
 // TestHandleRun_BaseTagsNotMutated verifies the safe-append contract: each
 // call to handleRun produces an independent slice and does not modify the
-// baseTags stored on the server. This guards against the naive
-// append(s.baseTags, ...) pattern which can corrupt baseTags when the slice
-// has spare capacity.
+// baseLogTags stored on the server. This guards against the naive
+// append(s.baseLogTags, ...) pattern which can corrupt baseLogTags when the
+// slice has spare capacity.
 func TestHandleRun_BaseTagsNotMutated(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
@@ -1294,8 +1332,8 @@ func TestHandleRun_BaseTagsNotMutated(t *testing.T) {
 
 	calls := setter.allCalls()
 	require.Len(t, calls, 2)
-	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-first"}, calls[0])
-	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-second"}, calls[1])
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMIDPrefix + "vm-first"}, calls[0])
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMIDPrefix + "vm-second"}, calls[1])
 }
 
 // TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly verifies that when the
@@ -1310,7 +1348,7 @@ func TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount())
-	assert.Equal(t, []string{lambdaMicroVMID + "vm-solo"}, setter.lastCall())
+	assert.Equal(t, []string{lambdaMicroVMIDPrefix + "vm-solo"}, setter.lastCall())
 }
 
 // TestHandleRun_WithForwarder_UpdatesLogTags verifies that the log tag update
@@ -1336,7 +1374,7 @@ func TestHandleRun_WithForwarder_UpdatesLogTags(t *testing.T) {
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called even when forwarder is configured")
-	assert.Equal(t, []string{"env:staging", lambdaMicroVMID + "vm-fwd456"}, setter.lastCall())
+	assert.Equal(t, []string{"env:staging", lambdaMicroVMIDPrefix + "vm-fwd456"}, setter.lastCall())
 }
 
 // ---------------------------------------------------------------------------
