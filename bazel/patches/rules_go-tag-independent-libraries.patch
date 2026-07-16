@@ -1,0 +1,31 @@
+diff --git a/go/private/context.bzl b/go/private/context.bzl
+index 599f8ee6..1ddf39a8 100644
+--- a/go/private/context.bzl
++++ b/go/private/context.bzl
+@@ -234,7 +234,8 @@ def _builder_args(go, command = None):
+ 
+     mode = go.mode
+     args.add("-installsuffix", installsuffix(mode))
+-    args.add_joined("-tags", mode.tags, join_with = ",")
++    if not getattr(go._ctx.attr, "tags_independent", False):
++        args.add_joined("-tags", mode.tags, join_with = ",")
+     return args
+ 
+ def _tool_args(go):
+diff --git a/go/private/rules/library.bzl b/go/private/rules/library.bzl
+index 8af45c62..a9deaf22 100644
+--- a/go/private/rules/library.bzl
++++ b/go/private/rules/library.bzl
+@@ -141,6 +141,11 @@ go_library = rule(
+             All source files containing `//go:embed` directives must be in the same logical directory.
+             It's okay to mix static and generated source files and static and generated embeddable files.
+             """,
+         ),
++        "tags_independent": attr.bool(
++            doc = """
++            Whether Go build tags are irrelevant to source selection for this library.
++            """,
++        ),
+         "gc_goopts": attr.string_list(
+             doc = """
+             List of flags to add to the Go compilation command when using the gc compiler.

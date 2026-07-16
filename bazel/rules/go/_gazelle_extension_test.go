@@ -30,6 +30,57 @@ func newLang() *lang {
 	return NewLanguage().(*lang)
 }
 
+func TestMarkTagIndependentLibraries(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "plain.go"), []byte("package sample\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tagged.go"), []byte("//go:build test\n\npackage sample\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "legacy.go"), []byte("// +build test\n\npackage sample\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "malformed.go"), []byte("//go:build (\n\npackage sample\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	plain := rule.NewRule("go_library", "plain")
+	plain.SetAttr("srcs", []string{"plain.go"})
+	tagged := rule.NewRule("go_library", "tagged")
+	tagged.SetAttr("srcs", []string{"tagged.go"})
+	legacy := rule.NewRule("go_library", "legacy")
+	legacy.SetAttr("srcs", []string{"legacy.go"})
+	malformed := rule.NewRule("go_library", "malformed")
+	malformed.SetAttr("srcs", []string{"malformed.go"})
+	generated := rule.NewRule("go_library", "generated")
+	generated.SetAttr("srcs", []string{":generated.go"})
+	embedded := rule.NewRule("go_library", "embedded")
+	embedded.SetAttr("srcs", []string{"plain.go"})
+	embedded.SetAttr("embed", []string{":other"})
+	cgo := rule.NewRule("go_library", "cgo")
+	cgo.SetAttr("srcs", []string{"plain.go"})
+	cgo.SetAttr("cgo", true)
+
+	markTagIndependentLibraries([]*rule.Rule{plain, tagged, legacy, malformed, generated, embedded, cgo}, dir)
+
+	if plain.Attr("tags_independent") == nil {
+		t.Error("plain library was not marked tag-independent")
+	}
+	for _, r := range []*rule.Rule{tagged, legacy, malformed, generated, embedded, cgo} {
+		if r.Attr("tags_independent") != nil {
+			t.Errorf("%s unexpectedly marked tag-independent", r.Name())
+		}
+	}
+}
+
+func TestKindsOwnsTagIndependentAttribute(t *testing.T) {
+	kinds := newLang().Kinds()
+	if !kinds["go_library"].MergeableAttrs["tags_independent"] {
+		t.Error("tags_independent must be Gazelle-managed")
+	}
+}
+
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
 	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "")
@@ -402,14 +453,14 @@ func TestLoads(t *testing.T) {
 // directives are still advertised.
 func TestKnownDirectives(t *testing.T) {
 	dirs := NewLanguage().(*lang).KnownDirectives()
-	found := false
+	found := map[string]bool{}
 	for _, d := range dirs {
-		if d == extName {
-			found = true
-		}
+		found[d] = true
 	}
-	if !found {
-		t.Errorf("%q not in KnownDirectives: %v", extName, dirs)
+	for _, directive := range []string{extName, tagIndependentExtName} {
+		if !found[directive] {
+			t.Errorf("%q not in KnownDirectives: %v", directive, dirs)
+		}
 	}
 	if len(dirs) <= 1 {
 		t.Errorf("expected Go extension directives to be preserved, got %v", dirs)
@@ -427,6 +478,9 @@ func TestConfigure_DefaultDisabled(t *testing.T) {
 	if got.enabled {
 		t.Error("expected enabled=false by default (conversion is opt-in)")
 	}
+	if c.Exts[tagIndependentExtName].(tagIndependentConfig).enabled {
+		t.Error("expected tag-independent detection to be disabled by default")
+	}
 }
 
 func TestConfigure_DirectiveOn(t *testing.T) {
@@ -438,6 +492,21 @@ func TestConfigure_DirectiveOn(t *testing.T) {
 
 	if !c.Exts[extName].(ddAgentGoTestConfig).enabled {
 		t.Error("expected enabled=true after directive on")
+	}
+}
+
+func TestConfigure_TagIndependentDirectiveOn(t *testing.T) {
+	f := &rule.File{}
+	f.Directives = []rule.Directive{{Key: tagIndependentExtName, Value: "on"}}
+
+	c := &config.Config{Exts: map[string]interface{}{}}
+	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+
+	if !c.Exts[tagIndependentExtName].(tagIndependentConfig).enabled {
+		t.Error("expected tag-independent detection after directive on")
+	}
+	if !shouldMarkTagIndependent(c) {
+		t.Error("expected tag-independent marking to be enabled")
 	}
 }
 
