@@ -17,6 +17,9 @@ import (
 type DebugView interface {
 	StateView() StateView
 	CatalogEntries() []CatalogEntry
+	// EffectiveComponentConfigs returns every catalog component's resolved
+	// enabled state and hyperparameters after defaults and overrides are applied.
+	EffectiveComponentConfigs() (map[string]map[string]any, error)
 	// Flush blocks until all observations queued in the dispatch channel have
 	// been processed by the engine. The testbench calls this after feeding
 	// parquet data to ensure StateView reflects all ingested observations.
