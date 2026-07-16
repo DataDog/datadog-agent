@@ -184,9 +184,6 @@ mod tests {
         // Use a built-in local SAM account so this stays deterministic on
         // domain-joined CI hosts (where USERNAME is a domain principal).
         let username = "Administrator";
-        let computer_domain = std::env::var("COMPUTERNAME").expect("COMPUTERNAME");
-        // Resolve via the local SAM only. COMPUTERNAME\Administrator can block on
-        // domain-joined hosts while Windows contacts a domain controller.
         let sid = match lookup_account_sid(".", username)
             .or_else(|_| lookup_account_sid("", username))
         {
@@ -197,8 +194,13 @@ mod tests {
             }
         };
 
-        let account = account_name_from_sid_lookup(&sid, computer_domain, username.to_string())
-            .expect("account");
+        if !super::super::local_account::is_local_account(&sid).unwrap_or(false) {
+            eprintln!("skipping: Administrator is not a local SAM account on this host");
+            return;
+        }
+
+        // Read domain/user from LookupAccountSidW (production path), not COMPUTERNAME.
+        let account = lookup_account_name(&sid).expect("account");
         assert_eq!(
             account.display(),
             AccountName::new("", username).display(),
