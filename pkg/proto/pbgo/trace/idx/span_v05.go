@@ -214,6 +214,9 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
 	if sz > 0 {
+		if err = checkSlabCount(sz, bts); err != nil {
+			return bts, err
+		}
 		// Slab-allocate the AnyValue containers and their string-ref oneof wrappers
 		// for every meta entry in two allocations, rather than two per entry. The map
 		// holds pointers into these backing arrays, which live as long as the span.
@@ -244,6 +247,9 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
 	if sz > 0 {
+		if err = checkSlabCount(sz, bts); err != nil {
+			return bts, err
+		}
 		// Slab-allocate the AnyValue containers and their double oneof wrappers for
 		// every metric in two allocations, rather than two per metric.
 		values := make([]AnyValue, sz)
@@ -287,4 +293,19 @@ func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (u
 		return 0, nil, errors.New("too long payload")
 	}
 	return sz, bts, err
+}
+
+// minBytesPerSlabEntry is a conservative lower bound on the wire size of one meta/metrics/meta_struct
+// entry: every entry reads at least two msgpack values (e.g. two 1-byte nils).
+const minBytesPerSlabEntry = 2
+
+// checkSlabCount guards a slab pre-allocation (make([]AnyValue, n) and its oneof-wrapper sibling)
+// against a claimed entry count that couldn't possibly be backed by the remaining bytes. Without this,
+// a tiny malicious payload could set a map header to millions of entries and force a large allocation
+// before decoding ever reaches the missing bytes and fails naturally.
+func checkSlabCount(n uint32, remaining []byte) error {
+	if uint64(n)*minBytesPerSlabEntry > uint64(len(remaining)) {
+		return fmt.Errorf("not enough data for %d entries", n)
+	}
+	return nil
 }

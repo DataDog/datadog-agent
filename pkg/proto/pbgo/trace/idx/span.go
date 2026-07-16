@@ -1181,6 +1181,10 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
 			}
 			if numMetaFields > 0 {
+				if err = checkSlabCount(numMetaFields, bts); err != nil {
+					err = msgp.WrapError(err, "Meta")
+					return
+				}
 				// Slab-allocate the AnyValue containers and their string-ref oneof
 				// wrappers for every meta entry in two allocations, rather than two per
 				// entry. The map holds pointers into these backing arrays.
@@ -1219,6 +1223,10 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
 			}
 			if numMetricsFields > 0 {
+				if err = checkSlabCount(numMetricsFields, bts); err != nil {
+					err = msgp.WrapError(err, "Metrics")
+					return
+				}
 				// Slab-allocate the AnyValue containers and their double oneof wrappers
 				// for every metric in two allocations, rather than two per metric.
 				values := make([]AnyValue, numMetricsFields)
@@ -1264,6 +1272,10 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
 			}
 			if numMetaStructFields > 0 {
+				if err = checkSlabCount(numMetaStructFields, bts); err != nil {
+					err = msgp.WrapError(err, "MetaStruct")
+					return
+				}
 				// Slab-allocate the AnyValue containers and their bytes oneof wrappers
 				// for every meta_struct entry in two allocations, rather than two per
 				// entry.
