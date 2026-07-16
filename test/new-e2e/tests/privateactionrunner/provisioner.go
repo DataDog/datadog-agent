@@ -7,7 +7,6 @@ package privateactionrunner
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -71,13 +70,9 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			// 1. Deploy fakeintake as ECS Fargate (HTTP, no load balancer).
 			// PAR inside the Kind cluster reaches it at fakeintake's private VPC IP.
 			// The test process also calls fakeintake directly for control operations (enqueue/result).
-			// FAKEINTAKE_IMAGE_OVERRIDE allows using a locally-built image during development
-			// (same pattern used by CI and docker_test.go).
-			var fiOpts []awsFakeintake.Option
-			if img := os.Getenv("FAKEINTAKE_IMAGE_OVERRIDE"); img != "" {
-				fiOpts = append(fiOpts, awsFakeintake.WithImageURL(img))
-			}
-			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name, fiOpts...)
+			// The default image already honors FAKEINTAKE_IMAGE_OVERRIDE (see
+			// test/fakeintake/version), so a locally-built image is picked up automatically.
+			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name)
 			if err != nil {
 				return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
 			}

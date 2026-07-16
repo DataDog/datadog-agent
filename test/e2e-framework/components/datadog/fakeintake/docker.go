@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/fakeintake/version"
 	"github.com/pulumi/pulumi-docker/sdk/v4/go/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -20,7 +21,7 @@ func NewLocalDockerFakeintake(e config.Env, resourceName string) (*Fakeintake, e
 	return components.NewComponent(e, resourceName, func(comp *Fakeintake) error {
 
 		_, err := docker.NewContainer(e.Ctx(), e.CommonNamer().ResourceName("local-docker-container"), &docker.ContainerArgs{
-			Image: pulumi.String("public.ecr.aws/datadog/fakeintake:latest"),
+			Image: pulumi.String(version.ImageURL("public.ecr.aws/datadog/fakeintake")),
 			Command: pulumi.ToStringArray([]string{"--rc-key-data=" + DefaultRCSigningKeySeed}),
 			Ports: docker.ContainerPortArray{
 				&docker.ContainerPortArgs{

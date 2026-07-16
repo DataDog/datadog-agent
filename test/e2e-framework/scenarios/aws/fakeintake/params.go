@@ -5,7 +5,10 @@
 
 package fakeintake
 
-import "github.com/DataDog/datadog-agent/test/e2e-framework/common"
+import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/fakeintake/version"
+)
 
 type Params struct {
 	LoadBalancerEnabled bool
@@ -22,7 +25,7 @@ type Option = func(*Params) error
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
 		LoadBalancerEnabled: false,
-		ImageURL:            "public.ecr.aws/datadog/fakeintake:latest",
+		ImageURL:            version.ImageURL("public.ecr.aws/datadog/fakeintake"),
 		CPU:                 512,
 		Memory:              1024,
 		DDDevForwarding:     true,

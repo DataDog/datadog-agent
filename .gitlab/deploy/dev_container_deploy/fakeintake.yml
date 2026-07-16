@@ -28,3 +28,28 @@ publish_fakeintake_latest:
     IMG_DESTINATIONS: fakeintake:latest
     IMG_REGISTRIES: public
     IMG_SIGNING: "false"
+
+# Publishes the pinned tag (test/fakeintake/version/VERSION) that e2e-framework's
+# fakeintake defaults resolve to (see test/fakeintake/version). Runs on main so
+# branches that rebase pick up the new pin.
+#
+# Note: dd-pkg publish-image (see .gitlab/.pre/common/container_publish_job_templates.yml)
+# doesn't expose a flag to fail instead of overwriting an existing destination tag, so this
+# job can't itself refuse to clobber a tag. The immutability guarantee instead comes from
+# tasks/fakeintake.py's check-version-bump task (see fakeintake_check_version_bump job),
+# which enforces a strictly-increasing VERSION and is re-evaluated in the merge queue.
+publish_fakeintake_pinned:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes_on_main]
+  needs:
+    - job: docker_build_fakeintake
+      optional: false
+  before_script:
+    - export IMG_DESTINATIONS="fakeintake:$(cat test/fakeintake/version/VERSION)"
+  variables:
+    IMG_SOURCES: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_REGISTRIES: public
+    IMG_SIGNING: "false"

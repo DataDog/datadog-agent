@@ -182,6 +182,18 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
 
+## Fakeintake image version
+
+Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
+`components/datadog/fakeintake/docker.go`) resolves through
+`test/fakeintake/version.ImageURL(...)`: it uses `$FAKEINTAKE_IMAGE_OVERRIDE`
+when set (CI sets this to the PR-built `v<sha>` image whenever
+`test/fakeintake/**` changes, so e2e exercises fakeintake changes on the PR
+that makes them), otherwise the pinned tag from `test/fakeintake/version/VERSION`.
+`WithImageURL(...)` on any fakeintake provisioner still wins over both. See
+`test/fakeintake/AGENTS.md` § "Image version pinning" for the full workflow
+(bumping VERSION, the strictly-increasing CI check, publish jobs).
+
 ## Key files
 
 - `testing/e2e/suite.go` — `BaseSuite` and `Run()` (test entry point)

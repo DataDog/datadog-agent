@@ -202,6 +202,32 @@ When the agent starts sending a new type of data to a new endpoint:
 
 5. **Add tests** for the new aggregator and client methods
 
+## Image version pinning
+
+The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
+
+- `version/VERSION` holds the pinned tag (e.g. `v1`), embedded by
+  `version/version.go` and exposed as `version.Tag`.
+- `version.ImageURL(image)` (used by every fakeintake default in
+  `test/e2e-framework`) returns `$FAKEINTAKE_IMAGE_OVERRIDE` if set, else
+  `<image>:<Tag>`.
+- **When you change anything under `test/fakeintake/`** (other than
+  `version/VERSION` itself), **bump `version/VERSION` in the same PR** — it
+  must be a strictly greater integer than the base branch's value (e.g.
+  `v1` → `v2`). CI (`fakeintake_check_version_bump`, using
+  `dda inv fakeintake.check-version-bump`) enforces this, including in the
+  merge queue, so two PRs bumping to the same value can never collide.
+- **On your PR**, e2e suites don't need the bump to see your change: CI sets
+  `FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image whenever
+  `test/fakeintake/**` changes, and every suite now honors that override
+  globally — so your PR's fakeintake is exercised regardless of the pin.
+- **On merge to main**, `publish_fakeintake_pinned` publishes the image under
+  the tag in `VERSION`. Other branches keep using their own pinned tag until
+  they rebase onto a main that bumped it — no branch is affected by a
+  fakeintake change until it explicitly picks up the new pin.
+- `:latest` is still published (`publish_fakeintake_latest`) for external/manual
+  consumers, but no test references it anymore.
+
 ## Key files
 
 - `client/client.go` — main client API (filter methods, match options)
