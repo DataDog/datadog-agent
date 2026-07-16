@@ -148,10 +148,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err != nil {
 		return err
 	}
-	c.testConfigSource = payload.TestConfigSourceLocal
-	if provider == names.NetworkPathRemoteConfig {
+	switch provider {
+	case names.File:
+		c.testConfigSource = payload.TestConfigSourceLocal
+	case names.NetworkPathRemoteConfig:
 		c.testConfigSource = payload.TestConfigSourceRemote
-	} else {
+	}
+	if provider != names.NetworkPathRemoteConfig {
 		config.TestConfigID = ""
 	}
 	c.config = config

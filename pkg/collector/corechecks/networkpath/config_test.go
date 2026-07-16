@@ -638,17 +638,44 @@ tags:
 	}), eventplatform.EventTypeNetworkPath)
 }
 
-func TestConfigureIgnoresTestConfigIDFromNonRCProvider(t *testing.T) {
-	rawInstance := integration.Data(`
+func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
+	tests := []struct {
+		name                 string
+		provider             string
+		expectedConfigSource payload.TestConfigSource
+		expectedTestConfigID string
+	}{
+		{
+			name:                 "file",
+			provider:             names.File,
+			expectedConfigSource: payload.TestConfigSourceLocal,
+		},
+		{
+			name:                 "network path remote config",
+			provider:             names.NetworkPathRemoteConfig,
+			expectedConfigSource: payload.TestConfigSourceRemote,
+			expectedTestConfigID: "test-config-a",
+		},
+		{
+			name:     "generic remote config",
+			provider: names.RemoteConfig,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rawInstance := integration.Data(`
 test_config_id: test-config-a
 hostname: api.example.com
 `)
-	check := &Check{CheckBase: core.NewCheckBase(CheckName)}
+			check := &Check{CheckBase: core.NewCheckBase(CheckName)}
 
-	err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "file:network_path.yaml", names.File)
-	assert.NoError(t, err)
-	assert.Empty(t, check.config.TestConfigID)
-	assert.Equal(t, payload.TestConfigSourceLocal, check.testConfigSource)
+			err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "test source", tt.provider)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedTestConfigID, check.config.TestConfigID)
+			assert.Equal(t, tt.expectedConfigSource, check.testConfigSource)
+		})
+	}
 }
 
 func TestRunSetsLocalTestConfigSourceInPayload(t *testing.T) {
