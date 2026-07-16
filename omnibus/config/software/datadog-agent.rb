@@ -103,6 +103,13 @@ build do
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
+
+  # Stage Rust shared-library checks (Linux only).
+  if linux_target?
+    command "dda inv -- -e rust-shared-checks.build --checks-d-dir=\"#{conf_dir}/checks.d\"",
+      env: env,
+      :live_stream => Omnibus.logger.live_stream(:info)
+  end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
   # Now we place them into the pacakge via the //packages/agent/product:post_build_install
