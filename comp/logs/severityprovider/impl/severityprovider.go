@@ -11,6 +11,7 @@ package severityproviderimpl
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -43,6 +44,18 @@ type component struct {
 	reader atomic.Pointer[readerState]
 }
 
+const smartSeverityProfilesCooldownConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown"
+
+// smartSeverityProfilesSubscriptionConfig returns the reader configuration for
+// smart severity profiles. CooldownSecs has whole-second granularity, so
+// sub-second values are rounded rather than truncated to zero.
+func smartSeverityProfilesSubscriptionConfig(cfg config.Component) severityeventsdef.SeverityEventsConfiguration {
+	cooldown := cfg.GetDuration(smartSeverityProfilesCooldownConfigKey)
+	return severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: int64(cooldown.Round(time.Second) / time.Second),
+	}
+}
+
 // NewComponent creates the severity provider component.
 func NewComponent(reqs Requires) (Provides, error) {
 	comp := &component{}
@@ -59,7 +72,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 				return nil
 			}
 
-			subscription, err := observer.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{})
+			subscription, err := observer.SubscribeSeverityEventsReader(smartSeverityProfilesSubscriptionConfig(reqs.Config))
 			if err != nil {
 				return err
 			}
