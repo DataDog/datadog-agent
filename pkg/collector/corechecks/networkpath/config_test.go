@@ -647,24 +647,20 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 		expectedTestConfigID string
 	}{
 		{
-			name:                 "file",
-			provider:             names.File,
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "file",
+			provider: names.File,
 		},
 		{
-			name:                 "container",
-			provider:             names.Container,
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "container",
+			provider: names.Container,
 		},
 		{
-			name:                 "kubernetes",
-			provider:             names.Kubernetes,
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "kubernetes",
+			provider: names.Kubernetes,
 		},
 		{
-			name:                 "kubernetes container",
-			provider:             names.KubeContainer,
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "kubernetes container",
+			provider: names.KubeContainer,
 		},
 		{
 			name:                 "network path remote config",
@@ -673,14 +669,12 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 			expectedTestConfigID: "test-config-a",
 		},
 		{
-			name:                 "generic remote config",
-			provider:             names.RemoteConfig,
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "generic remote config",
+			provider: names.RemoteConfig,
 		},
 		{
-			name:                 "unknown",
-			provider:             "unknown",
-			expectedConfigSource: payload.TestConfigSourceOther,
+			name:     "unknown",
+			provider: "unknown",
 		},
 	}
 
@@ -700,7 +694,7 @@ hostname: api.example.com
 	}
 }
 
-func TestRunSetsOtherTestConfigSourceInPayload(t *testing.T) {
+func TestRunOmitsTestConfigSourceForNonRemoteConfig(t *testing.T) {
 	rawInstance := integration.Data("hostname: api.example.com")
 	rawInitConfig := integration.Data{}
 	expectedID := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstance, rawInitConfig)
@@ -717,8 +711,12 @@ func TestRunSetsOtherTestConfigSourceInPayload(t *testing.T) {
 	assert.NoError(t, check.Run())
 
 	sender.AssertCalled(t, "EventPlatformEvent", mock.MatchedBy(func(raw []byte) bool {
-		var path payload.NetworkPath
-		return json.Unmarshal(raw, &path) == nil && path.TestConfigSource == payload.TestConfigSourceOther
+		var path map[string]any
+		if json.Unmarshal(raw, &path) != nil {
+			return false
+		}
+		_, found := path["test_config_source"]
+		return !found
 	}), eventplatform.EventTypeNetworkPath)
 }
 

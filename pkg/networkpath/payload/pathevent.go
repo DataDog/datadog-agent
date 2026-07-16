@@ -118,15 +118,13 @@ const (
 	TestRunTypeTriggered TestRunType = "triggered"
 )
 
-// TestConfigSource identifies whether a scheduled Network Path product test was configured
-// through Network Path Remote Configuration or another source.
+// TestConfigSource identifies scheduled Network Path product tests configured through
+// Network Path Remote Configuration. It is intentionally unset for all other paths.
 type TestConfigSource string
 
 const (
 	// TestConfigSourceRemote is a scheduled Network Path product test configured through Network Path Remote Configuration.
 	TestConfigSourceRemote TestConfigSource = "remote"
-	// TestConfigSourceOther is a scheduled Network Path product test configured through any other source.
-	TestConfigSourceOther TestConfigSource = "other"
 )
 
 // SourceProduct defines the product that originated the path

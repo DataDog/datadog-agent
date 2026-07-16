@@ -21,7 +21,6 @@ func TestNetworkPathTestConfigSourceJSON(t *testing.T) {
 	}{
 		{name: "unset", expectField: false},
 		{name: "remote", source: TestConfigSourceRemote, expectField: true},
-		{name: "other", source: TestConfigSourceOther, expectField: true},
 	}
 
 	for _, tt := range tests {
