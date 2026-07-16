@@ -16,12 +16,12 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "all",
-    srcs = glob(["kernel_*/**"]),
+    srcs = glob(["usr/src/linux-headers-*/**"]),
 )
 
 cc_library(
     name = "linux_headers",
-    hdrs = glob(["kernel_*/**"]),
+    hdrs = glob(["usr/src/linux-headers-*/**"]),
     includes = ["."],
 )
 """
@@ -55,23 +55,25 @@ def _extract_deb_payload(rctx, url, sha256, output):
     rctx.extract(output + "/data.tar.zst")
     rctx.delete(output)
 
-def _kernel_header_dirs(kernel_arch):
+def _kernel_header_dirs(header_release, kernel_arch):
+    common_root = "usr/src/linux-headers-{}".format(header_release)
+    generic_root = "usr/src/linux-headers-{}-generic".format(header_release)
     common = [
-        "kernel_0/include",
-        "kernel_0/include/uapi",
-        "kernel_0/arch/{}/include".format(kernel_arch),
-        "kernel_0/arch/{}/include/uapi".format(kernel_arch),
+        common_root + "/include",
+        common_root + "/include/uapi",
+        common_root + "/arch/{}/include".format(kernel_arch),
+        common_root + "/arch/{}/include/uapi".format(kernel_arch),
     ]
-    generated = [
-        "kernel_1/include",
-        "kernel_1/include/uapi",
-        "kernel_1/include/generated/uapi",
-        "kernel_1/arch/{}/include".format(kernel_arch),
-        "kernel_1/arch/{}/include/uapi".format(kernel_arch),
-        "kernel_1/arch/{}/include/generated".format(kernel_arch),
-        "kernel_1/arch/{}/include/generated/uapi".format(kernel_arch),
+    generic = [
+        generic_root + "/include",
+        generic_root + "/include/uapi",
+        generic_root + "/include/generated/uapi",
+        generic_root + "/arch/{}/include".format(kernel_arch),
+        generic_root + "/arch/{}/include/uapi".format(kernel_arch),
+        generic_root + "/arch/{}/include/generated".format(kernel_arch),
+        generic_root + "/arch/{}/include/generated/uapi".format(kernel_arch),
     ]
-    return common + generated
+    return common + generic
 
 def _linux_headers_impl(rctx):
     if rctx.os.name != "linux":
@@ -101,18 +103,13 @@ def _linux_headers_impl(rctx):
         "_arch_deb",
     )
 
-    common_dir = "usr/src/linux-headers-{}".format(rctx.attr.header_release)
-    generated_dir = "usr/src/linux-headers-{}-generic".format(rctx.attr.header_release)
-    rctx.symlink(rctx.path(common_dir), "kernel_0")
-    rctx.symlink(rctx.path(generated_dir), "kernel_1")
-
     rctx.file("BUILD.bazel", _BUILD)
     rctx.file(
         "defs.bzl",
         """KERNEL_HEADER_DIRS = {header_dirs}
 KERNEL_ARCH = "{kernel_arch}"
 """.format(
-            header_dirs = repr(_kernel_header_dirs(kernel_arch)),
+            header_dirs = repr(_kernel_header_dirs(rctx.attr.header_release, kernel_arch)),
             kernel_arch = kernel_arch,
         ),
     )
