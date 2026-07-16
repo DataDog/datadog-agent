@@ -97,6 +97,7 @@ char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
+void EmitAgentTelemetryWithLabels(char *, char *, double, char *, char *, char **);
 void ReportIssue(char *, char *, char **);
 void ResolveIssue(char *, char **);
 
@@ -118,6 +119,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
+	set_emit_agent_telemetry_with_labels_cb(rtloader, EmitAgentTelemetryWithLabels);
 	set_report_issue_cb(rtloader, ReportIssue);
 	set_resolve_issue_cb(rtloader, ResolveIssue);
 }

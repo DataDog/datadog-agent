@@ -157,6 +157,7 @@ void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t);
 void _set_get_process_start_time_cb(cb_get_process_start_time_t);
 void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t);
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t);
+void _set_emit_agent_telemetry_with_labels_cb(cb_emit_agent_telemetry_with_labels_t);
 void _set_report_issue_cb(cb_report_issue_t);
 void _set_resolve_issue_cb(cb_resolve_issue_t);
 

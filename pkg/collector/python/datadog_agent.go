@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"unsafe"
@@ -560,92 +561,139 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 var (
-	telemetryMap  = map[string]any{}
+	telemetryMap  = map[string]*agentTelemetryMetric{}
 	telemetryLock = sync.Mutex{}
 )
 
-func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
-	var key = checkName + "." + metricName
+type agentTelemetryMetric struct {
+	metric     any
+	metricType string
+	labelNames []string
+}
+
+func agentTelemetryMetricKey(checkName string, metricName string) string {
+	return checkName + "." + metricName
+}
+
+func sortedLabelNames(labels map[string]string) []string {
+	labelNames := make([]string, 0, len(labels))
+	for labelName := range labels {
+		labelNames = append(labelNames, labelName)
+	}
+	sort.Strings(labelNames)
+	return labelNames
+}
+
+func sameStringSlice(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func lazyInitTelemetryMetric(checkName string, metricName string, metricType string, labelNames []string) (*agentTelemetryMetric, error) {
+	key := agentTelemetryMetricKey(checkName, metricName)
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
 
-	histogram, ok := telemetryMap[key]
-	if !ok {
-		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+	if entry, ok := telemetryMap[key]; ok {
+		if entry.metricType != metricType {
+			return nil, fmt.Errorf("metric %s for check %s was already emitted as %s when %s was expected", metricName, checkName, entry.metricType, metricType)
+		}
+		if !sameStringSlice(entry.labelNames, labelNames) {
+			return nil, fmt.Errorf("metric %s for check %s was already emitted with labels %v when labels %v were expected", metricName, checkName, entry.labelNames, labelNames)
+		}
+		return entry, nil
+	}
+
+	entry := &agentTelemetryMetric{
+		metricType: metricType,
+		labelNames: append([]string(nil), labelNames...),
+	}
+	switch metricType {
+	case "counter":
+		entry.metric = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 			checkName,
 			metricName,
-			nil,
+			entry.labelNames,
+			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+	case "histogram":
+		entry.metric = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+			checkName,
+			metricName,
+			entry.labelNames,
 			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
 			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
 			telemetry.DefaultOptions,
 		)
-		telemetryMap[key] = histogram
-	}
-	switch t := histogram.(type) {
-	default:
-		// Somehow the same metric was emitted with a different type
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
-		return nil
-	case telemetry.Histogram:
-		return t
-	}
-}
-
-func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
-	var key = checkName + "." + metricName
-	telemetryLock.Lock()
-	defer telemetryLock.Unlock()
-
-	counter, ok := telemetryMap[key]
-	if !ok {
-		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	case "gauge":
+		entry.metric = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 			checkName,
 			metricName,
-			nil,
-			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
-			telemetry.DefaultOptions,
-		)
-		telemetryMap[key] = counter
-	}
-	switch t := counter.(type) {
-	default:
-		// Somehow the same metric was emitted with a different type
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
-		return nil
-	case telemetry.Counter:
-		return t
-	}
-}
-
-func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
-	var key = checkName + "." + metricName
-	telemetryLock.Lock()
-	defer telemetryLock.Unlock()
-
-	gauge, ok := telemetryMap[key]
-	if !ok {
-		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-			checkName,
-			metricName,
-			nil,
+			entry.labelNames,
 			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
 			telemetry.DefaultOptions,
 		)
-		telemetryMap[key] = gauge
-	}
-	switch t := gauge.(type) {
 	default:
-		// Somehow the same metric was emitted with a different type
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
-		return nil
-	case telemetry.Gauge:
-		return t
+		return nil, fmt.Errorf("unsupported metric type %s requested by %s for %s", metricType, checkName, metricName)
 	}
+
+	telemetryMap[key] = entry
+	return entry, nil
 }
 
-// EmitAgentTelemetry records a telemetry data point for a Python integration
+func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
+	entry, err := lazyInitTelemetryMetric(checkName, metricName, "histogram", nil)
+	if err != nil {
+		log.Errorf("EmitAgentTelemetry: %v", err)
+		return nil
+	}
+	histogram, ok := entry.metric.(telemetry.Histogram)
+	if !ok {
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when histogram was expected", metricName, checkName, entry.metric)
+		return nil
+	}
+	return histogram
+}
+
+func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
+	entry, err := lazyInitTelemetryMetric(checkName, metricName, "counter", nil)
+	if err != nil {
+		log.Errorf("EmitAgentTelemetry: %v", err)
+		return nil
+	}
+	counter, ok := entry.metric.(telemetry.Counter)
+	if !ok {
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when counter was expected", metricName, checkName, entry.metric)
+		return nil
+	}
+	return counter
+}
+
+func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
+	entry, err := lazyInitTelemetryMetric(checkName, metricName, "gauge", nil)
+	if err != nil {
+		log.Errorf("EmitAgentTelemetry: %v", err)
+		return nil
+	}
+	gauge, ok := entry.metric.(telemetry.Gauge)
+	if !ok {
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when gauge was expected", metricName, checkName, entry.metric)
+		return nil
+	}
+	return gauge
+}
+
+// EmitAgentTelemetry records an unlabeled telemetry data point for a Python integration.
 // NB: Cross-org agent telemetry needs to be enabled for each metric in
-// comp/core/agenttelemetry/impl/config.go defaultProfiles
+// comp/core/agenttelemetry/impl/defaultProfiles.yaml.
 //
 //export EmitAgentTelemetry
 func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
@@ -672,6 +720,67 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
+}
+
+func emitAgentTelemetryWithLabels(checkName string, metricName string, metricValue float64, metricType string, labels map[string]string) error {
+	entry, err := lazyInitTelemetryMetric(checkName, metricName, metricType, sortedLabelNames(labels))
+	if err != nil {
+		return err
+	}
+
+	switch metricType {
+	case "counter":
+		counter, ok := entry.metric.(telemetry.Counter)
+		if !ok {
+			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when counter was expected", metricName, checkName, entry.metric)
+		}
+		counter.AddWithTags(metricValue, labels)
+	case "histogram":
+		histogram, ok := entry.metric.(telemetry.Histogram)
+		if !ok {
+			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when histogram was expected", metricName, checkName, entry.metric)
+		}
+		histogram.WithTags(labels).Observe(metricValue)
+	case "gauge":
+		gauge, ok := entry.metric.(telemetry.Gauge)
+		if !ok {
+			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when gauge was expected", metricName, checkName, entry.metric)
+		}
+		gauge.WithTags(labels).Set(metricValue)
+	default:
+		return fmt.Errorf("unsupported metric type %s requested by %s for %s", metricType, checkName, metricName)
+	}
+
+	return nil
+}
+
+// EmitAgentTelemetryWithLabels records a labeled telemetry data point for a Python integration.
+// labelsJSON must be a JSON object whose keys and values are strings.
+//
+//export EmitAgentTelemetryWithLabels
+func EmitAgentTelemetryWithLabels(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char, labelsJSON *C.char, errOut **C.char) {
+	*errOut = nil
+
+	goCheckName := C.GoString(checkName)
+	goMetricName := C.GoString(metricName)
+	goMetricValue := float64(metricValue)
+	goMetricType := C.GoString(metricType)
+	goLabelsJSON := C.GoString(labelsJSON)
+
+	var labels map[string]string
+	if err := json.Unmarshal([]byte(goLabelsJSON), &labels); err != nil {
+		*errOut = TrackedCString(fmt.Sprintf("invalid labels JSON for %s.%s: %v", goCheckName, goMetricName, err))
+		return
+	}
+	if labels == nil {
+		*errOut = TrackedCString(fmt.Sprintf("invalid labels JSON for %s.%s: expected object with string values", goCheckName, goMetricName))
+		return
+	}
+
+	if err := emitAgentTelemetryWithLabels(goCheckName, goMetricName, goMetricValue, goMetricType, labels); err != nil {
+		*errOut = TrackedCString(err.Error())
+		return
 	}
 }
 

@@ -111,6 +111,7 @@ public:
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
     void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
+    void setEmitAgentTelemetryWithLabelsCb(cb_emit_agent_telemetry_with_labels_t);
     void setReportIssueCb(cb_report_issue_t);
     void setResolveIssueCb(cb_resolve_issue_t);
 
