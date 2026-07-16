@@ -16,3 +16,8 @@ private_action_runner:
   # egress is blackholed), so disable self-enrollment to keep the runner in a
   # steady idle state instead of retrying enrollment in a loop.
   self_enroll: false
+  # Throwaway static identity so the runner gets past startup and idles. Without
+  # it, startup fails on the incomplete-identity check and the process exits
+  # before total_pss_bytes can be sampled. Never authenticates: egress is blackholed.
+  urn: "urn:dd:apps:on-prem-runner:us1:1:smp-regression"
+  private_key: "eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkhqMjZFRGtySVJiTXYyUlYta2hLM09JODZMVlUtS0E4dnJ6QkZWdmFYVUEiLCJ5Ijoic0RSREpPemxMZ2pEUnJKbS01YTMtdlFraTZiZExiT0IxY3FldEpxVXNnNCIsImQiOiJBbXhKaVJtMS1icTBLVS1FMng1eHlTclJKTVg3NmJHRlJFNlJLS3lqWDVRIiwiYWxnIjoiRVMyNTYiLCJ1c2UiOiJzaWcifQ"
