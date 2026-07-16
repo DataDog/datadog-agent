@@ -431,8 +431,6 @@ def get_suffixes_for_pattern(pattern):
             'delegated_auth.aws.region',
             'api_key',
         ]
-    elif pattern == 'pattern_event_monitor':
-        return ['']
     else:
         raise RuntimeError(f"unknown pattern: {pattern}")
 
