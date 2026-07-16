@@ -27,6 +27,9 @@ _COMMON_FLAGS = [
     "-Wall",
     "-Werror",
     "-O2",
+    # LLVM 12 can serialize use-list order nondeterministically for large modules.
+    "-Xclang",
+    "-no-emit-llvm-uselists",
     "-fno-stack-protector",
     "-fno-color-diagnostics",
     "-fno-unwind-tables",
