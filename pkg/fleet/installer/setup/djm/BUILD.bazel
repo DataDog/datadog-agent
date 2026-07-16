@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "djm",
     srcs = [
@@ -19,12 +21,37 @@ go_library(
 )
 
 go_test(
-    name = "djm_test",
-    srcs = [
-        "databricks_test.go",
-        "dataproc_test.go",
-        "emr_test.go",
+    name = "databricks_test",
+    srcs = ["databricks_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":djm"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
+)
+
+go_test(
+    name = "dataproc_test",
+    srcs = ["dataproc_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":djm"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/telemetry",
+        "@com_github_stretchr_testify//assert",
+        "@com_google_cloud_go_compute_metadata//:metadata",
+    ],
+)
+
+go_test(
+    name = "emr_test",
+    srcs = ["emr_test.go"],
     data = glob(["testdata/**"]),
     embed = [":djm"],
     embedsrcs = [
@@ -39,6 +66,5 @@ go_test(
         "//pkg/fleet/installer/telemetry",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@com_google_cloud_go_compute_metadata//:metadata",
     ],
 )

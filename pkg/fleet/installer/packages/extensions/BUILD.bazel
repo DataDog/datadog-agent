@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_test file
 
 go_library(
     name = "extensions",
@@ -18,17 +21,26 @@ go_library(
     ],
 )
 
-go_test(
-    name = "extensions_test",
-    srcs = [
-        "extensions_digest_test.go",
-        "extensions_test.go",
-    ],
+dd_agent_go_test(
+    name = "extensions_digest_test",
+    srcs = ["extensions_digest_test.go"],
     embed = [":extensions"],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/fixtures",
+        "//pkg/fleet/installer/oci",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)
+
+dd_agent_go_test(
+    name = "extensions_test",
+    srcs = ["extensions_test.go"],
+    embed = [":extensions"],
+    deps = [
+        "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/oci",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

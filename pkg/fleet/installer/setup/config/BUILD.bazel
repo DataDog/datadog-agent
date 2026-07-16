@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "config",
     srcs = [
@@ -23,21 +25,37 @@ go_library(
 
 go_test(
     name = "config_test",
-    srcs = [
-        "config_test.go",
-        "write_test.go",
-        "write_windows_test.go",
-    ],
+    srcs = ["config_test.go"],
     embed = [":config"],
     gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+go_test(
+    name = "write_test",
+    srcs = ["write_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_x_text//encoding",
         "@org_golang_x_text//encoding/unicode",
-    ] + select({
+    ],
+)
+
+go_test(
+    name = "write_windows_test",
+    srcs = ["write_windows_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = select({
         "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

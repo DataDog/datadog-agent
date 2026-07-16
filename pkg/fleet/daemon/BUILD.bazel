@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "daemon",
     srcs = [
@@ -45,12 +47,7 @@ go_library(
 
 go_test(
     name = "daemon_test",
-    srcs = [
-        "daemon_test.go",
-        "local_api_test.go",
-        "remote_config_test.go",
-        "task_db_test.go",
-    ],
+    srcs = ["daemon_test.go"],
     embed = [":daemon"],
     gotags = ["test"],
     deps = [
@@ -65,5 +62,42 @@ go_test(
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@org_golang_x_crypto//nacl/box",
+    ],
+)
+
+go_test(
+    name = "local_api_test",
+    srcs = ["local_api_test.go"],
+    embed = [":daemon"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/fleet/installer/config",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "remote_config_test",
+    srcs = ["remote_config_test.go"],
+    embed = [":daemon"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)
+
+go_test(
+    name = "task_db_test",
+    srcs = ["task_db_test.go"],
+    embed = [":daemon"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -1,4 +1,8 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Without this, gazelle picks up `go_test file` from an enclosing package.
+# gazelle:go_test default
 
 go_library(
     name = "windows",
@@ -23,15 +27,13 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "windows_test",
     srcs = [
         "impl_test.go",
         "system_api_test.go",
     ],
     embed = [":windows"],
-    gotags = ["test"],
-    visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
