@@ -4,7 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 // These tests assert Go's os/user error types (UnknownGroupError /
-// UnknownUserError), which differ on AIX, so they are excluded there.
+// UnknownUserError), which AIX's os/user does not return for missing
+// users/groups. Excluded on AIX pending the upstream fix
+// https://go-review.googlesource.com/c/go/+/801161
+// ("os/user: fix lookup of missing users and groups on AIX").
 //go:build !windows && !aix
 
 package user
