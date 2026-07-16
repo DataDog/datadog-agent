@@ -1713,7 +1713,6 @@ properties:
       remote_config:
         node_type: section
         type: object
-        visibility: public
         description: Configuration for Network Path tests delivered through Remote
           Configuration.
         tags:
@@ -1723,7 +1722,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            visibility: public
             description: |-
               Enables Network Path scheduled tests and Dynamic Test filters delivered through Remote Configuration.
               This setting does not enable Dynamic Tests; configure a monitoring source separately.
