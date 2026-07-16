@@ -100,6 +100,29 @@ func TestAdaptiveSampler_EscalationGrantsFreshBurstImmediately(t *testing.T) {
 	assert.Equal(t, 100.0, s.config.BurstSize)
 }
 
+func TestAdaptiveSampler_FirstAvailableHigherSeverityGrantsFreshBurst(t *testing.T) {
+	provider, emit := activateSeverity()
+	s := newAnomalyProfileSampler(testProfiles(), provider)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	// Before a severity is available, the sampler uses the base Low profile and
+	// can exhaust an existing pattern's credits.
+	for i := 0; i < 5; i++ {
+		require.NotNilf(t, s.Process(testMsg(), patternA), "message %d should fit in the base burst", i)
+	}
+	require.Nil(t, s.Process(testMsg(), patternA), "base burst is exhausted")
+	require.False(t, s.appliedLevelInitialized, "an unavailable provider must not be treated as a reported Low severity")
+
+	// The first available High profile is an escalation from the effective base
+	// Low profile, so existing entries receive High's burst immediately.
+	emit(severityeventsdef.SeverityHigh)
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.True(t, s.appliedLevelInitialized)
+	assert.Equal(t, severityeventsdef.SeverityHigh, s.appliedLevel)
+	assert.InDelta(t, 99.0, s.entries[0].credits, 0.0001)
+}
+
 func TestAdaptiveSampler_DeescalationClampsCreditsNaturallyWithoutForcedReset(t *testing.T) {
 	provider, emit := activateSeverity()
 	emit(severityeventsdef.SeverityHigh)
