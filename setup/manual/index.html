@@ -4245,18 +4245,18 @@
   
 
 
-<h1 id="set-up-your-local-machine-manually">Set up your local machine manually</h1>
+<h1 id="set-up-your-local-machine-manually">Set up your local machine manually<a class="headerlink" href="#set-up-your-local-machine-manually" title="Permanent link">&para;</a></h1>
 <hr />
 <p>These instructions are maintained on a best-effort basis. Prefer using the <a href="../../tutorials/dev/env/">developer environment</a> instead.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>Be sure that you already set up the <a href="../required/">development requirements</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Building the Agent for Windows requires using the <a href="https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows">build image</a>. Setting up a local Windows environment is not officially supported.</p>
 </div>
-<h2 id="build-tools">Build tools</h2>
+<h2 id="build-tools">Build tools<a class="headerlink" href="#build-tools" title="Permanent link">&para;</a></h2>
 <p>CMake version 3.15 or later and a C++ compiler are required for building the Agent.</p>
-<h2 id="python">Python</h2>
+<h2 id="python">Python<a class="headerlink" href="#python" title="Permanent link">&para;</a></h2>
 <p>The Agent embeds a full-fledged CPython interpreter so it requires the development files to be available in the dev env. The Agent can embed Python 3, you will need development files for the version you want to support.</p>
 <p>If you're on OSX/macOS, install 3.12 with <a href="https://brew.sh">Homebrew</a>:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>brew install python@3.12
@@ -4269,7 +4269,7 @@
 <p class="admonition-title">Warning</p>
 <p>If you don't use one of the Python versions that are explicitly supported, you may have problems running the built Agent's Python checks, especially if using a virtualenv. At this time, only Python 3.12 is confirmed to work as expected in the development environment.</p>
 </div>
-<h3 id="python-dependencies">Python Dependencies</h3>
+<h3 id="python-dependencies">Python Dependencies<a class="headerlink" href="#python-dependencies" title="Permanent link">&para;</a></h3>
 <p>To protect and isolate your system-wide python installation, a python virtual environment is <em>highly</em> recommended (though optional). It will help keep a self-contained development environment and ensure a clean system Python.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -4288,19 +4288,19 @@
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="s2">&quot;./venv/lib/python3.12/site-packages:</span><span class="nv">$PYTHONPATH</span><span class="s2">&quot;</span><span class="w"> </span>./agent<span class="w"> </span>run<span class="w"> </span>...
 </span></code></pre></div>
 <p>See also some notes in <a href="https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks">./checks</a> about running custom python checks.</p>
-<h2 id="golang">Golang</h2>
+<h2 id="golang">Golang<a class="headerlink" href="#golang" title="Permanent link">&para;</a></h2>
 <p>You must <a href="https://golang.org/doc/install">install Golang</a> version <code>1.26.4</code> or later. Make sure that <code>$GOPATH/bin</code> is in your <code>$PATH</code>, otherwise <a href="../required/#tooling">tooling</a> cannot use any additional tool it might need.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Versions of Golang that aren't an exact match to the version specified in our build images (see e.g. <a href="https://github.com/DataDog/datadog-agent-buildimages/blob/c025473ee467ee6d884d532e4c12c7d982ce8fe1/circleci/Dockerfile#L43">here</a>) may not be able to build the agent and/or the <a href="https://github.com/DataDog/datadog-agent/tree/main/rtloader">rtloader</a> binary properly.</p>
 </div>
-<h3 id="installing-tools">Installing tools</h3>
+<h3 id="installing-tools">Installing tools<a class="headerlink" href="#installing-tools" title="Permanent link">&para;</a></h3>
 <p>From the root of <code>datadog-agent</code>, run <code>dda inv install-tools</code> to install go tooling. This uses <code>go</code> to install the necessary dependencies.</p>
-<h2 id="system-or-embedded">System or Embedded?</h2>
+<h2 id="system-or-embedded">System or Embedded?<a class="headerlink" href="#system-or-embedded" title="Permanent link">&para;</a></h2>
 <p>When working on the Agent codebase you can choose among two different ways to build the binary, informally named <em>System</em> and <em>Embedded</em> builds. For most contribution scenarios you should rely on the System build (the default) and use the Embedded one only for specific use cases. Let's explore the differences.</p>
-<h3 id="system-build">System build</h3>
+<h3 id="system-build">System build<a class="headerlink" href="#system-build" title="Permanent link">&para;</a></h3>
 <p><em>System</em> builds use your operating system's standard system libraries to satisfy the Agent's external dependencies. Since, for example, macOS 10.11 may provide a different version of Python than macOS 10.12, system builds on each of these platforms may produce different Agent binaries. If this doesn't matter to you—perhaps you just want to contribute a quick bugfix—do a System build; it's easier and faster than an Embedded build. System build is the default for all build and test tasks, so you don't need to configure anything there. But to make sure you have system copies of all the Agent's dependencies, skip the <em>Embedded build</em> section below and read on to see how to install them via your usual package manager (apt, yum, brew, etc).</p>
-<h3 id="embedded-build">Embedded build</h3>
+<h3 id="embedded-build">Embedded build<a class="headerlink" href="#embedded-build" title="Permanent link">&para;</a></h3>
 <p><em>Embedded</em> builds download specifically-versioned dependencies and compile them locally from sources. We run Embedded builds to create Datadog's official Agent releases (i.e. RPMs, debs, etc), and while you can run the same builds while developing locally, the process is as slow as it sounds. Hence, you should only use them when you care about reproducible builds. For example:</p>
 <ul>
 <li>you want to build an agent binary that can be used as-is to replace the binary of an existing agent installation</li>
@@ -4308,7 +4308,7 @@
 <li>you're working or debugging at a very low level: let's say you're adding a function to the Python bindings, you want to make sure you're using the exact same versions of Python as the official Agent packages</li>
 </ul>
 <p>Embedded builds rely on <a href="https://github.com/chef/omnibus">Omnibus</a> to download and build dependencies, so you need a recent <code>ruby</code> environment with <code>bundler</code> installed. See <a href="../../how-to/build/distributions/">How to build agent distribution packages</a> for more details.</p>
-<h3 id="systemd">Systemd</h3>
+<h3 id="systemd">Systemd<a class="headerlink" href="#systemd" title="Permanent link">&para;</a></h3>
 <p>The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.</p>
 <p>On Ubuntu/Debian:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>sudo apt-get install libsystemd-dev
@@ -4316,13 +4316,13 @@
 <p>On Redhat/CentOS:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo yum install systemd-devel
 </span></code></pre></div>
-<h2 id="doxygen">Doxygen</h2>
+<h2 id="doxygen">Doxygen<a class="headerlink" href="#doxygen" title="Permanent link">&para;</a></h2>
 <p>We use <a href="http://www.doxygen.nl">Doxygen</a> to generate the documentation for the <code>rtloader</code> part of the Agent.</p>
 <p>To generate it (using the <code>dda inv rtloader.generate-doc</code> command), you'll need to have Doxygen installed on your system and available in your <code>$PATH</code>. You can compile and install Doxygen from source with the instructions available <a href="http://www.doxygen.nl/manual/install.html">here</a>. Alternatively, you can use already-compiled Doxygen binaries from <a href="http://www.doxygen.nl/download.html">here</a>.</p>
 <p>To get the dependency graphs, you may also need to install the <code>dot</code> executable from <a href="http://www.graphviz.org/">graphviz</a> and add it to your <code>$PATH</code>.</p>
-<h2 id="pre-commit-hooks">Pre-commit hooks</h2>
+<h2 id="pre-commit-hooks">Pre-commit hooks<a class="headerlink" href="#pre-commit-hooks" title="Permanent link">&para;</a></h2>
 <p>It is optional but recommended to install <code>pre-commit</code> to run a number of checks done by the CI locally.</p>
-<h3 id="installation">Installation</h3>
+<h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
 <p>To install it, run:</p>
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>pre-commit
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">GOFLAGS</span><span class="o">=</span>-buildvcs<span class="o">=</span><span class="nb">false</span><span class="w"> </span>pre-commit<span class="w"> </span>install<span class="w">  </span><span class="c1"># buildvcs avoids errors when getting go dependencies</span>
@@ -4331,15 +4331,15 @@
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>install-shellcheck<span class="w"> </span>--destination<span class="w"> </span>&lt;path&gt;
 </span></code></pre></div>
 <p>(by default, the shellcheck binary is installed in <code>/usr/local/bin</code>).</p>
-<h3 id="skipping-pre-commit">Skipping <code>pre-commit</code></h3>
+<h3 id="skipping-pre-commit">Skipping <code>pre-commit</code><a class="headerlink" href="#skipping-pre-commit" title="Permanent link">&para;</a></h3>
 <p>If you want to skip <code>pre-commit</code> for a specific commit you can add <code>--no-verify</code> to the <code>git commit</code> command.</p>
-<h3 id="running-pre-commit-manually">Running <code>pre-commit</code> manually</h3>
+<h3 id="running-pre-commit-manually">Running <code>pre-commit</code> manually<a class="headerlink" href="#running-pre-commit-manually" title="Permanent link">&para;</a></h3>
 <p>If you want to run one of the checks manually, you can run <code>pre-commit run &lt;check name&gt;</code>.</p>
 <p>You can run it on all files with the <code>--all-files</code> flag.</p>
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pre-commit<span class="w"> </span>run<span class="w"> </span>flake8<span class="w"> </span>--all-files<span class="w">  </span><span class="c1"># run flake8 on all files</span>
 </span></code></pre></div>
 <p>See <code>pre-commit run --help</code> for further options.</p>
-<h2 id="setting-up-visual-studio-code-dev-container">Setting up Visual Studio Code Dev Container</h2>
+<h2 id="setting-up-visual-studio-code-dev-container">Setting up Visual Studio Code Dev Container<a class="headerlink" href="#setting-up-visual-studio-code-dev-container" title="Permanent link">&para;</a></h2>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>Using the <a href="../../tutorials/dev/env/">developer environment</a> approach is recommended.</p>
