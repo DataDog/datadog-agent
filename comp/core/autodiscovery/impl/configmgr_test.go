@@ -670,7 +670,7 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 
 func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
@@ -704,7 +704,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
@@ -738,7 +738,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 func TestResolveTemplateForService_SkipsReportWhenServiceNotReady(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 

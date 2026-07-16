@@ -124,14 +124,19 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 			Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_capable"),
 				hookFunc("rethook_security_capable"),
-				hookFunc("hook_override_creds"),
-				hookFunc("hook_revert_creds"),
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
 						EBPFFuncName: "capabilities_usage_ticker",
 					},
 				},
+				// override_creds/revert_creds are inlined since kernel 6.13, so they are best-effort:
+				// where attachable (< 6.13, including kernels without BTF) they drive the override
+				// depth counter; on 6.13+ the cred/real_cred comparison is used instead
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_override_creds"),
+					hookFunc("hook_revert_creds"),
+				}},
 			},
 		},
 	}
@@ -173,6 +178,38 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_filename_linkat"),
 				hookFunc("rethook_filename_linkat"),
+			}},
+		}
+	}
+
+	unlinkIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		unlinkIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_unlinkat"),
+				hookFunc("rethook_do_unlinkat"),
+			}},
+			// Since 7.0, do_unlinkat was removed from the kernel so we need to hook the filename_unlinkat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_unlinkat"),
+				hookFunc("rethook_filename_unlinkat"),
+			}},
+		}
+	}
+
+	rmdirIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		rmdirIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_rmdir"),
+				hookFunc("rethook_do_rmdir"),
+			}},
+			// Since 7.0, do_rmdir was removed from the kernel so we need to hook the filename_rmdir function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_rmdir"),
+				hookFunc("rethook_filename_rmdir"),
 			}},
 		}
 	}
@@ -344,30 +381,34 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_unlinkat"),
-				hookFunc("rethook_do_unlinkat"),
-			}},
+			&manager.OneOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.AllOf{Selectors: []manager.ProbesSelector{
+						hookFunc("hook_do_unlinkat"),
+						hookFunc("rethook_do_unlinkat"),
+					}},
+					// Since 7.0, do_unlinkat was removed from the kernel so we need to hook the filename_unlinkat function instead
+					// It is also used by the io_uring code path
+					&manager.AllOf{Selectors: []manager.ProbesSelector{
+						hookFunc("hook_filename_unlinkat"),
+						hookFunc("rethook_filename_unlinkat"),
+					}},
+				},
+			},
 
 			// Rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_inode_rmdir"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_rmdir"),
-				hookFunc("rethook_do_rmdir"),
-			}},
+			&manager.BestEffort{Selectors: rmdirIOUringProbes},
 
 			// Unlink probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_vfs_unlink"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlink", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_linkat"),
-				hookFunc("rethook_do_linkat"),
-			}},
+			&manager.BestEffort{Selectors: unlinkIOUringProbes},
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{

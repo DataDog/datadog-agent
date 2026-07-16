@@ -13,6 +13,7 @@ import (
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -27,19 +28,20 @@ const (
 
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
-	metricsProvider metrics.Provider
-	ctrLister       ContainerAccessor
-	metricsAdapter  MetricsAdapter
-	ctrFilter       ContainerFilter
-	extensions      map[string]ProcessorExtension
-	tagger          tagger.Component
+	metricsProvider  metrics.Provider
+	ctrLister        ContainerAccessor
+	metricsAdapter   MetricsAdapter
+	ctrFilter        ContainerFilter
+	extensions       map[string]ProcessorExtension
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 	// extendedMemoryMetrics allows to send extednded metrics
 	extendedMemoryMetrics bool
 }
 
 // NewProcessor creates a new processor
 func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter,
-	filter ContainerFilter, tagger tagger.Component, extendedMemoryMetrics bool) Processor {
+	filter ContainerFilter, tagger tagger.Component, agentPerformance *agentperformance.Recorder, extendedMemoryMetrics bool) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
@@ -49,6 +51,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 			NetworkExtensionID: NewProcessorNetwork(),
 		},
 		tagger:                tagger,
+		agentPerformance:      agentPerformance,
 		extendedMemoryMetrics: extendedMemoryMetrics,
 	}
 }
@@ -60,6 +63,10 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
+	if p.agentPerformance != nil {
+		p.agentPerformance.ResetRuntimeMetrics()
+	}
+
 	allContainers := p.ctrLister.ListRunning()
 
 	if len(allContainers) == 0 {
@@ -105,7 +112,9 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			continue
 		}
 
-		if err := p.processContainer(sender, tags, container, containerStats); err != nil {
+		ownerPod, _ := p.ctrLister.GetPodOfContainer(container.ID)
+
+		if err := p.processContainer(sender, tags, container, containerStats, ownerPod); err != nil {
 			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
 		}
@@ -134,7 +143,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 	return nil
 }
 
-func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
+func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats, ownerPod *workloadmeta.KubernetesPod) error {
 	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
@@ -158,6 +167,11 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
+		if p.agentPerformance != nil {
+			p.agentPerformance.RecordMetric(agentperformance.MemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
+			p.agentPerformance.RecordMetric(agentperformance.MemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+		}
+
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)
 		p.sendMetric(sender.Gauge, "container.memory.limit", containerStats.Memory.Limit, tags)

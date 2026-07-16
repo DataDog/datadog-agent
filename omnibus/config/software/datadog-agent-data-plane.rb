@@ -8,20 +8,11 @@ name "datadog-agent-data-plane"
 # We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
-adp_version = ENV['AGENT_DATA_PLANE_VERSION']
-adp_hashes = {}
-adp_hashes["linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_AMD64']
-adp_hashes["linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_ARM64']
-adp_hashes["fips-linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64']
-adp_hashes["fips-linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64']
-adp_hashes["darwin-amd64"] = ENV['AGENT_DATA_PLANE_HASH_DARWIN_AMD64']
-adp_hashes["darwin-arm64"] = ENV['AGENT_DATA_PLANE_HASH_DARWIN_ARM64']
-adp_hashes["windows-amd64"] = ENV['AGENT_DATA_PLANE_HASH_WINDOWS_AMD64']
-adp_hashes["fips-windows-amd64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64']
+require 'json'
 
-if adp_version.nil? || adp_version.empty?
-  raise "Please specify AGENT_DATA_PLANE_VERSION to build Agent Data Plane."
-end
+adp_config = JSON.parse(File.read(File.expand_path('../../../deps/adp.json', __dir__)))
+adp_version = adp_config['version']
+adp_hashes = adp_config['hashes']
 
 default_version adp_version
 
@@ -72,7 +63,7 @@ end
 adp_hash_key ||= package_target
 adp_hash = adp_hashes[adp_hash_key]
 if adp_hash.nil? || adp_hash.empty?
-  raise "Please specify AGENT_DATA_PLANE_HASH_#{adp_hash_key.upcase.tr('-', '_')} to build Agent Data Plane #{package_target}."
+  raise "Missing Agent Data Plane hash for #{package_target}. Please update the hashes in datadog-agent-data-plane.rb."
 end
 
 source sha256: adp_hash
@@ -83,7 +74,6 @@ build do
 
   if windows_target?
     copy 'bin/agent-data-plane.exe', "#{install_dir}/bin/agent"
-    copy 'bin/aws_lc_fips_*_crypto.dll', "#{install_dir}/bin/agent" if fips_mode?
     copy 'LICENSES', "#{install_dir}/LICENSES"
     copy 'LICENSE-3rdparty.csv', "#{install_dir}/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
   else

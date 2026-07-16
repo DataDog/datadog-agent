@@ -138,7 +138,7 @@ log "Installing cffi==$CFFI_VERSION (C extension, bundled libffi)"
 log "  Downloading cffi source and patching for AIX TLS compatibility"
 
 # Download cffi source via pip (handles URL resolution, caching, etc.)
-CFFI_SRCDIR="/tmp/cffi-${CFFI_VERSION}-aix-src"
+CFFI_SRCDIR="$TMPDIR/cffi-${CFFI_VERSION}-aix-src"
 rm -rf "$CFFI_SRCDIR"
 mkdir -p "$CFFI_SRCDIR"
 $PIP download --no-deps --no-binary cffi "cffi==$CFFI_VERSION" -d "$CFFI_SRCDIR"
@@ -148,12 +148,12 @@ if [ -z "$CFFI_TARBALL" ]; then
     exit 1
 fi
 log "  cffi source: $CFFI_TARBALL"
-CFFI_BUILDDIR="/tmp/cffi-${CFFI_VERSION}-build"
+CFFI_BUILDDIR="$TMPDIR/cffi-${CFFI_VERSION}-build"
 rm -rf "$CFFI_BUILDDIR"
 # Use Python tarfile module for extraction: AIX native tar rejects modern
 # tar formats (pax headers) used by cffi's PyPI distribution.
-$PYTHON_BIN -c "import tarfile, os; tarfile.open('$CFFI_TARBALL').extractall('/tmp')"
-mv "/tmp/cffi-${CFFI_VERSION}" "$CFFI_BUILDDIR"
+$PYTHON_BIN -c "import tarfile, os; tarfile.open('$CFFI_TARBALL').extractall('$TMPDIR')"
+mv "$TMPDIR/cffi-${CFFI_VERSION}" "$CFFI_BUILDDIR"
 
 # Patch setup.py: add sys.platform != 'aix' check to ask_supports_thread()
 # so that __thread is not used in the shared library (causes 0509-187 on AIX).
@@ -296,6 +296,20 @@ CFLAGS="$CFLAGS -I${MQ_HOME}/inc" \
 LDFLAGS="$LDFLAGS -L${MQ_HOME}/lib64 -L${MQ_HOME}/lib -Wl,-brtl -lmqm" \
     $PIP install --no-binary pymqi "pymqi==$PYMQI_VERSION"
 log "pymqi==$PYMQI_VERSION installed successfully"
+
+# pymqi's CMQC.py was generated on Linux (x86_64) and hardcodes MQENC_NATIVE=0x222
+# (little-endian). On AIX (big-endian) the correct value is 0x111 (MQENC_NORMAL).
+# Without this patch MQMD.Encoding=0x222 on every PCF PUT, which tells the AIX
+# command server the message is little-endian while the data is actually big-endian
+# (Python struct uses native byte order) → MQRCCF_CFH_LENGTH_ERROR (reason 3002).
+PYMQI_CMQC="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/site-packages/pymqi/CMQC.py"
+if [ ! -f "$PYMQI_CMQC" ]; then
+    log "ERROR: pymqi CMQC.py not found at expected path: $PYMQI_CMQC"
+    exit 1
+fi
+patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
+log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
 
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #

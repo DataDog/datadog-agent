@@ -11,6 +11,7 @@ go_library(
         "//comp/core/diagnose/def",
         "//comp/core/diagnose/fx",
         "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/ipc/httphelpers",

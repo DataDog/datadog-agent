@@ -31,6 +31,7 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
     "tmpl/gen/debrpm/datadog-agent-trace.service",
     "tmpl/gen/debrpm/datadog-agent.service",
+    "tmpl/gen/windows/datadog-agent-action.yaml",
     "tmpl/gen/windows/datadog-agent-data-plane.yaml",
     "tmpl/gen/windows/datadog-agent-ddot.yaml",
     "tmpl/gen/oci/datadog-agent-action-exp.service",
@@ -75,6 +76,7 @@ go_library(
     srcs = ["tmpl/main.go"],
     embedsrcs = [
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-action-windows.yaml.tmpl",
         "tmpl/datadog-agent-data-plane.service.tmpl",
         "tmpl/datadog-agent-data-plane-windows.yaml.tmpl",
         "tmpl/datadog-agent-ddot.service.tmpl",

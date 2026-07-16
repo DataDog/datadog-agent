@@ -1217,7 +1217,7 @@ func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 
 // handleScoresConfig returns the server-side default AnomalyScorerConfig so the UI
 // never needs to hardcode threshold values. The response also includes
-// cooldown_secs so the Scorer tab can initialise its replay form correctly.
+// cooldown so the Scorer tab can initialise its replay form correctly.
 // GET /api/scores/config
 func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1235,7 +1235,7 @@ func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) 
 // by timestamp and fed second-by-second, with Advance called once per unique
 // second (and for any empty seconds in between).
 //
-// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown_secs": N }
+// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown": N }
 func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
@@ -1306,9 +1306,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 
 	collector := &scorerEventCollector{}
 	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
-		Listener:     collector,
 		CooldownSecs: req.CooldownSecs,
-	})
+	}, collector)
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
 		return

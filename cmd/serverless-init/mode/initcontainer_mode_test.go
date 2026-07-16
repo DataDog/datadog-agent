@@ -105,6 +105,33 @@ func TestDotNetTracerIsAutoInstrumented(t *testing.T) {
 	assert.Equal(t, "/dd_tracer/dotnet/", os.Getenv("DD_DOTNET_TRACER_HOME"))
 }
 
+func TestDotNetTracerInstrumentationRespectsCustomerValues(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/dotnet/")
+
+	t.Setenv("CORECLR_ENABLE_PROFILING", "0")
+	t.Setenv("CORECLR_PROFILER", "{01234567-89AB-CDEF-0123-456789ABCDEF}")
+	t.Setenv("CORECLR_PROFILER_PATH", "/custom/profiler.so")
+	t.Setenv("DD_DOTNET_TRACER_HOME", "/custom/tracer/home/")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "0", os.Getenv("CORECLR_ENABLE_PROFILING"))
+	assert.Equal(t, "{01234567-89AB-CDEF-0123-456789ABCDEF}", os.Getenv("CORECLR_PROFILER"))
+	assert.Equal(t, "/custom/profiler.so", os.Getenv("CORECLR_PROFILER_PATH"))
+	assert.Equal(t, "/custom/tracer/home/", os.Getenv("DD_DOTNET_TRACER_HOME"))
+}
+
+func TestAutoInstrumentDoesNotSetPropagationStyle(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/python/")
+
+	autoInstrumentTracer(fs)
+
+	_, set := os.LookupEnv("DD_TRACE_PROPAGATION_STYLE")
+	assert.False(t, set, "auto-instrumentation should leave DD_TRACE_PROPAGATION_STYLE to the tracer default")
+}
+
 func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Create("/dd_tracer/java/")

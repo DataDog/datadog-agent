@@ -65,13 +65,12 @@ properties:
   auto_multi_line_detection:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     visibility: public
     description: |-
       Enable automatic aggregation of multi-line logs for common log patterns.
       More information can be found in Datadog documentation:
       https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
-    example: 'true'
     comment: Auto multiline detection settings
   force_use_http:
     node_type: setting
@@ -282,7 +281,9 @@ properties:
   atomic_registry_write:
     node_type: setting
     type: boolean
-    default: true
+    platform_default:
+      fargate: false
+      other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
   auditor_ttl:
@@ -573,6 +574,58 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      smart_severity_profiles:
+        node_type: section
+        type: object
+        properties:
+          cooldown:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          medium:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean
@@ -611,19 +664,32 @@ properties:
         node_type: setting
         type: integer
         default: 0
-        comment: default fingerprint configuration
+        comment: DefaultFingerprintingCount refers to the number of lines or bytes
+          to use for fingerprinting
       count_to_skip:
         node_type: setting
         type: integer
         default: 0
+        comment: |-
+          The default number of lines (or bytes) to skip when reading a file.
+          Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
       fingerprint_strategy:
         node_type: setting
         type: string
         default: disabled
+        comment: |-
+          DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+          Options are:
+          - "line_checksum": compute the fingerprint by lines
+          - "byte_checksum": compute the fingerprint by bytes
+          - "disabled": disable fingerprinting
       max_bytes:
         node_type: setting
         type: integer
         default: 100000
+        comment: |-
+          The maximum number of bytes that will be used to generate a checksum fingerprint;
+          used in cases where the line to hash is too large or if the fingerprinting maxLines=0
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean

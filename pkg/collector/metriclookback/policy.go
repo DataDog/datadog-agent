@@ -7,6 +7,7 @@ package metriclookback
 
 import (
 	"slices"
+	"time"
 
 	yaml "go.yaml.in/yaml/v2"
 
@@ -18,14 +19,21 @@ import (
 const (
 	enabledConfigKey       = "metric_lookback.enabled"
 	enabledChecksConfigKey = "metric_lookback.enabled_checks"
+	collectionIntervalKey  = "metric_lookback.collection_interval"
 	instanceConfigKey      = "metric_lookback"
 	instanceEnabledKey     = "enabled"
+
+	// defaultShadowCheckInterval is the collection interval for selected metric
+	// lookback shadow checks and the minimum recurring interval accepted by the
+	// scheduler.
+	defaultShadowCheckInterval = time.Second
 )
 
 // ShadowPolicyOptions controls which source check instances get shadow candidates.
 type ShadowPolicyOptions struct {
 	ShadowChecksEnabled bool
 	ChecksToShadow      []string
+	ShadowInterval      time.Duration
 }
 
 // ShadowPolicyOptionsFromConfig reads metric lookback policy options from Agent config.
@@ -33,6 +41,7 @@ func ShadowPolicyOptionsFromConfig(cfg model.Reader) ShadowPolicyOptions {
 	return ShadowPolicyOptions{
 		ShadowChecksEnabled: cfg.GetBool(enabledConfigKey),
 		ChecksToShadow:      cfg.GetStringSlice(enabledChecksConfigKey),
+		ShadowInterval:      normalizeShadowInterval(cfg.GetDuration(collectionIntervalKey)),
 	}
 }
 
@@ -42,6 +51,7 @@ type ShadowCandidate struct {
 	Instance           integration.Data
 	InstanceIndex      int
 	SourceConfigDigest string
+	ShadowInterval     time.Duration
 }
 
 // SelectShadowCandidates returns copied shadow candidates for selected config instances.
@@ -66,15 +76,26 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 			if err != nil {
 				continue
 			}
+			sourceConfig := cloneConfig(config)
+			sourceConfig.LogsConfig = nil
 			candidates = append(candidates, ShadowCandidate{
-				SourceConfig:       cloneConfig(config),
+				SourceConfig:       sourceConfig,
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),
+				ShadowInterval:     opts.ShadowInterval,
 			})
 		}
 	}
 	return candidates
+}
+
+func normalizeShadowInterval(interval time.Duration) time.Duration {
+	// The default is also the scheduler's minimum recurring check interval.
+	if interval < defaultShadowCheckInterval {
+		return defaultShadowCheckInterval
+	}
+	return interval
 }
 
 func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions) bool {
