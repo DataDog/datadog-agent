@@ -342,7 +342,7 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 		// On Windows: C:\ProgramData\Datadog\Installer\packages\<pkg>\<version>
 		basePath = filepath.Join(`C:\ProgramData\Datadog\Installer\packages`, pkg, version)
 	default:
-		s.T().Fatalf("unsupported OS family: %v", s.Env().RemoteHost.OSFamily)
+		s.Require().FailNow("unsupported OS family", "%v", s.Env().RemoteHost.OSFamily)
 		return ""
 	}
 	return filepath.Join(basePath, "ext", extensionName)
@@ -359,7 +359,7 @@ func (s *extensionsSuite) getAgentPackageURL(version string) string {
 		// Use pipeline-specific URL for E2E tests
 		version = os.Getenv("E2E_PIPELINE_ID")
 		if version == "" {
-			s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
+			s.Require().FailNow("E2E_PIPELINE_ID environment variable not set")
 		}
 	}
 	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
@@ -396,7 +396,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 		return true
 	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
 	if !isDDOTRunning {
-		s.T().Fatalf("DDOT is not running")
+		s.Require().FailNow("DDOT is not running")
 	}
 
 	// Log version info for debugging
@@ -413,6 +413,6 @@ func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 		return err == nil && strings.Contains(output, "NotFound")
 	}, 30*time.Second, 1*time.Second, "DDOT service should be removed")
 	if !isDDOTRemoved {
-		s.T().Fatalf("DDOT service should be removed")
+		s.Require().FailNow("DDOT service should be removed")
 	}
 }

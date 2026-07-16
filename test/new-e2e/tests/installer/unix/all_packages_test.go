@@ -238,7 +238,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 				break
 			}
 			if i == 2 {
-				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
+				s.Require().FailNow("failed to install ansible-galaxy collection after 3 attempts")
 			}
 			time.Sleep(time.Second)
 		}
@@ -259,7 +259,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
 	default:
-		s.T().Fatal("unsupported install method")
+		s.Require().FailNow("unsupported install method")
 	}
 }
 
