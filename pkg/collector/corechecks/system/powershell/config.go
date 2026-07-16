@@ -227,16 +227,18 @@ func (q *tagQueryEntry) finalize() error {
 	return nil
 }
 
-// instanceConfig is the per-instance check configuration.
+// instanceConfig is the per-instance check configuration. The json + jsonschema
+// struct tags drive the reflected validation schema (see schema.go); the entry
+// types supply their own dual-form schema via JSONSchemaBytes.
 type instanceConfig struct {
-	Cmdlet     string          `yaml:"cmdlet"`
-	Name       string          `yaml:"name"`
-	Filters    []filterEntry   `yaml:"filters"`
-	Metrics    []metricEntry   `yaml:"metrics"`
-	TagBy      []tagByEntry    `yaml:"tag_by"`
-	Tags       []string        `yaml:"tags"`
-	TagQueries []tagQueryEntry `yaml:"tag_queries"`
-	Timeout    int             `yaml:"timeout"`
+	Cmdlet     string          `json:"cmdlet" yaml:"cmdlet" required:"true"`
+	Name       string          `json:"name" yaml:"name"`
+	Filters    []filterEntry   `json:"filters" yaml:"filters"`
+	Metrics    []metricEntry   `json:"metrics" yaml:"metrics" required:"true" minItems:"1"`
+	TagBy      []tagByEntry    `json:"tag_by" yaml:"tag_by"`
+	Tags       []string        `json:"tags" yaml:"tags"`
+	TagQueries []tagQueryEntry `json:"tag_queries" yaml:"tag_queries"`
+	Timeout    int             `json:"timeout" yaml:"timeout"`
 }
 
 // parseInstanceConfig unmarshals and validates a single instance's YAML.

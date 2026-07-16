@@ -11,12 +11,16 @@ go_library(
         "config.go",
         "mapping.go",
         "powershell.go",
+        "schema.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/powershell",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_swaggest_jsonschema_go//:jsonschema-go",
+        "@com_github_xeipuuv_gojsonschema//:gojsonschema",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -99,6 +103,7 @@ dd_agent_go_test(
         "command_test.go",
         "config_test.go",
         "mapping_test.go",
+        "schema_test.go",
     ],
     embed = [":powershell"],
     deps = [

@@ -66,16 +66,25 @@ func (c *PowershellCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
+	// Structural validation first, so malformed configs are logged clearly and
+	// all schema errors are surfaced at once.
+	if err := validateInstanceSchema(data); err != nil {
+		return err
+	}
+
 	inst, err := parseInstanceConfig(data)
 	if err != nil {
+		log.Errorf("powershell check: invalid config: %s", err)
 		return fmt.Errorf("invalid powershell check config: %w", err)
 	}
 
 	al, err := loadAllowlist()
 	if err != nil {
+		log.Errorf("powershell check: could not load allowlist: %s", err)
 		return fmt.Errorf("could not load PowerShell allowlist: %w", err)
 	}
 	if err := al.validateInstance(inst); err != nil {
+		log.Errorf("powershell check (cmdlet %q): rejected by allowlist: %s", inst.Cmdlet, err)
 		return fmt.Errorf("instance rejected by allowlist: %w", err)
 	}
 
