@@ -144,6 +144,18 @@ type HostConsumer interface {
 	ConsumeHost(host string)
 }
 
+// TagsConsumer is a tags consumer.
+// It is an optional interface that can be implemented by a Consumer.
+// Consumed tags are used for running metrics, and should represent
+// some resource running a Collector (e.g. Fargate task).
+//
+// Deprecated: use TagSetConsumer instead. This interface remains for
+// consumers that haven't migrated yet; translators no longer call it.
+type TagsConsumer interface {
+	// ConsumeTag consumes a tag
+	ConsumeTag(tag string)
+}
+
 // TagSetConsumer is a multi-tag source consumer.
 // It is an optional interface that can be implemented by a Consumer.
 // Use it for any source that needs one or more tags on its own dedicated
