@@ -16,8 +16,7 @@ use super::profiles::{spawn_agent_profile, spawn_privileged_profile};
 
 /// Build a [`SpawnRequest`], create a supervision [`JobObject`], and spawn the child.
 ///
-/// The job is assigned at creation time via `PROC_THREAD_ATTRIBUTE_JOB_LIST` when using
-/// `CreateProcessAsUserW`; the privileged tokio fallback uses post-spawn assignment.
+/// `CreateProcessAsUserW` assigns the job post-spawn (LocalSystem); the tokio fallback does the same.
 ///
 /// Caller must hold [`super::super::console_lock`] on Windows (see `ManagedProcess::try_spawn`).
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {

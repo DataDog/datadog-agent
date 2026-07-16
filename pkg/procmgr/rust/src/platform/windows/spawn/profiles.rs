@@ -36,7 +36,12 @@ pub(super) fn spawn_agent_profile(
         return Ok(handle);
     }
 
-    spawn_as_primary_token(process_name, request, &account, job).with_context(|| {
+    spawn_as_primary_token(process_name, request, &account)
+        .map(|handle| {
+            assign_child_to_job(process_name, job, &handle);
+            handle
+        })
+        .with_context(|| {
         format!(
             "[{process_name}] agent-profile spawn requires CreateProcessAsUserW as the configured agent account"
         )
@@ -50,8 +55,11 @@ pub(super) fn spawn_privileged_profile(
     request: SpawnRequest,
     job: &JobObject,
 ) -> Result<ProcessHandle> {
-    match spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem, job) {
-        Ok(handle) => Ok(handle),
+    match spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem) {
+        Ok(handle) => {
+            assign_child_to_job(process_name, job, &handle);
+            Ok(handle)
+        }
         Err(e) => {
             warn!(
                 "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
