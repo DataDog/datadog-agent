@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -62,24 +63,34 @@ type Provides struct {
 
 	Comp          option.Option[rcservice.Component]
 	FlareProvider flaretypes.Provider
+	// Endpoint serves the remote config state as JSON over the agent's
+	// authenticated IPC HTTP API at GET /agent/remote-config/state.
+	Endpoint api.AgentEndpointProvider
 }
 
 // NewComponent conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservice.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
-		return Provides{Comp: none}
+		return Provides{
+			Comp:     none,
+			Endpoint: newRCStateEndpointProvider(nil),
+		}
 	}
 
 	configService, err := newRemoteConfigService(deps)
 	if err != nil {
 		deps.Logger.Errorf("remote config service not initialized or started: %s", err)
-		return Provides{Comp: none}
+		return Provides{
+			Comp:     none,
+			Endpoint: newRCStateEndpointProvider(nil),
+		}
 	}
 
 	return Provides{
 		Comp:          option.New[rcservice.Component](configService),
 		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
+		Endpoint:      newRCStateEndpointProvider(configService),
 	}
 }
 
