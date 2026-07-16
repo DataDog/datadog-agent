@@ -8,6 +8,16 @@
 //! Reads `installedDomain` / `installedUser` from the Agent MSI registry state and,
 //! when needed, the agent-user password stored in LSA by the installer. Mirrors
 //! `pkg/fleet/installer/packages/user/windows` and `pkg/util/filesystem/rights_windows.go`.
+//!
+//! ## Unit tests vs production
+//!
+//! [`resolve_agent_account`] returns [`AgentAccount::LocalSystem`] under `cfg!(test)`.
+//! Bazel/CI unit tests spawn agent-profile children without installer LSA secrets, so
+//! agent-profile spawn inherits the test runner token instead of calling
+//! `CreateProcessAsUserW` as `ddagentuser` or a gMSA. Helpers such as
+//! `passwordless_agent_account` are still tested directly; only the registry/LSA
+//! resolution path is bypassed. Real agent-account identity is covered by Windows E2E
+//! tests (e.g. `TestAgentProfileChildRunsAsAgentUser` in `procmgr_win_test.go`).
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
@@ -57,9 +67,7 @@ impl AgentAccount {
 
 /// Resolve the agent service account from registry + LSA private data.
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
-    // Unit tests spawn agent-profile children without installer credentials (e.g.
-    // Windows Bazel CI may have Agent registry keys but no usable LSA password).
-    // Treat as LocalSystem so spawn inherits the test runner token.
+    // See module docs: unit-test builds skip registry/LSA and use LocalSystem.
     if cfg!(test) {
         return Ok(AgentAccount::LocalSystem);
     }
