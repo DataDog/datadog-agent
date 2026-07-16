@@ -118,6 +118,10 @@ type AdaptiveSamplerConfig struct {
 	// message through without rate-limiting. Using a closure lets the check track
 	// ReplaceableSource swaps and future Remote Config updates.
 	IsSourceDisabled func() bool
+	// PassThrough temporarily disables adaptive sampling for matched messages.
+	// When it turns back off, the sampler resumes from the current profile's
+	// BurstSize after existing entries are reseeded.
+	PassThrough bool
 	// SmartSeverityProfilesEnabled switches RateLimit/BurstSize based on the level
 	// read from SeverityProvider (see Profiles). Profiles[SeverityLow] must match
 	// RateLimit/BurstSize above.
@@ -135,6 +139,8 @@ type AdaptiveSamplerConfig struct {
 type SamplerProfile struct {
 	RateLimit float64
 	BurstSize float64
+	// PassThrough skips adaptive-sampler drops while this profile is active.
+	PassThrough bool
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
@@ -267,12 +273,17 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 	profile := s.config.Profiles[level]
 	escalation := (wasInitialized && level > previousLevel) ||
 		(!wasInitialized && level > severityeventsdef.SeverityLow)
+	leavingPassThrough := wasInitialized && s.config.PassThrough && !profile.PassThrough
 	s.config.RateLimit = profile.RateLimit
 	s.config.BurstSize = profile.BurstSize
+	s.config.PassThrough = profile.PassThrough
 
-	if escalation {
+	if escalation || leavingPassThrough {
 		for i := range s.entries {
 			s.entries[i].credits = s.config.BurstSize
+			if leavingPassThrough {
+				s.entries[i].sampled = 0
+			}
 		}
 	}
 
@@ -300,10 +311,11 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	now := s.now()
 	detectionOnly := s.config.DetectionOnly
+	passThrough := s.config.PassThrough
 
 	for i := range s.entries {
 		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
-			return s.processMatchedEntry(i, msg, now, detectionOnly)
+			return s.processMatchedEntry(i, msg, now, detectionOnly, passThrough)
 		}
 	}
 	return s.trackNewPattern(msg, tokens, now)
@@ -312,7 +324,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
 // and spends credits, updates tags and counters, re-sorts the pattern table, and
 // returns the message when emitted or nil when dropped.
-func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool) *message.Message {
+func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly, passThrough bool) *message.Message {
 	e := &s.entries[i]
 	matchedTokens := e.tokens
 
@@ -325,8 +337,8 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	e.lastSeen = now
 	e.matchCount++
 
-	allow := e.credits >= 1.0
-	if allow {
+	allow := passThrough || e.credits >= 1.0
+	if allow && !passThrough {
 		e.credits--
 	}
 
