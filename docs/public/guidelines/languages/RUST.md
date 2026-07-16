@@ -12,7 +12,7 @@ The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) fo
 
 ### Bazel Module Configuration
 
-The Rust toolchain is configured in [MODULE.bazel](/MODULE.bazel):
+The Rust toolchain is configured in [MODULE.bazel](https://github.com/DataDog/datadog-agent/blob/main/MODULE.bazel):
 
 ```starlark
 bazel_dep(name = "rules_rust", version = "0.68.1")
@@ -32,18 +32,18 @@ This configuration:
 - Pins to **Rust 1.92.0** for reproducible builds
 - Registers toolchains for all supported platforms
 
-> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](/MODULE.bazel) **should not be changed** without proper testing to ensure
+> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](https://github.com/DataDog/datadog-agent/blob/main/MODULE.bazel) **should not be changed** without proper testing to ensure
 that all `rust` components are still working.
 
 ## Crate Management
 
-All external Rust crates are managed **centrally** through a single [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) defined in the root [Cargo.toml](/Cargo.toml). Individual components **must not** declare their own dependency versions — all versions live in the root `[workspace.dependencies]` section, and component `Cargo.toml` files reference them with `.workspace = true`.
+All external Rust crates are managed **centrally** through a single [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) defined in the root [Cargo.toml](https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml). Individual components **must not** declare their own dependency versions — all versions live in the root `[workspace.dependencies]` section, and component `Cargo.toml` files reference them with `.workspace = true`.
 
-> **Important:** Do not add crate versions directly in a component's `Cargo.toml`. Every external dependency must be declared in the root [Cargo.toml](/Cargo.toml) under `[workspace.dependencies]`. This ensures consistent versions across all Rust components, a single `Cargo.lock`, and a single source of truth for Bazel crate resolution.
+> **Important:** Do not add crate versions directly in a component's `Cargo.toml`. Every external dependency must be declared in the root [Cargo.toml](https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml) under `[workspace.dependencies]`. This ensures consistent versions across all Rust components, a single `Cargo.lock`, and a single source of truth for Bazel crate resolution.
 
 ### How It Works
 
-The root [Cargo.toml](/Cargo.toml) defines three things:
+The root [Cargo.toml](https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml) defines three things:
 
 1. **`[workspace]`** — lists all Rust component directories as `members`
 2. **`[workspace.dependencies]`** — the single place where all external crate versions are pinned
@@ -71,7 +71,7 @@ This produces a single `Cargo.lock` at the repository root — all components sh
 
 ### Bazel Integration
 
-The workspace is registered once in [deps/crates.MODULE.bazel](/deps/crates.MODULE.bazel), pointing to the root `Cargo.toml` and `Cargo.lock`:
+The workspace is registered once in [deps/crates.MODULE.bazel](https://github.com/DataDog/datadog-agent/blob/main/deps/crates.MODULE.bazel), pointing to the root `Cargo.toml` and `Cargo.lock`:
 
 ```starlark
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
@@ -92,7 +92,7 @@ All components reference crates from this single repository: `@crates//:<crate_n
 
 ### Adding Dependencies to an Existing Component
 
-1. **Add the dependency version to the root [Cargo.toml](/Cargo.toml)** under `[workspace.dependencies]` (skip if the crate is already listed):
+1. **Add the dependency version to the root [Cargo.toml](https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml)** under `[workspace.dependencies]` (skip if the crate is already listed):
    ```toml
    [workspace.dependencies]
    serde = { version = "1.0", features = ["derive"] }
@@ -142,7 +142,7 @@ Follow these steps to add a new Rust component to the repository.
 
 ### Step 2: Add Your Component to the Cargo Workspace
 
-Edit the root [Cargo.toml](/Cargo.toml):
+Edit the root [Cargo.toml](https://github.com/DataDog/datadog-agent/blob/main/Cargo.toml):
 
 1. **Register your component as a workspace member:**
    ```toml
@@ -355,7 +355,7 @@ This enables:
 - Single codegen unit for maximum optimization
 - Symbol stripping
 
-The configuration lives in [bazel/configs/rust.bazelrc](/bazel/configs/rust.bazelrc) and is shared by all Rust components.
+The configuration lives in [bazel/configs/rust.bazelrc](https://github.com/DataDog/datadog-agent/blob/main/bazel/configs/rust.bazelrc) and is shared by all Rust components.
 
 ## CI Integration
 > **TODO:** Describe how to add rust build to CI.

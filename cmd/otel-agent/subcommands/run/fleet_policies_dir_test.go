@@ -8,7 +8,6 @@
 package run
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,12 +16,4 @@ import (
 func TestResolveFleetPoliciesDir_PrefersEnv(t *testing.T) {
 	t.Setenv("DD_FLEET_POLICIES_DIR", "/custom/fleet/policies")
 	assert.Equal(t, "/custom/fleet/policies", resolveFleetPoliciesDir())
-}
-
-func TestResolveFleetPoliciesDir_EmptyWhenUnset(t *testing.T) {
-	os.Unsetenv("DD_FLEET_POLICIES_DIR")
-	if resolveFleetPoliciesDir() != "" {
-		// On Windows CI/dev machines the registry may be set; only assert the env path above.
-		t.Skip("fleet policies dir resolved from registry on this host")
-	}
 }

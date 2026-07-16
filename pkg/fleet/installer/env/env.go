@@ -39,6 +39,7 @@ const (
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envAgentDistChannel      = "DD_AGENT_DIST_CHANNEL"
+	envAgentPipelineID       = "DD_AGENT_PIPELINE_ID"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envTags                  = "DD_TAGS"
 	envExtraTags             = "DD_EXTRA_TAGS"
@@ -212,6 +213,7 @@ type Env struct {
 	AgentMajorVersion string
 	AgentMinorVersion string
 	AgentDistChannel  string
+	AgentPipelineID   string
 
 	MsiParams MsiParamsEnv // windows only
 
@@ -313,6 +315,7 @@ func FromEnv() *Env {
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 		AgentDistChannel:  os.Getenv(envAgentDistChannel),
+		AgentPipelineID:   os.Getenv(envAgentPipelineID),
 
 		MsiParams: MsiParamsEnv{
 			AgentUserName:            getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
