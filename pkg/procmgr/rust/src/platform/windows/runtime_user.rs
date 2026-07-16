@@ -184,15 +184,14 @@ mod tests {
         // Use a built-in local SAM account so this stays deterministic on
         // domain-joined CI hosts (where USERNAME is a domain principal).
         let username = "Administrator";
-        let sid = match lookup_account_sid(".", username)
-            .or_else(|_| lookup_account_sid("", username))
-        {
-            Ok(sid) => sid,
-            Err(e) => {
-                eprintln!("skipping: built-in Administrator not available: {e:#}");
-                return;
-            }
-        };
+        let sid =
+            match lookup_account_sid(".", username).or_else(|_| lookup_account_sid("", username)) {
+                Ok(sid) => sid,
+                Err(e) => {
+                    eprintln!("skipping: built-in Administrator not available: {e:#}");
+                    return;
+                }
+            };
 
         if !super::super::local_account::is_local_account(&sid).unwrap_or(false) {
             eprintln!("skipping: Administrator is not a local SAM account on this host");
