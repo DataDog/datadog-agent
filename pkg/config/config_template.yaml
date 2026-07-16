@@ -2242,6 +2242,18 @@ api_key:
 #
 # network_path:
 
+#   # @param remote_config - custom object - optional
+#   # Configuration for Network Path tests delivered through Remote Configuration.
+#
+#   remote_config:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_PATH_REMOTE_CONFIG_ENABLED - boolean - optional - default: false
+#     # Enables Network Path scheduled tests and Dynamic Test filters delivered through Remote Configuration.
+#     # This setting does not enable Dynamic Tests; configure a monitoring source separately.
+#
+#     enabled: false
+
 #   # @param connections_monitoring - custom object - optional
 #   # Configurations for Network Path Dynamic Test for monitoring network connections via Network Path.
 #

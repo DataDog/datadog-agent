@@ -150,6 +150,14 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		// are treated as deleted after the snapshot has been processed.
 		seenPaths[path] = struct{}{}
 
+		configType, err := getConfigType(rawConfig.Config)
+		if err == nil && configType == dynamicType {
+			// Dynamic configs are owned by the Network Path Collector listener.
+			// Do not overwrite its apply status from the scheduled provider.
+			delete(p.configErrors, path)
+			continue
+		}
+
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
 			// Keep the last valid configs active when a replacement payload is invalid.
@@ -196,6 +204,16 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 	p.stateMutex.Unlock()
 	p.sendChanges(changes)
+}
+
+func getConfigType(raw []byte) (string, error) {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return "", err
+	}
+	return envelope.Type, nil
 }
 
 func (p *Provider) sendChanges(changes integration.ConfigChanges) {

@@ -44,6 +44,7 @@ import (
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -190,6 +191,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -324,6 +326,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	networkPathRCHandler npcollector.RemoteConfigHandler,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -389,6 +392,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		networkPathRCHandler,
 	); err != nil {
 		return err
 	}
@@ -659,6 +663,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	networkPathRCHandler npcollector.RemoteConfigHandler,
 ) error {
 	var err error
 
@@ -716,7 +721,10 @@ func startAgent(
 
 		if cfg.GetBool("network_path.remote_config.enabled") {
 			networkPathProvider := networkpathprovider.NewProvider()
-			rcclient.Subscribe(data.ProductNetworkPath, networkPathProvider.Update)
+			rcclient.Subscribe(data.ProductNetworkPath, func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+				networkPathProvider.Update(updates, applyStateCallback)
+				networkPathRCHandler.UpdateRemoteConfig(updates, applyStateCallback)
+			})
 			ac.AddConfigProvider(networkPathProvider, false, 0)
 		}
 	}

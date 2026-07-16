@@ -36,6 +36,8 @@ type Provides struct {
 	compdef.Out
 
 	Comp npcollector.Component
+	// RCHandler receives dynamic Network Path filters from Remote Configuration.
+	RCHandler npcollector.RemoteConfigHandler
 }
 
 // NewComponent creates a new npcollector component.
@@ -80,7 +82,5 @@ func NewComponent(deps dependencies) Provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return Provides{
-		Comp: collector,
-	}
+	return Provides{Comp: collector, RCHandler: collector}
 }

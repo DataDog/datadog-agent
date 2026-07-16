@@ -27,8 +27,8 @@ const (
 
 // Config represent one filter
 type Config struct {
-	Type                FilterType              `mapstructure:"type"`
-	MatchDomain         string                  `mapstructure:"match_domain"`
-	MatchDomainStrategy MatchDomainStrategyType `mapstructure:"match_domain_strategy"`
-	MatchIP             string                  `mapstructure:"match_ip"`
+	Type                FilterType              `json:"type" mapstructure:"type"`
+	MatchDomain         string                  `json:"match_domain,omitempty" mapstructure:"match_domain"`
+	MatchDomainStrategy MatchDomainStrategyType `json:"match_domain_strategy,omitempty" mapstructure:"match_domain_strategy"`
+	MatchIP             string                  `json:"match_ip,omitempty" mapstructure:"match_ip"`
 }

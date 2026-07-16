@@ -11,6 +11,7 @@ import (
 	"iter"
 
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 type npCollectorMock struct{}
@@ -20,9 +21,13 @@ func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.Netwo
 
 func (s *npCollectorMock) ScheduleNetflowPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {}
 
+func (s *npCollectorMock) UpdateRemoteConfig(_ map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+}
+
 // NewMock creates a mock npcollector component.
 func NewMock() Provides {
 	return Provides{
-		Comp: &npCollectorMock{},
+		Comp:      &npCollectorMock{},
+		RCHandler: &npCollectorMock{},
 	}
 }

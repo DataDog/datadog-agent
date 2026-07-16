@@ -51,6 +51,7 @@ import (
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -65,6 +66,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -105,6 +107,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
 		Config       config.Component
+		RCClient     rcclient.Component
+		NetpathRC    npcollector.RemoteConfigHandler
 		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
@@ -250,6 +254,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 			return err
 		}
+	}
+
+	if appInitDeps.Config.GetBool("network_path.remote_config.enabled") {
+		appInitDeps.RCClient.Subscribe(data.ProductNetworkPath, appInitDeps.NetpathRC.UpdateRemoteConfig)
 	}
 
 	// Wait for exit signal

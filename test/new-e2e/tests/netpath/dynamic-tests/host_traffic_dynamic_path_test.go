@@ -49,6 +49,9 @@ const (
 	hostTrafficResolverLinkPath   = "/tmp/host_traffic_resolv.conf.link"
 	hostTrafficCurlLogPath        = "/tmp/host_traffic_dynamic_path_curl.log"
 	hostTrafficCurlPIDPath        = "/tmp/host_traffic_dynamic_path_curl.pid"
+	hostTrafficRCProduct          = "NETWORK_PATH"
+	hostTrafficRCConfigID         = "test-config-dynamic-host-traffic"
+	hostTrafficRCConfigName       = "config"
 	hostTrafficHTTPBinComposeYAML = `version: '3.9'
 services:
   httpbin:
@@ -63,6 +66,20 @@ services:
 `
 )
 
+var hostTrafficDynamicRCConfig = []byte(`{
+  "type": "dynamic",
+  "test_config_id": "dynamic-host-traffic",
+  "config": {
+    "filters": [
+      {
+        "type": "include",
+        "match_domain": "httpbin.dynamic-netpath.test",
+        "match_domain_strategy": "wildcard"
+      }
+    ]
+  }
+}`)
+
 type hostTrafficDynamicPathEnv struct {
 	environments.Host
 	HTTPBinHost *components.RemoteHost
@@ -70,6 +87,7 @@ type hostTrafficDynamicPathEnv struct {
 
 type hostTrafficDynamicPathSuite struct {
 	e2e.BaseSuite[hostTrafficDynamicPathEnv]
+	remoteConfigAdded bool
 }
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
@@ -144,10 +162,20 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 
-	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	fakeintake := s.Env().FakeIntake.Client()
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		stats, err := fakeintake.RCStats()
+		assert.NoError(c, err)
+		assert.NotZero(c, stats.Polls, "agent did not poll fakeintake Remote Config")
+	}, 2*time.Minute, 5*time.Second)
+	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
+	s.remoteConfigAdded = true
+
+	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
 
 func (s *hostTrafficDynamicPathSuite) TearDownSuite() {
+	s.deleteHostTrafficRemoteConfig()
 	s.stopHostTrafficGenerator()
 	s.restoreAgentResolver()
 	s.stopHostTrafficDNSServer()
@@ -197,6 +225,30 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 			matched.Destination.Port,
 			matched.TestRunID,
 		)
+	}
+}
+
+func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
+	if !s.remoteConfigAdded {
+		return
+	}
+	fakeintake := s.Env().FakeIntake.Client()
+	configs, err := fakeintake.RCListConfigs()
+	if err != nil {
+		s.T().Logf("failed to list Remote Config entries during cleanup: %v", err)
+		return
+	}
+	for _, config := range configs {
+		if config.Product != hostTrafficRCProduct || config.ConfigID != hostTrafficRCConfigID || config.ConfigName != hostTrafficRCConfigName {
+			continue
+		}
+		key := fmt.Sprintf("%s/%s/%s/%s", config.OrgID, config.Product, config.ConfigID, config.ConfigName)
+		if err := fakeintake.RCDeleteConfig(key); err != nil {
+			s.T().Logf("failed to delete Remote Config entry during cleanup: %v", err)
+		} else {
+			s.remoteConfigAdded = false
+		}
+		return
 	}
 }
 

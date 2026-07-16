@@ -11,6 +11,7 @@ go_library(
         "npcollector.go",
         "npcollector_mock.go",
         "npcollectorcomp.go",
+        "remote_config.go",
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl",
@@ -33,6 +34,7 @@ go_library(
         "//pkg/network/tracer/networkfilter",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
+        "//pkg/remoteconfig/state",
         "//pkg/util/cloudproviders/network",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
@@ -50,6 +52,7 @@ dd_agent_go_test(
         "module_test.go",
         "npcollector_test.go",
         "npcollector_testutils_test.go",
+        "remote_config_test.go",
     ],
     embed = [":impl"],
     deps = [

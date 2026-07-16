@@ -82,8 +82,10 @@ type npCollectorImpl struct {
 	TimeNowFn func() time.Time
 
 	networkDevicesNamespace string
+	filterMutex             sync.RWMutex
 	filter                  *connfilter.ConnFilter
 	localIPs                *localIPCache
+	remoteConfigState       dynamicRemoteConfigState
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -233,7 +235,10 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
-	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
+	s.filterMutex.RLock()
+	included := s.filter.IsIncluded(conn.Domain, conn.Dest.Addr())
+	s.filterMutex.RUnlock()
+	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return false
 	}
