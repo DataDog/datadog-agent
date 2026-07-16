@@ -7,7 +7,6 @@ package collector
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -163,12 +162,12 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 	loader, err := core.NewGoCheckLoader()
 	require.NoError(t, err)
 	s := CheckScheduler{
-		configToChecks:      make(map[string][]checkid.ID),
-		senderManager:       normalSenderManager,
-		shadowSenderManager: shadowSenderManager,
-		infraTagger:         infratags.NewTagger(cfg),
+		configToChecks: make(map[string][]checkid.ID),
+		senderManager:  normalSenderManager,
+		infraTagger:    infratags.NewTagger(cfg),
 	}
 	s.addLoader(loader)
+	s.SetMetricLookbackShadowSenderManager(shadowSenderManager)
 
 	config := integration.Config{
 		Name:       "cpu",
@@ -248,7 +247,7 @@ func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *t
 	assert.Empty(t, shadowSenderManager.requestedIDs)
 }
 
-func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
+func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowSenderManagerMissing(t *testing.T) {
 	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
@@ -274,19 +273,13 @@ func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
 
 	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
 
-	require.Len(t, checks, 2)
+	require.Len(t, checks, 1)
 	assert.False(t, check.IsShadow(checks[0]))
-	assert.True(t, check.IsShadow(checks[1]))
-	assert.Equal(t, []checkid.ID{checks[0].ID(), checks[1].ID()}, s.configToChecks[config.Digest()])
-	assert.Equal(t, []core.LoadMode{core.NormalLoadMode, core.ShadowLoadMode}, modes)
-	require.Len(t, calls, 2)
+	assert.Equal(t, []checkid.ID{checks[0].ID()}, s.configToChecks[config.Digest()])
+	assert.Equal(t, []core.LoadMode{core.NormalLoadMode}, modes)
+	require.Len(t, calls, 1)
 	assert.Same(t, normalSenderManager, calls[0].senderManager)
-	assert.NotNil(t, s.shadowSenderManager)
-	assert.NotEqual(t, normalSenderManager, calls[1].senderManager)
-	shadowCallSenderManager, ok := calls[1].senderManager.(*shadowCheckSenderManager)
-	require.True(t, ok)
-	assert.Equal(t, s.shadowSenderManager, shadowCallSenderManager.SenderManager)
-	assert.Equal(t, checks[1].ID(), shadowCallSenderManager.shadowCheckID)
+	assert.Nil(t, s.shadowSenderManager)
 }
 
 func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
@@ -323,33 +316,6 @@ func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
 	assert.Equal(t, []core.LoadMode{core.NormalLoadMode, core.ShadowLoadMode}, modes)
 	assert.Len(t, calls, 2)
 	assert.Equal(t, []checkid.ID{check.ShadowID(checks[0].ID())}, shadowSenderManager.destroyedIDs)
-}
-
-func TestStopCancelsShadowSenderContext(t *testing.T) {
-	s := CheckScheduler{}
-	ctx := s.ensureShadowSenderContext()
-
-	s.Stop()
-
-	select {
-	case <-ctx.Done():
-		assert.ErrorIs(t, ctx.Err(), context.Canceled)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for shadow sender context cancellation")
-	}
-}
-
-func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
-	s := InitCheckScheduler(
-		option.None[collectorcomp.Component](),
-		&recordingSchedulerSenderManager{},
-		option.None[integrations.Component](),
-		nil,
-		nil,
-	)
-
-	assert.Nil(t, s.shadowSenderContext)
-	assert.Nil(t, s.shadowSenderCancel)
 }
 
 func TestGetChecksFromConfigsSkipsShadowCheckForUnsupportedLoader(t *testing.T) {
