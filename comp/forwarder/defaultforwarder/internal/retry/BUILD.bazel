@@ -1,7 +1,8 @@
 # gazelle:proto_strip_import_prefix /comp/forwarder/defaultforwarder/internal/retry
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
 proto_library(
@@ -54,7 +55,16 @@ go_library(
     ],
 )
 
-go_test(
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        ":retry_go_proto": [
+            "HttpTransactionProto.pb.go",
+        ],
+    },
+)
+
+dd_agent_go_test(
     name = "retry_test",
     srcs = [
         "disk_usage_limit_test.go",
@@ -66,7 +76,6 @@ go_test(
         "transaction_retry_queue_test.go",
     ],
     embed = [":retry"],
-    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
@@ -78,13 +87,4 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
     ],
-)
-
-write_pb_go(
-    name = "write_pb_go",
-    srcs = {
-        ":retry_go_proto": [
-            "HttpTransactionProto.pb.go",
-        ],
-    },
 )
