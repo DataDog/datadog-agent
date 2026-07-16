@@ -35,6 +35,44 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
 	config.BindEnvAndSetDefault("metric_lookback.collection_interval", time.Second)
 
+	// Check names that should have their metrics streaming-compressed
+	// (variable bit rate storage). Experimental; see
+	// pkg/aggregator/sender/vbrsender.
+	config.BindEnvAndSetDefault("checks.vbr_compression_checks", []string{})
+	// A plain string-slice env var binding does not comma-split its value
+	// (it falls back to whitespace-splitting only), so
+	// DD_CHECKS_VBR_COMPRESSION_CHECKS=foo,bar would otherwise become a
+	// single-element ["foo,bar"] instead of ["foo","bar"].
+	config.ParseEnvSplitComma("checks.vbr_compression_checks")
+	// When true, VBR-compressed checks still run every sample through the
+	// compressor for measurement (see the vbrsender_samples_total /
+	// vbrsender_breakpoints_total telemetry), but ship their original,
+	// uncompressed data — nothing the compressor produces is actually sent.
+	config.BindEnvAndSetDefault("checks.vbr_compression_dry_run", false)
+	// When non-empty, VBR-compressed checks ship BOTH their original,
+	// uncompressed data (like dry-run) AND the compressor's breakpoints —
+	// the latter under hostname+this suffix, so the two series can be
+	// graphed side by side (e.g. `by {host}`) to visually compare
+	// compression fidelity. Doubles shipped metric volume for compressed
+	// checks; intended for short, deliberate comparison windows, not left
+	// on indefinitely. Takes precedence over checks.vbr_compression_dry_run
+	// when non-empty.
+	config.BindEnvAndSetDefault("checks.vbr_compression_shadow_host_suffix", "")
+	// VBR compressor tuning (see pkg/aggregator/internal/vbr.Config): the
+	// shipped tolerance is max(vbr_compression_epsilon*scale,
+	// vbr_compression_floor), where scale is an EWMA (smoothing factor
+	// vbr_compression_alpha) of the signal's magnitude. vbr_compression_warmup
+	// leading samples per context ship verbatim and seed the scale estimate
+	// before compression engages. Defaults match vbrsender's previous
+	// hardcoded values.
+	config.BindEnvAndSetDefault("checks.vbr_compression_epsilon", 0.02)
+	config.BindEnvAndSetDefault("checks.vbr_compression_alpha", 0.3)
+	// Setting this to 0 disables the floor entirely: tolerance becomes purely
+	// vbr_compression_epsilon*scale, however small that gets for a
+	// near-zero-scale signal — see vbrsender_floor_bound_samples_total for
+	// visibility into how often the floor binds with a non-zero value.
+	config.BindEnvAndSetDefault("checks.vbr_compression_floor", 1e-3)
+	config.BindEnvAndSetDefault("checks.vbr_compression_warmup", 2)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
