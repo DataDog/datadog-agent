@@ -62,6 +62,11 @@ pub struct PipeCallerAuth {
 #[derive(Clone, Copy, Debug)]
 struct PipeHandle(HANDLE);
 
+// SAFETY: Win32 HANDLE values are safe to send/share across threads; the kernel
+// serialises concurrent operations on the same pipe handle.
+unsafe impl Send for PipeHandle {}
+unsafe impl Sync for PipeHandle {}
+
 impl PipeCallerAuth {
     fn new(pipe: &NamedPipeServer) -> Self {
         Self {
