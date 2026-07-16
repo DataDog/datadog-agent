@@ -10,6 +10,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -84,7 +85,7 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 	if !s.ready.Load() {
 		return sendError(stream, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("executor is not ready to accept actions"),
+			errors.New("executor is not ready to accept actions"),
 		))
 	}
 
