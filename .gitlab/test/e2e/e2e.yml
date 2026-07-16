@@ -950,7 +950,6 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
-  allow_failure: true
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
