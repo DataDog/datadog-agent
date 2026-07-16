@@ -153,35 +153,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
-	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
-	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
-	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
-	// it maps group resources to annotations as tags maps
-	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
-	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
-	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
-	// it maps group resources to labels as tags maps
-	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
-	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
-	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -462,7 +435,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
-	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 1000) // value in milliseconds
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
@@ -595,14 +567,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
-
-	// The cardinality of tags to send for checks and dogstatsd respectively.
-	// Choices are: low, orchestrator, high.
-	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
-	// (one per container instead of one per host).
-	// Changing this setting may impact your custom metrics billing.
-	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
-	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -804,8 +768,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.SetDefault("config_providers", []map[string]interface{}{})
 	config.SetDefault("listeners", []map[string]interface{}{})
 
-	config.BindEnvAndSetDefault("provider_kind", "")
-
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
 	// enabling/disabling the environment variables & command scrubbing from the container specs
@@ -877,9 +839,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "10Mb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", true)
-	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
-	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
-	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.use_spread_refresher", false)
@@ -1366,6 +1325,55 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
+	// The cardinality of tags to send for checks.
+	// Choices are: low, orchestrator, high.
+	// Changing this setting may impact your custom metrics billing.
+	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
+
+	// The cardinality of tags to send for dogstatsd.
+	// Choices are: low, orchestrator, high.
+	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
+	// (one per container instead of one per host).
+	// Changing this setting may impact your custom metrics billing.
+	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
+
+	// Agent Workload Filtering config
+	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
+	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
+	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to labels as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
+	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to annotations as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
+	config.BindEnvAndSetDefault("provider_kind", "")
+
+	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1601,28 +1609,6 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
-
-	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
-	// to avoid "config key is unknown" and "unable to cast nil" warnings
-	config.SetDefault("checks_tag_cardinality", "low")
-	config.SetDefault("dogstatsd_tag_cardinality", "low")
-	config.SetDefault("cel_workload_exclude", "")
-	config.SetDefault("sbom.container_image.exclude_pause_container", false)
-	config.SetDefault("sbom.container_image.container_include", []string{})
-	config.SetDefault("sbom.container_image.container_exclude", []string{})
-	config.SetDefault("ecs_collect_resource_tags_ec2", false)
-	config.SetDefault("kubernetes_persistent_volume_claims_as_tags", false)
-	config.SetDefault("docker_labels_as_tags", map[string]string{})
-	config.SetDefault("docker_env_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_node_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_resources_labels_as_tags", "{}")
-	config.SetDefault("kubernetes_resources_annotations_as_tags", "{}")
-	config.SetDefault("provider_kind", "")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
