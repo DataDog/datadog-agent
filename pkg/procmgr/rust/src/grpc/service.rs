@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_process_to_proto() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let expected_args = args.clone();
         let cfg = ProcessConfig {
             command: cmd.to_string(),
@@ -441,9 +441,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
-        let (cmd, args) = test_helpers::unit_sleep_cmd();
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let expected_args = args.clone();
-        let cfg = test_helpers::make_config(cmd, args);
+        let cfg = ProcessConfig {
+            command: cmd.to_string(),
+            args,
+            ..Default::default()
+        };
         let mut proc =
             ManagedProcess::new_config("sleeper".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
