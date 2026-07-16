@@ -84,21 +84,7 @@ if [ -n "${AGENT_BUILD:-}" ]; then
     AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
 fi
 
-if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    RELEASE_JSON="$AGENT_SRC/release.json"
-    if [ ! -f "$RELEASE_JSON" ]; then
-        printf 'ERROR: env.sh: %s not found; cannot read AGENT_DATA_PLANE_VERSION\n' "$RELEASE_JSON" >&2
-        exit 1
-    fi
-    AGENT_DATA_PLANE_VERSION=$(python3.12 -c \
-        "import json; print(json.load(open('$RELEASE_JSON'))['dependencies']['AGENT_DATA_PLANE_VERSION'])")
-    if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
-        printf 'ERROR: env.sh: AGENT_DATA_PLANE_VERSION is empty in %s\n' "$RELEASE_JSON" >&2
-        exit 1
-    fi
-fi
-
-export AGENT_VERSION AGENT_BUILD AGENT_VRMF AGENT_DATA_PLANE_VERSION
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 

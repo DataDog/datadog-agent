@@ -20,7 +20,6 @@ log "=== Stage: $STAGE_NAME ==="
 # compiled crates, so rebuilds with no changes mostly reuse prior work.
 
 # --- Input validation ---
-: "${AGENT_DATA_PLANE_VERSION:?AGENT_DATA_PLANE_VERSION must be set}"
 : "${SALUKI_SRC:?SALUKI_SRC must be set}"
 : "${STAGING:?STAGING must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
@@ -50,7 +49,7 @@ if [ ! -d "$SALUKI_SRC/.git" ]; then
     exit 1
 fi
 log "saluki source found at $SALUKI_SRC"
-log "Building Agent Data Plane version $AGENT_DATA_PLANE_VERSION"
+log "Building Agent Data Plane from saluki commit $(git -C "$SALUKI_SRC" rev-parse HEAD)"
 
 # --- Cleanup on failure ---
 cleanup() {
