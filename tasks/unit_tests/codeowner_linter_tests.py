@@ -10,6 +10,7 @@ from tasks.libs.owners.linter import (
     ai_artefacts_have_owner,
     codeowner_has_orphans,
     directory_has_packages_without_owner,
+    skills_use_agents_directory,
 )
 
 
@@ -72,7 +73,7 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         return ctx
 
     def test_no_ai_artefacts(self):
-        # No AGENTS.md or .claude/ — nothing to check
+        # No AGENTS.md, .claude/ or .agents/ — nothing to check
         codeowner = CodeOwners("")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -87,13 +88,13 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         codeowner = CodeOwners("/pkg/bar/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_has_owner(self):
-        self._create(".claude/skills/my-skill.md")
-        codeowner = CodeOwners("/.claude/ @DataDog/devx\n")
+    def test_agents_file_has_owner(self):
+        self._create(".agents/skills/my-skill.md")
+        codeowner = CodeOwners("/.agents/ @DataDog/devx\n")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_missing_owner(self):
-        self._create(".claude/skills/my-skill.md")
+    def test_agents_file_missing_owner(self):
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/pkg/foo/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -109,8 +110,8 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_catch_all_dot_files_is_not_explicit(self):
-        # /.*  matches .claude/ files but is not considered explicit ownership
-        self._create(".claude/skills/my-skill.md")
+        # /.*  matches .agents/ files but is not considered explicit ownership
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/.*  @DataDog/agent-devx\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -125,3 +126,29 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         self._create("AGENTS.md")
         codeowner = CodeOwners("/*.md @DataDog/agent-devx\n/AGENTS.md @DataDog/agent-devx\n")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
+
+
+class TestSkillsUseAgentsDirectory(unittest.TestCase):
+    @staticmethod
+    def _ctx(tracked):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "\n".join(tracked)
+        return ctx
+
+    def test_symlink_only_is_ok(self):
+        # The bare `.claude/skills` symlink with no children is allowed.
+        ctx = self._ctx(['.claude/skills', '.agents/skills/foo/SKILL.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))
+
+    def test_real_skill_under_claude_is_flagged(self):
+        ctx = self._ctx(['.claude/skills/foo/SKILL.md'])
+        self.assertTrue(skills_use_agents_directory(ctx))
+
+    def test_skill_under_agents_is_ok(self):
+        ctx = self._ctx(['.agents/skills/foo/SKILL.md', '.agents/skills/foo/references/x.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))
+
+    def test_nested_claude_skills_is_out_of_scope(self):
+        # A nested `.claude/skills` under another directory falls outside the root-scoped check.
+        ctx = self._ctx(['test/new-e2e/x/.claude/skills/y/SKILL.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))
