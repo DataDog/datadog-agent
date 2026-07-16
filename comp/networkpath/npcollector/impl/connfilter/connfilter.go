@@ -15,7 +15,11 @@ import (
 
 // Filter represent one filter
 type Filter struct {
-	Type         FilterType
+	Type FilterType
+
+	// TestConfigID preserves RC filter provenance so a Dynamic Test payload can
+	// identify the remote configuration responsible for admitting its path. It
+	// is empty for built-in and local filters.
 	TestConfigID string
 	matchDomain  *regexp.Regexp
 	matchIPCidr  netip.Prefix
