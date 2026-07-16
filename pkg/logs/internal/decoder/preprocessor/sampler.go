@@ -246,8 +246,10 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 
 // applyProfileIfChanged switches RateLimit/BurstSize to the currently published
 // level, when SmartSeverityProfilesEnabled is set. Escalation grants every
-// pattern a fresh burst immediately; de-escalation leaves credits untouched,
-// letting the refill-time clamp in processMatchedEntry shrink them naturally.
+// pattern a fresh burst immediately. The first available Medium/High level is
+// also treated as an escalation from the base Low profile. De-escalation leaves
+// credits untouched, letting the refill-time clamp in processMatchedEntry
+// shrink them naturally.
 func (s *AdaptiveSampler) applyProfileIfChanged() {
 	if s.config.SeverityProvider == nil {
 		return
@@ -260,8 +262,11 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 		return
 	}
 
+	wasInitialized := s.appliedLevelInitialized
+	previousLevel := s.appliedLevel
 	profile := s.config.Profiles[level]
-	escalation := s.appliedLevelInitialized && level > s.appliedLevel
+	escalation := (wasInitialized && level > previousLevel) ||
+		(!wasInitialized && level > severityeventsdef.SeverityLow)
 	s.config.RateLimit = profile.RateLimit
 	s.config.BurstSize = profile.BurstSize
 
