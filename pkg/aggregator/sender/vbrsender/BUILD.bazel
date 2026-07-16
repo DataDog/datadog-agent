@@ -26,6 +26,7 @@ dd_agent_go_test(
     embed = [":vbrsender"],
     deps = [
         "//pkg/collector/check/stats",
+        "//pkg/config/setup",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
