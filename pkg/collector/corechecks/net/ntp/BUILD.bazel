@@ -13,6 +13,8 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/telemetry/impl",
+        "//comp/healthplatform/issues/ntp",
+        "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
@@ -41,6 +43,8 @@ dd_agent_go_test(
     embed = [":ntp"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/healthplatform/issues/ntp",
+        "//comp/healthplatform/store/mock",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/config/mock",
@@ -49,5 +53,6 @@ dd_agent_go_test(
         "@com_github_beevik_ntp//:ntp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

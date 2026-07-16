@@ -16,8 +16,11 @@ import (
 	"github.com/beevik/ntp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	healthplatformntp "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ntp"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -188,6 +191,94 @@ func TestNTPCritical(t *testing.T) {
 	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestNTPHealthPlatformReporting(t *testing.T) {
+	ntpCfg := []byte(ntpCfgString)
+	ntpInitCfg := []byte("")
+
+	// Prevent cloud provider detection from overriding our hosts
+	getCloudProviderNTPHosts = func(_ context.Context) []string { return nil }
+	defer func() { getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts }()
+
+	ntpQuery = testNTPQuery
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	hp := healthplatformmock.Mock(t)
+	ntpCheck := &NTPCheck{healthPlatform: hp}
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	issueID := ntpCheck.driftIssueID()
+	assert.Equal(t, healthplatformntp.DriftIssueID+":"+string(ntpCheck.ID()), issueID)
+
+	// Drift above the configured 60s threshold reports the issue.
+	offset = 100
+	require.NoError(t, ntpCheck.Run())
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Equal(t, healthplatformntp.DriftIssueName, issue.IssueName)
+	assert.Contains(t, issue.Description, "+1m40s")
+
+	// A probe failure leaves the previously reported issue untouched.
+	ntpQuery = testNTPQueryError
+	require.Error(t, ntpCheck.Run())
+	assert.NotNil(t, hp.GetIssue(issueID))
+	ntpQuery = testNTPQuery
+
+	// A second, healthy instance must not resolve the first instance's still-active issue.
+	otherCheck := &NTPCheck{healthPlatform: hp}
+	otherSenderManager := mocksender.CreateDefaultDemultiplexer(t)
+	otherCheck.Configure(otherSenderManager, integration.FakeConfigHash, []byte(ntpCfgStringDatadogPool), ntpInitCfg, "test", "provider")
+	otherMockSender := mocksender.NewMockSenderWithSenderManager(otherCheck.ID(), otherSenderManager)
+	otherMockSender.SetupAcceptAll()
+	require.NotEqual(t, issueID, otherCheck.driftIssueID())
+
+	offset = 21
+	require.NoError(t, otherCheck.Run())
+	assert.Nil(t, hp.GetIssue(otherCheck.driftIssueID()))
+	assert.NotNil(t, hp.GetIssue(issueID), "a healthy instance must not resolve another instance's issue")
+
+	// Recovering below the threshold resolves the issue for that instance.
+	require.NoError(t, ntpCheck.Run())
+	assert.Nil(t, hp.GetIssue(issueID))
+}
+
+func TestNTPHealthPlatformUnreachableReporting(t *testing.T) {
+	ntpCfg := []byte(ntpCfgString)
+	ntpInitCfg := []byte("")
+
+	// Prevent cloud provider detection from overriding our hosts
+	getCloudProviderNTPHosts = func(_ context.Context) []string { return nil }
+	defer func() { getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts }()
+
+	hp := healthplatformmock.Mock(t)
+	ntpCheck := &NTPCheck{healthPlatform: hp}
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	issueID := healthplatformntp.UnreachableIssueID + ":" + string(ntpCheck.ID())
+
+	// Every configured host failing to respond reports the unreachable issue.
+	ntpQuery = testNTPQueryError
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+	require.Error(t, ntpCheck.Run())
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Equal(t, healthplatformntp.UnreachableIssueName, issue.IssueName)
+	assert.Contains(t, issue.Description, "test.ntp.server")
+
+	// Recovering (host reachable again) resolves the issue, drift or not.
+	ntpQuery = testNTPQuery
+	offset = 21
+	require.NoError(t, ntpCheck.Run())
+	assert.Nil(t, hp.GetIssue(issueID))
 }
 
 func TestNTPError(t *testing.T) {
