@@ -1,13 +1,14 @@
 generator: []
 
 blackhole:
-  # Absorb any HTTP egress the runner attempts against the configured dd_url so
-  # it never blocks on the network. With self-enrollment disabled and no active
-  # workload the runner is essentially idle, so this is mostly a safety net.
+  # Absorb OPMS polling against the configured dd_url. The experiment sets
+  # DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true so the runner is allowed to use
+  # this local HTTP endpoint instead of the real HTTPS API host.
   - http:
       binding_addr: "127.0.0.1:9091"
 
-# target_metrics scrapes Prometheus/expvar endpoints on the target. The
-# standalone runner does not expose its metrics on those surfaces (it emits
-# DogStatsD), so this is intentionally empty.
-target_metrics: []
+target_metrics:
+  - prometheus: # private action runner telemetry
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "private-action-runner"

@@ -18,20 +18,26 @@ target:
     - --cfgpath=/etc/datadog-agent/datadog.yaml
   cpu_allotment: 4
   # Set to 20% higher than the memory_usage check value.
-  memory_allotment: 72 MiB
+  memory_allotment: 84 MiB
 
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
+    # Internal test-only switch used by PAR e2e tests. It lets the runner use
+    # the local HTTP dd_url for OPMS polling instead of the real HTTPS API host.
+    DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
+    # Expose /telemetry so SMP can capture Go runtime metrics for the runner.
+    DD_INTERNAL_PAR_ENABLE_TELEMETRY: "true"
 
 checks:
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the resident memory of the standalone Private Action Runner process."
     bounds:
       series: total_pss_bytes
-      # Initial bound. Calibrate against the first SMP run and, when updating it,
-      # update the memory_allotment in the target section to 20% higher.
-      upper_bound: "60 MiB"
+      # Calibrated from the max privateactionrunner total PSS observed in
+      # existing SMP quality gates (~64 MiB). When updating this, update
+      # memory_allotment in the target section to 20% higher.
+      upper_bound: "70 MiB"
 
 report_links:
   - text: "bounds checks dashboard"
