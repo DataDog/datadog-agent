@@ -50,9 +50,9 @@ filegroup(
 filegroup(
     name = "system_probe_schema_subfiles",
     srcs = [
-        "yaml/system-probe_schema.yaml",
         "yaml/system-probe-cws.yaml",
         "yaml/system-probe-usm.yaml",
+        "yaml/system-probe_schema.yaml",
     ],
     visibility = ["//visibility:public"],
 )
