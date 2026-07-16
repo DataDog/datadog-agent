@@ -12,9 +12,16 @@ from tasks.e2e_framework.setup.ssh_keys import KeyInfo, add_key_to_ssh_agent, de
 from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
-AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
+AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "agent-integrations-dev", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
 DEFAULT_KEY_TYPE = "rsa"
+
+# AWS account id used to write the SSO profile for each account. Accounts not
+# listed here fall back to the agent-sandbox id, preserving historical behavior.
+_AWS_ACCOUNT_IDS = {
+    "agent-sandbox": "376334461865",
+    "agent-integrations-dev": "030537971304",
+}
 
 
 def _default_keypair_name(account: str, user: str) -> str:
@@ -170,9 +177,8 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
 
     aws = config.configParams.aws
 
-    # agent-sandbox
     role = 'account-admin'
-    acct_id = 376334461865
+    acct_id = _AWS_ACCOUNT_IDS.get(aws.account, _AWS_ACCOUNT_IDS[DEFAULT_AWS_ACCOUNT])
     start_url = 'https://d-906757b57c.awsapps.com/start/#'
     region = 'us-east-1'
 

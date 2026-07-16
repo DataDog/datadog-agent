@@ -33,6 +33,8 @@ Run the setup task once on a fresh machine. The default path is AWS-only and ask
 dda inv e2e.setup
 ```
 
+A different supported AWS account can be selected with `--account=<name>` (defaults to `agent-sandbox`).
+
 For Azure or GCP support:
 
 ```bash

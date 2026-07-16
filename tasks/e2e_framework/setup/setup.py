@@ -8,6 +8,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 from invoke.tasks import task
 
+from tasks.e2e_framework import config as e2e_config
 from tasks.e2e_framework import doc
 from tasks.e2e_framework.tool import (
     debug,
@@ -491,9 +492,14 @@ def debug_env(ctx, config_path: str | None = None):
 
     print()
 
-    # check .aws/config exists and contains expected profile
-    # some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    # check .aws/config exists and contains the expected profile for the
+    # configured account (falls back to agent-sandbox, the historical default).
+    try:
+        cfg = e2e_config.get_local_config(config_path)
+        account = cfg.get_aws().account or 'agent-sandbox'
+    except Exception:
+        account = 'agent-sandbox'
+    expected_profile = f'sso-{account}-account-admin'
     aws_conf_path = Path.home().joinpath(".aws", "config")
     if not os.path.isfile(aws_conf_path):
         error(f"Missing aws config file: {aws_conf_path}")
@@ -531,8 +537,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     print()
 
-    # Check aws-vault profile name, some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    # Check the same profile is registered with aws-vault.
     out = ctx.run("aws-vault list", hide=True)
     if expected_profile not in out.stdout:
         warn(f"WARNING: expected profile {expected_profile} missing from aws-vault. Some invoke tasks may fail.")
