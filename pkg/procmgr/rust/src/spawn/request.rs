@@ -60,8 +60,8 @@ impl SpawnRequest {
 
 /// Merge environment-file variables with inline config env (config wins on conflict).
 fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    // Platform backends apply baseline env and clear the process env (e.g. Windows
-    // `apply_child_baseline_env` after `env_clear`).
+    // Platform backends clear inherited env and merge a baseline before these overrides
+    // (e.g. Windows `child_baseline_env_vars` in `spawn/command.rs` after `env_clear`).
     let mut env = Vec::new();
 
     if let Some(ref raw_path) = config.environment_file {

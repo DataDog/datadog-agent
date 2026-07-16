@@ -432,16 +432,11 @@ const FALLBACK_ENV_KEYS: &[&str] = &[
     "ComSpec",
 ];
 
-/// After [`tokio::process::Command::env_clear`], merge a Windows-appropriate baseline so
-/// managed children (e.g. otel-agent) see PATH, profile directories, and system roots for
-/// the **dd-procmgr** process token — not the fleet installer's environment.
-pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
-    for (key, value) in child_baseline_env_vars() {
-        cmd.env(key, value);
-    }
-}
-
 /// Baseline environment for managed children after clearing inherited procmgr variables.
+///
+/// Used by the tokio spawn path after [`tokio::process::Command::env_clear`] so managed
+/// children (e.g. otel-agent) see PATH, profile directories, and system roots for the
+/// **dd-procmgr** process token — not the fleet installer's environment.
 pub(crate) fn child_baseline_env_vars() -> HashMap<String, String> {
     use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
