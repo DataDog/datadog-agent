@@ -31,7 +31,7 @@ const (
 	DefaultDogStatsDBucketWidth = time.Second
 	// DefaultDogStatsDSealDelay is the internal delay before open normal-DogStatsD
 	// lookback buckets are sealed into the retention ring.
-	DefaultDogStatsDSealDelay = 2 * time.Second
+	DefaultDogStatsDSealDelay = 10 * time.Second
 	// DefaultDogStatsDMaterializerShardCount is the number of independent locks
 	// used by the selected DogStatsD bucket materializer.
 	DefaultDogStatsDMaterializerShardCount = 16
