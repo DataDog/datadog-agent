@@ -871,10 +871,12 @@
 /tasks/unit_tests/build_tags_tests.py   @DataDog/agent-build
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
+/tasks/unit_tests/schema_*              @DataDog/agent-configuration
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/unit_tests/testdata/collector/   @DataDog/opentelemetry-agent
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates/    @DataDog/agent-build
+/tasks/unit_tests/testdata/schema_codegen/ @DataDog/agent-configuration
 /tasks/installer.py                     @DataDog/fleet
 /tasks/host_profiler.py                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
