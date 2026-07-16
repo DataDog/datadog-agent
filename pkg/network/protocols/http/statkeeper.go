@@ -81,10 +81,6 @@ type StatKeeper struct {
 	llmRespContentMu sync.Mutex
 	// llmRespReader consumes streamed response-tail events (see llmo.go).
 	llmRespReader *ringbuf.Reader
-	// llmWorkflows holds one open agent span per connection, so separate
-	// conversations on the same connection group under one workflow. Accessed
-	// only under h.mux (add / GetAndResetAllStats); reaped when idle.
-	llmWorkflows map[llmConnKey]*llmWorkflow
 }
 
 // EnableLLMO wires up the eBPF maps used to capture decrypted LLM request and
@@ -226,9 +222,6 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 			h.add(tx)
 		}
 
-		// Finish idle LLMO agent workflows so their trace is sent.
-		h.reapLLMWorkflows(false)
-
 		// Rotate stats
 		stats = h.stats
 		h.stats = make(map[Key]*RequestStats)
@@ -252,9 +245,6 @@ func (h *StatKeeper) Close() {
 	if h.llmRespReader != nil {
 		h.llmRespReader.Close()
 	}
-	h.mux.Lock()
-	h.reapLLMWorkflows(true)
-	h.mux.Unlock()
 }
 
 var (
@@ -335,7 +325,7 @@ func (h *StatKeeper) add(tx Transaction) {
 			pid = p.Pid()
 		}
 		info := h.captureLLMBody(tx.ConnTuple(), pid)
-		h.emitLLMSpan(llmPath, tx.Method(), statusCode, tx.ConnTuple(), latency, info)
+		emitLLMSpan(llmPath, tx.Method(), statusCode, tx.ConnTuple(), latency, info)
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
