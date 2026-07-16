@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -378,6 +379,32 @@ func TestParseConfigValidBoundariesAndNormalization(t *testing.T) {
 
 	third := unmarshalInstance(t, configs[2].Instances[0])
 	assert.Equal(t, "ICMP", third["protocol"])
+}
+
+func TestParseConfigOutputIsAcceptedByNetworkPathCheck(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig(
+		"test-config-a",
+		`{"hostname":"api.example.com","port":443,"protocol":"tcp","max_ttl":30,"timeout_ms":1000,"interval_sec":60,"source_service":"frontend","destination_service":"api","tcp_method":"syn","traceroute_queries":3,"e2e_queries":50,"tags":["env:prod"]}`,
+	))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Instances, 1)
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, "test-config-a", checkConfig.TestConfigID)
+	assert.Equal(t, "api.example.com", checkConfig.DestHostname)
+	assert.Equal(t, uint16(443), checkConfig.DestPort)
+	assert.Equal(t, payload.ProtocolTCP, checkConfig.Protocol)
+	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
+	assert.Equal(t, time.Second, checkConfig.Timeout)
+	assert.Equal(t, time.Minute, checkConfig.MinCollectionInterval)
+	assert.Equal(t, "frontend", checkConfig.SourceService)
+	assert.Equal(t, "api", checkConfig.DestinationService)
+	assert.Equal(t, payload.TCPConfigSYN, checkConfig.TCPMethod)
+	assert.Equal(t, 3, checkConfig.TracerouteQueries)
+	assert.Equal(t, 50, checkConfig.E2eQueries)
+	assert.Equal(t, []string{"env:prod"}, checkConfig.Tags)
 }
 
 func TestParseConfigValidation(t *testing.T) {
