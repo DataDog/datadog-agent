@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v6 v6.0.1
+	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
 	github.com/google/go-containerregistry v0.21.7
