@@ -56,6 +56,8 @@ Create a new Fx component following the **modern** (new-style) pattern with sepa
 
 7. **Run `dda inv create-module --path=comp/<bundle>/<component>/def`** (and for `fx`, `impl`) or manually add to `modules.yml` and run `dda inv tidy`.
 
+   > **Bootstrap ordering (go.sum chicken-and-egg):** once a new module is added to `go.work`, `dda inv tidy`'s bazel step fails with a `FileNotFoundException` on the module's not-yet-existent `go.sum`. Generate it once first — `cd <module> && GOWORK=off GOFLAGS=-mod=mod go mod tidy` — then re-run the sanctioned `dda inv tidy` (and `dda inv modules.add-all-replace` beforehand so the replace block is present). This is the one place a raw `go mod tidy` is warranted: the sanctioned task is blocked by the very file it should generate.
+
 8. **Wire into a bundle** if appropriate — add the component's `Module()` to the relevant `comp/<bundle>/bundle.go`.
 
 9. **Validate**:

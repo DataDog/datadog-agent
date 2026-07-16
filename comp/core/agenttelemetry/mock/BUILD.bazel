@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "mock",
+    srcs = [
+        "doc.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/agenttelemetry/def",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log/errortracking",
+    ],
+)
+
+dd_agent_go_test(
+    name = "mock_test",
+    srcs = ["mock_test.go"],
+    embed = [":mock"],
+    deps = [
+        "//pkg/util/log/errortracking",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

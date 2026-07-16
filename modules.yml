@@ -23,6 +23,8 @@ modules:
     used_by_otel: true
   comp/core/agenttelemetry/impl:
     used_by_otel: true
+  comp/core/agenttelemetry/mock:
+    used_by_otel: true
   comp/core/config:
     used_by_otel: true
   comp/core/configstreamconsumer/def:

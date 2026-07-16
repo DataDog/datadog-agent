@@ -63,7 +63,9 @@ type sender interface {
 	sendLogsBatch(ctx context.Context, logs []Log) error
 }
 
-type client interface {
+// Client abstracts the HTTP client used by sender to POST payloads, so
+// tests can substitute a fake without a real HTTP round trip.
+type Client interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
@@ -75,7 +77,7 @@ type senderImpl struct {
 
 	compress         bool
 	compressionLevel int
-	client           client
+	client           Client
 
 	endpoints *logconfig.Endpoints
 
@@ -174,7 +176,7 @@ func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Cl
 	}
 }
 
-func newSenderClientImpl(agentCfg config.Component) client {
+func newSenderClientImpl(agentCfg config.Component) Client {
 	return httputils.NewResetClient(httpClientResetInterval, httpClientFactory(agentCfg, httpClientTimeout))
 }
 
@@ -212,7 +214,7 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 func newSenderImpl(
 	cfgComp config.Component,
 	logComp log.Component,
-	client client) (sender, error) {
+	client Client) (sender, error) {
 
 	// "Sending" part of the sender will be moved to EP Forwarder in the future to be able
 	// to support retry, caching, URL management, API key rotation at runtime, flush to

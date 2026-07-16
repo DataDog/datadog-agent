@@ -9,11 +9,6 @@ package logs
 import (
 	"context"
 	"errors"
-	"io"
-	stdslog "log/slog"
-	"os"
-	"strings"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -22,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
+	"io"
+	stdslog "log/slog"
+	"os"
+	"strings"
 )
 
 // LoggerName specifies the name of an instantiated logger.
