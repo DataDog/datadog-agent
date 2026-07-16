@@ -344,7 +344,7 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    # Compiling the ./tests/containers binary from source needs ~20Gi (matches new-e2e-containers-eks-init).
+    # Same as new-e2e-containers-eks-init.
     KUBERNETES_MEMORY_REQUEST: 20Gi
     KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
@@ -1162,7 +1162,6 @@ new-e2e-ssi-gke:
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-ssi-gke-autopilot-init:
   extends: .new-e2e_ssi_extra_distribution_init
   variables:
@@ -1182,7 +1181,6 @@ new-e2e-ssi-gke-autopilot:
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
   allow_failure: true
-
 
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init

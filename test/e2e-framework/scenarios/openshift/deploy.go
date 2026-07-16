@@ -28,9 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 )
 
-// openShiftPrivilegedPSSLabels sets a namespace to the privileged Pod Security Standard,
-// which OpenShift requires for the dogstatsd workloads (they run without an explicit
-// restricted-compliant securityContext).
 var openShiftPrivilegedPSSLabels = pulumi.StringMap{
 	"pod-security.kubernetes.io/enforce": pulumi.String("privileged"),
 	"pod-security.kubernetes.io/warn":    pulumi.String("privileged"),

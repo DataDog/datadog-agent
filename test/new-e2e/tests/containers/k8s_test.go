@@ -1477,9 +1477,8 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		env[envVar.Name] = envVar.Value
 	}
 
-	// OpenShift disables the UDS socket (apm.socketEnabled=false) to avoid an SCC
-	// conflict, so the admission controller injects via port instead of socket:
-	// no socket URLs, hostPath volume, or mount are expected there.
+	// OpenShift disables the UDS socket, so we skip
+	// checking for socket URLs, hostPath volume, or mount.
 	socketInjection := suite.runtime != "cri-o"
 	if socketInjection && suite.Contains(env, "DD_DOGSTATSD_URL") {
 		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
