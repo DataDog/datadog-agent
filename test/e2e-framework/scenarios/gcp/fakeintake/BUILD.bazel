@@ -17,7 +17,6 @@ go_library(
         "//test/e2e-framework/components/docker",
         "//test/e2e-framework/resources/gcp",
         "//test/e2e-framework/scenarios/gcp/compute",
-        "//test/fakeintake/version",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

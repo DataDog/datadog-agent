@@ -962,7 +962,7 @@ workflow:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
     variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+      E2E_FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
     when: on_success
   # Any other fakeintake change (client/, cmd/client/, docs/…) does not rebuild
   # the image, but still compiles into the e2e test binaries — run e2e against
@@ -1512,8 +1512,8 @@ workflow:
 
 # Gates build/publish/version-check jobs on changes that rebuild the image
 # (server only — see .fakeintake_server_paths). Image-consuming e2e jobs get
-# FAKEINTAKE_IMAGE_OVERRIDE from .on_e2e_main_release_or_rc instead (that base is
-# inherited by every e2e job), so it is not set here.
+# E2E_FAKEINTAKE_IMAGE_OVERRIDE from .on_e2e_main_release_or_rc instead (that base
+# is inherited by every e2e job), so it is not set here.
 .on_fakeintake_changes:
   - changes:
       <<: *fakeintake_server_paths

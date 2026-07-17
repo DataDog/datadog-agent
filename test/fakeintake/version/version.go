@@ -13,7 +13,6 @@ package version
 
 import (
 	"embed"
-	"os"
 	"strings"
 )
 
@@ -29,15 +28,4 @@ func readTag() string {
 		panic(err)
 	}
 	return strings.TrimSpace(string(content))
-}
-
-// ImageURL returns the fakeintake image to use. FAKEINTAKE_IMAGE_OVERRIDE (set
-// by CI on fakeintake PRs to the freshly built v<sha> image) wins so every
-// suite exercises the PR's image; otherwise the pinned tag is appended to the
-// given registry-qualified image name.
-func ImageURL(image string) string {
-	if override := os.Getenv("FAKEINTAKE_IMAGE_OVERRIDE"); override != "" {
-		return override
-	}
-	return image + ":" + Tag
 }

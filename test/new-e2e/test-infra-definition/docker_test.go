@@ -25,9 +25,6 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	// The fakeintake default image already honors FAKEINTAKE_IMAGE_OVERRIDE
-	// (see test/fakeintake/version), so this test runs against a freshly
-	// built fakeintake whenever fakeintake changes, with no extra wiring here.
 	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(ec2docker.WithFakeIntakeOptions()))), e2e.WithSkipCoverage())
 }
 

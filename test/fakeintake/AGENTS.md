@@ -207,10 +207,13 @@ When the agent starts sending a new type of data to a new endpoint:
 The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
 
 - `version/VERSION` holds the pinned tag (e.g. `v1`), embedded by
-  `version/version.go` and exposed as `version.Tag`.
-- `version.ImageURL(image)` (used by every fakeintake default in
-  `test/e2e-framework`) returns `$FAKEINTAKE_IMAGE_OVERRIDE` if set, else
-  `<image>:<Tag>`.
+  `version/version.go` and exposed as `version.Tag` (this package only holds the
+  tag — it has no knowledge of overrides).
+- The e2e-framework helper `components/datadog/fakeintake.ImageURL(image)` (used
+  by every fakeintake default) returns the `FakeintakeImageOverride` runner
+  parameter (`E2E_FAKEINTAKE_IMAGE_OVERRIDE`) if set, else `<image>:<version.Tag>`.
+  It reads the override through the runner parameter store like every other
+  `E2E_*` value — never `os.Getenv` directly.
 - **Only server changes rebuild the image.** The image is
   `go build cmd/server/main.go`, whose in-module deps are `server/`,
   `aggregator/` and `api/`. So a bump/rebuild/publish is required only for
@@ -224,7 +227,7 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   `dda inv fakeintake.check-version-bump`) enforces this, including in the
   merge queue, so two PRs bumping to the same value can never collide.
 - **On your PR**, e2e suites don't need the bump to see a server change: CI sets
-  `FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
+  `E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
   changes, and every suite honors that override globally. A client/CLI change
   runs e2e against the pinned image (no override, no rebuild) so it is still
   exercised.

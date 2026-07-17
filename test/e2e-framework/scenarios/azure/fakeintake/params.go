@@ -7,7 +7,7 @@ package fakeintake
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
-	"github.com/DataDog/datadog-agent/test/fakeintake/version"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
 type Params struct {
@@ -22,7 +22,7 @@ type Option = func(*Params) error
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
 		DDDevForwarding: true,
-		ImageURL:        version.ImageURL("public.ecr.aws/datadog/fakeintake"),
+		ImageURL:        fakeintake.ImageURL("public.ecr.aws/datadog/fakeintake"),
 		RetentionPeriod: "15m",
 	}
 	return common.ApplyOption(params, options)

@@ -11,24 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestImageURL_OverrideUnset(t *testing.T) {
-	t.Setenv("FAKEINTAKE_IMAGE_OVERRIDE", "")
-
-	assert.Equal(t, "public.ecr.aws/datadog/fakeintake:"+Tag, ImageURL("public.ecr.aws/datadog/fakeintake"))
-}
-
-func TestImageURL_OverrideSet(t *testing.T) {
-	t.Setenv("FAKEINTAKE_IMAGE_OVERRIDE", "public.ecr.aws/datadog/fakeintake:v1234abcd")
-
-	assert.Equal(t, "public.ecr.aws/datadog/fakeintake:v1234abcd", ImageURL("public.ecr.aws/datadog/fakeintake"))
-}
-
-func TestImageURL_ComposesRegistryAndTag(t *testing.T) {
-	t.Setenv("FAKEINTAKE_IMAGE_OVERRIDE", "")
-
-	assert.Equal(t, "registry.datadoghq.com/fakeintake:"+Tag, ImageURL("registry.datadoghq.com/fakeintake"))
-}
-
 func TestTag_IsTrimmed(t *testing.T) {
 	assert.NotContains(t, Tag, "\n")
 	assert.NotContains(t, Tag, " ")

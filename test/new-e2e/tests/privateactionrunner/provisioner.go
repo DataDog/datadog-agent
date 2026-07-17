@@ -70,8 +70,6 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			// 1. Deploy fakeintake as ECS Fargate (HTTP, no load balancer).
 			// PAR inside the Kind cluster reaches it at fakeintake's private VPC IP.
 			// The test process also calls fakeintake directly for control operations (enqueue/result).
-			// The default image already honors FAKEINTAKE_IMAGE_OVERRIDE (see
-			// test/fakeintake/version), so a locally-built image is picked up automatically.
 			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name)
 			if err != nil {
 				return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
