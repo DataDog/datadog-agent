@@ -12,20 +12,13 @@
 package version
 
 import (
-	"embed"
+	_ "embed"
 	"strings"
 )
 
 //go:embed VERSION
-var versionFile embed.FS
+var rawVersion string
 
-// Tag is the pinned fakeintake image tag, read from the VERSION file.
-var Tag = readTag()
-
-func readTag() string {
-	content, err := versionFile.ReadFile("VERSION")
-	if err != nil {
-		panic(err)
-	}
-	return strings.TrimSpace(string(content))
-}
+// Tag is the pinned fakeintake image tag, embedded from the VERSION file
+// (trimmed of the trailing newline).
+var Tag = strings.TrimSpace(rawVersion)
