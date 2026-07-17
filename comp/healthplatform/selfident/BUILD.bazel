@@ -25,6 +25,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
         "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_fx//:fx",

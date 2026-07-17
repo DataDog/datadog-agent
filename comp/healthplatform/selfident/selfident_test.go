@@ -16,11 +16,19 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const testPodName = "dd-agent-abc12"
-const testNamespace = "default"
+
+// testNamespace mirrors what resolveDeploymentID actually queries
+// (namespace.GetMyNamespace()) instead of assuming "default", since that
+// function falls back to "default" only when
+// /var/run/secrets/kubernetes.io/serviceaccount/namespace doesn't exist —
+// which isn't true on every test runner (e.g. CI executors that run inside a
+// real Kubernetes pod).
+var testNamespace = namespace.GetMyNamespace()
 
 func newMockStore(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
