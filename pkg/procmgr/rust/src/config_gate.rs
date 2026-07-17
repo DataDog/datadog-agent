@@ -16,8 +16,12 @@
 //!
 //! Derived `system_probe_config.enabled` (module knobs) is implemented in
 //! [`system_probe`] and must stay in sync with `pkg/system-probe/config/config.go`.
+//! Env bindings are centralized in [`env_bindings`].
 
+mod env_bindings;
 mod system_probe;
+
+use env_bindings::{env_bool_for_config_key, env_string_for_config_key, env_vars_for_key};
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -36,7 +40,6 @@ pub struct ConditionConfigFile {
 struct GatedKeySpec {
     key: &'static str,
     default: bool,
-    env_vars: &'static [&'static str],
     /// Basename under `fleet_policies_dir` when fleet policy overrides apply.
     fleet_policy_file: Option<&'static str>,
 }
@@ -47,48 +50,31 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         key: "process_config.enabled",
         default: false,
-        env_vars: &["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"],
         fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.process_collection.enabled",
         default: false,
-        env_vars: &[
-            "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
-            "DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED",
-        ],
         fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.container_collection.enabled",
         default: true,
-        env_vars: &[
-            "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
-            "DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED",
-        ],
         fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "process_config.process_discovery.enabled",
         default: true,
-        env_vars: &[
-            "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
-            "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
-            "DD_PROCESS_CONFIG_DISCOVERY_ENABLED",
-            "DD_PROCESS_AGENT_DISCOVERY_ENABLED",
-        ],
         fleet_policy_file: Some("datadog.yaml"),
     },
     GatedKeySpec {
         key: "network_config.enabled",
         default: false,
-        env_vars: &["DD_SYSTEM_PROBE_NETWORK_ENABLED"],
         fleet_policy_file: Some("system-probe.yaml"),
     },
     GatedKeySpec {
         key: "system_probe_config.enabled",
         default: false,
-        env_vars: &["DD_SYSTEM_PROBE_ENABLED"],
         fleet_policy_file: Some("system-probe.yaml"),
     },
 ];
@@ -112,8 +98,6 @@ impl ProcessEnabledMode {
 }
 
 const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
-const LEGACY_PROCESS_ENABLED_ENV: &[&str] =
-    &["DD_PROCESS_CONFIG_ENABLED", "DD_PROCESS_AGENT_ENABLED"];
 const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
 
 impl GatedKeySpec {
@@ -183,10 +167,7 @@ impl GatedKeySpec {
     }
 
     fn env_override(&self) -> Option<bool> {
-        self.env_vars
-            .iter()
-            .filter_map(|name| std::env::var(name).ok())
-            .find_map(|value| parse_bool_string(&value))
+        env_bool_for_config_key(self.key)
     }
 }
 
@@ -219,7 +200,7 @@ fn fleet_policy_path(filename: &str) -> Option<String> {
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
 
 impl YamlCache {
-    /// Fleet policy value when present, otherwise the base YAML file, otherwise `false`.
+    /// Fleet policy → env bindings → base YAML → `false`.
     pub(super) fn resolve_bool(
         &mut self,
         base_path: &str,
@@ -231,6 +212,9 @@ impl YamlCache {
             && let Some(value) = self.bool_key_if_exists(&path, key)?
         {
             return Ok(value);
+        }
+        if let Some(enabled) = env_bool_for_config_key(key) {
+            return Ok(enabled);
         }
         Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
     }
@@ -246,6 +230,9 @@ impl YamlCache {
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
             return Self::string_value(value);
+        }
+        if let Some(text) = env_string_for_config_key(key) {
+            return Ok(Some(text));
         }
         match self.dotted_key_if_exists(base_path, key)? {
             Some(value) => Self::string_value(value),
@@ -363,7 +350,7 @@ fn legacy_enabled_mode_from_file(
 }
 
 fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
-    LEGACY_PROCESS_ENABLED_ENV
+    env_vars_for_key(LEGACY_PROCESS_ENABLED_KEY)
         .iter()
         .filter_map(|name| std::env::var(name).ok())
         .map(|value| legacy_enabled_mode_from_string(&value))
@@ -415,7 +402,7 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
     }
 }
 
-fn parse_bool_string(text: &str) -> Option<bool> {
+pub(super) fn parse_bool_string(text: &str) -> Option<bool> {
     match text.trim().to_ascii_lowercase().as_str() {
         "" | "0" | "false" | "no" | "n" | "off" | "disabled" => Some(false),
         "1" | "true" | "yes" | "y" | "on" => Some(true),
@@ -496,11 +483,9 @@ mod tests {
     fn clear_gated_env_vars() {
         // SAFETY: callers must hold ENV_TEST_LOCK.
         unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
-        for spec in GATED_KEY_SPECS {
-            for env_name in spec.env_vars {
-                // SAFETY: callers must hold ENV_TEST_LOCK.
-                unsafe { std::env::remove_var(env_name) };
-            }
+        for env_name in super::env_bindings::all_bound_env_var_names() {
+            // SAFETY: callers must hold ENV_TEST_LOCK.
+            unsafe { std::env::remove_var(env_name) };
         }
     }
 
@@ -1125,6 +1110,59 @@ mod tests {
             assert!(condition_config_any_met(&process_agent_windows_conditions(
                 agent, sysprobe
             )));
+        });
+    }
+
+    #[test]
+    fn derived_usm_env_enables_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _usm = EnvGuard::set("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "service_monitoring_config:\n  enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
+        });
+    }
+
+    #[test]
+    fn derived_fleet_beats_env_for_module_toggle() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "service_monitoring_config:\n  enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let _usm = EnvGuard::set("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true");
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
         });
     }
 

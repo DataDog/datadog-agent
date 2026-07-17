@@ -67,6 +67,7 @@ var processesAddOverrideOnce sync.Once
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
 func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
+	// Env var names from here are mirrored in pkg/procmgr/rust/src/config_gate/env_bindings.rs.
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")

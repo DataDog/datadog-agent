@@ -8,7 +8,8 @@
 //! # Keep in sync with Go
 //!
 //! Mirrors `load()` in `pkg/system-probe/config/config.go` and the NPM back-compat
-//! rule in `pkg/system-probe/config/adjust.go`.
+//! rule in `pkg/system-probe/config/adjust.go`. Module knob resolution uses fleet →
+//! env → YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
 //!
 //! **When module enablement changes in Go, update `derived_enabled` below.**
 
