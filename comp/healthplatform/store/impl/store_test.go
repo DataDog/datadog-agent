@@ -20,17 +20,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/core"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+const testSelfPodName = "dd-agent-abc12"
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
 type memPersistence struct {
@@ -556,4 +564,44 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 	require.Len(t, obs.ResolvedCh, 1)
 	got := <-obs.ResolvedCh
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
+
+// TestReportIssueEnrichesWithClusterIdentity verifies that enrichWithClusterIdentity
+// actually stamps a resolved deployment_id into Extra/Tags on ReportIssue, since every
+// other test in this file resolves selfIdent against option.None (always empty), which
+// left this enrichment path itself untested.
+func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
+	// selfident reads the pod name from DD_POD_NAME directly; there's no exported
+	// constant to reference from this package.
+	t.Setenv("DD_POD_NAME", testSelfPodName)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockStore.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "self-pod-uid",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      testSelfPodName,
+			Namespace: namespace.GetMyNamespace(),
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
+		},
+	})
+
+	h := newTestStore(t)
+	h.selfIdent = selfident.New(option.New[workloadmeta.Component](mockStore))
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+
+	_, issues := h.GetAllIssues()
+	issue := issues["t:id"]
+	require.NotNil(t, issue)
+
+	require.NotNil(t, issue.Extra)
+	assert.Equal(t, "daemonset-uid-123", issue.Extra.Fields["deployment_id"].GetStringValue())
+	assert.Contains(t, issue.Tags, "deployment_id:daemonset-uid-123")
 }
