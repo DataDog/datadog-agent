@@ -23,7 +23,7 @@ go_library(
             "//pkg/util/kernel/headers/download/types",
             "//pkg/util/kernel/headers/download/wsl",
             "//pkg/util/log",
-            "@com_github_avast_retry_go_v4//:retry-go",
+            "@com_github_cenkalti_backoff_v6//:backoff",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
@@ -36,7 +36,7 @@ go_library(
             "//pkg/util/kernel/headers/download/types",
             "//pkg/util/kernel/headers/download/wsl",
             "//pkg/util/log",
-            "@com_github_avast_retry_go_v4//:retry-go",
+            "@com_github_cenkalti_backoff_v6//:backoff",
         ],
         "//conditions:default": [],
     }),
