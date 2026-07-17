@@ -66,6 +66,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -256,7 +257,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}
 	}
 
-	if appInitDeps.Config.GetBool("network_path.remote_config.enabled") {
+	if shouldSubscribeToNetworkPathRemoteConfig(appInitDeps.Config) {
 		appInitDeps.RCClient.Subscribe(data.ProductNetworkPath, appInitDeps.NetpathRC.UpdateRemoteConfig)
 	}
 
@@ -276,6 +277,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
+}
+
+func shouldSubscribeToNetworkPathRemoteConfig(cfg pkgconfigmodel.Reader) bool {
+	return configutils.IsRemoteConfigEnabled(cfg) && cfg.GetBool("network_path.remote_config.enabled")
 }
 
 type miscDeps struct {
