@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::Security::{
-    DuplicateTokenEx, SecurityDelegation, TokenPrimary, TOKEN_DUPLICATE, TOKEN_QUERY,
+    DuplicateTokenEx, SecurityDelegation, TOKEN_DUPLICATE, TOKEN_QUERY, TokenPrimary,
 };
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::{
-    CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken, CREATE_NEW_CONSOLE,
-    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, PROCESS_INFORMATION,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
+    CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken, PROCESS_INFORMATION,
     STARTF_USESTDHANDLES, STARTUPINFOW,
 };
 
@@ -23,7 +23,7 @@ use crate::spawn::SpawnRequest;
 
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
-use super::logon::{logon_user_credentials, logon_user_token, TokenHandle};
+use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 
 pub(super) fn spawn_as_primary_token(

@@ -8,7 +8,7 @@ use log::{info, warn};
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
-use crate::spawn::{profile_for, SpawnProfile, SpawnRequest};
+use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
 use super::privileged;
