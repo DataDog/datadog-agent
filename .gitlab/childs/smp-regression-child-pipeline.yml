@@ -152,29 +152,24 @@ variables:
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     # Experiment subset filter. Only jobs that set READ_SELECTION_COMMENT (the
-    # agent regression_detector) read the PR "SMP Experiment Selection" comment
-    # and pass the ticked paths to `smp job submit`. The ebpf/metal jobs leave
-    # READ_SELECTION_COMMENT unset, so EXPERIMENT_FILTER_ARG stays empty and
-    # their submit command is unchanged (they run unfiltered).
+    # agent regression_detector) build a filter; the ebpf/metal jobs leave it
+    # unset, so EXPERIMENT_FILTER_ARG stays empty and they run unfiltered.
     #
-    # Selection semantics:
-    #   - Comment exists  -> it is the source of truth. `smp experiments preview`
-    #     resolves the ticks to the exact experiments AND exits 1 on an empty /
-    #     all-stale / duplicate-name selection, so a "run nothing" comment fails
-    #     the job loudly (allow_failure keeps it non-blocking on dev branches).
-    #   - No comment at all (main-branch gate, or a dev push with no PR) -> run
-    #     the default quality_gates suite. This is NOT an empty selection; there
-    #     is simply no PR context, and the gate must still run.
-    # We must always pass a NON-EMPTY --experiment-path-filter: an empty value
-    # fails submit ("nothing to submit"), and OMITTING the flag runs the ENTIRE
-    # suite -- neither is what we want.
+    # quality_gates ALWAYS runs (it is force-included below and is excluded from
+    # the selection comment), so the filter is always non-empty even when the
+    # developer ticks nothing extra -- "no extras ticked" is the common case and
+    # simply means "run only the quality gates". Any suites the developer ticked
+    # in the "SMP Experiment Selection" comment are unioned on. NOTE: never OMIT
+    # --experiment-path-filter (that would run the ENTIRE suite incl. ebpf); we
+    # always pass at least quality_gates.
     - EXPERIMENT_FILTER_ARG=""
     - |
       if [ "${READ_SELECTION_COMMENT:-false}" = "true" ]; then
         # Best effort: mint a GitHub token, resolve the PR, fetch the selection
         # comment (the one whose body STARTS WITH the marker -- the CI config-diff
         # comment only contains the marker inside a code block; this finder MUST
-        # match the smp-experiment-selection-comment writer).
+        # match the smp-experiment-selection-comment writer). Any failure (no PR,
+        # octo-sts down, no comment) just leaves the file empty -> quality_gates.
         set +e
         GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr 2>/dev/null)
         PR_NUMBER=""
@@ -190,19 +185,14 @@ variables:
             | jq -r 'map(select(.body | startswith("<!-- smp-experiment-selection -->"))) | last | .body // empty' > selection_comment.md
         fi
         set -e
-        if [ -s selection_comment.md ]; then
-          echo "Selection comment found on PR #${PR_NUMBER}; it is the source of truth."
-          # preview both VALIDATES (exit 1 on empty/stale/duplicate) and prints
-          # the exact experiments that will run.
-          echo "Experiments that will run:"
-          ./smp experiments preview --comment selection_comment.md --target-config-dir "${CONFIG_DIR}" --format text
-          SELECTED=$(./smp experiments parse-comment --comment selection_comment.md --format path-filter)
-        else
-          SELECTED="quality_gates"
-          echo "No selection comment for ${CI_COMMIT_SHA}; running the default quality_gates suite."
-        fi
-        EXPERIMENT_FILTER_ARG="--experiment-path-filter ${SELECTED}"
-        echo "Experiment path filter: ${SELECTED}"
+        # `smp experiments parse-comment` owns the comment format and never errors
+        # on an empty file (emits ""). Force-include quality_gates, then union any
+        # ticked extras.
+        EXTRAS=$(./smp experiments parse-comment --comment selection_comment.md --format path-filter)
+        FILTER="quality_gates"
+        if [ -n "${EXTRAS}" ]; then FILTER="quality_gates,${EXTRAS}"; fi
+        EXPERIMENT_FILTER_ARG="--experiment-path-filter ${FILTER}"
+        echo "Experiment path filter: ${FILTER}"
       fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
@@ -359,7 +349,7 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: dev-pr4640-02fd123f5 # dev build with the `smp experiments` command group (SMP PR 4640)
+    SMP_VERSION: dev-pr4640-2299f1770 # dev build with the `smp experiments` command group (SMP PR 4640)
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression

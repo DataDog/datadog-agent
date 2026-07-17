@@ -132,12 +132,12 @@ trigger-single-machine-performance-regression_detector-main:
     SMP_ALLOW_FAILURE: "false"
 
 # SMP Experiment Selection (POC): post/refresh the checkbox comment that drives
-# the agent regression_detector run. Every `cases/` directory under
-# test/regression (any depth, minus the ebpf suites) is a selectable folder;
-# expanding it reveals its individual experiments. The `quality_gates` suite is
-# pre-checked (it runs by default). Refreshes on dev-branch pipelines and
-# whenever experiment configs change, so adding an experiment on a branch
-# updates the list.
+# the agent regression_detector run. It is a flat list of selectable folders
+# (each directory directly containing a `cases/`, minus quality_gates and ebpf),
+# one checkbox per folder; ticking a folder runs its whole subtree. quality_gates
+# is omitted because it always runs (force-included by the run job). Refreshes on
+# dev-branch pipelines and whenever experiment configs change, so adding a folder
+# on a branch updates the list.
 #
 # Rendering + the state-preserving merge are done by `smp experiments list
 # --format github-comment` (the CLI owns discovery, the checkbox format, and the
@@ -164,7 +164,7 @@ smp-experiment-selection-comment:
   variables:
     # Needed to fetch the smp CLI (which now renders the comment). SMP_ACCOUNT is
     # a pipeline global (also used by the merge_base_check job).
-    SMP_VERSION: dev-pr4640-02fd123f5 # dev build with the `smp experiments` command group (SMP PR 4640)
+    SMP_VERSION: dev-pr4640-2299f1770 # dev build with the `smp experiments` command group (SMP PR 4640)
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
   rules:
@@ -209,19 +209,22 @@ smp-experiment-selection-comment:
       aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
       aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
       chmod +x smp
-      # --- Render the merged comment. The CLI owns discovery, the checkbox
-      # format, and the state-preserving merge (via --previous-comment). Only
-      # pass --previous-comment when a prior comment exists (else: fresh render,
-      # quality_gates ticked by default). --exclude-path drops the ebpf subtree.
+      # --- Render the comment. The CLI owns discovery, the flat checkbox format,
+      # and the state-preserving merge (via --previous-comment). Only pass
+      # --previous-comment when a prior comment exists (else it's a fresh render).
       PREV_ARG=""
       if [ -n "${COMMENT_ID}" ]; then PREV_ARG="--previous-comment prev_comment.md"; fi
+      # quality_gates always runs (force-included by the run job), so it is
+      # excluded from the checklist alongside ebpf (separate metal-runner jobs).
+      # --link-base makes each folder label a link to that folder on GitHub and
+      # enables the experiment-name hover tooltip.
       ./smp experiments list \
         --target-config-dir "${ROOT}" \
-        --exclude-path ebpf \
+        --exclude-path quality_gates,ebpf \
         --format github-comment \
-        --default-select quality_gates \
+        --link-base "https://github.com/DataDog/datadog-agent/tree/${CI_COMMIT_SHA}/test/regression" \
         ${PREV_ARG} \
-        --instructions "Tick a folder to run all of it, or expand it to tick individual experiments, then re-run the single-machine-performance-regression_detector job (it re-reads this comment at run time). The quality_gates suite runs by default." \
+        --instructions "$(printf '%s\n\n%s' '✅ **Quality gates always run.**' 'Tick any additional suites below; selecting a folder runs its whole subtree. Re-run the single-machine-performance-regression_detector job to apply.')" \
         > comment_body.md
       cat comment_body.md
       # --- Edit in place if the comment exists, else create it ---
