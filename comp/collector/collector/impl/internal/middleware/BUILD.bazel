@@ -12,9 +12,7 @@ go_library(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/core/autodiscovery/integration",
-        "//comp/core/config",
         "//comp/core/diagnose/def",
-        "//comp/healthplatform/issues/checkexecfailure",
         "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -30,9 +28,7 @@ dd_agent_go_test(
     embed = [":middleware"],
     deps = [
         "//comp/core/agenttelemetry/def",
-        "//comp/core/config",
         "//comp/healthplatform/store/def",
-        "//comp/healthplatform/store/mock",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",

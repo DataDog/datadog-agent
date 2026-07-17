@@ -12,9 +12,6 @@ import (
 	"time"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
-	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
-
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,76 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type failingCheck struct {
-	mockCheck
-	err error
-}
-
-func (c *failingCheck) Run() error {
-	c.runCalled = true
-	return c.err
-}
-
-func TestCheckWrapperReportsExecutionFailureAfterThreshold(t *testing.T) {
-	cfg := configcomponent.NewMock(t)
-	cfg.SetInTest("health_platform.check_execution_failure.enabled", true)
-	cfg.SetInTest("health_platform.check_execution_failure.consecutive_failures", 2)
-	cfg.SetInTest("health_platform.check_execution_failure.consecutive_successes", 1)
-
-	reporter := storemock.New(t)
-	inner := &failingCheck{mockCheck: mockCheck{id: checkid.ID("mysql:abc")}, err: assert.AnError}
-
-	wrapper := NewCheckWrapper(
-		inner,
-		nil,
-		option.None[agenttelemetry.Component](),
-		option.New[healthplatformstore.Component](reporter),
-		cfg,
-	)
-
-	// First failure: below threshold, no issue yet.
-	require.Error(t, wrapper.Run())
-	count, _ := reporter.GetAllIssues()
-	assert.Zero(t, count, "issue must not be reported before the consecutive-failure threshold is crossed")
-
-	// Second failure: threshold crossed, issue reported.
-	require.Error(t, wrapper.Run())
-	count, issues := reporter.GetAllIssues()
-	require.Equal(t, 1, count)
-	for _, issue := range issues {
-		assert.Equal(t, "Check Execution Failure", issue.GetIssueName())
-	}
-
-	// Recovery: consecutive_successes is 1, so a single success resolves the issue.
-	inner.err = nil
-	require.NoError(t, wrapper.Run())
-	count, _ = reporter.GetAllIssues()
-	assert.Zero(t, count, "issue must be resolved after the consecutive-success threshold is crossed")
-	assert.Len(t, reporter.ResolvedIDs(), 1)
-}
-
-func TestCheckWrapperSkipsExecutionFailureReportingWhenDisabled(t *testing.T) {
-	cfg := configcomponent.NewMock(t)
-	cfg.SetInTest("health_platform.check_execution_failure.enabled", false)
-
-	reporter := storemock.New(t)
-	inner := &failingCheck{mockCheck: mockCheck{}, err: assert.AnError}
-
-	wrapper := NewCheckWrapper(
-		inner,
-		nil,
-		option.None[agenttelemetry.Component](),
-		option.New[healthplatformstore.Component](reporter),
-		cfg,
-	)
-
-	for i := 0; i < 5; i++ {
-		require.Error(t, wrapper.Run())
-	}
-	count, _ := reporter.GetAllIssues()
-	assert.Zero(t, count, "no issue should be reported when the feature flag is disabled")
-}
 
 type mockCheck struct {
 	check.Check
@@ -160,7 +87,6 @@ func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
 		nil,
 		option.None[agenttelemetry.Component](),
 		option.New[healthplatformstore.Component](reporter),
-		configcomponent.NewMock(t),
 	)
 
 	require.NotNil(t, wrapper)
@@ -177,7 +103,6 @@ func TestCheckWrapperInjectsIssueReporterThroughShadowCheck(t *testing.T) {
 		nil,
 		option.None[agenttelemetry.Component](),
 		option.New[healthplatformstore.Component](reporter),
-		configcomponent.NewMock(t),
 	)
 
 	require.NotNil(t, wrapper)
@@ -193,7 +118,6 @@ func TestCheckWrapperSkipsNonIssueAwareCheck(t *testing.T) {
 		nil,
 		option.None[agenttelemetry.Component](),
 		option.New[healthplatformstore.Component](reporter),
-		configcomponent.NewMock(t),
 	)
 
 	require.NotNil(t, wrapper)
@@ -214,7 +138,6 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 		nil, // senderManager is not needed for this test
 		option.New[agenttelemetry.Component](mockTelemetry),
 		option.None[healthplatformstore.Component](),
-		configcomponent.NewMock(t),
 	)
 
 	// Run the check
@@ -238,7 +161,6 @@ func TestCheckWrapperPreservesShadowIdentity(t *testing.T) {
 		nil,
 		option.None[agenttelemetry.Component](),
 		option.None[healthplatformstore.Component](),
-		configcomponent.NewMock(t),
 	)
 
 	assert.True(t, check.IsShadow(wrapper))
@@ -256,7 +178,6 @@ func TestCheckWrapperUsesShadowSenderManagerForShadowCleanup(t *testing.T) {
 		normalSenderManager,
 		option.None[agenttelemetry.Component](),
 		option.None[healthplatformstore.Component](),
-		configcomponent.NewMock(t),
 	)
 
 	wrapper.Cancel()
@@ -275,7 +196,6 @@ func TestCheckWrapperUsesNormalSenderManagerWhenThereIsNoOverride(t *testing.T) 
 		normalSenderManager,
 		option.None[agenttelemetry.Component](),
 		option.None[healthplatformstore.Component](),
-		configcomponent.NewMock(t),
 	)
 
 	wrapper.Cancel()

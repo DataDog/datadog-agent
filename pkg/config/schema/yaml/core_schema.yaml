@@ -8413,30 +8413,6 @@ properties:
     node_type: section
     type: object
     properties:
-      check_execution_failure:
-        node_type: section
-        type: object
-        properties:
-          consecutive_failures:
-            node_type: setting
-            type: integer
-            default: 3
-          consecutive_successes:
-            node_type: setting
-            type: integer
-            default: 1
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-      check_load_failure:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
       enabled:
         node_type: setting
         type: boolean
