@@ -4925,3 +4925,75 @@ func TestProcessStripsNilSpans(t *testing.T) {
 	assert.NotContains(t, chunk.Spans[0].SpanLinks, (*pb.SpanLink)(nil))
 	assert.NotContains(t, chunk.Spans[0].SpanEvents, (*pb.SpanEvent)(nil))
 }
+
+// TestProcessDropsNilChunk verifies that a nil chunk in the payload (the v0.7
+// msgpack decoder stores nil for a nil chunks array element) is dropped rather
+// than dereferenced when stripping its spans.
+func TestProcessDropsNilChunk(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	now := time.Now()
+	valid := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Service:  "svc",
+		Name:     "op",
+		Resource: "res",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+	// A nil chunk before and after the valid chunk.
+	payload := testutil.TracerPayloadWithChunks([]*pb.TraceChunk{
+		nil,
+		testutil.TraceChunkWithSpan(valid),
+		nil,
+	})
+
+	assert.NotPanics(t, func() {
+		agnt.Process(&api.Payload{
+			TracerPayload: payload,
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+	})
+}
+
+// TestProcessV1DropsNilChunk verifies the V1 pipeline drops a nil chunk instead
+// of dereferencing it.
+func TestProcessV1DropsNilChunk(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{
+		ServiceRef:  st.Add("svc"),
+		SpanID:      1,
+		ResourceRef: st.Add("res"),
+		TypeRef:     st.Add("web"),
+		Start:       uint64(time.Now().Add(-time.Second).UnixNano()),
+		Duration:    uint64((500 * time.Millisecond).Nanoseconds()),
+	})
+	// Build the payload directly (the TracerPayloadV1WithChunks helper would
+	// dereference chunks[0]) with a nil chunk before and after the valid one.
+	payload := &idx.InternalTracerPayload{
+		Strings: st,
+		Chunks: []*idx.InternalTraceChunk{
+			nil,
+			testutil.TraceChunkV1WithSpanAndPriority(span, 2),
+			nil,
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: payload,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+	})
+}

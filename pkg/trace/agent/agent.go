@@ -491,7 +491,14 @@ func (a *Agent) Process(p *api.Payload) {
 
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
-		// A decoded payload can carry nil span pointers (e.g. v0.4 JSON
+		// A decoded payload can carry a nil chunk (the v0.7 msgpack decoder
+		// stores nil for a nil `chunks` array element); drop it before touching
+		// chunk.Spans.
+		if chunk == nil {
+			p.RemoveChunk(i)
+			continue
+		}
+		// A decoded payload can also carry nil span pointers (e.g. v0.4 JSON
 		// `[[null]]`) and nil link/event entries. Strip them once here so no
 		// downstream consumer (GetRoot, normalization, obfuscation, replacement,
 		// top-level computation) has to guard against a nil dereference.
@@ -676,6 +683,13 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
+		// Guard against a nil chunk before dereferencing chunk.Spans, mirroring
+		// the V0 path. Native v1 decoders don't emit nil chunks today, but this
+		// keeps the invariant robust for any future idx source.
+		if chunk == nil {
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
 		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			p.TracerPayload.RemoveChunk(i)
