@@ -359,20 +359,27 @@ pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
-/// Resolve the fleet policies directory for config gating.
+/// Registry `fleet_policies_dir`, then stable managed default (no env / YAML).
 ///
-/// Mirrors `cmd/otel-agent/subcommands/run/command.go` and
-/// `pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess`: `DD_FLEET_POLICIES_DIR`
-/// when set, otherwise registry `fleet_policies_dir`, otherwise the stable managed path.
+/// Used by config gates after env and `datadog.yaml` `fleet_policies_dir` are ruled out
+/// (`pkg/config/setup/config_windows.go` `FleetConfigOverride`).
+pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
+    fleet_policies_dir_from_registry()
+        .map(PathBuf::from)
+        .or_else(default_stable_fleet_policies_dir)
+}
+
+/// `DD_FLEET_POLICIES_DIR` when set, otherwise [`fleet_policies_dir_fallback`].
+///
+/// Config gates use `config_gate::YamlCache::fleet_policies_dir` for full precedence
+/// (env → sibling `datadog.yaml` → registry/default).
 pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
         && !dir.is_empty()
     {
         return Some(PathBuf::from(dir));
     }
-    fleet_policies_dir_from_registry()
-        .map(PathBuf::from)
-        .or_else(default_stable_fleet_policies_dir)
+    fleet_policies_dir_fallback()
 }
 
 fn fleet_policies_dir_from_registry() -> Option<String> {

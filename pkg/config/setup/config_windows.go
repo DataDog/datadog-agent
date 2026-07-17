@@ -15,6 +15,9 @@ import (
 // FleetConfigOverride sets fleet_policies_dir from the Windows registry when present,
 // otherwise from the stable managed fleet policies directory under ProgramData.
 //
+// Prioritize the value set in the config file / env var (mirrored by dd-procmgr config gates
+// in pkg/procmgr/rust/src/config_gate.rs `fleet_policies_dir`).
+//
 // This value tells the agent to load fleet policy YAML (experiments or stable config).
 // Linux sets this option with an environment variable in the experiment's systemd unit file,
 // so we need a different approach for Windows. After the viper migration is complete, we can

@@ -119,7 +119,7 @@ impl GatedKeySpec {
             // runtime enabled is module-derived, not the literal YAML/env knob alone.
             return system_probe::derived_enabled(base_path, yaml);
         }
-        if let Some(enabled) = self.fleet_policy_value(yaml)? {
+        if let Some(enabled) = self.fleet_policy_value(base_path, yaml)? {
             return Ok(enabled);
         }
         if let Some(enabled) = self.env_override() {
@@ -158,11 +158,15 @@ impl GatedKeySpec {
         Ok(Some(enabled))
     }
 
-    fn fleet_policy_value(&self, yaml: &mut YamlCache) -> anyhow::Result<Option<bool>> {
+    fn fleet_policy_value(
+        &self,
+        base_path: &str,
+        yaml: &mut YamlCache,
+    ) -> anyhow::Result<Option<bool>> {
         let Some(filename) = self.fleet_policy_file else {
             return Ok(None);
         };
-        let Some(path) = fleet_policy_path(filename) else {
+        let Some(path) = yaml.fleet_policy_path(filename, base_path)? else {
             return Ok(None);
         };
         yaml.bool_key_if_exists(&path, self.key)
@@ -173,35 +177,66 @@ impl GatedKeySpec {
     }
 }
 
-fn resolve_fleet_policies_dir() -> Option<String> {
-    if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
-        && !dir.is_empty()
+fn agent_datadog_yaml(config_path: &str) -> String {
+    let path = Path::new(config_path);
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("datadog.yaml"))
     {
-        return Some(dir);
+        return config_path.to_owned();
     }
-    #[cfg(windows)]
-    {
-        crate::platform::resolve_fleet_policies_dir()
-            .map(|path| path.to_string_lossy().into_owned())
-    }
-    #[cfg(not(windows))]
-    {
-        None
-    }
-}
-
-fn fleet_policy_path(filename: &str) -> Option<String> {
-    resolve_fleet_policies_dir().map(|dir| {
-        Path::new(&dir)
-            .join(filename)
-            .to_string_lossy()
-            .into_owned()
-    })
+    path.parent()
+        .map(|dir| dir.join("datadog.yaml"))
+        .map(|joined| joined.to_string_lossy().into_owned())
+        .unwrap_or_else(|| config_path.to_owned())
 }
 
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
 
 impl YamlCache {
+    /// Mirrors `pkg/config/setup/config_windows.go` `FleetConfigOverride`: env → datadog.yaml → registry/default.
+    fn fleet_policies_dir(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
+        if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
+            && !dir.is_empty()
+        {
+            return Ok(Some(dir));
+        }
+        let agent = agent_datadog_yaml(config_path);
+        if let Some(dir) = self.fleet_policies_dir_in_yaml(&agent)? {
+            return Ok(Some(dir));
+        }
+        #[cfg(windows)]
+        {
+            return Ok(crate::platform::fleet_policies_dir_fallback()
+                .map(|path| path.to_string_lossy().into_owned()));
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
+        }
+    }
+
+    fn fleet_policies_dir_in_yaml(&mut self, agent_yaml: &str) -> anyhow::Result<Option<String>> {
+        let Some(value) = self.dotted_key_if_exists(agent_yaml, "fleet_policies_dir")? else {
+            return Ok(None);
+        };
+        Self::string_value(value)
+    }
+
+    fn fleet_policy_path(
+        &mut self,
+        filename: &str,
+        config_path: &str,
+    ) -> anyhow::Result<Option<String>> {
+        Ok(self.fleet_policies_dir(config_path)?.map(|dir| {
+            Path::new(&dir)
+                .join(filename)
+                .to_string_lossy()
+                .into_owned()
+        }))
+    }
+
     /// Fleet policy → env bindings → base YAML → `false`.
     pub(super) fn resolve_bool(
         &mut self,
@@ -210,7 +245,7 @@ impl YamlCache {
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<bool> {
         if let Some(filename) = fleet_policy_file
-            && let Some(path) = fleet_policy_path(filename)
+            && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.bool_key_if_exists(&path, key)?
         {
             return Ok(value);
@@ -228,7 +263,7 @@ impl YamlCache {
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<Option<String>> {
         if let Some(filename) = fleet_policy_file
-            && let Some(path) = fleet_policy_path(filename)
+            && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
             return Self::string_value(value);
@@ -260,7 +295,7 @@ impl YamlCache {
             return Ok(true);
         }
         if let Some(filename) = fleet_policy_file
-            && let Some(path) = fleet_policy_path(filename)
+            && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && self.dotted_key_if_exists(&path, key)?.is_some()
         {
             return Ok(true);
@@ -351,7 +386,7 @@ fn resolve_legacy_process_enabled_mode(
     base_path: &str,
     yaml: &mut YamlCache,
 ) -> anyhow::Result<Option<ProcessEnabledMode>> {
-    if let Some(path) = fleet_policy_path(LEGACY_FLEET_POLICY_FILE)
+    if let Some(path) = yaml.fleet_policy_path(LEGACY_FLEET_POLICY_FILE, base_path)?
         && let Some(mode) = legacy_enabled_mode_from_file(yaml, &path)?
     {
         return Ok(Some(mode));
@@ -706,6 +741,64 @@ process_config:
                 fleet_dir.to_string_lossy().as_ref(),
             );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policies_dir_from_agent_yaml_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let fleet_dir_str = fleet_dir.to_string_lossy();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "fleet_policies_dir: {fleet_dir_str}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+                ),
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policies_dir_from_agent_yaml_when_config_path_is_system_probe() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            let fleet_dir_str = fleet_dir.to_string_lossy();
+            write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!("fleet_policies_dir: {fleet_dir_str}\n"),
+            );
+            let sysprobe = dir.path().join("system-probe.yaml");
+            write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "network_config:\n  enabled: false\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: sysprobe.to_string_lossy().into_owned(),
+                keys: vec!["network_config.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
         });
     }
 
