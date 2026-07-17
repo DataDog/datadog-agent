@@ -19,6 +19,7 @@ profiles:
         preserve_tags:
           - check_name
           - state
+      - name: openmetrics.max_returned_metrics_reached
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
