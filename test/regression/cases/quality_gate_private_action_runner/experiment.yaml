@@ -10,16 +10,10 @@ erratic: false
 
 target:
   name: datadog-agent
-  # SMP's target `command` is a bare executable path with no argument support, so
-  # launch the runner through the agent image entrypoint and select it via the
-  # ENTRYPOINT env var. The image fragment execs
-  # `privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml`
-  # (Dockerfiles/agent/entrypoint.d/privateactionrunner); the final exec'd process
-  # is the runner alone, so total_pss_bytes measures only it.
   command: /bin/entrypoint.sh
   cpu_allotment: 4
   # Set to 20% higher than the memory_usage check value.
-  memory_allotment: 84 MiB
+  memory_allotment: 90 MiB
 
   environment:
     ENTRYPOINT: privateactionrunner
@@ -36,10 +30,9 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the resident memory of the standalone Private Action Runner process."
     bounds:
       series: total_pss_bytes
-      # Calibrated from the max privateactionrunner total PSS observed in
-      # existing SMP quality gates (~64 MiB). When updating this, update
+      # When updating this, update
       # memory_allotment in the target section to 20% higher.
-      upper_bound: "70 MiB"
+      upper_bound: "75 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

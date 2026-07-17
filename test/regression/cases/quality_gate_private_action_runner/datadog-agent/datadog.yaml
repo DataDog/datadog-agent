@@ -8,9 +8,7 @@ dd_url: http://127.0.0.1:9091
 cloud_provider_metadata: []
 
 private_action_runner:
-  # Enable the Private Action Runner. This experiment runs the runner binary
-  # directly (see the target command in experiment.yaml), so this only needs to
-  # pass its own enablement gate.
+  # Enable the Private Action Runner.
   enabled: true
   # The SMP environment has no real Datadog backend to enroll against (all
   # egress is blackholed), so disable self-enrollment to keep the runner in a
