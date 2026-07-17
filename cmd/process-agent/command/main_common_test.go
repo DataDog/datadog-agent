@@ -10,10 +10,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-func TestShouldSubscribeToNetworkPathRemoteConfig(t *testing.T) {
+type remoteConfigHandler struct {
+	called *bool
+}
+
+func (h remoteConfigHandler) UpdateRemoteConfig(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
+	*h.called = true
+}
+
+var _ npcollector.RemoteConfigHandler = remoteConfigHandler{}
+
+func TestNewNetworkPathRCListener(t *testing.T) {
 	tests := []struct {
 		name               string
 		remoteConfig       bool
@@ -48,7 +61,14 @@ func TestShouldSubscribeToNetworkPathRemoteConfig(t *testing.T) {
 			cfg.SetInTest("remote_configuration.enabled", tt.remoteConfig)
 			cfg.SetInTest("network_path.remote_config.enabled", tt.networkPathConfig)
 
-			assert.Equal(t, tt.expectedSubscribed, shouldSubscribeToNetworkPathRemoteConfig(cfg))
+			called := false
+			listener := newNetworkPathRCListener(cfg, remoteConfigHandler{called: &called})
+			callback, subscribed := listener.ListenerProvider[data.ProductNetworkPath]
+			assert.Equal(t, tt.expectedSubscribed, subscribed)
+			if subscribed {
+				callback(nil, nil)
+				assert.True(t, called)
+			}
 		})
 	}
 }

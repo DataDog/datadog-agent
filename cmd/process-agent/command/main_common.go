@@ -64,9 +64,9 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -109,7 +109,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		Syscfg       sysprobeconfig.Component
 		Config       config.Component
 		RCClient     rcclient.Component
-		NetpathRC    npcollector.RemoteConfigHandler
 		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
@@ -158,6 +157,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
+		fx.Provide(newNetworkPathRCListener),
 
 		// Provide status modules
 		processstatusfx.Module(),
@@ -257,10 +257,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}
 	}
 
-	if shouldSubscribeToNetworkPathRemoteConfig(appInitDeps.Config) {
-		appInitDeps.RCClient.Subscribe(data.ProductNetworkPath, appInitDeps.NetpathRC.UpdateRemoteConfig)
-	}
-
 	// Wait for exit signal
 	select {
 	case <-exitSignal:
@@ -279,8 +275,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	return nil
 }
 
-func shouldSubscribeToNetworkPathRemoteConfig(cfg pkgconfigmodel.Reader) bool {
-	return configutils.IsRemoteConfigEnabled(cfg) && cfg.GetBool("network_path.remote_config.enabled")
+func newNetworkPathRCListener(cfg config.Component, handler npcollector.RemoteConfigHandler) rctypes.ListenerProvider {
+	var listener rctypes.ListenerProvider
+	if configutils.IsRemoteConfigEnabled(cfg) && cfg.GetBool("network_path.remote_config.enabled") {
+		listener.ListenerProvider = rctypes.RCListener{
+			data.ProductNetworkPath: handler.UpdateRemoteConfig,
+		}
+	}
+	return listener
 }
 
 type miscDeps struct {
