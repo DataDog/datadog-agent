@@ -152,7 +152,7 @@ func Test_pathtestStore_add_when_full(t *testing.T) {
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
 }
 
-func TestPathtestStoreRefreshesTestConfigID(t *testing.T) {
+func TestPathtestStoreClearsStaleAttribution(t *testing.T) {
 	store := NewPathtestStore(Config{
 		ContextsLimit: 2,
 		TTL:           10 * time.Minute,
