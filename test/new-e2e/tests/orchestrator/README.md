@@ -10,7 +10,7 @@ To invoke locally, run:
 
 ```bash
 cd ~/dd/datadog-agent # run from the repo root, not the new-e2e project root
-aws-vault exec sso-agent-sandbox-account-admin -- zsh
+aws-vault exec sso-agent-sandbox-account-admin-8h -- zsh
 dda inv new-e2e-tests.run --targets=./tests/orchestrator
 ```
 
