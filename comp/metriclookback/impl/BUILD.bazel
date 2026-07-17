@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["metriclookback.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metriclookback/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/metriclookback/def",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/metriclookback",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/dogstatsd",
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/serializer",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["metriclookback_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//pkg/aggregator",
+        "//pkg/aggregator/ckey",
+        "//pkg/collector/check/id",
+        "//pkg/collector/metriclookback",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/dogstatsd",
+        "//pkg/metrics",
+        "//pkg/serializer/mocks",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)
