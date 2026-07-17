@@ -25,8 +25,12 @@ build do
   if destdir != "/"
     staged_install_dir = File.join(destdir, install_dir.sub(%r{\A/+}, ""))
 
+    # GNU `chmod -R` skips symlinks; `FileUtils.chmod_R` with a symbolic mode stats each
+    # entry and raises ENOENT on the package's absolute symlinks, which dangle until the
+    # install dir is repopulated.
+    command "chmod -R u+rwX #{Shellwords.escape(staged_install_dir)}"
+
     block "Populate install directory from extracted package" do
-      FileUtils.chmod_R("u+rwX", staged_install_dir)
       FileUtils.mkdir_p(install_dir)
       FileUtils.cp_r("#{staged_install_dir}/.", install_dir)
     end
