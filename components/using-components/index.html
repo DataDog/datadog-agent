@@ -3936,11 +3936,11 @@
   
 
 
-<h1 id="using-components">Using components</h1>
+<h1 id="using-components">Using components<a class="headerlink" href="#using-components" title="Permanent link">&para;</a></h1>
 <p>Using components within other components is covered on the <a href="../creating-components/">create components page</a>.</p>
 <p>Now let's explore how to use components in your binaries. One of the core idea behind component design is to be able to
 create new binaries for customers by aggregating components.</p>
-<h2 id="the-cmd-folder">the <code>cmd</code> folder</h2>
+<h2 id="the-cmd-folder">the <code>cmd</code> folder<a class="headerlink" href="#the-cmd-folder" title="Permanent link">&para;</a></h2>
 <p>All <code>main</code> functions and binary entry points should be in the <code>cmd</code> folder.</p>
 <p>The <code>cmd</code> folder uses the following hierarchy:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cmd /
@@ -3989,7 +3989,7 @@ create new binaries for customers by aggregating components.</p>
 helpers initialize an Fx app with all the wanted dependencies.</p>
 <p>The next section explains how to request a
 dependency.</p>
-<h2 id="importing-components">Importing components</h2>
+<h2 id="importing-components">Importing components<a class="headerlink" href="#importing-components" title="Permanent link">&para;</a></h2>
 <p>The <code>fxutil.OneShot</code> takes a list of components and gives them to Fx. Note that this only tells Fx how to create types when they're needed. This does not do anything else.</p>
 <p>For a component to be instantiated, it must be one of the following:</p>
 <ul>
@@ -4016,7 +4016,7 @@ dependency.</p>
 </span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Info</span><span class="p">(</span><span class="s">&quot;some message&quot;</span><span class="p">)</span>
 </span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="importing-bundles">Importing bundles</h2>
+<h2 id="importing-bundles">Importing bundles<a class="headerlink" href="#importing-bundles" title="Permanent link">&para;</a></h2>
 <p>Now let's say you want to include the core bundle instead. The core bundle offers many basic features (logger, config,
 telemetry, flare, ...).</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
@@ -4045,7 +4045,7 @@ the <code>core</code> bundle are instantiated! The <code>core.Bundle</code> inst
 are created.</p>
 <p>In our example, the <code>config.Component</code> might have dozens of dependencies instantiated from the core bundle. Fx handles
 all of this.</p>
-<h2 id="using-plain-data-types-with-fx">Using plain data types with Fx</h2>
+<h2 id="using-plain-data-types-with-fx">Using plain data types with Fx<a class="headerlink" href="#using-plain-data-types-with-fx" title="Permanent link">&para;</a></h2>
 <p>As your migration to components is not finished, you might need to manually instruct Fx on how to use plain types.</p>
 <p>You will need to use <code>fx.Supply</code> for this. More details can be found <a href="../fx/">here</a>.</p>
 <p>But here is a quick example:</p>
