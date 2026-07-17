@@ -7,6 +7,7 @@ package selfident
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -80,8 +81,34 @@ func TestDeploymentID_PodNotFound(t *testing.T) {
 	mockStore := newMockStore(t)
 
 	s := New(option.New[workloadmeta.Component](mockStore))
+	// Pod is never added in this test, so it's genuinely absent; keep the
+	// retry loop from actually waiting out the default backoff.
+	s.resolveRetries = 1
+	s.resolveRetryDelay = time.Millisecond
 
 	assert.Empty(t, s.DeploymentID())
+}
+
+func TestDeploymentID_RetriesUntilPodAppearsInWorkloadmeta(t *testing.T) {
+	t.Setenv(podNameEnvVar, testPodName)
+	mockStore := newMockStore(t)
+
+	s := New(option.New[workloadmeta.Component](mockStore))
+	// A wide retry budget relative to the goroutine's delay below, so the
+	// assertion isn't sensitive to scheduling jitter under CI load or -race.
+	s.resolveRetries = 500
+	s.resolveRetryDelay = time.Millisecond
+
+	// Simulates workloadmeta's kubelet collector not having synced the
+	// agent's own pod yet at the moment the startup health check runs.
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
+			{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
+		})
+	}()
+
+	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
 }
 
 func TestDeploymentID_NoPodNameEnvVar(t *testing.T) {
