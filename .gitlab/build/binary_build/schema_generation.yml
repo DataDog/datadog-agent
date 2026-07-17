@@ -73,6 +73,9 @@ generate_config_schema-windows:
     - .generate_config_schema
     - .bazel:defs:cache:windows
     - .windows_docker_default
+  # TODO(incident-57868): drop this override once the poisoned remote cache entry is healed
+  rules:
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: "x64"
