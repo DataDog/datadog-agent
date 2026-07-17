@@ -240,6 +240,7 @@ properties:
     platform_default:
       linux: ${install_path}/bin/agent/agent
       darwin: ${install_path}/bin/agent/agent
+      aix: ${install_path}/bin/agent/agent
       windows: ${install_path}/bin/agent.exe
   dd_agent_env:
     node_type: setting
@@ -395,7 +396,6 @@ properties:
     - DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL
     - DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL
     comment: |-
-      Service discovery configuration
       Orchestrator Explorer - process agent
       DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
   process_dd_url:

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -134,42 +134,39 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		return "", fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", pkgconfigsetup.GetIPCPort())
 	}
 
-	var hostname string
-
-	retryOpts := []retry.Option{
-		retry.LastErrorOnly(true),
-		retry.Attempts(r.maxAttempts),
-		retry.Context(ctx),
-	}
+	backOff := backoff.NewExponentialBackOff()
 	if r.maxRetryDelay > 0 {
-		retryOpts = append(retryOpts, retry.MaxDelay(r.maxRetryDelay))
+		backOff.MaxInterval = r.maxRetryDelay
+		backOff.RandomizationFactor = 0 // prevent jitter from increasing delays beyond configured max
+	}
+	retryOpts := []backoff.RetryOption{
+		backoff.WithBackOff(backOff),
+		backoff.WithMaxTries(r.maxAttempts),
 	}
 
-	err = retry.Do(func() error {
+	return backoff.Retry(ctx, func() (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
 
-		hostname = reply.Hostname
-		return nil
+		return reply.Hostname, nil
 	}, retryOpts...)
-	return hostname, err
 }
 
 // getHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the

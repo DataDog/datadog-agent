@@ -46,14 +46,12 @@ exports_files(["go.mod"])
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
-# gazelle:exclude cmd/agent/subcommands/analyzelogs
 # gazelle:exclude cmd/agent/subcommands/check
 # gazelle:exclude cmd/agent/subcommands/processchecks
 # gazelle:exclude cmd/agent/subcommands/run/*.go
 # gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
 # gazelle:exclude cmd/cluster-agent/api/*.go
-# gazelle:exclude cmd/cluster-agent/api/agent
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
@@ -65,26 +63,14 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
-# gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/serverless-init/*.go
-# gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
-# gazelle:exclude cmd/system-probe/modules
-# gazelle:exclude cmd/system-probe/subcommands/run
-# gazelle:exclude cmd/system-probe/subcommands/usm
-# gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
-# gazelle:exclude comp/collector/collector/impl/*.go
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/anomalydetection/logssource/impl
-# gazelle:exclude comp/logs/agent/fx
-# gazelle:exclude comp/logs/agent/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/metadata/inventorychecks/fx
-# gazelle:exclude comp/metadata/inventorychecks/impl
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
 # gazelle:exclude comp/process/agent/impl
@@ -95,12 +81,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/clusteragent/admission/*.go
-# gazelle:exclude pkg/clusteragent/admission/controllers
-# gazelle:exclude pkg/clusteragent/admission/mutate/autoscaling
 # gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics/*.go
-# gazelle:exclude pkg/clusteragent/autoscaling/workload/external
-# gazelle:exclude pkg/clusteragent/autoscaling/workload/local
-# gazelle:exclude pkg/clusteragent/autoscaling/workload/provider
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
@@ -134,24 +115,11 @@ exports_files(["go.mod"])
 # library.
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
-# gazelle:exclude pkg/ebpf/uprobes/*.go
 # gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
-# gazelle:exclude pkg/logs/launchers/container/tailerfactory/*.go
-# gazelle:exclude pkg/logs/launchers/file/*.go
-# gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
-# gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
-# gazelle:exclude pkg/network/tracer/connection/*.go
-# gazelle:exclude pkg/network/tracer/connection/fentry
-# gazelle:exclude pkg/network/tracer/connection/kprobe
-# gazelle:exclude pkg/network/tracer/connection/ssl-uprobes
 # gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
-# gazelle:exclude pkg/network/usm/maps
-# gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
-# gazelle:exclude pkg/privileged-logs/test
-# gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
 # gazelle:exclude pkg/serverless/trace/span_modifier.go
@@ -166,14 +134,6 @@ exports_files(["go.mod"])
 # trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
-# gazelle:exclude test/e2e-framework/registry
-# gazelle:exclude test/e2e-framework/run
-# gazelle:exclude test/e2e-framework/scenarios/aws/gensim-eks
-# gazelle:exclude test/e2e-framework/testing/e2e
-# gazelle:exclude test/e2e-framework/testing/environments
-# gazelle:exclude test/e2e-framework/testing/provisioners
-# gazelle:exclude test/files
-# gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
@@ -231,9 +191,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/tests/windows/scripts
 # gazelle:exclude test/new-e2e/tests/windows/service-test
 # gazelle:exclude test/new-e2e/tests/windows/windows-certificate
-# gazelle:exclude test/regression
-# gazelle:exclude test/required_files
-# gazelle:exclude test/static
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor

@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.81.1:
+
+7.81.1
+======
+
+.. _Release Notes_7.81.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-14
+
+- Please refer to the `7.81.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7811>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.81.1_New Features:
+
+New Features
+------------
+
+- Add a new reflector-based Kubernetes event collection path, enabled via ``event_collection_mode: watch``.
+
+
+.. _Release Notes_7.81.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.26.5``.
+
+
 .. _Release Notes_7.81.0:
 
 7.81.0

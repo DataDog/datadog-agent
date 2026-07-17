@@ -334,7 +334,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform) (Component Bundle)
 
-*Datadog Team*: agent-health fleet-remediation
+*Datadog Team*: fleet-remediation
 
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
@@ -890,6 +890,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: windows-products
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
+
+### [comp/metriclookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metriclookback)
+
+*Datadog Team*: q-branch
+
+Package metriclookback defines the metric lookback component.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

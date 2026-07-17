@@ -28,7 +28,9 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/mock",
         "//comp/healthplatform/forwarder/def",
+        "//comp/healthplatform/forwarder/mock",
         "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

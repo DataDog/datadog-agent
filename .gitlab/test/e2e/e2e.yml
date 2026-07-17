@@ -432,7 +432,7 @@ new-e2e-agent-health:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
 
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64
@@ -451,6 +451,7 @@ new-e2e-privateactionrunner:
     - job: publish_fakeintake
       optional: true
     - qa_agent_linux
+    - qa_dca
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.except_mergequeue]
