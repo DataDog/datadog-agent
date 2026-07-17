@@ -3,7 +3,7 @@
     "current_milestone": "7.83.0",
     "dependencies": {
         "INTEGRATIONS_CORE_VERSION": "bb165c04519d5864c545c59e59efa2b304c8ed45",
-        "INTEGRATIONS_WHEELS_STORAGE": "stable",
+        "INTEGRATIONS_WHEELS_STORAGE": "dev",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
         "OMNIBUS_RUBY_VERSION": "53302769b118c8d3b899b12f6bff755910db5945",
