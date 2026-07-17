@@ -9,6 +9,7 @@ go_library(
         "reporter_event.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/observer/def",

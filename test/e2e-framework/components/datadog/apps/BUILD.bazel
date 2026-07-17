@@ -4,5 +4,7 @@ go_library(
     name = "apps",
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

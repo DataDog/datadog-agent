@@ -9,6 +9,7 @@ go_library(
         "run_args.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common",

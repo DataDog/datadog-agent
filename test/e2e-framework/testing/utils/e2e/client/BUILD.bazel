@@ -21,6 +21,7 @@ go_library(
         "powershell.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/scrubber",

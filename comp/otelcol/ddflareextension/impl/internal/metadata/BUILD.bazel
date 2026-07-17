@@ -4,6 +4,7 @@ go_library(
     name = "metadata",
     srcs = ["metadata.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata",
+    tags_independent = True,
     visibility = [
         "//comp/otelcol/ddflareextension/impl:__subpackages__",
         "@com_github_datadog_datadog_agent_comp_otelcol_ddflareextension_impl//:__subpackages__",

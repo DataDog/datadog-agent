@@ -4,6 +4,7 @@ go_library(
     name = "common",
     srcs = ["models.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/common",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/config/model"],
 )

@@ -10,6 +10,7 @@ go_library(
         "server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",

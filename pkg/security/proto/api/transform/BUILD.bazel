@@ -4,6 +4,7 @@ go_library(
     name = "transform",
     srcs = ["kfilters.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api/transform",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/probe/kfilters",

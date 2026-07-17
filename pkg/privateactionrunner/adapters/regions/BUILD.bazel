@@ -4,5 +4,7 @@ go_library(
     name = "regions",
     srcs = ["regions.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

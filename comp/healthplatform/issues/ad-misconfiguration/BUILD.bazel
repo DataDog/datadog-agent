@@ -8,6 +8,7 @@ go_library(
         "template_issue.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",

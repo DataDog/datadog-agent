@@ -4,6 +4,7 @@ go_library(
     name = "testutils",
     srcs = ["resource.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
+    tags_independent = True,
     visibility = [
         "//pkg/opentelemetry-mapping-go/inframetadata:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_inframetadata//:__subpackages__",

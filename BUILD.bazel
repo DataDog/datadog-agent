@@ -45,6 +45,7 @@ exports_files(glob(
 exports_files(["go.mod"])
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# gazelle:go_tags_independent on
 # gazelle:exclude cmd/agent/subcommands/*.go
 # gazelle:exclude cmd/agent/subcommands/check
 # gazelle:exclude cmd/agent/subcommands/processchecks

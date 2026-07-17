@@ -12,6 +12,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch",
+    tags_independent = True,
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/common",

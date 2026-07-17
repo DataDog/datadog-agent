@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -74,10 +75,74 @@ func TestMarkTagIndependentLibraries(t *testing.T) {
 	}
 }
 
+func TestPackageSourcesTagIndependent(t *testing.T) {
+	dir := t.TempDir()
+	for name, contents := range map[string]string{
+		"plain.go":       "package sample\n",
+		"tagged.go":      "//go:build test\n\npackage sample\n",
+		"tagged_test.go": "//go:build test\n\npackage sample\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if !packageSourcesTagIndependent(dir, []string{"plain.go", "tagged_test.go"}) {
+		t.Error("test-only constraints should not affect library closure independence")
+	}
+	if packageSourcesTagIndependent(dir, []string{"plain.go", "tagged.go"}) {
+		t.Error("constraint on an excluded library source was not detected")
+	}
+}
+
 func TestKindsOwnsTagIndependentAttribute(t *testing.T) {
 	kinds := newLang().Kinds()
 	if !kinds["go_library"].MergeableAttrs["tags_independent"] {
 		t.Error("tags_independent must be Gazelle-managed")
+	}
+	if !kinds["go_library"].MergeableAttrs["tags_closure_independent"] {
+		t.Error("tags_closure_independent must be Gazelle-managed")
+	}
+}
+
+func TestMarkTagIndependentClosures(t *testing.T) {
+	makeLibrary := func(pkg string, deps ...string) (*rule.File, *rule.Rule) {
+		f := rule.EmptyFile(filepath.Join(t.TempDir(), "BUILD.bazel"), pkg)
+		r := rule.NewRule("go_library", filepath.Base(pkg))
+		r.SetAttr("tags_independent", true)
+		if len(deps) != 0 {
+			r.SetAttr("deps", deps)
+		}
+		r.Insert(f)
+		return f, r
+	}
+
+	leafFile, leaf := makeLibrary("leaf")
+	parentFile, parent := makeLibrary("parent", "//leaf:leaf")
+	externalFile, external := makeLibrary("external", "@dependency//pkg:pkg")
+	blockedFile, blocked := makeLibrary("blocked", "//external:external")
+	fresh := rule.NewRule("go_library", "fresh")
+	fresh.SetAttr("tags_independent", true)
+
+	l := newLang()
+	l.tagIndependentLibraries = map[label.Label]tagIndependentLibrary{
+		label.New("", "leaf", "leaf"):         {file: leafFile, name: "leaf"},
+		label.New("", "parent", "parent"):     {file: parentFile, name: "parent"},
+		label.New("", "external", "external"): {file: externalFile, name: "external"},
+		label.New("", "blocked", "blocked"):   {file: blockedFile, name: "blocked"},
+		label.New("", "fresh", "fresh"):       {generated: fresh, name: "fresh"},
+	}
+	l.AfterResolvingDeps(nil)
+
+	for _, r := range []*rule.Rule{leaf, parent, fresh} {
+		if r.Attr("tags_closure_independent") == nil {
+			t.Errorf("%s was not marked closure-independent", r.Name())
+		}
+	}
+	for _, r := range []*rule.Rule{external, blocked} {
+		if r.Attr("tags_closure_independent") != nil {
+			t.Errorf("%s unexpectedly marked closure-independent", r.Name())
+		}
 	}
 }
 

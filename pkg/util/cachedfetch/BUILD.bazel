@@ -5,6 +5,7 @@ go_library(
     name = "cachedfetch",
     srcs = ["fetcher.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cachedfetch",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

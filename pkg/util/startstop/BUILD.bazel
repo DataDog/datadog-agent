@@ -12,6 +12,8 @@ go_library(
         "stop.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/startstop",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

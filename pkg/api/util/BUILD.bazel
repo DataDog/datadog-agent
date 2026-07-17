@@ -4,6 +4,7 @@ go_library(
     name = "util",
     srcs = ["util_dca.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/util",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/api/security",

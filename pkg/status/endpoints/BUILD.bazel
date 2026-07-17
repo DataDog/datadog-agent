@@ -8,6 +8,7 @@ go_library(
         "status_templates/endpointsHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/endpoints",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",

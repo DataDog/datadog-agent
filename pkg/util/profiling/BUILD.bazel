@@ -9,6 +9,7 @@ go_library(
         "settings.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/profiling",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

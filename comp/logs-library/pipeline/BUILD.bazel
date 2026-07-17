@@ -9,6 +9,7 @@ go_library(
         "provider.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/pipeline",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",

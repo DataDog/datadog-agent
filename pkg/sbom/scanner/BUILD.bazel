@@ -7,6 +7,7 @@ go_library(
     name = "scanner",
     srcs = ["scanner.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/scanner",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

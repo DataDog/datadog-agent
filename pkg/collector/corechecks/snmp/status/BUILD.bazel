@@ -9,6 +9,7 @@ go_library(
         "status_templates/snmpHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/listeners",

@@ -5,6 +5,7 @@ go_library(
     name = "tracker",
     srcs = ["tracker.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner/tracker",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/check",

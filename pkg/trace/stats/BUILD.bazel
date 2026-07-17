@@ -11,6 +11,7 @@ go_library(
         "weight.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/stats",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/obfuscate",

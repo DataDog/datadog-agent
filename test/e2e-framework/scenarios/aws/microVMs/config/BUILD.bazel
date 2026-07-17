@@ -4,6 +4,7 @@ go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

@@ -4,6 +4,7 @@ go_library(
     name = "secret-generic-connector_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/secret-generic-connector/backend",

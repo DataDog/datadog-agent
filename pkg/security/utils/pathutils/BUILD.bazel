@@ -8,6 +8,7 @@ go_library(
         "path_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/pathutils",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [

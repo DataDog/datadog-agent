@@ -8,6 +8,7 @@ go_library(
         "ibm.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/ibm",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",

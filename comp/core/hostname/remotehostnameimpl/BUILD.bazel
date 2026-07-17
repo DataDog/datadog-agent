@@ -4,6 +4,7 @@ go_library(
     name = "remotehostnameimpl",
     srcs = ["hostname.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",

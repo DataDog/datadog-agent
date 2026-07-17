@@ -4,5 +4,7 @@ go_library(
     name = "proto",
     srcs = ["empty.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

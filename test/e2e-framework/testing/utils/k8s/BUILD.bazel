@@ -4,6 +4,7 @@ go_library(
     name = "k8s",
     srcs = ["k8s.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/pointer",

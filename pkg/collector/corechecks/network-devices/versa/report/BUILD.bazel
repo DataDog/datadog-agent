@@ -8,6 +8,7 @@ go_library(
         "sender.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/eventplatform/def",

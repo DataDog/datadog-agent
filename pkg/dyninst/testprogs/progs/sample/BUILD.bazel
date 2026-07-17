@@ -27,6 +27,7 @@ go_library(
         "times.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/dyninst/testprogs/progs/sample/lib",

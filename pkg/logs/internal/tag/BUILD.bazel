@@ -10,6 +10,7 @@ go_library(
         "provider.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/tag",
+    tags_independent = True,
     visibility = [
         "//pkg/logs:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_diagnostic//:__subpackages__",

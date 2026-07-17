@@ -8,6 +8,7 @@ go_library(
         "status_templates/httpHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/httpproxy",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

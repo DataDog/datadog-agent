@@ -12,6 +12,7 @@ go_library(
         "status_templates/ntpHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/status"],
 )

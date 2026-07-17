@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["healthprobe.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/flare/types",

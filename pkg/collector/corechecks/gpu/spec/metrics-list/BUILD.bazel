@@ -4,6 +4,7 @@ go_library(
     name = "metrics-list_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec/metrics-list",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["//pkg/collector/corechecks/gpu/spec"],
 )

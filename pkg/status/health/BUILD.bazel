@@ -8,6 +8,8 @@ go_library(
         "options.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/health",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

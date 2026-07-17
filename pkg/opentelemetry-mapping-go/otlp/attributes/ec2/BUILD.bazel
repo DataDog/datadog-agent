@@ -4,6 +4,7 @@ go_library(
     name = "ec2",
     srcs = ["ec2.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/ec2",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

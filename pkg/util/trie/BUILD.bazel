@@ -5,6 +5,8 @@ go_library(
     name = "trie",
     srcs = ["trie.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/trie",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

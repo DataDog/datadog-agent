@@ -4,6 +4,7 @@ go_library(
     name = "tar",
     srcs = ["tar.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/tar",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

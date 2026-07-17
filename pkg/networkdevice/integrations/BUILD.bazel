@@ -4,5 +4,7 @@ go_library(
     name = "integrations",
     srcs = ["integrations.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/integrations",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

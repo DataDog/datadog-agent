@@ -18,6 +18,7 @@ go_library(
         "package.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/option",

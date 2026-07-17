@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["integrations.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/integrations/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

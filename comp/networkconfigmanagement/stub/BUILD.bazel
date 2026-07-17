@@ -4,6 +4,7 @@ go_library(
     name = "stub",
     srcs = ["stub.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/stub",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/networkconfigmanagement/def",

@@ -4,5 +4,7 @@ go_library(
     name = "flareregistry",
     srcs = ["registry.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/flareregistry",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -4,6 +4,7 @@ go_library(
     name = "installinfo",
     srcs = ["installinfo.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/paths",

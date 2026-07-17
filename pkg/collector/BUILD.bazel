@@ -11,6 +11,7 @@ go_library(
         "stats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/collector/collector/def",

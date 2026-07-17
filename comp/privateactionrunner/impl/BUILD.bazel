@@ -6,6 +6,7 @@ go_library(
     name = "impl",
     srcs = ["privateactionrunner.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

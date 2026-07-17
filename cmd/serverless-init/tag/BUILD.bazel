@@ -7,6 +7,7 @@ go_library(
     name = "tag",
     srcs = ["tag.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/tag",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/serverless/tags"],
 )

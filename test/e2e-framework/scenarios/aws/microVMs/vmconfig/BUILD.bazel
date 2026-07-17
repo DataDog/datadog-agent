@@ -7,5 +7,7 @@ go_library(
         "load.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/vmconfig",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

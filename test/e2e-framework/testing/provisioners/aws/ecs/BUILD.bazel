@@ -4,6 +4,7 @@ go_library(
     name = "ecs",
     srcs = ["ecs.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/resources/aws",

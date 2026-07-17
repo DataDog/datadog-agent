@@ -4,5 +4,7 @@ go_library(
     name = "apmsampling",
     srcs = ["sampler_config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

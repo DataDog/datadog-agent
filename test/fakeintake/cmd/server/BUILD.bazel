@@ -4,6 +4,7 @@ go_library(
     name = "server_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/cmd/server",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["//test/fakeintake/server"],
 )

@@ -11,6 +11,7 @@ go_library(
         "registry_writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

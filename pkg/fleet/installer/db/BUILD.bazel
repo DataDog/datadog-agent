@@ -4,6 +4,7 @@ go_library(
     name = "db",
     srcs = ["db.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/db",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@io_etcd_go_bbolt//:bbolt"],
 )

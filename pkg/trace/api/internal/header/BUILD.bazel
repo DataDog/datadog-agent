@@ -4,5 +4,7 @@ go_library(
     name = "header",
     srcs = ["headers.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/internal/header",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//pkg/trace/api:__subpackages__"],
 )

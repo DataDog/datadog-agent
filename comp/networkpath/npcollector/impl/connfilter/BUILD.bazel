@@ -10,6 +10,8 @@ go_library(
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

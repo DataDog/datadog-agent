@@ -4,6 +4,7 @@ go_library(
     name = "registry",
     srcs = ["scenarios.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/registry",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/scenarios/aws/ec2",

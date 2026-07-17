@@ -4,6 +4,7 @@ go_library(
     name = "sender",
     srcs = ["sender.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/check/id",

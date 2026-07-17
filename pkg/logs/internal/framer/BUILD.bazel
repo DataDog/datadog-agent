@@ -13,6 +13,7 @@ go_library(
         "twobyte.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/framer",
+    tags_independent = True,
     visibility = [
         "//pkg/logs:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",

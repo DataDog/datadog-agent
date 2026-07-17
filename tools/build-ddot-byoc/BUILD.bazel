@@ -4,6 +4,7 @@ go_library(
     name = "build-ddot-byoc_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/tools/build-ddot-byoc",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_google_go_containerregistry//pkg/authn",

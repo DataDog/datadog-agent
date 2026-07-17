@@ -5,6 +5,7 @@ go_library(
     name = "start",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",

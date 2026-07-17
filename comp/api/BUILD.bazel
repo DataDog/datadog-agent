@@ -7,6 +7,7 @@ go_library(
     name = "api",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/fxutil"],
 )

@@ -5,6 +5,7 @@ go_library(
     name = "infratags",
     srcs = ["infratags.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/infratags",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

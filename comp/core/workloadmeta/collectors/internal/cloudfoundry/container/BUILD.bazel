@@ -5,6 +5,7 @@ go_library(
     name = "container",
     srcs = ["cf_container.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container",
+    tags_independent = True,
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
         "//comp/core/config",

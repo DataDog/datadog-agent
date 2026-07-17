@@ -4,5 +4,7 @@ go_library(
     name = "optional",
     srcs = ["optional.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

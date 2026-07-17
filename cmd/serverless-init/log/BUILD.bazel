@@ -8,6 +8,7 @@ go_library(
         "log.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/log",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",

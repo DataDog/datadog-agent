@@ -8,6 +8,8 @@ go_library(
         "summary.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile/summary",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

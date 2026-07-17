@@ -8,6 +8,7 @@ go_library(
         "cert_reloader.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls/certreloader",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

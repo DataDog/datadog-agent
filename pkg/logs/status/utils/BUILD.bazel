@@ -9,6 +9,7 @@ go_library(
         "status.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/status/utils",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@org_uber_go_atomic//:atomic"],
 )

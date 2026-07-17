@@ -11,5 +11,7 @@ go_library(
     name = "seclwin",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/seclwin",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -5,6 +5,7 @@ go_library(
     srcs = ["main.go"],
     embedsrcs = ["event_deep_copy.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/security/generators/accessors/common",

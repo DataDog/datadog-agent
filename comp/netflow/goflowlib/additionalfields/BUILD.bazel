@@ -5,6 +5,7 @@ go_library(
     name = "additionalfields",
     srcs = ["netflow.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/netflow/common",

@@ -4,6 +4,7 @@ go_library(
     name = "httpclient",
     srcs = ["adapter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/httpclient",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",

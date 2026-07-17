@@ -4,6 +4,7 @@ go_library(
     name = "locexpr",
     srcs = ["exec.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_go_delve_delve//pkg/dwarf/op"],
 )

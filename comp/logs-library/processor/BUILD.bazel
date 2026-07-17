@@ -13,6 +13,7 @@ go_library(
         "raw.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/processor",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",

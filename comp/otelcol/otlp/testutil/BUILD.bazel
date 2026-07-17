@@ -8,6 +8,7 @@ go_library(
         "testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/origindetection",

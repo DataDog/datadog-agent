@@ -10,6 +10,7 @@ go_library(
         "tagfilterlist.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/filterlist/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

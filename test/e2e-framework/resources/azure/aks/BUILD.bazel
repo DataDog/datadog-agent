@@ -4,6 +4,7 @@ go_library(
     name = "aks",
     srcs = ["cluster.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure/aks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

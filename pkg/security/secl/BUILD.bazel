@@ -9,5 +9,7 @@ go_library(
     name = "secl",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

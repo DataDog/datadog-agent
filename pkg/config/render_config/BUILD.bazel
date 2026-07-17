@@ -12,6 +12,7 @@ go_library(
     name = "render_config_lib",
     srcs = ["render_config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/render_config",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_pmezard_go_difflib//difflib",

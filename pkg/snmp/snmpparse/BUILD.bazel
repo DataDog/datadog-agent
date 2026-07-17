@@ -9,6 +9,7 @@ go_library(
         "options.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

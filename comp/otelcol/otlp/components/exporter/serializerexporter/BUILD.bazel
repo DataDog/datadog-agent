@@ -15,6 +15,7 @@ go_library(
         "telemetry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

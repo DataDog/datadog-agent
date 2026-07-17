@@ -4,5 +4,7 @@ go_library(
     name = "input",
     srcs = ["input.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/input",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

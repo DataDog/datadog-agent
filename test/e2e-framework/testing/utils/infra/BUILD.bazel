@@ -8,6 +8,7 @@ go_library(
         "stack_manager.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/runner",

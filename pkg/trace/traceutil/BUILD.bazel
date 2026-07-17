@@ -11,6 +11,7 @@ go_library(
         "trace.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/traceutil",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",

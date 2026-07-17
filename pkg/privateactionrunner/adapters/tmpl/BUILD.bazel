@@ -4,6 +4,7 @@ go_library(
     name = "tmpl",
     srcs = ["simple.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_aymerick_raymond//lexer",

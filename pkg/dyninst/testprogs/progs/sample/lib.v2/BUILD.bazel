@@ -4,6 +4,8 @@ go_library(
     name = "lib_v2",
     srcs = ["lib.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/testprogs/progs/sample/lib",

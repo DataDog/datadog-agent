@@ -7,6 +7,7 @@ go_library(
         "rego.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/metrics",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

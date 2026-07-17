@@ -5,6 +5,7 @@ go_library(
     name = "api",
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@io_k8s_apimachinery//pkg/util/sets"],
 )

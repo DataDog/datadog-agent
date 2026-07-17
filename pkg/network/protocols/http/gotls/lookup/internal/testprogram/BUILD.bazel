@@ -4,6 +4,7 @@ go_library(
     name = "testprogram_lib",
     srcs = ["program.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup/internal/testprogram",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["@org_golang_x_net//netutil"],
 )

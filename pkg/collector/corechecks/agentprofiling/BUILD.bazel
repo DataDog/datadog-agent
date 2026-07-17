@@ -5,6 +5,7 @@ go_library(
     name = "agentprofiling",
     srcs = ["agentprofiling.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common/signals",

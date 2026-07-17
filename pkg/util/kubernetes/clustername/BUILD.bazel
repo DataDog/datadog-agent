@@ -5,6 +5,7 @@ go_library(
     name = "clustername",
     srcs = ["clustername.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",

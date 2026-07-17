@@ -4,5 +4,7 @@ go_library(
     name = "names",
     srcs = ["provider_names.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -7,6 +7,7 @@ go_library(
     name = "remote",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/remote/client",

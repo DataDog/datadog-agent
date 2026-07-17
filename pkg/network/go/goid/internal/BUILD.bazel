@@ -4,6 +4,7 @@ go_library(
     name = "internal_lib",
     srcs = ["generate_goid_lut.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/goid/internal",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/network/go/dwarfutils",

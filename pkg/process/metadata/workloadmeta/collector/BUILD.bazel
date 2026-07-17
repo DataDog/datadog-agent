@@ -4,6 +4,7 @@ go_library(
     name = "collector",
     srcs = ["process.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",

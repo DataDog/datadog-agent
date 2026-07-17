@@ -9,6 +9,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/service",

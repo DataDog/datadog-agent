@@ -4,6 +4,7 @@ go_library(
     name = "instrumentationscope",
     srcs = ["metadata.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope",
+    tags_independent = True,
     visibility = [
         "//pkg/opentelemetry-mapping-go/otlp/metrics:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_metrics//:__subpackages__",

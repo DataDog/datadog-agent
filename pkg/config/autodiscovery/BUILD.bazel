@@ -5,6 +5,7 @@ go_library(
     name = "autodiscovery",
     srcs = ["autodiscovery.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/autodiscovery",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/providers",

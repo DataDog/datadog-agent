@@ -4,6 +4,7 @@ go_library(
     name = "env",
     srcs = ["env.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fips",

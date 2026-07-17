@@ -4,5 +4,7 @@ go_library(
     name = "containerlifecycle",
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/containerlifecycle",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

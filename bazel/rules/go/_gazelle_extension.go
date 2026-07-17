@@ -16,6 +16,7 @@ package dd_agent_go_test
 
 import (
 	"bufio"
+	"context"
 	"go/build"
 	"go/build/constraint"
 	"os"
@@ -45,13 +46,24 @@ type tagIndependentConfig struct {
 	enabled bool
 }
 
+type tagIndependentLibrary struct {
+	file      *rule.File
+	generated *rule.Rule
+	name      string
+}
+
 type lang struct {
 	language.Language // embedded Go extension handles all non-test Go rules
+	language.BaseLifecycleManager
+	tagIndependentLibraries map[label.Label]tagIndependentLibrary
 }
 
 // NewLanguage returns a Gazelle language extension that wraps the built-in Go extension.
 func NewLanguage() language.Language {
-	return &lang{Language: goLanguage.NewLanguage()}
+	return &lang{
+		Language:                goLanguage.NewLanguage(),
+		tagIndependentLibraries: make(map[label.Label]tagIndependentLibrary),
+	}
 }
 
 // Kinds extends the Go extension's kinds with dd_agent_go_test and makes
@@ -65,11 +77,12 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
 		if k == "go_library" {
-			mergeableAttrs := make(map[string]bool, len(v.MergeableAttrs)+1)
+			mergeableAttrs := make(map[string]bool, len(v.MergeableAttrs)+2)
 			for attr, mergeable := range v.MergeableAttrs {
 				mergeableAttrs[attr] = mergeable
 			}
 			mergeableAttrs["tags_independent"] = true
+			mergeableAttrs["tags_closure_independent"] = true
 			v.MergeableAttrs = mergeableAttrs
 		}
 		kinds[k] = v
@@ -144,6 +157,7 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 	result := l.Language.GenerateRules(args)
 	if shouldMarkTagIndependent(args.Config) {
 		markTagIndependentLibraries(result.Gen, args.Dir)
+		l.trackTagIndependentLibraries(result.Gen, args)
 	}
 	if shouldReplace(args.Config) {
 		result = l.replaceGoTests(result, args.File, args.Dir)
@@ -203,6 +217,87 @@ func markTagIndependentLibraries(rules []*rule.Rule, pkgDir string) {
 			r.SetAttr("tags_independent", true)
 		}
 	}
+}
+
+func (l *lang) trackTagIndependentLibraries(rules []*rule.Rule, args language.GenerateArgs) {
+	if !packageSourcesTagIndependent(args.Dir, args.RegularFiles) {
+		return
+	}
+	for _, r := range rules {
+		if r.Kind() != "go_library" || r.Attr("tags_independent") == nil {
+			continue
+		}
+		libLabel := label.New(args.Config.RepoName, args.Rel, r.Name())
+		l.tagIndependentLibraries[libLabel] = tagIndependentLibrary{
+			file:      args.File,
+			generated: r,
+			name:      r.Name(),
+		}
+	}
+}
+
+func packageSourcesTagIndependent(pkgDir string, files []string) bool {
+	for _, name := range files {
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		_, hasConstraint, err := readBuildConstraint(filepath.Join(pkgDir, name))
+		if err != nil || hasConstraint {
+			return false
+		}
+	}
+	return true
+}
+
+// AfterResolvingDeps marks source-independent libraries whose complete Go
+// dependency closure is also source-independent.
+func (l *lang) AfterResolvingDeps(context.Context) {
+	rules := make(map[label.Label]*rule.Rule, len(l.tagIndependentLibraries))
+	for libLabel, lib := range l.tagIndependentLibraries {
+		r := lib.generated
+		if lib.file != nil {
+			r, _ = findRule(lib.file, "go_library", lib.name)
+		}
+		if r != nil && r.Attr("tags_independent") != nil {
+			rules[libLabel] = r
+		}
+	}
+
+	independent := make(map[label.Label]bool, len(rules))
+	for libLabel := range rules {
+		independent[libLabel] = true
+	}
+
+	for changed := true; changed; {
+		changed = false
+		for libLabel, r := range rules {
+			if !independent[libLabel] || closureDepsIndependent(libLabel, r, independent) {
+				continue
+			}
+			independent[libLabel] = false
+			changed = true
+		}
+	}
+
+	for libLabel, r := range rules {
+		if independent[libLabel] {
+			r.SetAttr("tags_closure_independent", true)
+		}
+	}
+}
+
+func closureDepsIndependent(from label.Label, r *rule.Rule, independent map[label.Label]bool) bool {
+	deps := r.AttrStrings("deps")
+	if r.Attr("deps") != nil && len(deps) == 0 {
+		return false
+	}
+	for _, dep := range deps {
+		depLabel, err := label.Parse(dep)
+		if err != nil || !independent[depLabel.Abs(from.Repo, from.Pkg)] {
+			return false
+		}
+	}
+	return true
 }
 
 // shouldReplace decides whether go_test rules in this package should be

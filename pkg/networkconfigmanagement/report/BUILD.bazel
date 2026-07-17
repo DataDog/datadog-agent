@@ -4,6 +4,7 @@ go_library(
     name = "report",
     srcs = ["payload.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkconfigmanagement/profile",

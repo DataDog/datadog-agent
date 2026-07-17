@@ -4,6 +4,7 @@ go_library(
     name = "event_copy_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/event_copy",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_fatih_structtag//:structtag",

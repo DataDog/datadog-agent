@@ -5,6 +5,7 @@ go_library(
     name = "metrics",
     srcs = ["metrics.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics",

@@ -15,6 +15,7 @@ go_library(
         "key_gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/msgpgo",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

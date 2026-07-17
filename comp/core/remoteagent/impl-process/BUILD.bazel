@@ -4,6 +4,7 @@ go_library(
     name = "impl-process",
     srcs = ["remoteagent.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-process",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,5 +4,7 @@ go_library(
     name = "tagger",
     srcs = ["docs.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/tagger",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

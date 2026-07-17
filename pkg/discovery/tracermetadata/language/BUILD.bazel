@@ -4,6 +4,7 @@ go_library(
     name = "language",
     srcs = ["language.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/language",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/discovery/tracermetadata/model",

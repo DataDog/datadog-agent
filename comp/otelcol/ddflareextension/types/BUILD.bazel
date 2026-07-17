@@ -4,5 +4,7 @@ go_library(
     name = "types",
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

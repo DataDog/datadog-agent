@@ -4,6 +4,7 @@ go_library(
     name = "cache",
     srcs = ["lru_2layers.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/cache",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/utils/lru/simplelru",

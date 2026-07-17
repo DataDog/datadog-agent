@@ -5,6 +5,7 @@ go_library(
     name = "pathteststore",
     srcs = ["pathteststore.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",

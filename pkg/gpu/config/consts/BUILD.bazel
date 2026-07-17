@@ -4,5 +4,7 @@ go_library(
     name = "consts",
     srcs = ["consts.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/config/consts",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
