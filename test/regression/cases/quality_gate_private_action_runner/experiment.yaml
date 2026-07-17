@@ -10,17 +10,19 @@ erratic: false
 
 target:
   name: datadog-agent
-  # Run only the Private Action Runner instead of the default agent entrypoint
-  # (/bin/entrypoint.sh), so the measured process tree is just the runner.
-  command: /opt/datadog-agent/embedded/bin/privateactionrunner
-  arguments:
-    - run
-    - --cfgpath=/etc/datadog-agent/datadog.yaml
+  # SMP's target `command` is a bare executable path with no argument support, so
+  # launch the runner through the agent image entrypoint and select it via the
+  # ENTRYPOINT env var. The image fragment execs
+  # `privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml`
+  # (Dockerfiles/agent/entrypoint.d/privateactionrunner); the final exec'd process
+  # is the runner alone, so total_pss_bytes measures only it.
+  command: /bin/entrypoint.sh
   cpu_allotment: 4
   # Set to 20% higher than the memory_usage check value.
   memory_allotment: 84 MiB
 
   environment:
+    ENTRYPOINT: privateactionrunner
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
     # Internal test-only switch used by PAR e2e tests. It lets the runner use
