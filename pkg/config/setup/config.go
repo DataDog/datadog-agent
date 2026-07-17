@@ -750,6 +750,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	}
 
 	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig)
+	configureListShapeAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig)
 
 	return nil
 }
@@ -815,48 +816,148 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 	}
 }
 
-// configureAdditionalEndpointsDelegatedAuth scans `additional_endpoints` for DELA(...) directives
-// and configures a delegated auth instance per match, letting a second (or later) Datadog org
-// receive a WIF-managed API key alongside (or instead of) a statically-configured one - i.e.
-// dual/multi-org "dual shipping" via delegated auth.
+// mapShapeAdditionalEndpointsConfigKeys lists every `additional_endpoints`-shaped config path
+// (domain -> list of API keys) that supports DELA(...) directives. See
+// https://docs.datadoghq.com/agent/configuration/dual-shipping for the full set of dual-shipping
+// flows this is meant to cover.
+var mapShapeAdditionalEndpointsConfigKeys = []string{
+	"additional_endpoints",
+	"apm_config.additional_endpoints",
+	"apm_config.profiling_additional_endpoints",
+	"process_config.additional_endpoints",
+	"orchestrator_explorer.orchestrator_additional_endpoints",
+	"evp_proxy_config.additional_endpoints",
+}
+
+// configureAdditionalEndpointsDelegatedAuth scans every map-shape `additional_endpoints`-style
+// config value (see mapShapeAdditionalEndpointsConfigKeys) for DELA(...) directives and configures
+// a delegated auth instance per match, letting a second (or later) Datadog org receive a
+// WIF-managed API key alongside (or instead of) a statically-configured one - i.e. dual/multi-org
+// "dual shipping" via delegated auth.
 func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
-	for domain, keys := range config.GetStringMapStringSlice("additional_endpoints") {
-		for _, key := range keys {
-			// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated here rather than
-			// imported to avoid a setup<->utils import cycle - pkg/config/utils already imports
-			// pkg/config/setup). Keep both checks in sync if the directive prefix ever changes.
-			if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
-				continue
-			}
+	for _, configKey := range mapShapeAdditionalEndpointsConfigKeys {
+		for domain, keys := range config.GetStringMapStringSlice(configKey) {
+			for _, key := range keys {
+				// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated here rather
+				// than imported to avoid a setup<->utils import cycle - pkg/config/utils already
+				// imports pkg/config/setup). Keep both checks in sync if the directive prefix ever
+				// changes.
+				if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
+					continue
+				}
 
-			directive, ok := parseDelaDirective(key)
+				directive, ok := parseDelaDirective(key)
+				if !ok {
+					log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s' at '%s'; leaving it as-is (it will not be sent as an API key)", key, domain, configKey)
+					continue
+				}
+
+				instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
+				if err != nil {
+					log.Errorf("Failed to configure delegated auth for additional endpoint '%s' at '%s': %v", domain, configKey, err)
+					continue
+				}
+
+				log.Infof("Configuring delegated authentication for additional endpoint '%s' at '%s'", domain, configKey)
+
+				// APIKeyConfigKey must be unique per directive, not just per domain: a single
+				// domain can carry multiple DELA(...) entries (one per org, or across different
+				// additional_endpoints-shaped config keys), and the component's instances map is
+				// keyed by this string - colliding keys would silently drop all but one org.
+				err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+					Config:                       config,
+					ProviderConfig:               instanceProviderConfig,
+					OrgUUID:                      directive.orgUUID,
+					RefreshInterval:              config.GetInt("delegated_auth.refresh_interval_mins"),
+					APIKeyConfigKey:              fmt.Sprintf("%s[%s][%s]", configKey, domain, directive.orgUUID),
+					AdditionalEndpointDomain:     domain,
+					AdditionalEndpointsConfigKey: configKey,
+					AdditionalEndpointDirective:  key,
+					FallbackAPIKey:               directive.params["fallback"],
+				})
+				if err != nil {
+					log.Errorf("Failed to configure delegated auth for additional endpoint '%s' at '%s': %v", domain, configKey, err)
+				}
+			}
+		}
+	}
+}
+
+// listShapeAdditionalEndpointsConfigKeys lists every `additional_endpoints`-shaped config path
+// that uses the list-of-objects shape (`[{api_key, Host, Port, ...}, ...]`) rather than the
+// domain-keyed map shape, and supports DELA(...) directives in each entry's api_key field. All of
+// these route through comp/logs/agent/config's shared Endpoint/unmarshalEndpoint machinery, just
+// parameterized by config-key prefix.
+var listShapeAdditionalEndpointsConfigKeys = []string{
+	"logs_config.additional_endpoints",
+	"database_monitoring.samples.additional_endpoints",
+	"database_monitoring.activity.additional_endpoints",
+	"database_monitoring.metrics.additional_endpoints",
+	"network_devices.metadata.additional_endpoints",
+	"network_devices.snmp_traps.forwarder.additional_endpoints",
+	"network_devices.netflow.forwarder.additional_endpoints",
+	"network_path.forwarder.additional_endpoints",
+	"compliance_config.endpoints.additional_endpoints",
+	"runtime_security_config.endpoints.additional_endpoints",
+	"container_lifecycle.additional_endpoints",
+	"container_image.additional_endpoints",
+	"sbom.additional_endpoints",
+	"service_discovery.forwarder.additional_endpoints",
+}
+
+// configureListShapeAdditionalEndpointsDelegatedAuth scans every list-shape `additional_endpoints`
+// config value (see listShapeAdditionalEndpointsConfigKeys) for entries whose api_key field is a
+// DELA(...) directive, and configures a delegated auth instance per match - the list-shape
+// counterpart to configureAdditionalEndpointsDelegatedAuth.
+func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
+	for _, configKey := range listShapeAdditionalEndpointsConfigKeys {
+		rawEntries, ok := config.Get(configKey).([]any)
+		if !ok {
+			continue
+		}
+
+		for index, rawEntry := range rawEntries {
+			entry, ok := rawEntry.(map[string]any)
 			if !ok {
-				log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s'; leaving it as-is (it will not be sent as an API key)", key, domain)
 				continue
 			}
 
-			instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
-			if err != nil {
-				log.Errorf("Failed to configure delegated auth for additional endpoint '%s': %v", domain, err)
-				continue
-			}
+			for entryKey, entryVal := range entry {
+				if !strings.EqualFold(entryKey, "api_key") {
+					continue
+				}
+				valStr, ok := entryVal.(string)
+				if !ok || !strings.HasPrefix(strings.TrimSpace(valStr), "DELA(") {
+					continue
+				}
 
-			log.Infof("Configuring delegated authentication for additional endpoint '%s'", domain)
+				directive, ok := parseDelaDirective(valStr)
+				if !ok {
+					log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", valStr, index, configKey)
+					continue
+				}
 
-			// APIKeyConfigKey must be unique per directive, not just per domain: a single domain
-			// can carry multiple DELA(...) entries (one per org), and the component's instances
-			// map is keyed by this string - colliding keys would silently drop all but one org.
-			err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
-				Config:                      config,
-				ProviderConfig:              instanceProviderConfig,
-				OrgUUID:                     directive.orgUUID,
-				RefreshInterval:             config.GetInt("delegated_auth.refresh_interval_mins"),
-				APIKeyConfigKey:             fmt.Sprintf("additional_endpoints[%s][%s]", domain, directive.orgUUID),
-				AdditionalEndpointDomain:    domain,
-				AdditionalEndpointDirective: key,
-			})
-			if err != nil {
-				log.Errorf("Failed to configure delegated auth for additional endpoint '%s': %v", domain, err)
+				instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
+				if err != nil {
+					log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
+					continue
+				}
+
+				log.Infof("Configuring delegated authentication for additional endpoint entry %d at '%s'", index, configKey)
+
+				err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+					Config:                           config,
+					ProviderConfig:                   instanceProviderConfig,
+					OrgUUID:                           directive.orgUUID,
+					RefreshInterval:                  config.GetInt("delegated_auth.refresh_interval_mins"),
+					APIKeyConfigKey:                   fmt.Sprintf("%s[%d][%s]", configKey, index, directive.orgUUID),
+					AdditionalEndpointsListConfigKey:  configKey,
+					AdditionalEndpointDirective:       valStr,
+					FallbackAPIKey:                    directive.params["fallback"],
+				})
+				if err != nil {
+					log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
+				}
 			}
 		}
 	}
