@@ -41,6 +41,16 @@ func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) 
 	p.lastFlushInterval = lastFlushInterval
 }
 
+// snapshot returns an independent copy safe to hand to a worker. The store can
+// refresh the retained context concurrently while the worker reads the flushed
+// Pathtest, so both the context and its nested Pathtest must be copied.
+func (p *PathtestContext) snapshot() *PathtestContext {
+	contextSnapshot := *p
+	pathtestSnapshot := *p.Pathtest
+	contextSnapshot.Pathtest = &pathtestSnapshot
+	return &contextSnapshot
+}
+
 // Config is the configuration for the PathtestStore
 type Config struct {
 	// ContextsLimit is the maximum number of contexts to keep in the store
@@ -155,10 +165,7 @@ func (f *Store) Flush() []*PathtestContext {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
-		contextSnapshot := *ptConfigCtx
-		pathtestSnapshot := *ptConfigCtx.Pathtest
-		contextSnapshot.Pathtest = &pathtestSnapshot
-		pathtestsToFlush = append(pathtestsToFlush, &contextSnapshot)
+		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
