@@ -105,7 +105,7 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 	c.stream(ctx)
 }
 
-func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
+func (c *WorkloadMetaCollector) CollectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
 	staticTags := tagutil.GetStaticTags(ctx, datadogConfig)
 	// staticTags could be nil if no static tags are configured so we copy to
 	// existing non-nil map. That simplifies code down below.
@@ -211,7 +211,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 
 	// initialize static global tags
 	if p != nil {
-		c.collectStaticGlobalTags(ctx, cfg)
+		c.CollectStaticGlobalTags(ctx, cfg)
 	}
 
 	return c

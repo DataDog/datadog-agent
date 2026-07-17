@@ -302,6 +302,7 @@ func start(log log.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	refreshTaggerGlobalTags option.Option[func(context.Context)],
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -433,6 +434,13 @@ func start(log log.Component,
 	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
+	}
+	if clusterID != "" {
+		// Tagger may have computed static global tags before the API server was ready.
+		// Refresh the static global tags to ensure they include orch cluster ID tag.
+		if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
+			refreshTags(mainCtx)
+		}
 	}
 	if clusterName == "" {
 		if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {

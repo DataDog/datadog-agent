@@ -22,6 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -4169,7 +4172,7 @@ func TestNoGlobalTags(t *testing.T) {
 	mockConfig.SetInTest("orchestrator_explorer.extra_tags", []string{"orch:tag"})
 
 	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
-	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)
+	wmetaCollector.CollectStaticGlobalTags(context.Background(), mockConfig)
 
 	close(collectorCh)
 
@@ -4203,7 +4206,7 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	tagInfosCh := make(chan []*types.TagInfo, 10)
 
 	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh})
-	wmetaCollector.collectStaticGlobalTags(context.TODO(), mockConfig)
+	wmetaCollector.CollectStaticGlobalTags(context.TODO(), mockConfig)
 
 	tagInfos := <-tagInfosCh
 
@@ -4218,6 +4221,63 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	require.NotNil(t, actualStaticSourceEvent)
 	assert.Equal(t, types.GetGlobalEntityID(), actualStaticSourceEvent.EntityID)
 	assert.True(t, actualStaticSourceEvent.IsComplete)
+}
+
+// findStaticSourceEvent returns the staticSource TagInfo out of a batch, failing the test if absent.
+func findStaticSourceEvent(t *testing.T, tagInfos []*types.TagInfo) *types.TagInfo {
+	t.Helper()
+	for _, event := range tagInfos {
+		if event.Source == staticSource {
+			return event
+		}
+	}
+	t.Fatal("no staticSource event found")
+	return nil
+}
+
+func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
+	want := tags.OrchClusterID + ":" + value
+	for _, tag := range tagInfo.LowCardTags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRefreshGlobalTags covers CONTP-1859: on the DCA, the orchestrator
+// cluster ID is often not yet available when the tagger's static global tags
+// are first computed (the API server client isn't ready at that point in
+// startup). RefreshGlobalTags is called by command.go once the cluster ID
+// becomes available, to correct the global entity's tags.
+func TestRefreshGlobalTags(t *testing.T) {
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
+	cache.Cache.Delete(clusterIDCacheKey)
+	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+	collectorCh := make(chan []*types.TagInfo, 10)
+
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+
+	firstTagInfos := <-collectorCh
+	firstEvent := findStaticSourceEvent(t, firstTagInfos)
+	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
+
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	collector.CollectStaticGlobalTags(context.Background(), mockConfig)
+
+	secondTagInfos := <-collectorCh
+	secondEvent := findStaticSourceEvent(t, secondTagInfos)
+	assert.True(t, hasOrchClusterIDTag(secondEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
 }
 
 func TestParseJSONValue(t *testing.T) {
