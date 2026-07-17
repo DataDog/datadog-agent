@@ -22,9 +22,9 @@ func dialProcmgrGRPC(socketPath string) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(
 		"passthrough:///procmgr",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return winio.DialPipeAccessImpLevel(
-				context.Background(),
+				ctx,
 				socketPath,
 				uint32(windows.GENERIC_READ|windows.GENERIC_WRITE),
 				winio.PipeImpLevelIdentification,
