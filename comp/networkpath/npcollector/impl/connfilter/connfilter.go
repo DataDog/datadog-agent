@@ -15,14 +15,14 @@ import (
 
 // Filter represent one filter
 type Filter struct {
-	Type FilterType
+	Type        FilterType
+	matchDomain *regexp.Regexp
+	matchIPCidr netip.Prefix
 
 	// TestConfigID preserves RC filter provenance so a Dynamic Test payload can
 	// identify the remote configuration responsible for admitting its path. It
 	// is empty for built-in and local filters.
 	TestConfigID string
-	matchDomain  *regexp.Regexp
-	matchIPCidr  netip.Prefix
 }
 
 // ConnFilter class
@@ -77,10 +77,11 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 		}
 
 		filters = append(filters, Filter{
-			Type:         cfg.Type,
+			Type:        cfg.Type,
+			matchDomain: matchDomainRe,
+			matchIPCidr: matchIPCidr,
+
 			TestConfigID: cfg.TestConfigID,
-			matchDomain:  matchDomainRe,
-			matchIPCidr:  matchIPCidr,
 		})
 	}
 	return &ConnFilter{
