@@ -73,6 +73,7 @@ Invoke-BuildScript `
     dda inv -- -e winbuild.agent-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
+        Show-BinaryHeaders -Path "$(bazel info bazel-bin 2>$null)\rtloader\install.exe"
         exit 1
     }
 

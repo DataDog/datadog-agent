@@ -120,6 +120,7 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     if($err -ne 0){
         Write-Host -ForegroundColor Red "Agent build failed $err"
+        Show-BinaryHeaders -Path "$(bazel info bazel-bin 2>$null)\rtloader\install.exe"
         exit $err
     }
 
