@@ -7,17 +7,12 @@
 package middleware
 
 import (
-	"fmt"
-	"hash/fnv"
-	"strconv"
 	"sync"
 	"time"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkexecfailure"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -32,24 +27,16 @@ import (
 type CheckWrapper struct {
 	senderManager  sender.SenderManager
 	agentTelemetry option.Option[agenttelemetry.Component]
-	healthPlatform option.Option[healthplatformstore.Component]
-	config         config.Component
 
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
 	done bool
 	// Locked while check is running.
 	runM sync.Mutex
-
-	// consecutiveFailures and consecutiveSuccesses are only touched from Run,
-	// which runM serializes, so they need no separate lock.
-	consecutiveFailures  int
-	consecutiveSuccesses int
-	execFailureReported  bool
 }
 
 // NewCheckWrapper returns a wrapped check.
-func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[healthplatformstore.Component], cfg config.Component) *CheckWrapper {
+func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[healthplatformstore.Component]) *CheckWrapper {
 	if reporter, isSet := issueReporter.Get(); isSet {
 		if aware, ok := check.As[check.IssueAwareCheck](inner); ok {
 			aware.SetIssueReporter(reporter)
@@ -62,8 +49,6 @@ func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agen
 		inner:          inner,
 		senderManager:  senderManager,
 		agentTelemetry: agentTelemetry,
-		healthPlatform: issueReporter,
-		config:         cfg,
 	}
 }
 
@@ -82,69 +67,7 @@ func (c *CheckWrapper) Run() (err error) {
 	}
 
 	// Run the check
-	err = c.inner.Run()
-	c.trackExecutionResult(err)
-	return err
-}
-
-// trackExecutionResult updates the consecutive failure/success counters for
-// this check and reports or resolves a check-execution-failure health issue
-// once the configured thresholds are crossed. No-op when the health platform
-// is unavailable or the feature is disabled.
-//
-// Because the issue id is scoped by IssueDiscriminator (see
-// comp/healthplatform/README.md, "Cluster-wide issue collapse") rather than
-// hostname, the first agent in the DaemonSet to recover resolves the issue
-// for every other node still affected — correct for a shared fix, but it can
-// flap if only some agents recover.
-func (c *CheckWrapper) trackExecutionResult(runErr error) {
-	hp, ok := c.healthPlatform.Get()
-	if !ok || !c.config.GetBool("health_platform.check_execution_failure.enabled") {
-		return
-	}
-
-	if runErr != nil {
-		c.consecutiveSuccesses = 0
-		c.consecutiveFailures++
-		if c.consecutiveFailures >= c.config.GetInt("health_platform.check_execution_failure.consecutive_failures") {
-			c.reportExecutionFailure(hp, runErr)
-		}
-		return
-	}
-
-	c.consecutiveFailures = 0
-	c.consecutiveSuccesses++
-	if c.execFailureReported && c.consecutiveSuccesses >= c.config.GetInt("health_platform.check_execution_failure.consecutive_successes") {
-		hp.ResolveIssue(executionFailureIssueID(hp, c.ID()))
-		c.execFailureReported = false
-	}
-}
-
-// executionFailureIssueID derives the health-issue id for a check-execution
-// failure on the given check id, scoped to hp's issue discriminator (the
-// agent's DaemonSet uid when resolvable, so identical failures across a
-// cluster collapse into one issue).
-func executionFailureIssueID(hp healthplatformstore.Component, checkID checkid.ID) string {
-	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", hp.IssueDiscriminator(""), checkID)
-	return fmt.Sprintf("%s:%016x", checkexecfailure.IssueID, h.Sum64())
-}
-
-// reportExecutionFailure reports a health-platform issue for a check that
-// has failed to run for the configured number of consecutive intervals.
-func (c *CheckWrapper) reportExecutionFailure(hp healthplatformstore.Component, runErr error) {
-	issue, err := checkexecfailure.NewCheckExecFailureIssue().BuildIssue(map[string]string{
-		"check_name":           c.inner.String(),
-		"errors":               runErr.Error(),
-		"consecutive_failures": strconv.Itoa(c.consecutiveFailures),
-	})
-	if err != nil {
-		return
-	}
-	issue.Id = executionFailureIssueID(hp, c.ID())
-	if err := hp.ReportIssue(issue); err == nil {
-		c.execFailureReported = true
-	}
+	return c.inner.Run()
 }
 
 // Cancel implements Check#Cancel

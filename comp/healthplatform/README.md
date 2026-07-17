@@ -101,8 +101,6 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
 | `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` | hostname-free (already collapses) |
 | `invalidconfig` | `invalid-config:<digest>` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
 | `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Datadog System-Probe Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
-| `checkloadfailure` | `check-load-failure:<digest>` | `Check Load Failure` | `check_load_failure` | `"Check '<name>' Failed to Load"` | `IssueDiscriminator` (cluster-collapsible) |
-| `checkexecfailure` | `check-run-failure:<digest>` | `Check Execution Failure` | `check_execution_failure` | `"Check '<name>' Is Failing to Run"` | `IssueDiscriminator` (cluster-collapsible) |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` | per-host (host-local failure) |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` | singleton |
 | `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` | per-host (host-local failure) |

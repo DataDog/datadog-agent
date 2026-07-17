@@ -319,7 +319,7 @@ func run(
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore, option.New(healthPlatform))
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
 	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
 	if err != nil {
