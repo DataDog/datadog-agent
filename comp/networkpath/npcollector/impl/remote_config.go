@@ -28,7 +28,24 @@ type remoteConfigEnvelope struct {
 }
 
 type remoteDynamicConfig struct {
-	Filters []connfilter.Config `json:"filters"`
+	Filters []remoteFilterConfig `json:"filters"`
+}
+
+type remoteFilterConfig struct {
+	Type                connfilter.FilterType              `json:"type"`
+	MatchDomain         string                             `json:"match_domain"`
+	MatchDomainStrategy connfilter.MatchDomainStrategyType `json:"match_domain_strategy"`
+	MatchIP             string                             `json:"match_ip"`
+}
+
+func (c remoteFilterConfig) toConnFilterConfig(testConfigID string) connfilter.Config {
+	return connfilter.Config{
+		Type:                c.Type,
+		MatchDomain:         c.MatchDomain,
+		MatchDomainStrategy: c.MatchDomainStrategy,
+		MatchIP:             c.MatchIP,
+		TestConfigID:        testConfigID,
+	}
 }
 
 // dynamicRemoteConfigState contains valid dynamic configs indexed by RC path.
@@ -51,7 +68,7 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 	seenDynamicPaths := make(map[string]struct{})
 	validPaths := make(map[string]struct{})
 	for path, rawConfig := range updates {
-		envelope, dynamic, err := parseRemoteDynamicConfig(rawConfig.Config)
+		filters, dynamic, err := parseRemoteDynamicConfig(rawConfig.Config)
 		if !dynamic {
 			continue
 		}
@@ -61,7 +78,7 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
-		s.remoteConfigState[path] = envelope.Config.Filters
+		s.remoteConfigState[path] = filters
 		validPaths[path] = struct{}{}
 	}
 
@@ -92,47 +109,48 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 
 // parseRemoteDynamicConfig returns dynamic=false for scheduled configs so the
 // scheduled provider remains the sole owner of their apply status.
-func parseRemoteDynamicConfig(raw []byte) (remoteConfigEnvelope, bool, error) {
+func parseRemoteDynamicConfig(raw []byte) ([]connfilter.Config, bool, error) {
 	var header struct {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &header); err != nil {
-		return remoteConfigEnvelope{}, true, fmt.Errorf("invalid Network Path config: %w", err)
+		return nil, true, fmt.Errorf("invalid Network Path config: %w", err)
 	}
 	if header.Type == remoteConfigScheduledType {
-		return remoteConfigEnvelope{}, false, nil
+		return nil, false, nil
 	}
 	if header.Type != remoteConfigDynamicType {
-		return remoteConfigEnvelope{}, true, fmt.Errorf("unsupported Network Path config type %q", header.Type)
+		return nil, true, fmt.Errorf("unsupported Network Path config type %q", header.Type)
 	}
 
 	var envelope remoteConfigEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return remoteConfigEnvelope{}, true, fmt.Errorf("invalid dynamic Network Path config: %w", err)
+		return nil, true, fmt.Errorf("invalid dynamic Network Path config: %w", err)
 	}
 	if strings.TrimSpace(envelope.TestConfigID) == "" {
-		return remoteConfigEnvelope{}, true, errors.New("invalid dynamic Network Path config: test_config_id is required")
+		return nil, true, errors.New("invalid dynamic Network Path config: test_config_id is required")
 	}
 	if envelope.Config == nil {
-		return remoteConfigEnvelope{}, true, errors.New("invalid dynamic Network Path config: config must be provided")
+		return nil, true, errors.New("invalid dynamic Network Path config: config must be provided")
 	}
 	if len(envelope.Config.Filters) == 0 {
-		return remoteConfigEnvelope{}, true, errors.New("invalid dynamic Network Path config: config.filters must contain at least one item")
+		return nil, true, errors.New("invalid dynamic Network Path config: config.filters must contain at least one item")
 	}
 	if len(envelope.Config.Filters) > maxRemoteFilters {
-		return remoteConfigEnvelope{}, true, fmt.Errorf("invalid dynamic Network Path config: config.filters must contain at most %d items", maxRemoteFilters)
+		return nil, true, fmt.Errorf("invalid dynamic Network Path config: config.filters must contain at most %d items", maxRemoteFilters)
 	}
+	filters := make([]connfilter.Config, len(envelope.Config.Filters))
 	for i, filterConfig := range envelope.Config.Filters {
 		if filterConfig.MatchDomain == "" && filterConfig.MatchIP == "" {
-			return remoteConfigEnvelope{}, true, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
+			return nil, true, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
 		}
-		envelope.Config.Filters[i].TestConfigID = envelope.TestConfigID
+		filters[i] = filterConfig.toConnFilterConfig(envelope.TestConfigID)
 	}
-	_, validationErrors := connfilter.NewConnFilter(envelope.Config.Filters, "", false)
+	_, validationErrors := connfilter.NewConnFilter(filters, "", false)
 	if len(validationErrors) > 0 {
-		return remoteConfigEnvelope{}, true, fmt.Errorf("invalid dynamic Network Path config: %w", errors.Join(validationErrors...))
+		return nil, true, fmt.Errorf("invalid dynamic Network Path config: %w", errors.Join(validationErrors...))
 	}
-	return envelope, true, nil
+	return filters, true, nil
 }
 
 func (s *npCollectorImpl) replaceRemoteFilters(remoteFilters []connfilter.Config) {

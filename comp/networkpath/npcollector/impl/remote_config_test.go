@@ -110,12 +110,18 @@ func TestParseRemoteDynamicConfigValidation(t *testing.T) {
 	}
 }
 
-func TestParseRemoteDynamicConfigAnnotatesFilters(t *testing.T) {
-	envelope, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`))
+func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
+	filters, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]`))
 	require.NoError(t, err)
 	assert.True(t, dynamic)
-	require.Len(t, envelope.Config.Filters, 1)
-	assert.Equal(t, "dynamic-a", envelope.Config.Filters[0].TestConfigID)
+	require.Len(t, filters, 1)
+	assert.Equal(t, connfilter.Config{
+		Type:                connfilter.FilterTypeInclude,
+		MatchDomain:         "api.example.com",
+		MatchDomainStrategy: connfilter.MatchDomainStrategyRegex,
+		MatchIP:             "10.0.0.1",
+		TestConfigID:        "dynamic-a",
+	}, filters[0])
 }
 
 func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCollectorImpl {
