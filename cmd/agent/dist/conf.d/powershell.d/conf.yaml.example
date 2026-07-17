@@ -18,7 +18,10 @@
 #   ##   version: 1                    # required; only version 1 is supported
 #   ##   allowed_cmdlets:              # required; must contain at least one cmdlet
 #   ##     <Get-Cmdlet>:               # key: a read-only Get-* cmdlet name (Get-<Noun>)
-#   ##       module: <ModuleName>      # optional; informational only (NOT enforced yet)
+#   ##       module: <ModuleName>      # required; the cmdlet must resolve to this
+#   ##                                 # module at runtime (rejects a shadowing
+#   ##                                 # function). Must match (Get-Command <cmdlet>).ModuleName.
+#   ##                                 # Use "*" to explicitly skip the module check.
 #   ##       parameters:               # optional; the parameters an instance may pass
 #   ##         <ParameterName>:        # parameter name ([A-Za-z0-9_]); an instance `filter`
 #   ##           required: <bool>      # optional (default false); instance must pass it

@@ -14,7 +14,7 @@ import (
 )
 
 func TestBuildCommandBasic(t *testing.T) {
-	script, err := buildCommand("Get-ClusterNode",
+	script, err := buildCommand("Get-ClusterNode", "",
 		[]filterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
 		[]string{"Id", "Name", "NodeWeight"})
 	require.NoError(t, err)
@@ -23,15 +23,36 @@ func TestBuildCommandBasic(t *testing.T) {
 	assert.Contains(t, script, "if ($c.Verb -ne 'Get')")
 	assert.Contains(t, script, "$p = @{Cluster = 'PROD-CL01'}")
 	assert.Contains(t, script, "Select-Object Id,Name,NodeWeight")
-	// -InputObject @(...) forces a JSON array for any row count.
-	assert.Contains(t, script, "ConvertTo-Json -Depth 8 -Compress -InputObject @(& 'Get-ClusterNode' @p")
+	// -InputObject @(...) forces a JSON array for any row count, and it invokes the
+	// validated command object ($c) rather than the name.
+	assert.Contains(t, script, "ConvertTo-Json -Depth 8 -Compress -InputObject @(& $c @p")
+	// No module pinned -> no module check emitted.
+	assert.NotContains(t, script, "$c.ModuleName")
+}
+
+func TestBuildCommandModuleCheck(t *testing.T) {
+	script, err := buildCommand("Get-Service", "Microsoft.PowerShell.Management",
+		[]filterEntry{{Name: "Name", Value: "Dnscache"}}, []string{"Status"})
+	require.NoError(t, err)
+
+	// The module pin is enforced at runtime against the resolved command.
+	assert.Contains(t, script, "if ($c.ModuleName -ne 'Microsoft.PowerShell.Management')")
+	assert.Contains(t, script, "@(& $c @p")
+}
+
+func TestBuildCommandModuleWildcardSkipsCheck(t *testing.T) {
+	// "*" is the explicit opt-out: no module check is emitted.
+	script, err := buildCommand("Get-Service", "*", nil, []string{"Status"})
+	require.NoError(t, err)
+	assert.NotContains(t, script, "$c.ModuleName")
+	assert.Contains(t, script, "@(& $c @p")
 }
 
 // The core security property: a hostile parameter value must remain inside a
 // single-quoted literal and never reach an executable position.
 func TestBuildCommandInjectionSafe(t *testing.T) {
 	hostile := `PROD-CL01'; Remove-Item C:\ -Recurse #`
-	script, err := buildCommand("Get-ClusterNode",
+	script, err := buildCommand("Get-ClusterNode", "",
 		[]filterEntry{{Name: "Cluster", Value: hostile}},
 		nil)
 	require.NoError(t, err)
@@ -43,13 +64,13 @@ func TestBuildCommandInjectionSafe(t *testing.T) {
 }
 
 func TestBuildCommandRejectsBadIdentifiers(t *testing.T) {
-	_, err := buildCommand("Get-X", []filterEntry{{Name: "Bad Name", Value: "x"}}, nil)
+	_, err := buildCommand("Get-X", "", []filterEntry{{Name: "Bad Name", Value: "x"}}, nil)
 	assert.Error(t, err)
 
-	_, err = buildCommand("Get-X", nil, []string{"Bad Prop"})
+	_, err = buildCommand("Get-X", "", nil, []string{"Bad Prop"})
 	assert.Error(t, err)
 
-	_, err = buildCommand("Remove-Item", nil, nil)
+	_, err = buildCommand("Remove-Item", "", nil, nil)
 	assert.Error(t, err)
 }
 
