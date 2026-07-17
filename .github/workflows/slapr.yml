@@ -31,3 +31,11 @@ jobs:
         slack-channel-id: ${{ vars.DEFAULT_CHANNEL_ID }}
         bot-user-id: ${{ vars.SLAPR_BOT_ID }}
         emoji-approved: done
+    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # 1.1.0
+      # Re-run the job without the review map to put the emoji on backport PRs in #agent-release-sync
+      with:
+        github-token: ${{ steps.octo-sts.outputs.token }}
+        slack-api-token: ${{ secrets.SLACK_SLAPR_BOT_TOKEN }}
+        slack-channel-id: ${{ vars.AGENT_RELEASE_SYNC_CHANNEL_ID }}
+        bot-user-id: ${{ vars.SLAPR_BOT_ID }}
+        emoji-approved: done
