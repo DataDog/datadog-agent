@@ -199,7 +199,12 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 // runCmdlet builds the injection-safe command, spawns a one-shot powershell.exe
 // under a timeout with a restricted environment, and parses the JSON output.
 func (c *PowershellCheck) runCmdlet(cmdlet string, filters []filterEntry, selectProps []string) ([]map[string]interface{}, error) {
-	script, err := buildCommand(cmdlet, filters, selectProps)
+	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
+	var module string
+	if c.allowlist != nil {
+		module = c.allowlist.AllowedCmdlets[cmdlet].Module
+	}
+	script, err := buildCommand(cmdlet, module, filters, selectProps)
 	if err != nil {
 		return nil, err
 	}

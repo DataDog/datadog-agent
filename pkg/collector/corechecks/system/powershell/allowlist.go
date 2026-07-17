@@ -61,6 +61,11 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 		if err := validateGetCmdletName(name); err != nil {
 			return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
 		}
+		// module is required so every allowlisted cmdlet is pinned to a module by
+		// default. Use "*" to explicitly opt out of the module check.
+		if strings.TrimSpace(cmd.Module) == "" {
+			return nil, fmt.Errorf("allowlist entry %q: module is required (use \"*\" to skip the module check)", name)
+		}
 		for pName, p := range cmd.Parameters {
 			if err := validateIdentifier("parameter", pName); err != nil {
 				return nil, fmt.Errorf("allowlist entry %q: %w", name, err)

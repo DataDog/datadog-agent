@@ -50,9 +50,12 @@ func validateIdentifier(kind, name string) error {
 // Security: the cmdlet name and every parameter/property name are validated
 // identifiers; every parameter *value* is encoded as a PowerShell single-quoted
 // literal via powershellLiteral, so hostile values can never escape into an
-// executable position. A verb re-check runs inside the command as defense in
-// depth.
-func buildCommand(cmdlet string, filters []filterEntry, selectProps []string) (string, error) {
+// executable position. As defense in depth, the command re-resolves the cmdlet
+// and, at runtime, re-checks its verb and (when module is non-empty) that it
+// resolves to the expected module, then invokes the resolved command object
+// itself — so it runs exactly what was validated, not whatever the name might
+// re-resolve to (e.g. a shadowing function from an untrusted module).
+func buildCommand(cmdlet, module string, filters []filterEntry, selectProps []string) (string, error) {
 	if err := validateGetCmdletName(cmdlet); err != nil {
 		return "", err
 	}
@@ -67,6 +70,12 @@ func buildCommand(cmdlet string, filters []filterEntry, selectProps []string) (s
 	// Defense in depth: resolve the command and re-check the verb at runtime.
 	fmt.Fprintf(&b, "$c = Get-Command -Name %s -ErrorAction Stop\n", singleQuote(cmdlet))
 	b.WriteString("if ($c.Verb -ne 'Get') { throw 'powershell check: not a read-only Get- cmdlet' }\n")
+	// The allowlist pins each cmdlet to a module; require it to resolve to that
+	// module, which rejects a same-named function shadowing the cmdlet from an
+	// untrusted module. "*" is the explicit opt-out and skips the check.
+	if module != "" && module != "*" {
+		fmt.Fprintf(&b, "if ($c.ModuleName -ne %s) { throw 'powershell check: cmdlet resolved to an unexpected module' }\n", singleQuote(module))
+	}
 
 	// Build the splat table. Keys are validated identifiers; values are safe literals.
 	b.WriteString("$p = @{")
@@ -89,7 +98,9 @@ func buildCommand(cmdlet string, filters []filterEntry, selectProps []string) (s
 	// ConvertTo-Json unrolls it, so a single row would serialize as a bare object.
 	// -InputObject @(...) reliably emits a JSON array for 0, 1, or N rows in
 	// Windows PowerShell 5.1 (which has no ConvertTo-Json -AsArray).
-	fmt.Fprintf(&b, "ConvertTo-Json -Depth 8 -Compress -InputObject @(& %s @p", singleQuote(cmdlet))
+	// Invoke the validated command object ($c) rather than the name, so we run
+	// exactly what was verified above.
+	b.WriteString("ConvertTo-Json -Depth 8 -Compress -InputObject @(& $c @p")
 	if len(selectProps) > 0 {
 		fmt.Fprintf(&b, " | Select-Object %s", strings.Join(selectProps, ","))
 	}

@@ -115,6 +115,7 @@ func TestValidateInstanceRequiredParam(t *testing.T) {
 version: 1
 allowed_cmdlets:
   Get-Thing:
+    module: ThingModule
     parameters:
       Scope: { required: true }
 `))
@@ -127,4 +128,14 @@ allowed_cmdlets:
 		Cmdlet:  "Get-Thing",
 		Filters: []filterEntry{{Name: "Scope", Value: "all"}},
 	}))
+}
+
+func TestParseAllowlistRequiresModule(t *testing.T) {
+	// A cmdlet entry without a module is rejected (strict, secure-by-default).
+	_, err := parseAllowlist([]byte("version: 1\nallowed_cmdlets:\n  Get-Service:\n    parameters:\n      Name: {}\n"))
+	assert.Error(t, err)
+
+	// "*" is the explicit opt-out and is accepted.
+	_, err = parseAllowlist([]byte("version: 1\nallowed_cmdlets:\n  Get-Service:\n    module: \"*\"\n"))
+	assert.NoError(t, err)
 }
