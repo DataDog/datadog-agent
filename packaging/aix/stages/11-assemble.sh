@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../lib/env.sh"
 
-STAGE_NAME="10-assemble"
+STAGE_NAME="11-assemble"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")

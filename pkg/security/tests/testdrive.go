@@ -15,11 +15,12 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/freddierice/go-losetup"
 )
 
 type testDrive struct {
+	t     testing.TB
 	file  *os.File
 	dev   *losetup.Device
 	mount *testMount
@@ -122,6 +123,7 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 	}
 
 	return &testDrive{
+		t:     tb,
 		file:  backingFile,
 		dev:   loopback,
 		mount: mount,
@@ -143,7 +145,7 @@ func (td *testDrive) DetachDevice() error {
 		if err := td.dev.Detach(); err != nil {
 			return err
 		}
-		if err := retry.Do(td.dev.Remove); err != nil {
+		if err := retry(td.t, td.dev.Remove, backoff.WithMaxTries(10)); err != nil {
 			return err
 		}
 	}
