@@ -1,8 +1,6 @@
 ---
 name: Slack emoji Backport PR updates
 on:
-  pull_request_review:
-    types: [submitted]
   pull_request:
     types: [closed]
     branches:
