@@ -26,7 +26,10 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -114,6 +117,7 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(option.None[workloadmeta.Component]()),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -508,6 +512,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(option.None[workloadmeta.Component]()),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),

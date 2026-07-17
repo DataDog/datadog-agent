@@ -28,6 +28,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 )
 
 // ModuleDeps carries the dependencies available to every issue module.
@@ -36,6 +37,10 @@ type ModuleDeps struct {
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component
 	Hostname       hostnameinterface.Component
+	// SelfIdent scopes issue ids by this agent's DaemonSet uid when
+	// resolvable, so cluster-distributed template issues collapse across
+	// every node agent instead of reporting once per host.
+	SelfIdent *selfident.SelfIdent
 }
 
 // ModuleFactory is a function that creates a new Module instance

@@ -10,6 +10,7 @@ import (
 	"context"
 	"expvar"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkloadfailure"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
@@ -78,17 +81,19 @@ type CheckScheduler struct {
 	shadowSenderCancel  context.CancelFunc
 	shadowCoreLoader    check.Loader
 	infraTagger         *infratags.Tagger // nil = no infra mode tagging
+	healthPlatform      option.Option[healthplatformdef.Component]
 	m                   sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component, healthPlatform option.Option[healthplatformdef.Component]) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 		infraTagger:    infratags.NewTagger(setup.Datadog()),
+		healthPlatform: healthPlatform,
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -265,12 +270,63 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 				concatErr.WriteString("; ")
 			}
 			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
+			s.reportCheckLoadFailure(config.Name, concatErr.String())
 		} else {
 			errorStats.removeLoaderErrors(config.Name)
+			s.resolveCheckLoadFailure(config.Name)
 		}
 	}
 
 	return checks, nil
+}
+
+// checkLoadFailureIssueID derives the health-issue id for a check-load
+// failure on the given config name, scoped to hp's issue discriminator (the
+// agent's DaemonSet uid when resolvable, so identical failures across a
+// cluster collapse into one issue).
+func checkLoadFailureIssueID(hp healthplatformdef.Component, configName string) string {
+	h := fnv.New64a()
+	fmt.Fprintf(h, "%s\x00%s", hp.IssueDiscriminator(""), configName)
+	return fmt.Sprintf("%s:%016x", checkloadfailure.IssueID, h.Sum64())
+}
+
+// reportCheckLoadFailure reports a health-platform issue for a check that
+// failed to load through every configured loader. No-op when the health
+// platform is unavailable or the feature is disabled.
+func (s *CheckScheduler) reportCheckLoadFailure(configName, errMsg string) {
+	hp, ok := s.healthPlatform.Get()
+	if !ok || !setup.Datadog().GetBool("health_platform.check_load_failure.enabled") {
+		return
+	}
+	issue, err := checkloadfailure.NewCheckLoadFailureIssue().BuildIssue(map[string]string{
+		"check_name": configName,
+		"errors":     errMsg,
+	})
+	if err != nil {
+		log.Debugf("Unable to build check-load-failure issue for '%s': %v", configName, err)
+		return
+	}
+	issue.Id = checkLoadFailureIssueID(hp, configName)
+	if err := hp.ReportIssue(issue); err != nil {
+		log.Debugf("Unable to report check-load-failure issue for '%s': %v", configName, err)
+	}
+}
+
+// resolveCheckLoadFailure clears a previously reported check-load-failure
+// issue for configName. No-op when the health platform is unavailable or no
+// such issue is active.
+//
+// Because the issue id is scoped by IssueDiscriminator (see
+// comp/healthplatform/README.md, "Cluster-wide issue collapse") rather than
+// hostname, the first agent in the DaemonSet to recover clears the issue for
+// every other node still affected — correct for a shared fix, but it can
+// flap if only some agents recover.
+func (s *CheckScheduler) resolveCheckLoadFailure(configName string) {
+	hp, ok := s.healthPlatform.Get()
+	if !ok {
+		return
+	}
+	hp.ResolveIssue(checkLoadFailureIssueID(hp, configName))
 }
 
 func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, bool) {

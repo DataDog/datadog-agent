@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
@@ -346,6 +348,7 @@ func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
 		option.None[integrations.Component](),
 		nil,
 		nil,
+		option.None[healthplatformdef.Component](),
 	)
 
 	assert.Nil(t, s.shadowSenderContext)
@@ -602,4 +605,74 @@ func TestSchedule_AllChecksAllowed(t *testing.T) {
 	for i, c := range configs {
 		assert.Equal(t, c.Name, mockCollector.RunCheckCalls[i].(*MockCheck).Name)
 	}
+}
+
+// AlwaysFailLoader is a check.Loader whose Load always errors, simulating a
+// check with a broken loader-time prerequisite (missing binary, bad config, ...).
+type AlwaysFailLoader struct{}
+
+func (l *AlwaysFailLoader) Name() string {
+	return "always-fail"
+}
+
+func (l *AlwaysFailLoader) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
+	return nil, errors.New("simulated loader failure")
+}
+
+func TestGetChecksFromConfigsReportsAndResolvesCheckLoadFailure(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("health_platform.check_load_failure.enabled", true)
+
+	reporter := storemock.New(t)
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		healthPlatform: option.New[healthplatformdef.Component](reporter),
+	}
+	s.addLoader(&AlwaysFailLoader{})
+
+	config := integration.Config{
+		Name:       "broken_check",
+		Instances:  []integration.Data{integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	// Every loader fails: an issue must be reported.
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, false)
+	assert.Empty(t, checks)
+	count, issues := reporter.GetAllIssues()
+	require.Equal(t, 1, count)
+	for _, issue := range issues {
+		assert.Equal(t, "Check Load Failure", issue.GetIssueName())
+	}
+
+	// Swap in a loader that succeeds: the issue must be resolved.
+	s.loaders = nil
+	s.addLoader(&MockCoreLoader{})
+	checks = s.GetChecksFromConfigs([]integration.Config{config}, false)
+	assert.Len(t, checks, 1)
+	count, _ = reporter.GetAllIssues()
+	assert.Zero(t, count)
+	assert.Len(t, reporter.ResolvedIDs(), 1)
+}
+
+func TestGetChecksFromConfigsSkipsCheckLoadFailureReportingWhenDisabled(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("health_platform.check_load_failure.enabled", false)
+
+	reporter := storemock.New(t)
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		healthPlatform: option.New[healthplatformdef.Component](reporter),
+	}
+	s.addLoader(&AlwaysFailLoader{})
+
+	config := integration.Config{
+		Name:       "broken_check",
+		Instances:  []integration.Data{integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	s.GetChecksFromConfigs([]integration.Config{config}, false)
+	count, _ := reporter.GetAllIssues()
+	assert.Zero(t, count, "no issue should be reported when the feature flag is disabled")
 }

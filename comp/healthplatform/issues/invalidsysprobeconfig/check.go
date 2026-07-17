@@ -16,6 +16,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,20 +25,23 @@ import (
 
 // checker validates the customer-provided system-probe config against the schema.
 type checker struct {
-	cfg      sysprobeconfig.Component
-	hostname hostnameinterface.Component
+	cfg       sysprobeconfig.Component
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
-func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component) *checker {
-	return &checker{cfg: cfg, hostname: hostname}
+func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
 }
 
-// instanceIssueID scopes IssueID to this host and config file so the recommendations
-// service (which keys on orgID + issueID, ignoring hostname) keeps per-host violations
-// distinct instead of collapsing them into a single case.
+// instanceIssueID scopes IssueID to this agent's discriminator (the owning
+// DaemonSet's uid when resolvable, else the hostname) and config file, so the
+// recommendations service (which keys on orgID + issueID, ignoring hostname)
+// collapses cluster-distributed template violations into one case instead of
+// one per host, while still keeping distinct config files distinct.
 func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", c.hostname.GetSafe(context.Background()), c.cfg.ConfigFileUsed())
+	fmt.Fprintf(h, "%s\x00%s", c.selfIdent.IssueDiscriminator(c.hostname.GetSafe(context.Background())), c.cfg.ConfigFileUsed())
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 

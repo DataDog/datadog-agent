@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -24,12 +25,13 @@ import (
 
 // checker validates the merged in-memory config against the schema.
 type checker struct {
-	cfg      config.Component
-	hostname hostnameinterface.Component
+	cfg       config.Component
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
-func newChecker(cfg config.Component, hostname hostnameinterface.Component) *checker {
-	return &checker{cfg: cfg, hostname: hostname}
+func newChecker(cfg config.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
 }
 
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
@@ -73,20 +75,29 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}, nil
 }
 
-// instanceIssueID scopes IssueID to this host and config file. Without this,
-// two hosts in the same org validating the same config file (or, on one host,
-// the agent and cluster-agent validating their own distinct config files)
-// would all report the bare IssueID: downstream aggregation keys recommendations
-// on (org, IssueID) alone and would collapse them into a single case.
+// instanceIssueID scopes IssueID to this agent's discriminator and config
+// file. Without this, two hosts in the same org validating the same config
+// file (or, on one host, the agent and cluster-agent validating their own
+// distinct config files) would all report the bare IssueID: downstream
+// aggregation keys recommendations on (org, IssueID) alone and would collapse
+// them into a single case.
+//
+// The discriminator is this agent's owning DaemonSet uid when resolvable
+// (selfIdent.IssueDiscriminator), so that a config file distributed by that
+// DaemonSet to every node agent collapses into one case instead of one per
+// host — a deliberate inversion of the default per-host scoping, since the
+// underlying cause and fix are shared across the whole DaemonSet. It falls
+// back to the hostname on non-Kubernetes agents, preserving today's per-host
+// behavior there.
 //
 // Uses a 64-bit digest rather than 32-bit: at 32 bits, an org with ~10k
-// distinct host/config-path pairs would already have a ~1% chance of two of
-// them colliding (birthday bound), silently recreating the exact aggregation
-// bug this ID scoping exists to fix. At 64 bits that probability is ~2.7e-12
-// at the same fleet size — negligible at any realistic scale.
+// distinct discriminator/config-path pairs would already have a ~1% chance
+// of two of them colliding (birthday bound), silently recreating the exact
+// aggregation bug this ID scoping exists to fix. At 64 bits that probability
+// is ~2.7e-12 at the same fleet size — negligible at any realistic scale.
 func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", c.hostname.GetSafe(context.Background()), c.cfg.ConfigFileUsed())
+	fmt.Fprintf(h, "%s\x00%s", c.selfIdent.IssueDiscriminator(c.hostname.GetSafe(context.Background())), c.cfg.ConfigFileUsed())
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 

@@ -91,6 +91,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		noWorkloadmeta(),
 	)
 
 	const (
