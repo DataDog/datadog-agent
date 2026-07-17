@@ -89,7 +89,8 @@ func WithName(name string) ProvisionerOption {
 // WithAgentOptions adds options to the agent
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.agentOptions = opts
+		// Ensure non-nil so calling WithAgentOptions() (with zero opts) never disables agent deployment.
+		params.agentOptions = append([]kubernetesagentparams.Option{}, opts...)
 		params.agentOptionsSet = true
 		return nil
 	}
