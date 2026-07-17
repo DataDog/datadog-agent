@@ -61,6 +61,7 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+      Mirrored in pkg/procmgr/rust/src/config_gate/env_bindings.rs for procmgr config gates.
   dd_url:
     node_type: setting
     type: string
@@ -8748,6 +8749,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      Non-default env bindings for keys used by procmgr config gates are mirrored in
+      pkg/procmgr/rust/src/config_gate/env_bindings.rs.
   include_ephemeral_containers:
     node_type: setting
     type: boolean
