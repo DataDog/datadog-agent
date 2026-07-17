@@ -42,7 +42,6 @@ properties:
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
     - template_section:Common
-    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -1070,7 +1069,6 @@ properties:
 
           The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
           DD_PROXY_HTTP and DD_PROXY_HTTPS).
-        comment: Fips
       local_address:
         node_type: setting
         type: string
@@ -1266,8 +1264,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -1692,7 +1691,6 @@ properties:
     tags:
     - template_section:LogsAgent
     comment: |-
-      Logs Agent
       External Use: modify those parameters to configure the logs-agent.
       enable the logs-agent:
   logs_config:
@@ -2026,6 +2024,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2050,9 +2056,7 @@ properties:
             default: false
             visibility: public
             description: '[Preview] Enables Synthetics tests.'
-            comment: |-
-              Generic resources configuration
-              Synthetics configuration
+            comment: Synthetics configuration
           workers:
             node_type: setting
             type: integer
@@ -2180,7 +2184,6 @@ properties:
     description: Set this option to false to disable the Agent DogStatsD server.
     tags:
     - template_section:Dogstatsd
-    comment: Dogstatsd
   dogstatsd_port:
     node_type: setting
     type: integer
@@ -2222,6 +2225,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
   dogstatsd_origin_detection:
     node_type: setting
@@ -2457,6 +2461,170 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: How many workers are used by the no-aggregation pipeline.
+  metric_lookback:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the local metric lookback rings. The first supported DogStatsD use
+      case captures selected normal DogStatsD bucketed points/sketches and final
+      no-aggregation points by exact name. An optional monitor can forward retained
+      high-resolution ranges after a watched metric breaches its configured
+      short-window max-minus-min range threshold.
+    tags:
+    - template_section:Dogstatsd
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed
+          by enabled_checks.
+        tags:
+        - full-agent-only:true
+      enabled_checks:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        visibility: public
+        description: |-
+          Optional check-name allowlist for metric lookback shadow checks. When empty, all supported
+          checks are eligible.
+        tags:
+        - full-agent-only:true
+      capacity:
+        node_type: setting
+        type: integer
+        default: 262144
+        visibility: public
+        description: |-
+          Total number of records retained across each lookback ring's shards. Series points and
+          sketches use separate rings.
+      shard_count:
+        node_type: setting
+        type: integer
+        default: 16
+        visibility: public
+        description: Number of independent shards used by each lookback ring.
+      dogstatsd:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure exact-name DogStatsD admission into metric lookback.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          metric_names:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+              auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
+      monitor:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure a metric lookback monitor for egress.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          mode:
+            node_type: setting
+            type: string
+            default: disabled
+            visibility: public
+            description: |-
+              Controls monitor operation. Valid values are:
+                - disabled: do not run the monitor or monitor-driven egress.
+                - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+                - enabled: run the monitor and let monitor decisions control egress.
+          metric_name:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: Exact metric name watched by the monitor.
+          evaluation_interval:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Approximate width of each monitor evaluation window. Shorter windows can detect
+              breaches sooner; longer windows evaluate more retained points together.
+            tags:
+            - golang_type:duration
+          range_epsilon:
+            node_type: setting
+            type: number
+            default: 0
+            visibility: public
+            description: |-
+              Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
+              The monitor computes a window range as the maximum retained point value minus the minimum
+              retained point value in each completed evaluation window, or in each configured tag partition.
+              Egress forwards retained ranges after that window range is greater than this epsilon.
+            tags:
+            - golang_type:float64
+          partition_tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+              monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+              tuple independently and breaches if any partition exceeds range_epsilon.
+      egress:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure monitor-triggered egress ranges.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          pre_trigger_window:
+            node_type: setting
+            type: string
+            default: 0s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward before a breach or unknown monitor window.
+              This captures context before the monitor-triggering window.
+            tags:
+            - golang_type:duration
+          post_recovery_window:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward after the first healthy monitor window that
+              suppresses egress. The default approximates the previous two-healthy-window behavior.
+            tags:
+            - golang_type:duration
+      collection_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+        - full-agent-only:true
   statsd_forward_host:
     node_type: setting
     type: string
@@ -2811,9 +2979,7 @@ properties:
     description: Directory containing configuration templates for Autoconfig.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      Autoconfig
-      Where to look for check templates if no custom path is defined
+    comment: Where to look for check templates if no custom path is defined
   autoconf_config_files_poll:
     node_type: setting
     type: boolean
@@ -3391,9 +3557,7 @@ properties:
       If left empty, the CRI and Containerd checks are disabled.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      CRI
-      empty is disabled
+    comment: empty is disabled
   cri_connection_timeout:
     node_type: setting
     type: integer
@@ -3434,7 +3598,6 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
-    comment: Containerd
   containerd_namespaces:
     node_type: setting
     type: array
@@ -3480,7 +3643,6 @@ properties:
     example: <KUBLET_HOST>
     tags:
     - template_section:Kubelet
-    comment: Kubernetes
   kubernetes_http_kubelet_port:
     node_type: setting
     type: integer
@@ -4017,7 +4179,6 @@ properties:
           It should contain less than 100 characters and should not contain any of
           `<`, `>`, `\n`, `\t`, `\r` characters.
           This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
-        comment: Network Devices Monitoring
       default_scan:
         node_type: section
         type: object
@@ -4959,7 +5120,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Network Config Management
       metadata:
         node_type: section
         type: object
@@ -5077,9 +5237,7 @@ properties:
         visibility: public
         description: The number of concurrent workers used to perform reverse DNS
           lookups.
-        comment: |-
-          Data Observability
-          Reverse DNS Enrichment
+        comment: Reverse DNS Enrichment
       chan_size:
         node_type: setting
         type: integer
@@ -5753,7 +5911,6 @@ properties:
       items:
         type: string
       type: array
-    comment: Forwarder
   agent_ipc:
     node_type: section
     type: object
@@ -5879,6 +6036,10 @@ properties:
                 format: duration
                 tags:
                 - golang_type:duration
+              correlation_event_threshold:
+                node_type: setting
+                type: string
+                default: high
               correlation_events:
                 node_type: setting
                 type: boolean
@@ -6624,7 +6785,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Cloud Foundry
   cloud_foundry_buildpack:
     node_type: setting
     type: boolean
@@ -7020,7 +7180,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Data Plane
       log_file:
         node_type: setting
         type: string
@@ -7092,6 +7251,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      serializer_zstd_compressor_level:
+        node_type: setting
+        type: integer
+        default: 3
+        comment: |-
+          ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+          (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+          more efficient than the Agent. Forwarded to ADP over the config stream.
       stop_timeout:
         node_type: setting
         type: integer
@@ -7942,7 +8109,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Serializer
   enable_payloads:
     node_type: section
     type: object
@@ -9260,34 +9426,6 @@ properties:
     default: false
     tags:
     - full-agent-only:true
-  metric_lookback:
-    node_type: section
-    type: object
-    properties:
-      collection_interval:
-        node_type: setting
-        type: string
-        default: 1s
-        format: duration
-        tags:
-        - golang_type:duration
-        - full-agent-only:true
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        tags:
-        - full-agent-only:true
-      enabled_checks:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-        tags:
-        - full-agent-only:true
-    tags:
-    - full-agent-only:true
   metric_tag_filterlist:
     node_type: setting
     type: array
@@ -9499,7 +9637,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: Remote agents
           idle_timeout:
             node_type: setting
             type: string
@@ -9531,7 +9668,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Remote flags
   remote_policies:
     node_type: setting
     type: boolean
@@ -9776,7 +9912,6 @@ properties:
         default: false
         tags:
         - no-env
-        comment: Serverless Agent
       logs_enabled:
         node_type: setting
         type: boolean
@@ -10127,7 +10262,6 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Telemetry
           Enable telemetry metrics on the internals of the Agent.
           This create a lot of billable custom metrics.
       offlinereporter:
@@ -10324,7 +10458,9 @@ properties:
             format: duration
             tags:
             - golang_type:duration
-            comment: Remote process collector
+            comment: |-
+              The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
+              check is disabled.
       remote:
         node_type: section
         type: object

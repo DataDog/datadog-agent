@@ -110,18 +110,36 @@ func TestMetricLookbackDefaults(t *testing.T) {
 	assert.False(t, config.GetBool("metric_lookback.enabled"))
 	assert.Empty(t, config.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "disabled", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.0, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Empty(t, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 0*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestMetricLookbackEnvOverride(t *testing.T) {
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","disk"]`)
 	t.Setenv("DD_METRIC_LOOKBACK_COLLECTION_INTERVAL", "3s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_MODE", "dry_run")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_EVALUATION_INTERVAL", "10s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON", "0.05")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS", `["az","instance_type"]`)
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_PRE_TRIGGER_WINDOW", "5s")
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW", "20s")
 
 	config := newTestConf(t)
 
 	assert.True(t, config.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, config.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, 3*time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 10*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 5*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 20*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestMetricLookbackYAML(t *testing.T) {
@@ -132,11 +150,27 @@ metric_lookback:
   enabled_checks:
     - cpu
     - disk
+  monitor:
+    mode: dry_run
+    evaluation_interval: 15s
+    range_epsilon: 0.05
+    partition_tags:
+      - az
+      - instance_type
+  egress:
+    pre_trigger_window: 7s
+    post_recovery_window: 21s
 `)
 
 	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, 5*time.Second, cfg.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", cfg.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 15*time.Second, cfg.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, cfg.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, cfg.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 7*time.Second, cfg.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 21*time.Second, cfg.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -714,6 +748,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
@@ -956,6 +991,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.Equal(t, 3, cfg.GetInt("data_plane.serializer_zstd_compressor_level"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
@@ -1754,6 +1790,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 		{
 			name:         "darwin preserves true",
 			goos:         "darwin",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "aix preserves true",
+			goos:         "aix",
 			initialValue: true,
 			wantValue:    true,
 			wantSource:   pkgconfigmodel.SourceFile,

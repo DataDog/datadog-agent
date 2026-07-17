@@ -74,6 +74,11 @@ type Template interface {
 	// must equal the IssueName field in any proto Issue emitted by this module's checks.
 	IssueName() string
 
+	// IssueType returns the issue type. It must equal the IssueType field in any
+	// proto Issue emitted by this module's checks, and must equal IssueName()
+	// lowercased with spaces replaced by underscores (hyphens preserved).
+	IssueType() string
+
 	// BuildIssue creates a complete issue using the provided context.
 	BuildIssue(context map[string]string) (*healthplatform.Issue, error)
 }

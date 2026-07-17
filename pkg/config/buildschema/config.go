@@ -173,11 +173,6 @@ func (b *builder) GetAllSources(_ string) []model.ValueWithSource {
 	return nil
 }
 
-func (b *builder) GetSubfields(_ string) []string {
-	b.notImplemented()
-	return nil
-}
-
 func (b *builder) ConfigFileUsed() string {
 	b.notImplemented()
 	return ""
