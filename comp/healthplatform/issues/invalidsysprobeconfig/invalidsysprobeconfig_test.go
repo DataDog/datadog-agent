@@ -15,7 +15,10 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func testHostname(name string) hostnameinterface.Component {
@@ -23,9 +26,13 @@ func testHostname(name string) hostnameinterface.Component {
 	return hn
 }
 
+func testSelfIdent() *selfident.SelfIdent {
+	return selfident.New(option.None[workloadmeta.Component]())
+}
+
 // A valid system-probe setting passes the schema → no report.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h")).Run()
+	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
@@ -35,7 +42,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	reports, err := newChecker(cfg, testHostname("h")).Run()
+	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Regexp(t, `^invalid-system-probe-config:[0-9a-f]{16}$`, reports[0].IssueID)
@@ -49,9 +56,9 @@ func TestInstanceIssueID_UniquePerHost(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	a, err := newChecker(cfg, testHostname("host-a")).Run()
+	a, err := newChecker(cfg, testHostname("host-a"), testSelfIdent()).Run()
 	require.NoError(t, err)
-	b, err := newChecker(cfg, testHostname("host-b")).Run()
+	b, err := newChecker(cfg, testHostname("host-b"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, a, 1)
 	require.Len(t, b, 1)
@@ -90,7 +97,7 @@ func TestBuildIssue_LocksContract(t *testing.T) {
 // Without system-probe config the startup check must NOT register, or the bundle would
 // resolve a real persisted issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil, nil)}
+	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil, nil, testSelfIdent())}
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }
 
@@ -100,7 +107,7 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 		"system_probe_config.health_port": "not-an-integer",
 	})
 	dd := config.NewMock(t)
-	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp, testHostname("h"))}
+	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp, testHostname("h"), testSelfIdent())}
 
 	// Enabled (default) → violation surfaces.
 	reports, err := m.BuiltInStartupHealthCheck().Fn()

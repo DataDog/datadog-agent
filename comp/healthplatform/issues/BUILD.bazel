@@ -14,6 +14,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/runner/def",
+        "//comp/healthplatform/selfident",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )

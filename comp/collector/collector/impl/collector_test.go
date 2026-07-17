@@ -266,7 +266,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component](), option.None[healthplatform.Component]())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component](), option.None[healthplatform.Component](), suite.c.config)
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")

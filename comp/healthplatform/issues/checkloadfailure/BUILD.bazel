@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "checkloadfailure",
+    srcs = ["issue.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkloadfailure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+dd_agent_go_test(
+    name = "checkloadfailure_test",
+    srcs = ["issue_test.go"],
+    embed = [":checkloadfailure"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

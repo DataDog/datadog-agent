@@ -725,7 +725,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore, option.New(healthplatformComp))
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
 	ac.AddScheduler("check", checkScheduler, true)
 

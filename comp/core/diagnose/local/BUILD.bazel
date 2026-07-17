@@ -16,6 +16,7 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/forwarder/eventplatform/impl",
+        "//comp/healthplatform/store/def",
         "//comp/logs/integrations/def",
         "//pkg/aggregator",
         "//pkg/collector",
