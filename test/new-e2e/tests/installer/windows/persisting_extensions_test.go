@@ -255,6 +255,9 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
 
+	err = s.waitForAgentMSIInstalledState()
+	s.Require().NoError(err)
+
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {

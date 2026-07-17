@@ -92,6 +92,7 @@ dd_agent_go_test(
     name = "apm_inject_windows_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "datadog_agent_ddot_linux_test.go",
         "datadog_agent_eudm_windows_test.go",
     ],
     embed = [":packages"],

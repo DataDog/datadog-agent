@@ -125,7 +125,6 @@ use_repo(
     "com_github_aptly_dev_aptly",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
-    "com_github_avast_retry_go_v4",
     "com_github_aws_aws_sdk_go_v2",
     "com_github_aws_aws_sdk_go_v2_config",
     "com_github_aws_aws_sdk_go_v2_credentials",

@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -341,7 +341,7 @@ func TestEventProductTags(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("rule_tags_match")
 			if msg == nil {
 				return errors.New("not found")
@@ -350,7 +350,7 @@ func TestEventProductTags(t *testing.T) {
 			assert.Contains(t, msg.Tags, "tag:match")
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -216,6 +216,7 @@ func TestFromEnv(t *testing.T) {
 				os.Setenv(key, value)
 				defer os.Unsetenv(key)
 			}
+			tt.expected.FIPSMode = pkgfips.BuiltForFIPS()
 			result := FromEnv()
 			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})

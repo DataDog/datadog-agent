@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	retry "github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -876,12 +876,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
-		err := retry.Do(func() error {
+		err := retry(t, func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
 				return nil
 			}
 			return errors.New("No client connected, aborting")
-		}, retry.Delay(time.Second), retry.Attempts(120), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(120))
 		if err != nil {
 			return nil, err
 		}
@@ -1419,7 +1419,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		return nil, nil, err
 	}
 	var dump *activityDumpIdentifier
-	if err := retry.Do(func() error {
+	if err := retry(tm.t, func() error {
 		d, err := tm.GetDumpFromDocker(dockerInstance)
 		if err != nil {
 			return err
@@ -1429,7 +1429,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		}
 		dump = d
 		return nil
-	}, retry.Delay(time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay)); err != nil {
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(5)); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
@@ -1450,7 +1450,7 @@ func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd s
 	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
 
 	var dump *activityDumpIdentifier
-	if err := retry.Do(func() error {
+	if err := retry(tm.t, func() error {
 		dumps, err := tm.ListActivityDumps()
 		if err != nil {
 			return err
@@ -1464,7 +1464,7 @@ func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd s
 			}
 		}
 		return errors.New("CGroupID not found on activity dump list")
-	}, retry.Delay(time.Second*1), retry.Attempts(15), retry.DelayType(retry.FixedDelay)); err != nil {
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second*1)), backoff.WithMaxTries(15)); err != nil {
 		_, _ = systemd.stop()
 		return nil, nil, err
 	}

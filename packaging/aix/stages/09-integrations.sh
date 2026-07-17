@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../lib/env.sh"
 
-STAGE_NAME="08-integrations"
+STAGE_NAME="09-integrations"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -31,7 +31,7 @@ if [ ! -x "$PIP" ]; then
 fi
 
 if [ ! -f "$STAGING/constraints.txt" ]; then
-    log "ERROR: $STAGING/constraints.txt not found — Stage 07 (07-checks-base) must complete first"
+    log "ERROR: $STAGING/constraints.txt not found — Stage 08 (08-checks-base) must complete first"
     exit 1
 fi
 
@@ -42,7 +42,7 @@ cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed."
         log "       Common causes:"
-        log "         - Stage 07 constraints.txt missing: ensure Stage 07 completed"
+        log "         - Stage 08 constraints.txt missing: ensure Stage 08 completed"
         log "         - integrations-core check not found: verify INTEGRATIONS_CORE=$INTEGRATIONS_CORE"
         log "         - Network access required for any dep not yet in site-packages"
     fi
@@ -55,7 +55,7 @@ trap cleanup EXIT
 # also copy conf.yaml.default and conf.yaml.example from integrations-core if
 # they exist there. This provides the full documented configuration (e.g. snmp
 # has a rich conf.yaml.example in integrations-core but only an auto_conf.yaml
-# in the agent repo). Stage 10 copies agent-repo configs afterward, so
+# in the agent repo). Stage 11 copies agent-repo configs afterward, so
 # agent-repo files take precedence when both repos provide the same filename.
 
 AGENT_DIST_CONFD="$AGENT_SRC/bin/agent/dist/conf.d"
@@ -79,14 +79,14 @@ fi
 # ─── Step 2: Install Python checks from integrations-core ─────────────────────
 #
 # Install each check from the pinned integrations-core checkout.
-# --constraint pins all transitive deps to the exact versions frozen by Stage 07,
+# --constraint pins all transitive deps to the exact versions frozen by Stage 08,
 # matching the Linux omnibus approach and failing loudly if a dep is unavailable.
 # --find-links allows pip to locate native AIX wheels (pydantic-core, cryptography)
 # from the local cache if needed rather than hitting PyPI.
 #
 # IBM checks (ibm_mq, ibm_ace, ibm_db2, ibm_i) are installed regardless of
 # whether the corresponding C extension (pymqi, ibm_db, pyodbc) was built in
-# Stage 05. The check code installs successfully; it will surface a clear
+# Stage 06. The check code installs successfully; it will surface a clear
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 

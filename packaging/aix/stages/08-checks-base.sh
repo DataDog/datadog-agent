@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../lib/env.sh"
 
-STAGE_NAME="07-checks-base"
+STAGE_NAME="08-checks-base"
 SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
@@ -51,7 +51,7 @@ cleanup() {
         log "       Re-run after fixing the error by deleting the sentinel:"
         log "       rm $SENTINEL"
         log "       Common causes:"
-        log "         - Native deps (pydantic-core, cryptography) not installed: ensure Stage 05 and Stage 06 completed"
+        log "         - Native deps (pydantic-core, cryptography) not installed: ensure Stages 06 and 07 completed"
         log "         - Network access required for transitive pure-Python deps from PyPI"
         log "         - integrations-core not checked out: ensure INTEGRATIONS_CORE=$INTEGRATIONS_CORE is correct"
     fi
@@ -63,7 +63,7 @@ trap cleanup EXIT
 # Install datadog-checks-base from the pinned integrations-core checkout with
 # full dependency resolution. pip resolves all transitive pure-Python deps
 # (pyyaml, requests, prometheus_client, etc.) from PyPI. Native deps
-# (pydantic-core, cryptography) were already installed from Stages 05-06 at
+# (pydantic-core, cryptography) were already installed from Stages 06-07 at
 # satisfying versions; pip detects they satisfy the requirements and does not
 # attempt to download or rebuild them.
 
@@ -111,7 +111,7 @@ log "datadog-checks-base [deps] installed successfully"
 
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────
 #
-# Freeze the complete installed state into a constraints file. Stage 08 passes
+# Freeze the complete installed state into a constraints file. Stage 09 passes
 # this to every check install so pip pins all transitive deps to the exact same
 # versions rather than resolving to whatever is latest on PyPI at build time.
 # Any missing dep that has no AIX-compatible wheel will fail loudly here rather

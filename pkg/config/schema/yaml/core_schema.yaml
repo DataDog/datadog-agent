@@ -6036,6 +6036,10 @@ properties:
                 format: duration
                 tags:
                 - golang_type:duration
+              correlation_event_threshold:
+                node_type: setting
+                type: string
+                default: high
               correlation_events:
                 node_type: setting
                 type: boolean

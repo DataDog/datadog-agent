@@ -21,7 +21,7 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/require"
@@ -312,11 +312,11 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 
 	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		var err error
 		prodTags, err = getImagesTags("install.datadoghq.com/agent-package")
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return nil, err
 	}
@@ -325,11 +325,11 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	}
 	for _, url := range urls {
 		var version string
-		err := retry.Do(func() error {
+		err := b.retry(func() error {
 			var err error
 			version, err = getImageVersion(url)
 			return err
-		}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 		if err != nil {
 			return nil, err
 		}
@@ -358,13 +358,22 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	return cachedCatalog, nil
 }
 
+// retry retries fn until it succeeds or opts exhaust it.
+func (b *Backend) retry(fn func() error, opts ...backoff.RetryOption) error {
+	b.t().Helper()
+	_, err := backoff.Retry(b.t().Context(), func() (struct{}, error) {
+		return struct{}{}, fn()
+	}, opts...)
+	return err
+}
+
 func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
 	var originalPID int
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		var err error
 		originalPID, err = b.getDaemonPID()
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return "", err
 	}
@@ -372,7 +381,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 	if err != nil {
 		return "", err
 	}
-	err = retry.Do(func() error {
+	err = b.retry(func() error {
 		newPID, err := b.getDaemonPID()
 		if err != nil {
 			return err
@@ -381,7 +390,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(30), retry.Delay(15*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(30), backoff.WithBackOff(backoff.NewConstantBackOff(15*time.Second)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -429,10 +438,10 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 		return "", fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
 	}
 
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		_, err := b.host.RemoteHost.Execute(baseCommand + " rc-status")
 		return err
-	})
+	}, backoff.WithMaxTries(10))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to be ready: %w", err)
 	}

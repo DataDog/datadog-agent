@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 )
@@ -455,7 +455,7 @@ func TestSSHUserSession(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_ssh_user_session")
 			if msg == nil {
 				return errors.New("not found")
@@ -471,7 +471,7 @@ func TestSSHUserSession(t *testing.T) {
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 
 	})
@@ -548,7 +548,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_ssh_user_session")
 			if msg == nil {
 				return errors.New("not found")
@@ -565,7 +565,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 
 	})
@@ -667,7 +667,7 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 			t.Fatalf("Second SSH command failed: %v", err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_blocking_ssh_user_session")
 			if msg == nil {
 				return errors.New("not found")
@@ -681,7 +681,7 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 			}
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 
@@ -839,7 +839,7 @@ func TestSSHUserSessionSnapshot(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_ssh_user_session_snapshot")
 			if msg == nil {
 				return errors.New("not found")
@@ -853,7 +853,7 @@ func TestSSHUserSessionSnapshot(t *testing.T) {
 			}
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 }

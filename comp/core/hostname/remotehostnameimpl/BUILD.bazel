@@ -14,7 +14,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/hostname",
         "//pkg/util/log",
-        "@com_github_avast_retry_go_v4//:retry-go",
+        "@com_github_cenkalti_backoff_v6//:backoff",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@org_uber_go_fx//:fx",
     ],
