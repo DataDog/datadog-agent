@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.schema.add_comments import add_comments
-from tasks.schema.codegen_init_settings import run_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
 from tasks.schema.fixes import fix_schema
 from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.produce_byproduct import produce_byproduct
@@ -278,6 +278,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     tmpdir = tempfile.mkdtemp()
     run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
     run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_constant_codegen(core_schema, system_probe_schema, tmpdir)
 
     display = not check and not fix
 
@@ -300,6 +301,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     if fix:
         # Fix any differences by copying the codegen results into SETUP_INIT_DIR
         ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
+        ctx.run(f"cp {tmpdir}/*generated.go {SETUP_INIT_DIR}/")
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)
