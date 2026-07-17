@@ -2213,6 +2213,7 @@ properties:
   dogstatsd_socket:
     node_type: setting
     type: string
+    default: ''
     visibility: public
     description: |-
       Listen for Dogstatsd metrics on a Unix Socket (*nix only).
@@ -2223,10 +2224,6 @@ properties:
       Enabling this setting may result in unexpected behavior.
     tags:
     - template_section:Dogstatsd
-    platform_default:
-      linux: /var/run/datadog/dsd.socket
-      aix: /var/run/datadog/dsd.socket
-      other: ''
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -9247,11 +9244,7 @@ properties:
       type: string
     tags:
     - full-agent-only:true
-    comment: |-
-      Delegated authentication (global)
-      Cloud provider and region are auto-detected if not specified
-      Enabled automatically when org_uuid is specified
-      Filterlist
+    comment: Filterlist
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean

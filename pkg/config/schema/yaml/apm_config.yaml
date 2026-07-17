@@ -45,6 +45,7 @@ properties:
   receiver_socket:
     node_type: setting
     type: string
+    default: ''
     env_vars:
     - DD_APM_RECEIVER_SOCKET
     visibility: public
@@ -54,10 +55,6 @@ properties:
 
       Please note that UDS receiver is not available in Windows.
       Enabling this setting may result in unexpected behavior.
-    platform_default:
-      linux: /var/run/datadog/apm.socket
-      aix: /var/run/datadog/apm.socket
-      other: ''
   apm_non_local_traffic:
     node_type: setting
     type: boolean
