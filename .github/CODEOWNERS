@@ -270,6 +270,7 @@
 /cmd/agent/dist/conf.d/powershell.d/    @DataDog/windows-products
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
+/cmd/agent/dist/protected/              @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
 /cmd/agent/macos/                       @DataDog/windows-products
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
