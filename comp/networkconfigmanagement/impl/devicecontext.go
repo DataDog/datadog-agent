@@ -94,6 +94,6 @@ func (dc *DeviceContext) GetTags() []string {
 		"device_ip:" + dc.device.IPAddress,
 		"device_id:" + dc.device.DeviceID(),
 		"config_source:cli",
-		"profile:" + dc.profile.Name,
+		"profile:" + string(dc.profile.Name),
 	}
 }
