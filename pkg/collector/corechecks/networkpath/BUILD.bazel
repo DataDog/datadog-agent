@@ -26,7 +26,7 @@ go_library(
         "//pkg/networkpath/traceroute/config",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

@@ -22,7 +22,7 @@ go_library(
         "//test/e2e-framework/testing/utils/common",
         "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
         "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

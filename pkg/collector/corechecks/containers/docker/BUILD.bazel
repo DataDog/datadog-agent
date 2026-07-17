@@ -48,7 +48,7 @@ go_library(
         "@com_github_moby_moby_api//types/container",
         "@com_github_moby_moby_api//types/events",
         "@com_github_moby_moby_client//:client",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

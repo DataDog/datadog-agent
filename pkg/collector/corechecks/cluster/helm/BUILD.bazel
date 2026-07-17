@@ -26,7 +26,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/pointer",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//informers",

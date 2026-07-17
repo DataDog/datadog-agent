@@ -21,7 +21,7 @@ go_library(
         "//pkg/util/scrubber",
         "@com_github_google_cel_go//cel:go_default_library",
         "@com_github_twmb_murmur3//:murmur3",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -37,6 +37,6 @@ dd_agent_go_test(
         "//comp/core/workloadfilter/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

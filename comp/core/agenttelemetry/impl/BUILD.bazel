@@ -34,7 +34,7 @@ go_library(
         "@com_github_datadog_zstd//:zstd",
         "@com_github_prometheus_client_model//go",
         "@com_github_robfig_cron_v3//:cron",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
     ],
 )

@@ -14,7 +14,7 @@ go_library(
         "//pkg/networkpath/payload",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -30,6 +30,6 @@ dd_agent_go_test(
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

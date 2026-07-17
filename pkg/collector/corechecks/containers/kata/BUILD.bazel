@@ -29,7 +29,7 @@ go_library(
             "//pkg/metrics/servicecheck",
             "//pkg/util/option",
             "//pkg/util/prometheus",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/tagger/def",
@@ -78,7 +78,7 @@ go_library(
             "//pkg/metrics/servicecheck",
             "//pkg/util/option",
             "//pkg/util/prometheus",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/tagger/def",

@@ -32,7 +32,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/version",
         "@in_gopkg_yaml_v3//:yaml_v3",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/installinfo",
@@ -73,7 +73,6 @@ go_library(
             "//pkg/fleet/installer/packages/user/windows",
             "//pkg/fleet/installer/setup/config",
             "//pkg/util/winutil",
-            "@in_yaml_go_yaml_v3//:yaml",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",

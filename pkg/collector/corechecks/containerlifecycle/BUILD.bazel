@@ -35,7 +35,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_datadog_agent_payload_v5//contlcycle",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//proto",
     ],
 )

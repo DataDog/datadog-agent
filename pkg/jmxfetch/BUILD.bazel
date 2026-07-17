@@ -32,7 +32,7 @@ go_library(
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/net",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -53,6 +53,6 @@ go_test(
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
