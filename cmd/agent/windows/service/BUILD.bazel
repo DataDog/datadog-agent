@@ -8,8 +8,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//cmd/agent/common",
+            "//cmd/agent/subcommands/run",
             "//pkg/util/winutil/servicemain",
-            "@//cmd/agent/subcommands/run",
         ],
         "//conditions:default": [],
     }),
