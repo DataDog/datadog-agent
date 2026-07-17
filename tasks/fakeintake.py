@@ -13,10 +13,8 @@ from tasks.libs.common.go import go_build
 
 VERSION_FILE = "test/fakeintake/version/VERSION"
 
-# Paths whose changes rebuild the published fakeintake image (`go build
-# cmd/server/main.go`): only server/, aggregator/, api/ and the module/Dockerfile.
-# client/, cmd/client/ and docs/ do not enter the image, so they don't need a
-# bump. Keep in sync with .fakeintake_server_paths in .gitlab-ci.yml.
+# Paths that rebuild the published image (client/CLI/docs don't).
+# Keep in sync with .fakeintake_server_paths in .gitlab-ci.yml.
 SERVER_PATH_PREFIXES = (
     "test/fakeintake/cmd/server/",
     "test/fakeintake/server/",
@@ -96,10 +94,8 @@ def check_version_bump(ctx):
         new_version_raw = f.read()
     new_version = _parse_version(new_version_raw)
 
-    # The VERSION file may not exist at the merge-base yet — this is the case on the
-    # PR that first introduces the pinning scheme, and after any baseline reset.
-    # `git show` exits non-zero then, so use warn=True and treat a missing base file
-    # as version 0 so the initial bump (v1+) passes instead of crashing.
+    # VERSION may not exist at the merge-base (bootstrap PR / baseline reset), so
+    # warn=True and treat a missing base file as version 0 instead of crashing.
     base_version_result = ctx.run(f"git show {merge_base}:{VERSION_FILE}", hide=True, warn=True)
     base_version = _parse_version(base_version_result.stdout) if base_version_result.ok else 0
 

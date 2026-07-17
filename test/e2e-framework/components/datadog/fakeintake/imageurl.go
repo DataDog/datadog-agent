@@ -11,10 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/version"
 )
 
-// ImageURL returns the fakeintake image to deploy for the given registry-qualified
-// image name. It returns the FakeintakeImageOverride runner parameter when set (CI
-// points it at the freshly built server image on a fakeintake PR), otherwise the
-// pinned tag from test/fakeintake/version.
+// ImageURL returns the fakeintake image for the given registry-qualified image
+// name: the FakeintakeImageOverride runner parameter if set, else <image>:<version.Tag>.
 func ImageURL(image string) string {
 	if override, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.FakeintakeImageOverride, ""); err == nil && override != "" {
 		return override

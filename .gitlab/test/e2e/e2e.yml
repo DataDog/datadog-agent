@@ -138,12 +138,9 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
-# Any e2e job that deploys a fakeintake must wait for its image to publish.
-# On fakeintake PRs e2e runs against the v<sha> image (via
-# E2E_FAKEINTAKE_IMAGE_OVERRIDE) -> publish_fakeintake. On main it uses the pinned
-# tag -> publish_fakeintake_pinned. Both optional: absent on non-fakeintake
-# pipelines. Reference this from every e2e needs block (directly or via
-# .needs_new_e2e_template) so no fakeintake-deploying job can race the image.
+# Wait for the fakeintake image to publish (v<sha> on PRs, pinned tag on main).
+# Both optional: absent on non-fakeintake pipelines. Reference from every e2e
+# needs block (directly or via .needs_new_e2e_template) so no job races the image.
 .needs_fakeintake_publish:
   - job: publish_fakeintake
     optional: true

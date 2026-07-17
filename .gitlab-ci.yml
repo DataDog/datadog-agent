@@ -475,13 +475,8 @@ variables:
     - .gitlab/deploy/container_build/fakeintake.yml
     - .gitlab/deploy/dev_container_deploy/fakeintake.yml
 
-# Subset of fakeintake changes that actually rebuild the published image. The
-# image is `go build cmd/server/main.go`, whose only in-module deps are server/
-# (incl. serverstore/, rcstore/), aggregator/ and api/. Changes to client/,
-# cmd/client/, docs/ or version/*.go do NOT change the image, so they must not
-# trigger a rebuild/publish or require a VERSION bump. version/VERSION is
-# included so a bump triggers the rebuild that publish_fakeintake_pinned needs.
-# Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# fakeintake changes that rebuild the published image (server binary only).
+# Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
     - test/fakeintake/cmd/server/**/*
@@ -945,14 +940,9 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
-  # A fakeintake *server* change rebuilds the image, so run e2e against the
-  # freshly built PR image (v<sha>) via the override instead of the pinned tag.
-  # This MUST come before the run-all / main / release / rc cases below: rules
-  # are first-match-wins, so those cases would otherwise match first (e.g. a
-  # fakeintake PR run with RUN_E2E_TESTS=on) and create the jobs without the
-  # override. Every e2e job inherits this base, so the override can never be
-  # missed. Requires publish_fakeintake in needs (see .needs_new_e2e_template)
-  # so the image exists before the job runs.
+  # A fakeintake server change rebuilds the image: run e2e against the built
+  # v<sha> image via the override. Must precede the run-all/main/release/rc cases
+  # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
   - changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
@@ -967,9 +957,8 @@ workflow:
     when: on_success
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
-  # Any other fakeintake change (client/, cmd/client/, docs/…) does not rebuild
-  # the image, but still compiles into the e2e test binaries — run e2e against
-  # the pinned image (no override) so the change is exercised.
+  # Other fakeintake changes (client/CLI/docs) don't rebuild the image but do
+  # compile into the test binaries — run e2e against the pinned image (no override).
   - changes:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
@@ -1513,10 +1502,8 @@ workflow:
         - .go-version
       compare_to: $COMPARE_TO_BRANCH
 
-# Gates build/publish/version-check jobs on changes that rebuild the image
-# (server only — see .fakeintake_server_paths). Image-consuming e2e jobs get
-# E2E_FAKEINTAKE_IMAGE_OVERRIDE from .on_e2e_main_release_or_rc instead (that base
-# is inherited by every e2e job), so it is not set here.
+# Gates build/publish/version-check jobs on image-rebuilding (server) changes.
+# The e2e override is set in .on_e2e_main_release_or_rc, not here.
 .on_fakeintake_changes:
   - changes:
       <<: *fakeintake_server_paths
