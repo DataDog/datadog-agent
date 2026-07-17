@@ -90,8 +90,9 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 Both paths share filtering primitives from `internal/logsfilter/`.
 
-Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
-and dropped before they reach observer storage.
+Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
+Only observer telemetry under `datadog.agent.observer.*` is dropped before it
+reaches observer storage, preventing an ingestion loop.
 
 ## Severity Events (Scorer Push Contract)
 
