@@ -202,6 +202,83 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             runtime_processes: runtime,
         }))
     }
+
+    async fn run_privileged_command(
+        &self,
+        request: Request<proto::RunPrivilegedCommandRequest>,
+    ) -> Result<Response<proto::RunPrivilegedCommandResponse>, Status> {
+        #[cfg(unix)]
+        {
+            let _ = request;
+            return Err(Status::unimplemented(
+                "RunPrivilegedCommand is not implemented on this platform",
+            ));
+        }
+
+        #[cfg(windows)]
+        {
+            if !crate::privileged::enabled() {
+                log::warn!("RunPrivilegedCommand denied: privileged commands are disabled");
+                return Err(Status::permission_denied(
+                    "privileged commands are disabled",
+                ));
+            }
+
+            let client_pid = client_pid_from_request(&request)?;
+            if !crate::peer_auth::authorize_par_caller(client_pid) {
+                log::warn!(
+                    "RunPrivilegedCommand denied: caller pid={client_pid} is not privateactionrunner"
+                );
+                return Err(Status::permission_denied("caller is not authorized"));
+            }
+
+            let req = request.into_inner();
+            log::info!(
+                "RunPrivilegedCommand request: peer_pid={client_pid}, command={}, args={:?}",
+                req.command,
+                req.args
+            );
+
+            let command = crate::privileged::catalog::validate(&req.command, &req.args, &req.env)
+                .map_err(|e| {
+                    log::warn!("RunPrivilegedCommand denied: catalog validation failed: {e:#}");
+                    Status::permission_denied(e.to_string())
+                })?
+                .to_string();
+            let args = req.args;
+            let env = req.env;
+            let output = tokio::task::spawn_blocking(move || {
+                crate::platform::run_privileged_command(&command, &args, &env)
+            })
+            .await
+            .map_err(|_| Status::internal("privileged command task failed"))?
+            .map_err(|e| {
+                log::error!("RunPrivilegedCommand execution failed: {e:#}");
+                Status::internal(e.to_string())
+            })?;
+
+            log::info!(
+                "RunPrivilegedCommand completed: peer_pid={client_pid}, exit_code={}",
+                output.exit_code
+            );
+
+            return Ok(Response::new(proto::RunPrivilegedCommandResponse {
+                exit_code: output.exit_code,
+                stdout: output.stdout,
+                stderr: output.stderr,
+            }));
+        }
+    }
+}
+
+#[cfg(windows)]
+fn client_pid_from_request<T>(request: &Request<T>) -> Result<u32, Status> {
+    request
+        .extensions()
+        .get::<crate::transport::PipeConnectInfo>()
+        .map(|info| info.client_pid)
+        .filter(|&pid| pid != 0)
+        .ok_or_else(|| Status::internal("missing named pipe peer info"))
 }
 
 impl From<ProcessState> for proto::ProcessState {

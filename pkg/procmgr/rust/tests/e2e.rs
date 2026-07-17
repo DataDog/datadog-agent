@@ -1954,7 +1954,7 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
     let sock = dir.path().join("daemon.sock");
-    let mut daemon = helpers::DaemonHandle::start(&config_dir, &sock);
+    let mut daemon = helpers::DaemonHandle::start(&config_dir, &sock, &[]);
     assert!(
         daemon.wait_for_log_default(
             "[datadog-agent-ddot] optional environment file not found, skipping"
@@ -1999,7 +1999,7 @@ fn test_ddot_template_skipped_when_binary_missing() {
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
     let sock = dir.path().join("daemon.sock");
-    let mut daemon = helpers::DaemonHandle::start(&config_dir, &sock);
+    let mut daemon = helpers::DaemonHandle::start(&config_dir, &sock, &[]);
     assert!(
         daemon.wait_for_log_default("[datadog-agent-ddot] condition_path_exists not met"),
         "daemon should skip ddot when otel-agent binary is missing"
@@ -2012,4 +2012,79 @@ fn test_ddot_template_skipped_when_binary_missing() {
 
     let status = daemon.stop();
     assert!(status.success());
+}
+
+// ---------------------------------------------------------------------------
+// run-privileged
+// ---------------------------------------------------------------------------
+
+#[cfg(unix)]
+#[test]
+fn test_cli_run_privileged_unimplemented_on_unix() {
+    let env = TestEnv::new()
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1")
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1")
+        .start();
+
+    env.cli(&[
+        "run-privileged",
+        "--command",
+        "cmd.exe",
+        "--args",
+        "/C",
+        "--args",
+        "whoami",
+    ])
+    .assert_failure()
+    .assert_stderr_contains("not implemented");
+}
+
+#[cfg(windows)]
+#[test]
+fn test_cli_run_privileged_denied_when_disabled() {
+    let env = TestEnv::new()
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1")
+        .start();
+
+    env.cli(&[
+        "run-privileged",
+        "--command",
+        "cmd.exe",
+        "--args",
+        "/C",
+        "--args",
+        "whoami",
+    ])
+    .assert_failure()
+    .assert_stderr_contains("PermissionDenied");
+}
+
+#[cfg(windows)]
+#[test]
+fn test_cli_run_privileged_executes_catalog_command() {
+    let env = TestEnv::new()
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1")
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1")
+        .start();
+
+    let out = env.cli(&[
+        "run-privileged",
+        "--json",
+        "--command",
+        "cmd.exe",
+        "--args",
+        "/C",
+        "--args",
+        "echo",
+        "--args",
+        "procmgr-privileged-ok",
+    ]);
+    out.assert_success();
+    let json = out.stdout_json();
+    assert_eq!(json["exit_code"], 0, "stdout: {}", out.stdout);
+    let stdout = json["stdout"].as_str().unwrap_or("");
+    assert!(
+        stdout.contains("procmgr-privileged-ok"),
+        "expected catalog echo output, got stdout={stdout:?}"
+    );
 }

@@ -55,6 +55,8 @@ windows-sys = { workspace = true, features = [
     "Win32_Security",
     "Win32_System_Registry",
     "Win32_Storage_FileSystem",
+    "Win32_System_Pipes",
+    "Win32_System_SystemServices",
 ] }
 
 [target.'cfg(unix)'.dev-dependencies]

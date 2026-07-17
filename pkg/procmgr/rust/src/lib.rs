@@ -9,7 +9,9 @@ pub mod env;
 pub mod grpc;
 pub mod manager;
 pub mod ordering;
+pub mod peer_auth;
 pub mod platform;
+pub mod privileged;
 pub mod process;
 #[cfg(windows)]
 pub mod service;

@@ -98,17 +98,43 @@ enum Commands {
     },
     /// Reload daemon configuration from disk
     Reload,
+    /// Run a catalog-approved command with elevated privileges.
+    ///
+    /// On Windows the daemon only accepts callers identified as
+    /// `privateactionrunner.exe`, or `dd-procmgr.exe` when the daemon has
+    /// `DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI=1`. Privileged execution must also
+    /// be enabled on the host via `DD_PM_PRIVILEGED_COMMANDS_ENABLED=1`.
+    RunPrivileged {
+        /// Executable path
+        #[arg(long)]
+        command: String,
+        /// Command arguments (repeatable)
+        #[arg(long, num_args = 1..)]
+        args: Vec<String>,
+        /// Environment variable KEY=VALUE (repeatable)
+        #[arg(long, value_name = "KEY=VALUE")]
+        env: Vec<String>,
+    },
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
     match run(cli).await {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(None) => ExitCode::SUCCESS,
+        Ok(Some(code)) => exit_code_to_exit_status(code),
         Err(e) => {
             eprintln!("Error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+fn exit_code_to_exit_status(code: i32) -> ExitCode {
+    if code == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from((code & 0xff) as u8)
     }
 }
 
@@ -123,17 +149,35 @@ async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<C
     Ok(ProcessManagerClient::new(channel))
 }
 
-async fn run(cli: Cli) -> Result<(), String> {
+async fn run(cli: Cli) -> Result<Option<i32>, String> {
     let mut client = connect(cli.socket.as_deref()).await?;
     let json = cli.json;
 
     match cli.command {
-        Commands::List => cmd_list(&mut client, json).await,
-        Commands::Describe { name_or_uuid } => cmd_describe(&mut client, &name_or_uuid, json).await,
-        Commands::Status => cmd_status(&mut client, json).await,
-        Commands::Config => cmd_config(&mut client, json).await,
-        Commands::Start { name_or_uuid } => cmd_start(&mut client, &name_or_uuid, json).await,
-        Commands::Stop { name_or_uuid } => cmd_stop(&mut client, &name_or_uuid, json).await,
+        Commands::List => {
+            cmd_list(&mut client, json).await?;
+            Ok(None)
+        }
+        Commands::Describe { name_or_uuid } => {
+            cmd_describe(&mut client, &name_or_uuid, json).await?;
+            Ok(None)
+        }
+        Commands::Status => {
+            cmd_status(&mut client, json).await?;
+            Ok(None)
+        }
+        Commands::Config => {
+            cmd_config(&mut client, json).await?;
+            Ok(None)
+        }
+        Commands::Start { name_or_uuid } => {
+            cmd_start(&mut client, &name_or_uuid, json).await?;
+            Ok(None)
+        }
+        Commands::Stop { name_or_uuid } => {
+            cmd_stop(&mut client, &name_or_uuid, json).await?;
+            Ok(None)
+        }
         Commands::Create {
             name,
             command,
@@ -169,9 +213,18 @@ async fn run(cli: Cli) -> Result<(), String> {
                 &after,
                 &before,
             )
-            .await
+            .await?;
+            Ok(None)
         }
-        Commands::Reload => cmd_reload(&mut client, json).await,
+        Commands::Reload => {
+            cmd_reload(&mut client, json).await?;
+            Ok(None)
+        }
+        Commands::RunPrivileged { command, args, env } => {
+            let env_map = parse_env_args(&env)?;
+            let exit_code = cmd_run_privileged(&mut client, json, &command, &args, env_map).await?;
+            Ok(Some(exit_code))
+        }
     }
 }
 
@@ -649,6 +702,53 @@ async fn cmd_create(
 }
 
 // ---------------------------------------------------------------------------
+// run-privileged
+// ---------------------------------------------------------------------------
+
+async fn cmd_run_privileged(
+    client: &mut ProcessManagerClient<Channel>,
+    json: bool,
+    command: &str,
+    args: &[String],
+    env: HashMap<String, String>,
+) -> Result<i32, String> {
+    let resp = client
+        .run_privileged_command(proto::RunPrivilegedCommandRequest {
+            command: command.to_string(),
+            args: args.to_vec(),
+            env,
+        })
+        .await
+        .map_err(grpc_err)?
+        .into_inner();
+
+    if json {
+        let val = serde_json::json!({
+            "exit_code": resp.exit_code,
+            "stdout": resp.stdout,
+            "stderr": resp.stderr,
+        });
+        println!("{}", serde_json::to_string_pretty(&val).unwrap());
+        return Ok(resp.exit_code);
+    }
+
+    println!("Exit code: {}", resp.exit_code);
+    if !resp.stdout.is_empty() {
+        print!("{}", resp.stdout);
+        if !resp.stdout.ends_with('\n') {
+            println!();
+        }
+    }
+    if !resp.stderr.is_empty() {
+        eprint!("{}", resp.stderr);
+        if !resp.stderr.ends_with('\n') {
+            eprintln!();
+        }
+    }
+    Ok(resp.exit_code)
+}
+
+// ---------------------------------------------------------------------------
 // reload
 // ---------------------------------------------------------------------------
 
@@ -789,5 +889,13 @@ mod tests {
         let err = parse_env_args(&args).unwrap_err();
         assert!(err.contains("INVALID"));
         assert!(err.contains("KEY=VALUE"));
+    }
+
+    #[test]
+    fn test_exit_code_to_exit_status() {
+        assert_eq!(exit_code_to_exit_status(0), ExitCode::SUCCESS);
+        assert_eq!(exit_code_to_exit_status(1), ExitCode::from(1));
+        assert_eq!(exit_code_to_exit_status(256), ExitCode::from(0));
+        assert_eq!(exit_code_to_exit_status(257), ExitCode::from(1));
     }
 }

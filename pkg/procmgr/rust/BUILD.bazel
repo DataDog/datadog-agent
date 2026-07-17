@@ -203,8 +203,9 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
-    # E2E tests use UDS for transport and spawn the Linux daemon binary.
-    target_compatible_with = ["@platforms//os:linux"],
+    # E2E tests spawn the daemon and exercise the CLI over IPC (UDS on Linux,
+    # named pipes on Windows).
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         ":dd-procmgrd-lib-testhelpers",
         "@crates//:serde_json",

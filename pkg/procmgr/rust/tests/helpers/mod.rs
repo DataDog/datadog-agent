@@ -30,7 +30,7 @@ pub struct DaemonHandle {
 impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
-    pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
+    pub fn start(config_dir: &Path, socket_path: &Path, extra_env: &[(&str, &str)]) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
 
         let mut cmd = Command::new(bin);
@@ -38,6 +38,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for (key, value) in extra_env {
+            cmd.env(key, value);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;
@@ -435,6 +438,7 @@ pub struct TestEnv {
     _dir: tempfile::TempDir,
     config_dir: PathBuf,
     socket_path: PathBuf,
+    daemon_env: Vec<(String, String)>,
     daemon: Option<DaemonHandle>,
 }
 
@@ -443,13 +447,20 @@ impl TestEnv {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let config_dir = dir.path().join("processes.d");
         std::fs::create_dir_all(&config_dir).expect("failed to create config dir");
-        let socket_path = dir.path().join("daemon.sock");
+        let socket_path = ipc_socket_path(&dir);
         Self {
             _dir: dir,
             config_dir,
             socket_path,
+            daemon_env: Vec::new(),
             daemon: None,
         }
+    }
+
+    /// Set an extra environment variable on the daemon process before [`Self::start`].
+    pub fn with_daemon_env(mut self, key: &str, value: &str) -> Self {
+        self.daemon_env.push((key.to_string(), value.to_string()));
+        self
     }
 
     /// Write a process YAML config into the config dir before starting.
@@ -465,7 +476,12 @@ impl TestEnv {
 
     /// Start the daemon and wait until gRPC is ready.
     pub fn start(mut self) -> Self {
-        let daemon = DaemonHandle::start(&self.config_dir, &self.socket_path);
+        let extra_env: Vec<(&str, &str)> = self
+            .daemon_env
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let daemon = DaemonHandle::start(&self.config_dir, &self.socket_path, &extra_env);
         assert!(
             daemon.wait_for_log_default("gRPC server listening on"),
             "daemon gRPC server should be ready"
@@ -522,6 +538,22 @@ impl Drop for TestEnv {
 // ---------------------------------------------------------------------------
 // Free functions
 // ---------------------------------------------------------------------------
+
+fn ipc_socket_path(dir: &tempfile::TempDir) -> PathBuf {
+    #[cfg(unix)]
+    {
+        dir.path().join("daemon.sock")
+    }
+    #[cfg(windows)]
+    {
+        let suffix = dir
+            .path()
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("test");
+        PathBuf::from(format!(r"\\.\pipe\dd-procmgr-e2e-{suffix}"))
+    }
+}
 
 fn spawn_log_reader<R: std::io::Read + Send + 'static>(
     stream: R,

@@ -1171,4 +1171,18 @@ mod tests {
             .into_inner();
         assert_eq!(resp.detail.unwrap().name, "svc-c");
     }
+
+    #[tokio::test]
+    async fn test_run_privileged_command_unimplemented_on_unix() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+        let status = client
+            .run_privileged_command(proto::RunPrivilegedCommandRequest {
+                command: "cmd.exe".to_string(),
+                args: vec!["/C".into(), "echo".into(), "hi".into()],
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+    }
 }

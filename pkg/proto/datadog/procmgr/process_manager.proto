@@ -18,6 +18,8 @@ service ProcessManager {
   rpc Stop (StopRequest) returns (StopResponse);
   rpc ReloadConfig (ReloadConfigRequest) returns (ReloadConfigResponse);
   rpc GetConfig (GetConfigRequest) returns (GetConfigResponse);
+  rpc RunPrivilegedCommand (RunPrivilegedCommandRequest)
+      returns (RunPrivilegedCommandResponse);
 }
 
 enum ProcessState {
@@ -152,4 +154,17 @@ message GetConfigResponse {
   string location = 2;
   uint32 loaded_processes = 3;
   uint32 runtime_processes = 4;
+}
+
+message RunPrivilegedCommandRequest {
+  string command = 1;
+  repeated string args = 2;
+  map<string, string> env = 3;
+  // reserve for later: task_id, approval_token
+}
+
+message RunPrivilegedCommandResponse {
+  int32 exit_code = 1;
+  string stdout = 2;
+  string stderr = 3;
 }

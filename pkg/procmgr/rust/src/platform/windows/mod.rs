@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod run_privileged;
+mod wide;
+
+pub(crate) use run_privileged::run_privileged_command;
+
 use anyhow::Result;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
@@ -309,6 +314,11 @@ fn default_install_root() -> PathBuf {
 
 fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
+}
+
+/// Agent install root from registry (`InstallPath`) or the Windows default layout.
+pub(crate) fn agent_install_root() -> PathBuf {
+    install_root()
 }
 
 /// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
