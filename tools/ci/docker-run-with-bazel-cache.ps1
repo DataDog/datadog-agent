@@ -20,12 +20,12 @@ if (-not (($acl = Get-Acl $diskCache).Access | Where-Object { -not $_.IsInherite
     Get-ChildItem $diskCache -Recurse | ForEach-Object { Set-Acl $_.FullName $acl }
 }
 & docker run --rm `
-    --storage-opt "size=100GB" `
     --env=BAZELISK_HOME `
     --env=BUILDBARN_ID_TOKEN `
     --env=CI `
     --env=XDG_CACHE_HOME `
-    --volume="${outputBase}:C:\bob" `
-    --volume="${env:XDG_CACHE_HOME}:${env:XDG_CACHE_HOME}" `
+    --mount="type=bind,src=${outputBase},dst=C:\bob" `
+    --mount="type=bind,src=${env:XDG_CACHE_HOME},dst=${env:XDG_CACHE_HOME}" `
+    --storage-opt=size=100GB `
     $args
 exit $LASTEXITCODE
