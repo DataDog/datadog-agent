@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,17 +155,26 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupTraceAgentTest(t)
+			// Disable the trace agent's HTTP receiver (apm_config.receiver_port: 0).
+			// This test only checks that the TracerPayloadModifier is wired up, which
+			// does not depend on the receiver. Binding a real TCP port pulls in
+			// FindTCPPort's close-then-rebind race and the receiver's fatal
+			// killProcess-on-bind-failure path, which made this test flaky in CI.
+			t.Setenv("DD_RECEIVER_PORT", "0")
+			configmock.New(t)
 
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 				Enabled:      true,
 				LoadConfig:   &LoadConfig{Path: "./testdata/valid.yml"},
 				FunctionTags: tt.functionTags,
+				// Wait for the agent to fully stop before the next subtest starts, so
+				// its goroutines never leak into and race with the following case.
+				StopTimeout: 30 * time.Second,
 			})
 			defer agent.Stop()
 
 			assert.NotNil(t, agent)
-			assert.IsType(t, &serverlessTraceAgent{}, agent)
+			require.IsType(t, &serverlessTraceAgent{}, agent)
 
 			// Access the underlying agent to check TracerPayloadModifier
 			serverlessAgent := agent.(*serverlessTraceAgent)
