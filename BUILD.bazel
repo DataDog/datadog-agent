@@ -64,7 +64,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/discovery
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
