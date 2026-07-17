@@ -10,6 +10,7 @@ package trace
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -158,6 +159,7 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_RECEIVER_PORT", "0")
+			t.Setenv("DD_APM_RECEIVER_SOCKET", filepath.Join(t.TempDir(), "apm.sock"))
 			configmock.New(t)
 
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
