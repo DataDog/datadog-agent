@@ -8,7 +8,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_ancestor_base_branch
+from tasks.libs.common.git import get_ancestor_base_branch, get_changed_files, get_common_ancestor
 from tasks.libs.common.go import go_build
 
 VERSION_FILE = "test/fakeintake/version/VERSION"
@@ -57,11 +57,12 @@ def check_version_bump(ctx):
     """
     base_branch = os.environ.get("COMPARE_TO_BRANCH") or get_ancestor_base_branch()
 
-    changed_files = [
-        f.strip()
-        for f in ctx.run(f"git diff --name-only {base_branch}...HEAD", hide=True).stdout.splitlines()
-        if f.strip()
-    ]
+    # Resolve the merge-base as a concrete commit. get_common_ancestor fetches the
+    # base ref when it is missing (CI does shallow clones with S3 caching), which a
+    # raw `git diff <base>...HEAD` cannot do — that fails with "unknown revision".
+    merge_base = get_common_ancestor(ctx, "HEAD", base_branch)
+
+    changed_files = [f.strip() for f in get_changed_files(ctx, base=merge_base) if f.strip()]
     fakeintake_changes = [f for f in changed_files if f.startswith("test/fakeintake/") and f != VERSION_FILE]
 
     if not fakeintake_changes:
@@ -72,11 +73,11 @@ def check_version_bump(ctx):
         new_version_raw = f.read()
     new_version = _parse_version(new_version_raw)
 
-    # The VERSION file may not exist on the base branch yet — this is the case on
-    # the PR that first introduces the pinning scheme, and after any baseline
-    # reset. `git show` exits non-zero then, so use warn=True and treat a missing
-    # base file as version 0 so the initial bump (v1+) passes instead of crashing.
-    base_version_result = ctx.run(f"git show {base_branch}:{VERSION_FILE}", hide=True, warn=True)
+    # The VERSION file may not exist at the merge-base yet — this is the case on the
+    # PR that first introduces the pinning scheme, and after any baseline reset.
+    # `git show` exits non-zero then, so use warn=True and treat a missing base file
+    # as version 0 so the initial bump (v1+) passes instead of crashing.
+    base_version_result = ctx.run(f"git show {merge_base}:{VERSION_FILE}", hide=True, warn=True)
     base_version = _parse_version(base_version_result.stdout) if base_version_result.ok else 0
 
     if new_version <= base_version:
