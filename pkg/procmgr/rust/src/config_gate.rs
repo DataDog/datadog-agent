@@ -208,8 +208,8 @@ impl YamlCache {
         }
         #[cfg(windows)]
         {
-            return Ok(crate::platform::fleet_policies_dir_fallback()
-                .map(|path| path.to_string_lossy().into_owned()));
+            Ok(crate::platform::fleet_policies_dir_fallback()
+                .map(|path| path.to_string_lossy().into_owned()))
         }
         #[cfg(not(windows))]
         {
