@@ -211,16 +211,23 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
 - `version.ImageURL(image)` (used by every fakeintake default in
   `test/e2e-framework`) returns `$FAKEINTAKE_IMAGE_OVERRIDE` if set, else
   `<image>:<Tag>`.
-- **When you change anything under `test/fakeintake/`** (other than
-  `version/VERSION` itself), **bump `version/VERSION` in the same PR** — it
-  must be a strictly greater integer than the base branch's value (e.g.
+- **Only server changes rebuild the image.** The image is
+  `go build cmd/server/main.go`, whose in-module deps are `server/`,
+  `aggregator/` and `api/`. So a bump/rebuild/publish is required only for
+  changes under those (plus `go.mod`/`go.sum`/`Dockerfile`) — see
+  `.fakeintake_server_paths` in `.gitlab-ci.yml` and `_is_server_file()` in
+  `tasks/fakeintake.py`. Changes to `client/`, `cmd/client/` or `docs/` do **not**
+  change the image and need no bump.
+- **When you change server-side fakeintake code**, **bump `version/VERSION` in
+  the same PR** — a strictly greater integer than the base branch's value (e.g.
   `v1` → `v2`). CI (`fakeintake_check_version_bump`, using
   `dda inv fakeintake.check-version-bump`) enforces this, including in the
   merge queue, so two PRs bumping to the same value can never collide.
-- **On your PR**, e2e suites don't need the bump to see your change: CI sets
-  `FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image whenever
-  `test/fakeintake/**` changes, and every suite now honors that override
-  globally — so your PR's fakeintake is exercised regardless of the pin.
+- **On your PR**, e2e suites don't need the bump to see a server change: CI sets
+  `FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
+  changes, and every suite honors that override globally. A client/CLI change
+  runs e2e against the pinned image (no override, no rebuild) so it is still
+  exercised.
 - **On merge to main**, `publish_fakeintake_pinned` publishes the image under
   the tag in `VERSION`. The pinned tag is a release artifact — it is published
   authoritatively from `main` only, never from feature branches. Other branches

@@ -13,6 +13,27 @@ from tasks.libs.common.go import go_build
 
 VERSION_FILE = "test/fakeintake/version/VERSION"
 
+# Paths whose changes rebuild the published fakeintake image (`go build
+# cmd/server/main.go`): only server/, aggregator/, api/ and the module/Dockerfile.
+# client/, cmd/client/ and docs/ do not enter the image, so they don't need a
+# bump. Keep in sync with .fakeintake_server_paths in .gitlab-ci.yml.
+SERVER_PATH_PREFIXES = (
+    "test/fakeintake/cmd/server/",
+    "test/fakeintake/server/",
+    "test/fakeintake/aggregator/",
+    "test/fakeintake/api/",
+)
+SERVER_FILES = (
+    "test/fakeintake/go.mod",
+    "test/fakeintake/go.sum",
+    "test/fakeintake/Dockerfile",
+)
+
+
+def _is_server_file(path: str) -> bool:
+    """True if changing `path` rebuilds the fakeintake image (needs a VERSION bump)."""
+    return path in SERVER_FILES or path.startswith(SERVER_PATH_PREFIXES)
+
 
 @task
 def build(ctx):
@@ -48,12 +69,14 @@ def _parse_version(raw: str) -> int:
 @task
 def check_version_bump(ctx):
     """
-    Ensure test/fakeintake/version/VERSION is bumped whenever fakeintake code changes.
+    Ensure test/fakeintake/version/VERSION is bumped whenever the fakeintake image changes.
 
     The pinned tag in VERSION is what e2e-framework's fakeintake defaults resolve to
-    (see test/fakeintake/version). Every merge that touches test/fakeintake/ must ship
-    a strictly greater VERSION than its base branch so the newly published image gets a
-    unique, immutable tag (see test/fakeintake/AGENTS.md).
+    (see test/fakeintake/version). Only server-side changes rebuild the published image
+    (see _is_server_file); such a merge must ship a strictly greater VERSION than its base
+    branch so the newly published image gets a unique, immutable tag (see
+    test/fakeintake/AGENTS.md). Client/CLI/docs changes don't touch the image, so they
+    don't require a bump.
     """
     base_branch = os.environ.get("COMPARE_TO_BRANCH") or get_ancestor_base_branch()
 
@@ -63,10 +86,10 @@ def check_version_bump(ctx):
     merge_base = get_common_ancestor(ctx, "HEAD", base_branch)
 
     changed_files = [f.strip() for f in get_changed_files(ctx, base=merge_base) if f.strip()]
-    fakeintake_changes = [f for f in changed_files if f.startswith("test/fakeintake/") and f != VERSION_FILE]
+    server_changes = [f for f in changed_files if _is_server_file(f)]
 
-    if not fakeintake_changes:
-        print(color_message("No test/fakeintake/ changes detected, VERSION bump not required", "green"))
+    if not server_changes:
+        print(color_message("No fakeintake image (server) changes detected, VERSION bump not required", "green"))
         return
 
     with open(VERSION_FILE) as f:
@@ -84,7 +107,7 @@ def check_version_bump(ctx):
         raise Exit(
             code=1,
             message=color_message(
-                f"test/fakeintake/ changed ({len(fakeintake_changes)} file(s), e.g. {fakeintake_changes[0]}) but "
+                f"fakeintake image changed ({len(server_changes)} server file(s), e.g. {server_changes[0]}) but "
                 f"{VERSION_FILE} was not bumped: it is 'v{new_version}', which must be strictly greater than "
                 f"{base_branch}'s 'v{base_version}'. Bump {VERSION_FILE} to at least 'v{base_version + 1}' in this PR.",
                 "red",
