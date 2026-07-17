@@ -62,15 +62,8 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
 # gazelle:exclude pkg/cli/subcommands/check
-# gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
 # gazelle:exclude pkg/collector/corechecks/oracle/*.go
-# gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
-# gazelle:exclude pkg/collector/corechecks/orchestrator/pod
 # gazelle:exclude pkg/commonchecks
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
