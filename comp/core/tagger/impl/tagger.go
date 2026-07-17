@@ -391,7 +391,7 @@ func (t *localTagger) AgentTags(cardinality types.TagCardinality) ([]string, err
 // RefreshGlobalTags forces the tagger to recompute global tags
 func (t *localTagger) RefreshGlobalTags(ctx context.Context) {
 	if t.collector != nil {
-		t.collector.CollectStaticGlobalTags(ctx, t.cfg)
+		t.collector.RefreshGlobalTags(ctx)
 	}
 }
 

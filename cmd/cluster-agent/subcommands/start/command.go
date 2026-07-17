@@ -436,8 +436,7 @@ func start(log log.Component,
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
 	}
 	if clusterID != "" {
-		// Tagger may have computed static global tags before the API server was ready.
-		// Refresh the static global tags to ensure they include orch cluster ID tag.
+		// Tagger may have computed static global tags before the cluster ID was available.
 		if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
 			refreshTags(mainCtx)
 		}
