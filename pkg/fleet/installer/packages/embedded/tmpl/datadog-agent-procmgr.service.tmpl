@@ -18,6 +18,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_PM_CONFIG_DIR={{.InstallDir}}/processes.d"
+Environment="DD_CONF_DIR={{.EtcDir}}"
 RuntimeDirectory=datadog-procmgrd
 ExecStart={{.InstallDir}}/embedded/bin/dd-procmgrd
 StartLimitInterval=10

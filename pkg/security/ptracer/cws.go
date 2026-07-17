@@ -21,7 +21,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -135,15 +135,9 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 		return nil, err
 	}
 
-	var client net.Conn
-	err = retry.Do(func() error {
-		client, err = net.DialTCP("tcp", nil, tcpAddr)
-		return err
-	}, retry.Delay(time.Second), retry.Attempts(nbAttempts), retry.DelayType(retry.FixedDelay))
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
+	return backoff.Retry(context.Background(), func() (net.Conn, error) {
+		return net.DialTCP("tcp", nil, tcpAddr)
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(nbAttempts))
 }
 
 func (ctx *CWSPtracerCtx) connectClient() error {

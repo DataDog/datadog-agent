@@ -19,6 +19,7 @@
 /.claude/agents/weed.md                          @DataDog/single-machine-performance
 /.claude/rules/allium.md                         @DataDog/single-machine-performance
 /.claude/rules/bazel.md                          @DataDog/agent-build
+/.claude/rules/msi.md                            @DataDog/windows-products
 /.agents/skills/codereview_guideline.md          @DataDog/agent-devx
 /.agents/skills/allium/                          @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/   @DataDog/agent-devx
@@ -818,6 +819,7 @@
 /tasks/build_tags.py                    @DataDog/agent-build
 /tasks/build_tags.bzl                   @DataDog/agent-build
 /tasks/anomalydetection.py              @DataDog/q-branch
+/tasks/unit_tests/anomalydetection*.py  @DataDog/q-branch
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines

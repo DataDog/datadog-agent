@@ -294,9 +294,9 @@ type SeriesDetector interface {
 type CorrelatorEventKind int
 
 const (
-	// CorrelatorEventEpisodeStarted fires when the scorer enters High severity.
+	// CorrelatorEventEpisodeStarted fires when the scorer enters its configured episode threshold.
 	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
-	// CorrelatorEventEpisodeEnded fires when the scorer leaves High severity.
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves its configured episode threshold.
 	CorrelatorEventEpisodeEnded
 	// CorrelatorEventCorrelationDetected fires when a correlator observes a
 	// pattern for the first time (or after it has gone inactive and recurred).

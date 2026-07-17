@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v6"
 	"github.com/creack/pty"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -36,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,7 +106,7 @@ func TestProcessEBPFLess(t *testing.T) {
 	}
 
 	t.Run("proc-scan", func(t *testing.T) {
-		err := retry.Do(func() error {
+		err := retry(t, func() error {
 			var found bool
 			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
 				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
@@ -118,7 +118,7 @@ func TestProcessEBPFLess(t *testing.T) {
 				return errors.New("not found")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NoError(t, err)
 	})
 }
@@ -1523,25 +1523,25 @@ func TestProcessExecExit(t *testing.T) {
 		if !ok {
 			t.Skip("not supported")
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 	} else {
 		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
 		if !ok {
 			t.Skip("not supported")
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 	}
 	if err != nil {
 		t.Error(err)

@@ -2240,6 +2240,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", float64(0.40))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", float64(0.20))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_events", false)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_event_threshold", "high")
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.logs", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 300*time.Second)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_anomalies", 50)

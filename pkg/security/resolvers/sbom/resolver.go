@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
@@ -288,9 +288,9 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case sbom := <-r.scanChan:
-				if err := retry.Do(func() error {
-					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond), retry.DelayType(retry.FixedDelay)); err != nil {
+				if _, err := backoff.Retry(ctx, func() (struct{}, error) {
+					return struct{}{}, r.analyzeWorkload(sbom)
+				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
 					if errors.Is(err, errNoProcessForContainerID) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {

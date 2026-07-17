@@ -32,7 +32,7 @@ func TestJSONConverter(t *testing.T) {
 		var cf integration.RawMap
 
 		// Read file contents
-		yamlFile, err := os.ReadFile(fmt.Sprintf("./fixtures/%s.yaml", c))
+		yamlFile, err := os.ReadFile(fmt.Sprintf("./testdata/%s.yaml", c))
 		assert.NoError(t, err)
 
 		// Parse configuration
