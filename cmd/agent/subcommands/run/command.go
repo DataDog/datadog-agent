@@ -678,7 +678,7 @@ func startAgent(
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, cfg, "")
+	commonsettings.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 	procmgrcoat.StartReporter(ctx, tlm)
