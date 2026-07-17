@@ -8,6 +8,7 @@
 package npcollectorimpl
 
 import (
+	"fmt"
 	"net/netip"
 	"strings"
 	"testing"
@@ -173,7 +174,7 @@ func TestParseRemoteDynamicConfigFilterLimit(t *testing.T) {
 
 	_, dynamic, err = parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters+1)))
 	assert.True(t, dynamic)
-	require.ErrorContains(t, err, "config.filters must contain at most 200 items")
+	require.ErrorContains(t, err, fmt.Sprintf("config.filters must contain at most %d items", maxRemoteFilters))
 }
 
 func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCollectorImpl {

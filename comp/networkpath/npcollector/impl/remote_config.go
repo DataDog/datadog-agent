@@ -19,8 +19,8 @@ const (
 	remoteConfigScheduledType = "scheduled"
 	remoteConfigDynamicType   = "dynamic"
 	// Filter evaluation is linear for every observed connection. Keep this
-	// defensive limit until the RC backend enforces an equivalent contract.
-	maxRemoteFilters = 200
+	// defensive Agent-side limit independent of any RC backend limit.
+	maxRemoteFilters = 1000
 )
 
 type remoteConfigEnvelope struct {
