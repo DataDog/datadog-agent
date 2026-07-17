@@ -244,22 +244,17 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 	}
 	fakeintake := s.Env().FakeIntake.Client()
 	configs, err := fakeintake.RCListConfigs()
-	if err != nil {
-		s.T().Logf("failed to list Remote Config entries during cleanup: %v", err)
-		return
-	}
+	require.NoError(s.T(), err)
 	for _, config := range configs {
 		if config.Product != hostTrafficRCProduct || config.ConfigID != hostTrafficRCConfigID || config.ConfigName != hostTrafficRCConfigName {
 			continue
 		}
 		key := fmt.Sprintf("%s/%s/%s/%s", config.OrgID, config.Product, config.ConfigID, config.ConfigName)
-		if err := fakeintake.RCDeleteConfig(key); err != nil {
-			s.T().Logf("failed to delete Remote Config entry during cleanup: %v", err)
-		} else {
-			s.remoteConfigAdded = false
-		}
+		require.NoError(s.T(), fakeintake.RCDeleteConfig(key))
+		s.remoteConfigAdded = false
 		return
 	}
+	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
 }
 
 func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
