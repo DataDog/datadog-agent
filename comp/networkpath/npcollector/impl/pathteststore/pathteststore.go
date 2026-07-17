@@ -181,6 +181,8 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
 
+	// Check for an existing path before enforcing the context limit: a full store
+	// must still refresh the TTL and attribution of paths it already contains.
 	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.contexts[hash]
 	if ok {
