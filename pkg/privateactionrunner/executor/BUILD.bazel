@@ -27,7 +27,11 @@ go_library(
 
 go_test(
     name = "executor_test",
-    srcs = ["server_test.go"],
+    srcs = [
+        "server_test.go",
+        "testaddr_unix_test.go",
+        "testaddr_windows_test.go",
+    ],
     embed = [":executor"],
     gotags = ["test"],
     deps = [

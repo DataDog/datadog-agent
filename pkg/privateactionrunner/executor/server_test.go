@@ -18,8 +18,6 @@ import (
 	"io"
 	"math/big"
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -66,20 +64,11 @@ func (f *fakeExecutor) RunPrepared(ctx context.Context, _ *runners.PreparedWorkf
 	return f.output, f.runErr
 }
 
-// shortSocketPath returns a socket path short enough for macOS's ~104-byte sun_path limit.
-func shortSocketPath(t *testing.T) string {
-	t.Helper()
-	dir, err := os.MkdirTemp("", "par")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return filepath.Join(dir, "e.sock")
-}
-
 // startTestServer serves a real executor on a socket and returns a connected client.
 func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	t.Helper()
 
-	socketPath := shortSocketPath(t)
+	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -265,7 +254,7 @@ func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.SetReady(true)
 
-	socketPath := shortSocketPath(t)
+	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -296,7 +285,7 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	srv := NewServer(fake, "test-version")
 	srv.SetReady(true)
 
-	socketPath := shortSocketPath(t)
+	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
@@ -391,7 +380,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.SetReady(true)
 
-	socketPath := shortSocketPath(t)
+	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
