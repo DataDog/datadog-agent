@@ -154,6 +154,11 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		if err == nil && configType == dynamicType {
 			// Dynamic configs are owned by the Network Path Collector listener.
 			// Do not overwrite its apply status from the scheduled provider.
+			// A path is not expected to change types, but defensively remove any
+			// scheduled state so a malformed snapshot cannot leave a stale test
+			// running indefinitely.
+			changes.Unschedule = append(changes.Unschedule, p.activeByPath[path]...)
+			delete(p.activeByPath, path)
 			delete(p.configErrors, path)
 			continue
 		}

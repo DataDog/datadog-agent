@@ -310,6 +310,30 @@ func TestProviderIgnoresDynamicType(t *testing.T) {
 	assertNoChanges(t, changesCh)
 }
 
+func TestProviderDynamicTypeDefensivelyClearsScheduledStateAtSamePath(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
+	}, statuses.callback)
+
+	assert.NotContains(t, statuses.values, "path/a")
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+	assert.NotContains(t, provider.activeByPath, "path/a")
+	assert.NotContains(t, provider.GetConfigErrors(), "path/a")
+}
+
 func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
