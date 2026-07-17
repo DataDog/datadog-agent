@@ -29,7 +29,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::path::Path;
-use std::str::FromStr;
 
 /// A YAML file and dotted config keys; any key set to true satisfies the gate.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -428,7 +427,14 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
 
 /// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
 pub(super) fn parse_agent_bool_string(text: &str) -> Option<bool> {
-    bool::from_str(text.trim()).ok()
+    let s = text.trim();
+    match s {
+        "1" | "t" | "T" => Some(true),
+        "0" | "f" | "F" => Some(false),
+        _ if s.eq_ignore_ascii_case("true") => Some(true),
+        _ if s.eq_ignore_ascii_case("false") => Some(false),
+        _ => None,
+    }
 }
 
 /// Human-readable path for logs when a config gate blocks startup.
@@ -1049,6 +1055,29 @@ process_config:
     }
 
     #[test]
+    fn parse_agent_bool_string_matches_strconv_parse_bool() {
+        for (input, expected) in [
+            ("1", Some(true)),
+            ("t", Some(true)),
+            ("T", Some(true)),
+            ("true", Some(true)),
+            ("TRUE", Some(true)),
+            ("True", Some(true)),
+            ("0", Some(false)),
+            ("f", Some(false)),
+            ("F", Some(false)),
+            ("false", Some(false)),
+            ("FALSE", Some(false)),
+            ("False", Some(false)),
+            ("yes", None),
+            ("on", None),
+            ("disabled", None),
+        ] {
+            assert_eq!(parse_agent_bool_string(input), expected, "input={input:?}");
+        }
+    }
+
+    #[test]
     fn value_as_bool_handles_strings() {
         assert_eq!(
             value_as_bool(&serde_yaml::Value::String("disabled".into())),
@@ -1057,6 +1086,22 @@ process_config:
         assert_eq!(
             value_as_bool(&serde_yaml::Value::String("true".into())),
             Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("TRUE".into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("1".into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("t".into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("0".into())),
+            Some(false)
         );
         assert_eq!(
             value_as_bool(&serde_yaml::Value::String("yes".into())),
