@@ -5,6 +5,7 @@ go_library(
     name = "settings",
     srcs = [
         "api.go",
+        "internal_profiling.go",
         "runtime_profiling.go",
         "runtime_profiling_common.go",
         "runtime_setting.go",
