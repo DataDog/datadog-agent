@@ -1,8 +1,7 @@
 ---
 name: Slack emoji Backport PR updates
 on:
-  pull_request_review:
-    types: [submitted]
+  # We don't need the comment emoji, we only care about merged/closed
   pull_request:
     types: [closed]
     branches:
