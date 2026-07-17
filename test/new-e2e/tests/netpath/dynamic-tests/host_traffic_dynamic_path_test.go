@@ -41,7 +41,6 @@ var hostTrafficSystemProbeConfig string
 var hostTrafficDNSFiles embed.FS
 
 const (
-	hostTrafficLocalDomain        = "httpbin.dynamic-netpath.test"
 	hostTrafficRemoteConfigDomain = "httpbin-rc.dynamic-netpath.test"
 	hostTrafficDNSRemotePath      = "/tmp/host_traffic_dns.py"
 	hostTrafficDNSLogPath         = "/tmp/host_traffic_dns.log"
@@ -211,29 +210,21 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		for _, domain := range []string{hostTrafficLocalDomain, hostTrafficRemoteConfigDomain} {
-			match := findHostTrafficNetworkPath(netpaths, domain)
-			require.NotNil(c, match, "no host-traffic network path event matched %s:80", domain)
+		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no RC-admitted host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
-			assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
-			assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
-			assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
-			assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
-			assert.Equal(c, payload.ProtocolTCP, match.Protocol)
-			assert.Equal(c, domain, match.Destination.Hostname)
-			assert.Equal(c, uint16(80), match.Destination.Port)
-			require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
-			assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
-
-			if domain == hostTrafficRemoteConfigDomain {
-				assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
-				assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
-				remoteConfigMatch = match
-			} else {
-				assert.Empty(c, match.TestConfigID)
-				assert.Empty(c, match.TestConfigSource)
-			}
-		}
+		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
+		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
+		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
+		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
+		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
+		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
+		assert.Equal(c, uint16(80), match.Destination.Port)
+		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
+		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
+		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
+		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
+		remoteConfigMatch = match
 	}, 5*time.Minute, 10*time.Second)
 
 	if remoteConfigMatch != nil {
@@ -280,7 +271,7 @@ func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 		"nohup python3 %s %s %s %s %s >%s 2>&1 & echo $! >%s",
 		shellQuote(hostTrafficDNSRemotePath),
 		shellQuote(httpbinHost.Address),
-		shellQuote(strings.Join([]string{hostTrafficLocalDomain, hostTrafficRemoteConfigDomain}, ",")),
+		shellQuote(hostTrafficRemoteConfigDomain),
 		shellQuote(httpbinHost.Address),
 		shellQuote(upstream),
 		shellQuote(hostTrafficDNSLogPath),
@@ -348,20 +339,17 @@ fi
 }
 
 func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
-	for _, domain := range []string{hostTrafficLocalDomain, hostTrafficRemoteConfigDomain} {
-		output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(domain))
-		require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
+	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
+	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(domain))))
-	}
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain))))
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {
 	seconds := int(duration.Seconds())
 	trafficCommand := fmt.Sprintf(
-		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
+		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
 		seconds,
-		shellQuote(hostTrafficURL(hostTrafficLocalDomain)),
 		shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain)),
 	)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup sh -c %s >%s 2>&1 & echo $! >%s",

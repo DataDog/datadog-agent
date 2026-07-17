@@ -10,5 +10,3 @@ network_path:
     filters:
       - match_domain: '*'
         type: exclude
-      - match_domain: 'httpbin.dynamic-netpath.test'
-        type: include
