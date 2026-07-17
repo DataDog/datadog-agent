@@ -9,6 +9,7 @@ package npcollectorimpl
 
 import (
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,17 @@ func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
 	}, filters[0])
 }
 
+func TestParseRemoteDynamicConfigFilterLimit(t *testing.T) {
+	filters, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters)))
+	require.NoError(t, err)
+	assert.True(t, dynamic)
+	assert.Len(t, filters, maxRemoteFilters)
+
+	_, dynamic, err = parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters+1)))
+	assert.True(t, dynamic)
+	require.ErrorContains(t, err, "config.filters must contain at most 200 items")
+}
+
 func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCollectorImpl {
 	t.Helper()
 	filter, errs := connfilter.NewConnFilter(local, "", false)
@@ -176,4 +188,9 @@ func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCo
 
 func dynamicConfig(id, filters string) []byte {
 	return []byte(`{"type":"dynamic","test_config_id":"` + id + `","config":{"filters":` + filters + `}}`)
+}
+
+func dynamicFilters(count int) string {
+	filter := `{"type":"include","match_domain":"api.example.com"}`
+	return "[" + strings.TrimSuffix(strings.Repeat(filter+",", count), ",") + "]"
 }

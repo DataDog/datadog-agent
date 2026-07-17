@@ -18,7 +18,9 @@ import (
 const (
 	remoteConfigScheduledType = "scheduled"
 	remoteConfigDynamicType   = "dynamic"
-	maxRemoteFilters          = 200
+	// Filter evaluation is linear for every observed connection. Keep this
+	// defensive limit until the RC backend enforces an equivalent contract.
+	maxRemoteFilters = 200
 )
 
 type remoteConfigEnvelope struct {
