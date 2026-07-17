@@ -240,7 +240,7 @@ require (
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/cenkalti/backoff/v6 v6.0.1
+	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cilium/ebpf v0.22.0
 	github.com/clbanning/mxj/v2 v2.7.0
@@ -511,8 +511,6 @@ require (
 	sigs.k8s.io/karpenter v1.9.0
 	sigs.k8s.io/yaml v1.6.0
 )
-
-require github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 
 require (
 	cel.dev/expr v0.25.2 // indirect
