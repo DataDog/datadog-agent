@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,9 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	slurmutil "github.com/DataDog/datadog-agent/pkg/process/util/slurm"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -286,4 +289,87 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			// environment variable is updated.
 		})
 	}
+}
+
+// fakeSlurmProvider is a test slurm.Provider that returns canned data without touching /proc.
+// If infoByPID is set it is consulted per PID (unknown PIDs resolve to the zero value); otherwise
+// the flat info/err are returned for every PID.
+type fakeSlurmProvider struct {
+	info      slurmutil.SlurmInfo
+	err       error
+	infoByPID map[int32]slurmutil.SlurmInfo
+	calls     int
+}
+
+func (f *fakeSlurmProvider) GetSlurmInfo(pid int32) (slurmutil.SlurmInfo, error) {
+	f.calls++
+	if f.infoByPID != nil {
+		return f.infoByPID[pid], nil
+	}
+	return f.info, f.err
+}
+
+func TestGetSlurmInfo(t *testing.T) {
+	t.Run("nil provider returns zero value", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		require.Nil(t, sysCtx.slurmProvider)
+		require.Equal(t, model.SlurmInfo{}, sysCtx.getSlurmInfo(1234))
+	})
+
+	t.Run("resolves per pid on every call", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		provider := &fakeSlurmProvider{info: slurmutil.SlurmInfo{JobID: "7", JobName: "gpuhold", Partition: "gpu"}}
+		sysCtx.slurmProvider = provider
+
+		want := model.SlurmInfo{JobID: "7", JobName: "gpuhold", Partition: "gpu"}
+		require.Equal(t, want, sysCtx.getSlurmInfo(4242))
+		require.Equal(t, want, sysCtx.getSlurmInfo(4242))
+		// No caching: resolution is intentionally stateless, so the provider is hit every call.
+		require.Equal(t, 2, provider.calls)
+	})
+
+	t.Run("permission error returns zero value", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		provider := &fakeSlurmProvider{err: errors.New("permission denied")}
+		sysCtx.slurmProvider = provider
+
+		require.Equal(t, model.SlurmInfo{}, sysCtx.getSlurmInfo(8686))
+		require.Equal(t, model.SlurmInfo{}, sysCtx.getSlurmInfo(8686))
+		require.Equal(t, 2, provider.calls)
+	})
+}
+
+func TestResolveSlurmInfoForGPUProcesses(t *testing.T) {
+	// PID 10 is an eBPF-tracked process (in processMetrics); PID 20 is tracked but not a Slurm job.
+	// NVML-visible PIDs come from the mock device cache and are keyed by the same provider map, so a
+	// PID that is not a Slurm job (or not present) is excluded regardless of which source found it.
+	procMetrics := []model.ProcessStatsTuple{
+		{Key: model.ProcessStatsKey{PID: 10}},
+		{Key: model.ProcessStatsKey{PID: 20}},
+	}
+
+	t.Run("nil provider returns nil (tagging disabled)", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		require.Nil(t, sysCtx.resolveSlurmInfoForGPUProcesses(procMetrics))
+	})
+
+	t.Run("resolves GPU-process PIDs, drops non-Slurm ones", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		// Only PID 10 is a Slurm job; PID 20 (and any NVML-enumerated PID from the mock device
+		// cache) resolves to the zero value and must be excluded.
+		sysCtx.slurmProvider = &fakeSlurmProvider{infoByPID: map[int32]slurmutil.SlurmInfo{
+			10: {JobID: "42", JobName: "train", Partition: "gpu"},
+		}}
+
+		got := sysCtx.resolveSlurmInfoForGPUProcesses(procMetrics)
+		require.Equal(t, model.SlurmInfo{JobID: "42", JobName: "train", Partition: "gpu"}, got[10])
+		_, has20 := got[20]
+		require.False(t, has20, "a process that is not a Slurm job must not appear in the map")
+	})
+
+	t.Run("no Slurm jobs returns nil", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t)
+		sysCtx.slurmProvider = &fakeSlurmProvider{infoByPID: map[int32]slurmutil.SlurmInfo{}}
+		require.Nil(t, sysCtx.resolveSlurmInfoForGPUProcesses(procMetrics))
+	})
 }

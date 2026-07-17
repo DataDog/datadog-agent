@@ -36,6 +36,9 @@ type Config struct {
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
 	EnableFatbinParsing bool
+	// EnableSlurmJobTagging indicates whether the probe should resolve the owning Slurm job
+	// identity for each GPU process (from /proc/<pid>/environ) and attach it to process metrics.
+	EnableSlurmJobTagging bool
 	// KernelCacheQueueSize is the size of the kernel cache queue for parsing requests
 	KernelCacheQueueSize int
 	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
@@ -86,6 +89,7 @@ func New() *Config {
 		PRMEndpointEnabled:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
 		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
+		EnableSlurmJobTagging:        spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_slurm_job_tagging")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
 		RingBufferWakeupSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),

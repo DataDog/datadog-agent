@@ -364,6 +364,7 @@ func initMainSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.prm_endpoint_enabled", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_fatbin_parsing", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_slurm_job_tagging", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.fatbin_request_queue_size", 100)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ring_buffer_pages_per_device", 32) // 32 pages = 128KB by default per device
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ringbuffer_wakeup_size", 3000)     // 3000 bytes is about ~10-20 events depending on the specific type

@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -1291,4 +1293,95 @@ func TestNewWorkloadTagCache_DuplicateSubsystemPanics(t *testing.T) {
 	require.Panics(t, func() {
 		_, _ = NewWorkloadTagCacheWithSubsystem("dup", tg, wmeta, cp, tm, defaultCacheSize)
 	}, "constructing a second cache with the same subsystem must panic on Prometheus duplicate registration")
+}
+
+func TestBuildProcessTags_SlurmJobIDAdditive(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(4242)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	// containerID="" triggers the existing container-provider fallback path; slurm tagging must
+	// still happen additively regardless of what that fallback returns.
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	cache.SetSlurmInfo(map[int]model.SlurmInfo{
+		int(pid): {JobID: "3", JobName: "gpuhold", Partition: "gpu"},
+	})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+	assert.Contains(t, tags, "slurm_job_id:3")
+	assert.Contains(t, tags, "slurm_job_name:gpuhold")
+	assert.Contains(t, tags, "slurm_job_partition:gpu")
+}
+
+func TestBuildProcessTags_SlurmPidNotInMap(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	// The Slurm map holds a different PID, so the process under test resolves no Slurm identity.
+	// This is the normal "not a Slurm job" case: no slurm_* tags, no error.
+	pid := int32(8686)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	cache.SetSlurmInfo(map[int]model.SlurmInfo{
+		9999: {JobID: "1", JobName: "other", Partition: "gpu"},
+	})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+	for _, tag := range tags {
+		assert.False(t, strings.HasPrefix(tag, "slurm_"))
+	}
+}
+
+func TestBuildProcessTags_SlurmInfoNilByDefault(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	// SetSlurmInfo is never called: behavior must be identical to today (no slurm_* tags,
+	// no panics) — a nil map lookup is safe.
+
+	pid := int32(6464)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)},
+		NsPid:    pid,
+		Owner:    nil,
+	})
+	mocks.containerProvider.EXPECT().GetPidToCid(time.Duration(0)).Return(map[int]string{})
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+	for _, tag := range tags {
+		assert.False(t, strings.HasPrefix(tag, "slurm_"))
+	}
+}
+
+func TestSlurmInfoFromStats(t *testing.T) {
+	// nil payload -> nil map, no allocation, no panic.
+	assert.Nil(t, slurmInfoFromStats(nil))
+
+	// Empty/absent SlurmInfoByPID -> nil map.
+	assert.Nil(t, slurmInfoFromStats(&model.GPUStats{}))
+
+	// A map with only empty-JobID entries -> nil map.
+	assert.Nil(t, slurmInfoFromStats(&model.GPUStats{SlurmInfoByPID: map[uint32]model.SlurmInfo{
+		2: {JobName: "no-id"},
+	}}))
+
+	// Only entries with a non-empty JobID are kept; keys are converted uint32 -> int.
+	stats := &model.GPUStats{SlurmInfoByPID: map[uint32]model.SlurmInfo{
+		10: {JobID: "7", JobName: "a", Partition: "gpu"},
+		20: {},
+	}}
+	got := slurmInfoFromStats(stats)
+	assert.Equal(t, map[int]model.SlurmInfo{
+		10: {JobID: "7", JobName: "a", Partition: "gpu"},
+	}, got)
 }

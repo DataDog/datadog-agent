@@ -42,6 +42,18 @@ type ProcessStatsKey struct {
 	ContainerID string `json:"container_id"`
 }
 
+// SlurmInfo is the Slurm job identity resolved for a process by the system-probe GPU module
+// from /proc/<pid>/environ. An empty JobID means the process is not a Slurm job. It is only
+// populated when Slurm job tagging is enabled in the GPU module (gpu_monitoring.enable_slurm_job_tagging).
+type SlurmInfo struct {
+	// JobID is the numeric Slurm job ID, from SLURM_JOB_ID. Empty if the process is not a Slurm job.
+	JobID string `json:"job_id,omitempty"`
+	// JobName is the Slurm job name, from SLURM_JOB_NAME. Only set when JobID is set.
+	JobName string `json:"job_name,omitempty"`
+	// Partition is the Slurm partition, from SLURM_JOB_PARTITION. Only set when JobID is set.
+	Partition string `json:"partition,omitempty"`
+}
+
 // ProcessStatsTuple is a single entry in the GPUStats array, as we cannot use a complex key in the map
 type ProcessStatsTuple struct {
 	Key                ProcessStatsKey
@@ -68,4 +80,11 @@ type DeviceStatsTuple struct {
 type GPUStats struct {
 	ProcessMetrics []ProcessStatsTuple `json:"process_metrics"` // Per-process metrics
 	DeviceMetrics  []DeviceStatsTuple  `json:"device_metrics"`  // Device-level metrics
+
+	// SlurmInfoByPID maps each GPU-using process's host PID to its owning Slurm job identity.
+	// It is populated (system-probe-side, where SYS_PTRACE is held) only when Slurm job tagging is
+	// enabled, and covers the union of eBPF-tracked processes and NVML-visible compute processes,
+	// so the core agent can tag every GPU process metric it emits without reading /proc itself.
+	// Nil when tagging is disabled or no GPU process resolved to a Slurm job.
+	SlurmInfoByPID map[uint32]SlurmInfo `json:"slurm_info_by_pid,omitempty"`
 }

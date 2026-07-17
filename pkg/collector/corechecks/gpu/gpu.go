@@ -38,7 +38,6 @@ const (
 	gpuMetricsNs = "gpu."
 )
 
-// logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
 var _ check.IssueAwareCheck = (*Check)(nil)
@@ -170,6 +169,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
+
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
@@ -305,6 +305,14 @@ func (c *Check) Run() error {
 			}
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
+
+		// Refresh the PID -> Slurm job identity mapping from the system-probe payload. Slurm
+		// identity is resolved system-probe-side (where SYS_PTRACE is held) and applies to every
+		// GPU metric for that PID, including NVML-sourced ones, via the shared workload tag cache.
+		// GetStats() is nil when the refresh above failed; passing that through clears the mapping,
+		// matching SystemProbeCache's fail-safe of dropping stale data. Keeping a stale mapping
+		// could misattribute a reused PID to the previous job's slurm_* tags.
+		c.workloadTagCache.SetSlurmInfo(slurmInfoFromStats(c.spCache.GetStats()))
 	}
 
 	if c.prmCache != nil {

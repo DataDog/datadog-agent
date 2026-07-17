@@ -120,6 +120,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 	stats := &model.GPUStats{
 		ProcessMetrics: processMetrics,
 		DeviceMetrics:  deviceMetrics,
+		SlurmInfoByPID: g.sysCtx.resolveSlurmInfoForGPUProcesses(processMetrics),
 	}
 
 	g.telemetry.aggregators.Set(float64(len(g.aggregators)))

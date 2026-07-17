@@ -2444,6 +2444,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      enable_slurm_job_tagging:
+        node_type: setting
+        type: boolean
+        default: false
       fatbin_request_queue_size:
         node_type: setting
         type: integer

@@ -18,11 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	slurmutil "github.com/DataDog/datadog-agent/pkg/process/util/slurm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,6 +69,10 @@ type systemContext struct {
 
 	// deviceCacheRefreshInterval is the minimum time passing between device cache refreshes
 	deviceCacheRefreshInterval time.Duration
+
+	// slurmProvider resolves the owning Slurm job identity for a process. It is nil unless
+	// gpu_monitoring.enable_slurm_job_tagging is set; otherwise Slurm tagging is disabled.
+	slurmProvider slurmutil.Provider
 }
 
 type systemContextOptions struct {
@@ -134,6 +140,10 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		lastDeviceCacheRefreshTime:   time.Now(),
 	}
 
+	if opts.config.EnableSlurmJobTagging {
+		ctx.slurmProvider = slurmutil.InitSharedProvider()
+	}
+
 	var err error
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
@@ -159,6 +169,74 @@ func (ctx *systemContext) removeProcess(pid int) {
 	if ctx.cudaKernelCache != nil {
 		ctx.cudaKernelCache.CleanProcessData(pid)
 	}
+}
+
+// getSlurmInfo returns the owning Slurm job identity for pid, resolved from /proc/<pid>/environ.
+// Returns the zero value when Slurm job tagging is disabled or the process is not a Slurm job.
+// A permission error (the agent missing SYS_PTRACE) is logged, rate-limited, as it is the only
+// signal distinguishing a misconfiguration from a process that simply is not a Slurm job.
+//
+// The result is intentionally not cached: there are only a handful of GPU processes per node and
+// this runs once per stats-flush interval, so a small environ read per process is cheaper than a
+// shared cross-goroutine cache (the stats-flush and consumer goroutines would both touch it).
+func (ctx *systemContext) getSlurmInfo(pid uint32) model.SlurmInfo {
+	if ctx.slurmProvider == nil {
+		return model.SlurmInfo{}
+	}
+
+	resolved, err := ctx.slurmProvider.GetSlurmInfo(int32(pid))
+	if err != nil {
+		if logLimitProbe.ShouldLog() {
+			log.Warnf("could not resolve slurm info for pid %d: %v", pid, err)
+		}
+		return model.SlurmInfo{}
+	}
+
+	return model.SlurmInfo{JobID: resolved.JobID, JobName: resolved.JobName, Partition: resolved.Partition}
+}
+
+// resolveSlurmInfoForGPUProcesses returns the Slurm job identity for every GPU process, keyed by
+// host PID. It resolves the union of the eBPF-tracked PIDs (from processMetrics) and the
+// NVML-visible compute processes (device.GetComputeRunningProcesses). The NVML set is exactly the
+// PID set the core agent's NVML collector emits process.memory.usage for -- including jobs that are
+// resident but idle, or were already running when the eBPF probe attached -- so this gives precise,
+// not accidental, coverage of every submitted GPU process metric. Resolving here keeps SYS_PTRACE
+// confined to system-probe. Only a handful of processes hold GPU memory, so the per-PID environ
+// read stays small. Returns nil when Slurm job tagging is disabled or no process is a Slurm job.
+func (ctx *systemContext) resolveSlurmInfoForGPUProcesses(processMetrics []model.ProcessStatsTuple) map[uint32]model.SlurmInfo {
+	if ctx.slurmProvider == nil {
+		return nil
+	}
+
+	pids := make(map[uint32]struct{}, len(processMetrics))
+	for _, entry := range processMetrics {
+		pids[entry.Key.PID] = struct{}{}
+	}
+
+	// NVML compute processes: the core agent's NVML collector emits process.memory.usage for these
+	// PIDs, so they must be resolvable even when eBPF has no active stream for them.
+	if devices, err := ctx.deviceCache.AllPhysicalDevices(); err == nil {
+		for _, dev := range devices {
+			procs, procErr := dev.GetComputeRunningProcesses()
+			if procErr != nil {
+				continue
+			}
+			for _, p := range procs {
+				pids[p.Pid] = struct{}{}
+			}
+		}
+	}
+
+	result := make(map[uint32]model.SlurmInfo, len(pids))
+	for pid := range pids {
+		if info := ctx.getSlurmInfo(pid); info.JobID != "" {
+			result[pid] = info
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given

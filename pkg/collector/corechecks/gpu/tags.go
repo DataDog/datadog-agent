@@ -17,6 +17,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -43,6 +44,7 @@ type WorkloadTagCache struct {
 	tagger            tagger.Component
 	wmeta             workloadmeta.Component
 	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	pidToSlurm        map[int]model.SlurmInfo          // pidToSlurm maps PIDs to the owning Slurm job identity, resolved system-probe-side; nil/empty means no Slurm tagging.
 	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
 	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
 }
@@ -147,6 +149,36 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 func (c *WorkloadTagCache) SetContainerProvider(p proccontainers.ContainerProvider) {
 	c.containerProvider = p
 	c.pidToCid = nil
+}
+
+// slurmInfoFromStats converts the system-probe GPU stats payload's PID -> Slurm identity map
+// (keyed by host PID as uint32) into the int-keyed map used by the tag cache, keeping only
+// processes that resolved to an actual Slurm job. Returns nil for a nil/empty payload so the
+// common (no-Slurm) case allocates nothing.
+func slurmInfoFromStats(stats *model.GPUStats) map[int]model.SlurmInfo {
+	if stats == nil || len(stats.SlurmInfoByPID) == 0 {
+		return nil
+	}
+
+	pidToSlurm := make(map[int]model.SlurmInfo, len(stats.SlurmInfoByPID))
+	for pid, info := range stats.SlurmInfoByPID {
+		if info.JobID == "" {
+			continue
+		}
+		pidToSlurm[int(pid)] = info
+	}
+	if len(pidToSlurm) == 0 {
+		return nil
+	}
+	return pidToSlurm
+}
+
+// SetSlurmInfo replaces the PID -> Slurm job identity mapping for the current run. The mapping is
+// built from the system-probe GPU stats payload (which resolves Slurm identity where it already
+// holds SYS_PTRACE). An empty or nil map means no process has a resolved Slurm identity, so no
+// Slurm tags are added.
+func (c *WorkloadTagCache) SetSlurmInfo(pidToSlurm map[int]model.SlurmInfo) {
+	c.pidToSlurm = pidToSlurm
 }
 
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
@@ -261,6 +293,18 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			multiErr = errors.Join(multiErr, fmt.Errorf("error building container tags for process %d and container %s: %w", pid, containerID, err))
 		}
 		tags = append(tags, containerTags...)
+	}
+
+	// Slurm job identity is resolved system-probe-side and delivered via the GPU stats payload
+	// (see SetSlurmInfo); the core agent only looks it up here, so no SYS_PTRACE is needed here.
+	if info, ok := c.pidToSlurm[int(pid)]; ok && info.JobID != "" {
+		tags = append(tags, "slurm_job_id:"+info.JobID)
+		if info.JobName != "" {
+			tags = append(tags, "slurm_job_name:"+info.JobName)
+		}
+		if info.Partition != "" {
+			tags = append(tags, "slurm_job_partition:"+info.Partition)
+		}
 	}
 
 	return tags, multiErr
