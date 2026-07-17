@@ -78,7 +78,16 @@ for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
-exit /b !errorlevel!
+set "bazel_exit=!errorlevel!"
+if !bazel_exit! equ 36 (
+  >&2 echo 🟠 #incident-57868: attempting self-healing by retrying with `--noremote_accept_cached`
+  set "extra_args=!extra_args! --noremote_accept_cached"
+  set "args=%*"
+  call :insert_extra_args
+  "%BAZEL_REAL%" !startup_options! !args!
+  set "bazel_exit=!errorlevel!"
+)
+exit /b !bazel_exit!
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
 :insert_extra_args
