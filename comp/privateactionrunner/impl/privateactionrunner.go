@@ -292,9 +292,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}()
 
 	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
-	if socketPath == "" {
-		socketPath = executor.DefaultSocketPath
-	}
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
 		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)

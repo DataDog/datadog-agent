@@ -15,9 +15,6 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-// DefaultSocketPath is the named pipe the executor listens on and the control plane dials.
-const DefaultSocketPath = `\\.\pipe\dd-par-executor`
-
 // Listen creates the executor's listening named pipe.
 func Listen(address string) (net.Listener, error) {
 	return winio.ListenPipe(address, &winio.PipeConfig{})
