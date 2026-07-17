@@ -989,7 +989,6 @@ new-e2e-ha-agent-failover:
     TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:

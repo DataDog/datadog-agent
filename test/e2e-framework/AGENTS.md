@@ -153,7 +153,7 @@ When that's not enough, common advanced patterns:
 
 ### Useful suite options
 
-- **`e2e.WithDevMode()`** — keep infrastructure alive after test for faster iteration.
+- **`e2e.WithDevMode()`** — internal suite option that keeps infrastructure alive after a test. For local development, enable it through `E2E_DEV_MODE=true`; do not use the invoke task's `--keep-stack` option.
 - **`e2e.WithStackName(name)`** — custom Pulumi stack naming for parameterized tests.
 
 ### Example tests by pattern
@@ -179,8 +179,14 @@ runtime failures:
 dda inv new-e2e-tests.run --targets=./tests/<area>/...
 ```
 
-Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
-SSH in and inspect the agent directly.
+Use `E2E_DEV_MODE=true` to keep infrastructure alive after a failure so you can
+SSH in and inspect the agent directly:
+
+```bash
+E2E_DEV_MODE=true dda inv new-e2e-tests.run --targets=./tests/<area>/...
+```
+
+Do not use `--keep-stack` for this workflow.
 
 ## Key files
 
