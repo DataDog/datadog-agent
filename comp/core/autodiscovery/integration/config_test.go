@@ -11,7 +11,7 @@ import (
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/stretchr/testify/assert"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 func TestConfigEqual(t *testing.T) {

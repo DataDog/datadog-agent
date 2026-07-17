@@ -23,7 +23,7 @@ import (
 	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
