@@ -250,31 +250,6 @@ func dialTestExecutor(t *testing.T, socketPath string) pb.ExecutorClient {
 	return pb.NewExecutorClient(conn)
 }
 
-func TestServeOrphanSelfExitsWhenIdle(t *testing.T) {
-	srv := NewServer(&fakeExecutor{}, "test-version")
-	srv.SetReady(true)
-
-	socketPath := testListenAddr(t)
-	lis, err := Listen(socketPath)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	served := make(chan error, 1)
-	go func() {
-		served <- Serve(ctx, lis, srv, ServeOptions{
-			IdleShutdownTimeout: 40 * time.Millisecond,
-		})
-	}()
-
-	select {
-	case err := <-served:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("orphaned executor did not self-exit")
-	}
-}
-
 func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	gate := make(chan struct{})
 	fake := &fakeExecutor{

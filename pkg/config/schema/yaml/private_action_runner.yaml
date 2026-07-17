@@ -98,10 +98,6 @@ properties:
     node_type: section
     type: object
     properties:
-      idle_shutdown_timeout_seconds:
-        node_type: setting
-        type: integer
-        default: 300
       socket_path:
         node_type: setting
         type: string

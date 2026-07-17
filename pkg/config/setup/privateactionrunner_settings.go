@@ -40,7 +40,6 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"windows": `\\.\pipe\dd-par-executor`,
 		"other":   "${run_path}/par-executor.sock",
 	}))
-	config.BindEnvAndSetDefault(PARExecutorIdleShutdownTimeoutSeconds, 300)
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)

@@ -305,8 +305,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
 	}
 	serveOpts := executor.ServeOptions{
-		DrainTimeout:        drainTimeout,
-		IdleShutdownTimeout: time.Duration(p.coreConfig.GetInt(privateactionrunner.PARExecutorIdleShutdownTimeoutSeconds)) * time.Second,
+		DrainTimeout: drainTimeout,
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()

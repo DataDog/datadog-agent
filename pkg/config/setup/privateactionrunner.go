@@ -26,8 +26,7 @@ const (
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
 	// Executor mode (split deployment)
-	PARExecutorSocketPath                 = "private_action_runner.executor.socket_path"
-	PARExecutorIdleShutdownTimeoutSeconds = "private_action_runner.executor.idle_shutdown_timeout_seconds"
+	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"

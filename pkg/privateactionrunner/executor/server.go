@@ -38,27 +38,16 @@ type Server struct {
 	executor actionExecutor
 	version  string
 
-	ready        atomic.Bool
-	active       atomic.Int32
-	lastActivity atomic.Int64 // unix-nanos of the last Health/RunAction
+	ready  atomic.Bool
+	active atomic.Int32
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
 func NewServer(executor actionExecutor, version string) *Server {
-	s := &Server{
+	return &Server{
 		executor: executor,
 		version:  version,
 	}
-	s.touch()
-	return s
-}
-
-func (s *Server) touch() {
-	s.lastActivity.Store(time.Now().UnixNano())
-}
-
-func (s *Server) idleFor() time.Duration {
-	return time.Since(time.Unix(0, s.lastActivity.Load()))
 }
 
 // SetReady marks the executor ready (or not) to accept actions.
@@ -68,7 +57,6 @@ func (s *Server) SetReady(ready bool) {
 
 // Health reports readiness and liveness.
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
-	s.touch()
 	return &pb.HealthResponse{
 		Ready:         s.ready.Load(),
 		ActiveActions: s.active.Load(),
@@ -89,12 +77,8 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		))
 	}
 
-	s.touch()
 	s.active.Add(1)
-	defer func() {
-		s.active.Add(-1)
-		s.touch()
-	}()
+	defer s.active.Add(-1)
 
 	// Raw bytes must stay unmodified for signature verification.
 	task := &types.Task{Raw: req.GetTask()}
@@ -144,24 +128,16 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	})
 }
 
-// ServeOptions tunes drain and idle-shutdown behavior; zero values disable each bound.
+// ServeOptions tunes drain behavior; zero value waits forever.
 type ServeOptions struct {
-	DrainTimeout        time.Duration // bounds graceful drain on stop; 0 waits forever
-	IdleShutdownTimeout time.Duration // >0: self-exit after this long idle with no in-flight actions
+	DrainTimeout time.Duration // bounds graceful drain on stop; 0 waits forever
 }
 
-// Serve serves the Executor on lis until ctx is cancelled or the orphan watchdog fires,
-// then stops gracefully bounded by the drain timeout. Pass grpcOpts to secure the socket.
+// Serve serves the Executor on lis until ctx is cancelled, then stops gracefully
+// bounded by the drain timeout. Pass grpcOpts to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
-
-	serveCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	if opts.IdleShutdownTimeout > 0 {
-		go srv.watchIdle(serveCtx, cancel, opts.IdleShutdownTimeout)
-	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -169,37 +145,11 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 	}()
 
 	select {
-	case <-serveCtx.Done():
+	case <-ctx.Done():
 		stopGracefully(grpcServer, opts.DrainTimeout)
 		return nil
 	case err := <-errCh:
 		return err
-	}
-}
-
-// idlePollCap bounds how often watchIdle checks for inactivity.
-const idlePollCap = 5 * time.Second
-
-func (s *Server) watchIdle(ctx context.Context, cancel context.CancelFunc, idle time.Duration) {
-	poll := idle / 2
-	if poll > idlePollCap {
-		poll = idlePollCap
-	}
-	if poll <= 0 {
-		poll = time.Millisecond
-	}
-	ticker := time.NewTicker(poll)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if s.active.Load() == 0 && s.idleFor() >= idle {
-				cancel()
-				return
-			}
-		}
 	}
 }
 
