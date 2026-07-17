@@ -27,14 +27,14 @@ func TestDeviceMap(t *testing.T) {
 
 	dc, err := dm.Get(device.DeviceID())
 	require.NoError(t, err)
-	assert.Equal(t, "p1", dc.profile.Name)
+	assert.Equal(t, ncmprofile.ProfileName("p1"), dc.profile.Name)
 
 	err = dm.RegisterDevice(t.Context(), device, p2)
 	require.NoError(t, err)
 
 	dc, err = dm.Get(device.DeviceID())
 	require.NoError(t, err)
-	assert.Equal(t, "p2", dc.profile.Name)
+	assert.Equal(t, ncmprofile.ProfileName("p2"), dc.profile.Name)
 }
 
 func TestDeviceMap_Get_Unknown(t *testing.T) {

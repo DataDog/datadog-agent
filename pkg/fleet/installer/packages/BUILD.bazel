@@ -8,6 +8,7 @@ go_library(
         "apm_library_dotnet_windows.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
+        "datadog_agent_eudm_windows.go",
         "datadog_agent_extensions.go",
         "datadog_agent_linux.go",
         "datadog_agent_nix.go",
@@ -77,6 +78,7 @@ go_library(
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",
             "@org_golang_x_sys//windows/svc/mgr",
+            "@org_golang_x_text//encoding/unicode",
         ],
         "//conditions:default": [],
     }),
@@ -86,6 +88,7 @@ go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
         "otel_config_common_test.go",
     ],
