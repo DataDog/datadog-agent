@@ -155,7 +155,10 @@ func (f *Store) Flush() []*PathtestContext {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
-		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
+		contextSnapshot := *ptConfigCtx
+		pathtestSnapshot := *ptConfigCtx.Pathtest
+		contextSnapshot.Pathtest = &pathtestSnapshot
+		pathtestsToFlush = append(pathtestsToFlush, &contextSnapshot)
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
@@ -171,6 +174,17 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
 
+	hash := pathtestToAdd.GetHash()
+	pathtestCtx, ok := f.contexts[hash]
+	if ok {
+		// Refresh attribution from the latest admission without creating a second
+		// context for the same path.
+		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
+		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+		return
+	}
+
 	if len(f.contexts) >= f.config.ContextsLimit {
 		// only log if it has been 1 minute since the last warning
 		if time.Since(f.lastContextWarning) >= time.Minute {
@@ -180,17 +194,7 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 
-	hash := pathtestToAdd.GetHash()
-	pathtestCtx, ok := f.contexts[hash]
-	if !ok {
-		f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
-		return
-	}
-	// Refresh attribution from the latest admission without creating a second
-	// context for the same path.
-	pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
-	pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
-	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+	f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
 }
 
 // GetContextsCount returns pathtest contexts count

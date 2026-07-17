@@ -1978,7 +1978,7 @@ var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricNa
 var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_cidr_excluded"}, Rate: 1}
 var netflowAgentSourceSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_netflow_agent_source"}, Rate: 1}
 
-func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
+func Test_npCollectorImpl_evaluateNetworkPathForConn(t *testing.T) {
 	tests := []struct {
 		name                   string
 		conn                   npmodel.NetworkPathConnection
@@ -2353,7 +2353,7 @@ network_path:
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets))
+			require.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -2375,7 +2375,7 @@ func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
 	return ipNet
 }
 
-func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {
+func Test_npCollectorImpl_evaluateNetworkPathForConn_subnets(t *testing.T) {
 	tests := []struct {
 		name           string
 		conn           npmodel.NetworkPathConnection
@@ -2419,7 +2419,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil))
+			assert.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
