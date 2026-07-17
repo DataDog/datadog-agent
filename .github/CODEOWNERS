@@ -945,7 +945,10 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/windows-products @DataDog/network-path
+/test/new-e2e/tests/netpath                   @DataDog/network-path
+/test/new-e2e/tests/netpath/network-path-integration/netpath_int_win_test.go @DataDog/network-path @DataDog/windows-products
+/test/new-e2e/tests/netpath/network-path-integration/remote_config_win_test.go @DataDog/network-path @DataDog/windows-products
+/test/new-e2e/tests/netpath/network-path-integration/fixtures/network_path_windows.yaml @DataDog/network-path @DataDog/windows-products
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm/ecs_1host_test.go    @DataDog/ecs-experiences
