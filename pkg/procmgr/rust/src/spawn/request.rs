@@ -42,11 +42,7 @@ impl SpawnRequest {
 
         Ok(Self {
             command: expand_env_vars(&config.command),
-            args: config
-                .args
-                .iter()
-                .map(|a| expand_env_vars(a))
-                .collect(),
+            args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
             env: collect_env(process_name, config)?,
             working_dir: config
                 .working_dir
