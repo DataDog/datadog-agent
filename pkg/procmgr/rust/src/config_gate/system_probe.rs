@@ -145,16 +145,20 @@ impl<'a> Cfg<'a> {
         self.yaml.resolve_string(self.agent, key, Some(AGENT_FLEET))
     }
 
+    fn sp_is_configured(&mut self, key: &str) -> anyhow::Result<bool> {
+        self.yaml
+            .is_configured(self.sysprobe, key, Some(SYSPROBE_FLEET))
+    }
+
     /// adjust.go: `system_probe_config.enabled: true` with no NPM/USM block enables NPM.
     fn npm_enabled(&mut self) -> anyhow::Result<bool> {
         if self.sp_bool("network_config.enabled")? {
             return Ok(true);
         }
         // Network: Go uses IsConfigured; USM: Go uses !GetBool (explicit `false` still allows back-compat).
+        // Keep in sync with `adjust.go` (`!cfg.IsConfigured(netNS("enabled"))`).
         if self.sp_bool("system_probe_config.enabled")?
-            && !self
-                .yaml
-                .key_configured(self.sysprobe, "network_config.enabled")?
+            && !self.sp_is_configured("network_config.enabled")?
             && !self.sp_bool("service_monitoring_config.enabled")?
         {
             return Ok(true);

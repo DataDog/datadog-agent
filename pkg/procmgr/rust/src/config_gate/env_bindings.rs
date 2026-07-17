@@ -93,6 +93,15 @@ pub(super) fn env_bool_for_config_key(key: &str) -> Option<bool> {
     env_bool_from_names(&[&auto])
 }
 
+/// Whether any env var bound to `key` is set (mirrors Go `IsConfigured` env source).
+pub(super) fn env_configured_for_key(key: &str) -> bool {
+    let names = env_vars_for_key(key);
+    if !names.is_empty() {
+        return names.iter().any(|name| std::env::var(name).is_ok());
+    }
+    std::env::var(auto_env_var_for_key(key)).is_ok()
+}
+
 pub(super) fn env_string_for_config_key(key: &str) -> Option<String> {
     let names = env_vars_for_key(key);
     if !names.is_empty() {

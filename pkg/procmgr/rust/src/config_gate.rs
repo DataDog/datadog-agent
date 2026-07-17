@@ -21,7 +21,9 @@
 mod env_bindings;
 mod system_probe;
 
-use env_bindings::{env_bool_for_config_key, env_string_for_config_key, env_vars_for_key};
+use env_bindings::{
+    env_bool_for_config_key, env_configured_for_key, env_string_for_config_key, env_vars_for_key,
+};
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -101,21 +103,22 @@ const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
 const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
 
 impl GatedKeySpec {
-    /// Resolution order: legacy `process_config.enabled` transform (collection keys only)
-    /// → derived `system_probe_config.enabled` (module knobs) → fleet policy → env
-    /// → base YAML → agent default.
+    /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys only)
+    /// → fleet policy → env → base YAML → agent default.
     ///
-    /// Legacy and derived checks mirror agent-runtime values (`loadProcessTransforms`,
-    /// `pkg/system-probe/config/config.go` `load()`). Fleet policy outranks env vars
+    /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
+    /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
+    ///
+    /// Legacy transforms mirror `loadProcessTransforms`. Fleet policy outranks env vars
     /// (`SourceFleetPolicies` > `SourceEnvVar`).
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.legacy_collection_override(base_path, yaml)? {
             return Ok(enabled);
         }
-        if self.key == "system_probe_config.enabled"
-            && system_probe::derived_enabled(base_path, yaml)?
-        {
-            return Ok(true);
+        if self.key == "system_probe_config.enabled" {
+            // Mirrors sysprobeConf.GetBool("system_probe_config.enabled") after load()+Adjust:
+            // runtime enabled is module-derived, not the literal YAML/env knob alone.
+            return system_probe::derived_enabled(base_path, yaml);
         }
         if let Some(enabled) = self.fleet_policy_value(yaml)? {
             return Ok(enabled);
@@ -240,9 +243,30 @@ impl YamlCache {
         }
     }
 
-    /// Whether `key` is set in the base YAML file (not fleet policy).
-    pub(super) fn key_configured(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
+    /// Whether `key` is present in the base YAML file only (not fleet policy or env).
+    pub(super) fn key_in_yaml(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
         Ok(self.dotted_key_if_exists(path, key)?.is_some())
+    }
+
+    /// Whether `key` is explicitly set via fleet policy, env, or base YAML.
+    ///
+    /// Mirrors Go `IsConfigured` for NPM back-compat (`adjust.go`).
+    pub(super) fn is_configured(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        if env_configured_for_key(key) {
+            return Ok(true);
+        }
+        if let Some(filename) = fleet_policy_file
+            && let Some(path) = fleet_policy_path(filename)
+            && self.dotted_key_if_exists(&path, key)?.is_some()
+        {
+            return Ok(true);
+        }
+        self.key_in_yaml(base_path, key)
     }
 
     fn string_value(value: &serde_yaml::Value) -> anyhow::Result<Option<String>> {
@@ -438,6 +462,17 @@ mod tests {
         file.write_all(body.as_bytes()).unwrap();
         path.to_string_lossy().into_owned()
     }
+
+    /// Agent YAML with every process-agent gate key off (including `container_collection` default).
+    const ALL_PROCESS_GATES_OFF: &str = "\
+process_config:
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
+  process_discovery:
+    enabled: false
+";
 
     fn process_agent_conditions(agent_path: String) -> Vec<ConditionConfigFile> {
         vec![ConditionConfigFile {
@@ -767,7 +802,7 @@ mod tests {
             let agent = write_config(
                 dir.path(),
                 "datadog.yaml",
-                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
             );
             let _fleet = EnvGuard::set(
                 "DD_FLEET_POLICIES_DIR",
@@ -1092,6 +1127,54 @@ mod tests {
     }
 
     #[test]
+    fn derived_npm_env_disable_blocks_back_compat_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _network = EnvGuard::set("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "system_probe_config:\n  enabled: true\n",
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    #[test]
+    fn derived_npm_fleet_disable_blocks_back_compat_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: false\n",
+            );
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "system_probe_config:\n  enabled: true\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    #[test]
     fn derived_npm_back_compat_with_usm_explicitly_disabled() {
         with_env_lock(|| {
             clear_gated_env_vars();
@@ -1149,11 +1232,7 @@ mod tests {
                 "system-probe.yaml",
                 "service_monitoring_config:\n  enabled: false\n",
             );
-            let agent = write_config(
-                dir.path(),
-                "datadog.yaml",
-                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
-            );
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
             let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
             let _fleet = EnvGuard::set(
                 "DD_FLEET_POLICIES_DIR",
