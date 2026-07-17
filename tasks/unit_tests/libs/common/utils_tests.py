@@ -147,7 +147,9 @@ class TestGetBuildFlags(unittest.TestCase):
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/external/embedded/lib"], "", ""))
     def test_infers_python_home_from_selected_rtloader_root_path(self, _get_rtloader_paths, _get_version_ldflags):
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True)
+        ldflags, _, _ = get_build_flags(
+            mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True
+        )
 
         self.assertIn("python.pythonHome3=/external/embedded", ldflags.replace("\\", "/"))
 
@@ -167,7 +169,9 @@ class TestGetBuildFlags(unittest.TestCase):
     ):
         # The selected (first) rtloader is a legacy root; a stale embedded lib from a prior
         # Bazel build must not override the Python home for the rtloader actually linked.
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True)
+        ldflags, _, _ = get_build_flags(
+            mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True
+        )
 
         self.assertNotIn("python.pythonHome3", ldflags)
 
