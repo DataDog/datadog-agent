@@ -191,43 +191,6 @@ function Get-VisualStudioRoot() {
 
 <#
 .SYNOPSIS
-Dumps PE header and hash information for a binary, best-effort.
-
-.DESCRIPTION
-Intended to be called from a build-failure handler to diagnose Windows error 216
-(CreateProcessW machine-type mismatch), e.g. when a Bazel-built launcher such as
-//rtloader:install fails to execute. Never throws: a missing binary or dumpbin.exe
-is reported and skipped rather than masking the original build failure.
-
-.PARAMETER Path
-Path to the binary to inspect.
-#>
-function Show-BinaryHeaders() {
-    param(
-        [string]$Path
-    )
-    if (-not (Test-Path $Path)) {
-        Write-Host "Diagnostics: '$Path' not found, cannot dump headers"
-        return
-    }
-    try {
-        Write-Host "=== Diagnostics for '$Path' ==="
-        Get-Item $Path | Select-Object FullName, Length, LastWriteTimeUtc | Format-List | Out-String | Write-Host
-        Get-FileHash $Path -Algorithm SHA256 | Format-List | Out-String | Write-Host
-        $dumpbin = Get-ChildItem -Path (Get-VisualStudioRoot) -Recurse -Filter "dumpbin.exe" -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -like "*Hostx64\x64*" } | Select-Object -First 1
-        if ($dumpbin) {
-            & $dumpbin.FullName /headers $Path
-        } else {
-            Write-Host "dumpbin.exe not found under $(Get-VisualStudioRoot)"
-        }
-    } catch {
-        Write-Host "Diagnostics failed: $_"
-    }
-}
-
-<#
-.SYNOPSIS
 Fetches a secret
 
 .PARAMETER parameterName

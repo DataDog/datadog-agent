@@ -77,7 +77,12 @@ build do
     if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "bazel run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
+    # A poisoned disk/remote cache entry for //rtloader:install's launcher-creation action
+    # (incident-57868) can serve a truncated install.exe, failing with Windows error 216.
+    # Retry uncached on failure: this also heals the entry for everyone else.
+    rtloader_install_no_cache_flags = "#{bazel_flags} --modify_execution_info=PyBuildLauncher=+no-cache"
+    command "bazel run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir} || " \
+            "bazel run #{rtloader_install_no_cache_flags} -- //rtloader:install --destdir=\"#{install_dir}",
       :live_stream => Omnibus.logger.live_stream(:info)
     # Put the static rtloader library where it gets picked up by the go build linking to it
     command "bazel run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",

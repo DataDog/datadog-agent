@@ -44,7 +44,9 @@ bazel:test:linux-arm64:
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
-  parallel: 10
+  parallel: 50
+  variables:
+    GIT_STRATEGY: empty
   script:
     - df -h
     - rm -frv $XDG_CACHE_HOME/bazel-repo-contents-cache
@@ -57,7 +59,9 @@ bazel:test:macos-amd64:
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
-  parallel: 10
+  parallel: 50
+  variables:
+    GIT_STRATEGY: empty
   script:
     - df -h
     - rm -frv $XDG_CACHE_HOME/bazel-repo-contents-cache
@@ -70,7 +74,7 @@ bazel:test:macos-arm64:
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
-  parallel: 50
+  #parallel: 50
   script:
     - Get-Volume | Format-Table -AutoSize
     - if (Test-Path $env:XDG_CACHE_HOME\bazel-repo-contents-cache) { Remove-Item -Recurse -Force -Verbose $env:XDG_CACHE_HOME\bazel-repo-contents-cache }

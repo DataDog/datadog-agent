@@ -8,7 +8,7 @@ import shutil
 import sys
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import gitlab_section
@@ -121,7 +121,15 @@ def install_with_bazel(ctx):
         )
 
         # Install rtloader and cpython where the Agent expects them at runtime
-        bazel(ctx, "run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
+        install_args = ("//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
+        try:
+            bazel(ctx, "run", *install_args)
+        except UnexpectedExit:
+            # A poisoned disk/remote cache entry for //rtloader:install's launcher-creation
+            # action (incident-57868) can serve a truncated install.exe, failing with Windows
+            # error 216. Retry uncached: this also heals the entry for everyone else.
+            bazel(ctx, "run", "--modify_execution_info=PyBuildLauncher=+no-cache", *install_args)
+            raise  # for tracking
         bazel(ctx, "run", "@cpython//:install", "--", f"--destdir={bin_dir}")
 
         return os.path.join(bin_dir, "embedded3")
