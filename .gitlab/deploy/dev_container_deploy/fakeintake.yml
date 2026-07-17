@@ -52,11 +52,13 @@ publish_fakeintake_pinned:
     # NB: inline the main-branch condition — YAML anchors (*if_main_branch) are
     # file-local and this file is a separate GitLab include, so `<<: *anchor`
     # from .gitlab-ci.yml is not resolvable here (only !reference works cross-file).
+    # No compare_to: on the main pipeline it would default to main, making this a
+    # main-vs-main diff that never matches; omitting it diffs against the previous
+    # commit so the merge that bumped VERSION is detected (as .on_fakeintake_changes_on_main does).
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         paths:
           - test/fakeintake/version/VERSION
-        compare_to: $COMPARE_TO_BRANCH
   needs:
     - job: docker_build_fakeintake
       optional: false
