@@ -421,17 +421,14 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
     match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
         serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
-        serde_yaml::Value::String(text) => parse_bool_string(text),
+        serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
         _ => None,
     }
 }
 
-pub(super) fn parse_bool_string(text: &str) -> Option<bool> {
-    match text.trim().to_ascii_lowercase().as_str() {
-        "" | "0" | "false" | "no" | "n" | "off" | "disabled" => Some(false),
-        "1" | "true" | "yes" | "y" | "on" => Some(true),
-        _ => bool::from_str(text).ok(),
-    }
+/// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
+pub(super) fn parse_agent_bool_string(text: &str) -> Option<bool> {
+    bool::from_str(text.trim()).ok()
 }
 
 /// Human-readable path for logs when a config gate blocks startup.
@@ -1061,6 +1058,25 @@ process_config:
             value_as_bool(&serde_yaml::Value::String("true".into())),
             Some(true)
         );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("yes".into())),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn env_yes_does_not_enable_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "yes");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
     }
 
     #[test]

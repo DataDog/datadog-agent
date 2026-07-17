@@ -131,8 +131,10 @@ fn auto_env_var_for_key(key: &str) -> String {
 }
 
 fn env_bool_from_names(names: &[&str]) -> Option<bool> {
-    names
-        .iter()
-        .filter_map(|name| std::env::var(name).ok())
-        .find_map(|value| super::parse_bool_string(&value))
+    for name in names {
+        if let Ok(value) = std::env::var(name) {
+            return Some(super::parse_agent_bool_string(&value).unwrap_or(false));
+        }
+    }
+    None
 }
