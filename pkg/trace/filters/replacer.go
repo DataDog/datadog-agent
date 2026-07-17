@@ -141,12 +141,6 @@ func (f Replacer) replaceNumericTag(re *regexp.Regexp, s *pb.Span, key string, s
 }
 
 func (f Replacer) replaceAttributeAnyValue(re *regexp.Regexp, val *pb.AttributeAnyValue, str string) *pb.AttributeAnyValue {
-	// A span event attribute value can be nil (e.g. attributes["k"] = nil, a
-	// valid msgpack decode result); leave it untouched rather than dereferencing
-	// val.Type.
-	if val == nil {
-		return nil
-	}
 	switch val.Type {
 	case pb.AttributeAnyValue_STRING_VALUE:
 		return &pb.AttributeAnyValue{

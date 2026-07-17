@@ -456,6 +456,8 @@ func (a *Agent) setFirstTraceTagsV1(root *idx.InternalSpan) {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking Process.
 func (a *Agent) Process(p *api.Payload) {
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -491,18 +493,6 @@ func (a *Agent) Process(p *api.Payload) {
 
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
-		// A decoded payload can carry a nil chunk (the v0.7 msgpack decoder
-		// stores nil for a nil `chunks` array element); drop it before touching
-		// chunk.Spans.
-		if chunk == nil {
-			p.RemoveChunk(i)
-			continue
-		}
-		// A decoded payload can also carry nil span pointers (e.g. v0.4 JSON
-		// `[[null]]`) and nil link/event entries. Strip them once here so no
-		// downstream consumer (GetRoot, normalization, obfuscation, replacement,
-		// top-level computation) has to guard against a nil dereference.
-		chunk.Spans = stripNilSpans(chunk.Spans)
 		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			p.RemoveChunk(i)
@@ -651,6 +641,8 @@ func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, d
 
 // ProcessV1 is the default work unit for a V1 payload that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking ProcessV1.
 func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	if len(p.TracerPayload.Chunks) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -683,13 +675,6 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
-		// Guard against a nil chunk before dereferencing chunk.Spans, mirroring
-		// the V0 path. Native v1 decoders don't emit nil chunks today, but this
-		// keeps the invariant robust for any future idx source.
-		if chunk == nil {
-			p.TracerPayload.RemoveChunk(i)
-			continue
-		}
 		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			p.TracerPayload.RemoveChunk(i)
@@ -861,49 +846,6 @@ func normalizeAPMModeSpanTag(apmMode string) string {
 	}
 }
 
-// stripNilSpans removes nil span entries from a chunk's span slice, and nil
-// link/event entries from each remaining span. Decoded payloads can carry nil
-// pointers (e.g. a v0.4 JSON `[[null]]` body, or a nil msgpack array element)
-// that would otherwise be dereferenced by GetRoot, normalization, obfuscation,
-// replacement or top-level computation. Filtering is done in place, reusing the
-// backing arrays.
-func stripNilSpans(spans []*pb.Span) []*pb.Span {
-	kept := spans[:0]
-	for _, s := range spans {
-		if s == nil {
-			continue
-		}
-		s.SpanLinks = stripNilSpanLinks(s.SpanLinks)
-		s.SpanEvents = stripNilSpanEvents(s.SpanEvents)
-		kept = append(kept, s)
-	}
-	return kept
-}
-
-// stripNilSpanLinks removes nil entries from a span's link slice, filtering in place.
-func stripNilSpanLinks(links []*pb.SpanLink) []*pb.SpanLink {
-	kept := links[:0]
-	for _, l := range links {
-		if l == nil {
-			continue
-		}
-		kept = append(kept, l)
-	}
-	return kept
-}
-
-// stripNilSpanEvents removes nil entries from a span's event slice, filtering in place.
-func stripNilSpanEvents(events []*pb.SpanEvent) []*pb.SpanEvent {
-	kept := events[:0]
-	for _, e := range events {
-		if e == nil {
-			continue
-		}
-		kept = append(kept, e)
-	}
-	return kept
-}
-
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
 func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
@@ -976,12 +918,6 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	for _, chunk := range p.Chunks() {
 		n := 0
 		for _, span := range chunk.Spans {
-			// Drop nil spans rather than passing them to the discard hook, which
-			// is not expected to handle a nil span. A decoded payload can carry
-			// nil span pointers (e.g. v0.4 JSON `[[null]]`).
-			if span == nil {
-				continue
-			}
 			if !a.DiscardSpan(span) {
 				chunk.Spans[n] = span
 				n++
