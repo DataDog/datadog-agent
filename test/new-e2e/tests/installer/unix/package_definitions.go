@@ -88,7 +88,7 @@ func pinnedApmInjectVersion() string {
 	if version, ok := os.LookupEnv("E2E_APM_INJECT_PACKAGE_VERSION"); ok && version != "" {
 		return version
 	}
-	return "0.67.2-1"
+	return "0.68.0-1"
 }
 
 func previousApmInjectVersion() string {

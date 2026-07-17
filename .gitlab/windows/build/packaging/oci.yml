@@ -60,6 +60,8 @@ agent_win_oci:
       artifacts: true
     - job: "windows_zip_ddot_x64"
       artifacts: true
+    - job: "windows_zip_eudm_x64"
+      artifacts: true
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
@@ -94,6 +96,19 @@ agent_win_oci:
         cp -r "${DDOT_INPUT_DIR}"/* "${DDOT_EXTENSION_DIR}"/
 
         EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"
+      fi
+    - |
+      EUDM_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-eudm-*x86_64.zip 2>/dev/null || true)
+      if [ -n "$EUDM_ARTIFACT" ]; then
+        EUDM_INPUT_DIR="$(mktemp -d)"
+        EUDM_EXTENSION_DIR="$(mktemp -d)"
+        echo "Extracting EUDM extension to ${EUDM_INPUT_DIR}"
+        unzip -q "${EUDM_ARTIFACT}" -d "${EUDM_INPUT_DIR}"
+
+        # Copy entire EUDM extension structure (flat: AI Usage host binary + example config) to extension directory
+        cp -r "${EUDM_INPUT_DIR}"/* "${EUDM_EXTENSION_DIR}"/
+
+        EXTRA_FLAGS="${EXTRA_FLAGS} --extension eudm=${EUDM_EXTENSION_DIR}"
       fi
     - |
       INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/datadog-installer-*-x86_64.exe 2>/dev/null | head -1)
