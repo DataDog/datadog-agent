@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -11,13 +12,12 @@ go_library(
     deps = ["//comp/anomalydetection/severityevents/def"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "dispatcher_test.go",
         "reader_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = ["//comp/anomalydetection/severityevents/def"],
 )
