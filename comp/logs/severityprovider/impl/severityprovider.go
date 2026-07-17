@@ -56,6 +56,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 			observer, ok := reqs.Observer.Get()
 			if !ok {
+				reqs.Log.Warnf("[severityprovider] disabled: anomaly-detection observer is not running")
 				return nil
 			}
 
