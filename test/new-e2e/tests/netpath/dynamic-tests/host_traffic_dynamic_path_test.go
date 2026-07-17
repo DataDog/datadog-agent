@@ -171,6 +171,13 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	}, 2*time.Minute, 5*time.Second)
 	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
 	s.remoteConfigAdded = true
+	statsAfterAdd, err := fakeintake.RCStats()
+	require.NoError(s.T(), err)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		stats, err := fakeintake.RCStats()
+		assert.NoError(c, err)
+		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
+	}, 2*time.Minute, 5*time.Second)
 
 	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
