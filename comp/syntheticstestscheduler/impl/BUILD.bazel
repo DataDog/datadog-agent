@@ -36,6 +36,7 @@ go_test(
     name = "impl_test",
     srcs = [
         "assertions_test.go",
+        "config_test.go",
         "syntheticstestscheduler_test.go",
         "testpoller_test.go",
         "worker_test.go",
@@ -43,6 +44,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/forwarder/eventplatform/def",
