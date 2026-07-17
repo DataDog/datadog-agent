@@ -10,11 +10,17 @@ package npcollectorimpl
 import (
 	"net/netip"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -76,6 +82,40 @@ func TestDynamicRemoteConfigConflictFallsBackToLocal(t *testing.T) {
 	}, callback)
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["a"].State)
 	assert.False(t, collector.filter.IsIncluded("api.example.com", netip.Addr{}))
+}
+
+func TestDynamicRemoteConfigDeletionLetsAdmittedPathsExpireByTTL(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, nil)
+	now := time.Date(2026, time.July, 17, 0, 0, 0, 0, time.UTC)
+	collector.pathtestStore = pathteststore.NewPathtestStore(pathteststore.Config{
+		ContextsLimit: 1,
+		TTL:           10 * time.Minute,
+		Interval:      time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"dynamic": {Config: dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.example.com"}]`)},
+	}, func(string, state.ApplyStatus) {})
+	collector.pathtestStore.Add(&common.Pathtest{
+		Hostname:         "api.example.com",
+		Port:             443,
+		Protocol:         payload.ProtocolTCP,
+		TestConfigID:     "dynamic",
+		TestConfigSource: payload.TestConfigSourceRemote,
+	})
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+	assert.Empty(t, collector.remoteConfigState)
+	assert.Equal(t, 1, collector.pathtestStore.GetContextsCount())
+
+	now = now.Add(time.Minute)
+	flushed := collector.pathtestStore.Flush()
+	require.Len(t, flushed, 1)
+	assert.Equal(t, "dynamic", flushed[0].Pathtest.TestConfigID)
+
+	now = now.Add(10 * time.Minute)
+	assert.Empty(t, collector.pathtestStore.Flush())
+	assert.Zero(t, collector.pathtestStore.GetContextsCount())
 }
 
 func TestDynamicRemoteConfigAcknowledgedWhenCollectorDisabled(t *testing.T) {

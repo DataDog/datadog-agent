@@ -84,6 +84,9 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 
 	for path := range s.remoteConfigState {
 		if _, found := seenDynamicPaths[path]; !found {
+			// RC filters are admission rules: deleting one stops new admissions, but
+			// paths it already admitted keep their attribution and expire normally
+			// through network_path.collector.pathtest_ttl.
 			delete(s.remoteConfigState, path)
 		}
 	}
