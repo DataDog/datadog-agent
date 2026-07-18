@@ -24,6 +24,7 @@ package vrl
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -48,7 +49,7 @@ func Compile(source string) (*Program, error) {
 			C.vrl_free_string(errPtr)
 			return nil, fmt.Errorf("vrl compile error: %s", msg)
 		}
-		return nil, fmt.Errorf("vrl compile failed (unknown error)")
+		return nil, errors.New("vrl compile failed (unknown error)")
 	}
 	return &Program{ptr: ptr}, nil
 }
@@ -58,7 +59,7 @@ func Compile(source string) (*Program, error) {
 // (false, err) on a runtime error (caller should treat as no match).
 func (p *Program) Filter(message []byte) (bool, error) {
 	if p == nil || p.ptr == nil {
-		return false, fmt.Errorf("vrl: nil program")
+		return false, errors.New("vrl: nil program")
 	}
 
 	var errPtr *C.char
@@ -86,7 +87,7 @@ func (p *Program) Filter(message []byte) (bool, error) {
 // returned bytes reflect any partial mutation.
 func (p *Program) Transform(message []byte) ([]byte, error) {
 	if p == nil || p.ptr == nil {
-		return message, fmt.Errorf("vrl: nil program")
+		return message, errors.New("vrl: nil program")
 	}
 
 	var errPtr *C.char
@@ -121,7 +122,7 @@ func messagePtr(message []byte) *C.char {
 
 func evalError(errPtr *C.char) error {
 	if errPtr == nil {
-		return fmt.Errorf("vrl eval failed (unknown error)")
+		return errors.New("vrl eval failed (unknown error)")
 	}
 	msg := C.GoString(errPtr)
 	C.vrl_free_string(errPtr)
