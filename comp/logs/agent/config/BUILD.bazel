@@ -26,8 +26,14 @@ go_library(
         "//pkg/logs/types",
         "//pkg/util/log",
         "//pkg/util/scrubber",
+        "@com_github_datadog_fastjq//:fastjq",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//:ottl",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//contexts/ottllog",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//ottlfuncs",
         "@in_yaml_go_yaml_v3//:yaml",
+        "@io_opentelemetry_go_collector_component//:component",
         "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_zap//:zap",
     ],
 )
 

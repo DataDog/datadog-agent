@@ -1,0 +1,9 @@
+logs:
+  - type: file
+    path: "/smp-shared/*.log"
+    service: benchmark
+    source: benchmark
+    log_processing_rules:
+      - type: include_at_match_ottl
+        name: ottl_only
+        pattern: attributes["seed"] < 32768
