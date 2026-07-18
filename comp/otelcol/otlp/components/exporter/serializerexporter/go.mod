@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.25.0
+go 1.25.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
@@ -52,6 +52,26 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/net v0.56.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
+)
+
+require (
+	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 // indirect
+	github.com/alecthomas/participle/v2 v2.1.4 // indirect
+	github.com/antchfx/xmlquery v1.5.1 // indirect
+	github.com/antchfx/xpath v1.3.6 // indirect
+	github.com/elastic/go-grok v0.3.1 // indirect
+	github.com/elastic/lunes v0.2.2 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/magefile/mage v1.15.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.156.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.156.0 // indirect
+	github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
+	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
 )
 
 require (
