@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.25.4
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
@@ -55,6 +55,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/logs/vrl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
@@ -338,6 +339,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/vrl => ../../../../../../pkg/logs/vrl
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../../../pkg/network/payload

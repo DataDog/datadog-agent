@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.25.4
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
@@ -82,6 +82,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.80.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/vrl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
@@ -370,6 +371,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/vrl => ../../../../../../pkg/logs/vrl
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../../../pkg/network/payload
