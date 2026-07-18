@@ -21,6 +21,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.common.build_trace import trace_span
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -155,7 +156,8 @@ def deps(ctx, verbose=False):
     Setup Go dependencies
     """
     paths = [mod.full_path() for mod in get_default_modules().values()]
-    download_go_dependencies(ctx, paths, verbose=verbose)
+    with trace_span("go-deps-download", meta={"modules": len(paths)}):
+        download_go_dependencies(ctx, paths, verbose=verbose)
 
 
 @task

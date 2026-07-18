@@ -16,6 +16,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.common.build_trace import record_span
 from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
@@ -389,6 +390,20 @@ def build(
     for name in durations_to_print:
         if name in durations:
             print(f"{name}: {durations[name].duration}")
+
+    # Record the coarse omnibus buckets into this job's build-trace fragment.
+    # Per-software / per-packager detail already lives in build-summary.json
+    # (read by send_build_metrics); these buckets are otherwise stdout-only.
+    build_trace_span_names = {
+        "Deps": "deps",
+        "Bundle": "bundle-install",
+        "Omnibus": "omnibus-total",
+        "Restoring omnibus cache": "omnibus-cache-restore",
+        "Updating omnibus cache": "omnibus-cache-update",
+    }
+    for name, span_name in build_trace_span_names.items():
+        if name in durations:
+            record_span(span_name, durations[name].duration)
 
     try:
         send_build_metrics(ctx, durations['Omnibus'].duration)

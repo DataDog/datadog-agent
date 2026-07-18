@@ -15,6 +15,7 @@ include:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - $CI_PROJECT_DIR/build-trace/
       - !reference [.static_quality_gate_report_path]
   variables:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
@@ -22,6 +23,7 @@ include:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
+    BUILD_TRACE_SEGMENT: deb_packaging
 
 .package_deb_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

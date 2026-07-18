@@ -27,10 +27,12 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    BUILD_TRACE_SEGMENT: omnibus
   artifacts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - $CI_PROJECT_DIR/build-trace/
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

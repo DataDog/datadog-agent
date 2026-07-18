@@ -14,11 +14,13 @@
     KUBERNETES_MEMORY_REQUEST: "6Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
     KUBERNETES_CPU_REQUEST: 6
+    BUILD_TRACE_SEGMENT: preamble
   artifacts:
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz.sum
+      - $CI_PROJECT_DIR/build-trace/
 
 build_system-probe-x64:
   stage: binary_build
