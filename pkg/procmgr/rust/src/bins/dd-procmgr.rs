@@ -240,6 +240,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "name": p.name,
                     "state": state_name(p.state),
                     "pid": p.pid,
+                    "profile": p.profile,
+                    "user": p.user,
                     "command": p.command,
                     "args": p.args,
                     "restart_count": p.restart_count,
@@ -257,7 +259,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         return Ok(());
     }
 
-    let rows: Vec<[String; 7]> = resp
+    let rows: Vec<[String; 9]> = resp
         .processes
         .iter()
         .map(|p| {
@@ -270,6 +272,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 } else {
                     "-".to_string()
                 },
+                p.profile.clone(),
+                p.user.clone(),
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
@@ -282,11 +286,13 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         "UUID",
         "STATE",
         "PID",
+        "PROFILE",
+        "USER",
         "RESTARTS",
         "LAST EXIT",
         "COMMAND",
     ];
-    let widths: Vec<usize> = (0..7)
+    let widths: Vec<usize> = (0..9)
         .map(|col| {
             rows.iter()
                 .map(|r| r[col].len())
@@ -297,7 +303,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         .collect();
 
     println!(
-        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
+        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {:<w6$}  {:<w7$}  {}",
         headers[0],
         headers[1],
         headers[2],
@@ -305,16 +311,20 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         headers[4],
         headers[5],
         headers[6],
+        headers[7],
+        headers[8],
         w0 = widths[0],
         w1 = widths[1],
         w2 = widths[2],
         w3 = widths[3],
         w4 = widths[4],
         w5 = widths[5],
+        w6 = widths[6],
+        w7 = widths[7],
     );
     for row in &rows {
         println!(
-            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
+            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {:<w6$}  {:<w7$}  {}",
             row[0],
             row[1],
             row[2],
@@ -322,12 +332,16 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
             row[4],
             row[5],
             row[6],
+            row[7],
+            row[8],
             w0 = widths[0],
             w1 = widths[1],
             w2 = widths[2],
             w3 = widths[3],
             w4 = widths[4],
             w5 = widths[5],
+            w6 = widths[6],
+            w7 = widths[7],
         );
     }
     Ok(())
@@ -359,6 +373,9 @@ async fn cmd_describe(
             "description": detail.description,
             "state": state_name(detail.state),
             "pid": detail.pid,
+            "profile": detail.profile,
+            "user": detail.user,
+            "runtime_user": detail.runtime_user,
             "command": detail.command,
             "args": detail.args,
             "working_dir": detail.working_dir,
@@ -393,6 +410,11 @@ async fn cmd_describe(
     println!("UUID:                {}", detail.uuid);
     println!("State:               {}", state_name(detail.state));
     println!("PID:                 {}", pid_str);
+    println!("Profile:             {}", detail.profile);
+    println!("User:                {}", detail.user);
+    if !detail.runtime_user.is_empty() {
+        println!("Runtime User:        {}", detail.runtime_user);
+    }
     println!("Command:             {}", detail.command);
     println!("Args:                {}", args_str);
     if !detail.description.is_empty() {

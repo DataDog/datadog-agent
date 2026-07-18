@@ -10,12 +10,15 @@ mod local_account;
 mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
+mod runtime_user;
 mod sid;
 mod spawn;
 mod wide;
 
+pub(crate) use agent_credentials::spawn_user_for_profile;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
+pub(crate) use runtime_user::runtime_user_for_pid;
 pub(crate) use spawn::spawn_child_handle;
 
 use anyhow::Result;
