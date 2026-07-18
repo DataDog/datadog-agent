@@ -19,6 +19,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 
 	"github.com/DataDog/fastjq"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/vrl"
 )
 
 // Processing rule types
@@ -39,6 +41,16 @@ const (
 	// IncludeAtJQMatch keeps only log lines for which the jq expression produces output.
 	// Non-JSON content is passed through unchanged.
 	IncludeAtJQMatch = "include_at_jq_match"
+	// ExcludeAtVRLMatch drops log lines for which the VRL expression evaluates to true.
+	// The pattern must be a valid VRL boolean expression (e.g. `.status == "debug"`).
+	ExcludeAtVRLMatch = "exclude_at_vrl_match"
+	// IncludeAtVRLMatch keeps only log lines for which the VRL expression evaluates to true.
+	IncludeAtVRLMatch = "include_at_vrl_match"
+	// MaskVRLTransform mutates the log line's content using a VRL transform
+	// (e.g. `.message = redact(.message, [...])`). Unlike MaskSequences, the
+	// replacement logic lives entirely in the VRL source, not in a separate
+	// placeholder field.
+	MaskVRLTransform = "mask_vrl"
 )
 
 // SourceMatchEntry defines a single attribute-value-to-source match
@@ -64,6 +76,14 @@ type ProcessingRule struct {
 	// It returns (true, nil) when the jq program produces output for the given input,
 	// (false, nil) when it produces no output, and (false, err) on program error.
 	JQFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// VRLFilter is set for ExcludeAtVRLMatch and IncludeAtVRLMatch rules after compilation.
+	// It returns (true, nil) when the VRL expression matches the given input,
+	// (false, nil) when it doesn't, and (false, err) on a compile/runtime error.
+	VRLFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// VRLTransform is set for MaskVRLTransform rules after compilation.
+	// It returns the (possibly mutated) message content, or an error if the
+	// VRL program failed to run.
+	VRLTransform func(input []byte) ([]byte, error) `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -101,6 +121,13 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if _, err := fastjq.Compile(rule.Pattern); err != nil {
 				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch, MaskVRLTransform:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			if _, err := vrl.Compile(rule.Pattern); err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
 		case ExcludeTruncated:
 			break
 		case RemapSource:
@@ -127,7 +154,7 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rule regular expressions and jq programs.
+// CompileProcessingRules compiles all processing rule regular expressions, OTTL conditions, jq programs, and VRL programs.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 
 	for _, rule := range rules {
@@ -140,6 +167,20 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
 			rule.JQFilter = makeJQFilter(prog)
+			continue
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch:
+			prog, err := vrl.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.VRLFilter = prog.Filter
+			continue
+		case MaskVRLTransform:
+			prog, err := vrl.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.VRLTransform = prog.Transform
 			continue
 		}
 		// re, err := regexp.Compile(rule.Pattern)

@@ -66,6 +66,7 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
+    "vrl",  # used by the logs agent to compile/evaluate VRL processing rules via a cgo bridge to a Rust static library
     "wmi",
     "zk",
     "zlib",
@@ -125,6 +126,7 @@ AGENT_TAGS = set([
     "systemd",
     "systemprobechecks",
     "trivy",
+    "vrl",  # benchmark-branch-only: compiles the real VRL cgo engine instead of the stub, see ralph/alp-vrl-log-processing-updated
     "zk",
     "zlib",
     "zstd",

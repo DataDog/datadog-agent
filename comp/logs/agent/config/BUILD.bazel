@@ -24,6 +24,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/logs/types",
+        "//pkg/logs/vrl",
         "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_datadog_fastjq//:fastjq",
@@ -46,7 +47,9 @@ dd_agent_go_test(
         "integration_config_test.go",
         "messages_test.go",
         "parser_test.go",
+        "processing_rules_novrl_test.go",
         "processing_rules_test.go",
+        "processing_rules_vrl_test.go",
     ],
     embed = [":config"],
     deps = [

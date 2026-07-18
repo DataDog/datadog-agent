@@ -311,6 +311,43 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				return false
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
+		case config.ExcludeAtVRLMatch:
+			// if this message matches, we ignore it. Fail open (keep the message)
+			// on a runtime error, since a filter false-negative doesn't leak data.
+			matched, err := rule.VRLFilter(content)
+			if err != nil {
+				metrics.TlmVRLEvalErrors.Inc(rule.Type, rule.Name)
+				break
+			}
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+		case config.IncludeAtVRLMatch:
+			// if this message doesn't match, we ignore it. Fail open (keep the
+			// message) on a runtime error.
+			matched, err := rule.VRLFilter(content)
+			if err != nil {
+				metrics.TlmVRLEvalErrors.Inc(rule.Type, rule.Name)
+				break
+			}
+			if !matched {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
+		case config.MaskVRLTransform:
+			newContent, err := rule.VRLTransform(content)
+			if err != nil {
+				// Fail closed: drop the message rather than risk leaking
+				// unredacted PII when the VRL transform can't run.
+				metrics.TlmVRLEvalErrors.Inc(rule.Type, rule.Name)
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+			if !bytes.Equal(content, newContent) {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
+			content = newContent
 		case config.RemapSource:
 			for _, match := range rule.Matching {
 				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {

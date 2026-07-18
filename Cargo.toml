@@ -4,6 +4,7 @@ members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
+    "pkg/logs/vrl/rust",
     "pkg/procmgr/rust",
 ]
 
@@ -59,6 +60,12 @@ saphyr-parser = "0.0.11"
 yaml-rust2 = "0.11"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
+vrl = { version = "0.33", default-features = false, features = ["compiler"] }
+sha2 = "0.10"
+sha3 = "0.10"
+digest = "0.10"
+base64 = "0.22"
+base16 = "0.2"
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
