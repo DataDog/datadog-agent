@@ -53,3 +53,19 @@ func TestDumpActivityDumpCommand(t *testing.T) {
 		generateActivityDump,
 		func() {})
 }
+
+func TestHostStartActivityDumpCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "activity-dump", "host", "start"},
+		hostStartActivityDump,
+		func() {})
+}
+
+func TestHostStopActivityDumpCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "activity-dump", "host", "stop"},
+		hostStopActivityDump,
+		func() {})
+}
