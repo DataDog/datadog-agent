@@ -163,7 +163,7 @@ var (
 )
 
 // isToolCallGen reports whether a response tail is a tool-call generation.
-func isToolCallGen(raw []byte, provider string) bool {
+func isToolCallGenRegex(raw []byte, provider string) bool {
 	if provider == providerAnthropic {
 		return llmStopToolUseRe.Match(raw)
 	}
@@ -273,7 +273,7 @@ func isLLMPath(path []byte) bool {
 // window. The window may contain an HTTP/2 frame header before the JSON and
 // may be truncated, so extraction is tolerant rather than a strict JSON decode.
 // It returns the model and the first message content found (the user prompt).
-func parseLLMBody(raw []byte) (model string, prompt string) {
+func parseLLMBodyRegex(raw []byte) (model string, prompt string) {
 	if len(raw) == 0 {
 		return "", ""
 	}
@@ -294,20 +294,20 @@ func parseLLMBody(raw []byte) (model string, prompt string) {
 // request body window, in order, using the parser for the given provider.
 // Extraction is tolerant of surrounding binary/NUL bytes and truncation, same
 // as parseLLMBody; a message truncated at the buffer boundary is omitted.
-func parseLLMMessages(raw []byte, provider string) []llmMessage {
+func parseLLMMessagesRegex(raw []byte, provider string) []llmMessage {
 	if len(raw) == 0 {
 		return nil
 	}
 	if provider == providerAnthropic {
-		return parseAnthropicMessages(raw)
+		return parseAnthropicMessagesRegex(raw)
 	}
-	return parseOpenAIMessages(raw)
+	return parseOpenAIMessagesRegex(raw)
 }
 
 // parseOpenAIMessages extracts messages from an OpenAI chat request body,
 // handling both field orders ({"content":..,"role":..} and {"role":..,
 // "content":..}). Only one order matches a given body.
-func parseOpenAIMessages(raw []byte) []llmMessage {
+func parseOpenAIMessagesRegex(raw []byte) []llmMessage {
 	if matches := llmMessageRe.FindAllSubmatch(raw, -1); matches != nil {
 		msgs := make([]llmMessage, 0, len(matches))
 		for _, m := range matches {
@@ -330,7 +330,7 @@ func parseOpenAIMessages(raw []byte) []llmMessage {
 // messages carry their text inside a content-block array. System is returned
 // first, then the messages in order, so the resulting list matches OpenAI's
 // system-first ordering.
-func parseAnthropicMessages(raw []byte) []llmMessage {
+func parseAnthropicMessagesRegex(raw []byte) []llmMessage {
 	var msgs []llmMessage
 	if m := llmAnthropicSystemRe.FindSubmatch(raw); m != nil {
 		msgs = append(msgs, llmMessage{role: "system", content: string(m[1])})
@@ -343,7 +343,7 @@ func parseAnthropicMessages(raw []byte) []llmMessage {
 
 // parseResponseText extracts the assistant's answer from a captured response
 // body window, using the shape for the given provider.
-func parseResponseText(raw []byte, provider string) string {
+func parseResponseTextRegex(raw []byte, provider string) string {
 	if len(raw) == 0 {
 		return ""
 	}
@@ -361,7 +361,7 @@ func parseResponseText(raw []byte, provider string) string {
 // response body window, per provider. Returns nil when there are none (a plain
 // text answer). OpenAI arguments arrive as a JSON-encoded string and are
 // unescaped to raw JSON; Anthropic inputs are already a JSON object.
-func parseToolCalls(raw []byte, provider string) []llmToolCall {
+func parseToolCallsRegex(raw []byte, provider string) []llmToolCall {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -386,7 +386,7 @@ func parseToolCalls(raw []byte, provider string) []llmToolCall {
 // parseToolResults extracts tool results from a captured request body window
 // (present on follow-up calls where the app fed a tool's output back to the
 // model), per provider. Each result carries the id of the tool call it answers.
-func parseToolResults(raw []byte, provider string) []llmToolResult {
+func parseToolResultsRegex(raw []byte, provider string) []llmToolResult {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -406,7 +406,7 @@ func parseToolResults(raw []byte, provider string) []llmToolResult {
 // provider-neutral (input, output, total) mapping to the LLM Observability
 // token metrics. The window may contain surrounding binary/NUL bytes;
 // extraction is tolerant.
-func parseLLMUsage(raw []byte, provider string) (inputTokens, outputTokens, totalTokens int64) {
+func parseLLMUsageRegex(raw []byte, provider string) (inputTokens, outputTokens, totalTokens int64) {
 	if len(raw) == 0 {
 		return 0, 0, 0
 	}
