@@ -34,7 +34,7 @@ pub struct CheckConfig {
 pub struct SubTask {
     #[serde(default)]
     pub sub_task_id: String,
-    // TODO(DSEC-139): remove dummy response once the postgres backend lands.
+    // TODO(DSEC-139): remove placeholder response once the postgres backend lands.
     #[serde(default)]
-    pub dummy_response: Value,
+    pub placeholder_response: Value,
 }

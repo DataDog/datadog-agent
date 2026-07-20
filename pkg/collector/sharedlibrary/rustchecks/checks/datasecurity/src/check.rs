@@ -63,10 +63,10 @@ fn run_sub_task(check: &AgentCheck, config: &CheckConfig, sub_task: &SubTask) ->
     Ok(())
 }
 
-/// Mimics a postgres fetch by returning the sub task's dummy response.
+/// Mimics a postgres fetch by returning the sub task's placeholder response.
 // TODO(DSEC-139): replace with a real postgres query.
 fn fetch_data(sub_task: &SubTask) -> Value {
-    sub_task.dummy_response.clone()
+    sub_task.placeholder_response.clone()
 }
 
 /// Placeholder scan over the returned columns.
@@ -95,7 +95,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn scan_dummy_response_returns_email_matches() {
+    fn scan_placeholder_response_returns_email_matches() {
         let scan_result = json!({
             "email": ["alice@example.com", "bob@test.com", "charlie@corp.com"],
         });
