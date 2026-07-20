@@ -179,26 +179,14 @@ func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedW
 		log.String(observability.TaskIDTagName, task.Data.ID),
 		log.String(observability.ActionFqnTagName, task.GetFQN()),
 	)
-	taskCtx, taskCtxCancel := context.WithCancel(ctx)
+	taskCtx, taskCtxCancel := context.WithCancel(log.ContextWithLogger(ctx, logger))
 	defer taskCtxCancel()
-
-	timeoutSeconds := task.TimeoutSeconds()
-	if timeoutSeconds == nil {
-		timeoutSeconds = n.config.TaskTimeoutSeconds
-	}
-	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
-	defer timeoutCancel()
 
 	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
-	output, err := n.taskExecutor.RunTask(timeoutCtx, preparedTask)
-
-	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
-		n.publishFailure(ctx, task, timeoutErr)
-		return
-	}
+	output, err := n.taskExecutor.RunPrepared(taskCtx, preparedTask)
 
 	if err == nil {
 		n.publishSuccess(ctx, task, output)

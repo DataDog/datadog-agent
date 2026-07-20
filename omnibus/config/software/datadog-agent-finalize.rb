@@ -94,6 +94,14 @@ build do
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
+            # Move the built-in shared-library checks (built under install_dir) into the
+            # package's checks.d and set owner-only permissions on them.
+            Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
+              dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
+              move lib, dest, :force => true
+              command "chmod 0500 #{dest}"
+            end
+
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"
 

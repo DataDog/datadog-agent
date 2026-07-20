@@ -685,6 +685,7 @@ def test(
         ctx,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_python="python" in unit_tests_tags,
     )
 
     # Use stdout if no profile is set

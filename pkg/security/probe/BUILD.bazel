@@ -320,7 +320,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/winutil",
             "//pkg/windowsdriver/procmon",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@com_github_jellydator_ttlcache_v3//:ttlcache",
