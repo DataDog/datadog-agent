@@ -420,7 +420,7 @@ use_repo(
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
     "io_etcd_go_bbolt",
-    "io_etcd_go_etcd_client_v2",
+    "io_etcd_go_etcd_client_v3",
     "io_istio_api",
     "io_istio_client_go",
     "io_k8s_api",
