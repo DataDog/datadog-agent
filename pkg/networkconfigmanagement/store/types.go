@@ -13,14 +13,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-// UnknownUUIDError indicates that the given UUID wasn't present in the store.
-type UnknownUUIDError struct {
+// ConfigNotFoundError indicates that the given UUID wasn't present in the store.
+type ConfigNotFoundError struct {
 	UUID string
 }
 
-func (u *UnknownUUIDError) Error() string {
+// Type implements [types.RollbackError].
+func (u *ConfigNotFoundError) Type() types.ErrorType {
+	return types.ErrConfigNotPresent
+}
+
+func (u *ConfigNotFoundError) Error() string {
 	return "raw config not found for UUID: " + u.UUID
 }
+
+var _ types.RollbackError = (*ConfigNotFoundError)(nil)
 
 // ConfigStore implements persistent KV store for configurations for rollbacks
 // whenever a config is retrieved, we will store agent-side along with the payload sent
