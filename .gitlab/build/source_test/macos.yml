@@ -25,6 +25,7 @@ include:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
     - !reference [.upload_coverage_datadog]
+    - !reference [.macos_runner_after_script]
   artifacts:
     expire_in: 2 weeks
     when: always
