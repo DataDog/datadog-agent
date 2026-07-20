@@ -12,9 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/kindprovisioner"
 )
 
 type kindSuite struct {
@@ -29,29 +28,27 @@ clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
 `
-	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
-		provkind.WithRunOptions(
-			scenkind.WithVMOptions(
-				scenec2.WithInstanceType("t3.xlarge"),
-			),
-			scenkind.WithFakeintakeOptions(
-				fakeintake.WithMemory(2048),
-				fakeintake.WithRetentionPeriod("31m"),
-			),
-			scenkind.WithDeployDogstatsd(),
-			scenkind.WithDeployTestWorkload(),
-			scenkind.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithHelmValues(helmValues),
-				kubernetesagentparams.WithHelmValues(containerHelmValues),
-				// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
-				// (legacy) Endpoints providers. This covers tests for both without having to create
-				// independent test suites for both configurations or modify providers at test runtime.
-				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
-			),
-			scenkind.WithDeployArgoRollout(),
-		),
-	)))
+	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(kindprovisioner.Provisioner(kindprovisioner.Options{
+		AWSVMOptions: []scenec2.VMOption{
+			scenec2.WithInstanceType("t3.xlarge"),
+		},
+		FakeintakeOptions: []fakeintake.Option{
+			fakeintake.WithMemory(2048),
+			fakeintake.WithRetentionPeriod("31m"),
+		},
+		DeployDogstatsd:    true,
+		DeployTestWorkload: true,
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(helmValues),
+			kubernetesagentparams.WithHelmValues(containerHelmValues),
+			// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
+			// (legacy) Endpoints providers. This covers tests for both without having to create
+			// independent test suites for both configurations or modify providers at test runtime.
+			kubernetesagentparams.WithKubernetesUseEndpointSlices(),
+		},
+		DeployArgoRollout: true,
+	})))
 }
 
 func (suite *kindSuite) SetupSuite() {

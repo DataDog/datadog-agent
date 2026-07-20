@@ -283,6 +283,26 @@ new-e2e-containers-k8s-latest:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
 
+# Runs the same TestKindSuite as new-e2e-containers-k8s-latest, but against a kind cluster
+# created directly on the runner's own Docker daemon (E2E_PROVISIONER=kind-local) instead of
+# provisioning a dedicated EC2 VM. Required alongside the AWS-VM job above, not a replacement:
+# it validates the local provisioner while still exercising real infra for the default path.
+new-e2e-containers-kind-local:
+  extends:
+    - .new_e2e_template_needs_container_deploy_linux
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64" && chmod +x ./kind && mv ./kind /usr/local/bin/kind
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    E2E_PROVISIONER: kind-local
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
+
 new-e2e-containers-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
