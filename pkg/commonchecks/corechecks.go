@@ -51,7 +51,6 @@ import (
 	ncm "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkconfigmanagement"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/openmetrics"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/kubeletconfig"
@@ -127,7 +126,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 		corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
 	}
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
-	corecheckLoader.RegisterCheck(openmetrics.CheckName, openmetrics.Factory())
+	registerOpenMetricsCheck()
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
 	if cfg.GetBool("use_diskv2_check") {

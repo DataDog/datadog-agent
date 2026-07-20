@@ -18,6 +18,7 @@ type labelAggregator struct {
 	configured        bool
 	cacheSharedLabels bool
 	sharedLabelsCache bool
+	partialMatches    bool
 
 	metricConfig     map[string]shareLabelConfig
 	targetInfo       bool
@@ -46,6 +47,7 @@ type labelAggregatorPreparer struct {
 func newLabelAggregator(cfg *scraperConfig) (*labelAggregator, error) {
 	aggregator := &labelAggregator{
 		cacheSharedLabels:   cfg.cacheSharedLabels,
+		partialMatches:      cfg.mode == latestMode,
 		metricConfig:        map[string]shareLabelConfig{},
 		targetInfo:          cfg.targetInfo,
 		targetInfoLabels:    map[string]string{},
@@ -149,7 +151,6 @@ func (a *labelAggregator) collect(metric parsedMetric, config shareLabelConfig) 
 			}
 			matchLabels := map[string]string{}
 			sharedLabels := map[string]string{}
-			matchedAllLabels := true
 			for label, value := range sample.Labels {
 				if _, ok := config.match[label]; ok {
 					matchLabels[label] = value
@@ -160,14 +161,17 @@ func (a *labelAggregator) collect(metric parsedMetric, config shareLabelConfig) 
 					sharedLabels[label] = value
 				}
 			}
-			for label := range config.match {
-				if _, ok := sample.Labels[label]; !ok {
-					matchedAllLabels = false
-					break
+			if !a.partialMatches {
+				matchedAllLabels := true
+				for label := range config.match {
+					if _, ok := sample.Labels[label]; !ok {
+						matchedAllLabels = false
+						break
+					}
 				}
-			}
-			if !matchedAllLabels {
-				continue
+				if !matchedAllLabels {
+					continue
+				}
 			}
 			a.labelSets = append(a.labelSets, sharedLabelSet{matchLabels: matchLabels, sharedLabels: sharedLabels})
 		}

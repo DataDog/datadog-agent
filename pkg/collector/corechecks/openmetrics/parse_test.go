@@ -38,15 +38,18 @@ func TestParsePrometheusSampleLineStrictValidation(t *testing.T) {
 }
 
 func TestParsePrometheusTypeLineStrictValidation(t *testing.T) {
-	for _, line := range []string{
-		"# TYPE metric unsupported",
-		"# TYPE 1metric gauge",
-	} {
+	for _, line := range []string{"# TYPE 1metric gauge"} {
 		_, _, _, err := parsePrometheusTypeLine([]byte(line))
 		require.Error(t, err, line)
 	}
 
-	name, typ, ok, err := parsePrometheusTypeLine([]byte("# TYPE metric_info info"))
+	name, typ, ok, err := parsePrometheusTypeLine([]byte("# TYPE metric unsupported"))
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "metric", name)
+	require.Equal(t, "unsupported", typ)
+
+	name, typ, ok, err = parsePrometheusTypeLine([]byte("# TYPE metric_info info"))
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "metric_info", name)

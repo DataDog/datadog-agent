@@ -6,7 +6,15 @@
 package openmetrics
 
 import (
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -1398,6 +1406,319 @@ share_labels:
 	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"pod:api", "version:1.0.0", "runtime:go", "endpoint:" + run.endpoint})
 }
 
+func TestLatestShareLabelsMatchesOnlyLabelsPresentOnSource(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+		match   string
+		want    string
+	}{
+		{
+			name: "partial match",
+			payload: `
+# TYPE build_info gauge
+build_info{pod="api",version="first"} 1
+build_info{pod="worker",version="second"} 1
+# TYPE app_up gauge
+app_up{pod="api"} 1
+`,
+			match: "      - pod\n      - missing_label",
+			want:  "version:first",
+		},
+		{
+			name: "empty match uses last source",
+			payload: `
+# TYPE build_info gauge
+build_info{version="first"} 1
+build_info{version="second"} 1
+# TYPE app_up gauge
+app_up 1
+`,
+			match: "      - missing_label",
+			want:  "version:second",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+share_labels:
+  build_info:
+    match:
+`+test.match+`
+    labels:
+      - version
+`, test.payload)
+
+			run.sender.AssertMetricTaggedWith(t, "Gauge", "test.app_up", []string{test.want})
+		})
+	}
+}
+
+func TestLatestPrometheusParserParityEdges(t *testing.T) {
+	paths := []struct {
+		name  string
+		extra string
+		fast  bool
+	}{
+		{name: "streaming", fast: true},
+		{name: "buffered", extra: "telemetry: true\n", fast: false},
+	}
+
+	t.Run("unsupported type declarations", func(t *testing.T) {
+		payload := `
+# TYPE state stateset
+state{state="ready"} 1
+# TYPE gauge_hist gaugehistogram
+gauge_hist 2
+# TYPE metadata info
+metadata{version="1"} 1
+# TYPE future future_type
+future 3
+# TYPE ok gauge
+ok 4
+`
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - state:
+      type: gauge
+  - gauge_hist
+  - metadata
+  - future
+  - ok
+`+path.extra, payload)
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMetric(t, "Gauge", "test.state", 1, "", []string{"state:ready", "endpoint:" + run.endpoint})
+				run.sender.AssertMetric(t, "Gauge", "test.ok", 4, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetricMissing(t, "Gauge", "test.gauge_hist")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.metadata")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.future")
+			})
+		}
+	})
+
+	t.Run("exemplar trailer", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - request_duration
+`+path.extra, `
+# TYPE request_duration gauge
+request_duration{route="/"} 1 # {trace_id="abc"} 0.5 123
+`)
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMetric(t, "Gauge", "test.request_duration", 1, "", []string{"route:/", "endpoint:" + run.endpoint})
+			})
+		}
+	})
+
+	t.Run("float overflow", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - overflow_309
+  - overflow_401
+  - overflow_padded
+  - underflow
+  - valid
+`+path.extra, `
+# TYPE overflow_309 gauge
+overflow_309 1e309
+# TYPE overflow_401 gauge
+overflow_401 1e401
+# TYPE overflow_padded gauge
+overflow_padded 1e+0400
+# TYPE underflow gauge
+underflow 1e-400
+# TYPE valid gauge
+valid 2
+`)
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_309")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_401")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_padded")
+				run.sender.AssertMetric(t, "Gauge", "test.underflow", 0, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetric(t, "Gauge", "test.valid", 2, "", []string{"endpoint:" + run.endpoint})
+			})
+		}
+	})
+
+	t.Run("OpenMetrics float overflow", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - overflow_309
+  - overflow_401
+  - overflow_padded
+  - valid
+`+path.extra, `# TYPE overflow_309 gauge
+overflow_309 1e309
+# TYPE overflow_401 gauge
+overflow_401 1e401
+# TYPE overflow_padded gauge
+overflow_padded 1e+0400
+# TYPE valid gauge
+valid 2
+# EOF
+`, http.StatusOK, "application/openmetrics-text; version=1.0.0")
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_309")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_401")
+				run.sender.AssertMetricMissing(t, "Gauge", "test.overflow_padded")
+				run.sender.AssertMetric(t, "Gauge", "test.valid", 2, "", []string{"endpoint:" + run.endpoint})
+			})
+		}
+	})
+
+	t.Run("OpenMetrics exemplar float overflow", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - request_309
+  - request_401
+  - request_padded
+`+path.extra, `# TYPE request_309 counter
+request_309_total 1 # {trace_id="309"} 1e309
+# TYPE request_401 counter
+request_401_total 2 # {trace_id="401"} 1e401 123
+# TYPE request_padded counter
+request_padded_total 3 # {trace_id="padded"} 1e+0400
+# EOF
+`, http.StatusOK, "application/openmetrics-text; version=1.0.0")
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_309.count", 1, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_401.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_padded.count", 3, "", []string{"endpoint:" + run.endpoint}, false)
+			})
+		}
+	})
+
+	t.Run("last type declaration wins", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - changed_to_counter
+  - changed_to_gauge
+  - requests
+  - temperature_total
+`+path.extra, `
+# TYPE changed_to_counter gauge
+changed_to_counter 1
+# TYPE changed_to_counter counter
+changed_to_counter 2
+# TYPE changed_to_gauge counter
+changed_to_gauge 3
+# TYPE changed_to_gauge gauge
+changed_to_gauge 4
+# TYPE requests_total gauge
+requests_total 5
+# TYPE requests_total counter
+requests_total 6
+# TYPE temperature_total counter
+temperature_total 7
+# TYPE temperature_total gauge
+temperature_total 8
+`)
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.changed_to_counter.count", 1, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.changed_to_counter.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMetricMissing(t, "Gauge", "test.changed_to_counter")
+				run.sender.AssertMetric(t, "Gauge", "test.changed_to_gauge", 3, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetric(t, "Gauge", "test.changed_to_gauge", 4, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetricMissing(t, "MonotonicCountWithFlushFirstValue", "test.changed_to_gauge.count")
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 5, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 6, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMetric(t, "Gauge", "test.temperature_total", 7, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetric(t, "Gauge", "test.temperature_total", 8, "", []string{"endpoint:" + run.endpoint})
+			})
+		}
+	})
+
+	t.Run("last type declaration wins on compatibility parser", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+`+path.extra, "# TYPE requests_total gauge\r\nrequests_total 1\r\n# TYPE requests_total counter\r\nrequests_total 2\r\n")
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 1, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+				run.sender.AssertMetricMissing(t, "Gauge", "test.requests_total")
+			})
+		}
+	})
+
+	t.Run("distinct raw families remain separate on compatibility parser", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+`+path.extra, "# TYPE requests gauge\r\nrequests 1\r\n# TYPE requests_total counter\r\nrequests_total 2\r\n")
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMetric(t, "Gauge", "test.requests", 1, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetric(t, "Gauge", "test.requests", 2, "", []string{"endpoint:" + run.endpoint})
+				run.sender.AssertMetricMissing(t, "MonotonicCountWithFlushFirstValue", "test.requests.count")
+			})
+		}
+	})
+
+	t.Run("non-finite samples do not consume the cap", func(t *testing.T) {
+		for _, path := range paths {
+			t.Run(path.name, func(t *testing.T) {
+				run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - value
+max_returned_metrics: 1
+`+path.extra, `
+# TYPE value gauge
+value +Inf
+value 7
+`)
+
+				require.Equal(t, path.fast, run.check.scraper.inner.canDirectStreamParse(false))
+				run.sender.AssertMetric(t, "Gauge", "test.value", 7, "", []string{"endpoint:" + run.endpoint})
+			})
+		}
+	})
+}
+
 func TestLatestTargetInfoLabels(t *testing.T) {
 	payload := `
 # TYPE target_info gauge
@@ -2238,6 +2559,59 @@ auth_token:
 	run.run(t)
 
 	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"endpoint:" + run.endpoint})
+}
+
+func TestAuthTokenDCOSHeader(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	privateKeyPath := filepath.Join(t.TempDir(), "dcos-private-key.pem")
+	privateKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+	require.NoError(t, os.WriteFile(privateKeyPath, privateKeyPEM, 0o600))
+
+	loginServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		var login struct {
+			UID   string `json:"uid"`
+			Token string `json:"token"`
+			Exp   int64  `json:"exp"`
+		}
+		require.NoError(t, json.NewDecoder(request.Body).Decode(&login))
+		require.Equal(t, "service-account", login.UID)
+
+		parts := strings.Split(login.Token, ".")
+		require.Len(t, parts, 3)
+		header, err := base64.RawURLEncoding.DecodeString(parts[0])
+		require.NoError(t, err)
+		require.JSONEq(t, `{"alg":"RS256","typ":"JWT"}`, string(header))
+
+		claimsData, err := base64.RawURLEncoding.DecodeString(parts[1])
+		require.NoError(t, err)
+		var claims struct {
+			UID string `json:"uid"`
+			Exp int64  `json:"exp"`
+		}
+		require.NoError(t, json.Unmarshal(claimsData, &claims))
+		require.Equal(t, login.UID, claims.UID)
+		require.Equal(t, login.Exp, claims.Exp)
+
+		signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+		require.NoError(t, err)
+		digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+		require.NoError(t, rsa.VerifyPKCS1v15(&privateKey.PublicKey, crypto.SHA256, digest[:], signature))
+
+		_, err = w.Write([]byte(`{"token":"dcos-token"}`))
+		require.NoError(t, err)
+	}))
+	defer loginServer.Close()
+
+	reader := authTokenDCOSReader{
+		loginURL:       loginServer.URL,
+		serviceAccount: "service-account",
+		privateKeyPath: privateKeyPath,
+		expiration:     5 * time.Minute,
+	}
+	token, err := reader.read()
+	require.NoError(t, err)
+	require.Equal(t, "dcos-token", token)
 }
 
 func TestLegacyBearerTokenAuthCompatibility(t *testing.T) {

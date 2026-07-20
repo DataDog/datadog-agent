@@ -48,20 +48,24 @@ type streamParseResult struct {
 
 func walkParsedMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool, trimCounterSuffix bool, handler parsedMetricHandler) (int, error) {
 	filtered, ignoredLines := filterRawLines(data, rawLineFilter)
+	if !useOpenMetrics && requiresPrometheusCompatibilityParser(filtered) {
+		return ignoredLines, walkPrometheusMetricFamilies(bytes.NewReader(filtered), trimCounterSuffix, handler)
+	}
 
 	st := labels.NewSymbolTable()
 	var parser textparse.Parser
-	infoTypes := map[string]struct{}{}
 	if useOpenMetrics {
+		filtered = sanitizeFloatOverflows(filtered)
 		parser = textparse.NewOpenMetricsParser(filtered, st, textparse.WithOMParserSTSeriesSkipped())
 	} else {
-		filtered, infoTypes = sanitizePromInfoTypes(filtered)
 		parser = textparse.NewPromParser(filtered, st, false)
 	}
 
 	var current parsedMetric
+	currentRawName := ""
 	hasCurrent := false
 	materialize := true
+	handledMetrics := 0
 	var lbls labels.Labels
 	flushCurrent := func() error {
 		if !hasCurrent {
@@ -75,8 +79,10 @@ func walkParsedMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics
 		if err != nil {
 			return err
 		}
+		handledMetrics++
 		materialize = keepMaterializing
 		current = parsedMetric{}
+		currentRawName = ""
 		hasCurrent = false
 		return nil
 	}
@@ -87,27 +93,55 @@ func walkParsedMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics
 			break
 		}
 		if err != nil {
+			if errors.Is(err, strconv.ErrRange) {
+				remainingSkips := handledMetrics
+				fallbackHandler := func(metric parsedMetric) (bool, error) {
+					if remainingSkips > 0 {
+						remainingSkips--
+						return true, nil
+					}
+					return handler(metric)
+				}
+				var fallbackErr error
+				if useOpenMetrics {
+					normalized := sanitizeFloatOverflowsAll(filtered)
+					if !bytes.Equal(normalized, filtered) {
+						_, fallbackErr = walkParsedMetrics(normalized, nil, true, trimCounterSuffix, fallbackHandler)
+					} else {
+						fallbackErr = err
+					}
+				} else {
+					fallbackErr = walkPrometheusMetricFamilies(bytes.NewReader(filtered), trimCounterSuffix, fallbackHandler)
+				}
+				if fallbackErr == nil && remainingSkips == 0 {
+					return ignoredLines, nil
+				}
+			}
 			return ignoredLines, err
 		}
 
 		switch entry {
 		case textparse.EntryType:
+			name, typ := parser.Type()
+			metricType := strings.ToLower(string(typ))
+			rawMetricName := string(name)
+			metricName := rawMetricName
+			if trimCounterSuffix {
+				metricName = normalizeFamilyName(metricName, metricType)
+			}
+			if hasCurrent && currentRawName == rawMetricName {
+				current.Name = metricName
+				current.Type = metricType
+				continue
+			}
 			if err := flushCurrent(); err != nil {
 				return ignoredLines, err
 			}
 			if !materialize {
 				continue
 			}
-			name, typ := parser.Type()
-			metricType := strings.ToLower(string(typ))
-			metricName := string(name)
-			if _, ok := infoTypes[metricName]; ok {
-				metricType = "info"
-			}
-			if trimCounterSuffix {
-				metricName = normalizeFamilyName(metricName, metricType)
-			}
 			current = parsedMetric{Name: metricName, Type: metricType}
+			currentRawName = rawMetricName
 			hasCurrent = true
 		case textparse.EntrySeries:
 			if !materialize {
@@ -153,16 +187,17 @@ func walkParsedMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics
 	return ignoredLines, nil
 }
 
-func walkPrometheusTextSamples(r io.Reader, trimCounterSuffix bool, shouldMaterialize func([]byte, map[string]string) bool, handler func(parsedSample, map[string]string) error) (streamParseResult, error) {
+func walkPrometheusTextSamples(r io.Reader, trimCounterSuffix bool, shouldMaterialize func([]byte, map[string]string) bool, typeHandler func(string, string, string) error, handler func(parsedSample, map[string]string) error) (streamParseResult, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 
 	result := streamParseResult{}
 	metricTypes := map[string]string{}
+	metricFamilies := map[string]string{}
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		result.bytesRead += int64(len(line)) + 1
-		line = bytes.TrimRight(bytes.TrimLeft(line, " \t"), "\r")
+		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
 			continue
 		}
@@ -174,10 +209,20 @@ func walkPrometheusTextSamples(r io.Reader, trimCounterSuffix bool, shouldMateri
 			if !ok {
 				continue
 			}
+			rawName := name
 			if trimCounterSuffix {
-				name = normalizeFamilyName(name, typ)
+				name = normalizeFamilyName(rawName, typ)
 			}
+			if previousFamily, ok := metricFamilies[rawName]; ok && previousFamily != name {
+				delete(metricTypes, previousFamily)
+			}
+			metricFamilies[rawName] = name
 			metricTypes[name] = typ
+			if typeHandler != nil {
+				if err := typeHandler(rawName, name, typ); err != nil {
+					return result, err
+				}
+			}
 			continue
 		}
 		sampleName, err := prometheusSampleName(line)
@@ -200,6 +245,71 @@ func walkPrometheusTextSamples(r io.Reader, trimCounterSuffix bool, shouldMateri
 		return result, err
 	}
 	return result, nil
+}
+
+func walkPrometheusMetricFamilies(r io.Reader, trimCounterSuffix bool, handler parsedMetricHandler) error {
+	pending := parsedMetric{}
+	pendingRawName := ""
+	declarationRawName := ""
+	declarationFamilyName := ""
+	materialize := true
+	flushPending := func() error {
+		if len(pending.Samples) == 0 {
+			return nil
+		}
+		keepMaterializing, err := handler(pending)
+		if err != nil {
+			return err
+		}
+		materialize = keepMaterializing
+		pending = parsedMetric{}
+		pendingRawName = ""
+		return nil
+	}
+
+	_, err := walkPrometheusTextSamples(r, trimCounterSuffix, func([]byte, map[string]string) bool {
+		return materialize
+	}, func(rawName string, familyName string, metricType string) error {
+		if len(pending.Samples) > 0 && pendingRawName == rawName {
+			pending.Name = familyName
+			pending.Type = metricType
+		} else if len(pending.Samples) > 0 {
+			if err := flushPending(); err != nil {
+				return err
+			}
+		}
+		declarationRawName = rawName
+		declarationFamilyName = familyName
+		return nil
+	}, func(sample parsedSample, metricTypes map[string]string) error {
+		familyName := prometheusFamilyName(sample.Name, metricTypes, trimCounterSuffix)
+		if len(pending.Samples) > 0 && pending.Name != familyName {
+			if err := flushPending(); err != nil {
+				return err
+			}
+		}
+		if !materialize {
+			return nil
+		}
+		if len(pending.Samples) == 0 {
+			pending.Name = familyName
+			if declarationFamilyName == familyName {
+				pendingRawName = declarationRawName
+			} else {
+				pendingRawName = sample.Name
+			}
+		}
+		pending.Type = metricTypes[familyName]
+		if pending.Type == "" {
+			pending.Type = "unknown"
+		}
+		pending.Samples = append(pending.Samples, sample)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return flushPending()
 }
 
 func walkOpenMetricsTextSamples(r io.Reader, trimCounterSuffix bool, shouldMaterialize func(string) bool, handler func(parsedSample, parsedMetric) error) (streamParseResult, error) {
@@ -780,7 +890,7 @@ func parseOpenMetricsFloat(data []byte) (float64, error) {
 	if !validPrometheusFloat(data) {
 		return 0, fmt.Errorf("unsupported character in float %q", data)
 	}
-	return strconv.ParseFloat(unsafeString(data), 64)
+	return parseFloatAllowRange(data)
 }
 
 func parseOpenMetricsTimestamp(data []byte) (int64, error) {
@@ -847,12 +957,7 @@ func parsePrometheusTypeLine(line []byte) (string, string, bool, error) {
 }
 
 func validPrometheusType(typ string) bool {
-	switch typ {
-	case "counter", "gauge", "histogram", "summary", "untyped", "info":
-		return true
-	default:
-		return false
-	}
+	return typ != ""
 }
 
 func validPrometheusMetricName(name string) bool {
@@ -960,7 +1065,7 @@ func parsePrometheusSampleLine(line []byte, materializeLabels bool) (parsedSampl
 	if !validPrometheusFloat(rawValue) {
 		return parsedSample{}, fmt.Errorf("invalid Prometheus sample line %q: invalid value", line)
 	}
-	value, err := strconv.ParseFloat(string(rawValue), 64)
+	value, err := parseFloatAllowRange(rawValue)
 	if err != nil {
 		return parsedSample{}, fmt.Errorf("invalid Prometheus sample line %q: invalid value: %w", line, err)
 	}
@@ -970,6 +1075,12 @@ func parsePrometheusSampleLine(line []byte, materializeLabels bool) (parsedSampl
 		Value:  value,
 	}
 	if len(rest) > 0 {
+		if rest[0] == '#' {
+			if err := parseOpenMetricsExemplar(rest); err != nil {
+				return parsedSample{}, err
+			}
+			return sample, nil
+		}
 		timestampEnd := bytes.IndexAny(rest, " \t")
 		rawTimestamp := rest
 		if timestampEnd >= 0 {
@@ -986,7 +1097,12 @@ func parsePrometheusSampleLine(line []byte, materializeLabels bool) (parsedSampl
 		if timestampEnd >= 0 {
 			trailing := bytes.TrimLeft(rest[timestampEnd:], " \t")
 			if len(trailing) > 0 {
-				return parsedSample{}, fmt.Errorf("invalid Prometheus sample line %q: unexpected data after timestamp", line)
+				if trailing[0] != '#' {
+					return parsedSample{}, fmt.Errorf("invalid Prometheus sample line %q: unexpected data after timestamp", line)
+				}
+				if err := parseOpenMetricsExemplar(trailing); err != nil {
+					return parsedSample{}, err
+				}
 			}
 		}
 	}
@@ -1221,26 +1337,182 @@ func filterRawLines(data []byte, filter *regexp.Regexp) ([]byte, int) {
 	return bytes.Join(filtered, []byte{'\n'}), ignored
 }
 
-func sanitizePromInfoTypes(data []byte) ([]byte, map[string]struct{}) {
-	if !bytes.Contains(data, []byte("info")) {
-		return data, nil
+func requiresPrometheusCompatibilityParser(data []byte) bool {
+	return containsPrometheusCompatibilityMarker(data) ||
+		bytes.IndexAny(data, "\r\f\v") >= 0 ||
+		(len(data) > 0 && (data[0] == ' ' || data[0] == '\t'))
+}
+
+func containsExponent400(data []byte) bool {
+	for offset := 0; offset < len(data); {
+		index := bytes.Index(data[offset:], []byte("400"))
+		if index < 0 {
+			return false
+		}
+		start := offset + index
+		if start > 0 && (data[start-1] == 'e' || data[start-1] == 'E') {
+			return true
+		}
+		if start > 1 && (data[start-1] == '+' || data[start-1] == '-') && (data[start-2] == 'e' || data[start-2] == 'E') {
+			return true
+		}
+		offset = start + 3
 	}
+	return false
+}
+
+func containsPrometheusCompatibilityMarker(data []byte) bool {
+	for offset := 0; offset < len(data); {
+		index := bytes.IndexByte(data[offset:], '#')
+		if index < 0 {
+			return false
+		}
+		start := offset + index
+		if start > 0 && data[start-1] == ' ' && start+1 < len(data) && data[start+1] == ' ' {
+			return true
+		}
+		if !bytes.HasPrefix(data[start:], []byte("# TYPE ")) {
+			offset = start + 1
+			continue
+		}
+		end := bytes.IndexByte(data[start:], '\n')
+		if end < 0 {
+			end = len(data) - start
+		}
+		fields := bytes.Fields(data[start : start+end])
+		if len(fields) == 4 && string(fields[0]) == "#" && string(fields[1]) == "TYPE" {
+			typ := strings.ToLower(string(fields[3]))
+			switch typ {
+			case "counter", "gauge", "histogram", "summary", "untyped":
+			default:
+				return true
+			}
+		}
+		offset = start + end + 1
+	}
+	return false
+}
+
+func sanitizeFloatOverflows(data []byte) []byte {
+	if !possiblyContainsFloatOverflow(data) {
+		return data
+	}
+	return sanitizeFloatOverflowsAll(data)
+}
+
+func sanitizeFloatOverflowsAll(data []byte) []byte {
 	lines := bytes.Split(data, []byte{'\n'})
-	infoTypes := map[string]struct{}{}
+	changed := false
 	for i, line := range lines {
-		fields := bytes.Fields(line)
-		if len(fields) == 4 &&
-			string(fields[0]) == "#" &&
-			string(fields[1]) == "TYPE" &&
-			string(fields[3]) == "info" {
-			infoTypes[string(fields[2])] = struct{}{}
-			lines[i] = bytes.Join([][]byte{fields[0], fields[1], fields[2], []byte("gauge")}, []byte(" "))
+		normalized := normalizeFloatOverflowLine(line)
+		if !bytes.Equal(normalized, line) {
+			lines[i] = normalized
+			changed = true
 		}
 	}
-	if len(infoTypes) == 0 {
-		return data, nil
+	if !changed {
+		return data
 	}
-	return bytes.Join(lines, []byte{'\n'}), infoTypes
+	return bytes.Join(lines, []byte{'\n'})
+}
+
+func possiblyContainsFloatOverflow(data []byte) bool {
+	return containsExponent400(data)
+}
+
+func normalizeFloatOverflowLine(line []byte) []byte {
+	if len(line) == 0 || line[0] == '#' {
+		return line
+	}
+
+	_, consumed, err := parseOpenMetricsIdentifierRaw(line)
+	if err != nil {
+		if line[0] != '{' {
+			return line
+		}
+		consumed = 0
+	}
+	rest := line[consumed:]
+	if len(rest) > 0 && rest[0] == '{' {
+		end := findLabelSetEnd(rest)
+		if end < 0 {
+			return line
+		}
+		rest = rest[end+1:]
+	}
+	rest = bytes.TrimLeft(rest, " \t")
+	if len(rest) == 0 {
+		return line
+	}
+	valueStart := len(line) - len(rest)
+	valueEnd := bytes.IndexAny(rest, " \t")
+	if valueEnd < 0 {
+		valueEnd = len(rest)
+	}
+	normalized := replaceFloatOverflow(line, valueStart, valueStart+valueEnd, true)
+	rest = normalized[valueStart+valueEnd+len(normalized)-len(line):]
+	rest = bytes.TrimLeft(rest, " \t")
+	if len(rest) == 0 {
+		return normalized
+	}
+	if rest[0] != '#' {
+		_, rest, _ = nextOpenMetricsToken(rest)
+		rest = bytes.TrimLeft(rest, " \t")
+	}
+	if len(rest) < 2 || rest[0] != '#' {
+		return normalized
+	}
+
+	exemplar := bytes.TrimLeft(rest[1:], " \t")
+	if len(exemplar) == 0 || exemplar[0] != '{' {
+		return normalized
+	}
+	labelsEnd := findLabelSetEnd(exemplar)
+	if labelsEnd < 0 {
+		return normalized
+	}
+	exemplar = bytes.TrimLeft(exemplar[labelsEnd+1:], " \t")
+	if len(exemplar) == 0 {
+		return normalized
+	}
+	tokenEnd := bytes.IndexAny(exemplar, " \t")
+	if tokenEnd < 0 {
+		tokenEnd = len(exemplar)
+	}
+	tokenStart := len(normalized) - len(exemplar)
+	return replaceFloatOverflow(normalized, tokenStart, tokenStart+tokenEnd, false)
+}
+
+func replaceFloatOverflow(line []byte, start, end int, preserveValue bool) []byte {
+	value, err := strconv.ParseFloat(unsafeString(line[start:end]), 64)
+	if !errors.Is(err, strconv.ErrRange) {
+		return line
+	}
+	replacement := []byte("0")
+	if preserveValue {
+		replacement = []byte("+Inf")
+		if value == 0 {
+			replacement = []byte("0")
+			if math.Signbit(value) {
+				replacement = []byte("-0")
+			}
+		} else if math.Signbit(value) {
+			replacement = []byte("-Inf")
+		}
+	}
+	normalized := make([]byte, 0, len(line)-(end-start)+len(replacement))
+	normalized = append(normalized, line[:start]...)
+	normalized = append(normalized, replacement...)
+	normalized = append(normalized, line[end:]...)
+	return normalized
+}
+
+func parseFloatAllowRange(data []byte) (float64, error) {
+	value, err := strconv.ParseFloat(unsafeString(data), 64)
+	if errors.Is(err, strconv.ErrRange) {
+		return value, nil
+	}
+	return value, err
 }
 
 func normalizeFamilyName(name, metricType string) string {

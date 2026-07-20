@@ -323,6 +323,106 @@ func (s *openmetricsScraper) scrapeOpenMetricsStream(sender sender.Sender, respo
 }
 
 func (s *openmetricsScraper) walkAndSubmitPrometheusTextStream(r io.Reader, runtime runtimeData, sender sender.Sender, submittedSamples *int) (streamParseResult, error) {
+	if !s.hasNativeDirectStreamTransformer() {
+		return s.walkAndSubmitPrometheusTextStreamImmediate(r, runtime, sender, submittedSamples)
+	}
+
+	pending := parsedMetric{}
+	pendingRawName := ""
+	declarationRawName := ""
+	declarationFamilyName := ""
+	flushPending := func() {
+		if len(pending.Samples) == 0 {
+			return
+		}
+		*submittedSamples += s.processMetric(pending, runtime, sender, *submittedSamples)
+		pending = parsedMetric{}
+		pendingRawName = ""
+	}
+	shouldMaterialize := func(sampleName []byte, metricTypes map[string]string) bool {
+		familyName := prometheusFamilyNameBytes(sampleName, metricTypes, s.cfg.mode == latestMode)
+		if len(pending.Samples) > 0 && pending.Name != familyName {
+			flushPending()
+		}
+		if s.cfg.maxReturnedMetrics > 0 && *submittedSamples+len(pending.Samples) >= s.cfg.maxReturnedMetrics {
+			return false
+		}
+		if _, configured := s.transformer.exact[familyName]; configured {
+			return true
+		}
+		rawName := string(sampleName)
+		if _, configured := s.transformer.exact[rawName]; configured {
+			return true
+		}
+		if strings.HasSuffix(rawName, "_total") {
+			_, configured := s.transformer.exact[strings.TrimSuffix(rawName, "_total")]
+			return configured
+		}
+		return false
+	}
+	typeHandler := func(rawName string, familyName string, metricType string) error {
+		if len(pending.Samples) > 0 && pendingRawName != rawName {
+			flushPending()
+		}
+		if pendingRawName == rawName {
+			pending.Name = familyName
+			pending.Type = metricType
+		}
+		declarationRawName = rawName
+		declarationFamilyName = familyName
+		return nil
+	}
+	result, err := walkPrometheusTextSamples(r, s.cfg.mode == latestMode, shouldMaterialize, typeHandler, func(sample parsedSample, metricTypes map[string]string) error {
+		if math.IsNaN(sample.Value) || math.IsInf(sample.Value, 0) {
+			return nil
+		}
+		familyName := prometheusFamilyName(sample.Name, metricTypes, s.cfg.mode == latestMode)
+		compiled := s.transformer.exact[familyName]
+		if compiled != nil && compiled.metricType != transformerNative && compiled.metricType != transformerNativeDynamic {
+			flushPending()
+			metricType := metricTypes[familyName]
+			if metricType == "" {
+				metricType = "unknown"
+			}
+			metric := parsedMetric{Name: familyName, Type: metricType, Samples: []parsedSample{sample}}
+			*submittedSamples += s.processMetric(metric, runtime, sender, *submittedSamples)
+			return nil
+		}
+		if len(pending.Samples) > 0 && pending.Name != familyName {
+			flushPending()
+		}
+		if len(pending.Samples) == 0 {
+			pending.Name = familyName
+			if declarationFamilyName == familyName {
+				pendingRawName = declarationRawName
+			} else {
+				pendingRawName = sample.Name
+			}
+		}
+		pending.Type = metricTypes[familyName]
+		if pending.Type == "" {
+			pending.Type = "unknown"
+		}
+		pending.Samples = append(pending.Samples, sample)
+		return nil
+	})
+	if err != nil {
+		return result, err
+	}
+	flushPending()
+	return result, nil
+}
+
+func (s *openmetricsScraper) hasNativeDirectStreamTransformer() bool {
+	for _, compiled := range s.transformer.exact {
+		if compiled.metricType == transformerNative || compiled.metricType == transformerNativeDynamic {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *openmetricsScraper) walkAndSubmitPrometheusTextStreamImmediate(r io.Reader, runtime runtimeData, sender sender.Sender, submittedSamples *int) (streamParseResult, error) {
 	shouldMaterialize := func(sampleName []byte, metricTypes map[string]string) bool {
 		if s.cfg.maxReturnedMetrics > 0 && *submittedSamples >= s.cfg.maxReturnedMetrics {
 			return false
@@ -331,13 +431,9 @@ func (s *openmetricsScraper) walkAndSubmitPrometheusTextStream(r io.Reader, runt
 		_, configured := s.transformer.exact[familyName]
 		return configured
 	}
-	return walkPrometheusTextSamples(r, s.cfg.mode == latestMode, shouldMaterialize, func(sample parsedSample, metricTypes map[string]string) error {
+	return walkPrometheusTextSamples(r, s.cfg.mode == latestMode, shouldMaterialize, nil, func(sample parsedSample, metricTypes map[string]string) error {
 		familyName := prometheusFamilyName(sample.Name, metricTypes, s.cfg.mode == latestMode)
-		metric := parsedMetric{
-			Name:    familyName,
-			Type:    metricTypes[familyName],
-			Samples: []parsedSample{sample},
-		}
+		metric := parsedMetric{Name: familyName, Type: metricTypes[familyName], Samples: []parsedSample{sample}}
 		if metric.Type == "" {
 			metric.Type = "unknown"
 		}
