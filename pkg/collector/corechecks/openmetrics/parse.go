@@ -1339,7 +1339,7 @@ func filterRawLines(data []byte, filter *regexp.Regexp) ([]byte, int) {
 
 func requiresPrometheusCompatibilityParser(data []byte) bool {
 	return containsPrometheusCompatibilityMarker(data) ||
-		bytes.IndexAny(data, "\r\f\v") >= 0 ||
+		bytes.ContainsAny(data, "\r\f\v") ||
 		(len(data) > 0 && (data[0] == ' ' || data[0] == '\t'))
 }
 
