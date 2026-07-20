@@ -6568,6 +6568,11 @@ properties:
             node_type: section
             type: object
             properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Enables the external recommender feature.
               tls:
                 node_type: section
                 type: object
