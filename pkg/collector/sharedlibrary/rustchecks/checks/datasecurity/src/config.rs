@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use core::AgentCheck;
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::scanning::ScanningRule;
 
@@ -32,10 +31,42 @@ pub struct CheckConfig {
     pub scan_data: Vec<SubTask>,
 }
 
-/// A single scan sub task.
-#[derive(Debug, Deserialize)]
+/// A single scan sub task: a query to run against one data source.
+#[derive(Debug, Default, Deserialize)]
 pub struct SubTask {
     pub sub_task_id: String,
-    // TODO(DSEC-139): remove placeholder response once the postgres backend lands.
-    pub placeholder_response: Value,
+    /// Data-source platform, used to select the backend engine (e.g. `postgres`).
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub connection: Connection,
+    /// SQL query whose result columns are scanned.
+    #[serde(default)]
+    pub query: String,
+    /// Connect and query timeout in seconds. `0` disables the timeout.
+    #[serde(default = "default_timeout_seconds")]
+    pub timeout_seconds: u64,
+}
+
+fn default_timeout_seconds() -> u64 {
+    30
+}
+
+/// Database connection parameters for a sub task.
+#[derive(Debug, Default, Deserialize)]
+pub struct Connection {
+    #[serde(default)]
+    pub host: String,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub dbname: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+fn default_port() -> u16 {
+    5432
 }

@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, anyhow};
 use core::*;
-use serde_json::Value;
 
+use crate::backend;
 use crate::config::{CheckConfig, SubTask};
-use crate::payload::ScanEventPayload;
+use crate::payload::{Match, ScanEventPayload, ScanStatus};
 use crate::scanning::Scanner;
 
 /// Check entrypoint.
@@ -41,26 +41,34 @@ fn run_sub_task(
     sub_task: &SubTask,
 ) -> Result<()> {
     println!(
-        "datasecurity: running sub task (sub_task_id={})",
-        sub_task.sub_task_id
+        "datasecurity: running sub task (sub_task_id={}, platform={})",
+        sub_task.sub_task_id, sub_task.platform
     );
 
-    // TODO(DSEC-139): fetch the rows from postgres.
-    let data = fetch_data(sub_task);
-    let matches = scanner
-        .scan(&data)
-        .context("failed to scan sub task data")?;
+    // A sub task failure is reported inside the payload (status=ERROR) rather
+    // than aborting the check, so every sub task produces exactly one event.
+    let (status, failure_reason, matches) = match run_scan(scanner, sub_task) {
+        Ok(matches) => {
+            println!("datasecurity: sub task succeeded ({} match(es))", matches.len());
+            (ScanStatus::Success, String::new(), matches)
+        }
+        Err(err) => {
+            let reason = format!("{err:#}");
+            eprintln!(
+                "datasecurity: sub task {} failed: {reason}",
+                sub_task.sub_task_id
+            );
+            (ScanStatus::Error, reason, Vec::new())
+        }
+    };
 
     let payload = ScanEventPayload {
         task_id: config.task_id.clone(),
         sub_task_id: sub_task.sub_task_id.clone(),
+        status,
+        failure_reason,
         matches,
     };
-
-    println!(
-        "datasecurity: built scaffold event payload ({} match(es))",
-        payload.matches.len()
-    );
 
     // TODO(DSEC-140): send sdsresult rather than an event
     let payload_json =
@@ -81,8 +89,8 @@ fn run_sub_task(
     Ok(())
 }
 
-/// Mimics a postgres fetch by returning the sub task's placeholder response.
-// TODO(DSEC-139): replace with a real postgres query.
-fn fetch_data(sub_task: &SubTask) -> Value {
-    sub_task.placeholder_response.clone()
+/// Fetches the sub task's data and scans it, returning the matches.
+fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<Vec<Match>> {
+    let data = backend::execute_scan(sub_task).context("fetching sub task data")?;
+    scanner.scan(&data).context("scanning sub task data")
 }
