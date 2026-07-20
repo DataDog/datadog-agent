@@ -37,14 +37,13 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
-	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
+	networkpathproviderfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
-	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -191,7 +190,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -326,7 +324,6 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
-	networkPathRCHandler npcollector.RemoteConfigHandler,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -392,7 +389,6 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
-		networkPathRCHandler,
 	); err != nil {
 		return err
 	}
@@ -499,6 +495,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		networkpathproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -663,7 +660,6 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
-	networkPathRCHandler npcollector.RemoteConfigHandler,
 ) error {
 	var err error
 
@@ -719,14 +715,6 @@ func startAgent(
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 
-		if cfg.GetBool("network_path.remote_config.enabled") {
-			networkPathProvider := networkpathprovider.NewProvider()
-			rcclient.Subscribe(data.ProductNetworkPath, func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-				networkPathProvider.Update(updates, applyStateCallback)
-				networkPathRCHandler.UpdateRemoteConfig(updates, applyStateCallback)
-			})
-			ac.AddConfigProvider(networkPathProvider, false, 0)
-		}
 	}
 
 	// start clc runner server

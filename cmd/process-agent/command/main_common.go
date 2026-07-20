@@ -51,7 +51,6 @@ import (
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
-	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -64,10 +63,8 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
-	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -157,7 +154,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
-		fx.Provide(newNetworkPathRCListener),
 
 		// Provide status modules
 		processstatusfx.Module(),
@@ -273,16 +269,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
-}
-
-func newNetworkPathRCListener(cfg config.Component, handler npcollector.RemoteConfigHandler) rctypes.ListenerProvider {
-	var listener rctypes.ListenerProvider
-	if configutils.IsRemoteConfigEnabled(cfg) && cfg.GetBool("network_path.remote_config.enabled") {
-		listener.ListenerProvider = rctypes.RCListener{
-			data.ProductNetworkPath: handler.UpdateRemoteConfig,
-		}
-	}
-	return listener
 }
 
 type miscDeps struct {

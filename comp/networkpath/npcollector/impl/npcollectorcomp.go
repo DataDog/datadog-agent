@@ -18,6 +18,8 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
 
 type dependencies struct {
@@ -35,9 +37,8 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp npcollector.Component
-	// RCHandler receives dynamic Network Path filters from Remote Configuration.
-	RCHandler npcollector.RemoteConfigHandler
+	Comp       npcollector.Component
+	RCListener rctypes.ListenerProvider
 }
 
 // NewComponent creates a new npcollector component.
@@ -82,5 +83,15 @@ func NewComponent(deps dependencies) Provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return Provides{Comp: collector, RCHandler: collector}
+	return Provides{Comp: collector, RCListener: newRCListener(deps.AgentConfig, collector)}
+}
+
+func newRCListener(cfg config.Component, collector *npCollectorImpl) rctypes.ListenerProvider {
+	var listener rctypes.ListenerProvider
+	if cfg.GetBool("network_path.remote_config.enabled") {
+		listener.ListenerProvider = rctypes.RCListener{
+			data.ProductNetworkPath: collector.UpdateRemoteConfig,
+		}
+	}
+	return listener
 }

@@ -119,13 +119,16 @@ func parseRemoteDynamicConfig(raw []byte) ([]connfilter.Config, bool, error) {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &header); err != nil {
-		return nil, true, fmt.Errorf("invalid Network Path config: %w", err)
+		// The scheduled listener owns malformed documents so only one listener
+		// writes their apply status.
+		return nil, false, nil
 	}
 	if header.Type == remoteConfigScheduledType {
 		return nil, false, nil
 	}
 	if header.Type != remoteConfigDynamicType {
-		return nil, true, fmt.Errorf("unsupported Network Path config type %q", header.Type)
+		// Preserve the scheduled provider as the owner of unknown document types.
+		return nil, false, nil
 	}
 
 	var envelope remoteConfigEnvelope

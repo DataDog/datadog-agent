@@ -20,7 +20,6 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
-	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
@@ -153,7 +152,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
-			networkPathRCHandler npcollector.RemoteConfigHandler,
 
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
@@ -184,7 +182,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
-				networkPathRCHandler,
 			)
 			if err != nil {
 				return err

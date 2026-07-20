@@ -10,7 +10,6 @@ import (
 	"iter"
 
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 // team: network-path
@@ -19,9 +18,4 @@ import (
 type Component interface {
 	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
 	ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
-}
-
-// RemoteConfigHandler applies dynamic Network Path Remote Configuration snapshots.
-type RemoteConfigHandler interface {
-	UpdateRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }

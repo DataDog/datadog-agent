@@ -18,10 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -131,6 +134,53 @@ func TestDynamicRemoteConfigAcknowledgedWhenCollectorDisabled(t *testing.T) {
 	assert.Len(t, collector.remoteConfigState, 1)
 }
 
+func TestDynamicRemoteConfigListener(t *testing.T) {
+	collector := newNoopNpCollectorImpl()
+	for _, enabled := range []bool{false, true} {
+		cfg := config.NewMockWithOverrides(t, map[string]any{
+			"network_path.remote_config.enabled": enabled,
+		})
+		listener := newRCListener(cfg, collector)
+		callback, subscribed := listener.ListenerProvider[data.ProductNetworkPath]
+		assert.Equal(t, enabled, subscribed)
+		if enabled {
+			require.NotNil(t, callback)
+		}
+	}
+}
+
+func TestIndependentNetworkPathListenersOwnOneApplyStatusEach(t *testing.T) {
+	updates := map[string]state.RawConfig{
+		"scheduled": {Config: []byte(`{"type":"scheduled","test_config_id":"scheduled","config":{"tests":[{"hostname":"api.example.com"}]}}`)},
+		"dynamic":   {Config: dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.example.com"}]`)},
+		"unknown":   {Config: []byte(`{"type":"unknown"}`)},
+		"malformed": {Config: []byte(`{`)},
+	}
+	for _, dynamicFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dynamic first=%t", dynamicFirst), func(t *testing.T) {
+			collector := newRemoteConfigTestCollector(t, nil)
+			scheduledProvider := networkpathprovider.NewProvider()
+			writes := make(map[string]int)
+			callback := func(path string, _ state.ApplyStatus) { writes[path]++ }
+
+			if dynamicFirst {
+				collector.UpdateRemoteConfig(updates, callback)
+				scheduledProvider.Update(updates, callback)
+			} else {
+				scheduledProvider.Update(updates, callback)
+				collector.UpdateRemoteConfig(updates, callback)
+			}
+
+			assert.Equal(t, map[string]int{
+				"scheduled": 1,
+				"dynamic":   1,
+				"unknown":   1,
+				"malformed": 1,
+			}, writes)
+		})
+	}
+}
+
 func TestParseRemoteDynamicConfigValidation(t *testing.T) {
 	tests := []struct {
 		name string
@@ -148,6 +198,21 @@ func TestParseRemoteDynamicConfigValidation(t *testing.T) {
 			_, dynamic, err := parseRemoteDynamicConfig(tt.raw)
 			assert.True(t, dynamic)
 			require.ErrorContains(t, err, tt.err)
+		})
+	}
+}
+
+func TestParseRemoteDynamicConfigLeavesNonDynamicOwnershipToScheduledListener(t *testing.T) {
+	for name, raw := range map[string][]byte{
+		"scheduled": []byte(`{"type":"scheduled"}`),
+		"unknown":   []byte(`{"type":"unknown"}`),
+		"malformed": []byte(`{`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			filters, dynamic, err := parseRemoteDynamicConfig(raw)
+			require.NoError(t, err)
+			assert.False(t, dynamic)
+			assert.Nil(t, filters)
 		})
 	}
 }
