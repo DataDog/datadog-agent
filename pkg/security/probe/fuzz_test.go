@@ -38,12 +38,12 @@ import (
 // makeEventSeed creates a seed event buffer with proper structure:
 // - Event header (16 bytes): timestamp(8) + type(4) + flags(4)
 // - PIDContext (40 bytes)
-// - SpanContext (24 bytes)
+// - SpanContext (32 bytes)
 // - CGroupContext (16 bytes)
-// Total minimum: 96 bytes
+// Total minimum: 104 bytes
 func makeEventSeed(eventType model.EventType, extraData []byte) []byte {
-	// Minimum size: header(16) + PIDContext(40) + SpanContext(24) + CGroupContext(16) = 96
-	buf := make([]byte, 96+len(extraData))
+	// Minimum size: header(16) + PIDContext(40) + SpanContext(32) + CGroupContext(16) = 104
+	buf := make([]byte, 104+len(extraData))
 
 	// Event header
 	binary.NativeEndian.PutUint64(buf[0:8], 1000000000)         // timestamp
@@ -57,14 +57,14 @@ func makeEventSeed(eventType model.EventType, extraData []byte) []byte {
 	binary.NativeEndian.PutUint32(buf[28:32], 1)    // mntns
 	// rest is padding/zero
 
-	// SpanContext (24 bytes starting at offset 56)
+	// SpanContext (32 bytes starting at offset 56)
 	// All zeros is fine
 
-	// CGroupContext (16 bytes starting at offset 80)
+	// CGroupContext (16 bytes starting at offset 88)
 	// All zeros is fine
 
 	// Extra data for specific event types
-	copy(buf[96:], extraData)
+	copy(buf[104:], extraData)
 
 	return buf
 }
