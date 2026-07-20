@@ -36,7 +36,7 @@ go_library(
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
         "//test/e2e-framework/testing/utils/optional",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_docker_cli//cli/connhelper",
         "@com_github_moby_moby_api//pkg/stdcopy",
         "@com_github_moby_moby_client//:client",
