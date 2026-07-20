@@ -18,6 +18,8 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -74,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -207,6 +210,13 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("process-agent", globalParams.ConfFilePath)),
 		configstreamconsumerfx.Module(),
+		agenttelemetryfx.Module(),
+		// Forces construction of the agenttelemetry component: fx only builds a
+		// provided type if something depends on it, and nothing else in this
+		// graph does. Without this invoke, agenttelemetryimpl.NewComponent's
+		// OnStart hook (buffer/flush runner, errortracking submitter wiring)
+		// would never run for process-agent.
+		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 		// Set `HOST_PROC` and `HOST_SYS` environment variables
 		fx.Invoke(SetHostMountEnv),
 

@@ -1,0 +1,13 @@
+process_config:
+  # Points the process-specific forwarder at a connection-refused address so
+  # every check submission (including the connections check's, run
+  # unconditionally on its own interval) fails deterministically, independent
+  # of dd_url/FakeIntake wiring used by every other payload type.
+  process_dd_url: https://127.0.0.1:1
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    flush_interval_seconds: 1
+    bouncer_window_seconds: 0
+    startup_jitter_seconds: 0
