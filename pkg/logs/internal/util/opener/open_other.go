@@ -9,14 +9,23 @@
 package opener
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-// OpenLogFile opens a file with filesystem.OpenShared
+// OpenLogFile opens a file with filesystem.OpenShared.
+// On non-Linux platforms we don't need to support symlink rejection since it's
+// only needed for process_log-discovered paths which are currently only
+// supported on Linux.
 func OpenLogFile(path string) (*os.File, error) {
 	return filesystem.OpenShared(path)
+}
+
+// OpenLogFileNoFollow is not supported on non-Linux platforms.
+func OpenLogFileNoFollow(path string) (*os.File, error) {
+	return nil, fmt.Errorf("opener: no-follow open is not supported on non-Linux platforms: %s", path)
 }
 
 // StatLogFile stats a log file

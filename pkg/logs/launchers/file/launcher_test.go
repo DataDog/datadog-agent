@@ -11,11 +11,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -43,9 +45,10 @@ type RegularTestSetupStrategy struct{}
 func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
 		TestOps: TestOps{
-			create: os.Create,
-			rename: os.Rename,
-			remove: os.Remove,
+			create:  os.Create,
+			rename:  os.Rename,
+			remove:  os.Remove,
+			symlink: os.Symlink,
 		}}
 }
 
@@ -116,9 +119,10 @@ type TestSetupStrategy interface {
 }
 
 type TestOps struct {
-	create func(name string) (*os.File, error)
-	rename func(oldPath, newPath string) error
-	remove func(name string) error
+	create  func(name string) (*os.File, error)
+	rename  func(oldPath, newPath string) error
+	remove  func(name string) error
+	symlink func(oldname, newname string) error
 }
 
 type TestSetupResult struct {
@@ -543,6 +547,148 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 		msg = <-outputChan
 		assert.Equal(t, "world", string(msg.GetContent()))
 	}
+}
+
+// runLauncherNoFollowSymlinkTest verifies the symlink policy that the launcher
+// applies to file sources with NoFollow=true, at both file open sites: the
+// initial open and the rotation re-open.
+//
+// process_log paths come from /proc/<pid>/fd and are canonical at discovery time,
+// so any symlink that appears later on the path indicates an attacker-controlled
+// swap.  A source with NoFollow=true must therefore refuse to open a symlinked
+// path, while an ordinary source (NoFollow=false) must keep following symlinks,
+// since admin-configured log paths may legitimately be symlinks.
+//
+// The test drives full launcher scans, so under the privileged-logs suite (run as
+// root with unsearchable directories) it also exercises the system-probe
+// fd-transfer path: the open happens in system-probe, which must honour O_NOFOLLOW.
+//
+// All files use a .log name so that the privileged-logs module's allow-list (which
+// permits any *.log file) accepts them; the only behavioural difference under test
+// is whether the symlink is followed or rejected.
+func runLauncherNoFollowSymlinkTest(t *testing.T, ops TestOps, testDir string) {
+	cfg := configmock.New(t)
+	t.Cleanup(status.Clear)
+
+	// createEmpty creates an empty file at path.  The files are empty (like
+	// runLauncherFileRotationTest) so that started tailers never block sending to
+	// the pipeline channel, which lets launcher.cleanup() stop them; and they use a
+	// .log name so the privileged-logs module's allow-list (any *.log file) accepts
+	// them.  The only behaviour under test is whether a symlink is followed or rejected.
+	createEmpty := func(path string) {
+		f, err := ops.create(path)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+
+	// targetPath is the file an attacker would point a swapped symlink at.
+	targetPath := testDir + "/target.log"
+	createEmpty(targetPath)
+
+	// swapToSymlink replaces the file at path with a symlink to targetPath, simulating
+	// an attacker swapping the discovered path after the agent first opened it.
+	swapToSymlink := func(path string) {
+		require.NoError(t, ops.remove(path))
+		require.NoError(t, ops.symlink(targetPath, path))
+	}
+
+	// newLauncher builds a launcher tailing a single exact-path source.
+	newLauncher := func(path string, noFollow bool) *Launcher {
+		launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 2})
+		launcher.pipelineProvider = mock.NewMockProvider()
+		launcher.registry = auditorMock.NewMockRegistry()
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     path,
+			NoFollow: noFollow,
+		})
+		launcher.activeSources = append(launcher.activeSources, source)
+		status.Clear()
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+		return launcher
+	}
+	scan := func(l *Launcher) {
+		l.resolveActiveTailers(l.fileProvider.FilesToTail(context.Background(), l.validatePodContainerID, l.activeSources, l.registry))
+	}
+
+	t.Run("initial open", func(t *testing.T) {
+		realPath := testDir + "/init_real.log"
+		createEmpty(realPath)
+		l := newLauncher(realPath, true)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "noFollow source should tail a real file")
+		assert.True(t, l.tailers.Contains(realPath))
+		l.cleanup()
+
+		symlinkPath := testDir + "/init_symlink.log"
+		require.NoError(t, ops.symlink(targetPath, symlinkPath))
+
+		l = newLauncher(symlinkPath, true)
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(), "noFollow source must reject a symlinked path")
+		l.cleanup()
+
+		l = newLauncher(symlinkPath, false)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "follow-symlinks source should follow a symlink")
+		assert.True(t, l.tailers.Contains(symlinkPath))
+		l.cleanup()
+	})
+
+	t.Run("rotation", func(t *testing.T) {
+		// noFollow: a path swapped to a symlink after the tailer started must be
+		// rejected on the rotation re-open, dropping the tailer.
+		plPath := testDir + "/rot_pl.log"
+		createEmpty(plPath)
+		l := newLauncher(plPath, true)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "noFollow tailer should start on the real file")
+		plTailer, ok := l.tailers.Get(plPath)
+		require.True(t, ok)
+
+		swapToSymlink(plPath)
+		didRotate, err := plTailer.DidRotate()
+		assert.Error(t, err, "DidRotate must fail when the path became a symlink")
+		assert.False(t, didRotate)
+
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(),
+			"noFollow tailer must drop when the path becomes a symlink on rotation")
+		l.cleanup()
+
+		// follow-symlinks: the rotation re-open still follows the symlink.
+		nplPath := testDir + "/rot_npl.log"
+		createEmpty(nplPath)
+		l = newLauncher(nplPath, false)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "follow-symlinks tailer should start on the real file")
+		nplTailer, ok := l.tailers.Get(nplPath)
+		require.True(t, ok)
+
+		swapToSymlink(nplPath)
+		didRotate, err = nplTailer.DidRotate()
+		assert.NoError(t, err)
+		assert.True(t, didRotate, "follow-symlinks rotation should be detected and followed")
+
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(),
+			"follow-symlinks tailer should follow the symlink across rotation")
+		assert.True(t, l.tailers.Contains(nplPath))
+		l.cleanup()
+	})
+}
+
+// TestLauncherNoFollowSymlink runs the NoFollow symlink policy test with the
+// ordinary (unprivileged) opener.  The privileged-logs suite runs the same helper
+// against the system-probe fd-transfer path; see launcher_privileged_logs_test.go.
+func TestLauncherNoFollowSymlink(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		// NoFollow is only enforced on Linux; on other platforms the opener
+		// rejects the policy outright (see opener.OpenLogFile for non-Linux).
+		t.Skip("NoFollow symlink rejection is only supported on Linux")
+	}
+	res := (&RegularTestSetupStrategy{}).Setup(t)
+	runLauncherNoFollowSymlinkTest(t, res.TestOps, res.TestDirs[0])
 }
 
 func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []string) {
