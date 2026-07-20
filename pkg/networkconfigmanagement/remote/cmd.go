@@ -18,44 +18,29 @@ import (
 
 // CommandResult records a command that was run and the resulting output.
 type CommandResult struct {
-	CommandStr      string
-	Output          string
-	Error           error
-	ValidationError error
-}
-
-// AnyError returns .Error or .ValidationError, whichever is not nil, or nil if
-// both are nil.
-func (c *CommandResult) AnyError() error {
-	err := c.Error
-	if err == nil {
-		err = c.ValidationError
-	}
-	return err
+	CommandStr string
+	Output     string
+	Error      error
 }
 
 // FormattedError returns nil if there was no error, and otherwise wraps
 // .AnyError to append any captured output to the error message.
 func (c *CommandResult) FormattedError() error {
-	err := c.Error
-	if err == nil {
-		err = c.ValidationError
-	}
-	if err == nil {
+	if c.Error == nil {
 		return nil
 	}
 	if c.Output != "" {
-		return fmt.Errorf("%w: %q", err, c.Output)
+		return fmt.Errorf("%w: %q", c.Error, c.Output)
 	}
-	return err
+	return c.Error
 }
 
 type ResultList []*CommandResult
 
 func (rl ResultList) AnyError() error {
 	for _, result := range rl {
-		if err := result.AnyError(); err != nil {
-			return err
+		if result.Error != nil {
+			return result.Error
 		}
 	}
 	return nil
@@ -86,7 +71,7 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	select {
 	case r := <-ch:
 		if r.Error == nil {
-			r.ValidationError = cmd.Validator.Validate(r.Output)
+			r.Error = cmd.Validator.Validate(r.Output)
 		}
 		err := r.FormattedError()
 		if err != nil {
@@ -135,7 +120,7 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 	}
 
 	if r.Error == nil {
-		r.ValidationError = cmd.Validator.Validate(r.Output)
+		r.Error = cmd.Validator.Validate(r.Output)
 	}
 	err = r.FormattedError()
 	if err != nil {
