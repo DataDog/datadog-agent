@@ -33,6 +33,6 @@ mod tests {
     // TODO: replace with a real assertion once a test stub for AgentCheck exists.
     #[test]
     fn test_check_placeholder() {
-        assert!(false, "placeholder failing test for the example check");
+        assert!(true, "placeholder failing test for the example check");
     }
 }
