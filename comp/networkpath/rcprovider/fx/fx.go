@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package fx wires the Network Path Remote Configuration provider into Autodiscovery.
+// Package fx wires the scheduled Network Path Remote Configuration provider into Autodiscovery.
 package fx
 
 import (
@@ -13,22 +13,15 @@ import (
 	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
 	providertypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-type dependencies struct {
-	compdef.In
-
-	Config        config.Component
-	Autodiscovery autodiscovery.Component
-}
-
-func newProvider(deps dependencies) rctypes.ListenerProvider {
-	return newListener(deps.Config, deps.Autodiscovery)
+func newProvider(cfg config.Component, autodiscovery autodiscovery.Component) rctypes.ListenerProvider {
+	return newListener(cfg, autodiscovery)
 }
 
 type configProviderAdder interface {
@@ -52,6 +45,6 @@ func newListener(cfg config.Component, autodiscovery configProviderAdder) rctype
 // Module registers the scheduled Network Path RC provider and listener.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newProvider),
+		fx.Provide(newProvider),
 	)
 }

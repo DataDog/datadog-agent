@@ -67,6 +67,56 @@ func TestDynamicRemoteConfigLifecycle(t *testing.T) {
 	assert.Empty(t, testConfigID)
 }
 
+func TestDynamicRemoteConfigUnclassifiedReplacementPreservesLastValid(t *testing.T) {
+	for name, replacement := range map[string][]byte{
+		"malformed": []byte(`{`),
+		"unknown":   []byte(`{"type":"unknown"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			collector := newRemoteConfigTestCollector(t, nil)
+			scheduledProvider := networkpathprovider.NewProvider()
+			statuses := make(map[string]state.ApplyStatus)
+			writes := make(map[string]int)
+			callback := func(path string, status state.ApplyStatus) {
+				statuses[path] = status
+				writes[path]++
+			}
+
+			collector.UpdateRemoteConfig(map[string]state.RawConfig{
+				"path/a": {Config: dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`)},
+			}, callback)
+			require.Equal(t, state.ApplyStateAcknowledged, statuses["path/a"].State)
+
+			writes["path/a"] = 0
+			updates := map[string]state.RawConfig{"path/a": {Config: replacement}}
+			collector.UpdateRemoteConfig(updates, callback)
+			scheduledProvider.Update(updates, callback)
+
+			assert.Equal(t, 1, writes["path/a"], "only the scheduled listener owns the apply status")
+			assert.Equal(t, state.ApplyStateError, statuses["path/a"].State)
+			included, testConfigID := collector.filter.Evaluate("api.example.com", netip.Addr{})
+			assert.True(t, included)
+			assert.Equal(t, "dynamic-a", testConfigID)
+			assert.Contains(t, collector.remoteConfigState, "path/a")
+		})
+	}
+}
+
+func TestDynamicRemoteConfigScheduledReplacementTransfersOwnership(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, nil)
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"path/a": {Config: dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`)},
+	}, func(string, state.ApplyStatus) {})
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"scheduled-a","config":{"tests":[{"hostname":"api.example.com"}]}}`)},
+	}, func(string, state.ApplyStatus) {})
+
+	assert.NotContains(t, collector.remoteConfigState, "path/a")
+	_, testConfigID := collector.filter.Evaluate("api.example.com", netip.Addr{})
+	assert.Empty(t, testConfigID)
+}
+
 func TestDynamicRemoteConfigConflictFallsBackToLocal(t *testing.T) {
 	collector := newRemoteConfigTestCollector(t, nil)
 	statuses := make(map[string]state.ApplyStatus)
@@ -195,8 +245,8 @@ func TestParseRemoteDynamicConfigValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, dynamic, err := parseRemoteDynamicConfig(tt.raw)
-			assert.True(t, dynamic)
+			_, documentType, err := parseRemoteDynamicConfig(tt.raw)
+			assert.Equal(t, remoteConfigDocumentDynamic, documentType)
 			require.ErrorContains(t, err, tt.err)
 		})
 	}
@@ -209,18 +259,22 @@ func TestParseRemoteDynamicConfigLeavesNonDynamicOwnershipToScheduledListener(t 
 		"malformed": []byte(`{`),
 	} {
 		t.Run(name, func(t *testing.T) {
-			filters, dynamic, err := parseRemoteDynamicConfig(raw)
+			filters, documentType, err := parseRemoteDynamicConfig(raw)
 			require.NoError(t, err)
-			assert.False(t, dynamic)
+			if name == "scheduled" {
+				assert.Equal(t, remoteConfigDocumentScheduled, documentType)
+			} else {
+				assert.Equal(t, remoteConfigDocumentUnknown, documentType)
+			}
 			assert.Nil(t, filters)
 		})
 	}
 }
 
 func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
-	filters, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]`))
+	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]`))
 	require.NoError(t, err)
-	assert.True(t, dynamic)
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
 	require.Len(t, filters, 1)
 	assert.Equal(t, connfilter.Config{
 		Type:                connfilter.FilterTypeInclude,
@@ -232,13 +286,13 @@ func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
 }
 
 func TestParseRemoteDynamicConfigFilterLimit(t *testing.T) {
-	filters, dynamic, err := parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters)))
+	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters)))
 	require.NoError(t, err)
-	assert.True(t, dynamic)
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
 	assert.Len(t, filters, maxRemoteFilters)
 
-	_, dynamic, err = parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters+1)))
-	assert.True(t, dynamic)
+	_, documentType, err = parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters+1)))
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
 	require.ErrorContains(t, err, fmt.Sprintf("config.filters must contain at most %d items", maxRemoteFilters))
 }
 

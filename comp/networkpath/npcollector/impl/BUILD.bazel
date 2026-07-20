@@ -59,10 +59,10 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/aggregator/demultiplexer/impl",
+        "//comp/core/autodiscovery/providers/networkpath",
         "//comp/core/config",
         "//comp/core/delegatedauth/mock",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/autodiscovery/providers/networkpath",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",

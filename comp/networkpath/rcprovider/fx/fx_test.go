@@ -8,19 +8,58 @@
 package fx
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
+	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	providertypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
 
 type providerRecorder struct {
 	providers []providertypes.ConfigProvider
+}
+
+type listenerDependencies struct {
+	fx.In
+
+	Listeners []rctypes.RCListener `group:"rCListener"`
+}
+
+func TestModuleProvidesListenerBeforeLifecycleStart(t *testing.T) {
+	cfg := config.NewMockWithOverrides(t, map[string]any{
+		"remote_configuration.enabled":       true,
+		"network_path.remote_config.enabled": true,
+	})
+	listenerObservedOnStart := false
+
+	app := fxtest.New(t,
+		fx.Provide(func() config.Component { return cfg }),
+		noopautoconfig.Module(),
+		Module(),
+		fx.Invoke(func(lc fx.Lifecycle, deps listenerDependencies) {
+			lc.Append(fx.Hook{OnStart: func(context.Context) error {
+				for _, listener := range deps.Listeners {
+					if listener[data.ProductNetworkPath] != nil {
+						listenerObservedOnStart = true
+					}
+				}
+				return nil
+			}})
+		}),
+	)
+	app.RequireStart()
+	t.Cleanup(app.RequireStop)
+
+	assert.True(t, listenerObservedOnStart)
 }
 
 func (r *providerRecorder) AddConfigProvider(provider providertypes.ConfigProvider, _ bool, _ time.Duration) {

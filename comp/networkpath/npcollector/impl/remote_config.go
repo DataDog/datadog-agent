@@ -40,6 +40,14 @@ type remoteFilterConfig struct {
 	MatchIP             string                             `json:"match_ip"`
 }
 
+type remoteConfigDocumentType uint8
+
+const (
+	remoteConfigDocumentUnknown remoteConfigDocumentType = iota
+	remoteConfigDocumentScheduled
+	remoteConfigDocumentDynamic
+)
+
 func (c remoteFilterConfig) toConnFilterConfig(testConfigID string) connfilter.Config {
 	return connfilter.Config{
 		Type:                c.Type,
@@ -70,8 +78,16 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 	seenDynamicPaths := make(map[string]struct{})
 	validPaths := make(map[string]struct{})
 	for path, rawConfig := range updates {
-		filters, dynamic, err := parseRemoteDynamicConfig(rawConfig.Config)
-		if !dynamic {
+		filters, documentType, err := parseRemoteDynamicConfig(rawConfig.Config)
+		if documentType != remoteConfigDocumentDynamic {
+			if documentType == remoteConfigDocumentUnknown {
+				// The scheduled listener owns the apply status for unclassified
+				// documents. If this path was previously dynamic, keep its last
+				// valid policy until a classified replacement or deletion arrives.
+				if _, found := s.remoteConfigState[path]; found {
+					seenDynamicPaths[path] = struct{}{}
+				}
+			}
 			continue
 		}
 		seenDynamicPaths[path] = struct{}{}
@@ -112,53 +128,51 @@ func (s *npCollectorImpl) UpdateRemoteConfig(updates map[string]state.RawConfig,
 	s.replaceRemoteFilters(remoteFilters)
 }
 
-// parseRemoteDynamicConfig returns dynamic=false for scheduled configs so the
-// scheduled provider remains the sole owner of their apply status.
-func parseRemoteDynamicConfig(raw []byte) ([]connfilter.Config, bool, error) {
+// parseRemoteDynamicConfig classifies NETWORK_PATH documents so each listener
+// can update only the state it owns. The scheduled provider owns the apply
+// status for scheduled and unclassified documents.
+func parseRemoteDynamicConfig(raw []byte) ([]connfilter.Config, remoteConfigDocumentType, error) {
 	var header struct {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &header); err != nil {
-		// The scheduled listener owns malformed documents so only one listener
-		// writes their apply status.
-		return nil, false, nil
+		return nil, remoteConfigDocumentUnknown, nil
 	}
 	if header.Type == remoteConfigScheduledType {
-		return nil, false, nil
+		return nil, remoteConfigDocumentScheduled, nil
 	}
 	if header.Type != remoteConfigDynamicType {
-		// Preserve the scheduled provider as the owner of unknown document types.
-		return nil, false, nil
+		return nil, remoteConfigDocumentUnknown, nil
 	}
 
 	var envelope remoteConfigEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil, true, fmt.Errorf("invalid dynamic Network Path config: %w", err)
+		return nil, remoteConfigDocumentDynamic, fmt.Errorf("invalid dynamic Network Path config: %w", err)
 	}
 	if strings.TrimSpace(envelope.TestConfigID) == "" {
-		return nil, true, errors.New("invalid dynamic Network Path config: test_config_id is required")
+		return nil, remoteConfigDocumentDynamic, errors.New("invalid dynamic Network Path config: test_config_id is required")
 	}
 	if envelope.Config == nil {
-		return nil, true, errors.New("invalid dynamic Network Path config: config must be provided")
+		return nil, remoteConfigDocumentDynamic, errors.New("invalid dynamic Network Path config: config must be provided")
 	}
 	if len(envelope.Config.Filters) == 0 {
-		return nil, true, errors.New("invalid dynamic Network Path config: config.filters must contain at least one item")
+		return nil, remoteConfigDocumentDynamic, errors.New("invalid dynamic Network Path config: config.filters must contain at least one item")
 	}
 	if len(envelope.Config.Filters) > maxRemoteFilters {
-		return nil, true, fmt.Errorf("invalid dynamic Network Path config: config.filters must contain at most %d items", maxRemoteFilters)
+		return nil, remoteConfigDocumentDynamic, fmt.Errorf("invalid dynamic Network Path config: config.filters must contain at most %d items", maxRemoteFilters)
 	}
 	filters := make([]connfilter.Config, len(envelope.Config.Filters))
 	for i, filterConfig := range envelope.Config.Filters {
 		if filterConfig.MatchDomain == "" && filterConfig.MatchIP == "" {
-			return nil, true, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
+			return nil, remoteConfigDocumentDynamic, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
 		}
 		filters[i] = filterConfig.toConnFilterConfig(envelope.TestConfigID)
 	}
 	_, validationErrors := connfilter.NewConnFilter(filters, "", false)
 	if len(validationErrors) > 0 {
-		return nil, true, fmt.Errorf("invalid dynamic Network Path config: %w", errors.Join(validationErrors...))
+		return nil, remoteConfigDocumentDynamic, fmt.Errorf("invalid dynamic Network Path config: %w", errors.Join(validationErrors...))
 	}
-	return filters, true, nil
+	return filters, remoteConfigDocumentDynamic, nil
 }
 
 func (s *npCollectorImpl) replaceRemoteFilters(remoteFilters []connfilter.Config) {

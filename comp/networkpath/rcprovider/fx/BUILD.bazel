@@ -4,18 +4,18 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "fx",
     srcs = ["fx.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath/fx",
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/providers/networkpath",
         "//comp/core/autodiscovery/providers/types",
         "//comp/core/config",
-        "//comp/def",
         "//comp/remote-config/rcclient/types",
         "//pkg/config/remote/data",
         "//pkg/config/utils",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -24,10 +24,14 @@ dd_agent_go_test(
     srcs = ["fx_test.go"],
     embed = [":fx"],
     deps = [
+        "//comp/core/autodiscovery/noopimpl",
         "//comp/core/autodiscovery/providers/types",
         "//comp/core/config",
+        "//comp/remote-config/rcclient/types",
         "//pkg/config/remote/data",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxtest",
     ],
 )
