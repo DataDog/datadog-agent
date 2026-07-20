@@ -82,10 +82,10 @@ func (c *HelmReleaseCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 		return nil, collectors.NewListingError(err)
 	}
 
-	releases := helm.ReleasesFromConfigMaps(configMaps)
+	releases := helm.CurrentReleases(helm.ReleasesFromConfigMaps(configMaps))
 	list := make([]runtime.Object, 0, len(releases))
 	for _, r := range releases {
-		list = append(list, helm.ReleaseToUnstructured(r))
+		list = append(list, helm.ReleaseToUnstructured(rcfg.ClusterID, r))
 	}
 
 	return c.Process(rcfg, list)

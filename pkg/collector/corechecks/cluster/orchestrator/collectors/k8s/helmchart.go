@@ -83,7 +83,7 @@ func (c *HelmChartCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 	}
 
 	releases := helm.ReleasesFromConfigMaps(configMaps)
-	charts := helm.UniqueCharts(releases)
+	charts := helm.AggregateCharts(releases)
 	list := make([]runtime.Object, 0, len(charts))
 	for _, chart := range charts {
 		if u := helm.ChartToUnstructured(chart); u != nil {

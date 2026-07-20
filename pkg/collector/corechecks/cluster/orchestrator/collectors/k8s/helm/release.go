@@ -26,8 +26,48 @@ type Release struct {
 	Config map[string]interface{} `json:"config,omitempty"`
 	// Manifest is the fully rendered Kubernetes YAML applied to the cluster.
 	Manifest string `json:"manifest,omitempty"`
-	// ResourceVersion is the backing storage object's resourceVersion. 
+	// ResourceVersion is the backing storage object's resourceVersion.
 	ResourceVersion string `json:"-"`
+	// History holds a compact summary of every revision of this release. It is
+	// computed by the collector (not part of Helm's stored payload) and surfaced
+	// on the current release CR so the UI can render release history.
+	History []RevisionSummary `json:"-"`
+}
+
+// RevisionSummary is a compact per-revision record surfaced on the current
+// release CR.
+type RevisionSummary struct {
+	Revision     int
+	Status       string
+	ChartVersion string
+	AppVersion   string
+	// Updated is the revision's last-deployed time.
+	Updated string
+	// Config holds the user-supplied values for this revision, so the UI can
+	// diff values across revisions without re-collecting each one over time.
+	Config map[string]interface{}
+}
+
+// ChartAggregate collapses every release's chart to one entry per chart name. A
+// chart is a package identified by its content, not a per-namespace/cluster
+type ChartAggregate struct {
+	// Latest is the representative content: the highest version seen.
+	Latest *Chart
+	// Versions is every distinct version seen, newest first.
+	Versions []ChartVersionSummary
+	// ReleaseCount is the number of distinct releases using this chart (any version).
+	ReleaseCount int
+}
+
+// ChartVersionSummary summarizes one version of a chart.
+type ChartVersionSummary struct {
+	Version    string
+	AppVersion string
+	// Releases is the number of distinct releases that used this version.
+	Releases int
+	// DefaultValues holds this version's chart default values, so the UI can diff
+	// defaults across versions without re-collecting each one over time.
+	DefaultValues map[string]interface{}
 }
 
 // Info describes the deployment state of a release.
