@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -405,11 +405,13 @@ func validateURLSchema(t *testing.T, json string, url string) bool {
 	documentLoader := gojsonschema.NewStringLoader(json)
 	schemaLoader := gojsonschema.NewReferenceLoader(url)
 
-	valid, err := retry.DoWithData[bool](func() (bool, error) {
-		return validateSchema(t, schemaLoader, documentLoader)
-	}, retry.RetryIf(func(err error) bool {
-		return errors.Is(err, syscall.ECONNRESET)
-	}), retry.MaxDelay(1*time.Minute), retry.DelayType(retry.BackOffDelay), retry.Delay(1*time.Second), retry.LastErrorOnly(true))
+	valid, err := backoff.Retry(t.Context(), func() (bool, error) {
+		valid, err := validateSchema(t, schemaLoader, documentLoader)
+		if err != nil && !errors.Is(err, syscall.ECONNRESET) {
+			return valid, backoff.Permanent(err)
+		}
+		return valid, err
+	}, backoff.WithMaxElapsedTime(1*time.Minute))
 	if err != nil {
 		t.Error(err)
 		return false

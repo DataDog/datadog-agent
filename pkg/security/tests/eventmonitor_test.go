@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/examples"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
@@ -46,13 +46,13 @@ func TestEventMonitor(t *testing.T) {
 		cmd := exec.Command(syscallTester, "fork")
 		_ = cmd.Run()
 
-		err := retry.Do(func() error {
+		err := retry(t, func() error {
 			if forkCount+1 <= sec.ForkCount() {
 				return nil
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NoError(t, err)
 	})
 
@@ -64,13 +64,13 @@ func TestEventMonitor(t *testing.T) {
 		cmd := exec.Command(lsExecutable, "-l")
 		_ = cmd.Run()
 
-		err := retry.Do(func() error {
+		err := retry(t, func() error {
 			if execCount+1 <= sec.ExecCount() && exitCount+1 <= sec.ExitCount() {
 				return nil
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NoError(t, err)
 	})
 }
@@ -111,11 +111,11 @@ func TestEventMonitorNoEnvs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		if foundLs.Load() {
 			return nil
 		}
 		return errors.New("event not received")
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 	assert.NoError(t, err)
 }
