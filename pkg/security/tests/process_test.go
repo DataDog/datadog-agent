@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/creack/pty"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
