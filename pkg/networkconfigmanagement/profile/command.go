@@ -39,8 +39,9 @@ type Command interface {
 // PlainCommand represents a single command plus zero or more regexes to run against
 // the combined stdout/stderr of that command.
 type PlainCommand struct {
-	Command   string    `json:"command"`
-	Validator Validator `json:"validator"`
+	Command       string    `json:"command"`
+	Validator     Validator `json:"validator"`
+	SetupCommands []string  `json:"setup_commands,omitempty"`
 }
 
 func (c *PlainCommand) CommandType() string {
