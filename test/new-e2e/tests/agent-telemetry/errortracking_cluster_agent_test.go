@@ -102,6 +102,17 @@ func (s *errorTrackingClusterAgentSuite) getClusterAgentPodName() string {
 // binaries — an agent.flavor tag identifying the emitter as cluster_agent
 // rather than agent.
 func (s *errorTrackingClusterAgentSuite) TestPayloadShape() {
+	// testify's suite.Run executes test methods in alphabetical order
+	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
+	// re-provisions the same cluster in place rather than a fresh one.
+	// Re-assert the enabled config here so this test doesn't depend on run order.
+	s.UpdateEnv(provkind.Provisioner(
+		provkind.WithRunOptions(
+			scenkind.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(clusterAgentErrorTrackingEnabledHelmValues),
+			),
+		),
+	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	var logs []*aggregator.AgentTelemetryLog
