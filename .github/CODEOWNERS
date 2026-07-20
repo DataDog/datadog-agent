@@ -36,6 +36,7 @@
 /.agents/skills/create-subcommand/               @DataDog/agent-configuration
 /.agents/skills/cws-iouring-coverage/            @DataDog/agent-security
 /.agents/skills/explain-lading-config            @DataDog/single-machine-performance
+/.agents/skills/injector-dev                     @Datadog/container-platform
 /.agents/skills/quality-gate-size-analysis/      @DataDog/agent-build
 /.agents/skills/review-pr-comments/              @DataDog/agent-devx
 /.agents/skills/run-e2e/                         @DataDog/agent-devx
