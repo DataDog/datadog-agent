@@ -19,7 +19,8 @@
       {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
-        "schedule": ["* 2-6 * * 1,3"]
+        "schedule": ["* 2-6 * * 1,3"],
+        "prPriority": 10
       },
       {
         "matchDepNames": ["omnibus-ruby"],
