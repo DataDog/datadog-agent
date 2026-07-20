@@ -16,7 +16,6 @@ import (
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
-	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
@@ -35,6 +34,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
 	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
 	config.BindEnvAndSetDefault("metric_lookback.collection_interval", time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.capacity", 262144)
+	config.BindEnvAndSetDefault("metric_lookback.shard_count", 16)
+	config.BindEnvAndSetDefault("metric_lookback.dogstatsd.metric_names", []string{})
+	config.BindEnvAndSetDefault("metric_lookback.monitor.mode", "disabled")
+	config.BindEnvAndSetDefault("metric_lookback.monitor.metric_name", "")
+	config.BindEnvAndSetDefault("metric_lookback.monitor.evaluation_interval", 30*time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.monitor.range_epsilon", 0.0)
+	config.BindEnvAndSetDefault("metric_lookback.monitor.partition_tags", []string{})
+	config.BindEnvAndSetDefault("metric_lookback.egress.pre_trigger_window", 0*time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.egress.post_recovery_window", 30*time.Second)
 
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
@@ -144,35 +153,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
-	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
-	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
-	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
-	// it maps group resources to annotations as tags maps
-	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
-	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
-	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
-	// it maps group resources to labels as tags maps
-	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
-	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
-	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -364,7 +346,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
 	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
-	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", float64(0.1))
 
 	// Processor mode and sidecar configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
@@ -453,7 +435,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
-	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 1000) // value in milliseconds
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
@@ -587,14 +568,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
-	// The cardinality of tags to send for checks and dogstatsd respectively.
-	// Choices are: low, orchestrator, high.
-	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
-	// (one per container instead of one per host).
-	// Changing this setting may impact your custom metrics billing.
-	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
-	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
-
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -643,10 +616,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
-	config.BindEnvAndSetDefault("cluster_checks.stickiness_enabled", true)     // Biases check placement toward the runner where a check previously ran.
-	config.BindEnvAndSetDefault("cluster_checks.stickiness_factor", 4.0)       // Multiplier applied to workersNeeded when computing the stickiness bias.
-	config.BindEnvAndSetDefault("cluster_checks.stickiness_upper_limit", 1.0)  // Maximum stickiness bias applied regardless of workersNeeded.
-	config.BindEnvAndSetDefault("cluster_checks.stickiness_lower_limit", 0.05) // Minimum stickiness bias applied when stickiness is enabled.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_enabled", true)              // Biases check placement toward the runner where a check previously ran.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_factor", float64(4))         // Multiplier applied to workersNeeded when computing the stickiness bias.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_upper_limit", float64(1))    // Maximum stickiness bias applied regardless of workersNeeded.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_lower_limit", float64(0.05)) // Minimum stickiness bias applied when stickiness is enabled.
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -795,8 +768,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.SetDefault("config_providers", []map[string]interface{}{})
 	config.SetDefault("listeners", []map[string]interface{}{})
 
-	config.BindEnvAndSetDefault("provider_kind", "")
-
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
 	// enabling/disabling the environment variables & command scrubbing from the container specs
@@ -832,8 +803,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
-	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
+	// The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
+	// check is disabled.
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", 1*time.Minute)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -867,9 +839,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "10Mb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", true)
-	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
-	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
-	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.use_spread_refresher", false)
@@ -1069,7 +1038,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_intervals", 5)
 
-	// Remote agents
 	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)
 	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
@@ -1077,7 +1045,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
-	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
@@ -1158,7 +1125,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("api_key", "")
 
-	// Agent
 	config.BindEnvAndSetDefault("site", DefaultSite)
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com", "DD_DD_URL", "DD_URL")
@@ -1222,7 +1188,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
-	config.BindEnvAndSetDefault("check_runner_utilization_threshold", 0.95)
+	config.BindEnvAndSetDefault("check_runner_utilization_threshold", float64(0.95))
 	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 60*time.Second)
 	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
@@ -1359,6 +1325,55 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
+	// The cardinality of tags to send for checks.
+	// Choices are: low, orchestrator, high.
+	// Changing this setting may impact your custom metrics billing.
+	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
+
+	// The cardinality of tags to send for dogstatsd.
+	// Choices are: low, orchestrator, high.
+	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
+	// (one per container instead of one per host).
+	// Changing this setting may impact your custom metrics billing.
+	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
+
+	// Agent Workload Filtering config
+	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
+	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
+	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to labels as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
+	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to annotations as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
+	config.BindEnvAndSetDefault("provider_kind", "")
+
+	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1374,6 +1389,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
 	config.BindEnvAndSetDefault("autoscaling.workload.num_workers", 2)
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.enabled", false) // Enables the external recommender feature.
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
@@ -1399,7 +1415,6 @@ func autoscaling(config pkgconfigmodel.Setup) {
 }
 
 func fips(config pkgconfigmodel.Setup) {
-	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
@@ -1408,7 +1423,6 @@ func fips(config pkgconfigmodel.Setup) {
 }
 
 func remoteconfig(config pkgconfigmodel.Setup) {
-	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnvAndSetDefault("remote_configuration.api_key", "")
@@ -1445,12 +1459,10 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 }
 
 func remoteflags(config pkgconfigmodel.Setup) {
-	// Remote flags
 	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
-	// Autoconfig
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1509,7 +1521,6 @@ func debugging(config pkgconfigmodel.Setup) {
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
-	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
@@ -1548,7 +1559,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 }
 
 func serializer(config pkgconfigmodel.Setup) {
-	// Serializer
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1594,39 +1604,15 @@ func aggregator(config pkgconfigmodel.Setup) {
 }
 
 func serverless(config pkgconfigmodel.Setup) {
-	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true, "DD_ENHANCED_METRICS_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
-
-	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
-	// to avoid "config key is unknown" and "unable to cast nil" warnings
-	config.SetDefault("checks_tag_cardinality", "low")
-	config.SetDefault("dogstatsd_tag_cardinality", "low")
-	config.SetDefault("cel_workload_exclude", "")
-	config.SetDefault("sbom.container_image.exclude_pause_container", false)
-	config.SetDefault("sbom.container_image.container_include", []string{})
-	config.SetDefault("sbom.container_image.container_exclude", []string{})
-	config.SetDefault("ecs_collect_resource_tags_ec2", false)
-	config.SetDefault("kubernetes_persistent_volume_claims_as_tags", false)
-	config.SetDefault("docker_labels_as_tags", map[string]string{})
-	config.SetDefault("docker_env_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_node_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
-	config.SetDefault("kubernetes_resources_labels_as_tags", "{}")
-	config.SetDefault("kubernetes_resources_annotations_as_tags", "{}")
-	config.SetDefault("provider_kind", "")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
-	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
@@ -1650,9 +1636,9 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder storage on disk
 	config.BindEnvAndSetDefault("forwarder_storage_path", "${run_path}/transactions_to_retry")
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
-	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
+	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", float64(0.5))
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", float64(0.80))       // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
 	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900) // 15 mins
 
 	// Forwarder channels buffer size
@@ -1663,7 +1649,6 @@ func forwarder(config pkgconfigmodel.Setup) {
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {
-	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
@@ -1749,16 +1734,16 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", 0.7)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", 0.8)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", float64(0.7))
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", float64(0.8))
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 1) // 0 means don't call SetGCPercent
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.memory_ballast", int64(1024*1024*1024*8))
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", 0.01)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", float64(0.01))
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.max", 1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.factor", 2)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", float64(0.01))
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", float64(0.1))
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", float64(1.5))
 
 	config.BindEnvAndSetDefault("dogstatsd_mapper_profiles", []interface{}{})
 	config.ParseEnvJSON("dogstatsd_mapper_profiles", []interface{}{})
@@ -1775,8 +1760,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 }
 
 func logsagent(config pkgconfigmodel.Setup) {
-	// Logs Agent
-
 	// External Use: modify those parameters to configure the logs-agent.
 	// enable the logs-agent:
 	config.BindEnvAndSetDefault("logs_enabled", false)
@@ -1787,11 +1770,25 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
-	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingCount)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
+
+	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", 0)
+
+	// The maximum number of bytes that will be used to generate a checksum fingerprint;
+	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", 100000)
+
+	// The default number of lines (or bytes) to skip when reading a file.
+	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", 0)
+
+	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+	// Options are:
+	// - "line_checksum": compute the fingerprint by lines
+	// - "byte_checksum": compute the fingerprint by bytes
+	// - "disabled": disable fingerprinting
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+
 	// specific logs-agent api-key
 	config.BindEnvAndSetDefault("logs_config.api_key", "")
 	// use the `time` field from container log files instead of ingestion time
@@ -1881,7 +1878,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.global_view_db_tag", "datadoghq.com/global_view_db")
 
 	bindEnvAndSetLogsConfigKeys(config, "data_streams.forwarder.")
-	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", 0.1) // 100ms for low-latency forwarding
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", float64(0.1)) // 100ms for low-latency forwarding
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1902,10 +1899,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", float64(0.5))
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", float64(0.75))
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"})
@@ -1915,11 +1912,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Maximum number of distinct patterns the sampler tracks at once.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
 	// Steady-state logs per second allowed for each matched pattern.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", float64(1))
 	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", float64(1000))
 	// Fraction of tokens that must match for two logs to be treated as the same pattern.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", float64(0.9))
 	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
@@ -1937,11 +1934,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false)
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown", "5m")
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", false)
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0)
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 1000.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", float64(1))
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", float64(1000))
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through", false)
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit", 1.0)
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 1000.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit", float64(1))
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", float64(1000))
 	// Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
 	// without dropping them. Real adaptive sampling takes precedence when enabled.
 	config.BindEnvAndSetDefault("logs_config.experimental_noisy_log_detection", false)
@@ -1953,7 +1950,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", float64(0.48))
 
 	// Add a tag to logs that are multiline aggregated
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", true)
@@ -1996,7 +1993,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
 	// Time in seconds
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 1.0)
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", float64(1))
 
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
@@ -2015,7 +2012,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", float64(0.80))
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", "${log_path}/streamlogs_info/streamlogs.log")
@@ -2072,7 +2069,6 @@ func vector(config pkgconfigmodel.Setup) {
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {
-	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
@@ -2080,7 +2076,6 @@ func cloudfoundry(config pkgconfigmodel.Setup) {
 }
 
 func containerd(config pkgconfigmodel.Setup) {
-	// Containerd
 	config.BindEnvAndSetDefault("containerd_namespace", []string{})
 	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
 	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
@@ -2089,14 +2084,12 @@ func containerd(config pkgconfigmodel.Setup) {
 }
 
 func cri(config pkgconfigmodel.Setup) {
-	// CRI
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 }
 
 func kubernetes(config pkgconfigmodel.Setup) {
-	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
@@ -2163,21 +2156,21 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
 	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.min_severity", "warn")
-	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_high_priority", -1.0) // unlimited
-	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_medium_priority", 100.0)
-	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_low_priority", 1.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_high_priority", float64(-1)) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_medium_priority", float64(100))
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_low_priority", float64(1))
 
 	// Kubelet journald log rate limits (enabled flag already set above).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.min_severity", "warn")
-	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_high_priority", -1.0) // unlimited
-	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_medium_priority", 100.0)
-	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_low_priority", 1.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_high_priority", float64(-1)) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_medium_priority", float64(100))
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_low_priority", float64(1))
 
 	// Container log rate limits (enabled flag already set above).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.min_severity", "warn")
-	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_high_priority", -1.0) // unlimited
-	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_medium_priority", 100.0)
-	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_low_priority", 1.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_high_priority", float64(-1)) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_medium_priority", float64(100))
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_low_priority", float64(1))
 
 	// Metrics ingestion gate. When false, externally-ingested metrics
 	// (DogStatsD, check samplers) are dropped at the handle factory.
@@ -2227,20 +2220,21 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.dry_run.enabled", false)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.alpha", 0.014)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.saturation_k", 5.0)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.alpha", float64(0.014))
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.saturation_k", float64(5))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.window", 15*time.Second)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.low_threshold", 0.15)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", 0.40)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", 0.20)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.low_threshold", float64(0.15))
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", float64(0.40))
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", float64(0.20))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_events", false)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_event_threshold", "high")
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.logs", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 300*time.Second)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_anomalies", 50)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
-	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", float64(0.5))
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", 120*time.Second)
 
 	// Baseline analysis window.

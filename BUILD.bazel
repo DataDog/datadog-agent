@@ -46,63 +46,18 @@ exports_files(["go.mod"])
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
-# gazelle:exclude cmd/agent/subcommands/check
 # gazelle:exclude cmd/agent/subcommands/processchecks
-# gazelle:exclude cmd/agent/subcommands/run/*.go
-# gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
-# gazelle:exclude cmd/cluster-agent/api/*.go
-# gazelle:exclude cmd/cluster-agent/api/agent
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
-# gazelle:exclude cmd/cluster-agent/subcommands/check
 # gazelle:exclude cmd/cluster-agent/subcommands/start
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
-# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/run
-# gazelle:exclude cmd/iot-agent
-# gazelle:exclude cmd/process-agent/command
-# gazelle:exclude cmd/process-agent/subcommands
-# gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/serverless-init/*.go
-# gazelle:exclude cmd/serverless-init/log
-# gazelle:exclude cmd/serverless-init/mode
-# gazelle:exclude comp/collector/bundle.go
-# gazelle:exclude comp/collector/collector/fx
-# gazelle:exclude comp/collector/collector/impl/*.go
-# gazelle:exclude comp/core/gui/fx
-# gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/process/agent/*.go
-# gazelle:exclude comp/process/agent/fx
-# gazelle:exclude comp/process/agent/impl
-# gazelle:exclude comp/process/runner/fx
-# gazelle:exclude comp/process/runner/impl
-# gazelle:exclude comp/process/submitter
-# gazelle:exclude pkg/cli/subcommands/autoscalerlist
-# gazelle:exclude pkg/cli/subcommands/check
-# gazelle:exclude pkg/cli/subcommands/processchecks
-# gazelle:exclude pkg/clusteragent/admission/*.go
-# gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/discovery
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/common
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/ecs
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/k8s/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers/k8s
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
-# gazelle:exclude pkg/collector/corechecks/oracle/*.go
-# gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
-# gazelle:exclude pkg/collector/corechecks/orchestrator/pod
-# gazelle:exclude pkg/commonchecks
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the

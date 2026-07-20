@@ -10,12 +10,15 @@ import (
 	"fmt"
 )
 
+// ProfileName identifies a device profile, e.g. one of the DefaultProfiles keys.
+type ProfileName string
+
 // Map represents the mapping profile name to profiles from the loaded directory
-type Map map[string]*NCMProfile
+type Map map[ProfileName]*NCMProfile
 
 // NCMProfile represents the profile with transformed variables such as the commands map for easy access to commands
 type NCMProfile struct {
-	Name     string
+	Name     ProfileName
 	Commands CommandSet
 	// Preprocessing is a set of "redactions" that get applied immediately. If
 	// you roll back, it will be to the version AFTER preprocessing. This is to
@@ -37,7 +40,7 @@ type CommandSet struct {
 }
 
 // GetProfile retrieves the profile from the profile map (by name)
-func (pm Map) GetProfile(profileName string) (*NCMProfile, error) {
+func (pm Map) GetProfile(profileName ProfileName) (*NCMProfile, error) {
 	profile, ok := pm[profileName]
 	if !ok {
 		return nil, fmt.Errorf("profile %q not found", profileName)
