@@ -95,12 +95,27 @@ def build(
                 rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
                 rtloader_install(ctx)
 
+    if flavor.is_iot():
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
+    else:
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+        )
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_python="python" in build_tags,
     )
 
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
@@ -118,20 +133,6 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-
-    if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", flavor=flavor)
-    else:
-        build_tags = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=flavor,
-            build_include=build_include,
-            build_exclude=build_exclude,
-        )
-
-    if not glibc:
-        build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
