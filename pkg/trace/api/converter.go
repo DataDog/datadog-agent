@@ -258,9 +258,19 @@ func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTa
 }
 
 func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTable) *idx.ArrayValue {
-	values := make([]*idx.AnyValue, len(arrayValue.Values))
-	for i, value := range arrayValue.Values {
-		values[i] = convertAttributeArrayValue(value, stringTable)
+	// An attribute may declare ARRAY_VALUE while carrying a nil ArrayValue, since
+	// Type and ArrayValue are independent fields rather than a real oneof.
+	if arrayValue == nil {
+		return &idx.ArrayValue{}
+	}
+	// Drop nil/unconvertible elements rather than storing nil AnyValue entries:
+	// several V1 paths (AnyValue.AsString, Msgsize, MarshalMsg) dereference every
+	// array element and would panic on a nil entry.
+	values := make([]*idx.AnyValue, 0, len(arrayValue.Values))
+	for _, value := range arrayValue.Values {
+		if converted := convertAttributeArrayValue(value, stringTable); converted != nil {
+			values = append(values, converted)
+		}
 	}
 	return &idx.ArrayValue{
 		Values: values,
@@ -268,6 +278,12 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 }
 
 func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, stringTable *idx.StringTable) *idx.AnyValue {
+	// A nil element is a valid decode result (the msgpack decoder stores nil for
+	// a nil array element); return nil so the caller can drop it instead of
+	// storing an unusable nil AnyValue in the array.
+	if arrayValue == nil {
+		return nil
+	}
 	switch arrayValue.Type {
 	case pb.AttributeArrayValue_STRING_VALUE:
 		return &idx.AnyValue{

@@ -225,59 +225,12 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     whydeadcoderes = cast(
         Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
-    arch = platform.machine()
-    osname = sys.platform
-    dce_enabled = not bool(whydeadcoderes.stdout)
-    if not dce_enabled:
+    if whydeadcoderes.stdout:
         print(
-            f"dead code elimination is disabled for {name} on {osname} {arch} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
         )
 
-    _emit_dce_metric(name, dce_enabled, osname, arch)
-
     return result
-
-
-def _emit_dce_metric(name: str, dce_enabled: bool, osname: str, arch: str) -> None:
-    """Emit a gauge metric for dead code elimination status. Only runs in CI on the main branch."""
-    from tasks.libs.common.utils import running_in_ci
-
-    if not running_in_ci():
-        return
-    if os.environ.get("CI_COMMIT_BRANCH") != "main":
-        return
-
-    import datetime
-
-    from tasks.libs.common.datadog_api import create_gauge, send_metrics
-
-    tags = [
-        f"binary:{name}",
-        f"os:{osname}",
-        f"arch:{arch}",
-    ]
-    for env_var, tag_name in [
-        ("BUCKET_BRANCH", "bucket_branch"),
-        ("CI_COMMIT_REF_NAME", "git_ref"),
-        ("CI_PIPELINE_ID", "pipeline_id"),
-        ("CI_COMMIT_SHA", "ci_commit_sha"),
-    ]:
-        value = os.environ.get(env_var)
-        if value:
-            tags.append(f"{tag_name}:{value}")
-
-    timestamp = int(datetime.datetime.utcnow().timestamp())
-    metric = create_gauge(
-        "datadog.agent.go.dead_code_elimination.enabled",
-        timestamp,
-        1 if dce_enabled else 0,
-        tags=tags,
-    )
-
-    try:
-        send_metrics([metric])
-    except Exception as e:
-        print(f"[WARN] Failed to send DCE metric to Datadog: {e}", file=sys.stderr)
 
 
 class CustomReader(io.StringIO):

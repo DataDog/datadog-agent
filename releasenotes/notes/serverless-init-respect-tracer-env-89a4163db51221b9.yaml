@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    serverless-init no longer overrides customer-provided ``CORECLR_ENABLE_PROFILING``,
+    ``CORECLR_PROFILER``, ``CORECLR_PROFILER_PATH``, or ``DD_DOTNET_TRACER_HOME`` values
+    when auto-instrumenting a bundled .NET tracer. Any value already present in the
+    environment is now respected.
+upgrade:
+  - |
+    serverless-init no longer forces ``DD_TRACE_PROPAGATION_STYLE=datadog`` during
+    tracer auto-instrumentation. The tracer's own default (which includes W3C
+    ``tracecontext`` and ``baggage`` in addition to ``datadog``) now applies, and a
+    customer-provided ``DD_TRACE_PROPAGATION_STYLE`` is respected. Applications that
+    relied on serverless-init restricting propagation to ``datadog`` only should set
+    ``DD_TRACE_PROPAGATION_STYLE=datadog`` explicitly.

@@ -32,7 +32,19 @@ func kueueQueueGVRStrings() []string {
 	}
 }
 
-func shouldHaveKueueQueueStores(cfg config.Reader) bool {
+func kueueResourceFlavorGVRStrings() []string {
+	return []string{
+		kubernetes.KueueGroupName + "/" + kubernetes.KueueResourceFlavorResourceName,
+	}
+}
+
+func kueueWorkloadGVRStrings() []string {
+	return []string{
+		kubernetes.KueueGroupName + "/" + kubernetes.KueueWorkloadResourceName,
+	}
+}
+
+func shouldHaveKueueMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 
@@ -63,6 +75,74 @@ func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component,
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      parser,
+		filter:      nil,
+	}
+	reflector := cache.NewNamedReflector(
+		componentName,
+		listerWatcher,
+		&unstructured.Unstructured{},
+		store,
+		noResync,
+	)
+	return reflector, store, nil
+}
+
+func newKueueResourceFlavorStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+	listerWatcher := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
+			if err != nil {
+				return nil, fmt.Errorf("listing Kueue %s: %w", gvr.Resource, err)
+			}
+			return obj, nil
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			watcher, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(ctx, options)
+			if err != nil {
+				return nil, fmt.Errorf("watching Kueue %s: %w", gvr.Resource, err)
+			}
+			return watcher, nil
+		},
+	}
+
+	store := &reflectorStore{
+		wlmetaStore: wlmetaStore,
+		seen:        make(map[string]workloadmeta.EntityID),
+		parser:      kubernetesresourceparsers.NewKueueResourceFlavorParser(),
+		filter:      nil,
+	}
+	reflector := cache.NewNamedReflector(
+		componentName,
+		listerWatcher,
+		&unstructured.Unstructured{},
+		store,
+		noResync,
+	)
+	return reflector, store, nil
+}
+
+func newKueueWorkloadStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+	listerWatcher := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
+			if err != nil {
+				return nil, fmt.Errorf("listing Kueue %s: %w", gvr.Resource, err)
+			}
+			return obj, nil
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			watcher, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(ctx, options)
+			if err != nil {
+				return nil, fmt.Errorf("watching Kueue %s: %w", gvr.Resource, err)
+			}
+			return watcher, nil
+		},
+	}
+
+	store := &reflectorStore{
+		wlmetaStore: wlmetaStore,
+		seen:        make(map[string]workloadmeta.EntityID),
+		parser:      kubernetesresourceparsers.NewKueueWorkloadParser(),
 		filter:      nil,
 	}
 	reflector := cache.NewNamedReflector(

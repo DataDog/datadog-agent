@@ -42,7 +42,6 @@
       -e BUCKET_BRANCH
       -e S3_OMNIBUS_CACHE_BUCKET
       -e S3_OMNIBUS_GIT_CACHE_BUCKET
-      -e INTEGRATION_WHEELS_CACHE_BUCKET
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
       -e AGENT_API_KEY_ORG2
@@ -106,8 +105,10 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI
+      -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
+      -e CI_JOB_ID
       -e CI_PROJECT_NAME
       -e CI_JOB_NAME_SLUG
       -e CI_COMMIT_REF_NAME
@@ -129,7 +130,6 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e WINDOWS_SIGNING_CERT
       -e WINDOWS_SIGNING_CONFIG
       -e BUCKET_BRANCH
-      -e INTEGRATION_WHEELS_CACHE_BUCKET
       -e S3_OMNIBUS_CACHE_BUCKET
       -e USE_S3_CACHING
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
@@ -156,3 +156,70 @@ windows_zip_ddot_x64:
   extends: .windows_zip_base
   variables:
     OMNIBUS_TARGET: ddot
+
+# Like .windows_zip_base, but for omnibus targets whose build invokes Bazel (e.g. the eudm
+# extension's ai-usage Rust native host). Uses the Bazel-cache docker wrapper (as .windows_msi_base does) instead of a
+# plain `docker run`, so `bazel run` has the cache/toolchain available inside the container.
+.windows_zip_bazel_base:
+  stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
+  needs: ["go_deps"]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
+    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
+    - mkdir omnibus\pkg
+    - >
+      .\tools\ci\docker-run-with-bazel-cache.ps1
+      -m 24576M
+      -v "$(Get-Location):c:\mnt"
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e GITLAB_CI
+      -e CI_JOB_ID
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_COMMIT_BRANCH
+      -e CI_JOB_NAME_SLUG
+      -e CI_COMMIT_REF_NAME
+      -e OMNIBUS_TARGET
+      -e WINDOWS_BUILDER=true
+      -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e WINDOWS_SIGNING_CERT
+      -e WINDOWS_SIGNING_CONFIG
+      -e TARGET_ARCH="$ARCH"
+      -e BUCKET_BRANCH
+      -e S3_OMNIBUS_CACHE_BUCKET
+      -e S3_OMNIBUS_GIT_CACHE_BUCKET
+      -e BUNDLE_MIRROR__RUBYGEMS__ORG
+      -e PIP_INDEX_URL
+      -e AGENT_API_KEY_ORG2
+      -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
+      -e AGENT_FLAVOR
+      -e OMNIBUS_RUBY_VERSION
+      -e PYTHONUTF8=1
+      -e DEPLOY_AGENT
+      -e CI_JOB_TOKEN
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
+    - !reference [.upload_sbom_artifacts_windows]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
+windows_zip_eudm_x64:
+  extends: .windows_zip_bazel_base
+  variables:
+    OMNIBUS_TARGET: eudm

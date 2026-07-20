@@ -8,8 +8,8 @@ go_library(
     srcs = [
         "api.go",
         "command.go",
-        "memory_darwin.go",
         "memory_linux.go",
+        "memory_nix_nolinux.go",
         "run.go",
         "run_nix.go",
         "run_windows.go",

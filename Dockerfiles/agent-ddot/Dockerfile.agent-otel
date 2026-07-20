@@ -60,7 +60,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     fi
 
 # Install Go based on architecture
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.26.5
 RUN ARCH=$(dpkg --print-architecture) && \
 if [ "$ARCH" = "amd64" ]; then \
 GO_ARCH="linux-amd64"; \
@@ -101,8 +101,12 @@ FROM builder_base AS builder
 # We also have to use the repo clone because some invoke tasks rely on git commands unavailable
 # in repo tarball archives. For the same reason a shallow clone will also not work.
 ARG AGENT_GIT_REF
+ARG DD_GIT_COMMIT_SHA
 ARG PACKAGE_TYPE
-RUN git clone --branch ${AGENT_GIT_REF} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent
+RUN git clone --branch "${AGENT_GIT_REF}" --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent && \
+    if [ -n "${DD_GIT_COMMIT_SHA}" ]; then \
+        git -C datadog-agent checkout --detach "${DD_GIT_COMMIT_SHA}"; \
+    fi
 
 # Set the working directory to the source code
 WORKDIR /workspace/datadog-agent
@@ -114,12 +118,12 @@ COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/
 ARG GOPROXY
 ARG GONOSUMDB
 # The GOPROXY build arg is re-injected into every RUN below as an env var, so
-# strip any unreachable entry once here and apply the result explicitly to each
-# go step (an explicit assignment overrides the injected arg). Mirrors
-# tools/ci/sanitize-goproxy.sh.
-RUN printf '%s' "$GOPROXY" | tr '|' '\n' \
-      | grep -vE '^https?://[^/]*\.fabric\.dog(:[0-9]+)?(/|$)' \
-      | paste -sd '|' - > /tmp/goproxy.sanitized
+# normalize it once and apply the result explicitly to each go step.
+RUN printf '%s' "$GOPROXY" > /tmp/goproxy.sanitized && \
+    { ! printf '%s' "$GOPROXY" | grep -q '\.fabric\.dog' || \
+      curl --silent --output /dev/null --connect-timeout 3 --max-time 5 "https://depot-read-api-go.rapid-dependency-management-depot.all-clusters.local-dc.fabric.dog:8443/magicmirror/magicmirror/@current/sumdb/sum.golang.org/supported" || \
+      { printf '%s' "$GOPROXY" | tr '|' '\n' | grep -vE '^https?://[^/]*\.fabric\.dog(:[0-9]+)?(/|$)' | paste -sd '|' - > /tmp/goproxy.sanitized && \
+        echo "sanitize-goproxy: endpoint unusable here; stripped it from GOPROXY" >&2; }; }
 RUN GOPROXY="$(cat /tmp/goproxy.sanitized)" GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 

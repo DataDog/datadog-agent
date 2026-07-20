@@ -255,6 +255,7 @@ def get_build_flags(
     python_home_3=None,
     headless_mode=False,
     arch: Arch | None = None,
+    include_python: bool = False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -300,17 +301,15 @@ def get_build_flags(
         extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
-    if python_home_3:
+    if include_python and python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
     # adding rtloader libs and headers to the env
-    if rtloader_lib:
+    if include_python and rtloader_lib:
         if not headless_mode:
             print(
                 f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
             )
-        env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
-        env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         if sys.platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
@@ -321,7 +320,7 @@ def get_build_flags(
     # Python is installed alongside rtloader under the same embedded prefix.
     # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
     # os.environ, so placing this before it would cause the python flag to be dropped.
-    if sys.platform == 'aix':
+    if include_python and sys.platform == 'aix':
         aix_python_lib_path = python_home_3 or embedded_path
         if aix_python_lib_path:
             env['CGO_LDFLAGS'] = (
@@ -332,9 +331,9 @@ def get_build_flags(
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
-    if rtloader_headers:
+    if include_python and rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
-    if rtloader_common_headers:
+    if include_python and rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
@@ -346,7 +345,7 @@ def get_build_flags(
     if static:
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
-    elif rtloader_lib:
+    elif include_python and rtloader_lib:
         if sys.platform == "darwin":
             extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
         elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF

@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -440,6 +440,26 @@ func (w *workloadmeta) GetKubernetesKueueQueue(id string) (*wmdef.KubernetesKueu
 	}
 
 	return entity.(*wmdef.KubernetesKueueQueue), nil
+}
+
+// GetKubernetesKueueResourceFlavor implements Store#GetKubernetesKueueResourceFlavor
+func (w *workloadmeta) GetKubernetesKueueResourceFlavor(id string) (*wmdef.KubernetesKueueResourceFlavor, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueResourceFlavor, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueResourceFlavor), nil
+}
+
+// GetKubernetesKueueWorkload implements Store#GetKubernetesKueueWorkload
+func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesKueueWorkload, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueWorkload, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
 // ListECSTasks implements Store#ListECSTasks

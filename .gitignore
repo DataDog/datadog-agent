@@ -226,7 +226,7 @@ flake-finder-gitlab-ci.yml
 go.work.sum
 
 
-#### Cursor related files
+#### AI agents related files
 
 # Personal rules
 **/.cursor/rules/personal/
@@ -238,12 +238,15 @@ CLAUDE_PERSONAL.md
 **/.claude/settings.local.json
 **/CLAUDE.local.md
 
-# Claude Code auto-jira work tracking (local only, never commit)
+# auto-jira work tracking (local only, never commit)
 AUTO_JIRA.md
-.claude/skills/auto-jira/SKILL.notes.md
+.agents/skills/auto-jira/SKILL.notes.md
 
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
+
+# Codex
+.codex/
 
 # Zed config
 .zed

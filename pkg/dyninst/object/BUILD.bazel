@@ -16,6 +16,7 @@ go_library(
         "object.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/object",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf/dwarfutil",
@@ -41,7 +42,12 @@ go_test(
         "fuzz_test.go",
     ],
     embed = [":object"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/testprogs",
         "//pkg/util/filesystem",

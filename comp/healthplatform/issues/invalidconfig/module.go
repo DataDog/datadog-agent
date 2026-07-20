@@ -16,6 +16,9 @@ import (
 const (
 	// IssueName is the human-readable issue name for configuration-schema violations.
 	IssueName = "Invalid Config"
+	// IssueType is the snake_case type key for configuration-schema violations:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "invalid_config"
 	// IssueID is the stable instance identifier / registry key (kebab-case).
 	IssueID = "invalid-config"
 )
@@ -30,12 +33,16 @@ type invalidConfigModule struct {
 }
 
 // NewModule captures the config so the once-only startup check can read it.
-func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
+func NewModule(deps issues.ModuleDeps) issues.Module {
+	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Hostname)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
 	return IssueName
+}
+
+func (m *invalidConfigModule) IssueType() string {
+	return IssueType
 }
 
 func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {

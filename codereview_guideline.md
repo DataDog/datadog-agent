@@ -56,14 +56,6 @@ incorrect assumptions.
 
 Apply these when the PR touches Go code.
 
-### Atomics — use `go.uber.org/atomic`, not `sync/atomic`
-The standard `sync/atomic` package has an alignment bug on 32-bit and some ARM
-platforms and allows mixing atomic and non-atomic access to the same variable.
-Flag any new use of `sync/atomic`; the project standard is `go.uber.org/atomic`.
-Atomic values in structs must be declared as a pointer (`*atomic.Uint64` etc.)
-to guarantee alignment, unless placed as the first field with a comment
-explaining why a pointer was not used.
-
 ### Testing: `require` vs `assert`
 Use `require` (from `github.com/stretchr/testify/require`) when each assertion
 depends on the previous one succeeding — it aborts the test immediately on

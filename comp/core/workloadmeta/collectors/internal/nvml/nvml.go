@@ -9,8 +9,9 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,14 +37,6 @@ const (
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
-// this regex matches device names from NVML and extracts the GPU type. For example, from "nvidia_a100-80gb" it will extract "a100". The groups are as follows:
-// 1. The optional prefix "nvidia" or "tesla" (T4 GPUs are named "tesla_t4" despite being NVIDIA GPUs)
-// 2. The optional prefix "geforce_" which we ignore
-// 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
-// 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
-var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
-var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
-
 type collector struct {
 	id                                 string
 	catalog                            workloadmeta.AgentType
@@ -52,6 +45,7 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	lastCollectionTimestamp            time.Time
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -68,7 +62,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		},
 		Vendor:  nvidiaVendor,
 		Device:  devInfo.Name,
-		GPUType: extractGPUType(devInfo.Name),
+		GPUType: gpuutil.ExtractGPUType(devInfo.Name),
 		Index:   devInfo.Index,
 		ComputeCapability: workloadmeta.GPUComputeCapability{
 			Major: int(devInfo.SMVersion / 10),
@@ -126,6 +120,15 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
+	pciInfo, err := physicalDevice.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
+	}
+
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
 		maxSMClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_SM)
@@ -153,28 +156,60 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 }
 
+func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
+	// NVML exposes domain, bus, and device as numeric fields, but not the PCI
+	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
+	// functions, when present, represent auxiliary devices such as audio.
+	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
+}
+
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+	seenPIDs := make(map[int]struct{})
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
-		return
 	}
 
 	for _, proc := range procs {
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, int(proc.Pid))
+		seenPIDs[int(proc.Pid)] = struct{}{}
 	}
+
+	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
+	utilizationProcs, err := device.GetProcessUtilization(uint64(c.lastCollectionTimestamp.UnixMicro()))
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			utilizationProcs = nil // error not found occurs normally when no process is using the GPU, clear the array to avoid processing any data
+		} else {
+			// only logs
+			if logLimiter.ShouldLog() {
+				log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		}
+	}
+
+	for _, proc := range utilizationProcs {
+		seenPIDs[int(proc.Pid)] = struct{}{}
+	}
+
+	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
+	for pid := range seenPIDs {
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
+	}
+	slices.Sort(gpuDeviceInfo.ActivePIDs) // Sort to ensure the gpu device info doesn't change due to PID ordering changes
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	collector := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		seenUUIDs:      map[string]struct{}{},
-		seenPIDsToGPUs: make(map[int][]string),
-		store:          store,
+		id:                      collectorID,
+		catalog:                 workloadmeta.NodeAgent,
+		seenUUIDs:               map[string]struct{}{},
+		seenPIDsToGPUs:          make(map[int][]string),
+		store:                   store,
+		lastCollectionTimestamp: time.Now(),
 	}
 
 	if config != nil {
@@ -199,7 +234,7 @@ func GetFxOptions() fx.Option {
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
-		return errors.NewDisabled(componentName, "Agent does not have NVML library available")
+		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
 	}
 
 	c.store = store
@@ -255,6 +290,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
 	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
+	timestamp := time.Now()
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -307,6 +343,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	c.store.Notify(events)
+	c.lastCollectionTimestamp = timestamp
 
 	return nil
 }
@@ -368,28 +405,6 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func extractGPUType(deviceName string) string {
-	if deviceName == "" {
-		return ""
-	}
-
-	// Normalize case/whitespace and remove leading/trailing noise so regex matching is stable.
-	normalizedName := strings.ToLower(strings.TrimSpace(deviceName))
-	// Collapse any non-alphanumeric separators (spaces, dashes, quotes, punctuation) into underscores.
-	normalizedName = gpuNameSeparatorRegex.ReplaceAllString(normalizedName, "_")
-	// Trim underscores added by leading/trailing separators.
-	normalizedName = strings.Trim(normalizedName, "_")
-
-	// Extract the optional RTX prefix and the GPU model token.
-	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
-	if len(matches) == 0 {
-		return ""
-	}
-
-	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
-	return matches[1] + matches[2]
 }
 
 func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {

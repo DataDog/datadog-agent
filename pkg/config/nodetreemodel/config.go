@@ -67,7 +67,7 @@ type ntmConfig struct {
 	allowDynamicSchema *atomic.Bool
 	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
 	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
-	lastEnvVarState string
+	lastRawEnv []string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -125,7 +125,6 @@ type ntmConfig struct {
 	envVarsCleared atomic.Bool
 
 	// known keys are the set of valid keys to get either leaf or inner node values
-	// they are defined by one of (1) SetDefault (2) BindEnv (3) SetKnown
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
@@ -461,20 +460,6 @@ func (c *ntmConfig) addToKnownKeys(key string) {
 	}
 }
 
-// SetKnown adds a key to the set of known valid config keys.
-//
-// Important: this doesn't add the key to the default layer. The "known keys" are a legacy feature we inherited from our Viper
-// wrapper. Once all settings have a default we'll be able to remove this concept entirely.
-func (c *ntmConfig) SetKnown(key string) {
-	c.Lock()
-	defer c.Unlock()
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot SetKnown() once the config has been marked as ready for use")
-	}
-	key = strings.ToLower(key)
-	c.addToKnownKeys(key)
-}
-
 // IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.maybeRebuild()
@@ -503,18 +488,31 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Avoid taking the write lock and sorting in the common case where the raw
+		// environment snapshot is identical to the previous one.
+		rawEnv := os.Environ()
+		c.RLock()
+		unchanged := slices.Equal(c.lastRawEnv, rawEnv)
+		c.RUnlock()
+		if unchanged {
+			return
+		}
+
+		sortedEnv := slices.Clone(rawEnv)
+		slices.Sort(sortedEnv)
+
 		// Write-lock because the root will be written to in order to rebuild the state
 		c.Lock()
 		defer c.Unlock()
 
-		// Only need to rebuild if env vars have different state than last rebuild
-		envs := os.Environ()
-		sort.Strings(envs)
-		envVarState := strings.Join(envs, "$")
-		if c.lastEnvVarState == envVarState {
+		// Avoid an expensive rebuild if only the environment order changed while the
+		// environment content stayed the same.
+		slices.Sort(c.lastRawEnv)
+		unchanged = slices.Equal(c.lastRawEnv, sortedEnv)
+		c.lastRawEnv = rawEnv
+		if unchanged {
 			return
 		}
-		c.lastEnvVarState = envVarState
 
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
@@ -847,8 +845,7 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 	return slices.Collect(maps.Keys(allKeys))
 }
 
-// AllKeysLowercased returns all keys, including unknown keys and those without default values
-// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
+// AllKeysLowercased returns all keys, including unknown keys
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.maybeRebuild()
 
@@ -1175,18 +1172,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
-}
-
-// GetSubfields returns the names of child fields of this setting
-func (c *ntmConfig) GetSubfields(key string) []string {
-	n, err := c.GetNode(key)
-	if err != nil {
-		return nil
-	}
-	if n.IsInnerNode() {
-		return n.ChildrenKeys()
-	}
-	return nil
 }
 
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides

@@ -43,7 +43,7 @@ and the testbench use the same engine.
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
 | `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
-| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay) |
+| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
@@ -72,16 +72,39 @@ anomaly_detection:
   anomaly_scorer:
     enabled: true
     alpha: 0.3
-    window_secs: 30
+    window: 30s
     low_threshold: 0.030
     high_threshold: 0.060
     output:
       logs: true
       correlation_events: false
-      cooldown_secs: 300
+      correlation_event_threshold: high # medium or high
+      cooldown: 300s
 ```
 
-The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
+The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
+Observer replay enables the scorer's internal transition watcher so configured
+correlation episodes are emitted through the normal correlator event path.
+
+### Severity event subscriptions
+
+The scorer does not own subscription state itself. Each `anomalyScorer` owns a
+plain slice of `severityeventsimpl.Dispatcher` instances (see
+`../AGENTS.md#severity-events-scorer-push-contract` and `../severityevents/`);
+on every `Advance` tick the scorer derives the raw severity level from its
+EWMA and feeds it to every dispatcher via `dispatcher.Advance(sec, level)`.
+Each dispatcher binds exactly one listener plus one fixed cooldown/filter state
+machine. `anomalyScorer.SubscribeSeverityEvents` and
+`observerImpl.SubscribeSeverityEvents` are thin wrappers: each call creates one
+new dispatcher, seeds it with the current level when known, and returns the
+dispatcher handle together with an unsubscribe function. The scorer's own
+internal watcher (gauges, logs, episode tracking for
+`EpisodeStarted`/`EpisodeEnded`) is itself just one such listener, registered
+in `newAnomalyScorerWithTelemetry`. Before the scorer knows its current level,
+new dispatchers start at `Low`, so the first observed `Medium`/`High` level
+emits a real escalation instead of being treated as a pure seed. When the
+current level is already known, bootstrap emits `Low -> current level` for
+`Medium`/`High` and emits nothing for `Low`.
 
 ## Key Design Decisions
 
@@ -152,6 +175,15 @@ not embed a `correlationEmitter`.
 
 5. **Agent internal logs are not logssource.** The internal tap is wired in
    `impl/observer.go`, gated by `anomaly_detection.logs.internal.*`.
+
+6. **`Dispatcher.Advance`/`Reset` are scorer-owned, single-writer.** Only the
+   `anomalyScorer` that owns a given `Dispatcher` instance should call
+   `Advance`/`Reset` on it. The dispatcher is intentionally lock-free: its
+   single listener is fixed before the scorer publishes the dispatcher, and the
+   scorer never calls `Advance`/`Reset` concurrently with itself. Listener
+   callbacks run synchronously on whichever goroutine calls `Advance`, with no
+   panic recovery or timeout — a slow or panicking subscriber affects the
+   scorer's own tick.
 
 ## Testing
 

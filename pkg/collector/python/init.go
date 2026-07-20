@@ -22,6 +22,7 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreaggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -125,19 +126,16 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
-// callbacks from the collector aggregator package, every exported Go function can be used in any package
-void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
-void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
-void SubmitEvent(char *, event_t *);
-void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-void SubmitEventPlatformEvent(char *, char *, int, char *);
-
-void initAggregatorModule(rtloader_t *rtloader) {
-	set_submit_metric_cb(rtloader, SubmitMetric);
-	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
-	set_submit_event_cb(rtloader, SubmitEvent);
-	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
-	set_submit_event_platform_event_cb(rtloader, SubmitEventPlatformEvent);
+// The submit callbacks are owned by the collector aggregator package; their
+// addresses are received here as opaque pointers and registered with rtloader.
+// Referencing those exported symbols directly would fail this package's cgo
+// link on the MinGW/Windows linker.
+void initAggregatorModule(rtloader_t *rtloader, void *m, void *sc, void *e, void *h, void *ep) {
+	set_submit_metric_cb(rtloader, (cb_submit_metric_t)m);
+	set_submit_service_check_cb(rtloader, (cb_submit_service_check_t)sc);
+	set_submit_event_cb(rtloader, (cb_submit_event_t)e);
+	set_submit_histogram_bucket_cb(rtloader, (cb_submit_histogram_bucket_t)h);
+	set_submit_event_platform_event_cb(rtloader, (cb_submit_event_platform_event_t)ep);
 }
 
 //
@@ -443,7 +441,8 @@ func Initialize(paths ...string) error {
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
-	C.initAggregatorModule(rtloader)
+	aggCb := coreaggregator.GetCallbacks()
+	C.initAggregatorModule(rtloader, aggCb.Metric, aggCb.ServiceCheck, aggCb.Event, aggCb.HistogramBucket, aggCb.EventPlatformEvent)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
 	C.initContainersModule(rtloader)
