@@ -7,6 +7,7 @@ import tasks.libs.cws.common as common
 @dataclass
 class ConfigSetting:
     name: str  # noqa: F841
+    config_key: str
     env_var: str
     description: str
     type: str
@@ -20,6 +21,7 @@ def build_settings(settings):
         output.append(
             ConfigSetting(
                 setting["name"],
+                setting["config_key"],
                 setting["env_var"],
                 setting["description"],
                 setting["type"],

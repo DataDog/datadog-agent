@@ -29,18 +29,18 @@ The following settings can be configured under `runtime_security_config` in the 
 
 | Environment variable | `system-probe.yaml` attribute | Type | Default | Description |
 | -------------------- | ----------------------------- | ---- | ------- | ----------- |
-| `DD_RUNTIME_SECURITY_CONFIG_ENABLED` | `` | bool | false | Defines if the runtime security module should be enabled |
-| `DD_RUNTIME_SECURITY_CONFIG_ENFORCEMENT_EXCLUDE_BINARIES` | `` | []string | [] | EnforcementBinaryExcluded defines the list of binaries that are excluded from the enforcement |
-| `DD_RUNTIME_SECURITY_CONFIG_ENFORCEMENT_RULE_SOURCE_ALLOWED` | `` | []string | ["file", "remote-config"] | EnforcementRuleSourceAllowed defines the list of rule sources that are allowed |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_CACHE_SIZE` | `` | int | 500 | HashResolverCacheSize defines the number of hashes to keep in cache |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_ENABLED` | `` | bool | true | HashResolverEnabled defines if the hash resolver should be enabled |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_EVENT_TYPES` | `` | []model.EventType | ["exec", "open"] | HashResolverEventTypes defines the list of event which files may be hashed |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_HASH_ALGORITHMS` | `` | []model.HashAlgorithm | ["sha1", "sha256", "ssdeep"] | HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_FILE_SIZE` | `` | int64 | 5242880 | HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_HASH_RATE` | `` | int | 500 | HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes |
-| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_REPLACE` | `` | map[string]string | {} | HashResolverReplace is used to apply specific hash to specific file path |
-| `DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_DUMP_POLICIES` | `` | bool | false | RemoteConfigurationDumpPolicies defines whether to dump remote config policy |
-| `DD_RUNTIME_SECURITY_CONFIG_USER_SESSIONS_SSH_ENABLED` | `` | bool | true | SSHUserSessionsEnabled defines if SSH user session features should be enabled |
+| `DD_RUNTIME_SECURITY_CONFIG_ENABLED` | `runtime_security_config.enabled` | bool | false | Defines if the runtime security module should be enabled |
+| `DD_RUNTIME_SECURITY_CONFIG_ENFORCEMENT_EXCLUDE_BINARIES` | `runtime_security_config.enforcement.exclude_binaries` | []string | [] | EnforcementBinaryExcluded defines the list of binaries that are excluded from the enforcement |
+| `DD_RUNTIME_SECURITY_CONFIG_ENFORCEMENT_RULE_SOURCE_ALLOWED` | `runtime_security_config.enforcement.rule_source_allowed` | []string | ["file", "remote-config"] | EnforcementRuleSourceAllowed defines the list of rule sources that are allowed |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_CACHE_SIZE` | `runtime_security_config.hash_resolver.cache_size` | int | 500 | HashResolverCacheSize defines the number of hashes to keep in cache |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_ENABLED` | `runtime_security_config.hash_resolver.enabled` | bool | true | HashResolverEnabled defines if the hash resolver should be enabled |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_EVENT_TYPES` | `runtime_security_config.hash_resolver.event_types` | []model.EventType | ["exec", "open"] | HashResolverEventTypes defines the list of event which files may be hashed |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_HASH_ALGORITHMS` | `runtime_security_config.hash_resolver.hash_algorithms` | []model.HashAlgorithm | ["sha1", "sha256", "ssdeep"] | HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_FILE_SIZE` | `runtime_security_config.hash_resolver.max_file_size` | int64 | 5242880 | HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_HASH_RATE` | `runtime_security_config.hash_resolver.max_hash_rate` | int | 500 | HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes |
+| `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_REPLACE` | `runtime_security_config.hash_resolver.replace` | map[string]string | {} | HashResolverReplace is used to apply specific hash to specific file path |
+| `DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_DUMP_POLICIES` | `runtime_security_config.remote_configuration.dump_policies` | bool | false | RemoteConfigurationDumpPolicies defines whether to dump remote config policy |
+| `DD_RUNTIME_SECURITY_CONFIG_USER_SESSIONS_SSH_ENABLED` | `runtime_security_config.user_sessions.ssh.enabled` | bool | true | SSHUserSessionsEnabled defines if SSH user session features should be enabled |
 
 ### `system-probe` advanced settings
 
@@ -48,7 +48,7 @@ The following settings can be configured under `runtime_security_config` in the 
 
 | Environment variable | `system-probe.yaml` attribute | Type | Default | Description |
 | -------------------- | ----------------------------- | ---- | ------- | ----------- |
-| `DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED` | `` | bool | false | EBPFLessEnabled enables the ebpfless probe |
-| `DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED` | `` | bool | false | CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled. |
+| `DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED` | `runtime_security_config.ebpfless.enabled` | bool | false | EBPFLessEnabled enables the ebpfless probe |
+| `DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED` | `runtime_security_config.syscalls.capture_all_errors.enabled` | bool | false | CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled. |
 
 [1]: /security/workload_protection/
