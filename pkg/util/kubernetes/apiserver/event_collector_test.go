@@ -92,3 +92,28 @@ func TestCheckpoint(t *testing.T) {
 		assert.Equal(t, "42", ec.Checkpoint())
 	})
 }
+
+func TestFilterEventListAfterResourceVersion(t *testing.T) {
+	events := &v1.EventList{
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "100",
+			Continue:        "next-page",
+		},
+		Items: []v1.Event{
+			{ObjectMeta: metav1.ObjectMeta{Name: "old", ResourceVersion: "9"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "newer", ResourceVersion: "11"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "equal", ResourceVersion: "10"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "newest", ResourceVersion: "20"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "invalid", ResourceVersion: "invalid"}},
+		},
+	}
+
+	filterEventListAfterResourceVersion(events, 10)
+
+	assert.Equal(t, []v1.Event{
+		{ObjectMeta: metav1.ObjectMeta{Name: "newer", ResourceVersion: "11"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "newest", ResourceVersion: "20"}},
+	}, events.Items)
+	assert.Equal(t, "100", events.ResourceVersion)
+	assert.Equal(t, "next-page", events.Continue)
+}

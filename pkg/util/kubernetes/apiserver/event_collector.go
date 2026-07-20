@@ -76,7 +76,15 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = ec.filter
-			return ec.client.CoreV1().Events(metav1.NamespaceAll).List(ctx, opts)
+			events, err := ec.client.CoreV1().Events(metav1.NamespaceAll).List(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			// Filter each page first so events already covered by the checkpoint do
+			// not contribute to that aggregate's memory usage.
+			filterEventListAfterResourceVersion(events, ec.lastRV.Load())
+			return events, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = ec.filter
@@ -89,6 +97,16 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	go reflector.Run(stopCh)
 
 	return nil
+}
+
+func filterEventListAfterResourceVersion(events *v1.EventList, threshold uint64) {
+	var filtered []v1.Event
+	for i := range events.Items {
+		if parseResourceVersion(events.Items[i].ResourceVersion) > threshold {
+			filtered = append(filtered, events.Items[i])
+		}
+	}
+	events.Items = filtered
 }
 
 // Drain returns the events buffered since the last call, advancing the
