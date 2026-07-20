@@ -1063,7 +1063,7 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
 
     packages_list = " ".join(packages)
     list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(f"go list -buildvcs=false -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    res = ctx.run(f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True)
     if res is None or not res.ok:
         raise Exit("Failed to get dependencies for system-probe")
 
@@ -1167,7 +1167,7 @@ def kmt_sysprobe_prepare(
             variables = {
                 "env": env_str,
                 "go": go_path,
-                "build_tags": build_tags,
+                "build_tags": ",".join(build_tags),
             }
             timeout = get_test_timeout(os.path.relpath(pkg, os.getcwd()))
             if timeout:
