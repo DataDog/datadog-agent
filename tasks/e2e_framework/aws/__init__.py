@@ -11,6 +11,7 @@ from tasks.e2e_framework.aws.gensim_eks import (
     update_manifest_shas_gensim_eks,
 )
 from tasks.e2e_framework.aws.installer import create_installer_lab, destroy_installer_lab
+from tasks.e2e_framework.aws.integrations import collection as integrations_collection
 from tasks.e2e_framework.aws.kind import create_kind, destroy_kind
 from tasks.e2e_framework.aws.vm import create_vm, destroy_vm, get_vm_password, rdp_vm, show_vm
 
@@ -27,6 +28,7 @@ _gensim_eks_coll.add_task(update_manifest_shas_gensim_eks, name="update-manifest
 _eks_coll = Collection("eks")
 _eks_coll.add_collection(_gensim_eks_coll)
 collection.add_collection(_eks_coll)
+collection.add_collection(integrations_collection)
 collection.add_task(destroy_vm)
 collection.add_task(create_vm)
 collection.add_task(create_docker)

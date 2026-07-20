@@ -1,0 +1,40 @@
+## SAP S/4HANA Order-to-Cash crawler (A2X OData). See ../../o2c-data-model.md.
+init_config:
+
+instances:
+    ## Base URL of the S/4HANA ICM HTTP endpoint (OData services live under
+    ## /sap/opu/odata/sap/). Lab runs the agent ON the box -> localhost:50000.
+  - base_url: "http://localhost:50000"
+    sap_client: "100"
+
+    ## HTTP Basic auth. Lab uses SAP*; a REAL integration must use a dedicated
+    ## read-only OData user (authorization for the 3 A2X services). Secret is
+    ## injected at deploy, never committed.
+    username: "SAP*"
+    # password: "<injected at deploy>"
+
+    ## Paging cap for the aggregate KPI queries (counts/backlog/amount).
+    max_records: 2000
+    ## How many recent docs to walk for the O2C timeline join (lead-time
+    ## histograms + per-order events). Heavy (nav calls per doc) -> keep modest.
+    join_sample: 50
+
+    ## Crawl is expensive; run every 5 min.
+    min_collection_interval: 300
+
+    ## Per-order process-flow records (steps + statuses + failed_step) are written
+    ## as JSON lines here; the logs block below ships them to Datadog Logs.
+    log_file: "/var/log/sap-o2c/o2c.jsonl"
+
+    tags:
+      - "sap_sid:S4H"
+      - "lab:sap-cal-s4hana"
+
+## Ship the per-order O2C flow records as logs (requires logs_enabled: true in
+## datadog.yaml). Powers the orders table + failure triage (facet on
+## flow_status / failed_step / o2c_sales_order).
+logs:
+  - type: file
+    path: "/var/log/sap-o2c/o2c.jsonl"
+    source: sap_s4hana
+    service: o2c

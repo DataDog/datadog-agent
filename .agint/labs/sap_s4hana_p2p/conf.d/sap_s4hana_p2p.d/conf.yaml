@@ -1,0 +1,22 @@
+## SAP S/4HANA Procure-to-Pay crawler (A2X OData). Sibling to sap_s4hana_o2c.
+init_config:
+
+instances:
+  - base_url: "http://localhost:50000"
+    sap_client: "100"
+    username: "SAP*"          # lab; real integration = dedicated read-only OData user
+    # password: "<injected at deploy>"
+    max_records: 2000
+    join_sample: 40
+    min_collection_interval: 300
+    log_file: "/var/log/sap-p2p/p2p.jsonl"
+    tags:
+      - "sap_sid:S4H"
+      - "lab:sap-cal-s4hana"
+
+## Per-PO flow records -> Datadog Logs (needs logs_enabled: true, already set on the box).
+logs:
+  - type: file
+    path: "/var/log/sap-p2p/p2p.jsonl"
+    source: sap_s4hana
+    service: p2p

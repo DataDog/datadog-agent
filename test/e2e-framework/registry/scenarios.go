@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 	awsgensimeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/gensim-eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
@@ -32,7 +33,7 @@ import (
 type ScenarioRegistry map[string]pulumi.RunFunc
 
 func Scenarios() ScenarioRegistry {
-	return ScenarioRegistry{
+	registry := ScenarioRegistry{
 		"aws/vm":                  ec2.VMRun,
 		"aws/dockervm":            ec2docker.DockerRun,
 		"aws/ecs":                 ecs.Run,
@@ -47,9 +48,14 @@ func Scenarios() ScenarioRegistry {
 		"gcp/gke":                 gke.Run,
 		"gcp/openshiftvm":         openshiftvm.Run,
 		"local/kindmonocontainer": localkindmonocontainer.Run,
-		"local/multipassvm": 	   localmultipassvm.VMRun,
+		"local/multipassvm":       localmultipassvm.VMRun,
 		"localpodman/vm":          localpodmanrun.VMRun,
 	}
+	// Merge agent-integrations lab scenarios (aws/integrations/<integration>).
+	for key, run := range integrations.Scenarios() {
+		registry[key] = run
+	}
+	return registry
 }
 
 func (s ScenarioRegistry) Get(name string) pulumi.RunFunc {

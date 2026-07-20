@@ -1,0 +1,72 @@
+## SAP Cloud ALM custom check configuration.
+##
+## By default this targets the public SAP Business Accelerator Hub sandbox, which
+## serves canned demo data and authenticates with an APIKey header. The api_key
+## references the Agent container environment via the Autodiscovery template
+## variable %%env_SAP_ALM_API_KEY%%, which the scenario injects from the
+## developer-supplied SAP Business Accelerator Hub APIKey. No secret is committed.
+init_config:
+
+instances:
+    ## SAP Cloud ALM Analytics base URL.
+    ##   sandbox : https://sandbox.api.sap.com/SAPCALM
+    ##   tenant  : https://<tenant>.<region>.alm.cloud.sap
+  - sandbox_url: "https://sandbox.api.sap.com/SAPCALM"
+
+    ## API base path appended before /analytics/providers/data.
+    ##   sandbox : /calm-analytics/v1
+    ##   tenant  : /api/calm-analytics/v1
+    api_base_path: "/calm-analytics/v1"
+
+    ## APIKey header value, sourced from the container SAP_ALM_API_KEY env var.
+    ## Used only when no 'oauth' block is present (see below).
+    api_key: "%%env_SAP_ALM_API_KEY%%"
+
+    ## OAuth2 client-credentials auth for a real SAP Cloud ALM tenant. When
+    ## present, this takes precedence over api_key: the check fetches and caches
+    ## a Bearer token and sends 'Authorization: Bearer <token>'. To reach a real
+    ## tenant, set sandbox_url + api_base_path: "/api/calm-analytics/v1" above and
+    ## uncomment this block.
+    #
+    # oauth:
+    #   token_url: "https://<tenant>.authentication.<region>.hana.ondemand.com/oauth/token"
+    #   client_id: "%%env_SAP_ALM_CLIENT_ID%%"
+    #   client_secret: "%%env_SAP_ALM_CLIENT_SECRET%%"
+
+    ## Providers to poll. Each entry:
+    ##   name        - Analytics provider id (sent as the 'provider' field)
+    ##   format      - "time_series" (double-nested) or "table" (single-nested); default time_series
+    ##   resolution  - H/D/W/M/Y; default H
+    ##   semantic    - relative window L1D/L7D/L30D; default L1D
+    ##   dimensions  - list of dimension names to tag by; default []
+    ##   measures    - list of {measure, method}; default [] (provider default measure)
+    ## method is one of AVG/SUM/MAX/MIN/LAST.
+    providers:
+      - name: "EXM_DATAPROVIDER"
+        format: "time_series"
+        resolution: "H"
+        semantic: "L1D"
+        dimensions:
+          - "useCase"
+
+      - name: "DEMO_TASKS"
+        format: "table"
+        resolution: "D"
+        semantic: "L30D"
+        dimensions:
+          - "status"
+        measures:
+          - measure: "count"
+            method: "SUM"
+
+      - name: "DEMO_TASKS"
+        format: "table"
+        resolution: "D"
+        semantic: "L30D"
+        dimensions:
+          - "project"
+        measures:
+          - measure: "count"
+            method: "SUM"
+
+    min_collection_interval: 60

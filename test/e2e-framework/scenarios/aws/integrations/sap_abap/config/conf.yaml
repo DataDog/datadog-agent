@@ -1,0 +1,70 @@
+## SAP ABAP (SAPControl) custom check configuration.
+##
+## Scrapes the sapstartsrv SAPControl SOAP web service exposed by each SAP
+## instance on the S/4HANA (S4H) appliance. Instance NN exposes SAPControl on
+## HTTP port 5<NN>13, so the three instances of this appliance are reached at:
+##   D00    (ABAP dialog)                    -> 50013
+##   ASCS01 (ASCS enqueue / message server)  -> 50113
+##   HDB02  (HANA sapstartsrv)               -> 50213
+##
+## This documents the ON-BOX deployment shape (Agent installed on the appliance
+## host, reaching each sapstartsrv over localhost). The three instances below
+## reflect the real S4H appliance layout.
+##
+## For the CONTAINERized Agent path, sapcontrol_url would instead reference the
+## Agent container environment via an Autodiscovery template variable, e.g.
+##   sapcontrol_url: "%%env_SAP_ABAP_SAPCONTROL_URL%%"
+## (default http://172.17.0.1:50013 -- the docker bridge gateway -- so the Agent
+## container reaches the host-published port). Not used in the on-box shape.
+##
+## SAPControl methods are split protected/unprotected via the profile parameter
+## service/protectedwebmethods. Protected read methods (ABAPGetWPTable,
+## GetQueueStatistic, GetAlertTree, EnqGetStatistic) require HTTP Basic auth as
+## the OS user s4hadm (<sid>adm). No secret is committed here; the real password
+## is injected at deploy time on the box. Leave the placeholders below as-is.
+init_config:
+
+instances:
+    ## Instance 1 -- ABAP dialog instance D00 (SAPControl on :50013).
+    ## The protected methods (ABAPGetWPTable, GetQueueStatistic, GetAlertTree)
+    ## require OS-user s4hadm Basic auth; set the password at deploy on the box.
+  - sapcontrol_url: "http://localhost:50013"
+    ## username: s4hadm            # OS user <sid>adm
+    ## password: "<injected-at-deploy>"
+    methods:
+      - GetProcessList
+      - GetSystemInstanceList
+      - ABAPGetWPTable
+      - GetQueueStatistic
+      - GetAlertTree
+    tags:
+      - "sap_sid:S4H"
+      - "sap_instance:D00"
+    min_collection_interval: 60
+
+    ## Instance 2 -- ASCS enqueue / message server ASCS01 (SAPControl on :50113).
+    ## EnqGetStatistic and GetQueueStatistic are protected -> s4hadm Basic auth.
+  - sapcontrol_url: "http://localhost:50113"
+    ## username: s4hadm            # OS user <sid>adm
+    ## password: "<injected-at-deploy>"
+    methods:
+      - GetProcessList
+      - GetSystemInstanceList
+      - EnqGetStatistic
+      - GetQueueStatistic
+    tags:
+      - "sap_sid:S4H"
+      - "sap_instance:ASCS01"
+    min_collection_interval: 60
+
+    ## Instance 3 -- HANA sapstartsrv HDB02 (SAPControl on :50213).
+    ## Only the unprotected read methods are called, so NO credentials are set:
+    ## s4hadm would not authenticate against HANA's sidadm anyway.
+  - sapcontrol_url: "http://localhost:50213"
+    methods:
+      - GetProcessList
+      - GetSystemInstanceList
+    tags:
+      - "sap_sid:S4H"
+      - "sap_instance:HDB02"
+    min_collection_interval: 60
