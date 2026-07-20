@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/alecthomas/participle v0.7.1
-	github.com/charlievieth/strcase v0.0.5
+	github.com/charlievieth/strcase v0.0.6
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/google/go-cmp v0.7.0
