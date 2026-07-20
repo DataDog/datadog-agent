@@ -8,7 +8,6 @@ package hash
 
 import (
 	"crypto/md5"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -203,8 +202,6 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 // getHashFunction returns the hash function for the provided algorithm
 func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Hash {
 	switch algorithm {
-	case model.SHA1:
-		return sha1.New()
 	case model.SHA256:
 		return sha256.New()
 	case model.MD5:

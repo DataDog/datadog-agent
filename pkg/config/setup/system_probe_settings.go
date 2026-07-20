@@ -493,7 +493,7 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*5) // 5 MB
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
-	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
+	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha256", "ssdeep"})
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
