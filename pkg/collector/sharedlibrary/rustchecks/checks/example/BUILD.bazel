@@ -1,5 +1,5 @@
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 
 # Rust shared-library checks are Linux-only.
 _LINUX = ["@platforms//os:linux"]
@@ -17,6 +17,14 @@ rust_shared_library(
         "@crates//:anyhow",
         "@crates//:libc",
     ],
+)
+
+# Unit tests embedded in the crate sources (run with `bazel test`).
+rust_test(
+    name = "example_test",
+    crate = ":example",
+    edition = "2024",
+    target_compatible_with = _LINUX,
 )
 
 # Stage the cdylib with the loader naming convention
