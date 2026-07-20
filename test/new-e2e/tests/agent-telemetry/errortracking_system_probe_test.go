@@ -72,10 +72,20 @@ func TestErrorTrackingSystemProbeSuite(t *testing.T) {
 // same errortracking config and could in principle forward its own, unrelated
 // errors during the same window.
 func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
+	// Reset FakeIntake before UpdateEnv, not after: the npcollector error is a
+	// startup-only trigger with flush_interval_seconds: 1 and no startup
+	// jitter, so with the reset placed after UpdateEnv it could delete the
+	// only occurrence (delivered during provisioning) before this test ever
+	// reads it, leaving EventuallyWithT waiting for a recurrence that never
+	// comes.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	// testify's suite.Run executes test methods in alphabetical order
 	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
 	// re-provisions the same host in place rather than a fresh one. Re-assert
-	// the enabled config here so this test doesn't depend on run order.
+	// the enabled config here so this test doesn't depend on run order; this
+	// also restarts system-probe, generating a fresh occurrence of the error
+	// after the reset above.
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(
@@ -84,7 +94,6 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 			),
 		),
 	))
-	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	var logs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
