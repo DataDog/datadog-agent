@@ -8,6 +8,7 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
     """Check every package in `pkg` has an owner"""
 
     error = False
+    folder_path = "/" + folder
 
     for x in os.listdir(folder):
         # Use forward slash concatenation instead of os.path.join to ensure consistent
@@ -16,7 +17,17 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
         # to match against the CODEOWNERS rules. os.path.join would use backslashes on
         # Windows, causing the comparison to fail.
         path = "/" + folder + "/" + x
-        if all(owner[1].rstrip('/') != path for owner in owners.paths):
+        stripped = path.lstrip('/')
+        # codeowners represents directories with a trailing slash without
+        # it, a directory-only rule like `/pkg/api/` won't match.
+        if os.path.isdir(os.path.join(folder, x)):
+            stripped += '/'
+        rule_owners, _, rule_path, _ = owners.matching_line(stripped)
+        # A match against the folder's own blanket rule (e.g. `/pkg/`) doesn't count as a
+        # dedicated owner for this specific package — it covers everything under `folder`
+        # indiscriminately. A match with no owners (e.g. a "do not notify anyone" rule) doesn't
+        # count either.
+        if not rule_owners or (rule_path is not None and rule_path.rstrip('/') == folder_path):
             if not error:
                 print(
                     color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr

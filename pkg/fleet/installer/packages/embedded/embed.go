@@ -30,7 +30,9 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
+// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
+// --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at
+// launch with its config directory (stable or experiment).
 //
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string

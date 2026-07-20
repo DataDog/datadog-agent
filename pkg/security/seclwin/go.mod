@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/alecthomas/participle v0.7.1 // indirect
-	github.com/charlievieth/strcase v0.0.5 // indirect
+	github.com/charlievieth/strcase v0.0.6 // indirect
 	github.com/jellydator/ttlcache/v3 v3.4.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect

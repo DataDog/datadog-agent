@@ -1,8 +1,14 @@
-## Provides autodetected defaults, for kubernetes environments,
-## please see datadog.yaml.example for all supported options
-
-apm_config:
-  apm_non_local_traffic: true
-
-# Use java container support
-jmx_use_container_support: true
+## DEPRECATED — do not add settings here.
+##
+## The Kubernetes autodetected defaults that used to live in this file
+## (apm_config.apm_non_local_traffic, jmx_use_container_support) are now applied
+## directly by the Agent binary when it detects a Kubernetes environment
+## (see applyKubernetesContainerDefaults in pkg/config/setup/fixup_init.go).
+##
+## This is intentional: external tooling (Datadog Operator, Helm chart) replaces
+## /etc/datadog-agent/datadog.yaml — which this file is symlinked to — and any
+## settings only defined here would be silently dropped. Keeping the defaults in
+## the binary preserves them no matter how datadog.yaml is provided.
+##
+## The file is kept (empty) so the container entrypoint symlink and image content
+## checks continue to work. For all supported options see datadog.yaml.example.

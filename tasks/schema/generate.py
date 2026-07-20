@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.schema.add_comments import add_comments
-from tasks.schema.codegen_init_settings import run_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
 from tasks.schema.fixes import fix_schema
 from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.produce_byproduct import produce_byproduct
@@ -61,6 +61,11 @@ CORE_SPLIT_SECTIONS = [
     "runtime_security_config",
 ]
 
+SYSPROBE_SPLIT_SECTIONS = [
+    ["runtime_security_config", "system-probe-cws"],
+    ["service_monitoring_config", "system-probe-usm"],
+]
+
 
 def str_presenter(dumper, data):
     if "\n" in data:
@@ -102,12 +107,15 @@ def split_and_write_schema(schema, output_dir, sections, name):
     ``<output_dir>/<name>.yaml``.
 
     If *sections* is falsy (None or empty), no splitting happens — the schema
-    is written as-is (used for system-probe). Otherwise, for each section
-    name in *sections* that exists at ``schema["properties"][<section>]``,
-    the section's content is written to ``<output_dir>/<section>.yaml`` and
-    the entry in the in-memory schema is replaced with
-    ``{"$ref": "<section>.yaml"}``. Sections not present in the schema are
-    silently skipped.
+    is written as-is. Otherwise, for each section name in *sections* that
+    exists at ``schema["properties"][<section_name>]``, the section's content
+    is written to ``<output_dir>/<section_file>.yaml`` and the entry in the
+    in-memory schema is replaced with ``{"$ref": "<section_file>.yaml"}``.
+    Sections not present in the schema are silently skipped.
+
+    The values of each element in ``sections`` can be either a string or list.
+    If the item is a string it is used for the section name and file. If it is
+    a list, then item[0] is the section name and the item[1] is the file name.
 
     Each sub-file is written with a JSON-schema header (``$schema``, ``$id``)
     so it is a self-contained, navigable schema document. The companion
@@ -116,17 +124,20 @@ def split_and_write_schema(schema, output_dir, sections, name):
     """
     if sections:
         properties = schema.get("properties") or {}
-        for section in sections:
-            if section not in properties:
+        for section_row in sections:
+            section_name, section_file = (section_row, section_row)
+            if isinstance(section_row, list):
+                section_name, section_file = (section_row[0], section_row[1])
+            if section_name not in properties:
                 continue
-            sub_path = os.path.join(output_dir, f"{section}.yaml")
+            sub_path = os.path.join(output_dir, f"{section_file}.yaml")
             body = _prepend_header(
-                properties[section],
-                schema_id=f"{_SUBSCHEMA_ID_PREFIX}{section}.yaml.schema.json",
+                properties[section_name],
+                schema_id=f"{_SUBSCHEMA_ID_PREFIX}{section_file}.yaml.schema.json",
             )
             with open(sub_path, "w") as f:
                 yaml.dump(body, f, sort_keys=False)
-            properties[section] = {"$ref": f"{section}.yaml"}
+            properties[section_name] = {"$ref": f"{section_file}.yaml"}
 
     top_path = os.path.join(output_dir, f"{name}.yaml")
     with open(top_path, "w") as f:
@@ -198,7 +209,7 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     # transparently merge these back at load time. system-probe is written
     # as a single file (no splitting).
     split_and_write_schema(core_schema, output_dir, CORE_SPLIT_SECTIONS, "core_schema")
-    split_and_write_schema(sysprobe_schema, output_dir, None, "system-probe_schema")
+    split_and_write_schema(sysprobe_schema, output_dir, SYSPROBE_SPLIT_SECTIONS, "system-probe_schema")
 
     print("Schema generation complete.")
 
@@ -278,6 +289,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     tmpdir = tempfile.mkdtemp()
     run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
     run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_constant_codegen(core_schema, system_probe_schema, tmpdir)
 
     display = not check and not fix
 
@@ -300,6 +312,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     if fix:
         # Fix any differences by copying the codegen results into SETUP_INIT_DIR
         ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
+        ctx.run(f"cp {tmpdir}/*generated.go {SETUP_INIT_DIR}/")
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)

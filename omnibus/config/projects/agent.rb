@@ -239,6 +239,7 @@ elsif do_package
   dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
+    dependency "systemd" if linux_target?
     dependency "datadog-agent"
   else
     dependency "package-artifact"

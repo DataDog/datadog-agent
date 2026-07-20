@@ -16,6 +16,7 @@ go_library(
         "config_test_accessor.go",
         "config_windows.go",
         "fixup_init.go",
+        "generated.go",
         "ipc_address.go",
         "multi_region_failover_settings.go",
         "otlp.go",
