@@ -137,7 +137,7 @@ func renderAll(destFolder string, tplFolder string) {
 		"dcacf":        "config_template.yaml",
 		"system-probe": "system-probe_template.yaml",
 	} {
-		for _, osName := range []string{"windows", "darwin", "linux"} {
+		for _, osName := range []string{"windows", "darwin", "linux", "aix"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
 			fmt.Println("Successfully wrote", destFile)

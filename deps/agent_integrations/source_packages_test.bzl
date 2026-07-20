@@ -1,7 +1,7 @@
 """Tests for integrations-core source package collection."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":source_packages.bzl", "classify_integrations")
+load(":source_packages.bzl", "collect_integrations")
 
 LINUX_X86_64 = "@@//:linux_x86_64"
 LINUX_ARM64 = "@@//:linux_arm64"
@@ -38,8 +38,8 @@ def _make_fake_path(files, parts):
             return []
         return [_make_fake_path(files, parts + [name]) for name in sorted(node.keys())]
 
-    def _get_child(child):
-        return _make_fake_path(files, parts + [child])
+    def _get_child(*relative_paths):
+        return _make_fake_path(files, parts + list(relative_paths))
 
     return struct(
         basename = parts[-1] if parts else ".",
@@ -64,13 +64,13 @@ def _make_fake_rctx(files):
         read = _read,
     )
 
-def _sorted_classification(classification):
+def _integration_by_name(integrations):
     return {
-        platform: sorted(integrations)
-        for platform, integrations in classification.items()
+        integration.name: integration
+        for integration in integrations
     }
 
-def _classify_integrations_uses_manifests_and_overrides_impl(ctx):
+def _collect_integrations_uses_manifests_and_overrides_impl(ctx):
     env = unittest.begin(ctx)
 
     files = {
@@ -111,50 +111,126 @@ override_linux = ["linux"]
     }
     rctx = _make_fake_rctx(files)
 
-    integrations = classify_integrations(
+    integrations = _integration_by_name(collect_integrations(
         rctx,
         arm_incompatible_integrations = ["ibm_mq"],
+    ))
+
+    asserts.equals(env, 4, len(integrations))
+    asserts.equals(env, [LINUX_X86_64, MACOS_X86_64, WINDOWS_X86_64], integrations["ibm_mq"].platforms)
+    asserts.equals(
+        env,
+        [LINUX_X86_64, LINUX_ARM64, MACOS_X86_64, MACOS_ARM64],
+        integrations["manifest_linux_macos"].platforms,
     )
+    asserts.equals(
+        env,
+        [LINUX_X86_64, LINUX_ARM64, MACOS_X86_64, MACOS_ARM64, WINDOWS_X86_64],
+        integrations["override_all"].platforms,
+    )
+    asserts.equals(env, [LINUX_X86_64, LINUX_ARM64], integrations["override_linux"].platforms)
+
+    return unittest.end(env)
+
+_collect_integrations_uses_manifests_and_overrides_test = unittest.make(
+    _collect_integrations_uses_manifests_and_overrides_impl,
+)
+
+def _collect_integrations_includes_platforms_and_configuration_impl(ctx):
+    env = unittest.begin(ctx)
+
+    files = {
+        "config_check": {
+            "datadog_checks": {
+                "config_check": {
+                    "data": {
+                        "conf.yaml.example": "",
+                        "metrics.yaml": "",
+                    },
+                },
+            },
+            "manifest.json": _manifest([
+                "Supported OS::Linux",
+                "Supported OS::Windows",
+            ]),
+            "pyproject.toml": "",
+        },
+        "snmp": {
+            "datadog_checks": {
+                "snmp": {
+                    "data": {
+                        "conf.yaml.example": "",
+                        "default_profiles": {
+                            "generic-device.yaml": "",
+                        },
+                        "profiles": {
+                            "custom.yaml": "",
+                        },
+                    },
+                },
+            },
+            "manifest.json": _manifest(ALL_SUPPORTED_TAGS),
+            "pyproject.toml": "",
+        },
+    }
+    rctx = _make_fake_rctx(files)
+
+    integrations = _integration_by_name(collect_integrations(rctx))
 
     asserts.equals(
         env,
-        {
-            LINUX_X86_64: [
-                "ibm_mq",
-                "manifest_linux_macos",
-                "override_all",
-                "override_linux",
-            ],
-            LINUX_ARM64: [
-                "manifest_linux_macos",
-                "override_all",
-                "override_linux",
-            ],
-            MACOS_X86_64: [
-                "ibm_mq",
-                "manifest_linux_macos",
-                "override_all",
-            ],
-            MACOS_ARM64: [
-                "manifest_linux_macos",
-                "override_all",
-            ],
-            WINDOWS_X86_64: [
-                "ibm_mq",
-                "override_all",
-            ],
-        },
-        _sorted_classification(integrations),
+        [LINUX_X86_64, LINUX_ARM64, WINDOWS_X86_64],
+        integrations["config_check"].platforms,
+    )
+    asserts.equals(
+        env,
+        [
+            struct(
+                name = "config_check_configuration_files",
+                prefix = "config_check.d",
+                srcs = [
+                    "datadog_checks/config_check/data/conf.yaml.example",
+                    "datadog_checks/config_check/data/metrics.yaml",
+                ],
+                strip_prefix = "datadog_checks/config_check/data",
+            ),
+        ],
+        integrations["config_check"].configuration_targets,
+    )
+    asserts.equals(
+        env,
+        [
+            struct(
+                name = "snmp_configuration_files",
+                prefix = "snmp.d",
+                srcs = ["datadog_checks/snmp/data/conf.yaml.example"],
+                strip_prefix = "datadog_checks/snmp/data",
+            ),
+            struct(
+                name = "snmp_profiles_files",
+                prefix = "snmp.d/profiles",
+                srcs = ["datadog_checks/snmp/data/profiles/custom.yaml"],
+                strip_prefix = "datadog_checks/snmp/data/profiles",
+            ),
+            struct(
+                name = "snmp_default_profiles_files",
+                prefix = "snmp.d/default_profiles",
+                srcs = ["datadog_checks/snmp/data/default_profiles/generic-device.yaml"],
+                strip_prefix = "datadog_checks/snmp/data/default_profiles",
+            ),
+        ],
+        integrations["snmp"].configuration_targets,
     )
 
     return unittest.end(env)
 
-_classify_integrations_uses_manifests_and_overrides_test = unittest.make(
-    _classify_integrations_uses_manifests_and_overrides_impl,
+_collect_integrations_includes_platforms_and_configuration_test = unittest.make(
+    _collect_integrations_includes_platforms_and_configuration_impl,
 )
 
 def source_packages_test_suite(name):
     unittest.suite(
         name,
-        _classify_integrations_uses_manifests_and_overrides_test,
+        _collect_integrations_uses_manifests_and_overrides_test,
+        _collect_integrations_includes_platforms_and_configuration_test,
     )

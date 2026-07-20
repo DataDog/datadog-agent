@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
-	github.com/cenkalti/backoff/v6 v6.0.1
+	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.42.1 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.26 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.28 // indirect
 	github.com/aws/smithy-go v1.27.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

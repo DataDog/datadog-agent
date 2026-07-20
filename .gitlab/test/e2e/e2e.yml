@@ -281,7 +281,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -320,7 +320,6 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
@@ -328,7 +327,6 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
-    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -346,16 +344,15 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # Same as new-e2e-containers-eks-init.
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
-    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -451,6 +448,7 @@ new-e2e-privateactionrunner:
     - job: publish_fakeintake
       optional: true
     - qa_agent_linux
+    - qa_dca
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.except_mergequeue]
@@ -1165,7 +1163,6 @@ new-e2e-ssi-gke:
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-ssi-gke-autopilot-init:
   extends: .new-e2e_ssi_extra_distribution_init
   variables:
@@ -1185,7 +1182,6 @@ new-e2e-ssi-gke-autopilot:
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
   allow_failure: true
-
 
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init

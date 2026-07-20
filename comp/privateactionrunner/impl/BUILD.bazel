@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test off
+
 go_library(
     name = "impl",
     srcs = ["privateactionrunner.go"],
@@ -26,6 +28,8 @@ go_library(
         "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/runners",
@@ -33,6 +37,8 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/util/http",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
     ],
 )
 
