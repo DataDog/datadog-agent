@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "traceutil",
     srcs = ["traceutil.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

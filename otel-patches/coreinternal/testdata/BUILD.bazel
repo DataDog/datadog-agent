@@ -3,7 +3,9 @@ load("@@rules_go+//go:def.bzl", "go_library")
 # DATADOG LOCAL PATCH: gazelle refuses to generate BUILD files for any directory named
 # "testdata" (treated as opaque fixture data), but upstream uses this directory as a real,
 # explicitly-imported Go package (not a `./...`-pattern-discovered one, which is all Go's own
-# testdata convention actually skips). Hand-written to keep consumerretry's test target buildable.
+# testdata convention actually skips). Hand-written to keep consumerretry's test target buildable;
+# gazelle would otherwise delete this whole file.
+# keep
 go_library(
     name = "testdata",
     srcs = [
@@ -14,7 +16,7 @@ go_library(
         "resource.go",
         "trace.go",
     ],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/testdata",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/testdata",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

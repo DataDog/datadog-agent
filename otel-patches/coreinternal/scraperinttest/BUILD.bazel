@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library")
 go_library(
     name = "scraperinttest",
     srcs = ["scraperint.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/scraperinttest",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/scraperinttest",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_golden//:golden",

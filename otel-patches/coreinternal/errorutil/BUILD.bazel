@@ -6,7 +6,7 @@ go_library(
         "grpc.go",
         "http.go",
     ],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/errorutil",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/errorutil",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",

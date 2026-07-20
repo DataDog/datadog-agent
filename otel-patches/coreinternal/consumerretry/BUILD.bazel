@@ -7,7 +7,7 @@ go_library(
         "logs.go",
         "testutil.go",
     ],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/consumerretry",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/consumerretry",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_cenkalti_backoff_v4//:backoff",
@@ -30,7 +30,7 @@ go_test(
     embed = [":consumerretry"],
     gotags = ["test"],
     deps = [
-        "//otel-patches/coreinternal/testdata",
+        "//otel-patches/coreinternal/testdata",  # keep
         "@com_github_stretchr_testify//assert",
         "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
         "@org_uber_go_goleak//:goleak",

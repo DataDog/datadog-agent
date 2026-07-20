@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "ctimefmt",
     srcs = ["ctimefmt.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils/internal/ctimefmt",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils/internal/ctimefmt",  # keep
     visibility = ["//visibility:public"],
     deps = ["@com_github_elastic_lunes//:lunes"],
 )

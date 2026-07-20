@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "metricstestutil",
     srcs = ["metric_diff.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/metricstestutil",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/metricstestutil",  # keep
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",
@@ -20,7 +20,7 @@ go_test(
     embed = [":metricstestutil"],
     gotags = ["test"],
     deps = [
-        "//otel-patches/coreinternal/goldendataset",
+        "//otel-patches/coreinternal/goldendataset",  # keep
         "@com_github_stretchr_testify//assert",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@org_uber_go_goleak//:goleak",

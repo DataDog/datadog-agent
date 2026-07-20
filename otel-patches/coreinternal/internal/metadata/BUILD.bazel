@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library")
 go_library(
     name = "metadata",
     srcs = ["generated_feature_gates.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/internal/metadata",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/internal/metadata",  # keep
     visibility = ["//visibility:public"],
     deps = ["@io_opentelemetry_go_collector_featuregate//:featuregate"],
 )

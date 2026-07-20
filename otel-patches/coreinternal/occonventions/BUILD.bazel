@@ -3,6 +3,6 @@ load("@@rules_go+//go:def.bzl", "go_library")
 go_library(
     name = "occonventions",
     srcs = ["opencensus.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions",  # keep
     visibility = ["//visibility:public"],
 )

@@ -3,7 +3,7 @@ load("@@rules_go+//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "clientutil",
     srcs = ["client.go"],
-    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/clientutil",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/clientutil",  # keep
     visibility = ["//visibility:public"],
     deps = ["@io_opentelemetry_go_collector_client//:client"],
 )
