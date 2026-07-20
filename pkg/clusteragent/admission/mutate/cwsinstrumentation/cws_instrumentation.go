@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -416,11 +415,9 @@ func (ci *CWSInstrumentation) resolveNodeArchMeasured(nodeName string, apiClient
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
-
-	out, err := ci.wmeta.GetKubernetesMetadata(entityID)
+	out, err := ci.wmeta.GetKubernetesNode(nodeName)
 	if err == nil && out != nil {
-		arch = out.Labels["kubernetes.io/arch"]
+		arch = out.Status.Architecture
 	}
 
 	if out == nil {
