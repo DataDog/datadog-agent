@@ -1919,6 +1919,69 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	}
 }
 
+func TestApplyKubernetesContainerDefaults(t *testing.T) {
+	keys := []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"}
+
+	t.Run("non-kubernetes leaves defaults false", func(t *testing.T) {
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("kubernetes enables defaults", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+			// Kept at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
+			// containerized fallback) keep their existing behavior.
+			assert.False(t, config.IsConfigured(k), k)
+		}
+	})
+
+	t.Run("eks fargate enables defaults without kubernetes service env", func(t *testing.T) {
+		// The EKS Fargate sidecar sets DD_EKS_FARGATE but not KUBERNETES; the defaults must
+		// still apply (jmx_use_container_support has no consumption-side fallback).
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("config file overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := confFromYAML(t, "apm_config:\n  apm_non_local_traffic: false\njmx_use_container_support: false\n")
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("env var overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		t.Setenv("DD_APM_NON_LOCAL_TRAFFIC", "false")
+		t.Setenv("DD_JMX_USE_CONTAINER_SUPPORT", "false")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
+		assert.False(t, config.GetBool("jmx_use_container_support"))
+	})
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }

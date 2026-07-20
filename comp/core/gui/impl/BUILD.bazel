@@ -1,0 +1,92 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agent.go",
+        "auth.go",
+        "checks.go",
+        "checks_nopy.go",
+        "checks_python.go",
+        "gui.go",
+        "platform_darwin.go",
+        "platform_nix.go",
+        "platform_windows.go",
+        "render.go",
+    ],
+    embedsrcs = [
+        "views/templates/index.tmpl",
+        "views/templates/runningChecks.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/gui/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/autodiscovery/impl",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/flare",
+        "//comp/core/flare/helpers",
+        "//comp/core/gui/def",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/def",
+        "//pkg/api/security",
+        "//pkg/collector",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/python",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/template/html",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/system",
+        "//pkg/version",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/system-probe/api/client",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/system-probe/api/client",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/executable",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "agent_test.go",
+        "auth_test.go",
+        "checks_test.go",
+        "platform_darwin_test.go",
+        "platform_nix_test.go",
+        "platform_windows_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/sysprobeconfig/mock",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/sysprobeconfig/mock",
+        ],
+        "//conditions:default": [],
+    }),
+)

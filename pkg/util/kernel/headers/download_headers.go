@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/apt"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/cos"

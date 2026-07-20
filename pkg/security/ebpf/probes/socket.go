@@ -65,7 +65,7 @@ func GetAllSocketProgramFunctions() []string {
 
 // CheckCgroupSocketReturnCode checks if the return code is 1(accept)
 //
-//nolint:unused,deadcode
+//nolint:unused
 func CheckCgroupSocketReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
 	for _, progSpec := range progSpecs {
 		if progSpec.Type == ebpf.CGroupSock {

@@ -1,0 +1,6 @@
+checks:
+  - id: example
+    crate: example
+    include_in_build: false
+    platforms:
+      - linux

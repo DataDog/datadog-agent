@@ -16,7 +16,7 @@ import (
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 

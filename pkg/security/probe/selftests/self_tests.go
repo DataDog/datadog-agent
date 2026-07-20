@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	policySource  = "self-test"                          //nolint: deadcode, unused
-	policyVersion = "1.0.0"                              //nolint: deadcode, unused
-	policyName    = "datadog-agent-cws-self-test-policy" //nolint: deadcode, unused
-	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   //nolint: deadcode, unused
+	policySource  = "self-test"                          //nolint:unused
+	policyVersion = "1.0.0"                              //nolint:unused
+	policyName    = "datadog-agent-cws-self-test-policy" //nolint:unused
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   //nolint:unused
 
 	// DefaultTimeout default timeout
 	DefaultTimeout = 30 * time.Second

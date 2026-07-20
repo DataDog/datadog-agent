@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/privateactionrunner:executor_go_proto": [
+            "executor.pb.go",
+            "executor_grpc.pb.go",
+        ],
+    },
+)
+
+go_library(
+    name = "executor",
+    srcs = [
+        "executor.pb.go",
+        "executor_grpc.pb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

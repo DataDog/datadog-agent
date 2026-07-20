@@ -29,8 +29,6 @@ require (
 	go.uber.org/zap v1.28.0
 )
 
-require github.com/cenkalti/backoff/v7 v7.0.0 // indirect
-
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.80.2 // indirect
@@ -80,6 +78,7 @@ require (
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

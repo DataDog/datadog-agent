@@ -90,6 +90,28 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	}, nil, nil
 }
 
+// RunPrepared runs a prepared task under its effective per-task timeout. It is the single
+// run+timeout seam shared by the OPMS loop and the executor gRPC handler.
+func (e *WorkflowTaskExecutor) RunPrepared(
+	ctx context.Context,
+	preparedTask *PreparedWorkflowTask,
+) (interface{}, error) {
+	logger := log.FromContext(ctx)
+	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
+	if timeoutSeconds == nil {
+		timeoutSeconds = e.config.TaskTimeoutSeconds
+	}
+
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
+	defer timeoutCancel()
+
+	output, err := e.RunTask(timeoutCtx, preparedTask)
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		return nil, timeoutErr
+	}
+	return output, err
+}
+
 func (e *WorkflowTaskExecutor) RunTask(
 	ctx context.Context,
 	preparedTask *PreparedWorkflowTask,

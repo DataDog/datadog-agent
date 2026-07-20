@@ -154,7 +154,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 

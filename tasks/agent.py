@@ -95,12 +95,27 @@ def build(
                 rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
                 rtloader_install(ctx)
 
+    if flavor.is_iot():
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
+    else:
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+        )
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_python="python" in build_tags,
     )
 
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
@@ -118,20 +133,6 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-
-    if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", flavor=flavor)
-    else:
-        build_tags = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=flavor,
-            build_include=build_include,
-            build_exclude=build_exclude,
-        )
-
-    if not glibc:
-        build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -447,6 +448,19 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
+    copy_checks_d = ""
+    copy_checks_d_final = ""
+    if sys.platform.startswith("linux"):
+        from tasks.rust_shared_checks import build as rust_shared_checks_build
+
+        checks_d_staging = "bin/agent/dist/checks.d"
+        rust_shared_checks_build(ctx, checks_d_dir=checks_d_staging)
+        if os.path.isdir(checks_d_staging) and any(
+            f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
+        ):
+            copy_checks_d = f"COPY {checks_d_staging} /etc/datadog-agent/checks.d\n"
+            copy_checks_d_final = "COPY --from=bin /etc/datadog-agent/checks.d /etc/datadog-agent/checks.d\n"
+
     copy_extra_agents = ""
     if security_agent:
         from tasks.security_agent import build as security_agent_build
@@ -526,6 +540,7 @@ RUN apt-get clean && \
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
+{copy_checks_d}
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_ebpf_assets}
@@ -563,6 +578,7 @@ COPY --from=bin /opt/datadog-agent/bin/agent/agent                              
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
+{copy_checks_d_final}
 {copy_extra_agents}
 {copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent

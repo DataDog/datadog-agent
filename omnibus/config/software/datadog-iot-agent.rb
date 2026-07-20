@@ -10,7 +10,7 @@ name 'datadog-iot-agent'
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*"],
+         exclude: ["**/.cache/**/*", "**/.git/fsmonitor--daemon.ipc"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 

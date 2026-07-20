@@ -32,7 +32,7 @@ func testGroupID(groupID int32) func() int32 {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)
 	for _, p := range procs {

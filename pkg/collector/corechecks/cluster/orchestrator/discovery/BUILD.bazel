@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "discovery",
+    srcs = [
+        "collector_discovery.go",
+        "collector_discovery_crd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/inventory",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
+        "//pkg/collector/corechecks/cluster/orchestrator/util",
+        "//pkg/orchestrator",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//discovery",
+    ],
+)
+
+dd_agent_go_test(
+    name = "discovery_test",
+    srcs = [
+        "collector_discovery_crd_test.go",
+        "collector_discovery_test.go",
+    ],
+    embed = [":discovery"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//comp/core",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/inventory",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@org_uber_go_fx//:fx",
+    ],
+)

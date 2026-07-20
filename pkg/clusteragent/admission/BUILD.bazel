@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "admission",
+    srcs = [
+        "api_discovery.go",
+        "doc.go",
+        "start.go",
+        "status.go",
+        "status_no_apiserver.go",
+        "util.go",
+    ],
+    embedsrcs = ["status_templates/admissionwebhook.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/healthplatform/store/def",
+        "//pkg/clusteragent/admission/controllers/secret",
+        "//pkg/clusteragent/admission/controllers/webhook",
+        "//pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection",
+        "//pkg/clusteragent/admission/probe",
+        "//pkg/clusteragent/autoscaling/cluster/spot",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/instrumentation",
+        "//pkg/config/setup",
+        "//pkg/errors",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/kubernetes/certificate",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//tools/cache",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+dd_agent_go_test(
+    name = "admission_test",
+    srcs = ["util_test.go"],
+    embed = [":admission"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/version",
+    ],
+)

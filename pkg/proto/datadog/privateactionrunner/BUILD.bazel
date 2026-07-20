@@ -1,6 +1,8 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 
+exports_files(["executor.proto"])
+
 proto_library(
     name = "actionsclient_proto",
     srcs = ["actionsclient.proto"],
@@ -47,4 +49,24 @@ go_proto_library(
     proto = ":privateactions_proto",
     visibility = ["//visibility:public"],
     deps = [":actionsclient_go_proto"],
+)
+
+proto_library(
+    name = "executor_proto",
+    srcs = ["executor.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = [":errorcode_proto"],
+)
+
+go_proto_library(
+    name = "executor_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor",
+    proto = ":executor_proto",
+    visibility = ["//visibility:public"],
+    deps = [":errorcode_go_proto"],
 )

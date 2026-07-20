@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/runexecutor"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/version"
 )
 
@@ -17,6 +18,7 @@ import (
 func PrivateActionRunnerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		run.Commands,
+		runexecutor.Commands,
 		version.Commands,
 		rotateidentity.Commands,
 	}

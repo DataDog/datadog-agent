@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "kubelet.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/containers/agentperformance",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/provider/cadvisor",
+        "//pkg/collector/corechecks/containers/kubelet/provider/health",
+        "//pkg/collector/corechecks/containers/kubelet/provider/kubelet",
+        "//pkg/collector/corechecks/containers/kubelet/provider/node",
+        "//pkg/collector/corechecks/containers/kubelet/provider/pod",
+        "//pkg/collector/corechecks/containers/kubelet/provider/probe",
+        "//pkg/collector/corechecks/containers/kubelet/provider/slis",
+        "//pkg/collector/corechecks/containers/kubelet/provider/summary",
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//pkg/collector/corechecks/containers/kubelet:__subpackages__"],
+)

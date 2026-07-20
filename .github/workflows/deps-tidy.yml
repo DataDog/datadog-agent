@@ -19,7 +19,7 @@ jobs:
       pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
@@ -71,7 +71,7 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
       - uses: ./.github/actions/deps-tidy-setup
@@ -99,7 +99,7 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
@@ -127,7 +127,7 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
       - uses: ./.github/actions/deps-tidy-setup

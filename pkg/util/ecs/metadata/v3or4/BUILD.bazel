@@ -14,7 +14,7 @@ go_library(
         "//pkg/util/ecs/common",
         "//pkg/util/ecs/telemetry",
         "//pkg/util/log",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 

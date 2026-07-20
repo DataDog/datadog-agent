@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["runner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/runner/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/tagger/def",
+        "//comp/def",
+        "//comp/process/agent",
+        "//comp/process/hostinfo/def",
+        "//comp/process/runner/def",
+        "//comp/process/submitter/def",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/process/runner",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["runner_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/process/containercheck/impl",
+        "//comp/process/hostinfo/mock",
+        "//comp/process/processcheck/impl",
+        "//comp/process/runner/def",
+        "//comp/process/submitter/mock",
+        "//comp/process/types",
+        "//pkg/util/fxutil",
+        "//pkg/util/testutil/flake",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

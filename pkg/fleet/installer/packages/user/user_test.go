@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+// Excluded on AIX pending the upstream fix
+// https://go-review.googlesource.com/c/go/+/801161
+//go:build !windows && !aix
 
 package user
 

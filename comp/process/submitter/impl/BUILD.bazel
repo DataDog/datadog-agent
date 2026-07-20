@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "submitter.go",
+        "submitter_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/submitter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/def",
+        "//comp/process/agent",
+        "//comp/process/forwarders/def",
+        "//comp/process/hostinfo/def",
+        "//comp/process/submitter/def",
+        "//comp/process/types",
+        "//pkg/process/runner",
+        "//pkg/process/runner/mocks",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//mock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["submitter_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core",
+        "//comp/forwarder/connectionsforwarder/def",
+        "//comp/forwarder/connectionsforwarder/mock",
+        "//comp/process/forwarders/mock",
+        "//comp/process/hostinfo/mock",
+        "//comp/process/submitter/def",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -11,7 +11,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 )
 
 // retry retries fn until it succeeds or opts exhaust it, bounding the retry loop to t's lifetime.

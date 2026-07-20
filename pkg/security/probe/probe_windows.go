@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	etw "github.com/DataDog/datadog-agent/comp/etw/def"

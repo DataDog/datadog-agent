@@ -1180,25 +1180,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
 			}
-			for numMetaFields > 0 {
-				var metaVal uint32
-				numMetaFields--
-				var metaKey uint32
-				metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaFields > 0 {
+				if err = checkSlabCount(numMetaFields, bts); err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
 				}
-				metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Meta", metaKey)
-					return
-				}
-				s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
-				s.span.Attributes[metaKey] = &AnyValue{
-					Value: &AnyValue_StringValueRef{
-						StringValueRef: metaVal,
-					},
+				// Slab-allocate the AnyValue containers and their string-ref oneof
+				// wrappers for every meta entry in two allocations, rather than two per
+				// entry. The map holds pointers into these backing arrays.
+				values := make([]AnyValue, numMetaFields)
+				refs := make([]AnyValue_StringValueRef, numMetaFields)
+				for i := uint32(0); i < numMetaFields; i++ {
+					var metaKey, metaVal uint32
+					metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta")
+						return
+					}
+					metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta", metaKey)
+						return
+					}
+					s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
+					refs[i].StringValueRef = metaVal
+					values[i].Value = &refs[i]
+					s.span.Attributes[metaKey] = &values[i]
 				}
 			}
 		case "metrics":
@@ -1215,25 +1222,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetricsFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
 			}
-			for numMetricsFields > 0 {
-				var value float64
-				numMetricsFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetricsFields > 0 {
+				if err = checkSlabCount(numMetricsFields, bts); err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
 				}
-				value, bts, err = parseFloat64Bytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Metrics", key)
-					return
-				}
-				s.handlePromotedMetricsFields(key, value, convertedFields)
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_DoubleValue{
-						DoubleValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their double oneof wrappers
+				// for every metric in two allocations, rather than two per metric.
+				values := make([]AnyValue, numMetricsFields)
+				doubles := make([]AnyValue_DoubleValue, numMetricsFields)
+				for i := uint32(0); i < numMetricsFields; i++ {
+					var value float64
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics")
+						return
+					}
+					value, bts, err = parseFloat64Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics", key)
+						return
+					}
+					s.handlePromotedMetricsFields(key, value, convertedFields)
+					doubles[i].DoubleValue = value
+					values[i].Value = &doubles[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "type":
@@ -1257,24 +1271,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaStructFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
 			}
-			for numMetaStructFields > 0 {
-				var value []byte
-				numMetaStructFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaStructFields > 0 {
+				if err = checkSlabCount(numMetaStructFields, bts); err != nil {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
 				}
-				value, bts, err = msgp.ReadBytesBytes(bts, value)
-				if err != nil {
-					err = msgp.WrapError(err, "MetaStruct", key)
-					return
-				}
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_BytesValue{
-						BytesValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their bytes oneof wrappers
+				// for every meta_struct entry in two allocations, rather than two per
+				// entry.
+				values := make([]AnyValue, numMetaStructFields)
+				byteVals := make([]AnyValue_BytesValue, numMetaStructFields)
+				for i := uint32(0); i < numMetaStructFields; i++ {
+					var value []byte
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct")
+						return
+					}
+					value, bts, err = msgp.ReadBytesBytes(bts, value)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct", key)
+						return
+					}
+					byteVals[i].BytesValue = value
+					values[i].Value = &byteVals[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "span_links":

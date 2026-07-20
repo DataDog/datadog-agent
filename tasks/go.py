@@ -72,7 +72,12 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
+    _, _, env = get_build_flags(
+        ctx,
+        rtloader_root=rtloader_root,
+        headless_mode=headless_mode,
+        include_python="python" in tags,
+    )
 
     # Cross-OS linting setup: configure cross-compilation environment
     if goos:

@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"

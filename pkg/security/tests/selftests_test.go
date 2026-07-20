@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 )

@@ -38,6 +38,7 @@ schema_template_config(
 
 schema_template_config(
     name = "system_probe_config",
+    srcs = ["//pkg/config/schema:system_probe_schema_subfiles"],
     out = "system-probe.yaml",
     build_type = "system-probe",
     os_target = _OS_TARGET,

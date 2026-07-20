@@ -413,7 +413,9 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
 
 def fix_full_agent_only(core_schema, sysprobe_schema):
     for key in full_agent_only_paths:
-        node = fetch_node(core_schema, key)
+        node = try_fetch_node(core_schema, key)
+        if not node:
+            continue
         if "tags" not in node:
             node["tags"] = []
         node["tags"].append("full-agent-only:true")

@@ -1,3 +1,48 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_agent_go_test on
+
+go_library(
+    name = "metadata",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/metadata/haagent/fx",
+        "//comp/metadata/host/fx",
+        "//comp/metadata/hostgpu/fx",
+        "//comp/metadata/hostsysteminfo/fx",
+        "//comp/metadata/inventoryagent/fx",
+        "//comp/metadata/inventorychecks/fx",
+        "//comp/metadata/inventoryhost/fx",
+        "//comp/metadata/packagesigning/fx",
+        "//comp/metadata/resources/fx",
+        "//comp/metadata/runner/fx",
+        "//comp/metadata/securityagent/fx",
+        "//comp/metadata/systemprobe/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "metadata_test",
+    srcs = ["bundle_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//comp/collector/collector/mock",
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/haagent/mock",
+        "//comp/logs/agent/def",
+        "//comp/metadata/runner/def",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

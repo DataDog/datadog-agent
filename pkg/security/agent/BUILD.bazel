@@ -28,7 +28,7 @@ go_library(
         "//pkg/security/utils/grpc",
         "//pkg/util/log",
         "//pkg/util/system/socket",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_mdlayher_vsock//:vsock",
         "@org_golang_google_grpc//:grpc",
