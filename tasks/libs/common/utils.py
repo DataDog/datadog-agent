@@ -245,6 +245,23 @@ def get_xcode_version(ctx):
     return xcode_version
 
 
+_GOOS_TO_SYS_PLATFORM = {
+    "windows": "win32",
+}
+
+
+def _resolve_platform(platform: str | None = None) -> str:
+    """Return the effective target platform as a sys.platform-style string.
+
+    If platform is explicitly provided, normalize it from GOOS format to
+    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
+    the GOOS env var, then sys.platform.
+    """
+    if platform is None:
+        platform = os.getenv("GOOS") or sys.platform
+    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+
+
 def get_build_flags(
     ctx: Context,
     static=False,
@@ -256,6 +273,7 @@ def get_build_flags(
     headless_mode=False,
     arch: Arch | None = None,
     include_python: bool = False,
+    platform: str | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -265,6 +283,8 @@ def get_build_flags(
     """
     if arch is None:
         arch = Arch.local()
+    if platform is None:
+        platform = _resolve_platform()
 
     gcflags = ""
     ldflags = get_version_ldflags(ctx, install_path=install_path)
@@ -272,7 +292,7 @@ def get_build_flags(
     extldflags = ""
     env = {"GO111MODULE": "on"}
 
-    if sys.platform == 'win32':
+    if platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
     else:
         # for pkg/ebpf/compiler on linux
@@ -288,16 +308,16 @@ def get_build_flags(
         python_home_3 = get_bazel_python_home(rtloader_lib)
 
     # setting the install path, allowing the agent to be installed in a custom location
-    if sys.platform.startswith('linux') and install_path:
+    if platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
     # setting the run path
-    if sys.platform.startswith('linux') and run_path:
+    if platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
 
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
-    if sys.platform.startswith('linux'):
+    if platform.startswith('linux'):
         extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
@@ -310,7 +330,7 @@ def get_build_flags(
             print(
                 f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
             )
-        if sys.platform == "aix":
+        if platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
@@ -320,14 +340,14 @@ def get_build_flags(
     # Python is installed alongside rtloader under the same embedded prefix.
     # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
     # os.environ, so placing this before it would cause the python flag to be dropped.
-    if include_python and sys.platform == 'aix':
+    if include_python and platform == 'aix':
         aix_python_lib_path = python_home_3 or embedded_path
         if aix_python_lib_path:
             env['CGO_LDFLAGS'] = (
                 env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
             )
 
-    if sys.platform == 'win32':
+    if platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
@@ -337,7 +357,7 @@ def get_build_flags(
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
-    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+    if sys.platform == 'linux' and platform == "win32":
         # fake the minimum windows version
         env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
 
@@ -346,9 +366,9 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif include_python and rtloader_lib:
-        if sys.platform == "darwin":
+        if platform == "darwin":
             extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
-        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+        elif platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
@@ -363,7 +383,7 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    if sys.platform == "darwin":
+    if platform == "darwin":
         # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
@@ -380,7 +400,7 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
-    elif sys.platform.startswith('linux'):
+    elif platform.startswith('linux'):
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 

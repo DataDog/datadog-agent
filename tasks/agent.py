@@ -32,6 +32,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_version,
     gitlab_section,
+    _resolve_platform,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -83,8 +84,9 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+    platform = _resolve_platform()
 
-    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+    if not exclude_rtloader and not flavor.is_iot() and platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
@@ -104,6 +106,7 @@ def build(
             flavor=flavor,
             build_include=build_include,
             build_exclude=build_exclude,
+            platform=platform,
         )
 
     if not glibc:
@@ -116,9 +119,10 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
         include_python="python" in build_tags,
+        platform=platform,
     )
 
-    if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
+    if platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 

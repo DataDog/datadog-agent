@@ -22,6 +22,7 @@ from typing import Any
 from invoke import task
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import _resolve_platform
 
 # Load the shared Starlark/Python data file. It is valid Python (set([...])
 # literals, set operators/methods), so we exec it and rebind the names below.
@@ -172,23 +173,6 @@ def build_tags_codegen_payload() -> dict[str, object]:
         },
         "gazelle_build_tags": sorted(GAZELLE_BUILD_TAGS),
     }
-
-
-_GOOS_TO_SYS_PLATFORM = {
-    "windows": "win32",
-}
-
-
-def _resolve_platform(platform=None):
-    """Return the effective target platform as a sys.platform-style string.
-
-    If platform is explicitly provided, normalize it from GOOS format to
-    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
-    the GOOS env var, then sys.platform.
-    """
-    if platform is None:
-        platform = os.getenv("GOOS") or sys.platform
-    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
 
 
 def compute_build_tags_for_flavor(
