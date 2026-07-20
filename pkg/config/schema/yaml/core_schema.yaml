@@ -2239,7 +2239,6 @@ properties:
       Please note that this is not available in Windows.
     tags:
     - template_section:Dogstatsd
-    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
