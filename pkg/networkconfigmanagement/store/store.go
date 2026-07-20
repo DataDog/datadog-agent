@@ -228,7 +228,7 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 		// Unmarshal raw config
 		rawConfigBytes := tx.Bucket([]byte(rawConfigBucket)).Get(key)
 		if rawConfigBytes == nil {
-			return &UnknownUUIDError{configUUID}
+			return &ConfigNotFoundError{configUUID}
 		}
 		decompressedRawConfig, err := cs.compressor.Decompress(rawConfigBytes)
 		if err != nil {

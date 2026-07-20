@@ -122,7 +122,7 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
-		return "", nil, &UnknownUUIDError{configUUID}
+		return "", nil, &ConfigNotFoundError{configUUID}
 	}
 
 	meta := m.metadata[configUUID]
