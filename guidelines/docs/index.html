@@ -3983,22 +3983,22 @@
   
 
 
-<h1 id="writing-developer-docs">Writing developer docs</h1>
+<h1 id="writing-developer-docs">Writing developer docs<a class="headerlink" href="#writing-developer-docs" title="Permanent link">&para;</a></h1>
 <hr />
 <p>This site is built by <a href="https://zensical.org">Zensical</a>, using its classic theme variant for compatibility with Material for MkDocs.</p>
 <p>You can serve documentation locally with the <code>dda run docs serve</code> command.</p>
-<h2 id="organization">Organization</h2>
+<h2 id="organization">Organization<a class="headerlink" href="#organization" title="Permanent link">&para;</a></h2>
 <p>The site structure is defined by the <a href="https://zensical.org/docs/setup/navigation/"><code>nav</code></a> key in the <a href="https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml"><code>mkdocs.yml</code></a> file.</p>
 <p>We strive to follow the principles of the Diátaxis <a href="https://diataxis.fr">documentation framework</a>.</p>
 <p>When adding new pages, first think about what it is <em>exactly</em> that you are trying to document. For example, if you intend to write about something everyone must follow as a standard practice it would be classified as a guideline whereas a short piece about performing a particular task would be a how-to.</p>
 <p>After deciding the kind of content, further segment the page under logical groupings for easier navigation.</p>
-<h2 id="ordered-lists">Ordered lists</h2>
+<h2 id="ordered-lists">Ordered lists<a class="headerlink" href="#ordered-lists" title="Permanent link">&para;</a></h2>
 <p>Each item in an <a href="https://spec.commonmark.org/0.31.2/#ordered-list-marker">ordered list</a> should start with <code>1.</code> and let rendering handle the rest. This is recommended for two reasons:</p>
 <ol>
 <li>Changes to the list size do not require re-numbering unmodified items and therefore reduces the diff when reviewing.</li>
 <li>Rendering will expose improper formatting by having the sequence broken rather than hiding such issues.</li>
 </ol>
-<h2 id="line-continuations">Line continuations</h2>
+<h2 id="line-continuations">Line continuations<a class="headerlink" href="#line-continuations" title="Permanent link">&para;</a></h2>
 <p>For prose where the rendered content should have no line breaks, always keep the Markdown on the same line. This removes the need for any stylistic enforcement and allows for IDEs to intelligently wrap as usual.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -4031,7 +4031,7 @@
 </ul>
 </div>
 </div>
-<h2 id="emphasis">Emphasis</h2>
+<h2 id="emphasis">Emphasis<a class="headerlink" href="#emphasis" title="Permanent link">&para;</a></h2>
 <p>When you want to call something out, use <a href="https://squidfunk.github.io/mkdocs-material/reference/admonitions/">admonitions</a> rather than making large chunks of text bold or italicized. The latter is okay for small spans within sentences.</p>
 <p>Here's an example:</p>
 <div class="grid cards">
@@ -4054,10 +4054,10 @@
 </li>
 </ul>
 </div>
-<h2 id="links">Links</h2>
+<h2 id="links">Links<a class="headerlink" href="#links" title="Permanent link">&para;</a></h2>
 <p>Always use <a href="https://spec.commonmark.org/0.31.2/#inline-link">inline links</a> rather than <a href="https://spec.commonmark.org/0.31.2/#reference-link">reference links</a>.</p>
 <p>The only exception to that rule is links that many pages may need to reference. Such links may be added to <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/.snippets/links.txt">this file</a> that all pages are able to reference.</p>
-<h2 id="abbreviations">Abbreviations</h2>
+<h2 id="abbreviations">Abbreviations<a class="headerlink" href="#abbreviations" title="Permanent link">&para;</a></h2>
 <p><a href="https://squidfunk.github.io/mkdocs-material/reference/tooltips/#adding-abbreviations">Abbreviations</a> like <abbr title="DogStatsD">DSD</abbr> may be added to <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/.snippets/abbrs.txt">this file</a> which will make it so that a tooltip will be displayed on hover.</p>
 
 
