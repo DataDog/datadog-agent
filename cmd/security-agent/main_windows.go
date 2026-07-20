@@ -25,6 +25,8 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -56,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -154,6 +157,13 @@ func (s *service) Run(svcctx context.Context) error {
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("security-agent", defaultSecurityAgentConfigFilePaths[0])),
 		configstreamconsumerfx.Module(),
+		agenttelemetryfx.Module(),
+		// Forces construction of the agenttelemetry component: fx only builds a
+		// provided type if something depends on it, and nothing else in this
+		// graph does. Without this invoke, agenttelemetryimpl.NewComponent's
+		// OnStart hook (buffer/flush runner, errortracking submitter wiring)
+		// would never run for the security-agent Windows service.
+		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 	}
 
 	err := fxutil.OneShot(
