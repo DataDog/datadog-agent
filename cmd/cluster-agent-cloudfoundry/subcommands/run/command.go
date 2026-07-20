@@ -131,6 +131,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
+				// Module() installs the errortracking submitter itself (see
+				// comp/core/agenttelemetry/fx.Module) — no per-binary invoke needed.
 				agenttelemetryfx.Module(),
 				healthplatform.Bundle(),
 				// The cluster-agent-cloudfoundry agent do not have a status command
