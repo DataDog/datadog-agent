@@ -45,7 +45,6 @@ exports_files(glob(
 exports_files(["go.mod"])
 
 # TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
-# gazelle:exclude cmd/agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/*.go
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
