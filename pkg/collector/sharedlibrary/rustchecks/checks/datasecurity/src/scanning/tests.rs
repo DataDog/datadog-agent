@@ -1,13 +1,5 @@
-//! Scanning tests, split in two parts:
-//!   * config parsing — a `ScanningRule` deserializes straight into the
-//!     flattened dd-sds `RootRuleConfig<RegexRuleConfig>`, so the whole dd-sds
-//!     rule surface (proximity keywords, suppressions, precedence, secondary
-//!     validators) is accepted verbatim and a scanner builds from it;
-//!   * scanning behaviour — running the built scanner over column-oriented data
-//!     yields the expected per-(column, rule) matched-row counts.
-
 use dd_sds::{MatchAction, SecondaryValidator};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use super::{Scanner, ScanningRule};
 
@@ -17,6 +9,13 @@ fn parse(yaml: &str) -> Vec<ScanningRule> {
 
 fn scanner(yaml: &str) -> Scanner {
     Scanner::new(&parse(yaml)).expect("build scanner")
+}
+
+/// Scans `data` and returns the matches as JSON, so tests can assert against a
+/// single `json!` literal.
+fn scan_json(scanner: &Scanner, data: &Value) -> Value {
+    let matches = scanner.scan(data).expect("scan");
+    serde_json::to_value(matches).expect("serialize matches")
 }
 
 // --- config parsing -------------------------------------------------------
@@ -163,12 +162,13 @@ fn suppression_drops_matching_rows() {
         ]
     });
 
-    let matches = scanner.scan(&data).expect("scan");
-    assert_eq!(matches.len(), 1, "one (column, rule) pair");
-    assert_eq!(matches[0].rule_id, "email");
-    assert_eq!(matches[0].column_name, "email");
     // `alice@example.com` is suppressed; the other two rows match.
-    assert_eq!(matches[0].count_matched_rows, 2);
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "email", "column_name": "email", "count_matched_rows": 2 }
+        ])
+    );
 }
 
 #[test]
@@ -191,11 +191,13 @@ fn included_keyword_required_for_match() {
         ]
     });
 
-    let matches = scanner.scan(&data).expect("scan");
-    assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].rule_id, "token");
     // Only the row with the `token` keyword nearby matches.
-    assert_eq!(matches[0].count_matched_rows, 1);
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "token", "column_name": "note", "count_matched_rows": 1 }
+        ])
+    );
 }
 
 #[test]
@@ -218,10 +220,13 @@ fn excluded_keyword_suppresses_match() {
         ]
     });
 
-    let matches = scanner.scan(&data).expect("scan");
-    assert_eq!(matches.len(), 1);
     // The row preceded by the `test` keyword is excluded.
-    assert_eq!(matches[0].count_matched_rows, 1);
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "code", "column_name": "code", "count_matched_rows": 1 }
+        ])
+    );
 }
 
 #[test]
@@ -243,11 +248,13 @@ fn luhn_checksum_filters_invalid_numbers() {
         ]
     });
 
-    let matches = scanner.scan(&data).expect("scan");
-    assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].rule_id, "credit-card");
     // Only the Luhn-valid number is kept.
-    assert_eq!(matches[0].count_matched_rows, 1);
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "credit-card", "column_name": "card", "count_matched_rows": 1 }
+        ])
+    );
 }
 
 #[test]
@@ -261,6 +268,5 @@ fn no_matches_produce_empty() {
     );
 
     let data = json!({ "name": ["alice", "bob"] });
-    let matches = scanner.scan(&data).expect("scan");
-    assert!(matches.is_empty());
+    assert_eq!(scan_json(&scanner, &data), json!([]));
 }

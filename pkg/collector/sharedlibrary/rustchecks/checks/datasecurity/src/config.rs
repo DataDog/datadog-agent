@@ -25,9 +25,6 @@ impl CheckConfig {
 }
 
 /// Instance configuration for the datasecurity check.
-///
-/// Kept in its own module so the deserialization surface of the check instance
-/// config stays readable and easy to grow as the check gains real RC tasks.
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckConfig {
     pub task_id: String,
