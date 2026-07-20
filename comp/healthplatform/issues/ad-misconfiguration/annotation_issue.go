@@ -18,6 +18,9 @@ import (
 const (
 	// AnnotationIssueName is the human-readable issue name for AD annotation misconfiguration issues.
 	AnnotationIssueName = "Autodiscovery Annotation Misconfiguration"
+	// AnnotationIssueType is the snake_case type key for AD annotation misconfiguration
+	// issues: AnnotationIssueName lowercased with spaces replaced by underscores.
+	AnnotationIssueType = "autodiscovery_annotation_misconfiguration"
 	// AnnotationIssueID is the IssueID prefix for AD annotation misconfiguration issues.
 	// External reporters append a per-entity suffix: AnnotationIssueID + ":" + entityName
 	AnnotationIssueID = "ad-annotation"
@@ -25,6 +28,7 @@ const (
 	Source = "autodiscovery"
 
 	annotationIssueName = AnnotationIssueName
+	annotationIssueType = AnnotationIssueType
 
 	category   = "autodiscovery"
 	location   = "autodiscovery"
@@ -80,6 +84,7 @@ func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatfo
 
 	return &healthplatform.Issue{
 		IssueName:   annotationIssueName,
+		IssueType:   annotationIssueType,
 		Title:       content.title + " on '" + entityName + "'",
 		Description: content.description,
 		Category:    category,

@@ -72,7 +72,12 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
+    _, _, env = get_build_flags(
+        ctx,
+        rtloader_root=rtloader_root,
+        headless_mode=headless_mode,
+        include_python="python" in tags,
+    )
 
     # Cross-OS linting setup: configure cross-compilation environment
     if goos:
@@ -407,7 +412,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.4 linux/amd64"
+    # result is like "go version go1.26.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

@@ -33,6 +33,7 @@ Read both files before writing anything:
 **`$MODULE_PATH/module.go`** — extract:
 - `IssueID` constant → used as `const issueID` in the test
 - `IssueName` constant → asserted as `issue.IssueName` in the test
+- `IssueType` constant → asserted as `issue.IssueType` in the test. It is a fixed const set explicitly by the module (`IssueName` lowercased, spaces replaced by underscores) — not computed by the agent at runtime, so read it directly rather than deriving it yourself.
 - Whether `BuiltInPeriodicHealthCheck()` returns non-nil → agent runs the check on a schedule
 - Whether `BuiltInStartupHealthCheck()` returns non-nil → check runs once at startup
 - Both returning `nil` → issues are pushed externally by another component (like `admissionprobe`)
@@ -136,6 +137,7 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
         issue := issues[0]
         // assert values read from issue.go:
         assert.Equal(t, "<IssueName>", issue.IssueName)
+        assert.Equal(t, "<issue_type>", issue.IssueType) // IssueName lowercased, spaces -> underscores
         assert.Equal(t, "<Category>", issue.Category)
         assert.Equal(t, "<Source>", issue.Source)
         // assert.Equal(t, "<Location>", issue.Location)  // if Location is set

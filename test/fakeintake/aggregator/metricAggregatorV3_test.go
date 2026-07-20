@@ -38,7 +38,7 @@ import (
 //   - ResourcesRefs: [1]            — resource set → dictResources[1]
 //   - SourceTypeNameRefs: [0]
 //   - OriginInfoRefs: [0]
-//   - Intervals:   [0]
+//   - Intervals:   [10]
 //   - NumPoints:   [1]
 //   - Timestamps:  [1000]          — delta-encoded
 //   - ValsFloat64: [42.0]
@@ -64,7 +64,7 @@ func buildMinimalV3Payload() *intake_v3.Payload {
 			ResourcesRefs:      []int64{1},
 			SourceTypeNameRefs: []int64{0},
 			OriginInfoRefs:     []int64{0},
-			Intervals:          []uint64{0},
+			Intervals:          []uint64{10},
 			NumPoints:          []uint64{1},
 			Timestamps:         []int64{1000},
 			ValsFloat64:        []float64{42.0},
@@ -108,6 +108,7 @@ func TestParseMetricSeriesV3_SingleGauge(t *testing.T) {
 	assert.Equal(t, "node-a", s.Resources[0].Name)
 	assert.Equal(t, metricspb.MetricPayload_GAUGE, s.Type)
 	assert.Empty(t, s.Unit)
+	assert.Equal(t, int64(10), s.Interval)
 	require.Len(t, s.Points, 1)
 	assert.Equal(t, int64(1000), s.Points[0].Timestamp)
 	assert.Equal(t, 42.0, s.Points[0].Value)
