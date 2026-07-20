@@ -28,11 +28,11 @@ from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
+    _resolve_platform,
     bin_name,
     get_build_flags,
     get_version,
     gitlab_section,
-    _resolve_platform,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
