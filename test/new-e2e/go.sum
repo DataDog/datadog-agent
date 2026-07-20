@@ -133,8 +133,8 @@ github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEe
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
-github.com/cenkalti/backoff/v6 v6.0.1 h1:sjqUu1q4wY0FfFEkBmM3bVIHfr1QGq4nATg9M5VWj1U=
-github.com/cenkalti/backoff/v6 v6.0.1/go.mod h1:5WCmPelT2zwAaNETjGJVKHDnZvjQdPsGeHHwm5lIPPI=
+github.com/cenkalti/backoff/v7 v7.0.0 h1:ZP+QAaaOnVUHo+ufFpZ835hbT3x2fy+h2lecVEosZ6A=
+github.com/cenkalti/backoff/v7 v7.0.0/go.mod h1:qcKBGwsu4hpxHtQ8tWYsQ+ifzx2+sS+Xx/3jfe30lI8=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
@@ -538,8 +538,8 @@ github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 h1:j6LtoXue77y16trYOR40iqCUxXxv8T
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.0/go.mod h1:92+w+95clbBPdrYdi0uCajihmgol52w/pWgZJ9wT0To=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 h1:S7M6vA3XES1oAmohZL/q8QWfNXRr9vtX7k8WA9Y2qfA=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4/go.mod h1:UVLWiEodmuXpBYdm+XdrjBpoWaucl+evAj02dzJlhjo=
-github.com/pulumi/pulumi/sdk/v3 v3.251.0 h1:H1D42Jra2jvnEij0M0dZcNGz3Q9DyANsvzQqalncsXU=
-github.com/pulumi/pulumi/sdk/v3 v3.251.0/go.mod h1:ZXd0WRd89VLX2juP+HEXMZ+J2AFPfcJTXhdmmv9cMgY=
+github.com/pulumi/pulumi/sdk/v3 v3.252.0 h1:tg32wCRrbyU3pEwZwCgLid82jqFkX2EXh40V+XWtXsI=
+github.com/pulumi/pulumi/sdk/v3 v3.252.0/go.mod h1:ZXd0WRd89VLX2juP+HEXMZ+J2AFPfcJTXhdmmv9cMgY=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/puzpuzpuz/xsync/v3 v3.5.1 h1:GJYJZwO6IdxN/IKbneznS6yPkVC+c3zyY/j19c++5Fg=
