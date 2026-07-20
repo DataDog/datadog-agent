@@ -31,6 +31,7 @@ go_library(
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatform/fx",
         "//comp/forwarder/eventplatformreceiver/impl",
+        "//comp/kubeactions/helmactions/fx",
         "//comp/networkpath/traceroute/fx-remote",
         "//comp/privateactionrunner/def",
         "//comp/privateactionrunner/fx",

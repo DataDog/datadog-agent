@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "fx",
-    srcs = ["fx.go"],
+    srcs = [
+        "fx_kubeapiserver.go",
+        "fx_noapiserver.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/fx",
     visibility = ["//visibility:public"],
     deps = [
