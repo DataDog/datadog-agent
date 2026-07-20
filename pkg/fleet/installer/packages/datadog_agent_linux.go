@@ -336,6 +336,15 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
+	if useProcessManager, err := isPARProcessManagerEnabled(datadogYamlPath); err != nil {
+		log.Warnf("failed to read private action runner process manager setting: %v", err)
+	} else if useProcessManager {
+		if err := writePARProcmgrConfig(ctx.PackagePath); err != nil {
+			log.Warnf("failed to write private action runner process manager config: %v", err)
+		}
+	} else if err := removePARProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to remove private action runner process manager config: %v", err)
+	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}

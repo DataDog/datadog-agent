@@ -25,6 +25,9 @@ const (
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
+	// Process supervision (Linux only)
+	PARUseProcessManager = "private_action_runner.use_process_manager"
+
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"

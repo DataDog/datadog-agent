@@ -3,6 +3,7 @@ Description=Datadog Private Action Runner
 After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-action-exp.service
+ConditionPathExists=!/opt/datadog-packages/datadog-agent/stable/processes.d/datadog-agent-action.yaml
 
 [Service]
 Type=simple

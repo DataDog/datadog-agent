@@ -1,0 +1,20 @@
+description: Datadog Private Action Runner
+command: {{.InstallDir}}/embedded/bin/privateactionrunner
+args:
+  - run
+  - --cfgpath
+  - ${DD_CONF_DIR}/datadog.yaml
+auto_start: true
+condition_path_exists: {{.InstallDir}}/embedded/bin/privateactionrunner
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+environment_file: -${DD_CONF_DIR}/environment
+env:
+  DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable
+{{- if not .Stable}}
+  DD_INVENTORIES_FIRST_RUN_DELAY: "5"
+{{- end}}
+stdout: inherit
+stderr: inherit

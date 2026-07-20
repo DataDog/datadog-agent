@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    On Linux, setting ``private_action_runner.use_process_manager`` to true opts the Private
+    Action Runner into supervision by dd-procmgr (the ``datadog-agent-procmgr`` service) instead
+    of its dedicated ``datadog-agent-action`` systemd unit. This setting is disabled by default,
+    so existing installs keep starting the Private Action Runner through systemd. Note that
+    dd-procmgr cannot currently grant the ``CAP_NET_BIND_SERVICE`` and ``CAP_NET_RAW``
+    capabilities that the systemd unit grants, so actions that bind privileged ports or send raw
+    ICMP packets (for example traceroute) may not work when this setting is enabled.

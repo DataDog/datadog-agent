@@ -35,6 +35,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
 	config.ParseEnvSplitComma(PARActionsAllowlist)
 
+	// Process supervision (Linux only). Disabled by default: the private action
+	// runner keeps running under its dedicated systemd unit unless an operator
+	// opts in to dd-procmgr supervision.
+	config.BindEnvAndSetDefault(PARUseProcessManager, false)
+
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
