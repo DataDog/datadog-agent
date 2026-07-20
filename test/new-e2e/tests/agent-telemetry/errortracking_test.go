@@ -142,6 +142,11 @@ func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog) {
 		"tags must carry git.repository_url for Source Code Integration")
 	assert.True(t, commitSHARe.MatchString(l.Tags),
 		"tags must carry a 40-char git.commit.sha; got: %q", l.Tags)
+	// Origin tag: this suite runs the core agent binary, so agent.flavor
+	// must identify it as such — COAT uses this to attribute errors across
+	// the agent, cluster-agent, process-agent, etc.
+	assert.Contains(t, l.Tags, "agent.flavor:agent",
+		"tags must carry agent.flavor identifying the emitting binary; got: %q", l.Tags)
 }
 
 // TestDisabledByDefault verifies that when the errortracking stanza is absent,
