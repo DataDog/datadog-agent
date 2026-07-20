@@ -137,6 +137,39 @@ func TestPatternMatches(t *testing.T) {
 			t.Error("should match")
 		}
 	})
+
+	t.Run("insensitive-unicode-fold", func(t *testing.T) {
+		const kelvin = "\u212a" // folds to "k"
+		const longS = "\u017f"  // folds to "s"
+
+		if !PatternMatches("k", kelvin, true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("ks", kelvin+longS, true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("k*.exe", kelvin+"foo.exe", true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("*k*.exe", "x"+kelvin+"y.exe", true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("*s*.dll", "x"+longS+"y.dll", true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("*k*s*", "a"+kelvin+"b"+longS+"c", true) {
+			t.Error("should match")
+		}
+
+		if PatternMatches("*z*.exe", "x"+kelvin+"y.exe", true) {
+			t.Error("shouldn't match")
+		}
+	})
 }
 
 func BenchmarkNextSegment(b *testing.B) {
