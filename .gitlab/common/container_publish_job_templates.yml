@@ -26,95 +26,18 @@
       IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"${IMG_VARIABLES:-}")"
       IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"${IMG_SOURCES:-}")"
 
-      publish_with_legacy_trigger() {
-        run_inv() {
-          if command -v dda >/dev/null 2>&1; then
-            dda inv "$@"
-          else
-            inv "$@"
-          fi
-        }
+      dd-pkg version
 
-        # Use invoke instead of GitLab trigger because manual trigger jobs cannot be run after a failed pipeline is retried.
-        export GITLAB_TOKEN="$("$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh" "$GITLAB_SCHEDULER_TOKEN_SSM_NAME")"
-        run_inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main \
-          --variable IMG_VARIABLES \
-          --variable IMG_REGISTRIES \
-          --variable IMG_SOURCES \
-          --variable IMG_DESTINATIONS \
-          --variable IMG_SIGNING \
-          --variable APPS \
-          --variable BAZEL_TARGET \
-          --variable DDR \
-          --variable DDR_WORKFLOW_ID \
-          --variable TARGET_ENV \
-          --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
-      }
+      args=(publish-image --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
 
-      publish_with_dd_pkg() {
-        dd-pkg version
+      if [[ -n "${IMG_REGISTRIES:-}" ]]; then args+=(--registries "${IMG_REGISTRIES}"); fi
+      if [[ -n "${IMG_SOURCES:-}" ]]; then args+=(--sources "${IMG_SOURCES}"); fi
+      if [[ -n "${IMG_DESTINATIONS:-}" ]]; then args+=(--destinations "${IMG_DESTINATIONS}"); fi
+      if [[ -n "${IMG_DESTINATIONS_REGEX:-}" ]]; then args+=(--regex-expression "${IMG_DESTINATIONS_REGEX}"); fi
+      if [[ -n "${IMG_DESTINATIONS_REGEX_REPL:-}" ]]; then args+=(--regex-replacement "${IMG_DESTINATIONS_REGEX_REPL}"); fi
+      if [[ -n "${IMG_TAG_REFERENCE:-}" ]]; then args+=(--tag-reference "${IMG_TAG_REFERENCE}"); fi
+      if [[ -n "${IMG_NEW_TAGS:-}" ]]; then args+=(--new-tags "${IMG_NEW_TAGS}"); fi
+      if [[ -n "${IMG_VARIABLES:-}" ]]; then args+=(--variables "${IMG_VARIABLES}"); fi
+      if [[ -n "${IMG_MERGE_STRATEGY:-}" ]]; then args+=(--merge-strategy "${IMG_MERGE_STRATEGY}"); fi
 
-        local -a args=(publish-image --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
-
-        if [[ -n "${IMG_REGISTRIES:-}" ]]; then args+=(--registries "${IMG_REGISTRIES}"); fi
-        if [[ -n "${IMG_SOURCES:-}" ]]; then args+=(--sources "${IMG_SOURCES}"); fi
-        if [[ -n "${IMG_DESTINATIONS:-}" ]]; then args+=(--destinations "${IMG_DESTINATIONS}"); fi
-        if [[ -n "${IMG_DESTINATIONS_REGEX:-}" ]]; then args+=(--regex-expression "${IMG_DESTINATIONS_REGEX}"); fi
-        if [[ -n "${IMG_DESTINATIONS_REGEX_REPL:-}" ]]; then args+=(--regex-replacement "${IMG_DESTINATIONS_REGEX_REPL}"); fi
-        if [[ -n "${IMG_TAG_REFERENCE:-}" ]]; then args+=(--tag-reference "${IMG_TAG_REFERENCE}"); fi
-        if [[ -n "${IMG_NEW_TAGS:-}" ]]; then args+=(--new-tags "${IMG_NEW_TAGS}"); fi
-        if [[ -n "${IMG_VARIABLES:-}" ]]; then args+=(--variables "${IMG_VARIABLES}"); fi
-        if [[ -n "${IMG_MERGE_STRATEGY:-}" ]]; then args+=(--merge-strategy "${IMG_MERGE_STRATEGY}"); fi
-
-        dd-pkg "${args[@]}"
-      }
-
-      feature_args=(self feature ci-public-images-dd-pkg --default false)
-      feature_scope_log=()
-      add_feature_scope() {
-        if [[ -n "$2" ]]; then
-          feature_args+=(--scope "$1" "$2")
-          feature_scope_log+=("$1=$2")
-        fi
-      }
-
-      add_destination_repo_scopes() {
-        local destination_refs="${IMG_DESTINATIONS:-${IMG_TAG_REFERENCE:-}}"
-        local seen_repos=","
-        local destination destination_repo
-        local -a destinations
-
-        IFS=',' read -ra destinations <<< "${destination_refs}"
-        for destination in "${destinations[@]}"; do
-          destination_repo="${destination%%:*}"
-          if [[ -n "${destination_repo}" && "${seen_repos}" != *",${destination_repo},"* ]]; then
-            add_feature_scope destination_repo "${destination_repo}"
-            seen_repos="${seen_repos}${destination_repo},"
-          fi
-        done
-      }
-
-      add_feature_scope ci.project.name "${CI_PROJECT_NAME:-}"
-      add_feature_scope registries "${IMG_REGISTRIES:-}"
-      add_destination_repo_scopes
-
-      echo "Evaluating public-images feature flag 'ci-public-images-dd-pkg'"
-      if [[ "${#feature_scope_log[@]}" -gt 0 ]]; then
-        printf '  scope: %s\n' "${feature_scope_log[@]}"
-      fi
-      if ! use_dd_pkg="$(dda "${feature_args[@]}")"; then
-        echo "Feature flag lookup failed; defaulting to legacy public-images trigger" >&2
-        use_dd_pkg=false
-      fi
-      echo "Public-images feature flag result: ${use_dd_pkg}"
-
-      case "${use_dd_pkg}" in
-        true|True|TRUE)
-          echo "Publishing image with dd-pkg"
-          publish_with_dd_pkg
-          ;;
-        *)
-          echo "Publishing image with legacy public-images trigger"
-          publish_with_legacy_trigger
-          ;;
-      esac
+      dd-pkg "${args[@]}"
