@@ -79,7 +79,7 @@ The Workload Protection Agent configuration documentation is based on the follow
 - `tasks/libs/cws/templates/workload_protection_agent_config.md` - the Jinja2 template used for the final generation
 - `tasks/libs/cws/config_doc_gen.py` - the Python script that renders the template
 
-The generated markdown file is published on the documentation site at `/security/workload_protection/workload_protection_agent_config`. It is pulled from this repository during the documentation build (see `pull_config.yaml` in the `documentation` repository), the same way as `linux_expressions.md`.
+The generated Markdown file is published on the documentation site at `/security/workload_protection/workload_protection_agent_config`. It is pulled from this repository during the documentation build (see `pull_config.yaml` in the `documentation` repository), the same way as `linux_expressions.md`.
 
 #### Editing files
 
@@ -97,16 +97,13 @@ The Go type is inferred from the struct field declaration. Settings with `visibi
 
 The YAML key is automatically inferred from `NewRuntimeSecurityConfig` (and helper functions returning a config key). The environment variable name is automatically inferred from that key using the same convention as the Agent config (`DD_` prefix, uppercase, `.` replaced by `_`). For example, `runtime_security_config.hash_resolver.max_file_size` becomes `DD_RUNTIME_SECURITY_CONFIG_HASH_RESOLVER_MAX_FILE_SIZE`.
 
-For example, the following comments on the `RuntimeEnabled` field in `config.go`:
+For example, the following comments are located on the `RuntimeEnabled` field in `config.go`:
 
 ```go
 // description: Defines if the runtime security module should be enabled
 // visibility: public
 // default_value: false
 RuntimeEnabled bool
-```
-
-generate the following table row:
 
 | Environment variable | `system-probe.yaml` attribute | Type | Default | Description |
 | -------------------- | ----------------------------- | ---- | ------- | ----------- |
@@ -129,15 +126,12 @@ EBPFLessEnabled bool
 go generate ./pkg/security/config/config.go
 ```
 
-2. Render the final markdown file:
+2. Render the final Markdown file:
 
 ```sh
 dda inv -e security-agent.generate-cws-documentation
 # or directly:
 bazel run //docs/cloud-workload-security:cws_docs
-```
-
-`cws_docs` regenerates all CWS markdown files, including `workload_protection_agent_config.md`, from their committed JSON schemas.
 
 ### Backend event
 
