@@ -90,3 +90,55 @@ func TestPosition(t *testing.T) {
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 }
+
+// TestPositionFingerprintAlignment covers the fingerprint-comparison branches that TestPosition
+// never reaches (its identifiers are too short to yield a non-empty file path). It uses an
+// identifier longer than the 5-char prefix so Position derives a file path and consults the
+// fingerprinter.
+func TestPositionFingerprintAlignment(t *testing.T) {
+	const identifier = "file:abc" // len > 5, so filePath = "abc"
+	cfg := &types.FingerprintConfig{
+		MaxBytes:            2048,
+		Count:               1,
+		CountToSkip:         0,
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+	}
+
+	t.Run("fingerprints align: stored offset is used", func(t *testing.T) {
+		registry := auditorMock.NewMockRegistry()
+		fp := file.NewFingerprinterMock()
+		registry.SetOffset(identifier, "555")
+		registry.SetFingerprint(&types.Fingerprint{Value: 12345, Config: cfg})
+		fp.SetFingerprint("abc", &types.Fingerprint{Value: 12345, Config: cfg})
+
+		offset, whence, err := Position(registry, identifier, config.End, fp)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(555), offset)
+		assert.Equal(t, io.SeekStart, whence)
+	})
+
+	t.Run("fingerprints differ: restart from beginning despite stored offset", func(t *testing.T) {
+		registry := auditorMock.NewMockRegistry()
+		fp := file.NewFingerprinterMock()
+		registry.SetOffset(identifier, "555")
+		registry.SetFingerprint(&types.Fingerprint{Value: 12345, Config: cfg})
+		fp.SetFingerprint("abc", &types.Fingerprint{Value: 99999, Config: cfg})
+
+		offset, whence, err := Position(registry, identifier, config.End, fp)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(0), offset)
+		assert.Equal(t, io.SeekStart, whence)
+	})
+
+	t.Run("no previous fingerprint: stored offset is used", func(t *testing.T) {
+		registry := auditorMock.NewMockRegistry()
+		fp := file.NewFingerprinterMock()
+		registry.SetOffset(identifier, "777")
+		// No registry fingerprint set => GetFingerprint returns nil => alignment is assumed.
+
+		offset, whence, err := Position(registry, identifier, config.End, fp)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(777), offset)
+		assert.Equal(t, io.SeekStart, whence)
+	})
+}
