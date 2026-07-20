@@ -29,14 +29,15 @@ var errorTrackingTraceAgentEnabledConfig string
 //go:embed testdata/errortracking-trace-agent-disabled.yaml
 var errorTrackingTraceAgentDisabledConfig string
 
-// traceAgentRCDisabledErrorMessage is the exact text logged by
-// remoteconfighandler.New (pkg/trace/remoteconfighandler/remote_config_handler.go)
-// when the debug server is disabled and no other RC product is enabled. Unlike
-// the core/cluster agents, trace-agent has no periodic check loop to reuse as an
-// error source, so this once-at-startup, config-triggered error is used instead;
-// the tests below restart the trace-agent service to get a fresh occurrence on
-// demand rather than waiting on a repeating timer.
-const traceAgentRCDisabledErrorMessage = "RC is disabled"
+// traceAgentReceiverErrorMessage is the text logged by HTTPReceiver.handleTraces
+// (pkg/trace/api/api.go) when a /v0.4/traces request carries a non-numeric
+// X-Datadog-Trace-Count header. It fires synchronously inside the HTTP handler
+// at request time, well after the trace-agent's fx lifecycle has finished
+// starting — unlike component-construction-time logs, which run before any
+// OnStart hook (including errortracking submitter registration) and so can
+// never reach the pipeline. Sending the request is a repeatable, on-demand way
+// to get a fresh error without restarting the process.
+const traceAgentReceiverErrorMessage = "Failed to count traces"
 
 type errorTrackingTraceAgentSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -60,29 +61,26 @@ func TestErrorTrackingTraceAgentSuite(t *testing.T) {
 	)
 }
 
-// restartTraceAgentFresh clears the trace-agent log file and restarts the
-// trace-agent's own systemd unit (independent of the core agent) so the
-// once-at-startup RC-disabled error fires again, deterministically, right
-// after the FakeIntake reset the caller is expected to have already done.
-func (s *errorTrackingTraceAgentSuite) restartTraceAgentFresh() {
+// triggerReceiverError sends a single malformed request to the trace-agent's
+// own HTTP receiver on localhost:8126, deterministically producing one ERROR
+// log from HTTPReceiver.handleTraces, and waits for it to appear in the
+// trace-agent's own log file before returning — confirming the error is
+// generated locally before the caller asserts anything about forwarding.
+func (s *errorTrackingTraceAgentSuite) triggerReceiverError() {
 	t := s.T()
-	_, err := s.Env().RemoteHost.Execute("sudo truncate -s 0 /var/log/datadog/trace-agent.log")
-	require.NoError(t, err)
-	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent-trace.service")
+	_, err := s.Env().RemoteHost.Execute(
+		`curl -s -o /dev/null -X POST http://127.0.0.1:8126/v0.4/traces -H "X-Datadog-Trace-Count: notanumber"`)
 	require.NoError(t, err)
 
-	// Wait until the RC-disabled error appears in the trace-agent's own log
-	// file, confirming the error is generated locally before asserting
-	// anything about whether it was forwarded.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		out, execErr := s.Env().RemoteHost.Execute(
-			"sudo awk '/" + traceAgentRCDisabledErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/trace-agent.log")
+			"sudo awk '/" + traceAgentReceiverErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/trace-agent.log")
 		assert.NoError(c, execErr)
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for RC-disabled error to appear in trace-agent log")
+	}, 30*time.Second, 2*time.Second, "timed out waiting for receiver error to appear in trace-agent log")
 }
 
-// TestPayloadShape verifies the happy path: the trace-agent's own RC-disabled
+// TestPayloadShape verifies the happy path: the trace-agent's own receiver
 // ERROR log reaches FakeIntake with the expected wire shape, and — critically
 // for a pipeline shared across many binaries — an agent.flavor tag identifying
 // the emitter as trace_agent rather than agent. Records are filtered by stack
@@ -91,7 +89,7 @@ func (s *errorTrackingTraceAgentSuite) restartTraceAgentFresh() {
 // unrelated errors during the same window.
 func (s *errorTrackingTraceAgentSuite) TestPayloadShape() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-	s.restartTraceAgentFresh()
+	s.triggerReceiverError()
 
 	var logs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -100,11 +98,11 @@ func (s *errorTrackingTraceAgentSuite) TestPayloadShape() {
 
 		logs = nil
 		for _, l := range all {
-			if strings.Contains(l.StackTrace, "remote_config_handler.go") {
+			if strings.Contains(l.StackTrace, "pkg/trace/api/api.go") {
 				logs = append(logs, l)
 			}
 		}
-		assert.NotEmpty(c, logs, "no trace-agent RC-disabled error logs received yet")
+		assert.NotEmpty(c, logs, "no trace-agent receiver error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for trace-agent error logs")
 
 	for _, l := range logs {
@@ -116,7 +114,7 @@ func (s *errorTrackingTraceAgentSuite) TestPayloadShape() {
 
 // TestDisabledByDefault verifies that when the errortracking stanza omits
 // `enabled` (defaulting to false), no agent-logs records reach FakeIntake even
-// though the RC-disabled error keeps firing locally.
+// though the receiver error keeps firing locally.
 func (s *errorTrackingTraceAgentSuite) TestDisabledByDefault() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
@@ -126,7 +124,7 @@ func (s *errorTrackingTraceAgentSuite) TestDisabledByDefault() {
 		),
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-	s.restartTraceAgentFresh()
+	s.triggerReceiverError()
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
 	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would

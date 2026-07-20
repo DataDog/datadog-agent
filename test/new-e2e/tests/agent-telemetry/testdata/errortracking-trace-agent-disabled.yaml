@@ -8,13 +8,3 @@ agent_telemetry:
     flush_interval_seconds: 1
     bouncer_window_seconds: 0
     startup_jitter_seconds: 0
-# Same RC-disabling trigger as errortracking-trace-agent-enabled.yaml, kept
-# here so the local ERROR log still fires even though forwarding is disabled.
-apm_config:
-  debug:
-    port: 0
-remote_configuration:
-  apm_sampling:
-    enabled: false
-  agent_config:
-    enabled: true
