@@ -79,8 +79,11 @@ type StatKeeper struct {
 	// seen in a streamed response — reliable, unlike the churned head map.
 	llmRespContent   map[llmConnKey]string
 	llmRespContentMu sync.Mutex
-	// llmRespReader consumes streamed response-tail events (see llmo.go).
+	// llmRespReader consumes streamed response events (see llmo.go).
 	llmRespReader *ringbuf.Reader
+	// llmRespReasm reassembles multi-read responses per connection; touched only
+	// by the response-consumer goroutine, so it needs no lock.
+	llmRespReasm map[llmConnKey]*llmRespReasm
 }
 
 // EnableLLMO wires up the eBPF maps used to capture decrypted LLM request and

@@ -14,6 +14,12 @@
 
 #define LLM_BODY_BUFFER_SIZE 1024
 
+// The request body (the user's prompt + system message) can be far larger than
+// a response tail, so it gets its own, much bigger capture window. This covers
+// full prompts up to one HTTP/2 DATA frame (the client's default max frame
+// size), i.e. essentially all real inputs, instead of the 1 KB response window.
+#define LLM_REQ_BUFFER_SIZE 16384
+
 // llm_conn_key_t mirrors pkg/network/types.ConnectionKey (4x u64 + 2x u16) so
 // that userspace can build the exact same key from a transaction's ConnTuple().
 typedef struct {
@@ -33,10 +39,17 @@ typedef struct {
     __u8 data[LLM_BODY_BUFFER_SIZE];
 } llm_body_t;
 
+// llm_req_body_t is the larger request-body capture buffer.
+typedef struct {
+    __u32 len;
+    __u8 data[LLM_REQ_BUFFER_SIZE];
+} llm_req_body_t;
+
 // Connections flagged by userspace as LLM traffic; gates body capture.
 BPF_HASH_MAP(llm_monitored_connections, llm_conn_key_t, __u8, 1024)
-// Latest captured request body per LLM connection (read by userspace).
-BPF_HASH_MAP(llm_request_bodies, llm_conn_key_t, llm_body_t, 1024)
+// Latest captured request body per LLM connection (read by userspace). Uses the
+// larger llm_req_body_t; fewer entries to bound the extra memory.
+BPF_HASH_MAP(llm_request_bodies, llm_conn_key_t, llm_req_body_t, 256)
 // Latest captured response body TAIL per LLM connection (read by userspace).
 // The token usage object lives near the end of the response JSON.
 BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
@@ -45,18 +58,23 @@ BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
 BPF_HASH_MAP(llm_response_heads, llm_conn_key_t, llm_body_t, 1024)
 // Per-CPU scratch to build the body off-stack (avoids the 512B stack limit).
 BPF_PERCPU_ARRAY_MAP(llm_body_scratch, llm_body_t, 1)
+// Per-CPU scratch for the larger request body.
+BPF_PERCPU_ARRAY_MAP(llm_req_scratch, llm_req_body_t, 1)
 
-// llm_resp_event_t streams a response tail to userspace as each response
-// completes. A continuous consumer sees every turn's usage in order — unlike
-// the poll-batched map reads, which only ever see the latest response and so
-// lose intermediate turns (e.g. a tool-call generation before its follow-up).
+// llm_resp_event_t streams a large window from the START of each response to
+// userspace as it completes. A continuous consumer sees every turn in order —
+// unlike the poll-batched map reads, which only ever see the latest response
+// and so lose intermediate turns (e.g. a tool-call generation before its
+// follow-up). The window is the request-sized buffer so it captures the full
+// assistant answer (near the start) and, for responses up to that size, the
+// usage/finish fields (near the end) too.
 typedef struct {
     llm_conn_key_t key;
     __u32 len;
     __u32 _pad;
-    __u8 data[LLM_BODY_BUFFER_SIZE];
+    __u8 data[LLM_REQ_BUFFER_SIZE];
 } llm_resp_event_t;
-BPF_RINGBUF_MAP(llm_response_events, 1 << 20)
+BPF_RINGBUF_MAP(llm_response_events, 1 << 21)
 BPF_PERCPU_ARRAY_MAP(llm_event_scratch, llm_resp_event_t, 1)
 
 // bpf_memset (used by READ_INTO_USER_BUFFER) can only unroll up to ~512 bytes,
@@ -74,6 +92,14 @@ READ_INTO_USER_BUFFER(llmo, LLM_BODY_CHUNK)
 static __always_inline void llmo_read_body(__u8 *dst, char *src) {
 #pragma unroll
     for (int i = 0; i < LLM_BODY_BUFFER_SIZE / LLM_BODY_CHUNK; i++) {
+        read_into_user_buffer_llmo((char *)dst + i * LLM_BODY_CHUNK, src + i * LLM_BODY_CHUNK);
+    }
+}
+
+// llmo_read_req_body reads the larger LLM_REQ_BUFFER_SIZE request window.
+static __always_inline void llmo_read_req_body(__u8 *dst, char *src) {
+#pragma unroll
+    for (int i = 0; i < LLM_REQ_BUFFER_SIZE / LLM_BODY_CHUNK; i++) {
         read_into_user_buffer_llmo((char *)dst + i * LLM_BODY_CHUNK, src + i * LLM_BODY_CHUNK);
     }
 }
@@ -107,13 +133,13 @@ static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffe
     log_debug("[llmo] gate HIT, capturing len=%llu", len);
 
     const __u32 zero = 0;
-    llm_body_t *body = bpf_map_lookup_elem(&llm_body_scratch, &zero);
+    llm_req_body_t *body = bpf_map_lookup_elem(&llm_req_scratch, &zero);
     if (body == NULL) {
         return;
     }
 
-    body->len = len < LLM_BODY_BUFFER_SIZE ? len : LLM_BODY_BUFFER_SIZE;
-    llmo_read_body(body->data, buffer);
+    body->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
+    llmo_read_req_body(body->data, buffer);
     bpf_map_update_with_telemetry(llm_request_bodies, &key, body, BPF_ANY);
     log_debug("[llmo] body stored len=%u", body->len);
 }
@@ -161,8 +187,11 @@ static __always_inline void llmo_maybe_capture_response(conn_tuple_t *t, char *b
     llm_resp_event_t *ev = bpf_map_lookup_elem(&llm_event_scratch, &zero);
     if (ev != NULL) {
         ev->key = key;
-        ev->len = body->len;
-        llmo_read_body(ev->data, buffer + off);
+        // Stream a large window from the START of the response: the assistant
+        // answer is near the start, and for responses up to this size the
+        // usage/finish fields (near the end) are included too.
+        ev->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
+        llmo_read_req_body(ev->data, buffer);
         bpf_ringbuf_output(&llm_response_events, ev, sizeof(*ev), 0);
     }
     log_debug("[llmo] response stored len=%u off=%llu", body->len, off);

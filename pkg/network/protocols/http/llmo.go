@@ -56,6 +56,9 @@ const (
 	// llmBodyBufferSize must match LLM_BODY_BUFFER_SIZE in the eBPF code
 	// (pkg/network/ebpf/c/protocols/tls/llmo.h).
 	llmBodyBufferSize = 1024
+	// llmReqBodyBufferSize must match LLM_REQ_BUFFER_SIZE in the eBPF code: the
+	// larger window used for the request body (the user's prompt).
+	llmReqBodyBufferSize = 16384
 )
 
 // llmConnKey mirrors both pkg/network/types.ConnectionKey and the eBPF
@@ -78,6 +81,13 @@ type llmConnKey struct {
 type llmBody struct {
 	Len  uint32
 	Data [llmBodyBufferSize]byte
+}
+
+// llmReqBody mirrors the eBPF llm_req_body_t struct: the larger request-body
+// capture window (the user's prompt).
+type llmReqBody struct {
+	Len  uint32
+	Data [llmReqBodyBufferSize]byte
 }
 
 func newLLMConnKey(c types.ConnectionKey) llmConnKey {
@@ -662,11 +672,11 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 	}
 
 	// Request body -> model + prompt.
-	var reqBody llmBody
+	var reqBody llmReqBody
 	if err := h.llmBodyMap.Lookup(&key, &reqBody); err == nil {
 		n := reqBody.Len
-		if n > llmBodyBufferSize {
-			n = llmBodyBufferSize
+		if n > llmReqBodyBufferSize {
+			n = llmReqBodyBufferSize
 		}
 		info.model, info.prompt = parseLLMBody(reqBody.Data[:n])
 		info.provider = detectProvider(info.model)
@@ -735,13 +745,26 @@ func (h *StatKeeper) lookupBody(m *ebpf.Map, key *llmConnKey) ([]byte, bool) {
 	return body.Data[:n], true
 }
 
-// llmRespEvent mirrors the eBPF llm_resp_event_t: a connection key plus a
-// captured response tail, streamed once per response.
+// llmRespReasmCap bounds a reassembled response buffer (protects memory against
+// a response that never completes, e.g. a streamed one).
+const llmRespReasmCap = 64 * 1024
+
+// llmRespReasm accumulates a response's read events until it is complete (token
+// usage seen, which sits at the very end of the response JSON). One per
+// connection, touched only by the ring-buffer consumer goroutine.
+type llmRespReasm struct {
+	buf      []byte
+	complete bool
+}
+
+// llmRespEvent mirrors the eBPF llm_resp_event_t: a connection key plus a large
+// window from the start of the response (the full assistant answer, plus usage
+// for responses that fit), streamed once per response.
 type llmRespEvent struct {
 	Key  llmConnKey
 	Len  uint32
 	Pad  uint32
-	Data [llmBodyBufferSize]byte
+	Data [llmReqBodyBufferSize]byte
 }
 
 // startLLMOResponseConsumer consumes response-tail events from the ring buffer
@@ -780,17 +803,50 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 		return
 	}
 	n := ev.Len
-	if n > llmBodyBufferSize {
-		n = llmBodyBufferSize
+	if n > llmReqBodyBufferSize {
+		n = llmReqBodyBufferSize
 	}
-	tail := ev.Data[:n]
-	provider := responseProvider(tail)
+	chunk := ev.Data[:n]
 
-	if isToolCallGen(tail, provider) {
-		in, out, tot := parseLLMUsage(tail, provider)
+	// A response larger than one read arrives across several read events (the
+	// server streams it in multiple TLS records). Reassemble per connection by
+	// appending each read until usage is seen. This consumer runs on a single
+	// goroutine, so the map needs no lock.
+	//
+	// NOTE: when the server splits the body across multiple HTTP/2 DATA frames,
+	// the interleaved 9-byte frame headers make the concatenation invalid JSON,
+	// so parsing falls back to regex and the answer can be truncated. Cleanly
+	// stitching multi-frame bodies needs USM's HTTP/2 frame reassembly (the
+	// naive tap here starts mid-stream after warm-up, so it can't frame-align).
+	if h.llmRespReasm == nil {
+		h.llmRespReasm = make(map[llmConnKey]*llmRespReasm)
+	}
+	r := h.llmRespReasm[ev.Key]
+	if r == nil || r.complete {
+		// Previous response finished (or none yet): start a fresh buffer.
+		r = &llmRespReasm{}
+		h.llmRespReasm[ev.Key] = r
+	}
+	if room := llmRespReasmCap - len(r.buf); room > 0 {
+		if len(chunk) > room {
+			chunk = chunk[:room]
+		}
+		r.buf = append(r.buf, chunk...)
+	}
+
+	// Usage sits at the very end of the response JSON, so its presence means the
+	// whole response (content included) has been accumulated. Until then, keep
+	// appending later reads.
+	provider := responseProvider(r.buf)
+	in, out, tot := parseLLMUsage(r.buf, provider)
+	if tot == 0 {
+		return
+	}
+	r.complete = true
+	if isToolCallGen(r.buf, provider) {
 		h.cacheGenUsage(ev.Key, llmUsage{input: in, output: out, total: tot})
 	}
-	if c := parseResponseText(tail, provider); c != "" {
+	if c := parseResponseText(r.buf, provider); c != "" {
 		h.cacheRespContent(ev.Key, c)
 	}
 }
