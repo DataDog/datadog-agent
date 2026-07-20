@@ -2502,7 +2502,7 @@ api_key:
 
 ## @param dogstatsd_stream_socket - string - optional - default: ""
 ## @env DD_DOGSTATSD_STREAM_SOCKET - string - optional - default: ""
-## Listen for Dogstatsd metrics on a Unix Socket using stream mode (SOCK_STREAM, *nix only).
+## Listen for Dogstatsd metrics on a Unix domain socket using stream mode (SOCK_STREAM, *nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
 ##

@@ -9,5 +9,5 @@
 enhancements:
   - |
     The ``dogstatsd_stream_socket`` configuration option, which lets DogStatsD
-    listen for metrics on a Unix Domain Socket using stream mode (``SOCK_STREAM``),
+    listen for metrics on a Unix domain socket using stream mode (``SOCK_STREAM``),
     is now considered stable.
