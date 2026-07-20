@@ -110,9 +110,10 @@ const (
 // envFlagMap is the single source of truth for env-var-to-flag mappings,
 // used by both envflag.NewEnvFlag and duration validation.
 var envFlagMap = map[string]string{
-	"DD_SYNC_DELAY":  syncDelayFlag,
-	"DD_SYNC_TO":     syncTimeoutFlag,
-	"DD_CORE_CONFIG": coreConfigFlag,
+	"DD_SYNC_DELAY":        syncDelayFlag,
+	"DD_SYNC_TO":           syncTimeoutFlag,
+	"DD_CORE_CONFIG":       coreConfigFlag,
+	"DD_OTEL_FEATURE_GATES": "feature-gates",
 }
 
 type durationEnvVar struct {
