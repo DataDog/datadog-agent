@@ -37,6 +37,13 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
+// PARProcessConfig is the rendered process manager config for the Private Action Runner
+// (deb/rpm layout). Its --cfgpath references ${DD_CONF_DIR}, which the supervising dd-procmgr
+// substitutes at launch with its config directory (stable or experiment).
+//
+//go:embed tmpl/gen/debrpm/datadog-agent-action.yaml
+var PARProcessConfig string
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //

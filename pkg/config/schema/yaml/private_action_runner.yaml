@@ -90,6 +90,19 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  use_process_manager:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Linux only. When true, the Private Action Runner is started and supervised by dd-procmgr
+      (the datadog-agent-procmgr service) instead of its dedicated datadog-agent-action systemd
+      unit. Has no effect on Windows, where the Private Action Runner is already supervised by
+      dd-procmgr.
+      Known limitation: dd-procmgr cannot grant the CAP_NET_BIND_SERVICE and CAP_NET_RAW
+      capabilities that the systemd unit grants, so actions that require binding privileged ports
+      or sending raw ICMP packets (for example traceroute) may not work when this is enabled.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
