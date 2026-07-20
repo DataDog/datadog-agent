@@ -8,6 +8,7 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -18,11 +19,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/rshell/interp"
 )
 
@@ -49,6 +52,20 @@ func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []
 	task := makeTask(command, allowedCommands)
 	task.Data.Attributes.SystemInputs.GetRemoteAction().AllowedPaths = allowedPaths
 	return task
+}
+
+func makeTaskWithSystemServices(command string, allowedCommands []string, systemServices map[string]*structpb.ListValue) *types.Task {
+	task := makeTask(command, allowedCommands)
+	task.Data.Attributes.SystemInputs.GetRemoteAction().SystemServices = systemServices
+	return task
+}
+
+func systemServiceActions(actions ...string) *structpb.ListValue {
+	values := make([]*structpb.Value, 0, len(actions))
+	for _, action := range actions {
+		values = append(values, structpb.NewStringValue(action))
+	}
+	return &structpb.ListValue{Values: values}
 }
 
 func makeLegacyTask(command string, allowedCommands []string) *types.Task {
@@ -198,6 +215,116 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFilterAllowedSystemServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator map[string][]string
+		backend  map[string]*structpb.ListValue
+		want     []interp.SystemServiceControlGrant
+	}{
+		{
+			name: "missing backend policy denies all",
+		},
+		{
+			name:     "empty backend policy denies all",
+			backend:  map[string]*structpb.ListValue{},
+			operator: map[string][]string{"mysql.service": {"read"}},
+		},
+		{
+			name: "unset operator policy passes backend grants through deterministically",
+			backend: map[string]*structpb.ListValue{
+				"nginx.service": systemServiceActions("reload"),
+				"mysql.service": systemServiceActions("restart", "read", "read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+				{Service: "nginx.service", Actions: []interp.SystemServiceAction{"reload"}},
+			},
+		},
+		{
+			name:     "explicit empty operator policy denies all",
+			operator: map[string][]string{},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("read"),
+			},
+		},
+		{
+			name: "operator policy intersects exact service and action names",
+			operator: map[string][]string{
+				"mysql.service": {"reload", "read", "read"},
+				"NGINX.service": {"read"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+			},
+		},
+		{
+			name: "unknown actions reach rshell validation",
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("stop"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"stop"}},
+			},
+		},
+		{
+			name: "nil and empty backend action lists grant nothing",
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": nil,
+				"nginx.service": {},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedSystemServices: test.operator,
+			})
+
+			got := handler.filterAllowedSystemServices(test.backend)
+
+			if len(test.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, test.want, got)
+			}
+		})
+	}
+}
+
+func TestFilterAllowedSystemServicesIgnoresNonStringActionsWithWarning(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "warn")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
+	got := handler.filterAllowedSystemServices(map[string]*structpb.ListValue{
+		"mysql.service": {
+			Values: []*structpb.Value{
+				structpb.NewStringValue("read"),
+				structpb.NewNumberValue(1),
+				nil,
+			},
+		},
+	})
+
+	require.NoError(t, logWriter.Flush())
+	assert.Equal(t, []interp.SystemServiceControlGrant{
+		{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+	}, got)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 1 for "mysql.service"`)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 2 for "mysql.service"`)
 }
 
 func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
@@ -433,16 +560,28 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 	paths := []string{"/var/log", "/etc"}
 	commands := []string{"rshell:zls", "rshell:cat", "rshell:cat"}
+	services := map[string][]string{
+		"mysql.service": {"restart", "read", "read"},
+	}
 	pathsCopy := slices.Clone(paths)
 	commandsCopy := slices.Clone(commands)
+	servicesCopy := map[string][]string{
+		"mysql.service": slices.Clone(services["mysql.service"]),
+	}
 
-	NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    paths,
-		OperatorAllowedCommands: commands,
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          paths,
+		OperatorAllowedCommands:       commands,
+		OperatorAllowedSystemServices: services,
 	})
 
 	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
 	assert.Equal(t, commandsCopy, commands, "AgentAllowedCommands input must not be mutated")
+	assert.Equal(t, servicesCopy, services, "AgentAllowedSystemServices input must not be mutated")
+
+	services["mysql.service"][0] = "reload"
+	assert.Equal(t, []string{"read", "restart"}, handler.operatorAllowedSystemServices["mysql.service"],
+		"AgentAllowedSystemServices must be copied before being retained")
 }
 
 func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
@@ -551,6 +690,22 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"mysql.service": systemServiceActions("read", "stop"),
+	})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+	assert.Contains(t, result.SandboxWarnings,
+		`AllowedSystemServices: skipping unsupported action "stop" in grant 0 for "mysql.service"`)
 }
 
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
@@ -771,15 +926,22 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
 // actions and that each carries the expected rshell execution mode.
 func TestNewRshellBundleRegistersBothModes(t *testing.T) {
-	bundle := NewRshellBundle(&parconfig.Config{})
+	operatorServices := map[string][]string{
+		"mysql.service": {"read", "restart"},
+	}
+	bundle := NewRshellBundle(&parconfig.Config{
+		RShellAllowedSystemServices: operatorServices,
+	})
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
 	assert.Equal(t, interp.ModeReadOnly, runCommand.mode)
+	assert.Equal(t, operatorServices, runCommand.operatorAllowedSystemServices)
 
 	runRemediation, ok := bundle.GetAction("runRemediationCommand").(*RunCommandHandler)
 	require.True(t, ok, "runRemediationCommand should be registered")
 	assert.Equal(t, interp.ModeRemediation, runRemediation.mode)
+	assert.Equal(t, operatorServices, runRemediation.operatorAllowedSystemServices)
 }
 
 // TestRunRemediationCommandAllowsFileRedirect verifies that, in remediation

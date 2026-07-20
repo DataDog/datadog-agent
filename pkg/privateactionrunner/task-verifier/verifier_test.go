@@ -29,6 +29,9 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 				RemoteAction: &privateactionspb.RemoteAction{
 					AllowedCommands: []string{"rshell:cat"},
 					AllowedPaths:    []string{"/host/var/log"},
+					SystemServices: map[string]*structpb.ListValue{
+						"mysql.service": stringListValue("read", "restart"),
+					},
 				},
 			},
 		},
@@ -43,6 +46,8 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
 	assert.Equal(t, []string{"/host/var/log"}, remoteAction.AllowedPaths)
+	require.Contains(t, remoteAction.SystemServices, "mysql.service")
+	assert.Equal(t, []interface{}{"read", "restart"}, remoteAction.SystemServices["mysql.service"].AsSlice())
 }
 
 func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
@@ -64,6 +69,9 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 				RemoteAction: &privateactionspb.RemoteAction{
 					AllowedCommands: []string{"rshell:cat"},
 					AllowedPaths:    []string{"/tmp:ro"},
+					SystemServices: map[string]*structpb.ListValue{
+						"nginx.service": stringListValue("read"),
+					},
 				},
 			},
 		},
@@ -86,4 +94,14 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
 	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.AllowedPaths)
+	require.Contains(t, remoteAction.SystemServices, "nginx.service")
+	assert.Equal(t, []interface{}{"read"}, remoteAction.SystemServices["nginx.service"].AsSlice())
+}
+
+func stringListValue(values ...string) *structpb.ListValue {
+	list := &structpb.ListValue{Values: make([]*structpb.Value, 0, len(values))}
+	for _, value := range values {
+		list.Values = append(list.Values, structpb.NewStringValue(value))
+	}
+	return list
 }

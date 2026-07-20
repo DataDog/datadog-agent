@@ -134,10 +134,60 @@ func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb
 			delete(actionInputs, "allowedPaths")
 		}
 	}
+	if v, ok := inputs["systemServices"]; ok {
+		if services, ok := parSystemServices(v); ok {
+			remoteAction.SystemServices = services
+			hasRemoteAction = true
+			delete(actionInputs, "systemServices")
+		}
+	}
 	if !hasRemoteAction {
 		return nil, actionInputs
 	}
 	return remoteAction, actionInputs
+}
+
+func parSystemServices(value interface{}) (map[string]*structpb.ListValue, bool) {
+	services := make(map[string]*structpb.ListValue)
+	switch values := value.(type) {
+	case map[string][]string:
+		for service, actions := range values {
+			list, ok := parListValue(actions)
+			if !ok {
+				return nil, false
+			}
+			services[service] = list
+		}
+	case map[string]interface{}:
+		for service, actions := range values {
+			list, ok := parListValue(actions)
+			if !ok {
+				return nil, false
+			}
+			services[service] = list
+		}
+	default:
+		return nil, false
+	}
+	return services, true
+}
+
+func parListValue(value interface{}) (*structpb.ListValue, bool) {
+	var values []interface{}
+	switch value := value.(type) {
+	case []string:
+		values = make([]interface{}, 0, len(value))
+		for _, item := range value {
+			values = append(values, item)
+		}
+	case []interface{}:
+		values = value
+	default:
+		return nil, false
+	}
+
+	list, err := structpb.NewList(values)
+	return list, err == nil
 }
 
 func parStringSlice(value interface{}) ([]string, bool) {

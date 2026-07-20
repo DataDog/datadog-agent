@@ -72,40 +72,41 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	return &Config{
-		MaxBackoff:                maxBackoff,
-		MinBackoff:                minBackoff,
-		MaxAttempts:               maxAttempts,
-		WaitBeforeRetry:           waitBeforeRetry,
-		LoopInterval:              loopInterval,
-		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:       healthCheckInterval,
-		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
-		HTTPTimeout:               httpTimeout,
-		TaskTimeoutSeconds:        taskTimeoutSeconds,
-		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
-		Port:                      defaultPort,
-		JWTRefreshInterval:        defaultJwtRefreshInterval,
-		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
-		HeartbeatInterval:         heartbeatInterval,
-		Version:                   version.AgentVersion,
-		MetricsClient:             metricsClient,
-		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        rshellAllowedPaths(config),
-		RShellAllowedCommands:     rshellAllowedCommands(config),
-		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                    ddHost,
-		DDApiHost:                 "api." + ddSite,
-		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     orgID,
-		PrivateKey:                privateKey,
-		RunnerId:                  runnerID,
-		Urn:                       urn,
-		DatadogSite:               ddSite,
+		MaxBackoff:                  maxBackoff,
+		MinBackoff:                  minBackoff,
+		MaxAttempts:                 maxAttempts,
+		WaitBeforeRetry:             waitBeforeRetry,
+		LoopInterval:                loopInterval,
+		OpmsRequestTimeout:          opmsRequestTimeout,
+		RunnerPoolSize:              config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:         healthCheckInterval,
+		HttpServerReadTimeout:       defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:      defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                 httpTimeout,
+		TaskTimeoutSeconds:          taskTimeoutSeconds,
+		RunnerAccessTokenHeader:     runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:   runnerAccessTokenIDHeader,
+		Port:                        defaultPort,
+		JWTRefreshInterval:          defaultJwtRefreshInterval,
+		HealthCheckEndpoint:         defaultHealthCheckEndpoint,
+		HeartbeatInterval:           heartbeatInterval,
+		Version:                     version.AgentVersion,
+		MetricsClient:               metricsClient,
+		ActionsAllowlist:            makeActionsAllowlist(config),
+		Allowlist:                   config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:           config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:          rshellAllowedPaths(config),
+		RShellAllowedCommands:       rshellAllowedCommands(config),
+		RShellAllowedSystemServices: rshellAllowedSystemServices(config),
+		OpmsExtraHeaders:            config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                      ddHost,
+		DDApiHost:                   "api." + ddSite,
+		Modes:                       []modes.Mode{modes.ModePull},
+		OrgId:                       orgID,
+		PrivateKey:                  privateKey,
+		RunnerId:                    runnerID,
+		Urn:                         urn,
+		DatadogSite:                 ddSite,
 	}, nil
 }
 
@@ -153,6 +154,17 @@ func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 	warnUnnamespacedCommands(commands)
 	return commands
+}
+
+// rshellAllowedSystemServices returns the operator-configured system service
+// restrictions. A nil map means that the setting was not configured and the
+// backend remains the only filter. A configured empty map is preserved as the
+// explicit deny-all kill switch.
+func rshellAllowedSystemServices(config config.Component) map[string][]string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
+		return nil
+	}
+	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
 }
 
 func warnUnnamespacedCommands(commands []string) {
