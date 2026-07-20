@@ -211,6 +211,64 @@ class TestLocateSetting(_SchemaFixture):
         self.assertEqual(locate.locate_setting("does.not.exist", self._schemas()), [])
 
 
+class TestIsPattern(unittest.TestCase):
+    def test_dotted_path_is_not_a_pattern(self):
+        self.assertFalse(locate.is_pattern("api_key"))
+        self.assertFalse(locate.is_pattern("apm_config.enabled"))
+        # Keys may contain dots internally (e.g. patternProperties leaves).
+        self.assertFalse(locate.is_pattern("_dd.origin"))
+
+    def test_glob_and_regex_metacharacters_are_patterns(self):
+        for s in ("*enabled", "enabled$", r"apm_config\..*", "proxy.[a-z]+", "^api"):
+            self.assertTrue(locate.is_pattern(s), s)
+
+
+class TestLocatePattern(_SchemaFixture):
+    def _schemas(self):
+        return [("core", self._path("core.yaml")), ("system-probe", self._path("sysprobe.yaml"))]
+
+    def test_glob_suffix_lists_all_paths_ending_in_token(self):
+        # '*enabled' is not valid regex -> falls back to fnmatch (ends-with).
+        matches = locate.locate_pattern("*enabled", self._schemas())
+        self.assertEqual([m["path"] for m in matches], ["apm_config.enabled"])
+        # The split-section setting is located in its sub-file.
+        self.assertEqual(matches[0]["file"], self._path("apm_config.yaml"))
+        self.assertEqual(matches[0]["node"]["type"], "boolean")
+
+    def test_regex_anchor_matches_full_paths(self):
+        matches = locate.locate_pattern(r"\.enabled$", self._schemas())
+        self.assertEqual([m["path"] for m in matches], ["apm_config.enabled"])
+
+    def test_pattern_matches_across_schemas_and_sorts(self):
+        # 'log_level' lives in both schemas; a contains-match finds both, sorted by (path, schema).
+        matches = locate.locate_pattern("log.*", self._schemas())
+        self.assertEqual(
+            [(m["path"], m["schema"]) for m in matches],
+            [("log_level", "core"), ("log_level", "system-probe")],
+        )
+
+    def test_pattern_matches_sections_too(self):
+        matches = locate.locate_pattern("^proxy$", self._schemas())
+        self.assertEqual([m["path"] for m in matches], ["proxy"])
+        # Section node: properties reduced to a sorted key list.
+        self.assertEqual(matches[0]["node"]["properties"], ["https"])
+
+    def test_no_match_returns_empty(self):
+        self.assertEqual(locate.locate_pattern("does_not_match_anything", self._schemas()), [])
+
+    def test_run_locate_dispatches_to_pattern_and_renders_compact(self):
+        out = locate.run_locate("*enabled", schemas=self._schemas())
+        self.assertIn("[core] apm_config.enabled  ->  " + self._path("apm_config.yaml"), out)
+        # Compact mode does not dump the node body.
+        self.assertNotIn("node_type:", out)
+
+    def test_run_locate_pattern_no_match_raises_exit(self):
+        from invoke.exceptions import Exit
+
+        with self.assertRaises(Exit):
+            locate.run_locate("*nope_nope", schemas=self._schemas())
+
+
 class TestRender(unittest.TestCase):
     MATCHES = [
         {

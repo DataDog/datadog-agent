@@ -64,6 +64,8 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}
 
+	mux.Handle("POST /agent-restart", deps.Ipc.HTTPMiddleware(http.HandlerFunc(handleAgentRestart)))
+
 	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
 	coverage.SetupCoverageHandler(mux)
 

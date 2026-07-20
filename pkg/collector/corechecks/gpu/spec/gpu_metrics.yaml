@@ -741,6 +741,25 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.needs_recovery:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU requires a recovery action (e.g. reset or reboot) as
+        reported by NVML's GPU recovery action field. 0 means no action is
+        needed, 1 means a recovery action is required. The recovery_action tag
+        indicates the specific action.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - recovery_action
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.count.active:
     metadata:
       metric_type: gauge

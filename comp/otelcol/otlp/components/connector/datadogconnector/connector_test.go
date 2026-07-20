@@ -569,3 +569,88 @@ func TestError(t *testing.T) {
 	err = conn.Shutdown(t.Context())
 	require.NoError(t, err)
 }
+
+// TestSamplingWeightFromTracestate verifies that W3C tracestate th values drive
+// Concentrator weighting. The Concentrator reads _sample_rate from the root span
+// of each trace chunk and applies that weight to every span in the chunk, so the
+// th value on the root span controls the Hits count for the whole trace.
+func TestSamplingWeightFromTracestate(t *testing.T) {
+	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true); err != nil {
+		t.Fatal(err)
+	}
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.ComputeTopLevelBySpanKind = true
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	// Trace A: single root Server span with ot=th:8 (50% sampling).
+	// weight = 1/0.5 = 2, so Hits should be 2.
+	traceA := ptrace.NewTraces()
+	resA := traceA.ResourceSpans().AppendEmpty().Resource()
+	resA.Attributes().PutStr("service.name", "weight-test-svc")
+	resA.Attributes().PutStr("deployment.environment.name", "test-env")
+	ssA := traceA.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	spanA := ssA.AppendEmpty()
+	spanA.SetName("sampled-op")
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	spanA.SetSpanID(pcommon.SpanID([8]byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22}))
+	spanA.SetStartTimestamp(spanStartTimestamp)
+	spanA.SetEndTimestamp(spanEndTimestamp)
+	spanA.TraceState().FromRaw("ot=th:8") // 50% sampling → weight=2
+
+	// Trace B: single root Server span with no tracestate.
+	// weight = 1, so Hits should be 1.
+	traceB := ptrace.NewTraces()
+	resB := traceB.ResourceSpans().AppendEmpty().Resource()
+	resB.Attributes().PutStr("service.name", "weight-test-svc")
+	resB.Attributes().PutStr("deployment.environment.name", "test-env")
+	ssB := traceB.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	spanB := ssB.AppendEmpty()
+	spanB.SetName("unsampled-op")
+	spanB.SetKind(ptrace.SpanKindServer)
+	spanB.SetTraceID(pcommon.TraceID([16]byte{2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA}))
+	spanB.SetStartTimestamp(spanStartTimestamp)
+	spanB.SetEndTimestamp(spanEndTimestamp)
+	// no tracestate
+
+	err = connector.ConsumeTraces(t.Context(), traceA)
+	require.NoError(t, err)
+	err = connector.ConsumeTraces(t.Context(), traceB)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return len(metricsSink.AllMetrics()) > 0
+	}, time.Minute, 100*time.Millisecond)
+
+	metrics := metricsSink.AllMetrics()
+	require.NotEmpty(t, metrics)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.NotEmpty(t, sp.Stats)
+	require.NotEmpty(t, sp.Stats[0].Stats)
+
+	hitsByResource := make(map[string]uint64)
+	for _, bucket := range sp.Stats[0].Stats {
+		for _, cgs := range bucket.Stats {
+			hitsByResource[cgs.Resource] += cgs.Hits
+		}
+	}
+
+	// Trace A root has th:8 → _sample_rate=0.5 → weight=2 → Hits=2.
+	assert.Equal(t, uint64(2), hitsByResource["sampled-op"], "span with th:8 tracestate should have Hits=2 (weight=2)")
+	// Trace B root has no tracestate → weight=1 → Hits=1.
+	assert.Equal(t, uint64(1), hitsByResource["unsampled-op"], "span with no tracestate should have Hits=1 (weight=1)")
+}

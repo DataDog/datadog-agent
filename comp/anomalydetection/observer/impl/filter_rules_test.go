@@ -149,7 +149,7 @@ func TestMetricsFilterRulesTagAndSemantics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"service:web", "env:dev"}))
+	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev", "service:web"}))
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"service:web"}))
 }
@@ -755,6 +755,61 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 
 	assert.Empty(t, storage.ListSeries(observerdef.SeriesFilter{Namespace: "check"}))
 	requireCounterMetricValueBySource(t, "check", 2.0, telComp)
+}
+
+// --- containsAllTagsSorted ---
+
+func TestContainsAllTagsSorted_EmptyRuleTags(t *testing.T) {
+	assert.True(t, containsAllTagsSorted(nil, nil))
+	assert.True(t, containsAllTagsSorted([]string{"env:prod"}, nil))
+}
+
+func TestContainsAllTagsSorted_EmptySampleTags(t *testing.T) {
+	assert.False(t, containsAllTagsSorted(nil, []string{"env:prod"}))
+}
+
+func TestContainsAllTagsSorted_AllMatch(t *testing.T) {
+	sample := []string{"env:prod", "service:web", "team:foo"}
+	rule := []string{"env:prod", "service:web"}
+	assert.True(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_PartialMatch(t *testing.T) {
+	sample := []string{"env:prod", "service:web"}
+	rule := []string{"env:prod", "team:foo"}
+	assert.False(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_SampleExhaustedBeforeAllRuleTags(t *testing.T) {
+	sample := []string{"a:1"}
+	rule := []string{"a:1", "z:9"}
+	assert.False(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_ExactMatch(t *testing.T) {
+	tags := []string{"env:dev", "service:api"}
+	assert.True(t, containsAllTagsSorted(tags, tags))
+}
+
+// --- compileRuleTags deduplication ---
+
+func TestCompileRuleTagsDeduplicate(t *testing.T) {
+	compiled, err := compileRuleTags([]string{"env:prod", "env:prod", "service:web"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"env:prod", "service:web"}, compiled)
+}
+
+func TestMetricsFilterRulesDuplicateRuleTagsBehaveAsIfUnique(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type: excludeAtMatch,
+		Name: "drop_prod",
+		Tags: []string{"env:prod", "env:prod"},
+	}})
+	require.NoError(t, err)
+
+	// Should match the same as a rule with a single "env:prod".
+	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:prod"}))
+	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 }
 
 func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {

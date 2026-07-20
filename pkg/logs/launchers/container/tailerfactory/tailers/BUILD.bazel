@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tailers",
+    srcs = [
+        "api.go",
+        "shared.go",
+        "socket.go",
+        "source.go",
+        "tailer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers/container",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tailers_test",
+    srcs = ["tailer_test.go"],
+    embed = [":tailers"],
+    # Only do base becuase other flavors do not build with the needed kubelet tags.
+    flavors = ["base"],  # keep
+    deps = [
+        "//pkg/logs/tailers/container",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

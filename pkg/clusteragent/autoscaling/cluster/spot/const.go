@@ -37,6 +37,16 @@ const (
 	spotNodeTaintValue = "interruptible"
 )
 
+// Spot scheduling Kubernetes event reasons.
+const (
+	// EventReasonSpotRebalancingEviction is the event reason for a pod evicted by the rebalancer.
+	EventReasonSpotRebalancingEviction = "SpotRebalancingEviction"
+	// EventReasonSpotFallbackEviction is the event reason for a pending spot pod evicted during on-demand fallback.
+	EventReasonSpotFallbackEviction = "SpotFallbackEviction"
+	// EventReasonSpotSchedulingDisabled is the event reason when spot scheduling is disabled for a workload.
+	EventReasonSpotSchedulingDisabled = "SpotSchedulingDisabled"
+)
+
 // Spot scheduling metrics.
 const (
 	metricPrefix = "datadog.cluster_agent.autoscaling.cluster.spot."

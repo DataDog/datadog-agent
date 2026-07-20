@@ -31,6 +31,8 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -121,7 +123,7 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 			checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
 			check, ok := checkGeneric.(*Check)
 			require.True(t, ok)
@@ -157,13 +159,13 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 
 func TestEmitNvmlMetrics(t *testing.T) {
 	// Create a mock sender
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 
 	device1UUID := "gpu-uuid-1"
 	device2UUID := "gpu-uuid-2"
@@ -279,7 +281,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 func TestRunDoesNotError(t *testing.T) {
 	// Tests for the specific output are above, this only ensures that the run function does not error
 	// even if things are not correctly setup
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	ddnvml.WithMockNVML(t,
@@ -310,6 +312,34 @@ func TestRunDoesNotError(t *testing.T) {
 	})
 
 	require.NoError(t, check.Run())
+}
+
+func TestSyncNvmlHealthIssue(t *testing.T) {
+	healthStore := healthplatformmock.New(t)
+	check := &Check{}
+	check.SetIssueReporter(healthStore)
+
+	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+
+	check.syncNvmlHealthIssue(true, false)
+	issue := healthStore.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, gpuenvironment.IssueName, issue.IssueName)
+	assert.Equal(t, issueID, issue.Id)
+
+	check.syncNvmlHealthIssue(false, false)
+	assert.NotNil(t, healthStore.GetIssue(issueID))
+
+	check.syncNvmlHealthIssue(false, true)
+	assert.Nil(t, healthStore.GetIssue(issueID))
+}
+
+func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
+	check := &Check{}
+
+	require.NotPanics(t, func() {
+		check.syncNvmlHealthIssue(true, false)
+	})
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
@@ -352,7 +382,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
 	require.Empty(t, check.collectors)
@@ -426,7 +456,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		map[int]string{},
 	)
 	require.Empty(t, check.collectors)
@@ -461,14 +491,14 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 }
 
 func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	check := newConfiguredGPUCheck(
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMock(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -530,7 +560,7 @@ func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
 }
 
 func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
@@ -540,7 +570,7 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	WithGPUConfigEnabled(t)
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", false)
 	check.containerProvider = newMockContainerProvider(t, nil)
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
@@ -651,7 +681,7 @@ func mockMatchesTags(expectedTags []string) interface{} {
 }
 
 func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	check := &Check{}
@@ -688,7 +718,7 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 }
 
 func TestEmitSingleMetricHistogramBucket(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 
 	value := float64(7)
 	upperBound := 14.0
@@ -719,12 +749,12 @@ func TestEmitSingleMetricHistogramBucket(t *testing.T) {
 
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(), nil)
+	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1), testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -777,7 +807,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 func TestRunEmitsCorrectTags(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2), testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -1047,7 +1077,7 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", []string{})
 			})
 
-			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
+			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 
 			// Verify the disabled collectors are correctly identified in the check struct
 			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
@@ -1126,7 +1156,7 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	t.Helper()
 	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpecs, archSpec)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
 	mockSender.SetupAcceptAll()
 

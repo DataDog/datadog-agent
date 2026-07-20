@@ -20,8 +20,6 @@ properties:
     default: false
     visibility: public
     description: Set to true to enable the dispatching logic on the leader cluster-agent.
-    tags:
-    - template_section:ClusterChecks
   node_expiration_timeout:
     node_type: setting
     type: integer
@@ -30,8 +28,6 @@ properties:
     description: |-
       Set "node_expiration_timeout" time in second after which Node-agents that have not
       queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
-    tags:
-    - template_section:ClusterChecks
     comment: value in seconds
   warmup_duration:
     node_type: setting
@@ -41,8 +37,6 @@ properties:
     description: |-
       Set the "warmup_duration" duration in second for the cluster-agent to wait for all
       node-agents to report to it before dispatching configurations.
-    tags:
-    - template_section:ClusterChecks
     comment: value in seconds
   cluster_tag_name:
     node_type: setting
@@ -53,8 +47,6 @@ properties:
       If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
       to all cluster-check configurations sent to the node-agents.
       Set a custom tag name here, or disable it by setting an empty name.
-    tags:
-    - template_section:ClusterChecks
   extra_tags:
     node_type: setting
     type: array
@@ -67,8 +59,6 @@ properties:
     example: |2-
 
         - <TAG_KEY>:<TAG_VALUE>
-    tags:
-    - template_section:ClusterChecks
   advanced_dispatching_enabled:
     node_type: setting
     type: boolean
@@ -77,8 +67,6 @@ properties:
     description: |-
       If advanced_dispatching_enabled is true the leader cluster-agent collects stats
       from the cluster level check runners to optimize the check dispatching logic.
-    tags:
-    - template_section:ClusterChecks
   rebalance_with_utilization:
     node_type: setting
     type: boolean
@@ -86,8 +74,6 @@ properties:
     visibility: public
     description: If rebalance_with_utilization is true, the cluster-agent will rebalance
       cluster checks using node utilization.
-    tags:
-    - template_section:ClusterChecks
   clc_runners_port:
     node_type: setting
     type: integer
@@ -96,8 +82,6 @@ properties:
     description: |-
       Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
       check runners and collect their stats.
-    tags:
-    - template_section:ClusterChecks
   crd_collection:
     node_type: setting
     type: boolean
@@ -114,32 +98,6 @@ properties:
     default: []
     items:
       type: string
-  stickiness_enabled:
-    node_type: setting
-    type: boolean
-    default: true
-    comment: Biases check placement toward the runner where a check previously ran.
-  stickiness_factor:
-    node_type: setting
-    type: number
-    default: 4
-    tags:
-    - golang_type:float64
-    comment: Multiplier applied to workersNeeded when computing the stickiness bias.
-  stickiness_upper_limit:
-    node_type: setting
-    type: number
-    default: 1
-    tags:
-    - golang_type:float64
-    comment: Maximum stickiness bias applied regardless of workersNeeded.
-  stickiness_lower_limit:
-    node_type: setting
-    type: number
-    default: 0.05
-    tags:
-    - golang_type:float64
-    comment: Minimum stickiness bias applied when stickiness is enabled.
   ksm_sharding_enabled:
     node_type: setting
     type: boolean
@@ -159,6 +117,32 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  stickiness_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Biases check placement toward the runner where a check previously ran.
+  stickiness_factor:
+    node_type: setting
+    type: number
+    default: 4
+    tags:
+    - golang_type:float64
+    comment: Multiplier applied to workersNeeded when computing the stickiness bias.
+  stickiness_lower_limit:
+    node_type: setting
+    type: number
+    default: 0.05
+    tags:
+    - golang_type:float64
+    comment: Minimum stickiness bias applied when stickiness is enabled.
+  stickiness_upper_limit:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+    comment: Maximum stickiness bias applied regardless of workersNeeded.
   support_hybrid_ignore_ad_tags:
     node_type: setting
     type: boolean

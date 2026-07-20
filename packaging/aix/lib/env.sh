@@ -56,13 +56,14 @@ EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
+SALUKI_SRC=$BUILD_DIR/saluki
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache
 
 # Number of available CPUs — nproc does not exist on AIX; lsdev is in /usr/sbin
 NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 
-export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
+export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE SALUKI_SRC WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
 # AGENT_VERSION: auto-detected from the source tree if not already set.
@@ -163,9 +164,14 @@ unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
-mkdir -p "$GOCACHE"
+# Give the build its own temp dir instead of the shared /tmp, so it is not
+# affected by a full /tmp or by unrelated files other processes leave there
+# (which can, for example, confuse cargo's workspace-root lookup during
+# wheel builds).
+TMPDIR=/opt/dd-build/buildtmp
+mkdir -p "$GOCACHE" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

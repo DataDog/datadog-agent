@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "cluster",
+    srcs = [
+        "config_retriever.go",
+        "config_retriever_values.go",
+        "controller.go",
+        "doc.go",
+        "provider.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/cluster/model",
+        "//pkg/clusteragent/autoscaling/store",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "//pkg/util/workqueue/telemetry",
+        "@com_github_evanphx_json_patch_v5//:json-patch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//tools/record",
+        "@io_k8s_client_go//util/workqueue",
+        "@io_k8s_sigs_karpenter//pkg/apis/v1:apis",
+        "@io_k8s_utils//clock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "cluster_test",
+    srcs = ["controller_test.go"],
+    embed = [":cluster"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/autoscaling/cluster/model",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

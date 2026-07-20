@@ -32,6 +32,7 @@ var defaultUsers = map[os.Flavor]string{
 	os.Fedora:         "fedora",
 	os.CentOS:         "centos",
 	os.RockyLinux:     "cloud-user",
+	os.AlmaLinux:      "ec2-user",
 	os.MacosOS:        "ec2-user",
 }
 
@@ -48,6 +49,7 @@ var amiResolvers = map[os.Flavor]amiResolverFunc{
 	os.Fedora:         resolveFedoraAMI,
 	os.CentOS:         resolveCentOSAMI,
 	os.RockyLinux:     resolveRockyLinuxAMI,
+	os.AlmaLinux:      resolveAlmaLinuxAMI,
 	os.MacosOS:        resolveMacosAMI,
 }
 
@@ -280,6 +282,11 @@ func resolveRockyLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, err
 	}
 
 	return amiID, nil
+}
+
+func resolveAlmaLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
+	// AlmaLinux publishes official AMIs under account 764336703387.
+	return ec2.SearchAMI(e, "764336703387", "AlmaLinux OS 9*", string(osInfo.Architecture))
 }
 
 func resolveMacosAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
