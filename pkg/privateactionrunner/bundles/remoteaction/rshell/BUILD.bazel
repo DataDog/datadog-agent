@@ -26,6 +26,7 @@ go_library(
             "//pkg/util/log",
             "@cc_mvdan_sh_v3//syntax",
             "@com_github_datadog_rshell//interp",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/config/env",
@@ -38,6 +39,7 @@ go_library(
             "//pkg/util/log",
             "@cc_mvdan_sh_v3//syntax",
             "@com_github_datadog_rshell//interp",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/privateactionrunner/adapters/config",
@@ -62,6 +64,7 @@ go_library(
             "//pkg/util/log",
             "@cc_mvdan_sh_v3//syntax",
             "@com_github_datadog_rshell//interp",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/privateactionrunner/adapters/config",
@@ -78,6 +81,7 @@ go_library(
             "//pkg/util/log",
             "@cc_mvdan_sh_v3//syntax",
             "@com_github_datadog_rshell//interp",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/privateactionrunner/adapters/config",
@@ -114,6 +118,7 @@ go_library(
             "//pkg/util/log",
             "@cc_mvdan_sh_v3//syntax",
             "@com_github_datadog_rshell//interp",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "//conditions:default": [],
     }),
@@ -136,6 +141,7 @@ go_test(
             "@com_github_datadog_rshell//interp",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/config/setup",
@@ -145,6 +151,7 @@ go_test(
             "@com_github_datadog_rshell//interp",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/config/setup",
@@ -154,6 +161,7 @@ go_test(
             "@com_github_datadog_rshell//interp",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/setup",
@@ -163,6 +171,7 @@ go_test(
             "@com_github_datadog_rshell//interp",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/setup",
@@ -172,6 +181,7 @@ go_test(
             "@com_github_datadog_rshell//interp",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "//conditions:default": [],
     }),

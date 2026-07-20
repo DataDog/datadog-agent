@@ -60,13 +60,15 @@ message SystemInputs {
 }
 
 message RemoteAction {
-  // allowed_commands and allowed_paths carry the rshell allowlists resolved
-  // from execution policies for remote-action tasks. They are empty for
-  // non-remote-action tasks. allowed_commands is the flat, namespaced
-  // ("rshell:<command>") command allowlist; allowed_paths is the flat path
-  // allowlist rshell may operate on.
+  // These fields carry the rshell allowlists resolved for remote-action tasks.
+  // They are empty for non-remote-action tasks. allowed_commands is the flat,
+  // namespaced ("rshell:<command>") command allowlist; allowed_paths is the
+  // flat path allowlist rshell may operate on; system_services maps each
+  // service to its action grants.
   repeated string allowed_commands = 1;
   repeated string allowed_paths = 2;
+  map<string, google.protobuf.ListValue> system_services = 3
+      [json_name = "system_services"];
 }
 
 message ConnectionInfo {

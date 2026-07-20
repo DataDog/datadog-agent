@@ -51,7 +51,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// the backend-injected lists. By default, they act as a no-op, allowing
 	// everything: the backend is the only filter.
 	//
-	// To allow none, use an explicit empty list.
+	// To allow no paths or commands, use an explicit empty list.
 	// Env vars support both CSV and JSON-array forms; the JSON form gives
 	// env/YAML parity, including the explicit kill-switch via "[]".
 	//
@@ -60,11 +60,18 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	//     handled as a special case in the operator-side intersection: when
 	//     it appears in the operator list, every backend command in the
 	//     "rshell:" namespace is admitted.
+	//   - allowed_system_services is unset by default, so the backend remains
+	//     the only filter. An explicit empty map denies every system service;
+	//     a non-empty map further restricts the backend grants by service and
+	//     action. Its env var accepts a JSON object only.
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
+
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
+	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 
 	config.BindEnvAndSetDefault("private_action_runner.opms_extra_headers", map[string]string{})
 }
