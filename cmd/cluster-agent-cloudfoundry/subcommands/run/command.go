@@ -32,7 +32,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -131,9 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
-				fx.Provide(func() option.Option[agenttelemetry.Component] {
-					return option.None[agenttelemetry.Component]()
-				}),
+				agenttelemetryfx.Module(),
 				healthplatform.Bundle(),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
