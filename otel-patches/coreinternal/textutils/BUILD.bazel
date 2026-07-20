@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "textutils",
+    srcs = [
+        "encoding.go",
+        "utf8raw.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/textutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_x_text//encoding",
+        "@org_golang_x_text//encoding/ianaindex",
+        "@org_golang_x_text//encoding/unicode",
+        "@org_golang_x_text//transform",
+    ],
+)
+
+go_test(
+    name = "textutils_test",
+    srcs = [
+        "encoding_test.go",
+        "package_test.go",
+    ],
+    embed = [":textutils"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_text//encoding",
+        "@org_golang_x_text//encoding/japanese",
+        "@org_golang_x_text//encoding/korean",
+        "@org_golang_x_text//encoding/simplifiedchinese",
+        "@org_golang_x_text//encoding/unicode",
+        "@org_golang_x_text//transform",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metadata",
+    srcs = ["generated_feature_gates.go"],
+    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/internal/metadata",
+    visibility = ["//local-patches/opentelemetry-collector-contrib-coreinternal:__subpackages__"],
+    deps = ["@io_opentelemetry_go_collector_featuregate//:featuregate"],
+)

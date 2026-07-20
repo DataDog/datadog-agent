@@ -307,7 +307,7 @@ pub unsafe extern "C" fn vrl_free_bytes(bytes: vrl_bytes) {
         // SAFETY: caller guarantees bytes.data/len came from Box::into_raw of a
         // Box<[u8]> of this exact length, created in bytes_to_out, and has not
         // been freed before.
-        drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(bytes.data, bytes.len)) });
+        drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(bytes.data, bytes.len)) });
     }));
 }
 

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "opentelemetry-collector-contrib-coreinternal_test",
+    srcs = ["generated_package_test.go"],
+    gotags = ["test"],
+    deps = ["@org_uber_go_goleak//:goleak"],
+)
+
+go_test(
+    name = "coreinternal_test",
+    srcs = ["generated_package_test.go"],
+    gotags = ["test"],
+    deps = ["@org_uber_go_goleak//:goleak"],
+)
