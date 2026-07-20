@@ -16,10 +16,31 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 )
+
+// TestNewResolver_FIPSRejectsSHA1 asserts that the hash resolver refuses to start with sha1
+// configured when the agent is built for FIPS, since sha1 is not a FIPS-approved algorithm.
+func TestNewResolver_FIPSRejectsSHA1(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256},
+		HashResolverMaxHashRate:    1,
+		HashResolverMaxFileSize:    1 << 20,
+	}
+
+	_, err := NewResolver(cfg, client, nil)
+	if fips.BuiltForFIPS() {
+		assert.Error(t, err, "sha1 should be rejected when built for FIPS")
+	} else {
+		assert.NoError(t, err)
+	}
+}
 
 func generateFileData(size int) []byte {
 	var out []byte
@@ -57,7 +78,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			config: &config.RuntimeSecurityConfig{
 				HashResolverEnabled:        true,
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
-				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
+				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
 				HashResolverMaxFileSize:    1 << 20,
 			},
@@ -82,7 +103,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				fileSize: 10,
 			},
 			want: []string{
-				"sha1:3495ff69d34671d1e15b33a63c1379fdedd3a32a",
 				"sha256:bf2cb58a68f684d95a3b78ef8f661c9a4e5b09e82cc8f9cc88cce90528caeb27",
 				"md5:e09c80c42fda55f9d992e59ca6b3307d",
 			},
@@ -93,7 +113,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			config: &config.RuntimeSecurityConfig{
 				HashResolverEnabled:        true,
 				HashResolverEventTypes:     []model.EventType{model.FileOpenEventType},
-				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
+				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
 				HashResolverMaxFileSize:    1 << 20,
 			},
@@ -125,7 +145,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			config: &config.RuntimeSecurityConfig{
 				HashResolverEnabled:        true,
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
-				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
+				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
 				HashResolverMaxFileSize:    1 << 10,
 			},
@@ -150,7 +170,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				fileSize: 1 << 10,
 			},
 			want: []string{
-				"sha1:8eca554631df9ead14510e1a70ae48c70f9b9384",
 				"sha256:2edc986847e209b4016e141a6dc8716d3207350f416969382d431539bf292e4a",
 				"md5:c9a34cfc85d982698c6ac89f76071abd",
 			},
@@ -161,7 +180,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			config: &config.RuntimeSecurityConfig{
 				HashResolverEnabled:        true,
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
-				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
+				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
 				HashResolverMaxFileSize:    1 << 10,
 			},
@@ -193,7 +212,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			config: &config.RuntimeSecurityConfig{
 				HashResolverEnabled:        true,
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
-				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
+				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    0,
 				HashResolverMaxFileSize:    1 << 10,
 			},

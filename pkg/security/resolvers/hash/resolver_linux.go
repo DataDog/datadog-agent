@@ -26,6 +26,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -126,6 +127,10 @@ type Resolver struct {
 func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver) (*Resolver, error) {
 	if !c.HashResolverEnabled {
 		return &Resolver{}, nil
+	}
+
+	if fips.BuiltForFIPS() && slices.Contains(c.HashResolverHashAlgorithms, model.SHA1) {
+		return nil, errors.New("sha1 is not a FIPS-approved hash algorithm")
 	}
 
 	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
