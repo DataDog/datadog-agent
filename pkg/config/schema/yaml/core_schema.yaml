@@ -2227,6 +2227,21 @@ properties:
       linux: /var/run/datadog/dsd.socket
       aix: /var/run/datadog/dsd.socket
       other: ''
+  dogstatsd_stream_socket:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      Listen for Dogstatsd metrics on a Unix Socket using stream mode (SOCK_STREAM, *nix only).
+      Set to a valid and existing filesystem path to enable.
+      Set to "" to disable this feature.
+
+      Please note that this is not available in Windows.
+      Enabling this setting may result in unexpected behavior.
+    tags:
+    - template_section:Dogstatsd
+    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -7989,11 +8004,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  dogstatsd_stream_socket:
-    node_type: setting
-    type: string
-    default: ''
-    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_string_interner_size:
     node_type: setting
     type: integer

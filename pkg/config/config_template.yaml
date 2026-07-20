@@ -2497,9 +2497,18 @@ api_key:
 ## Set to "" to disable this feature.
 ##
 ## Please note that UDS receiver is not available in Windows.
-## Enabling this setting may result in unexpected behavior.
 #
 # dogstatsd_socket: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+
+## @param dogstatsd_stream_socket - string - optional - default: ""
+## @env DD_DOGSTATSD_STREAM_SOCKET - string - optional - default: ""
+## Listen for Dogstatsd metrics on a Unix Socket using stream mode (SOCK_STREAM, *nix only).
+## Set to a valid and existing filesystem path to enable.
+## Set to "" to disable this feature.
+##
+## Please note that this is not available in Windows.
+#
+# dogstatsd_stream_socket: ""
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
