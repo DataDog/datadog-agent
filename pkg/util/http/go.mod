@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/pkg/util/http
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.81.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.81.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.81.1
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.81.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.81.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.81.2-rc.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.55.0
 )
@@ -13,28 +13,28 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.81.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.81.2-rc.1 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
