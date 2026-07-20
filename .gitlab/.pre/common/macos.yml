@@ -98,3 +98,12 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose
+
+.macos_git_clean_flags:
+  # Use GIT_CLEAN_FLAGS: none to disable automatic git clean, then call this
+  # anchor in before_script to chmod read-only files before manual cleanup.
+  # Required for jobs that produce read-only build artifacts (e.g. dev/embedded/).
+  - |
+    find "${CI_PROJECT_DIR}" -mindepth 1 \( -name "dev" -o -name "omnibus" \) -prune \
+      -exec chmod -R u+w {} + 2>/dev/null || true
+    git -C "${CI_PROJECT_DIR}" clean -ffd 2>/dev/null || true
