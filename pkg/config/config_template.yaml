@@ -2492,7 +2492,7 @@ api_key:
 
 ## @param dogstatsd_socket - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Listen for Dogstatsd metrics on a Unix domain socket (*nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
 ##

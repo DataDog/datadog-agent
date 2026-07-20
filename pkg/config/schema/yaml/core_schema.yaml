@@ -2215,7 +2215,7 @@ properties:
     type: string
     visibility: public
     description: |-
-      Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+      Listen for Dogstatsd metrics on a Unix domain socket (*nix only).
       Set to a valid and existing filesystem path to enable.
       Set to "" to disable this feature.
 
@@ -2232,7 +2232,7 @@ properties:
     default: ''
     visibility: public
     description: |-
-      Listen for Dogstatsd metrics on a Unix Socket using stream mode (SOCK_STREAM, *nix only).
+      Listen for Dogstatsd metrics on a Unix domain socket using stream mode (SOCK_STREAM, *nix only).
       Set to a valid and existing filesystem path to enable.
       Set to "" to disable this feature.
 
