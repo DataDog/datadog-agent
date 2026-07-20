@@ -8,7 +8,7 @@ go_library(
         "parser.go",
         "uri.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/parseutils",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils",
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_otel//semconv/v1.40.0:v1_40_0",

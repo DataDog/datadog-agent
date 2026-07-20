@@ -6,7 +6,7 @@ go_library(
         "aggregate.go",
         "type.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/aggregateutil",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/aggregateutil",
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

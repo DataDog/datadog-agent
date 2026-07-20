@@ -8,11 +8,11 @@ go_library(
         "ticker_helper.go",
     ],
     cgo = True,
-    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/timeutils",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils",
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_elastic_lunes//:lunes",
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//timeutils/internal/ctimefmt",
+        "//otel-patches/coreinternal/timeutils/internal/ctimefmt",
     ],
 )
 
@@ -21,7 +21,6 @@ go_test(
     srcs = [
         "package_test.go",
         "parser_test.go",
-        "strptime_cgo_test.go",
         "strptime_test.go",
         "ticker_test.go",
     ],

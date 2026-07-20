@@ -7,10 +7,10 @@ go_library(
         "hasher.go",
         "type_converter.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/attraction",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//clientutil",
+        "//otel-patches/coreinternal/clientutil",
         "@io_opentelemetry_go_collector_client//:client",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@org_uber_go_zap//:zap",

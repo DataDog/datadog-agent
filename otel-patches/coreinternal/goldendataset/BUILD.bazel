@@ -12,10 +12,10 @@ go_library(
         "span_generator.go",
         "traces_generator.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/goldendataset",
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/goldendataset",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//internal/metadata",
+        "//otel-patches/coreinternal/internal/metadata",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@io_opentelemetry_go_collector_pdata//ptrace",
@@ -46,7 +46,7 @@ go_test(
     embed = [":goldendataset"],
     gotags = ["test"],
     deps = [
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//internal/metadata",
+        "//otel-patches/coreinternal/internal/metadata",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_featuregate//:featuregate",
