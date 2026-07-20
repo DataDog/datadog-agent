@@ -77,7 +77,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
