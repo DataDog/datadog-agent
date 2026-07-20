@@ -2,11 +2,9 @@
 name: injector-dev
 description: >-
   Build, deploy, and test Datadog Agent components (agent, cluster-agent, operator, CSI driver)
-  on a local Kubernetes cluster using the injector-dev CLI and its YAML "scenario" files.
-  Use when the user wants to iterate on local Agent or Operator change, spin up a local
-  k8s test environment (or a remote one on a Datadog Workspace VM), write or
-  debug a scenario.yaml, or test APM
-  auto-instrumentation.
+  on a local Kubernetes cluster using the injector-dev CLI. Use when the user wants to iterate on
+  local Agent or Operator change, spin up a local k8s test environment.
+model: sonnet
 ---
 
 # injector-dev
@@ -22,7 +20,7 @@ it identically at any time.
 
 ## When to use this skill
 
-- Iterating on local `datadog-agent`, `auto_inject`, `datadog-operator`, or Helm
+- Iterating on local `datadog-agent`, `datadog-operator`, or Helm
   chart changes and needing them running on a real cluster.
 - Reproducing an APM auto-instrumentation / injection bug locally.
 - Writing, editing, or debugging a `scenario.yaml`.
