@@ -49,6 +49,13 @@ func index(s, substr string, caseInsensitive bool) int {
 	return strings.Index(s, substr)
 }
 
+func hasSuffix(s, suffix string, caseInsensitive bool) bool {
+	if caseInsensitive {
+		return strcase.HasSuffix(s, suffix)
+	}
+	return strings.HasSuffix(s, suffix)
+}
+
 func hasPrefix(s, prefix string, caseInsensitive bool) bool {
 	if caseInsensitive {
 		return strcase.HasPrefix(s, prefix)
@@ -72,13 +79,16 @@ func PatternMatchesWithSegments(patternElem patternElement, str string, caseInse
 		return len(str) == 0
 	}
 
-	for _, seg := range patternElem.segments {
+	for i, seg := range patternElem.segments {
+		isLast := i == len(patternElem.segments)-1
 		if seg.star {
 			// there is no pattern to match after the last star
 			if len(seg.segment) == 0 {
 				return true
 			}
-
+			if isLast {
+				return hasSuffix(str, seg.segment, caseInsensitive)
+			}
 			index := index(str, seg.segment, caseInsensitive)
 			if index == -1 {
 				return false

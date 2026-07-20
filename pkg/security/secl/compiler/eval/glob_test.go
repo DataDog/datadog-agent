@@ -271,6 +271,22 @@ func TestGlobMatches(t *testing.T) {
 	if glob, _ := NewGlob("*/*", false, false); glob.Matches("/") {
 		t.Error("shouldn't match the filename")
 	}
+	
+	if glob, _ := NewGlob("/etc/*.conf", false, false); !glob.Matches("/etc/evil.conf.conf") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/*.conf", false, false); !glob.Matches("/etc/ld.conf") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/usr/lib/**/*.so", false, false); !glob.Matches("/usr/lib/x/evil.so.so") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/usr/lib/**/*.so", false, false); !glob.Matches("/usr/lib/x/lib.so") {
+		t.Error("should match the filename")
+	}
 }
 
 func FuzzGlob(f *testing.F) {

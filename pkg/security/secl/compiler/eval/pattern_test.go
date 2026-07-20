@@ -85,6 +85,37 @@ func TestPatternMatches(t *testing.T) {
 		}
 	})
 
+	t.Run("repeated-suffix", func(t *testing.T) {
+		if !PatternMatches("*.so", "evil.so.so", false) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("*passwd", "passwdpasswd", false) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("*aa", "aaa", false) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("passwd*passwd", "passwdpasswd", false) {
+			t.Error("should match")
+		}
+
+		// controls: the suffix must genuinely be at the end
+		if !PatternMatches("*.so", "lib.so", false) {
+			t.Error("should match")
+		}
+
+		if PatternMatches("*.so", "evil.so.soX", false) {
+			t.Error("shouldn't match")
+		}
+
+		if PatternMatches("passwd*passwd", "passwd", false) {
+			t.Error("shouldn't match")
+		}
+	})
+
 	t.Run("insensitive-case", func(t *testing.T) {
 		if !PatternMatches("*TEST123", "aaatest123", true) {
 			t.Error("should match")
