@@ -10,11 +10,11 @@ go_library(
     importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction",  # keep
     visibility = ["//visibility:public"],
     deps = [
-        "//otel-patches/coreinternal/clientutil",  # keep
+        "@@gazelle++go_deps+com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//clientutil",
         "@io_opentelemetry_go_collector_client//:client",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@org_uber_go_zap//:zap",
-    ],
+    ],  # keep
 )
 
 go_test(

@@ -11,9 +11,9 @@ go_library(
     importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils",  # keep
     visibility = ["//visibility:public"],
     deps = [
-        "//otel-patches/coreinternal/timeutils/internal/ctimefmt",  # keep
+        "@@gazelle++go_deps+com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//timeutils/internal/ctimefmt",
         "@com_github_elastic_lunes//:lunes",
-    ],
+    ],  # keep
 )
 
 go_test(

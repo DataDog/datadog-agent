@@ -20,9 +20,9 @@ go_test(
     embed = [":metricstestutil"],
     gotags = ["test"],
     deps = [
-        "//otel-patches/coreinternal/goldendataset",  # keep
+        "@@gazelle++go_deps+com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//goldendataset",
         "@com_github_stretchr_testify//assert",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@org_uber_go_goleak//:goleak",
-    ],
+    ],  # keep
 )
