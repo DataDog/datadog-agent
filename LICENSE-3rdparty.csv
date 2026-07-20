@@ -3062,6 +3062,7 @@ core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2024 Uber Technologie
 core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/zaptest/observer,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go.yaml.in/yaml/v4,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors

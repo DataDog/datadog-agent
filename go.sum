@@ -4367,8 +4367,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.156.0/go.mod h1:Afbd6BeijJzuTsy2l/0gW19X6ZeOk93nLMw9crEpb6U=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.156.0 h1:NbW0V2xBmQ7WWzlVsJw61/nLxQM5kSKhkwQClLPo3TA=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.156.0/go.mod h1:552gyph19MYV0RWg+j5zXTOVrXfmSJa3hinSvVJMj24=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.156.0 h1:wca5xIy5I/8CAylZYgOYzj5P5JAAicBA8uNtiRNh2Zo=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.156.0/go.mod h1:CaT/YS8vvoNgsLewbtwDpS0mAgsHXNXceSPzlP+TeJI=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.156.0 h1:edXYRTA/PqgTXCVh2pn2dwAZ+VdW28356J8zYoxfnfM=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.156.0/go.mod h1:e/riZyMQ/kNUaXdXN+o7EjWB4qPlPt+AUxVUnDPraHc=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.156.0 h1:p1slc+GR+9d46QFHxAB75u6M9XxgYQCg+ajCS02cAUo=

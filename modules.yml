@@ -183,7 +183,11 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  otel-patches/coreinternal: ignored
+  otel-patches/coreinternal:
+    independent: false
+    should_replace_internal_modules: false
+    should_tag: false
+    should_test_condition: never
   pkg/aggregator/ckey:
     used_by_otel: true
   pkg/api:

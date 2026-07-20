@@ -1,10 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "ctimefmt",
     srcs = ["ctimefmt.go"],
     importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/timeutils/internal/ctimefmt",
-    visibility = ["//local-patches/opentelemetry-collector-contrib-coreinternal/timeutils:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = ["@com_github_elastic_lunes//:lunes"],
 )
 

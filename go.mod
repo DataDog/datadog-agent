@@ -1169,6 +1169,15 @@ replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/
 // the main module is written against.
 replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1-0.20260305014005-ffe7023c481d
 
+// DATADOG LOCAL PATCH: opentelemetry-collector-contrib/internal/coreinternal@v0.156.0 added a
+// cgo file (timeutils/strptime_cgo_testlib.go) that's only meant to support one of its own unit
+// tests, but lacks a proper test-only build constraint, so it compiles into any production build
+// that imports this package with cgo enabled on unix - including cmd/agent, now that OTTL's
+// condition parser pulls this package in transitively. otel-patches/coreinternal is an
+// unmodified copy of the real v0.156.0 source with only that one file's build tag changed so it
+// never compiles; nothing else differs. See CI job datadog-agent-7-x64 for the original failure.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal => ./otel-patches/coreinternal
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-069

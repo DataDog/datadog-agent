@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@@rules_go+//go:def.bzl", "go_library")
 
 go_library(
     name = "scraperinttest",
@@ -6,9 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/scraperinttest",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_golden//:golden",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest//pmetrictest",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@com_github_testcontainers_testcontainers_go//:testcontainers-go",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_consumer_consumertest//:consumertest",

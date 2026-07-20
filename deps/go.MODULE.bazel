@@ -108,10 +108,16 @@ go_deps.gazelle_override(
     # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
     # musl libc). Exclude the CGo test-helper files so Gazelle does not
     # include them in the generated go_library BUILD rules.
+    #
+    # This module is also locally replaced (see go.mod, otel-patches/coreinternal/), so
+    # gazelle_default_attributes' default build_file_generation = "auto" would otherwise reuse
+    # our in-tree BUILD.bazel files for this go_deps external repo - but those load("@rules_go//...")
+    # which isn't visible in the go_deps external-repo context. Force regeneration instead.
     build_extra_args = [
         "-exclude=timeutils/strptime_cgo_testlib.go",
         "-exclude=timeutils/strptime_cgo_test.go",
     ],
+    directives = ["gazelle:build_file_generation on"],
     path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
 )
 use_repo(
@@ -149,6 +155,7 @@ use_repo(
     "com_github_bhmj_jsonslice",
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
+    "com_github_cenkalti_backoff_v4",
     "com_github_cenkalti_backoff_v7",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
@@ -196,6 +203,7 @@ use_repo(
     "com_github_elastic_go_freelru",
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
+    "com_github_elastic_lunes",
     "com_github_envoyproxy_gateway",
     "com_github_envoyproxy_go_control_plane_envoy",
     "com_github_evanphx_json_patch_v5",
@@ -303,6 +311,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_storage_filestorage",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_golden",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry",
@@ -390,6 +399,7 @@ use_repo(
     "com_github_stretchr_testify",
     "com_github_swaggest_jsonschema_go",
     "com_github_syndtr_gocapability",
+    "com_github_testcontainers_testcontainers_go",
     "com_github_tinylib_msgp",
     "com_github_twmb_franz_go",
     "com_github_twmb_franz_go_pkg_kadm",
@@ -445,6 +455,7 @@ use_repo(
     "io_k8s_sigs_karpenter",
     "io_k8s_sigs_yaml",
     "io_k8s_utils",
+    "io_opentelemetry_go_collector_client",
     "io_opentelemetry_go_collector_component",
     "io_opentelemetry_go_collector_component_componentstatus",
     "io_opentelemetry_go_collector_component_componenttest",
@@ -493,6 +504,7 @@ use_repo(
     "io_opentelemetry_go_collector_receiver",
     "io_opentelemetry_go_collector_receiver_nopreceiver",
     "io_opentelemetry_go_collector_receiver_otlpreceiver",
+    "io_opentelemetry_go_collector_receiver_receivertest",
     "io_opentelemetry_go_collector_receiver_xreceiver",
     "io_opentelemetry_go_collector_service",
     "io_opentelemetry_go_contrib_instrumentation_runtime",
