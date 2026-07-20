@@ -384,25 +384,45 @@ func (c *Controller) checkValidNodeClass(ctx context.Context, knp *karpenterv1.N
 }
 
 // discoverNodeClass attempts to find a single node class from supported providers.
-// It tries manual Karpenter (EC2NodeClass) first, then falls back to EKS Auto Mode (NodeClass).
-// If more than one NodeClass is found, it attempts to disambiguate using the NodePool's os/arch
-// requirements. Returns the NodeClassReference for the discovered node class, or an error if none
-// are found or the ambiguity can't be resolved.
+// It prefers EKS Auto Mode (NodeClass) when the cluster has it enabled, since a user who set up
+// Auto Mode is assumed to want it used by default, and falls back to manual Karpenter
+// (EC2NodeClass) otherwise. If more than one NodeClass is found, it attempts to disambiguate
+// using the NodePool's os/arch requirements. Returns the NodeClassReference for the discovered
+// node class, or an error if none are found or the ambiguity can't be resolved.
 func (c *Controller) discoverNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodeClassReference, error) {
-	for _, provider := range []struct {
+	// ambiguityErr accumulates every unresolved-ambiguity error we hit, so an ambiguous
+	// provider tier doesn't abort discovery outright: a later provider tier may still resolve
+	// unambiguously and should win. If every tier is ambiguous, the joined error reports all of
+	// them instead of just the first.
+	var ambiguityErr error
+	// listErr accumulates List errors from tiers other than "the CRD doesn't exist", so that an
+	// error on one tier (e.g. an RBAC gap on the EKS Auto Mode NodeClass resource) doesn't abort
+	// discovery for a cluster that only needs a later, otherwise-healthy tier.
+	var listErr error
+	providers := []struct {
 		gvr  schema.GroupVersionResource
 		kind string
 	}{
-		{gvr: ec2NodeClassGVR, kind: "EC2NodeClass"},
 		{gvr: eksNodeClassGVR, kind: "NodeClass"},
-	} {
+		{gvr: ec2NodeClassGVR, kind: "EC2NodeClass"},
+	}
+	for i, provider := range providers {
+		// nextTierNote makes the log lines below accurately reflect whether there's actually
+		// another provider tier left to fall back to, instead of always claiming one is coming.
+		nextTierNote := ", trying next provider"
+		if i == len(providers)-1 {
+			nextTierNote = ""
+		}
+
 		ncList, err := c.Client.Resource(provider.gvr).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Debugf("NodeClass CRD %s/%s not found, trying next provider", provider.gvr.Group, provider.kind)
+				log.Debugf("NodeClass CRD %s/%s not found%s", provider.gvr.Group, provider.kind, nextTierNote)
 				continue
 			}
-			return nil, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err)
+			log.Warnf("Unable to list %s/%s NodeClasses%s: %v", provider.gvr.Group, provider.kind, nextTierNote, err)
+			listErr = errors.Join(listErr, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err))
+			continue
 		}
 
 		if len(ncList.Items) == 0 {
@@ -411,9 +431,12 @@ func (c *Controller) discoverNodeClass(ctx context.Context, knp *karpenterv1.Nod
 
 		name := ncList.Items[0].GetName()
 		if len(ncList.Items) > 1 {
-			matched, found := c.attemptNodeClassMatch(ncList.Items, knp)
+			matched, found := attemptNodeClassMatch(ncList.Items, knp)
 			if !found {
-				return nil, fmt.Errorf("too many %s NodeClasses found (%d), NodePool cannot be created", provider.gvr.Group, len(ncList.Items))
+				log.Debugf("Multiple %s NodeClasses found for NodePool %s (%d), ambiguous based on os/arch requirements%s",
+					provider.gvr.Group, knp.Name, len(ncList.Items), nextTierNote)
+				ambiguityErr = errors.Join(ambiguityErr, fmt.Errorf("too many %s NodeClasses found (%d), NodePool cannot be created", provider.gvr.Group, len(ncList.Items)))
+				continue
 			}
 			log.Infof("Multiple %s NodeClasses found for NodePool %s, matched %q based on os/arch requirements, passed over: %s",
 				provider.gvr.Group, knp.Name, matched, strings.Join(otherNames(ncList.Items, matched), ", "))
@@ -427,188 +450,10 @@ func (c *Controller) discoverNodeClass(ctx context.Context, knp *karpenterv1.Nod
 		}, nil
 	}
 
+	if err := errors.Join(ambiguityErr, listErr); err != nil {
+		return nil, err
+	}
 	return nil, errors.New("no NodeClasses found from any supported provider, NodePool cannot be created")
-}
-
-func (c *Controller) attemptNodeClassMatch(ncList []unstructured.Unstructured, knp *karpenterv1.NodePool) (string, bool) {
-	// Extract the desired OS and architecture from the nodepool. Only requirements that pin
-	// down a single desired value (Operator: In, with exactly one distinct value across all
-	// matching requirements) are usable here: NotIn/Exists/Gt/etc. don't tell us which value
-	// the NodeClass name should contain, and a requirement accepting several values (e.g.
-	// arch In [amd64, arm64]) doesn't tell us which one a matched NodeClass must cover, so
-	// guessing one would risk silently binding the NodePool to a NodeClass that doesn't
-	// support the other accepted values.
-	var os, arch []string
-	for _, req := range knp.Spec.Template.Spec.Requirements {
-		if req.Operator != corev1.NodeSelectorOpIn || len(req.Values) == 0 {
-			continue
-		}
-		switch req.Key {
-		case corev1.LabelOSStable:
-			os = append(os, req.Values...)
-		case corev1.LabelArchStable:
-			arch = append(arch, req.Values...)
-		}
-	}
-	os = singleValue(os)
-	arch = singleValue(arch)
-	if len(os) == 0 && len(arch) == 0 {
-		return "", false
-	}
-
-	// Require a name match against every known dimension at once: nameMatchesAllGroups treats an
-	// unset (nil) dimension as vacuously satisfied, so this naturally degrades to matching on
-	// arch alone or os alone when only one of them is known.
-	names := tokenizeNames(ncList)
-	if name, ok := uniqueNameMatch(names, [][]string{arch, os}); ok {
-		return name, true
-	}
-
-	// If both dimensions are known but no NodeClass name satisfies both, fall back to matching a
-	// single dimension alone -- but only among NodeClasses whose name doesn't explicitly name a
-	// conflicting value for the *other* known dimension (e.g. a NodeClass named "windows-amd64"
-	// must not be picked via arch alone when os=linux is required). A NodeClass name that simply
-	// doesn't mention the other dimension at all (e.g. "ec2nodeclass-amd64") is fine to fall back
-	// on, since it doesn't contradict anything.
-	if len(arch) > 0 && len(os) > 0 {
-		archName, archOK := uniqueNameMatch(excludingContradictions(names, knownOSValues, os[0]), [][]string{arch})
-		osName, osOK := uniqueNameMatch(excludingContradictions(names, knownArchValues, arch[0]), [][]string{os})
-		switch {
-		case archOK && osOK && archName == osName:
-			return archName, true
-		case archOK && osOK:
-			// The two single-dimension fallbacks disagree on which NodeClass to pick -- that's a
-			// genuine ambiguity, not something we should guess between.
-			return "", false
-		case archOK:
-			return archName, true
-		case osOK:
-			return osName, true
-		}
-	}
-
-	return "", false
-}
-
-// knownOSValues and knownArchValues are the os/arch values Kubernetes nodes report via the
-// kubernetes.io/os and kubernetes.io/arch labels (i.e. all GOOS/GOARCH values Go itself
-// supports), used to tell a NodeClass name that explicitly names a *different* os/arch (a real
-// conflict) apart from one that simply doesn't mention that dimension at all (not a conflict).
-var (
-	knownOSValues   = []string{"linux", "windows"}
-	knownArchValues = []string{
-		"386", "amd64", "arm", "arm64", "arm64be", "armbe", "loong64", "mips", "mips64",
-		"mips64le", "mips64p32", "mips64p32le", "mipsle", "ppc", "ppc64", "ppc64le",
-		"riscv", "riscv64", "s390", "s390x", "sparc", "sparc64", "wasm",
-	}
-)
-
-// excludingContradictions returns the subset of names whose parts don't contain a segment
-// matching (case-insensitively) any of knownValues other than want.
-func excludingContradictions(names []namedTokens, knownValues []string, want string) []namedTokens {
-	conflicting := make([]string, 0, len(knownValues))
-	for _, v := range knownValues {
-		if !strings.EqualFold(v, want) {
-			conflicting = append(conflicting, v)
-		}
-	}
-
-	filtered := make([]namedTokens, 0, len(names))
-	for _, n := range names {
-		if !nameMatchesAnyToken(n.parts, conflicting) {
-			filtered = append(filtered, n)
-		}
-	}
-	return filtered
-}
-
-// otherNames returns the names in ncList other than exclude.
-func otherNames(ncList []unstructured.Unstructured, exclude string) []string {
-	others := make([]string, 0, len(ncList))
-	for _, nc := range ncList {
-		if name := nc.GetName(); name != exclude {
-			others = append(others, name)
-		}
-	}
-	return others
-}
-
-// singleValue returns values unchanged if it contains exactly one distinct value, or nil otherwise.
-func singleValue(values []string) []string {
-	distinct := make(map[string]struct{}, len(values))
-	for _, v := range values {
-		distinct[v] = struct{}{}
-	}
-	if len(distinct) != 1 {
-		return nil
-	}
-	return values[:1]
-}
-
-// nameSeparators are the characters commonly used to delimit tokens in a NodeClass name (e.g. "linux-amd64-nodeclass").
-func nameSeparators(r rune) bool {
-	return r == '-' || r == '_' || r == '.'
-}
-
-// namedTokens pairs a NodeClass name with its name segments (split on nameSeparators), so the
-// split only needs to happen once per name even though uniqueNameMatch may be called multiple
-// times against the same NodeClass list.
-type namedTokens struct {
-	name  string
-	parts []string
-}
-
-// tokenizeNames splits each NodeClass name in ncList into segments on nameSeparators.
-func tokenizeNames(ncList []unstructured.Unstructured) []namedTokens {
-	names := make([]namedTokens, len(ncList))
-	for i, nc := range ncList {
-		name := nc.GetName()
-		names[i] = namedTokens{name: name, parts: strings.FieldsFunc(name, nameSeparators)}
-	}
-	return names
-}
-
-// uniqueNameMatch returns the name of the single NodeClass whose name contains, for every
-// non-empty group in tokenGroups, a segment matching (case-insensitively) at least one token
-// in that group (segments are produced by splitting on nameSeparators, so a NodeClass named
-// e.g. "team-amd64x-shared" doesn't incorrectly match the token "amd64"). If zero or more than
-// one NodeClass match, it returns false to avoid an ambiguous pick.
-func uniqueNameMatch(names []namedTokens, tokenGroups [][]string) (string, bool) {
-	var match string
-	count := 0
-	for _, n := range names {
-		if nameMatchesAllGroups(n.parts, tokenGroups) {
-			match = n.name
-			count++
-		}
-	}
-	return match, count == 1
-}
-
-// nameMatchesAllGroups reports whether parts has, for every non-empty group in tokenGroups, at
-// least one segment matching (case-insensitively) one of that group's tokens.
-func nameMatchesAllGroups(parts []string, tokenGroups [][]string) bool {
-	for _, tokens := range tokenGroups {
-		if len(tokens) == 0 {
-			continue
-		}
-		if !nameMatchesAnyToken(parts, tokens) {
-			return false
-		}
-	}
-	return true
-}
-
-// nameMatchesAnyToken reports whether any of parts case-insensitively equals any of tokens.
-func nameMatchesAnyToken(parts, tokens []string) bool {
-	for _, part := range parts {
-		for _, token := range tokens {
-			if strings.EqualFold(part, token) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func isCreatedByDatadog(labels map[string]string) bool {
