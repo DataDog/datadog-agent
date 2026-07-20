@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/util/testutils
 
-go 1.25.0
+go 1.25.4
 
 require github.com/DataDog/datadog-agent/pkg/logs/sources v0.75.4
 
