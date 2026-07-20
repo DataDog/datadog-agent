@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.26.0
+go 1.26.2
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -31,8 +31,8 @@ replace (
 )
 
 require (
-	code.cloudfoundry.org/bbs v1.3.0
-	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
+	code.cloudfoundry.org/bbs v1.11.0
+	code.cloudfoundry.org/bbs/models v1.7.0
 	code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5
 	code.cloudfoundry.org/lager/v3 v3.77.0
 	dario.cat/mergo v1.0.2
@@ -524,7 +524,9 @@ require (
 	cloud.google.com/go/kms v1.26.0 // indirect
 	cloud.google.com/go/longrunning v0.8.0 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
-	code.cloudfoundry.org/cfhttp/v2 v2.82.0 // indirect
+	code.cloudfoundry.org/bbs/encryption v1.9.0 // indirect
+	code.cloudfoundry.org/bbs/format v1.9.0 // indirect
+	code.cloudfoundry.org/cfhttp/v2 v2.83.0 // indirect
 	code.cloudfoundry.org/tlsconfig v0.60.0 // indirect
 	cyphar.com/go-pathrs v0.2.5 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -1131,7 +1133,7 @@ require (
 	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
