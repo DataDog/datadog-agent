@@ -92,7 +92,7 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandR
 		}
 		r.CommandStr = cmd.Command
 		if r.Error == nil {
-			r.ValidationError = cmd.Validator.Validate(r.Output)
+			r.Error = cmd.Validator.Validate(r.Output)
 		}
 	}
 	return r, r.FormattedError()
