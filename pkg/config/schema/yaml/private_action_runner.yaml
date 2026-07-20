@@ -101,7 +101,7 @@ properties:
       socket_path:
         node_type: setting
         type: string
-        default: ''
+        default: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
