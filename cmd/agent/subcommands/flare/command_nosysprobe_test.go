@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Neither macOS nor AIX support any system-probe modules, so no connection to
+// system-probe is attempted in these tests.
+//go:build darwin || aix
+
 package flare
 
 import (
@@ -15,7 +19,7 @@ import (
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(_ model.Config, _ model.Config) {
-	// macOS doesn't currently support any system-probe modules
+	// macOS and AIX don't currently support any system-probe modules
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated
