@@ -88,6 +88,17 @@ func (s *errorTrackingTraceAgentSuite) triggerReceiverError() {
 // shares the same errortracking config and could in principle forward its own,
 // unrelated errors during the same window.
 func (s *errorTrackingTraceAgentSuite) TestPayloadShape() {
+	// testify's suite.Run executes test methods in alphabetical order
+	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
+	// re-provisions the same host in place rather than a fresh one. Re-assert
+	// the enabled config here so this test doesn't depend on run order.
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(errorTrackingTraceAgentEnabledConfig),
+			),
+		),
+	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	s.triggerReceiverError()
 
