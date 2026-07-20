@@ -1,5 +1,7 @@
 process_config:
-  process_dd_url: https://127.0.0.1:1
+  additional_endpoints:
+    "https://127.0.0.1:1":
+      - "00000000000000000000000000000000"
 agent_telemetry:
   # enabled defaults to true.
   errortracking:

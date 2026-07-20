@@ -135,7 +135,7 @@ func (s *errorTrackingProcessAgentSuite) TestDisabledByDefault() {
 	// not forwarded to telemetry.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		out, execErr := s.Env().RemoteHost.Execute(
-			"sudo awk '/" + processAgentSubmissionErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/process-agent.log")
+			"sudo grep -cF -- '" + processAgentSubmissionErrorMessage + "' /var/log/datadog/process-agent.log || true")
 		assert.NoError(c, execErr)
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for submission error to appear in process-agent log")

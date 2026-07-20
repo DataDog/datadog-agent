@@ -1,9 +1,14 @@
 process_config:
-  # Points the process-specific forwarder at a connection-refused address so
-  # every check submission (including the connections check's, run
-  # unconditionally on its own interval) fails deterministically, independent
-  # of dd_url/FakeIntake wiring used by every other payload type.
-  process_dd_url: https://127.0.0.1:1
+  # Adds a second, connection-refused submission target alongside the main
+  # process_dd_url (which the e2e host provisioner points at FakeIntake via
+  # ExtraAgentConfig, applied after this file and taking precedence over any
+  # process_dd_url set here). Every check submission — including the
+  # connections check's, run unconditionally on its own interval — fans out to
+  # every configured endpoint, so this additional endpoint fails
+  # deterministically without disturbing the main FakeIntake submission.
+  additional_endpoints:
+    "https://127.0.0.1:1":
+      - "00000000000000000000000000000000"
 agent_telemetry:
   enabled: true
   errortracking:
