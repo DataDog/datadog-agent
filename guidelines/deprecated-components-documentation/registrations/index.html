@@ -3776,7 +3776,7 @@
   
 
 
-<h1 id="component-registrations">Component Registrations</h1>
+<h1 id="component-registrations">Component Registrations<a class="headerlink" href="#component-registrations" title="Permanent link">&para;</a></h1>
 <p>Components generally need to talk to one another! In simple cases, that occurs by method calls. But in many cases, a single component needs to communicate with a number of other components that all share some characteristics. For example, the <code>comp/core/health</code> component monitors the health of many other components, and <code>comp/workloadmeta/scheduler</code> provides workload events to an arbitrary number of subscribers.</p>
 <p>The convention in the Agent codebase is to use <a href="../../../components/fx/#value-groups">value groups</a> to accomplish this. The <em>collecting</em> component requires a slice of some <em>collected type</em>, and the <em>providing</em> components provide values of that type. Consider an example case of an HTTP server component to which endpoints can be attached. The server is the collecting component, requiring a slice of type <code>[]*endpoint</code>, where <code>*endpoint</code> is the collected type. Providing components provide values of type <code>*endpoint</code>.</p>
 <p>The convention is to "wrap" the collected type in a <code>Registration</code> struct type which embeds <code>fx.Out</code> and has tag <code>group:"pkgname"</code>, where <code>pkgname</code> is the short package name (Fx requires a group name, and this is as good as any). This helps providing components avoid the common mistake of omitting the tag. Because it is wrapped in an exported <code>Registration</code> type, the collected type can be an unexported type, as in the example below.</p>
