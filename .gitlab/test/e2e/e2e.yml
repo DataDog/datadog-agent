@@ -435,7 +435,13 @@ new-e2e-agent-health:
     TEAM: fleet-remediation
 
 new-e2e-agent-telemetry:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
+    - qa_agent_linux
+    - qa_dca
   rules:
     - !reference [.on_agenttelemetry_or_e2e_changes]
     - !reference [.manual]

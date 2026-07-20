@@ -134,13 +134,20 @@ func (s *errorTrackingClusterAgentSuite) TestDisabledByDefault() {
 
 	podName := s.getClusterAgentPodName()
 
+	// Clear the log file after resetting FakeIntake so the wait below only matches
+	// an occurrence generated after the reset, not a stale one from before it.
+	_, _, execErr := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+		clusterAgentDatadogNamespace, podName, "cluster-agent",
+		[]string{"sh", "-c", "truncate -s 0 /var/log/datadog/cluster-agent.log"})
+	require.NoError(s.T(), execErr)
+
 	// Wait until the leader-election error appears in the cluster-agent's own
 	// log file, confirming the error is generated locally before asserting it
 	// is not forwarded to telemetry.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		out, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
 			clusterAgentDatadogNamespace, podName, "cluster-agent",
-			[]string{"sh", "-c", "grep -c '" + leaderElectionErrorMessage + "' /var/log/datadog/cluster-agent.log || true"})
+			[]string{"sh", "-c", "awk '/" + leaderElectionErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/cluster-agent.log"})
 		assert.NoError(c, err)
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for leader-election error to appear in cluster-agent log")
