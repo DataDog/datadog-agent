@@ -47,26 +47,6 @@ var (
 
 const (
 
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -116,9 +96,6 @@ const (
 	// in situations where we have a high value for `GOMAXPROCS`.
 	DefaultZstdCompressionLevel = 1
 
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -133,10 +110,6 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
-
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
@@ -1171,8 +1144,8 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
-// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, and
-// Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
 // is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
@@ -1195,7 +1168,7 @@ func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLooku
 	}
 
 	switch {
-	case goos == "linux", goos == "darwin":
+	case goos == "linux", goos == "darwin", goos == "aix":
 		return
 	case goos == "windows":
 		if config.GetBool("process_manager.enabled") {
@@ -1538,7 +1511,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                // Default level for the gzip algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
