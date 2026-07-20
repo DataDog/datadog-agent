@@ -10,8 +10,10 @@ package trace
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,6 +140,8 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 }
 
 func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
+	const functionTagsPayloadTag = "_dd.tags.function"
+
 	tests := []struct {
 		name         string
 		functionTags string
@@ -154,21 +158,35 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupTraceAgentTest(t)
+			t.Setenv("DD_RECEIVER_PORT", "0")
+			t.Setenv("DD_APM_RECEIVER_SOCKET", filepath.Join(t.TempDir(), "apm.sock"))
+			configmock.New(t)
 
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 				Enabled:      true,
 				LoadConfig:   &LoadConfig{Path: "./testdata/valid.yml"},
 				FunctionTags: tt.functionTags,
+				// Wait for the agent to fully stop before the next subtest starts, so
+				// its goroutines never leak into and race with the following case.
+				StopTimeout: 30 * time.Second,
 			})
 			defer agent.Stop()
 
 			assert.NotNil(t, agent)
-			assert.IsType(t, &serverlessTraceAgent{}, agent)
+			require.IsType(t, &serverlessTraceAgent{}, agent)
 
 			// Access the underlying agent to check TracerPayloadModifier
 			serverlessAgent := agent.(*serverlessTraceAgent)
-			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+			require.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+
+			payload := &pb.TracerPayload{}
+			serverlessAgent.ta.TracerPayloadModifier.Modify(payload)
+			if tt.functionTags == "" {
+				assert.NotContains(t, payload.Tags, functionTagsPayloadTag)
+			} else {
+				require.NotNil(t, payload.Tags)
+				assert.Equal(t, tt.functionTags, payload.Tags[functionTagsPayloadTag])
+			}
 		})
 	}
 }

@@ -57,16 +57,6 @@ const (
 	installerSymlink = "/usr/bin/datadog-installer"
 )
 
-// getExtensionStoragePath returns the path where extension lists should be stored.
-// On Linux, for OCI packages use RootTmpDir (temporary storage under installer data),
-// otherwise use the package path itself.
-func getExtensionStoragePath(packagePath string) string {
-	if strings.HasPrefix(packagePath, paths.PackagesPath) {
-		return paths.RootTmpDir
-	}
-	return packagePath
-}
-
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{

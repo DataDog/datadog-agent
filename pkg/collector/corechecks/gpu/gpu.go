@@ -18,6 +18,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -39,6 +41,8 @@ const (
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
+var _ check.IssueAwareCheck = (*Check)(nil)
+
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
@@ -56,6 +60,7 @@ type Check struct {
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 	parallelCollectors bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
+	issueReporter      healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 }
 
 type checkTelemetry struct {
@@ -101,6 +106,11 @@ func NewCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 // This is exported for integration testing.
 func (c *Check) SetContainerProvider(provider proccontainers.ContainerProvider) {
 	c.containerProvider = provider
+}
+
+// SetIssueReporter implements check.IssueAwareCheck.
+func (c *Check) SetIssueReporter(reporter healthplatformstore.Component) {
+	c.issueReporter = reporter
 }
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
@@ -246,6 +256,18 @@ func (c *Check) Cancel() {
 	c.CheckBase.Cancel()
 }
 
+// Interval returns the scheduling interval for the check. When
+// gpu.collection_interval_override (DD_GPU_COLLECTION_INTERVAL_OVERRIDE) is set to
+// a positive number of seconds it overrides the cadence, taking precedence over
+// the instance's min_collection_interval. Otherwise the check falls back to the
+// instance's min_collection_interval / default.
+func (c *Check) Interval() time.Duration {
+	if iv := pkgconfigsetup.Datadog().GetInt("gpu.collection_interval_override"); iv > 0 {
+		return time.Duration(iv) * time.Second
+	}
+	return c.CheckBase.Interval()
+}
+
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
@@ -260,6 +282,7 @@ func (c *Check) Run() error {
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -316,6 +339,44 @@ func (c *Check) Run() error {
 	}
 
 	return nil
+}
+
+func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
+	if c.issueReporter == nil {
+		return
+	}
+
+	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	if !unavailable {
+		// Only mark the issue as resolved if we had a successful init of the
+		// NVML library. unavailable is only true after a certain amount of
+		// time, so we can't rely on that being false to resolve the issue. For
+		// example, after an agent restart, we would resolve the issue too early
+		// (unavailable will be false at the start) even if the NVML library is
+		// not available still.
+		if nvmlInitSuccess {
+			c.issueReporter.ResolveIssue(issueID)
+		}
+		return
+	}
+
+	context := map[string]string{
+		"reason": gpuenvironment.ReasonNvmlUnavailable,
+	}
+	issue, buildErr := gpuenvironment.NewGPUEnvironmentIssue().BuildIssue(context)
+	if buildErr != nil {
+		log.Warnf("failed to build GPU NVML health issue: %v", buildErr)
+		return
+	}
+	issue.Id = issueID
+
+	if err := c.issueReporter.ReportIssue(issue); err != nil {
+		log.Warnf("failed to report GPU NVML health issue: %v", err)
+	}
+}
+
+func gpuHealthIssueID(reason string) string {
+	return gpuenvironment.IssueID + ":" + reason
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {

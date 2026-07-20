@@ -11,6 +11,8 @@ package scanner
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -77,6 +80,43 @@ func (m mockReport) Tags() []string {
 }
 
 var _ sbom.Report = mockReport{}
+
+// Test that the flat min_available_disk floor applies to every scan, while the
+// image-size headroom check runs only for scans that may store a tarball.
+func TestEnoughDiskSpaceImageSizeOnlyForTarballScans(t *testing.T) {
+	s := &Scanner{disk: filesystem.NewDisk()}
+	// A huge image makes the 1.2x-size check fail whenever it runs; leaving
+	// MinAvailableDisk at 0 lets the flat floor pass, isolating the two checks.
+	imgMeta := &workloadmeta.ContainerImageMetadata{SizeBytes: 1 << 60}
+
+	// In-place scans (CRI-O, containerd with overlayfs/mount) never store a
+	// tarball, so the image-size check is skipped.
+	for _, tc := range []struct {
+		collector string
+		opts      sbom.ScanOptions
+	}{
+		{collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, UseMount: true}},
+	} {
+		assert.NoError(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
+	}
+
+	// Tarball scans (containerd default, and Docker, which may fall back to the
+	// tarball export) run the image-size check, which fails for this huge image.
+	for _, tc := range []struct {
+		collector string
+		opts      sbom.ScanOptions
+	}{
+		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true}},
+		{collectors.DockerCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
+	} {
+		assert.Error(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
+	}
+
+	// The flat floor still applies to every scan, including in-place ones.
+	assert.Error(t, s.enoughDiskSpace(collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, MinAvailableDisk: math.MaxUint64, OverlayFsScan: true}, imgMeta))
+}
 
 // Test retry handling in case of an error
 func TestRetryLogic_Error(t *testing.T) {
@@ -159,6 +199,61 @@ func TestRetryLogic_Error(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+// TestRetryLogic_NotSupported checks that a scan reported as unsupported is
+// delivered once and then dropped, not retried.
+func TestRetryLogic_NotSupported(t *testing.T) {
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	imageID := "id"
+	workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			ID:   imageID,
+			Kind: workloadmeta.KindContainerImageMetadata,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collName := "mock"
+	mockCollector := collectors.NewMockCollector()
+	resultCh := make(chan sbom.ScanResult, 1)
+	unsupported := sbom.ScanResult{Error: fmt.Errorf("%w: nydus", sbom.ErrScanNotSupported)}
+	mockCollector.On("Options").Return(sbom.ScanOptions{})
+	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(unsupported)
+	mockCollector.On("Channel").Return(resultCh)
+	shutdown := mockCollector.On("Shutdown")
+	shutdown.After(5 * time.Second)
+	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
+
+	// Keep the backoff short so a mistaken retry would show up quickly.
+	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime)
+
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	scanner.Start(ctx)
+
+	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+	assert.NoError(t, err)
+
+	res := <-resultCh
+	assert.ErrorIs(t, res.Error, sbom.ErrScanNotSupported)
+
+	// A retried scan would deliver a second result within the backoff window.
+	select {
+	case res := <-resultCh:
+		t.Errorf("unsupported scan was retried, unexpected result: %v", res)
+	case <-time.After(time.Second):
+	}
+	mockCollector.AssertNumberOfCalls(t, "Scan", 1)
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // BenchAPI handles HTTP API requests for the bench.
@@ -1199,7 +1200,7 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, stats)
 }
 
-// handleScores returns the current ScoreState from the live scorer.
+// handleScores returns the current AnomalyScoreState from the live scorer.
 // GET /api/scores
 func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1208,31 +1209,22 @@ func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 	}
 	sv := api.tb.getStateView()
 	if sv == nil {
-		api.writeJSON(w, observerdef.ScoreState{})
+		api.writeJSON(w, observerdef.AnomalyScoreState{})
 		return
 	}
 	api.writeJSON(w, sv.ScoreState())
 }
 
-// handleScoresConfig returns the server-side default ScorerConfig so the UI
+// handleScoresConfig returns the server-side default AnomalyScorerConfig so the UI
 // never needs to hardcode threshold values. The response also includes
-// cooldown_secs so the Scorer tab can initialise its replay form correctly
-// (cooldown lives on AnomalyScorerConfiguration, not ScorerConfig).
+// cooldown so the Scorer tab can initialise its replay form correctly.
 // GET /api/scores/config
 func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
 		return
 	}
-	type configResponse struct {
-		observerdef.ScorerConfig
-		CooldownSecs int64 `json:"cooldown_secs"`
-	}
-	const defaultCooldownSecs = 300 // mirrors anomaly_scorer.cooldown_secs schema default
-	api.writeJSON(w, configResponse{
-		ScorerConfig: observerimpl.DefaultScorerConfig(),
-		CooldownSecs: defaultCooldownSecs,
-	})
+	api.writeJSON(w, observerimpl.DefaultAnomalyScorerConfig())
 }
 
 // handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
@@ -1243,34 +1235,33 @@ func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) 
 // by timestamp and fed second-by-second, with Advance called once per unique
 // second (and for any empty seconds in between).
 //
-// POST /api/scores/replay   body: { ScorerConfig fields... , "cooldown_secs": N }
+// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown": N }
 func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
 		return
 	}
 
-	// replayRequest embeds ScorerConfig and adds CooldownSecs at the same JSON
-	// level, so the frontend can POST a flat object with all scorer parameters.
-	// CooldownSecs is no longer part of ScorerConfig (it lives on the per-subscription
-	// AnomalyScorerConfiguration), but the UI still sends it alongside the other fields.
+	// replayRequest embeds the EWMA config fields at the top level and adds
+	// CooldownSecs for the subscription, preserving the flat JSON wire format
+	// the UI sends.
 	type replayRequest struct {
-		observerdef.ScorerConfig
+		observerdef.AnomalyScorerConfig
 		CooldownSecs int64 `json:"cooldown_secs"`
 	}
-	req := replayRequest{ScorerConfig: observerimpl.DefaultScorerConfig()}
+	defaults := observerimpl.DefaultAnomalyScorerConfig()
+	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
 		return
 	}
-	cfg := req.ScorerConfig
 	// Replay always keeps all buckets so the UI can render the full time range.
 	// math.MaxInt64 signals "unlimited" to the trim logic (which defaults to WindowSecs when 0).
-	cfg.MaxBuckets = math.MaxInt64
+	req.AnomalyScorerConfig.MaxBuckets = math.MaxInt64
 
 	sv := api.tb.getStateView()
 	if sv == nil {
-		api.writeJSON(w, observerdef.ScoreState{})
+		api.writeJSON(w, observerdef.AnomalyScoreState{})
 		return
 	}
 
@@ -1287,7 +1278,7 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		anomalies = append(anomalies, a)
 	}
 	if len(anomalies) == 0 {
-		api.writeJSON(w, observerdef.ScoreState{Config: cfg})
+		api.writeJSON(w, observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig})
 		return
 	}
 
@@ -1307,17 +1298,21 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		return sorted[i].Timestamp < sorted[j].Timestamp
 	})
 
-	scorer := observerimpl.NewScorer(cfg)
+	scorerCfg := observerimpl.AnomalyScorerConfig{AnomalyScorerConfig: req.AnomalyScorerConfig}
+	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
 
 	first := sorted[0].Timestamp
 	last := sorted[len(sorted)-1].Timestamp
 
 	collector := &scorerEventCollector{}
-	unsubscribe := scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
-		Listener:     collector,
+	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
 		CooldownSecs: req.CooldownSecs,
-	})
-	defer unsubscribe()
+	}, collector)
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
+		return
+	}
+	defer subscription.Unsubscribe()
 
 	ai := 0
 	for sec := first; sec <= last; sec++ {
@@ -1328,22 +1323,21 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		scorer.Advance(sec)
 	}
 
-	// ScoreState no longer carries Events (transitions are subscription-only).
 	// Return a wrapper that adds the collected events alongside the state snapshot.
 	state := scorer.ScoreState()
 	api.writeJSON(w, struct {
-		observerdef.ScoreState
-		Events []observerdef.SeverityEvent `json:"events"`
-	}{ScoreState: state, Events: collector.events})
+		observerdef.AnomalyScoreState
+		Events []severityeventsdef.SeverityEvent `json:"events"`
+	}{AnomalyScoreState: state, Events: collector.events})
 }
 
-// scorerEventCollector implements observerdef.ScorerListener, accumulating every
-// severity transition fired by the scorer's per-subscription state machine.
+// scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating
+// every severity transition fired by the scorer's per-subscription state machine.
 type scorerEventCollector struct {
-	events []observerdef.SeverityEvent
+	events []severityeventsdef.SeverityEvent
 }
 
-func (c *scorerEventCollector) OnSeverityTransition(evt observerdef.SeverityEvent) {
+func (c *scorerEventCollector) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	c.events = append(c.events, evt)
 }
 

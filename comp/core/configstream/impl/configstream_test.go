@@ -8,6 +8,7 @@ package configstreamimpl
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -147,6 +148,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
+	loop:
 		for len(typedValues) < 4 {
 			select {
 			case event := <-eventChan:
@@ -166,7 +168,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					}
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -279,6 +281,24 @@ func TestDiscontinuityResync(t *testing.T) {
 done:
 	if receivedSnapshot {
 		t.Log("✓ Resync mechanism working correctly")
+	}
+}
+
+// TestSubscribeBlocksUntilSnapshotReady guards against Subscribe() returning before
+// the initial snapshot is buffered in the channel.
+func TestSubscribeBlocksUntilSnapshotReady(t *testing.T) {
+	cfg := configmock.New(t)
+	mockLog := logmock.New(t)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
+
+	eventChan, unsubscribe := cs.Subscribe(&pb.ConfigStreamRequest{Name: "test-client"})
+	defer unsubscribe()
+
+	select {
+	case event := <-eventChan:
+		require.NotNil(t, event.GetSnapshot(), "first event after Subscribe() must be a snapshot")
+	default:
+		t.Fatal("snapshot not in channel immediately after Subscribe() returned")
 	}
 }
 
@@ -462,7 +482,7 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
 	})
 
-	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
+	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {
 		provides, configComp := buildComponent(t)
 
 		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-discontinuity"})
@@ -496,6 +516,9 @@ func TestConfigStream(t *testing.T) {
 
 		// verify the snapshot contains the dropped setting
 		require.Equal(t, "dropped_value", configComp.Get("dropped.setting"))
+	}
+	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
+		synctest.Test(t, resyncsWithSnapshotOnDiscontinuity)
 	})
 
 	t.Run("unsubscribe closes channel", func(t *testing.T) {

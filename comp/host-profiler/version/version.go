@@ -20,6 +20,7 @@ const (
 	StandaloneProfilerName = "host-profiler-standalone"
 	OTelProfilerNameKey    = "telemetry.distro.name"
 	OTelProfilerVersionKey = "telemetry.distro.version"
+	OTelContainerIDKey     = "container.id"
 )
 
 var ProfilerVersion = version.AgentVersion

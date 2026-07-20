@@ -360,7 +360,7 @@ void signalHandler(int sig, siginfo_t *info, void *context)
         std::cerr << "Error getting backtrace symbols" << std::endl;
     } else {
         std::cerr << "C-LAND STACKTRACE: " << std::endl;
-        for (int i = 0; i < nptrs; i++) {
+        for (size_t i = 0; i < nptrs; i++) {
             std::cerr << symbols[i] << std::endl;
         }
 

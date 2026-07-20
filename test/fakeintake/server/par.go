@@ -12,7 +12,10 @@ import (
 	"strings"
 	"sync"
 
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
@@ -54,22 +57,137 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	fi.par.queue = fi.par.queue[1:]
 
 	bundleID, actionName := parSplitFQN(task.ActionFQN)
+	remoteAction, actionInputs := parRemoteActionFromInputs(task.Inputs)
+	inputs, err := parStruct(actionInputs)
+	if err != nil {
+		http.Error(w, "invalid task inputs", http.StatusBadRequest)
+		return
+	}
+
+	pbTask := &privateactionspb.PrivateActionTask{
+		ActionName: actionName,
+		BundleId:   bundleID,
+		OrgId:      0,
+		TaskId:     task.TaskID,
+		Inputs:     inputs,
+	}
+	if remoteAction != nil {
+		pbTask.SystemInputs = &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: remoteAction,
+			},
+		}
+	}
+
+	signedTaskData, err := proto.Marshal(pbTask)
+	if err != nil {
+		http.Error(w, "failed to marshal task", http.StatusInternalServerError)
+		return
+	}
+
+	attributes := map[string]interface{}{
+		"name":      actionName,
+		"bundle_id": bundleID,
+		"task_id":   task.TaskID,
+		"job_id":    task.TaskID,
+		"org_id":    0,
+		"inputs":    actionInputs,
+		"signed_envelope": map[string]interface{}{
+			"data": signedTaskData,
+		},
+	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
-			"id":   task.TaskID,
-			"type": "task",
-			"attributes": map[string]interface{}{
-				"name":      actionName,
-				"bundle_id": bundleID,
-				"task_id":   task.TaskID,
-				"job_id":    task.TaskID,
-				"org_id":    0,
-				"inputs":    task.Inputs,
-			},
+			"id":         task.TaskID,
+			"type":       "task",
+			"attributes": attributes,
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb.RemoteAction, map[string]interface{}) {
+	actionInputs := make(map[string]interface{}, len(inputs))
+	for key, value := range inputs {
+		actionInputs[key] = value
+	}
+
+	// rshell policy fields are delivered in the signed task fields in production
+	// (resolved from execution policies by the backend). The runner reads them
+	// from system_inputs.remote_action, not inputs. Surface any flat test inputs
+	// in the serialized task payload so skip-verification e2e flows behave like a
+	// real backend-signed task.
+	remoteAction := &privateactionspb.RemoteAction{}
+	hasRemoteAction := false
+	if v, ok := inputs["allowedCommands"]; ok {
+		if commands, ok := parStringSlice(v); ok {
+			remoteAction.AllowedCommands = commands
+			hasRemoteAction = true
+			delete(actionInputs, "allowedCommands")
+		}
+	}
+	if v, ok := inputs["allowedPaths"]; ok {
+		if paths, ok := parStringSlice(v); ok {
+			remoteAction.AllowedPaths = paths
+			hasRemoteAction = true
+			delete(actionInputs, "allowedPaths")
+		}
+	}
+	if !hasRemoteAction {
+		return nil, actionInputs
+	}
+	return remoteAction, actionInputs
+}
+
+func parStringSlice(value interface{}) ([]string, bool) {
+	switch values := value.(type) {
+	case []string:
+		return values, true
+	case []interface{}:
+		strings := make([]string, 0, len(values))
+		for _, value := range values {
+			if s, ok := value.(string); ok {
+				strings = append(strings, s)
+			}
+		}
+		return strings, true
+	default:
+		return nil, false
+	}
+}
+
+func parStruct(inputs map[string]interface{}) (*structpb.Struct, error) {
+	normalized := make(map[string]interface{}, len(inputs))
+	for key, value := range inputs {
+		normalized[key] = parStructValue(value)
+	}
+	return structpb.NewStruct(normalized)
+}
+
+func parStructValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case []string:
+		values := make([]interface{}, 0, len(v))
+		for _, value := range v {
+			values = append(values, value)
+		}
+		return values
+	case []interface{}:
+		values := make([]interface{}, 0, len(v))
+		for _, value := range v {
+			values = append(values, parStructValue(value))
+		}
+		return values
+	case map[string]interface{}:
+		values := make(map[string]interface{}, len(v))
+		for key, value := range v {
+			values[key] = parStructValue(value)
+		}
+		return values
+	default:
+		return value
+	}
 }
 
 func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {

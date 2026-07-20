@@ -14,7 +14,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -93,7 +93,7 @@ func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) b
 // error on the given entity. The build and resolve paths must use the same id,
 // so both call this helper rather than inlining the string.
 func adAnnotationIssueID(entityName string) string {
-	return "ad-annotation:" + entityName
+	return admisconfig.AnnotationIssueID + ":" + entityName
 }
 
 // reportConfigurationError reports the AD configuration errors for an entity to
@@ -119,13 +119,14 @@ func reportConfigurationError(hp healthplatformdef.Component, entityName string,
 		"errorMessage": errorMsg,
 		"errorSource":  string(errorSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADAnnotationIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			IssueName: admisconfig.AnnotationIssueName,
+			IssueType: admisconfig.AnnotationIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
-			Source:    healthplatformdef.ADMisconfigurationSource,
+			Source:    admisconfig.Source,
 		}
 	} else {
 		issue.Id = issueID

@@ -10,9 +10,9 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -33,9 +33,9 @@ type anomalyDedupKey struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, scorers, extractors, logObservers,
+	// mu protects detectors, correlators, extractors, logObservers,
 	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
-	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetScorers, SetExtractors)
+	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
@@ -43,7 +43,11 @@ type engine struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+
+	// scorer is a typed pointer to the anomaly scorer (when present).
+	// It is also included in correlators for processing; this pointer is used
+	// only for ScoreState() introspection without a type assertion at read time.
+	scorer *anomalyScorer
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -68,26 +72,28 @@ type engine struct {
 	totalAnomalyCount    int             // total count ever (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
 
-	// Accumulated correlations from all advance cycles.
+	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
 	// testbench/replay we want the full history. This map accumulates
 	// every correlation ever seen, keyed by Pattern string, updating
 	// existing entries when the correlator reports a newer version.
+	// In live production mode this field is nil and accumulateCorrelations is a no-op,
+	// so the map write + eviction scan on every Advance is avoided.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
 	// maxCorrelations caps accumulatedCorrelations. 0 = built-in default (500),
-	// -1 = unlimited (testbench replay).
+	// -1 = unlimited (testbench replay). Only meaningful when trackCorrelationHistory.
 	maxCorrelations int
+	// trackCorrelationHistory gates accumulateCorrelations calls. Set from
+	// StorageConfig.TrackCorrelationHistory in ResetForReplay; never set in the
+	// live agent path (newEngine in observer.go).
+	trackCorrelationHistory bool
 
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
 	onStorageCapacityHit   func()
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
-	onScorerEWMA           func(scorerName string, score float64)
-
-	// detectorTags caches "detector:<name>" strings, rebuilt when components change.
-	detectorTags map[string]string
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -118,6 +124,9 @@ type engine struct {
 	// confined to the engine run loop. Lock-free via atomic.Pointer to a
 	// copy-on-write map so we don't add a mutex to the hot path.
 	sourceTagCache atomic.Pointer[map[string]string]
+
+	// baseline is accessed only from the engine run goroutine.
+	baseline *baselineController
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -126,12 +135,19 @@ type engineConfig struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+	// scorer is the optional unified anomaly scorer. When non-nil, it is also
+	// appended to correlators so it participates in the normal correlator loop.
+	scorer *anomalyScorer
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
 	rawAnomalyWindow int64
 	maxRawAnomalies  int
+
+	// trackCorrelationHistory enables the accumulated-correlations map.
+	// Only used in tests and testbench replay; live production engines leave this false.
+	trackCorrelationHistory bool
+	baseline                BaselineConfig
 }
 
 // newEngine creates an engine with the given configuration.
@@ -142,17 +158,27 @@ func newEngine(cfg engineConfig) *engine {
 	}
 	validateUniqueExtractorNames(cfg.extractors)
 
+	// Include the scorer in correlators so it participates in the normal loop.
+	correlators := cfg.correlators
+	if cfg.scorer != nil {
+		correlators = append(correlators, cfg.scorer)
+	}
+
 	e := &engine{
 		storage:     cfg.storage,
 		extractors:  cfg.extractors,
 		detectors:   cfg.detectors,
-		correlators: cfg.correlators,
-		scorers:     cfg.scorers,
+		correlators: correlators,
+		scorer:      cfg.scorer,
 		scheduler:   sched,
 
-		rawAnomalyWindow: cfg.rawAnomalyWindow,
-		maxRawAnomalies:  cfg.maxRawAnomalies,
-		rawAnomalyIndex:  make(map[anomalyDedupKey]int),
+		rawAnomalyWindow:        cfg.rawAnomalyWindow,
+		maxRawAnomalies:         cfg.maxRawAnomalies,
+		rawAnomalyIndex:         make(map[anomalyDedupKey]int),
+		trackCorrelationHistory: cfg.trackCorrelationHistory,
+	}
+	if cfg.baseline.Enabled {
+		e.baseline = newBaselineController(cfg.baseline)
 	}
 
 	// Cache log observers from detectors.
@@ -163,38 +189,6 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	return e
-}
-
-// rebuildDetectorTags rebuilds the cached "detector:<name>" tag strings from
-// the current extractors, detectors, logObservers, and correlators.
-// Called on construction and whenever the component sets change.
-func (e *engine) rebuildDetectorTags() {
-	tags := make(map[string]string)
-	for _, ext := range e.extractors {
-		tags[ext.Name()] = "detector:" + ext.Name()
-	}
-	for _, d := range e.detectors {
-		tags[d.Name()] = "detector:" + d.Name()
-	}
-	for _, lo := range e.logObservers {
-		tags[lo.Name()] = "detector:" + lo.Name()
-	}
-	for _, c := range e.correlators {
-		tags[c.Name()] = "detector:" + c.Name()
-	}
-	for _, sc := range e.scorers {
-		tags[sc.Name()] = "detector:" + sc.Name()
-	}
-	e.detectorTags = tags
-}
-
-// detectorTag returns the cached "detector:<name>" tag string. Falls back to
-// concatenation if the name is not cached (should not happen in practice).
-func (e *engine) detectorTag(name string) string {
-	if tag, ok := e.detectorTags[name]; ok {
-		return tag
-	}
-	return "detector:" + name
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -326,6 +320,14 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
+			// Always canonicalize so the hash computed here matches storage's
+			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
+			tags = canonicalizeTags(tags)
+			if e.baseline != nil && e.baseline.frozen && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+					continue
+				}
+			}
 			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
@@ -336,7 +338,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		lo.ProcessLog(view)
 	}
 	dataTimeSec := l.timestampMs / 1000
-	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
@@ -414,7 +415,8 @@ func (e *engine) schedulerState() schedulerState {
 
 // advanceResult holds the outputs from an Advance call.
 type advanceResult struct {
-	anomalies []observerdef.Anomaly
+	anomalies        []observerdef.Anomaly
+	correlatorEvents []observerdef.CorrelatorEvent
 }
 
 // Advance runs detectors and correlators up to the given event time.
@@ -440,7 +442,6 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	}
 	detectors := e.detectors
 	correlators := e.correlators
-	scorers := e.scorers
 	e.lastAnalyzedDataTime = upToSec
 	e.mu.Unlock()
 
@@ -474,7 +475,15 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		})
 	}
 
-	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators, scorers)
+	if e.baseline != nil {
+		e.baseline.activeAt(upToSec)
+	}
+
+	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
+
+	if e.baseline != nil && e.baseline.shouldFreeze(upToSec) {
+		e.freezeBaseline(upToSec)
+	}
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
@@ -491,10 +500,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,
 		advanceCompleted: &advanceCompletedEvent{
-			advancedToSec: upToSec,
-			reason:        reason,
-			anomalyCount:  len(result.anomalies),
-			anomalies:     result.anomalies,
+			advancedToSec:    upToSec,
+			reason:           reason,
+			anomalyCount:     len(result.anomalies),
+			anomalies:        result.anomalies,
+			correlatorEvents: result.correlatorEvents,
 		},
 	})
 
@@ -510,7 +520,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // correlators to upTo after processing would evict just-formed clusters before
 // they can be accumulated. We accumulate correlations BEFORE advancing so
 // clusters are captured while still alive.
-func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer) advanceResult {
+func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 
 	// Detect, deduplicate, and feed anomalies to correlators.
@@ -549,6 +559,25 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
+			// Baseline gate must precede captureRawAnomaly: scan detectors re-emit
+			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
+			// so captureRawAnomaly would return false (duplicate) before we could mark it.
+			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
+			if e.baseline != nil && e.baseline.activeAt(upTo) {
+				if anomaly.SourceRef != nil {
+					e.baseline.mark(seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
+				}
+				continue
+			}
+			// On the freeze advance activeAt returns false, so anomalies from noisy
+			// series would otherwise enter processAnomaly and land in the correlator
+			// just as the series is being reclaimed. Drop them here instead.
+			if e.baseline != nil && !e.baseline.frozen && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				if _, muted := e.baseline.mutedHashes[h]; muted {
+					continue
+				}
+			}
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
@@ -564,11 +593,30 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 	}
 
-	// Accumulate correlations before advancing — captures clusters formed from
-	// historical-timestamp anomalies before Advance(upTo) evicts them.
+	// Advance correlators and collect pending events.
+	// accumulateCorrelations is called only in testbench mode (trackCorrelationHistory=true)
+	// to avoid map writes + eviction scans on every live Advance.
+	//
+	// Two accumulation paths:
+	//  1. ActiveCorrelations() before Advance — captures currently-open episodes and
+	//     live cluster state (works for all correlators including the scorer's open episode).
+	//  2. EpisodeStarted/EpisodeEnded PendingEvents after Advance — captures scorer
+	//     episodes that closed during this tick (closedEpisodes no longer buffered in scorer).
+	var allCorrelatorEvents []observerdef.CorrelatorEvent
 	for _, correlator := range correlators {
-		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		if e.trackCorrelationHistory {
+			e.accumulateCorrelations(correlator.ActiveCorrelations())
+		}
 		correlator.Advance(upTo)
+		evts := correlator.PendingEvents()
+		if e.trackCorrelationHistory {
+			for _, ce := range evts {
+				if ce.Kind == observerdef.CorrelatorEventEpisodeStarted || ce.Kind == observerdef.CorrelatorEventEpisodeEnded {
+					e.accumulateCorrelations([]observerdef.ActiveCorrelation{ce.Correlation})
+				}
+			}
+		}
+		allCorrelatorEvents = append(allCorrelatorEvents, evts...)
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -578,20 +626,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Advance scorers once per second tick, after all anomalies have been processed.
-	for _, scorer := range scorers {
-		advanceStart := time.Now()
-		scorer.Advance(upTo)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(advanceStart).Nanoseconds()))
-		}
-		if e.onScorerEWMA != nil {
-			e.onScorerEWMA(scorer.Name(), scorer.LastScore())
-		}
-	}
-
 	return advanceResult{
-		anomalies: allAnomalies,
+		anomalies:        allAnomalies,
+		correlatorEvents: allCorrelatorEvents,
 	}
 }
 
@@ -609,17 +646,10 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	a.Context = ctx
 }
 
-// processAnomaly sends an anomaly to all registered correlators and scorers.
+// processAnomaly sends an anomaly to all registered correlators.
 func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	for _, correlator := range e.correlators {
 		correlator.ProcessAnomaly(anomaly)
-	}
-	for _, scorer := range e.scorers {
-		processingStartTime := time.Now()
-		scorer.ProcessAnomaly(anomaly)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 	}
 }
 
@@ -766,6 +796,57 @@ func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 	return result
 }
 
+// freezeBaseline closes the baseline window, optionally reclaims muted series,
+// and emits eventBaselineCompleted. Must be called from the engine run goroutine.
+func (e *engine) freezeBaseline(upToSec int64) {
+	windowAnomalyCount := e.baseline.freeze()
+
+	needRefs := e.baseline.config.MuteNoisyMetrics || e.baseline.config.Verbose
+	var refs []observerdef.SeriesRef
+	if needRefs && len(e.baseline.mutedHashes) > 0 {
+		refs = e.storage.FindRefsByHashes(e.baseline.mutedHashes)
+	}
+
+	// Collect display names before removal (GetSeriesMeta returns nil after RemoveSeriesByRefs).
+	var displayNames []string
+	if e.baseline.config.Verbose {
+		for _, ref := range refs {
+			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
+				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Tags))
+			}
+		}
+		sort.Strings(displayNames)
+	}
+
+	totalSeries := e.storage.TotalSeriesCount("")
+
+	// Emit before removal so testbench sinks can read metadata.
+	e.emit(engineEvent{
+		kind:      eventBaselineCompleted,
+		timestamp: upToSec,
+		baselineCompleted: &baselineCompletedEvent{
+			mutedHashes: e.baseline.mutedHashes,
+			mutedRefs:   refs,
+		},
+	})
+
+	if e.baseline.config.MuteNoisyMetrics && len(refs) > 0 {
+		freed := e.storage.RemoveSeriesByRefs(refs)
+		if len(freed) > 0 {
+			e.fanOutSeriesRemoval(freed)
+		}
+	}
+
+	pkglog.Infof("[observer] baseline window ended: %d/%d series muted from anomaly detection (%d anomalies seen)",
+		len(e.baseline.mutedHashes), totalSeries, windowAnomalyCount)
+
+	if e.baseline.config.Verbose {
+		for _, name := range displayNames {
+			pkglog.Infof("[observer] baseline muted: %s", name)
+		}
+	}
+}
+
 // Storage returns the engine's storage.
 func (e *engine) Storage() *timeSeriesStorage {
 	return e.storage
@@ -792,15 +873,6 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	defer e.mu.Unlock()
 
 	e.correlators = correlators
-}
-
-// SetScorers replaces the engine's scorers.
-func (e *engine) SetScorers(scorers []observerdef.AnomalyScorer) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	e.scorers = scorers
-	e.rebuildDetectorTags()
 }
 
 // SetExtractors replaces the engine's log-metrics extractors. Used when
@@ -833,16 +905,15 @@ func (e *engine) Reset() {
 		correlator.Reset()
 	}
 
-	for _, scorer := range e.scorers {
-		scorer.Reset()
-	}
-
 	for _, extractor := range e.extractors {
 		if resetter, ok := extractor.(interface{ Reset() }); ok {
 			resetter.Reset()
 		}
 	}
 
+	if e.baseline != nil {
+		e.baseline.reset()
+	}
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
@@ -891,11 +962,12 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	for _, scorer := range e.scorers {
-		scorer.Reset()
-	}
 	// Extractors are intentionally NOT reset: their state was built during
 	// log ingestion and is needed by enrichAnomaly during replay.
+
+	if e.baseline != nil {
+		e.baseline.reset()
+	}
 
 	e.resetRawAnomalies()
 	e.resetCorrelations()
@@ -904,16 +976,34 @@ func (e *engine) resetAnalysisState() {
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
 // The caller supplies storageCfg so it owns any non-default retention policy
 // (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
+// If scorer is non-nil it is appended to correlators so it participates in
+// the normal correlator loop.
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) {
 	e.SetDetectors(detectors)
-	e.SetCorrelators(correlators)
-	e.SetScorers(scorers)
+	allCorrelators := correlators
+	if scorer != nil {
+		allCorrelators = append(allCorrelators, scorer)
+	}
+	e.SetCorrelators(allCorrelators)
+	e.mu.Lock()
+	e.scorer = scorer
+	e.mu.Unlock()
 	e.SetExtractors(extractors)
 	e.resetFull()
+	e.replayTimestampsDone.Store(0)
+	e.replayTimestampsTotal.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
 	e.maxCorrelations = storageCfg.MaxCorrelations
+	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
+	if baselineCfg.Enabled {
+		e.baseline = newBaselineController(baselineCfg)
+	} else {
+		e.baseline = nil
+	}
 }
 
 // ExtractorCount returns the number of extractors currently registered.
@@ -993,6 +1083,26 @@ func (e *engine) ReplayStoredData() advanceResult {
 	return advanceResult{
 		anomalies: allAnomalies,
 	}
+}
+
+// FinishReplayStream flushes analysis through the latest observed data time.
+// Unlike ReplayStoredData, it does not reset analysis or walk storage: callers
+// have already advanced analysis synchronously as observations arrived.
+func (e *engine) FinishReplayStream() advanceResult {
+	var allAnomalies []observerdef.Anomaly
+
+	e.replayPhase.Store("detecting")
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		result := e.advanceWithReason(req.upToSec, req.reason)
+		allAnomalies = append(allAnomalies, result.anomalies...)
+	}
+
+	e.replayAdvances.Add(int64(len(endRequests)))
+	e.replayAnomalies.Store(int64(e.TotalAnomalyCount()))
+	e.replayPhase.Store("done")
+
+	return advanceResult{anomalies: allAnomalies}
 }
 
 // ReplayWithLiveSchedule replays stored data but only advances at the timestamps

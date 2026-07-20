@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
+
 package modules
 
 import (
@@ -183,6 +185,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
 	disableWindowsDriver := query.Get("disable_windows_driver")
 	reverseDNS := query.Get("reverse_dns")
+	disableSourcePublicIPCollection := query.Get("disable_source_public_ip_collection")
 	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
@@ -193,17 +196,18 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	}
 
 	return tracerouteutil.Config{
-		DestHostname:              host,
-		DestPort:                  uint16(port),
-		MaxTTL:                    uint8(maxTTL),
-		Timeout:                   time.Duration(timeout),
-		Protocol:                  payload.Protocol(protocol),
-		TCPMethod:                 payload.TCPMethod(tcpMethod),
-		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
-		DisableWindowsDriver:      disableWindowsDriver == "true",
-		ReverseDNS:                reverseDNS == "true",
-		TracerouteQueries:         int(tracerouteQueries),
-		E2eQueries:                int(e2eQueries),
+		DestHostname:                    host,
+		DestPort:                        uint16(port),
+		MaxTTL:                          uint8(maxTTL),
+		Timeout:                         time.Duration(timeout),
+		Protocol:                        payload.Protocol(protocol),
+		TCPMethod:                       payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode:       tcpSynParisTracerouteMode == "true",
+		DisableWindowsDriver:            disableWindowsDriver == "true",
+		ReverseDNS:                      reverseDNS == "true",
+		DisableSourcePublicIPCollection: disableSourcePublicIPCollection == "true",
+		TracerouteQueries:               int(tracerouteQueries),
+		E2eQueries:                      int(e2eQueries),
 	}, nil
 }
 

@@ -11,8 +11,9 @@ _MACOS_OR_WINDOWS = select({
 })
 
 rust_binary(
-    name = "ai-prompt-logger-native-host",
+    name = "ai-usage-agent-native-host",
     srcs = glob(["src/**/*.rs"]),
+    compile_data = ["ai_usage_native_host.yaml.example"],
     edition = "2024",
     target_compatible_with = _MACOS_OR_WINDOWS,
     deps = [
@@ -24,6 +25,9 @@ rust_binary(
         "@crates//:serde_yaml",
         "@crates//:ureq",
     ] + select({
+        "@platforms//os:macos": [
+            "@crates//:libc",
+        ],
         "@platforms//os:windows": [
             "@crates//:windows-registry",
             "@crates//:windows-sys",
@@ -34,7 +38,7 @@ rust_binary(
 
 pkg_files(
     name = "native_host_files",
-    srcs = [":ai-prompt-logger-native-host"],
+    srcs = [":ai-usage-agent-native-host"],
     attributes = select({
         "@platforms//os:windows": None,  # Windows doesn't use Unix permissions.
         "//conditions:default": pkg_attributes(
@@ -72,11 +76,22 @@ pkg_files(
 )
 
 pkg_files(
+    name = "macos_desktop_monitor_launchagent",
+    srcs = ["com.datadoghq.ai-usage-agent.desktop-monitor.plist.example"],
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "etc",
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
     name = "windows_manifest",
     srcs = ["manifest.json"],
     prefix = "bin/agent/dist",
     renames = {
-        "manifest.json": "com.datadoghq.ai_prompt_logger.native_host.json",
+        "manifest.json": "com.datadoghq.ai_usage_agent.native_host.json",
     },
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//packages:__subpackages__"],
@@ -88,8 +103,32 @@ pkg_install(
         ":ai_usage_config_example",
         ":native_host_files",
     ] + select({
-        "@platforms//os:macos": [":macos_launcher"],
+        "@platforms//os:macos": [
+            ":macos_desktop_monitor_launchagent",
+            ":macos_launcher",
+        ],
         "@platforms//os:windows": [":windows_manifest"],
     }),
     target_compatible_with = _MACOS_OR_WINDOWS,
+)
+
+# Windows-only flat layout for the "eudm" fleet installer extension layer. The binary and
+# example config are placed at the layer root, matching the paths that the extension hook expects
+# under ext/eudm/ (see pkg/fleet/installer/packages/datadog_agent_eudm_windows.go). The
+# Chrome manifest and registry entries are created at install time by the extension hook, so only
+# the binary and example config ship in the layer.
+pkg_files(
+    name = "ai_usage_extension_files",
+    srcs = [
+        "ai_usage_native_host.yaml.example",
+        ":ai-usage-agent-native-host",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install-extension",
+    srcs = [":ai_usage_extension_files"],
+    target_compatible_with = ["@platforms//os:windows"],
 )
