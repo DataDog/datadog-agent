@@ -8,7 +8,6 @@
 package ffi
 
 /*
-#cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
 // Forward declarations of Go-exported bridge functions.

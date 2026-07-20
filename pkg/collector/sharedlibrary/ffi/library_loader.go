@@ -28,7 +28,6 @@ import (
 #include <stdlib.h>
 #include <stdint.h>
 
-#cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
 // run_check_with_id passes check_id as the void* ctx argument expected by the

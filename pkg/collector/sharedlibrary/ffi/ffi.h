@@ -8,26 +8,10 @@
 
 #include <stdbool.h>
 
-#include "rtloader_types.h"
+// ---- ACR-compatible types ----
 
-// ---- Legacy types (used by Python checks via rtloader) ----
-
-// aggregator_t stores callbacks used by shared library checks (legacy ABI)
-typedef struct aggregator_s {
-    cb_submit_metric_t cb_submit_metric;
-    cb_submit_service_check_t cb_submit_service_check;
-    cb_submit_event_t cb_submit_event;
-    cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
-    cb_submit_event_platform_event_t cb_submit_event_platform_event;
-} aggregator_t;
-
-// legacy run function (kept for backward compat)
-// (check_id, init_config, instance_config, callbacks, error)
-typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, const char **);
-
-// ---- New ACR-compatible types ----
-
-// Event struct for slim checks (const pointers, signed long ts matching event_t)
+// Event struct for slim checks. All string fields are const pointers and the
+// timestamp is a signed long, matching the ACR check_run ABI.
 typedef struct slim_event_s {
     const char *title;
     const char *text;
