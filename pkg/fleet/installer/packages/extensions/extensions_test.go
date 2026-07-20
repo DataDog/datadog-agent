@@ -390,6 +390,25 @@ func TestInstallSingleRestoresBackupWhenRollbackPreInstallFails(t *testing.T) {
 	assert.NoError(t, statErr, "old sentinel file should be restored even when the rollback pre-install hook fails")
 }
 
+// TestInstallSingleSkipsWhenExistsAndNotReplacing verifies that installSingle is
+// a no-op when the extension is already present on disk and replace is false: the
+// existing installation is left untouched and no hooks run.
+func TestInstallSingleSkipsWhenExistsAndNotReplacing(t *testing.T) {
+	extPath := setupReplaceTest(t)
+	s := fixtures.NewServer(t)
+	pkg, err := oci.NewDownloader(&env.Env{}, http.DefaultClient).Download(
+		context.Background(), s.PackageURL(fixtures.FixtureSimpleV1WithExtension))
+	require.NoError(t, err)
+
+	hooks := &mockHooks{}
+	err = installSingle(context.Background(), pkg, fixtureExtensionName, false, hooks, false /* replace */)
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
+	assert.NoError(t, statErr, "existing extension should be left in place when replace is false")
+	assert.Zero(t, hooks.preInstallCalls, "no hooks should run when the extension already exists and replace is false")
+}
+
 // TestInstallSinglePreRemoveFailurePreservesExtension verifies that when the pre-remove
 // hook fails, the original extension is left untouched (removeSingle bails before
 // os.RemoveAll, so the extension is never removed from disk).

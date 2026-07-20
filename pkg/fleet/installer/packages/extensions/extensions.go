@@ -210,10 +210,12 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
 
-	// Pre-install hook
-	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)
-	if err != nil {
-		return fmt.Errorf("could not prepare extension: %w", err)
+	extensionsPath := getExtensionsPath(pkg.Name, pkg.Version)
+	extensionPath := filepath.Join(extensionsPath, extension)
+
+	if _, statErr := os.Stat(extensionPath); statErr == nil && !replace {
+		log.Debugf("Extension %s already installed and replace is disabled, skipping", extension)
+		return nil
 	}
 
 	// Extract to a temporary directory first
@@ -235,11 +237,9 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 
 	// Move to the final location
-	extensionsPath := getExtensionsPath(pkg.Name, pkg.Version)
 	if err := os.MkdirAll(extensionsPath, 0755); err != nil {
 		return fmt.Errorf("could not create directory for %s: %w", extension, err)
 	}
-	extensionPath := filepath.Join(extensionsPath, extension)
 
 	// moved tracks whether new content has been placed at extensionPath.
 	// backupDir, when non-empty, holds the previous installation for rollback.
@@ -286,6 +286,11 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 		if err = removeSingle(ctx, pkg.Name, pkg.Version, extension, hooks); err != nil {
 			return fmt.Errorf("could not remove existing extension %s: %w", extension, err)
 		}
+	}
+
+	// Pre-install hook
+	if err = hooks.PreInstallExtension(ctx, pkg.Name, extension); err != nil {
+		return fmt.Errorf("could not prepare extension: %w", err)
 	}
 
 	err = paths.Rename(ctx, tmpDir, extensionPath)
