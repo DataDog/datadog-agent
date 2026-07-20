@@ -7,10 +7,13 @@ package agenttelemetry
 
 import (
 	_ "embed"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,6 +77,34 @@ agents:
         DD_AGENT_TELEMETRY_ERRORTRACKING_STARTUP_JITTER_SECONDS: "0"
 `
 
+// withOTelAgentTelemetryFakeintake points the otel-agent container's
+// agent-telemetry logs endpoint at FakeIntake. Unlike DD_LOGS_CONFIG_LOGS_DD_URL
+// and friends, which kubernetesagentparams.WithFakeintake (auto-injected by the
+// kindvm provisioner) already points at FakeIntake, agent_telemetry.logs_dd_url
+// (comp/logs/agent/config/config.go) is a separate config key with its own
+// fallback-to-site, and no framework helper wires it up for Helm-based installs
+// — without this, agent-logs records go to the real intake and this suite's
+// FakeIntake assertions never see them.
+func withOTelAgentTelemetryFakeintake() kubernetesagentparams.Option {
+	return func(p *kubernetesagentparams.Params) error {
+		if p.FakeIntake == nil {
+			return errors.New("withOTelAgentTelemetryFakeintake requires WithFakeintake")
+		}
+		asset := p.FakeIntake.URL.ApplyT(func(url string) (pulumi.Asset, error) {
+			return pulumi.NewStringAsset(fmt.Sprintf(`
+agents:
+  containers:
+    otelAgent:
+      envDict:
+        DD_AGENT_TELEMETRY_LOGS_DD_URL: %q
+        DD_AGENT_TELEMETRY_LOGS_NO_SSL: "true"
+`, url)), nil
+		}).(pulumi.AssetOutput)
+		p.HelmValues = append(p.HelmValues, asset)
+		return nil
+	}
+}
+
 type errorTrackingOTelAgentSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
@@ -90,6 +121,7 @@ func TestErrorTrackingOTelAgentSuite(t *testing.T) {
 					kubernetesagentparams.WithOTelAgent(),
 					kubernetesagentparams.WithOTelConfig(errorTrackingOTelCollectorConfig),
 					kubernetesagentparams.WithHelmValues(errorTrackingOTelAgentEnabledHelmValues),
+					withOTelAgentTelemetryFakeintake(),
 				),
 			),
 		)),
@@ -128,6 +160,7 @@ func (s *errorTrackingOTelAgentSuite) TestPayloadShape() {
 				kubernetesagentparams.WithOTelAgent(),
 				kubernetesagentparams.WithOTelConfig(errorTrackingOTelCollectorConfig),
 				kubernetesagentparams.WithHelmValues(errorTrackingOTelAgentEnabledHelmValues),
+				withOTelAgentTelemetryFakeintake(),
 			),
 		),
 	))
@@ -164,6 +197,7 @@ func (s *errorTrackingOTelAgentSuite) TestDisabledByDefault() {
 				kubernetesagentparams.WithOTelAgent(),
 				kubernetesagentparams.WithOTelConfig(errorTrackingOTelCollectorConfig),
 				kubernetesagentparams.WithHelmValues(errorTrackingOTelAgentDisabledHelmValues),
+				withOTelAgentTelemetryFakeintake(),
 			),
 		),
 	))
