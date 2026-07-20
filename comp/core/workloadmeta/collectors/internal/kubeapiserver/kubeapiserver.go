@@ -132,7 +132,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 // resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
 // to collect metadata from according to the config options that configure
 // metadata collection
-// Pods and/or Deployments are excluded if they have their separate stores and informers
+// Pods, Deployments and Nodes are excluded if they have their separate stores and informers
 // in order to avoid having two collectors collecting the same data.
 func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string {
 	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
@@ -149,6 +149,11 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 		if strings.HasSuffix(resource, "deployments") {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
+			continue
+		}
+
+		if strings.HasSuffix(resource, "nodes") {
+			log.Debugf("skipping nodes from metadata collection because a separate node store is initialised in workload metadata store.")
 			continue
 		}
 
