@@ -13,6 +13,7 @@ Parse `$ARGUMENTS` to determine what to test.
 
 | What | Where |
 |------|-------|
+| E2E test writing guidelines and rules | `test/new-e2e/codereview_guideline.md` |
 | Framework API (environments, provisioners, agentparams) | `test/e2e-framework/AGENTS.md` |
 | Fakeintake API (payload types, client methods, extending) | `test/fakeintake/AGENTS.md` |
 | Setup, prerequisites, running tests | `docs/public/how-to/test/e2e.md` |
@@ -23,8 +24,8 @@ Parse `$ARGUMENTS` to determine what to test.
 | CI trigger rules | `.gitlab-ci.yml` (search for `.on_*_or_e2e_changes`) |
 | Examples | `test/new-e2e/examples/` |
 
-Read the first two files before writing any test. Browse examples and a few real tests
-that match your use case.
+Read the first three files before writing any test. Browse examples and a few real tests
+that match your use case. Make sure to follow _all_ the guidelines specified.
 
 ## Checklist
 
