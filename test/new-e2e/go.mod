@@ -268,7 +268,7 @@ require (
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.29.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.30.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
