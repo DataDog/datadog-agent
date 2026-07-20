@@ -4246,7 +4246,7 @@ func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
 	return false
 }
 
-// TestRefreshGlobalTags covers CONTP-1859: the orch cluster ID tag gets corrected once it becomes available.
+// TestRefreshGlobalTags verifies the orch cluster ID tag gets corrected once it becomes available.
 func TestRefreshGlobalTags(t *testing.T) {
 	recordFlavor := flavor.GetFlavor()
 	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
@@ -4277,7 +4277,7 @@ func TestRefreshGlobalTags(t *testing.T) {
 	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
 }
 
-// TestRefreshGlobalTags_ConcurrentWithEventProcessing must not race, deadlock, or panic under -race (see review comment).
+// TestRefreshGlobalTags_ConcurrentWithEventProcessing must not race, deadlock, or panic under -race.
 func TestRefreshGlobalTags_ConcurrentWithEventProcessing(t *testing.T) {
 	recordFlavor := flavor.GetFlavor()
 	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
