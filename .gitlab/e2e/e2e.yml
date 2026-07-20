@@ -27,8 +27,13 @@
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # Bumped from 12Gi/16Gi: repeatedly OOMKilled (exit 137) during `go: downloading`
+    # while compiling the new-e2e test binary. The pulumi-aws v6->v7/pulumi-awsx v2->v3/
+    # pulumi-eks v3->v4 bump added a lot of transitive deps (k8s client-go, more AWS SDK
+    # services, pulumi-gcp/azure-native, otel, docker/cli) that raised the module's
+    # build-time memory footprint across every new-e2e-* job, not just one.
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 28Gi
     KUBERNETES_CPU_REQUEST: 6
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key

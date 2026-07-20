@@ -354,17 +354,17 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	ctx := context.Background()
-
-	pod, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
-		Limit:         1,
-	})
-	suite.Require().NoError(err)
-	suite.Require().Len(pod.Items, 1)
+	// The cluster-agent is deployed with multiple replicas for HA (see clusterAgent.replicas
+	// in kubernetes_helm.go), but only the leader replica runs cluster checks and reports
+	// "Running Checks"/"kubernetes_state_core" in its status. Picking an arbitrary replica
+	// (e.g. pod.Items[0] from an unordered List()) can hit a follower, which only reports
+	// "Status: Follower, redirecting to leader at ..." and causes these assertions to fail
+	// even though the cluster is perfectly healthy. So resolve the current leader pod first.
+	leaderDcaPodName := suite.testDCALeaderElection()
+	suite.Require().NotEmpty(leaderDcaPodName, "Leader cluster agent pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "status"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
@@ -376,7 +376,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent status --json", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
@@ -390,7 +390,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
@@ -401,7 +401,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
 		suite.Contains(stdout, "agents reporting ===")
@@ -411,6 +411,74 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Log(stdout)
 		}
 	})
+}
+
+// testDCALeaderElection resolves the name of the cluster agent pod which currently holds the
+// leader-election lease, retrying for a while since the lease can take a few seconds to be
+// (re)acquired after the cluster agent pods start. Returns "" if no leader could be determined
+// in time.
+func (suite *k8sSuite) testDCALeaderElection() string {
+	ctx := context.Background()
+	var leaderPodName string
+
+	success := suite.EventuallyWithTf(func(c *assert.CollectT) {
+		// Query the status of an arbitrary cluster agent pod: it could be either the leader
+		// or a follower, but both report the current leader's name.
+		pods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
+			Limit:         1,
+		})
+		if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
+			return
+		}
+		if !assert.Len(c, pods.Items, 1, "Expected at least one running cluster agent pod") {
+			return
+		}
+
+		stdout, stderr, err := suite.podExec("datadog", pods.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Empty(c, stderr, "Standard error of `datadog-cluster-agent status --json` should be empty")
+
+		var blob interface{}
+		if !assert.NoErrorf(c, json.Unmarshal([]byte(stdout), &blob), "Failed to unmarshal JSON output of `datadog-cluster-agent status --json`") {
+			return
+		}
+		blobMap, ok := blob.(map[string]interface{})
+		if !assert.Truef(c, ok, "Failed to assert status JSON output as map[string]interface{}") {
+			return
+		}
+		if !assert.Contains(c, blobMap, "leaderelection", "Field `leaderelection` not found in the JSON output") {
+			return
+		}
+		leaderElection, ok := blobMap["leaderelection"].(map[string]interface{})
+		if !assert.Truef(c, ok, "Failed to assert `leaderelection` as map[string]interface{}") {
+			return
+		}
+		if !assert.Contains(c, leaderElection, "leaderName", "Field `leaderelection.leaderName` not found in the JSON output") {
+			return
+		}
+		name, ok := leaderElection["leaderName"].(string)
+		if !assert.Truef(c, ok, "Failed to assert `leaderelection.leaderName` as string") {
+			return
+		}
+		if !assert.NotEmpty(c, name, "Field `leaderelection.leaderName` is empty in the JSON output") {
+			return
+		}
+
+		// Make sure the reported leader pod actually exists (and hasn't already been replaced).
+		if _, err := suite.K8sClient.CoreV1().Pods("datadog").Get(ctx, name, metav1.GetOptions{}); !assert.NoErrorf(c, err, "Leader pod %q not found", name) {
+			return
+		}
+
+		leaderPodName = name
+	}, 2*time.Minute, 10*time.Second, "Cluster agent leader election did not converge in time")
+
+	if !success {
+		return ""
+	}
+	return leaderPodName
 }
 
 func (suite *k8sSuite) TestNginx() {
@@ -638,7 +706,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -675,7 +743,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -712,7 +780,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -748,7 +816,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -821,7 +889,7 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1355,7 +1423,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^git.commit.sha:`),
-				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`),
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),

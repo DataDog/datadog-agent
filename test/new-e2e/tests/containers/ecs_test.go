@@ -220,7 +220,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -250,7 +250,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -310,7 +310,7 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -477,7 +477,7 @@ func (suite *ecsSuite) TestCPU() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
 				`^git.commit.sha:`,
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -520,8 +520,8 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
-				`^git.commit.sha:`,                                                                 // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -567,8 +567,8 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
 				regexp.MustCompile(`^ecs_container_name:tracegen`),
-				regexp.MustCompile(`^git.commit.sha:`),                                                                 // org.opencontainers.image.revision docker image label
-				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`), // org.opencontainers.image.source   docker image label
+				regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
 				regexp.MustCompile(`^image_id:sha256:`),
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),

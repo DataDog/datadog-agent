@@ -26,6 +26,16 @@ import (
 //go:embed agent_values.yaml
 var agentCustomValuesFmt string
 
+// datadogHelmRepo and defaultAgentChartName mirror the defaults applied by
+// kubernetesagentparams.NewParams. agent.NewHelmInstallation does not fill in
+// a default chart/repo itself, so callers that build agent.HelmInstallationArgs
+// directly (like this one) must set them explicitly, otherwise Pulumi's Helm
+// Release resource is created with an empty chart reference.
+const (
+	datadogHelmRepo       = "https://helm.datadoghq.com"
+	defaultAgentChartName = "datadog"
+)
+
 // Apply creates a kind cluster, deploys the datadog agent, and installs various workloads for testing
 func Apply(ctx *pulumi.Context) error {
 	awsEnv, kindCluster, kindKubeProvider, err := createCluster(ctx)
@@ -113,9 +123,22 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 	// Deploy the agent
 	if awsEnv.AgentDeploy() {
 		customValues := fmt.Sprintf(agentCustomValuesFmt, clusterName)
+
+		chartPath := defaultAgentChartName
+		repoURL := datadogHelmRepo
+		if localChartPath := awsEnv.AgentLocalChartPath(); localChartPath != "" {
+			// A local chart path is a filesystem path, not a repo-relative chart
+			// name, so the repo URL must be cleared or Pulumi will try to
+			// resolve it as "repo/localChartPath".
+			chartPath = localChartPath
+			repoURL = ""
+		}
+
 		helmComponent, err := agent.NewHelmInstallation(awsEnv, agent.HelmInstallationArgs{
 			KubeProvider: kindKubeProvider,
 			Namespace:    "datadog",
+			ChartPath:    chartPath,
+			RepoURL:      repoURL,
 			ValuesYAML: pulumi.AssetOrArchiveArray{
 				pulumi.NewStringAsset(customValues),
 			},

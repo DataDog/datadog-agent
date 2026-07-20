@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,12 +123,28 @@ func (a *agentSuite) Test00OpenSignal() {
 	agentContext := result.Attributes["agent"].(map[string]interface{})
 	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
 
-	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
+	// Trigger the agent event and check for the app signal, retriggering the
+	// event on every attempt: policy reload is asynchronous, so the very
+	// first open() can race ahead of the CWS agent actually activating the
+	// new rule, in which case the signal never arrives no matter how long we
+	// poll for it. Retouching the file on each attempt avoids that race
+	// (mirrors upstream's fix for the same "no log found" signal wait
+	// failure).
+	signalQuery := fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID)
+	var signal *datadog.SecurityMonitoringSignalAttributes
+	a.EventuallyWithT(func(c *assert.CollectT) {
+		a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
 
-	// Check app signal
-	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
-	require.NoError(a.T(), err)
+		resp, err := apiClient.GetAppSignal(signalQuery)
+		if !assert.NoError(c, err, "could not query app signal") {
+			return
+		}
+		if !assert.NotEmpty(c, resp.Data, "no signal found yet") {
+			return
+		}
+		signal = resp.Data[0].Attributes
+	}, 4*time.Minute, 10*time.Second, "could not get app signal for host %s", a.Env().Agent.Client.Hostname())
+	require.NotNil(a.T(), signal, "signal should have been found")
 	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
 	assert.Contains(a.T(), agentContext["rule_id"], agentRuleName, "unable to find tag")
@@ -148,7 +165,10 @@ func (a *agentSuite) Test01FeatureCWSEnabled() {
 	a.Require().NoError(err, "could not get APP key")
 	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
 
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
+	// NOTE: the "host JOIN datadog_agent" ddsql schema used previously stopped
+	// returning rows on the backend; this query mirrors the schema fix applied
+	// upstream (main) for the same "ddsql query didn't return a single row" failure.
+	query := fmt.Sprintf("SELECT hostname, enabled_features->'cws' AS feature_cws_enabled FROM dd.datadog_agents WHERE hostname = '%s' AND enabled_features->'cws' = 'true'", a.Env().Agent.Client.Hostname())
 	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
 		resp, err := ddSQLClient.Do(query)
 		if !assert.NoErrorf(collect, err, "ddsql query failed") {

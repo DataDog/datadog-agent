@@ -27,3 +27,5 @@ services:
       DD_DOGSTATSD_SOCKET: "/opt/datadog-agent/run/dsd.socket"
       DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT: "true"
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    volumes:
+      - /opt/datadog-agent/run:/opt/datadog-agent/run
