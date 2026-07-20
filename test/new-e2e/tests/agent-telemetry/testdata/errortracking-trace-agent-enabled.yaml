@@ -1,0 +1,22 @@
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    flush_interval_seconds: 1
+    bouncer_window_seconds: 0
+    startup_jitter_seconds: 0
+# Deterministic, dependency-free ERROR log for the trace-agent binary: fires
+# once at startup from pkg/trace/remoteconfighandler.New's "RC is disabled"
+# guard clause (apm_config.debug.port == 0 and no other RC product enabled).
+# agent_config.enabled is explicitly re-enabled because apm_sampling: false
+# would otherwise cascade-disable it too (comp/trace/config/impl/setup.go's
+# backward-compat inheritance), leaving RemoteConfigClient nil and skipping
+# the guard clause (and its log) entirely via an earlier nil-client return.
+apm_config:
+  debug:
+    port: 0
+remote_configuration:
+  apm_sampling:
+    enabled: false
+  agent_config:
+    enabled: true
