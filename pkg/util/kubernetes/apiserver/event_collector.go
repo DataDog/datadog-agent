@@ -81,8 +81,7 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 				return nil, err
 			}
 
-			// Filter each page first so events already covered by the checkpoint do
-			// not contribute to that aggregate's memory usage.
+			// Filter each page by lastRV to avoid fetching all events from the API server
 			filterEventListAfterResourceVersion(events, ec.lastRV.Load())
 			return events, nil
 		},
@@ -97,16 +96,6 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	go reflector.Run(stopCh)
 
 	return nil
-}
-
-func filterEventListAfterResourceVersion(events *v1.EventList, threshold uint64) {
-	var filtered []v1.Event
-	for i := range events.Items {
-		if parseResourceVersion(events.Items[i].ResourceVersion) > threshold {
-			filtered = append(filtered, events.Items[i])
-		}
-	}
-	events.Items = filtered
 }
 
 // Drain returns the events buffered since the last call, advancing the
@@ -147,4 +136,23 @@ func (ec *EventCollector) enqueue(ev *v1.Event) {
 	default:
 		ec.dropped.Add(1)
 	}
+}
+
+func filterEventListAfterResourceVersion(events *v1.EventList, threshold uint64) {
+	if threshold == 0 {
+		// If the threshold is 0, that usually means it's a fresh deployment of the DCA.
+		// In order to avoid fetching all events from the API server, we clear the list
+		events.Items = nil
+		events.Continue = ""
+		events.RemainingItemCount = nil
+		return
+	}
+
+	var filtered []v1.Event
+	for i := range events.Items {
+		if parseResourceVersion(events.Items[i].ResourceVersion) > threshold {
+			filtered = append(filtered, events.Items[i])
+		}
+	}
+	events.Items = filtered
 }
