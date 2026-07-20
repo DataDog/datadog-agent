@@ -255,7 +255,9 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	ctx, p.cancelStart = context.WithCancel(ctx)
+	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	p.cancelStart = cancel
 	defer p.logger.Flush()
 
 	cfg, err := p.getRunnerConfig(ctx)
@@ -269,7 +271,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		Modes:         cfg.Modes,
 		ExtraTags:     cfg.Tags,
 	}
-	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+	runCtx = observability.AddCommonTagsToLogs(runCtx, commonTags)
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
 	p.logger.Info("Private action runner executor starting")
@@ -284,7 +286,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
 	go p.encryptionStore.Start()
-	keysManager.Start(ctx)
+	keysManager.Start(runCtx)
 	go func() {
 		keysManager.WaitForReady()
 		p.executorServer.SetReady(true)
@@ -314,7 +316,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	go func() {
 		defer close(p.executorDone)
-		if serveErr := executor.Serve(ctx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
+		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
 			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
 		}
 	}()
