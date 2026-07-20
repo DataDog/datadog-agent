@@ -23,18 +23,14 @@ impl CheckConfig {
 /// config stays readable and easy to grow as the check gains real RC tasks.
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckConfig {
-    #[serde(default)]
     pub task_id: String,
-    #[serde(default)]
     pub scan_data: Vec<SubTask>,
 }
 
 /// A single scan sub task.
 #[derive(Debug, Deserialize)]
 pub struct SubTask {
-    #[serde(default)]
     pub sub_task_id: String,
     // TODO(DSEC-139): remove placeholder response once the postgres backend lands.
-    #[serde(default)]
     pub placeholder_response: Value,
 }
