@@ -71,10 +71,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/serverless/otlp
-# gazelle:exclude pkg/serverless/trace/span_modifer_test.go
-# gazelle:exclude pkg/serverless/trace/span_modifier.go
-# gazelle:exclude pkg/serverless/trace/trace_test.go
-# gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
