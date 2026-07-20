@@ -83,10 +83,25 @@ type llmBody struct {
 	Data [llmBodyBufferSize]byte
 }
 
-// llmReqBody mirrors the eBPF llm_req_body_t struct: the larger request-body
-// capture window (the user's prompt).
-type llmReqBody struct {
+// llmReqParsed is a request body parsed from the request ring buffer: model,
+// provider, messages/prompt, and any tool call + result carried in the request
+// history (a follow-up call). Queued FIFO per connection until a transaction
+// consumes it.
+type llmReqParsed struct {
+	model        string
+	provider     string
+	messages     []llmMessage
+	prompt       string
+	reqToolCalls []llmToolCall
+	toolResults  []llmToolResult
+}
+
+// llmReqEvent mirrors the eBPF llm_req_event_t: a connection key plus a captured
+// request body, streamed once per request.
+type llmReqEvent struct {
+	Key  llmConnKey
 	Len  uint32
+	Pad  uint32
 	Data [llmReqBodyBufferSize]byte
 }
 
@@ -655,7 +670,7 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 // prompt. Returns empty strings when the LLMO maps are not wired up or no body
 // has been captured yet for this connection.
 func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (info llmSpanInfo) {
-	if h.llmConnMap == nil || h.llmBodyMap == nil {
+	if h.llmConnMap == nil {
 		return info
 	}
 
@@ -671,28 +686,17 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		log.Debugf("LLMO: failed to flag connection: %v", err)
 	}
 
-	// Request body -> model + prompt.
-	var reqBody llmReqBody
-	if err := h.llmBodyMap.Lookup(&key, &reqBody); err == nil {
-		n := reqBody.Len
-		if n > llmReqBodyBufferSize {
-			n = llmReqBodyBufferSize
-		}
-		info.model, info.prompt = parseLLMBody(reqBody.Data[:n])
-		info.provider = detectProvider(info.model)
-		info.messages = parseLLMMessages(reqBody.Data[:n], info.provider)
-		// Prefer the last user message as the prompt (with a system message
-		// present, the first "content" is the system prompt, not the user's).
-		for i := len(info.messages) - 1; i >= 0; i-- {
-			if info.messages[i].role == "user" {
-				info.prompt = info.messages[i].content
-				break
-			}
-		}
-		// A follow-up request carries a prior turn's tool call + result in its
-		// history; parse them to reconstruct a workflow (llm + tool spans).
-		info.reqToolCalls = parseToolCalls(reqBody.Data[:n], info.provider)
-		info.toolResults = parseToolResults(reqBody.Data[:n], info.provider)
+	// Request body: streamed via the request ring buffer and queued FIFO per
+	// connection (see the request consumer), so each captured body is consumed
+	// exactly once — no single-slot overwrite when a connection fires several
+	// requests in quick succession (e.g. both turns of a tool conversation).
+	if req, ok := h.dequeueReq(key); ok {
+		info.model = req.model
+		info.provider = req.provider
+		info.messages = req.messages
+		info.prompt = req.prompt
+		info.reqToolCalls = req.reqToolCalls
+		info.toolResults = req.toolResults
 	}
 
 	// Response body tail -> token usage (parsed per provider).
@@ -773,6 +777,61 @@ type llmRespEvent struct {
 // observes every turn's response in order — so a tool-call generation's usage
 // is cached before its follow-up is processed, unlike the poll-batched map
 // reads that only ever see the latest response.
+// StartLLMORequestConsumer consumes streamed request-body events, parses each,
+// and queues it FIFO per connection for captureLLMBody to drain. Streaming (vs
+// a single map slot) means a connection that fires several requests in quick
+// succession delivers every body, in order, instead of overwriting.
+func (h *StatKeeper) StartLLMORequestConsumer(m *ebpf.Map) error {
+	reader, err := ringbuf.NewReader(m)
+	if err != nil {
+		return err
+	}
+	h.llmReqReader = reader
+	go func() {
+		for {
+			rec, err := reader.Read()
+			if err != nil {
+				return // reader closed on shutdown
+			}
+			h.processLLMRequestEvent(rec.RawSample)
+		}
+	}()
+	return nil
+}
+
+// processLLMRequestEvent parses one streamed request body and queues it for the
+// connection.
+func (h *StatKeeper) processLLMRequestEvent(sample []byte) {
+	var ev llmReqEvent
+	if err := binary.Read(bytes.NewReader(sample), binary.LittleEndian, &ev); err != nil {
+		return
+	}
+	n := ev.Len
+	if n > llmReqBodyBufferSize {
+		n = llmReqBodyBufferSize
+	}
+	raw := ev.Data[:n]
+
+	var req llmReqParsed
+	req.model, req.prompt = parseLLMBody(raw)
+	req.provider = detectProvider(req.model)
+	req.messages = parseLLMMessages(raw, req.provider)
+	// Prefer the last user message as the prompt (a system message makes the
+	// first "content" the system prompt, not the user's).
+	for i := len(req.messages) - 1; i >= 0; i-- {
+		if req.messages[i].role == "user" {
+			req.prompt = req.messages[i].content
+			break
+		}
+	}
+	// A follow-up request carries a prior turn's tool call + result in its
+	// history; parse them to reconstruct a workflow (llm + tool spans).
+	req.reqToolCalls = parseToolCalls(raw, req.provider)
+	req.toolResults = parseToolResults(raw, req.provider)
+
+	h.enqueueReq(ev.Key, req)
+}
+
 // StartLLMOResponseConsumer is exported so the HTTP/2 protocol can start it.
 func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 	reader, err := ringbuf.NewReader(m)

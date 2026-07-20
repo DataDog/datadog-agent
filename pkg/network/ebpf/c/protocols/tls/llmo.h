@@ -43,13 +43,10 @@ typedef struct {
 typedef struct {
     __u32 len;
     __u8 data[LLM_REQ_BUFFER_SIZE];
-} llm_req_body_t;
+} llm_req_body_t; // retained for the userspace struct size; body is streamed via llm_request_events
 
 // Connections flagged by userspace as LLM traffic; gates body capture.
 BPF_HASH_MAP(llm_monitored_connections, llm_conn_key_t, __u8, 1024)
-// Latest captured request body per LLM connection (read by userspace). Uses the
-// larger llm_req_body_t; fewer entries to bound the extra memory.
-BPF_HASH_MAP(llm_request_bodies, llm_conn_key_t, llm_req_body_t, 256)
 // Latest captured response body TAIL per LLM connection (read by userspace).
 // The token usage object lives near the end of the response JSON.
 BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
@@ -58,8 +55,20 @@ BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
 BPF_HASH_MAP(llm_response_heads, llm_conn_key_t, llm_body_t, 1024)
 // Per-CPU scratch to build the body off-stack (avoids the 512B stack limit).
 BPF_PERCPU_ARRAY_MAP(llm_body_scratch, llm_body_t, 1)
-// Per-CPU scratch for the larger request body.
-BPF_PERCPU_ARRAY_MAP(llm_req_scratch, llm_req_body_t, 1)
+
+// llm_req_event_t streams each captured request body to userspace as it is
+// written. Streaming (vs a single per-connection map slot) means a connection
+// firing several requests in quick succession — e.g. both turns of a tool
+// conversation — no longer overwrites the previous body before userspace reads
+// it: every request body is delivered, in order.
+typedef struct {
+    llm_conn_key_t key;
+    __u32 len;
+    __u32 _pad;
+    __u8 data[LLM_REQ_BUFFER_SIZE];
+} llm_req_event_t;
+BPF_RINGBUF_MAP(llm_request_events, 1 << 21)
+BPF_PERCPU_ARRAY_MAP(llm_req_event_scratch, llm_req_event_t, 1)
 
 // llm_resp_event_t streams a large window from the START of each response to
 // userspace as it completes. A continuous consumer sees every turn in order —
@@ -133,15 +142,16 @@ static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffe
     log_debug("[llmo] gate HIT, capturing len=%llu", len);
 
     const __u32 zero = 0;
-    llm_req_body_t *body = bpf_map_lookup_elem(&llm_req_scratch, &zero);
-    if (body == NULL) {
+    llm_req_event_t *ev = bpf_map_lookup_elem(&llm_req_event_scratch, &zero);
+    if (ev == NULL) {
         return;
     }
 
-    body->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
-    llmo_read_req_body(body->data, buffer);
-    bpf_map_update_with_telemetry(llm_request_bodies, &key, body, BPF_ANY);
-    log_debug("[llmo] body stored len=%u", body->len);
+    ev->key = key;
+    ev->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
+    llmo_read_req_body(ev->data, buffer);
+    bpf_ringbuf_output(&llm_request_events, ev, sizeof(*ev), 0);
+    log_debug("[llmo] body streamed len=%u", ev->len);
 }
 
 // llmo_maybe_capture_response captures the TAIL of the decrypted response
