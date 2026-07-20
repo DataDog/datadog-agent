@@ -306,48 +306,6 @@ def get_build_tags(include, exclude):
     return list(known_include - known_exclude)
 
 
-@task
-def audit_tag_impact(ctx, build_exclude=None, csv=False):
-    """
-    Measure each tag's contribution to the binary size
-    """
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(IOT_AGENT_TAGS))
-
-    max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
-    print(f"size with all tags is {max_size / 1000} kB")
-
-    iot_agent_size = _compute_build_size(ctx, flavor=AgentFlavor.iot)
-    print(f"iot agent size is {iot_agent_size / 1000} kB\n")
-
-    report = {"unaccounted": max_size - iot_agent_size, "iot_agent": iot_agent_size}
-
-    for tag in tags_to_audit:
-        exclude_string = ','.join(build_exclude + [tag])
-        size = _compute_build_size(ctx, build_exclude=exclude_string)
-        delta = max_size - size
-        print(f"tag {tag} adds {delta / 1000} kB (excludes: {exclude_string})")
-        report[tag] = delta
-        report["unaccounted"] -= delta
-
-    if csv:
-        print("\nCSV output in bytes:")
-        for k, v in report.items():
-            print(f"{k};{v}")
-
-
-def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
-    import os
-
-    from .agent import build as agent_build
-
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor)
-
-    statinfo = os.stat('bin/agent/agent')
-    return statinfo.st_size
-
-
 def compute_config_build_tags(
     targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
 ):
