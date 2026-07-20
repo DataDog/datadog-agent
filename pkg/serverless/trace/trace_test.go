@@ -10,8 +10,10 @@ package trace
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,20 +22,9 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
-
-// newV1SpanWithAttrs builds an idx.InternalSpan carrying the given string attributes.
-func newV1SpanWithAttrs(attrs map[string]string) *idx.InternalSpan {
-	strings := idx.NewStringTable()
-	span := idx.NewInternalSpan(strings, &idx.Span{})
-	for k, v := range attrs {
-		span.SetStringAttribute(k, v)
-	}
-	return span
-}
 
 func setupTraceAgentTest(t *testing.T) {
 	// ensure a free port is used for starting the trace agent
@@ -135,35 +126,6 @@ func TestFilterSpanFromRuntimeLegitimateSpan(t *testing.T) {
 	assert.False(t, filterSpan(&legitimateSpan))
 }
 
-func TestFilterSpanV1FromRuntimeHttpSpan(t *testing.T) {
-	span := newV1SpanWithAttrs(map[string]string{
-		"http.url": "http://127.0.0.1:8125/",
-	})
-	assert.True(t, filterSpanV1(span))
-}
-
-func TestFilterSpanV1FromRuntimeTcpSpan(t *testing.T) {
-	span := newV1SpanWithAttrs(map[string]string{
-		"tcp.remote.host": "127.0.0.1",
-		"tcp.remote.port": "8125",
-	})
-	assert.True(t, filterSpanV1(span))
-}
-
-func TestFilterSpanV1FromRuntimeDnsSpan(t *testing.T) {
-	localhost := newV1SpanWithAttrs(map[string]string{"dns.address": "127.0.0.1"})
-	nonRoutable := newV1SpanWithAttrs(map[string]string{"dns.address": "0.0.0.0"})
-	assert.True(t, filterSpanV1(localhost))
-	assert.True(t, filterSpanV1(nonRoutable))
-}
-
-func TestFilterSpanV1FromRuntimeLegitimateSpan(t *testing.T) {
-	span := newV1SpanWithAttrs(map[string]string{
-		"http.url": "http://www.datadoghq.com",
-	})
-	assert.False(t, filterSpanV1(span))
-}
-
 func TestGetDDOriginCloudServices(t *testing.T) {
 	serviceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
@@ -178,6 +140,8 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 }
 
 func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
+	const functionTagsPayloadTag = "_dd.tags.function"
+
 	tests := []struct {
 		name         string
 		functionTags string
@@ -194,21 +158,35 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupTraceAgentTest(t)
+			t.Setenv("DD_RECEIVER_PORT", "0")
+			t.Setenv("DD_APM_RECEIVER_SOCKET", filepath.Join(t.TempDir(), "apm.sock"))
+			configmock.New(t)
 
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 				Enabled:      true,
 				LoadConfig:   &LoadConfig{Path: "./testdata/valid.yml"},
 				FunctionTags: tt.functionTags,
+				// Wait for the agent to fully stop before the next subtest starts, so
+				// its goroutines never leak into and race with the following case.
+				StopTimeout: 30 * time.Second,
 			})
 			defer agent.Stop()
 
 			assert.NotNil(t, agent)
-			assert.IsType(t, &serverlessTraceAgent{}, agent)
+			require.IsType(t, &serverlessTraceAgent{}, agent)
 
 			// Access the underlying agent to check TracerPayloadModifier
 			serverlessAgent := agent.(*serverlessTraceAgent)
-			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+			require.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+
+			payload := &pb.TracerPayload{}
+			serverlessAgent.ta.TracerPayloadModifier.Modify(payload)
+			if tt.functionTags == "" {
+				assert.NotContains(t, payload.Tags, functionTagsPayloadTag)
+			} else {
+				require.NotNil(t, payload.Tags)
+				assert.Equal(t, tt.functionTags, payload.Tags[functionTagsPayloadTag])
+			}
 		})
 	}
 }

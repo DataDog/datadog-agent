@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "socket",
@@ -20,7 +21,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "socket_test",
     srcs = [
         "datagram_tailer_test.go",
@@ -28,7 +29,6 @@ go_test(
         "syslog_bench_test.go",
     ],
     embed = [":socket"],
-    gotags = ["test"],
     deps = [
         "//comp/logs/agent/config",
         "//pkg/config/mock",

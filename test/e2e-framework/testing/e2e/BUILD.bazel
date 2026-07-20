@@ -18,7 +18,7 @@ go_library(
         "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/infra",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",

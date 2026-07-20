@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"os"
 	"runtime"
@@ -36,17 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
-// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
-// Using a map ensures each prefix is only registered once.
-// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
-var (
-	registeredDelegatedAuthConfigs   = make(map[string]string)
-	registeredDelegatedAuthConfigsMu sync.Mutex
-)
-
 const (
-
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -268,11 +257,6 @@ func InitConfigObjects() {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs = make(map[string]string)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// -------------------------------------------------------------
 	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
 	// Add them to common_settings.go instead
@@ -678,34 +662,15 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	// Copy the registered configs map while holding the lock to avoid races during iteration
-	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for prefix, apiKeyConfigKey := range configsCopy {
-		// Build the config key prefix for delegated_auth settings
-		var configPrefix string
-		if prefix == "" {
-			configPrefix = "delegated_auth"
-		} else {
-			configPrefix = prefix + ".delegated_auth"
-		}
-
+	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		// Build description for logging
-		description := "global"
-		if prefix != "" {
-			description = prefix
-		}
-
-		log.Infof("Configuring delegated authentication for '%s'", description)
+		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
@@ -713,11 +678,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			APIKeyConfigKey: apiKeyConfigKey,
+			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey: section.apiKeyPath,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
@@ -752,21 +717,6 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-
-	// Register this prefix for use in configureDelegatedAuth
-	// Build the API key config key
-	var apiKeyConfigKey string
-	if prefix == "" {
-		apiKeyConfigKey = "api_key"
-	} else {
-		apiKeyConfigKey = prefix + ".api_key"
-	}
-
-	// Map automatically handles duplicates - repeated registrations just overwrite with same value
-	// Use mutex to protect concurrent access during tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
-	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -1144,8 +1094,8 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
-// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, and
-// Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
 // is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
@@ -1168,7 +1118,7 @@ func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLooku
 	}
 
 	switch {
-	case goos == "linux", goos == "darwin":
+	case goos == "linux", goos == "darwin", goos == "aix":
 		return
 	case goos == "windows":
 		if config.GetBool("process_manager.enabled") {
