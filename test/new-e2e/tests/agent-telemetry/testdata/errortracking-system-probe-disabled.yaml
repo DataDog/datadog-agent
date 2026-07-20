@@ -1,0 +1,13 @@
+agent_telemetry:
+  # enabled defaults to true.
+  errortracking:
+    # enabled is intentionally omitted so it falls back to its default (false):
+    # this test asserts error tracking is OFF by default. The short flush interval
+    # makes the negative assertion meaningful — if a regression flipped the default
+    # to true, the forwarder would flush within 1s and the test would catch it.
+    flush_interval_seconds: 1
+    bouncer_window_seconds: 0
+    startup_jitter_seconds: 0
+network_path:
+  collector:
+    filters: "not-a-valid-filter"
