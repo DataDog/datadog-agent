@@ -37,6 +37,11 @@ COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
+# Install libjemalloc in a throwaway stage so only the .so (not the package docs/dpkg metadata)
+# lands in the final image.
+FROM baseimage AS jemalloc
+RUN apt update && apt install --no-install-recommends -y libjemalloc2
+
 FROM baseimage AS extract-base
 RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
@@ -260,7 +265,13 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+# Swap the C/Python allocator to jemalloc to curb glibc arena fragmentation from
+# multi-threaded Python checks (postgres, kafka_consumer, ...). Copy only the .so from the
+# throwaway jemalloc stage (no package docs/metadata). Dest dir keeps the basename, so this is
+# arch-agnostic (aarch64/x86_64). Keep nosys.so in the preload list.
+COPY --from=jemalloc /usr/lib/*/libjemalloc.so.2 /opt/lib/
+ENV LD_PRELOAD=/opt/lib/libjemalloc.so.2:/opt/lib/nosys.so
+ENV MALLOC_CONF=background_thread:true
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
