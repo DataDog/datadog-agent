@@ -24,6 +24,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -132,6 +133,14 @@ def build(
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
+
+    if "vrl" in build_tags:
+        # cgo needs to find the vrl_filter static lib at link time on every platform (Linux,
+        # macOS and Windows all hit "library 'vrl_filter' not found" otherwise); nothing else
+        # builds it, so install it here (mirrors tasks/system_probe.py's
+        # RUST_STATIC_LIBS/build_rust_binaries for the sibling pkg/discovery/module/rust cgo bridge).
+        with gitlab_section("Install VRL Rust static library", collapsed=True):
+            bazel(ctx, "run", "--", "@//pkg/logs/vrl/rust:install_libs", "--destdir=pkg/logs/vrl/rust")
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))

@@ -105,6 +105,9 @@ var (
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetryimpl.GetCompatComponent().NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
 
+	// TlmVRLEvalErrors tracks the count of VRL processing rule runtime errors (filter or transform).
+	TlmVRLEvalErrors = telemetryimpl.GetCompatComponent().NewCounter("logs", "vrl_eval_errors", []string{"rule_type", "rule_name"}, "Count of VRL processing rule runtime errors")
+
 	// TlmLogLineSizes is a distribution of post-framer log line sizes
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})

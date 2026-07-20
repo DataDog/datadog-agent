@@ -245,6 +245,7 @@ core,github.com/DataDog/ddtrivy/walker,Apache-2.0,"Copyright 2025-Present Datado
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
+core,github.com/DataDog/fastjq,Apache-2.0,"Copyright 2026-Present Datadog, Inc"
 core,github.com/DataDog/go-acl,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/DataDog/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -3061,6 +3062,7 @@ core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2024 Uber Technologie
 core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/zaptest/observer,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go.yaml.in/yaml/v4,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors

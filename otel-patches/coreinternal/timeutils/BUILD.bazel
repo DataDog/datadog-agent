@@ -1,0 +1,37 @@
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timeutils",
+    srcs = [
+        "doc.go",
+        "parser.go",
+        "ticker_helper.go",
+    ],
+    cgo = True,
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@@gazelle++go_deps+com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//timeutils/internal/ctimefmt",
+        "@com_github_elastic_lunes//:lunes",
+    ],  # keep
+)
+
+go_test(
+    name = "timeutils_test",
+    # strptime_cgo_test.go deliberately omitted: it exercises CStrptime, which only exists in
+    # strptime_cgo_testlib.go - disabled via an always-false build tag to fix the tm_gmtoff
+    # compile error (see otel-patches/coreinternal/timeutils/strptime_cgo_testlib.go).
+    srcs = [
+        "package_test.go",
+        "parser_test.go",
+        "strptime_test.go",
+        "ticker_test.go",
+    ],  # keep
+    embed = [":timeutils"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

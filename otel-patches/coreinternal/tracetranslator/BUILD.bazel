@@ -1,0 +1,9 @@
+load("@@rules_go+//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracetranslator",
+    srcs = ["protospan_translation.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator",  # keep
+    visibility = ["//visibility:public"],
+    deps = ["@io_opentelemetry_go_collector_pdata//ptrace"],
+)

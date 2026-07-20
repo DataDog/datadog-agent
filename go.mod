@@ -554,6 +554,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.80.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/vrl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.82.0-devel.0.20260617134427-74e6d071eaae // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.82.0-devel.0.20260617134427-74e6d071eaae // indirect
@@ -564,6 +565,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.80.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.10.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
@@ -1167,6 +1169,15 @@ replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/
 // the main module is written against.
 replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1-0.20260305014005-ffe7023c481d
 
+// DATADOG LOCAL PATCH: opentelemetry-collector-contrib/internal/coreinternal@v0.156.0 added a
+// cgo file (timeutils/strptime_cgo_testlib.go) that's only meant to support one of its own unit
+// tests, but lacks a proper test-only build constraint, so it compiles into any production build
+// that imports this package with cgo enabled on unix - including cmd/agent, now that OTTL's
+// condition parser pulls this package in transitively. otel-patches/coreinternal is an
+// unmodified copy of the real v0.156.0 source with only that one file's build tag changed so it
+// never compiles; nothing else differs. See CI job datadog-agent-7-x64 for the original failure.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal => ./otel-patches/coreinternal
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-069
@@ -1290,6 +1301,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/otel-patches/coreinternal => ./otel-patches/coreinternal
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -1318,6 +1330,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ./pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/vrl => ./pkg/logs/vrl
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ./pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload

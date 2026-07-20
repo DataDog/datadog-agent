@@ -23,6 +23,8 @@ go_library(
         "//pkg/logs/message",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//pb",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//contexts/ottllog",
+        "@io_opentelemetry_go_collector_pdata//plog",
     ],
 )
 

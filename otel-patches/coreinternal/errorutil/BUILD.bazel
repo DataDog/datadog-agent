@@ -1,0 +1,16 @@
+load("@@rules_go+//go:def.bzl", "go_library")
+
+go_library(
+    name = "errorutil",
+    srcs = [
+        "grpc.go",
+        "http.go",
+    ],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/errorutil",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

@@ -1,0 +1,9 @@
+logs:
+  - type: file
+    path: "/smp-shared/*.log"
+    service: benchmark
+    source: benchmark
+    log_processing_rules:
+      - type: include_at_jq_match
+        name: jq_only
+        pattern: select(.seed < 32768)
