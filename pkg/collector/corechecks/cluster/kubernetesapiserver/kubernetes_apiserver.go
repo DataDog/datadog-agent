@@ -52,7 +52,7 @@ const (
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
-	defaultEventCollectionBufferSize   = 10000
+	defaultEventCollectionBufferSize   = 3000
 
 	// eventCollectionModePoll re-opens a watch against the API server on every check run (legacy behavior).
 	eventCollectionModePoll = "poll"
