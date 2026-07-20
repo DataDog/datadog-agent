@@ -109,7 +109,7 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 
 // TestDisabledByDefault verifies that when the errortracking stanza omits
 // `enabled` (defaulting to false), no agent-logs records reach FakeIntake
-// even though the filters unmarshal error keeps firing locally.
+// even though the filters unmarshal error fired locally.
 func (s *errorTrackingSystemProbeSuite) TestDisabledByDefault() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
@@ -121,20 +121,16 @@ func (s *errorTrackingSystemProbeSuite) TestDisabledByDefault() {
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	// Clear the log file after resetting FakeIntake so the wait below only
-	// matches an occurrence generated after the reset, not a stale one from
-	// before it.
-	s.Env().RemoteHost.MustExecute("sudo truncate -s 0 /var/log/datadog/system-probe.log")
-
-	// Wait until the filter unmarshal error appears in system-probe's own log
-	// file, confirming the error is generated locally before asserting it is
-	// not forwarded to telemetry.
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		out, execErr := s.Env().RemoteHost.Execute(
-			"sudo grep -cF -- '" + systemProbeFilterErrorMessage + "' /var/log/datadog/system-probe.log || true")
-		assert.NoError(c, execErr)
-		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for filter unmarshal error to appear in system-probe log")
+	// Unlike the core-agent suite's check-based trigger, the filter unmarshal
+	// error fires exactly once, during npcollectorimpl.NewComponent at Fx graph
+	// construction — it does not recur on a schedule. By the time UpdateEnv
+	// returns, system-probe has already started and the error has already been
+	// logged, so confirm it directly rather than truncating and waiting for a
+	// recurrence that will never happen.
+	out, execErr := s.Env().RemoteHost.Execute(
+		"sudo grep -cF -- '" + systemProbeFilterErrorMessage + "' /var/log/datadog/system-probe.log || true")
+	require.NoError(s.T(), execErr)
+	require.NotEqual(s.T(), "0", strings.TrimSpace(out), "filter unmarshal error must have fired locally")
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
 	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
