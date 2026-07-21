@@ -12,14 +12,27 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
-// suppressGoCoverWarning suppresses the go cover warning when the coverage pipeline is enabled
+const goCoverDirWarning = "warning: GOCOVERDIR not set, no coverage data emitted"
+
+// suppressGoCoverWarning suppresses the go cover warning when the coverage pipeline is enabled.
 func suppressGoCoverWarning(s string) string {
 	coveragePipeline, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
-	if err != nil {
+	if err != nil || !coveragePipeline {
 		return s
 	}
-	if coveragePipeline {
-		return strings.ReplaceAll(s, "warning: GOCOVERDIR not set, no coverage data emitted\n", "")
+	return removeGoCoverWarningLines(s)
+}
+
+// removeGoCoverWarningLines removes entire lines containing the coverage warning. The warning can be
+// part of a prefixed agent log line, so removing only the warning text would join the prefix to the
+// following line and could corrupt structured output.
+func removeGoCoverWarningLines(s string) string {
+	var output strings.Builder
+	for _, line := range strings.SplitAfter(s, "\n") {
+		if strings.Contains(line, goCoverDirWarning) {
+			continue
+		}
+		output.WriteString(line)
 	}
-	return s
+	return output.String()
 }

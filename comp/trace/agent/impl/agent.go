@@ -151,6 +151,9 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		}
 		return deps.Secrets.RefreshNow()
 	}
+	tracecfg.APIKeyIsFromSecretFn = func(apiKey string) bool {
+		return deps.Secrets != nil && deps.Secrets.IsValueFromSecret(apiKey)
+	}
 
 	c.Agent = pkgagent.NewAgent(
 		ctx,

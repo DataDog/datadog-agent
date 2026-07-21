@@ -45,6 +45,7 @@ go_test(
         "runner_test.go",
         "utils_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":jmxfetch"],
     gotags = ["test"],
     deps = [

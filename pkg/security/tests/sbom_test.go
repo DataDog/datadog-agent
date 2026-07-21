@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-
-	"github.com/avast/retry-go/v4"
 )
 
 func TestSBOM(t *testing.T) {
@@ -90,7 +89,7 @@ func TestSBOM(t *testing.T) {
 		}
 
 		test.WaitSignalFromRule(t, func() error {
-			retry.Do(func() error {
+			retry(t, func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
 				if sbom == nil {
 					return fmt.Errorf("failed to find SBOM for '%s'", dockerWrapper.containerID)
@@ -99,7 +98,7 @@ func TestSBOM(t *testing.T) {
 					return fmt.Errorf("report hasn't been generated for '%s'", dockerWrapper.containerID)
 				}
 				return nil
-			}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+			}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 			cmd := cmdFunc("/bin/touch", []string{"/usr/lib/os-release"}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
