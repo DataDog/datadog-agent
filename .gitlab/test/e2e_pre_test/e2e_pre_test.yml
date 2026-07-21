@@ -18,5 +18,7 @@ e2e_pre_test:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   variables:
     TEAM: "agent-devx"
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
     # override to use latest stable agent
     E2E_PIPELINE_ID: ""
