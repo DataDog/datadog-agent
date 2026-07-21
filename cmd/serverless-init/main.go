@@ -92,8 +92,13 @@ const (
 	// to exit. Best-effort; logs a warning on overrun and continues shutdown.
 	traceStopTimeout = 2500 * time.Millisecond
 
-	// logsFlushTimeout bounds the flush of buffered customer log records via
-	// flushLogsAgent. Strict ctx; cancels in-progress sends on overrun.
+	// logsFlushTimeout bounds flushLogsAgent's combined drain-then-flush of
+	// buffered customer log records: DrainTailers stops the file/channel
+	// tailers so each performs one final EOF read into the pipeline, then
+	// Flush ships it. Strict ctx shared by both steps; cancels in-progress
+	// work on overrun. The drain step is normally sub-millisecond (one final
+	// read of the small cold-start file), so the budget is unchanged from
+	// when this bounded only the flush.
 	logsFlushTimeout = 1500 * time.Millisecond
 
 	// metricsAggregatorStopTimeoutSeconds bounds the demux Stop: forces a
@@ -384,8 +389,9 @@ func run(
 	//      time-sampler workers during step 5's demux drain.
 	//   3. trace agent stops (drains traces, flushes stats, sends) — bounded
 	//      by traceStopTimeout (2.5 s).
-	//   4. logs agent flushes any buffered records — bounded by
-	//      logsFlushTimeout (1.5 s).
+	//   4. logs agent drains its tailers (forcing a final EOF read of any
+	//      line written just before SIGTERM) and then flushes any buffered
+	//      records — both bounded together by logsFlushTimeout (1.5 s).
 	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
 	//      and the metrics pipeline flushes itself (no external orchestration):
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
@@ -624,15 +630,20 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 	otlpAgent.Start()
 }
 
-// flushLogsAgent flushes the logs agent with a bounded timeout. Metrics are
-// flushed by the demultiplexer's Fx OnStop hook (demux.Stop()), so this
-// helper is logs-only.
+// flushLogsAgent drains the logs agent's tailers and flushes it, bounded by
+// a single timeout. Draining first forces the file tailer's final EOF read
+// (see ServerlessLogsAgent.DrainTailers) so a line written right before
+// SIGTERM - which the CPU-throttled tailer never got scheduled to read - is
+// captured before the pipeline is flushed and shipped. Metrics are flushed
+// by the demultiplexer's Fx OnStop hook (demux.Stop()), so this helper is
+// logs-only.
 func flushLogsAgent(flushTimeout time.Duration, agent logsAgent.ServerlessLogsAgent) {
 	if agent == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
+	agent.DrainTailers(ctx)
 	agent.Flush(ctx)
 }
 

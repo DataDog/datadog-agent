@@ -58,3 +58,25 @@ func (a *logAgent) Flush(ctx context.Context) {
 	a.pipelineProvider.Flush(ctx)
 	a.log.Debug("Flush in the logs-agent done.")
 }
+
+// DrainTailers stops the source launchers (file, channel, ...) so every
+// tailer performs one final read to EOF - via Tailer.Stop(), which blocks
+// until its decoder has flushed into the pipeline - before returning. The
+// pipeline itself (pipelineProvider, auditor, destinationsCtx) is left
+// running so the caller's subsequent Flush can still ship the drained
+// messages. Runs the stop in a goroutine and bounds it with ctx so a stuck
+// tailer cannot consume the whole shutdown budget.
+func (a *logAgent) DrainTailers(ctx context.Context) {
+	a.log.Info("Draining logs-agent tailers before flush")
+	done := make(chan struct{})
+	go func() {
+		a.launchers.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+		a.log.Debug("Drain of logs-agent tailers done.")
+	case <-ctx.Done():
+		a.log.Warn("DrainTailers hit its deadline before all tailers finished")
+	}
+}
