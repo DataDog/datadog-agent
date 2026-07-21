@@ -7,31 +7,13 @@ package networkconfigmanagementimpl
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
-
-type RollbackDisabled struct{}
-
-func (r *RollbackDisabled) Error() string {
-	return "rollback is disabled"
-}
-
-type ArgumentError struct {
-	wrapped error
-}
-
-func (a *ArgumentError) Error() string {
-	return a.wrapped.Error()
-}
-
-func (a *ArgumentError) Unwrap() error {
-	return a.wrapped
-}
 
 // RollbackConfig rolls back a device to a previous configuration that's saved
 // locally on this agent. If any commands are sent to the device, the returned
@@ -41,54 +23,45 @@ func (a *ArgumentError) Unwrap() error {
 // even if this func returns an error, the config may still have been
 // successfully rolled back, or partially rolled back - check the returned
 // PushResult to see what commands were actually run on the device.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (*ncmremote.PushResult, error) {
+func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (result *ncmremote.PushResult, rberr types.RollbackError) {
 	if n.store == nil {
-		return nil, &RollbackDisabled{}
+		return nil, types.RollbackDisabled
 	}
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
 	ctx = WithLogger(ctx, log)
 	dc, err := n.devices.GetAndLock(ctx, deviceID)
 	if err != nil {
-		// UnknownDeviceError -> the deviceID is bad.
-		if errors.Is(err, &UnknownDeviceError{}) {
-			return nil, &ArgumentError{err}
-		}
-		return nil, err
+		return nil, types.AsRollbackError(err)
 	}
 	defer dc.UnlockOrLog(log)
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
 	if err != nil {
-		// Can be [UnknownUUIDError] or various internal errors
-		// UnknownUUIDError -> the deviceID is bad.
-		if errors.Is(err, &ncmstore.UnknownUUIDError{}) {
-			return nil, &ArgumentError{err}
-		}
-		return nil, err
+		return nil, types.AsRollbackError(err)
 	}
 	if metadata.DeviceID != deviceID {
-		return nil, &ArgumentError{fmt.Errorf("input mismatch: config %q is not for device %q", configVersion, deviceID)}
+		return nil, types.WrapErrorf(types.ErrWrongDeviceID, "input mismatch: config %q is not for device %q", configVersion, deviceID)
 	}
 
 	expectedHash := ncmstore.HashConfig(rawConfig)
 	if expectedHash != hash {
-		return nil, &ArgumentError{fmt.Errorf("hash mismatch for config %q", configVersion)}
+		return nil, types.WrapErrorf(types.ErrWrongHash, "hash mismatch for config %q", configVersion)
 	}
 
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return nil, fmt.Errorf("%v: %w", deviceID, err)
+	conn, rberr := n.connectAndEnsureProfile(ctx, dc)
+	if rberr != nil {
+		return nil, rberr
 	}
 	defer conn.Close()
 
-	result, err := conn.PushConfig(ctx, rawConfig)
+	result, err = conn.PushConfig(ctx, rawConfig)
 	if err != nil {
-		return result, err
+		return result, types.AsRollbackError(err)
 	}
 
 	if err := n.reportConfig(ctx, dc, n.sender); err != nil {
-		return result, err
+		return result, types.AsRollbackError(err)
 	}
 	return result, nil
 }
