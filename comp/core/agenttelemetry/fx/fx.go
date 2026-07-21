@@ -31,19 +31,9 @@ func Module() fxutil.Module {
 	)
 }
 
-// installErrortrackingHandler is a no-op when the feature is disabled
-// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). Registration runs synchronously here, at fx.Invoke time, rather
-// than from an OnStart hook: some components (e.g. npcollector) log
-// construction-time errors from their own constructor, which Fx may
-// resolve — and thus run — before app.Start() fires any OnStart hook.
-// Registering synchronously (ahead of any later fx.Invoke that forces
-// such a component's construction) ensures those early errors aren't
-// dropped for lack of a registered submitter. This is safe before atel's
-// own OnStart: SubmitErrorLog only enqueues into errLogsCh, which
-// createAtel already allocates. The matching clear runs synchronously
-// inside atel.stop() (deliberately not as a separate OnStop hook here) so
-// it precedes the final flush-goroutine drain.
+// installErrortrackingHandler is a no-op when errortracking is disabled.
+// Registers synchronously (not via OnStart) so construction-time errors
+// (e.g. npcollector's) logged before app.Start() aren't dropped.
 func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
