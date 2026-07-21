@@ -137,19 +137,29 @@ if defined DOTNET_RUNNING_IN_CONTAINER (
 call :remote_cache_reachable
 exit /b !errorlevel!
 
-:: Reachability probe. Any HTTPS response (incl. gRPC's 415) counts as
-:: reachable; only a connection/TLS failure counts as unreachable. A positive
-:: result is cached under %TEMP% (sticky until reboot clears it); a negative
-:: result is not cached, so a VPN reconnect is picked up on the next build.
+:: Reachability probe with asymmetric caching (mirrors remote-cache-select.sh).
+:: Any HTTPS response (incl. gRPC's 415) counts as reachable; only a
+:: connection/TLS failure counts as unreachable. A positive result is sticky
+:: until %TEMP% is cleared; a negative result is cached for 60s so a VPN
+:: reconnect is picked up quickly without re-probing on every build.
 :remote_cache_reachable
-set "_probe=%TEMP%\datadog-agent\remote-cache-probe"
+set "_dir=%TEMP%\datadog-agent"
+set "_probe=%_dir%\remote-cache-probe"
 if exist "%_probe%" (
   set "_r="
   set /p _r=<"%_probe%"
   if "!_r!"=="ok" exit /b 0
+  if "!_r!"=="no" (
+    set "_age="
+    for /f %%A in ('powershell -NoProfile -Command "[int]((Get-Date)-(Get-Item '%_probe%').LastWriteTime).TotalSeconds" 2^>nul') do set "_age=%%A"
+    if defined _age if !_age! lss 60 exit /b 1
+  )
 )
+if not exist "%_dir%" mkdir "%_dir%" >nul 2>&1
 curl.exe --silent --output NUL --connect-timeout 2 --max-time 4 "https://buildbarn-frontend-datadog-agent.us1.ddbuild.io/" >nul 2>&1
-if not !errorlevel!==0 exit /b 1
-if not exist "%TEMP%\datadog-agent" mkdir "%TEMP%\datadog-agent" >nul 2>&1
+if !errorlevel! neq 0 (
+  >"%_probe%" echo no
+  exit /b 1
+)
 >"%_probe%" echo ok
 exit /b 0
