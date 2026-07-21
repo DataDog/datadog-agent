@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Disable Python's `dbm` C-extension backends (`dbm.gnu`/`dbm.ndbm`) to match the Linux omnibus/bazel build, which links no dbm backend either; `gdbm` is no longer staged into the embedded tree. `ncurses`/`readline` (the interactive Python REPL's line-editing/history) remain bundled, as AIX has no alternative Python install for operators to use when troubleshooting checks by hand
+
 
 ---
 

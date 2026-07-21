@@ -332,7 +332,9 @@ log "AIX patching complete."
 #
 # --with-openssl=$EMBEDDED_DESTDIR : points to staging path (where OpenSSL
 #   headers and libs ARE during the build, not $EMBEDDED which is the final path)
-# --with-dbmliborder=gdbm : use gdbm built in Stage 1
+# --with-dbmliborder= (empty) : disable the dbm module family (gdbm/ndbm/dumb).
+#   Matches the Linux omnibus/bazel build (deps/cpython.BUILD.bazel), which links
+#   no dbm backend either — the agent and its checks don't use Python's dbm module.
 # --without-ensurepip : we bootstrap pip manually below (step 7)
 # ac_cv_header_libintl_h=no / ac_cv_lib_intl_textdomain=no : suppress libintl link.
 #   Python's configure tests for libintl.h (ac_cv_header_libintl_h) and then
@@ -342,6 +344,14 @@ log "AIX patching complete."
 #   baked in at build time, making it impossible to fully bundle without rebuilding
 #   libintl from source. Since the agent does not use Python's i18n/gettext support,
 #   suppress the detection entirely.
+# ac_cv_header_*panel*=no / ac_cv_search_update_panels=no : unlike the Linux build
+#   (deps/cpython.BUILD.bazel), which links no curses/readline support at all, AIX
+#   intentionally keeps the _curses and readline modules linked against the toolbox
+#   ncurses/readline staged in Stage 1. AIX has no alternative Python install, so an
+#   interactive `python3` REPL with working line-editing/history is the main tool
+#   operators have for troubleshooting checks (e.g. pymqi, ibm_db) by hand. The
+#   toolbox ncurses headers reference the panel extension, but panel itself isn't
+#   packaged, so its detection is suppressed to avoid a link failure.
 
 log "Configuring Python ${PYTHON_VERSION} (--prefix=$EMBEDDED)"
 log "  (Note: configure can take several minutes on POWER8)"
@@ -365,7 +375,7 @@ cd "$PYTHON_SRC"
     --prefix="$EMBEDDED" \
     --enable-shared \
     --with-openssl="$EMBEDDED_DESTDIR" \
-    --with-dbmliborder=gdbm \
+    --with-dbmliborder= \
     --without-ensurepip \
     --without-mimalloc \
     CC="$CC" \
