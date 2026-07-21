@@ -301,8 +301,8 @@
         "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
         "recordedInputs": [
           "FILE:@@//.bazelversion 1b9487d55bea47fea50d226cc9c53bc548877ad2a318bac8fbc8b320f429e5c5",
-          "FILE:@@//tools/bazel 690073a0ab1e62a71c0acbe7eb9312b9a5937951759be4c0f457d97fa7e992e4",
-          "FILE:@@//tools/bazel.bat 9ead9c74fdd6e8200f38c5b68b1f0caae77d6e15b0434fc42043ce87ae41ec7b",
+          "FILE:@@//tools/bazel f5a8a2f4756b38cd2967fa1b609c85628e3222fae35b2eae1ae4a2525d1c40c6",
+          "FILE:@@//tools/bazel.bat fcedd44b105f14f58e835fe918bd086edba06f815076a30c6463eb4774db2487",
           "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
         "generatedRepoSpecs": {}
