@@ -282,7 +282,7 @@ def get_build_flags(
     Context object.
     """
     if arch is None:
-        arch = Arch.local()
+        arch = Arch.from_str(os.getenv("GOARCH") or "local")
     target_platform = _resolve_target_platform(platform)
 
     gcflags = ""
@@ -403,20 +403,61 @@ def get_build_flags(
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
-    if os.getenv("DD_CC"):
-        env["CC"] = os.getenv("DD_CC")
-    if os.getenv("DD_CXX"):
-        env["CXX"] = os.getenv("DD_CXX")
-
-    if arch.is_cross_compiling():
-        # For cross-compilation we need to be explicit about certain Go settings
-        env["GOARCH"] = arch.go_arch
-        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
-        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
+    if cc := os.getenv("DD_CC"):
+        env["CC"] = cc
+    if cxx := os.getenv("DD_CXX"):
+        env["CXX"] = cxx
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    # Cross-OS lint/build setup: configure cross-compilation environment
+    if target_platform != sys.platform or arch.is_cross_compiling():
+        env["CGO_ENABLED"] = "1" # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+
+        prefix = arch.gcc_prefix(platform=target_platform)
+        cc = f"{prefix}-gcc"
+        cxx = f"{prefix}-g++"
+
+        # Fall back to clang/clang++ (e.g. osxcross provides clang, not gcc)
+        if not shutil.which(cc):
+            cc_clang = f"{prefix}-clang"
+            cxx_clang = f"{prefix}-clang++"
+            if shutil.which(cc_clang):
+                cc = cc_clang
+                cxx = cxx_clang
+            else:
+                if target_platform == "darwin":
+                    instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+                elif target_platform == "win32":
+                    instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                elif target_platform == "aix":
+                    instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
+                else:
+                    instr = "the appropriate cross-compilation toolchain"
+                print(
+                    color_message(
+                        f"Error: Cross-compiler '{prefix}-gcc' (or '{prefix}-clang') not found. "
+                        f"Cross-linting for {target_platform} requires {instr}.",
+                        "red",
+                    )
+                )
+                raise Exit(code=1)
+
+        env["CC"] = cc
+        env["CXX"] = cxx
+
+        if target_platform == "aix":
+            # Set the sysroot flag for the cross compiler
+            sysroot = "/opt/aix-cross/sysroot"
+            env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" --sysroot={sysroot} -maix64"
+            env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" --sysroot={sysroot} -maix64 -Wl,-brtl -Wl,-bbigtoc"
+
+            # Go's DWARF-on-AIX support probes the external linker but fails to parse the output of
+            # our gcc based cross compiler. -w skips the probe outright
+            ldflags += "-w "
+            # Ignore multiple definition errors
+            ldflags += "-extldflags=-Wl,--allow-multiple-definition "
 
     return ldflags, gcflags, env
 
