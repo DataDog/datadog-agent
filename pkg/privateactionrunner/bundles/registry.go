@@ -34,12 +34,14 @@ import (
 	com_datadoghq_gitlab_users "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/users"
 	com_datadoghq_http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http"
 	com_datadoghq_jenkins "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins"
+	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admissionregistration"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
 	com_datadoghq_kubernetes_discovery "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery"
+	com_datadoghq_kubernetes_networking "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/networking"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
@@ -81,12 +83,14 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.gitlab.users":                         com_datadoghq_gitlab_users.NewGitlabUsers(),
 			"com.datadoghq.http":                                 com_datadoghq_http.NewHttpBundle(configuration),
 			"com.datadoghq.jenkins":                              com_datadoghq_jenkins.NewJenkins(configuration),
+			"com.datadoghq.kubernetes.admissionregistration":     com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
 			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
+			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),

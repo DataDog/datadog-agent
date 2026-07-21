@@ -15,13 +15,20 @@ func NewKubernetesCustomResources() *KubernetesCustomResources {
 	return &KubernetesCustomResources{
 		actions: map[string]types.Action{
 			// Manual actions
-			"createCustomObject":          NewCreateCustomObjectHandler(),
-			"deleteCustomObject":          NewDeleteCustomObjectHandler(),
-			"deleteMultipleCustomObjects": NewDeleteMultipleCustomObjectsHandler(),
-			"getCustomObject":             NewGetCustomObjectHandler(),
-			"listCustomObject":            NewListCustomObjectHandler(),
-			"patchCustomObject":           NewPatchCustomObjectHandler(),
-			"updateCustomObject":          NewUpdateCustomObjectHandler(),
+			"createCustomObject":                NewCreateCustomObjectHandler(),
+			"deleteCustomObject":                NewDeleteCustomObjectHandler(),
+			"deleteMultipleCustomObjects":       NewDeleteMultipleCustomObjectsHandler(),
+			"getCustomObject":                   NewGetCustomObjectHandler(),
+			"listCustomObject":                  NewListCustomObjectHandler(),
+			"patchCustomObject":                 NewPatchCustomObjectHandler(),
+			"updateCustomObject":                NewUpdateCustomObjectHandler(),
+			"createClusterCustomObject":         NewCreateClusterCustomObjectHandler(),
+			"deleteClusterCustomObject":         NewDeleteClusterCustomObjectHandler(),
+			"deleteMultipleClusterCustomObjects": NewDeleteMultipleClusterCustomObjectsHandler(),
+			"getClusterCustomObject":            NewGetClusterCustomObjectHandler(),
+			"listClusterCustomObject":           NewListClusterCustomObjectHandler(),
+			"patchClusterCustomObject":          NewPatchClusterCustomObjectHandler(),
+			"updateClusterCustomObject":         NewUpdateClusterCustomObjectHandler(),
 		},
 	}
 }
