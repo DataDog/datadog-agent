@@ -586,6 +586,20 @@ go_deps.module_override(
     path = "github.com/coreos/go-systemd/v22",
 )
 
+# godror vendors the ODPI-C library (odpi/include, odpi/src, odpi/embed) as
+# plain Go source-tree files with no buildable .go files under the default
+# build tags, so Gazelle never generates a BUILD.bazel for those directories
+# and the cgo compile's "#cgo CFLAGS: -Iodpi/..." directives find nothing in
+# the sandbox. Patch in a cc_library exposing the vendored sources via cdeps.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "//bazel/rules/go_godror:odpi-build-file.patch",
+        "//bazel/rules/go_godror:cdeps-attr.patch",
+    ],
+    path = "github.com/godror/godror",
+)
+
 inject_repo(go_deps, "systemd")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")

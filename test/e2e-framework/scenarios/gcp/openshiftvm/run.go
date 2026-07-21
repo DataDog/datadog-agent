@@ -31,7 +31,7 @@ func RunWithParams(ctx *pulumi.Context, gcpEnv resGcp.Environment, params *Param
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
-		compute.WithInstancetype("n2-standard-8"),
+		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
 	)
 	if err != nil {
