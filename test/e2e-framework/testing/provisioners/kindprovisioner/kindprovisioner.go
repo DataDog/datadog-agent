@@ -23,29 +23,81 @@ import (
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
-// Options are the options shared between the AWS-VM-backed and local Kind provisioners.
-// AWSVMOptions only applies to the AWS backend and is ignored when running locally.
-type Options struct {
-	Name                          string
-	AgentOptions                  []kubernetesagentparams.Option
-	FakeintakeOptions             []fakeintake.Option
-	WorkloadAppFunc               kubeComp.WorkloadAppFunc
-	AgentDependentWorkloadAppFunc kubeComp.AgentDependentWorkloadAppFunc
-	DeployDogstatsd               bool
-	DeployTestWorkload            bool
-	DeployArgoRollout             bool
-	AWSVMOptions                  []ec2.VMOption
+// options are the options shared between the AWS-VM-backed and local Kind provisioners.
+// awsVMOptions only applies to the AWS backend and is ignored when running locally.
+type options struct {
+	name                          string
+	agentOptions                  []kubernetesagentparams.Option
+	fakeintakeOptions             []fakeintake.Option
+	workloadAppFunc               kubeComp.WorkloadAppFunc
+	agentDependentWorkloadAppFunc kubeComp.AgentDependentWorkloadAppFunc
+	deployDogstatsd               bool
+	deployTestWorkload            bool
+	deployArgoRollout             bool
+	awsVMOptions                  []ec2.VMOption
+}
+
+// Option configures the Kind provisioner returned by Provisioner.
+type Option func(*options) error
+
+// WithName sets the provisioner/stack name.
+func WithName(name string) Option {
+	return func(o *options) error { o.name = name; return nil }
+}
+
+// WithAgentOptions sets the Agent configuration options.
+func WithAgentOptions(opts ...kubernetesagentparams.Option) Option {
+	return func(o *options) error { o.agentOptions = append(o.agentOptions, opts...); return nil }
+}
+
+// WithFakeintakeOptions sets the FakeIntake configuration options.
+func WithFakeintakeOptions(opts ...fakeintake.Option) Option {
+	return func(o *options) error { o.fakeintakeOptions = append(o.fakeintakeOptions, opts...); return nil }
+}
+
+// WithWorkloadApp deploys the given workload app.
+func WithWorkloadApp(f kubeComp.WorkloadAppFunc) Option {
+	return func(o *options) error { o.workloadAppFunc = f; return nil }
+}
+
+// WithAgentDependentWorkloadApp deploys the given agent-dependent workload app.
+func WithAgentDependentWorkloadApp(f kubeComp.AgentDependentWorkloadAppFunc) Option {
+	return func(o *options) error { o.agentDependentWorkloadAppFunc = f; return nil }
+}
+
+// WithDeployDogstatsd deploys the dogstatsd standalone workload.
+func WithDeployDogstatsd() Option {
+	return func(o *options) error { o.deployDogstatsd = true; return nil }
+}
+
+// WithDeployTestWorkload deploys the test workload.
+func WithDeployTestWorkload() Option {
+	return func(o *options) error { o.deployTestWorkload = true; return nil }
+}
+
+// WithDeployArgoRollout deploys the Argo Rollout workload.
+func WithDeployArgoRollout() Option {
+	return func(o *options) error { o.deployArgoRollout = true; return nil }
+}
+
+// WithAWSVMOptions sets options for the underlying EC2 VM. Only applies to the AWS-VM-backed
+// provisioner; ignored when running locally (E2E_PROVISIONER=kind-local).
+func WithAWSVMOptions(opts ...ec2.VMOption) Option {
+	return func(o *options) error { o.awsVMOptions = append(o.awsVMOptions, opts...); return nil }
 }
 
 // Provisioner returns a Kind provisioner selected via E2E_PROVISIONER=kind-local or
 // E2E_DEV_LOCAL=true (local Docker daemon), defaulting to the AWS-VM-backed Kind provisioner.
-func Provisioner(opts Options) provisioners.TypedProvisioner[environments.Kubernetes] {
+func Provisioner(opts ...Option) provisioners.TypedProvisioner[environments.Kubernetes] {
+	o := &options{}
+	_ = optional.ApplyOptions(o, opts)
 	if isLocalMode() {
-		return localProvisioner(opts)
+		return localProvisioner(o)
 	}
-	return awsProvisioner(opts)
+	return awsProvisioner(o)
 }
 
 // isLocalMode returns true when E2E_PROVISIONER=kind-local or E2E_DEV_LOCAL=true.
@@ -59,62 +111,62 @@ func isLocalMode() bool {
 	return err == nil && devLocal
 }
 
-func awsProvisioner(opts Options) provisioners.TypedProvisioner[environments.Kubernetes] {
+func awsProvisioner(o *options) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var runOpts []kindvm.RunOption
-	if opts.Name != "" {
-		runOpts = append(runOpts, kindvm.WithName(opts.Name))
+	if o.name != "" {
+		runOpts = append(runOpts, kindvm.WithName(o.name))
 	}
-	if len(opts.AWSVMOptions) > 0 {
-		runOpts = append(runOpts, kindvm.WithVMOptions(opts.AWSVMOptions...))
+	if len(o.awsVMOptions) > 0 {
+		runOpts = append(runOpts, kindvm.WithVMOptions(o.awsVMOptions...))
 	}
-	if len(opts.AgentOptions) > 0 {
-		runOpts = append(runOpts, kindvm.WithAgentOptions(opts.AgentOptions...))
+	if len(o.agentOptions) > 0 {
+		runOpts = append(runOpts, kindvm.WithAgentOptions(o.agentOptions...))
 	}
-	if len(opts.FakeintakeOptions) > 0 {
-		runOpts = append(runOpts, kindvm.WithFakeintakeOptions(opts.FakeintakeOptions...))
+	if len(o.fakeintakeOptions) > 0 {
+		runOpts = append(runOpts, kindvm.WithFakeintakeOptions(o.fakeintakeOptions...))
 	}
-	if opts.WorkloadAppFunc != nil {
-		runOpts = append(runOpts, kindvm.WithWorkloadApp(opts.WorkloadAppFunc))
+	if o.workloadAppFunc != nil {
+		runOpts = append(runOpts, kindvm.WithWorkloadApp(o.workloadAppFunc))
 	}
-	if opts.AgentDependentWorkloadAppFunc != nil {
-		runOpts = append(runOpts, kindvm.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	if o.agentDependentWorkloadAppFunc != nil {
+		runOpts = append(runOpts, kindvm.WithAgentDependentWorkloadApp(o.agentDependentWorkloadAppFunc))
 	}
-	if opts.DeployDogstatsd {
+	if o.deployDogstatsd {
 		runOpts = append(runOpts, kindvm.WithDeployDogstatsd())
 	}
-	if opts.DeployTestWorkload {
+	if o.deployTestWorkload {
 		runOpts = append(runOpts, kindvm.WithDeployTestWorkload())
 	}
-	if opts.DeployArgoRollout {
+	if o.deployArgoRollout {
 		runOpts = append(runOpts, kindvm.WithDeployArgoRollout())
 	}
 	return provkindvm.Provisioner(provkindvm.WithRunOptions(runOpts...))
 }
 
-func localProvisioner(opts Options) provisioners.TypedProvisioner[environments.Kubernetes] {
+func localProvisioner(o *options) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var localOpts []provlocal.ProvisionerOption
-	if opts.Name != "" {
-		localOpts = append(localOpts, provlocal.WithName(opts.Name))
+	if o.name != "" {
+		localOpts = append(localOpts, provlocal.WithName(o.name))
 	}
-	if len(opts.AgentOptions) > 0 {
-		localOpts = append(localOpts, provlocal.WithAgentOptions(opts.AgentOptions...))
+	if len(o.agentOptions) > 0 {
+		localOpts = append(localOpts, provlocal.WithAgentOptions(o.agentOptions...))
 	}
-	if len(opts.FakeintakeOptions) > 0 {
-		localOpts = append(localOpts, provlocal.WithFakeintakeOptions(opts.FakeintakeOptions...))
+	if len(o.fakeintakeOptions) > 0 {
+		localOpts = append(localOpts, provlocal.WithFakeintakeOptions(o.fakeintakeOptions...))
 	}
-	if opts.WorkloadAppFunc != nil {
-		localOpts = append(localOpts, provlocal.WithWorkloadApp(opts.WorkloadAppFunc))
+	if o.workloadAppFunc != nil {
+		localOpts = append(localOpts, provlocal.WithWorkloadApp(o.workloadAppFunc))
 	}
-	if opts.AgentDependentWorkloadAppFunc != nil {
-		localOpts = append(localOpts, provlocal.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	if o.agentDependentWorkloadAppFunc != nil {
+		localOpts = append(localOpts, provlocal.WithAgentDependentWorkloadApp(o.agentDependentWorkloadAppFunc))
 	}
-	if opts.DeployDogstatsd {
+	if o.deployDogstatsd {
 		localOpts = append(localOpts, provlocal.WithDeployDogstatsd())
 	}
-	if opts.DeployTestWorkload {
+	if o.deployTestWorkload {
 		localOpts = append(localOpts, provlocal.WithDeployTestWorkload())
 	}
-	if opts.DeployArgoRollout {
+	if o.deployArgoRollout {
 		localOpts = append(localOpts, provlocal.WithDeployArgoRollout())
 	}
 	return provlocal.Provisioner(localOpts...)

@@ -28,17 +28,17 @@ clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
 `
-	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(kindprovisioner.Provisioner(kindprovisioner.Options{
-		AWSVMOptions: []scenec2.VMOption{
+	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(kindprovisioner.Provisioner(
+		kindprovisioner.WithAWSVMOptions(
 			scenec2.WithInstanceType("t3.xlarge"),
-		},
-		FakeintakeOptions: []fakeintake.Option{
+		),
+		kindprovisioner.WithFakeintakeOptions(
 			fakeintake.WithMemory(2048),
 			fakeintake.WithRetentionPeriod("31m"),
-		},
-		DeployDogstatsd:    true,
-		DeployTestWorkload: true,
-		AgentOptions: []kubernetesagentparams.Option{
+		),
+		kindprovisioner.WithDeployDogstatsd(),
+		kindprovisioner.WithDeployTestWorkload(),
+		kindprovisioner.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
 			kubernetesagentparams.WithHelmValues(helmValues),
 			kubernetesagentparams.WithHelmValues(containerHelmValues),
@@ -46,9 +46,9 @@ clusterAgent:
 			// (legacy) Endpoints providers. This covers tests for both without having to create
 			// independent test suites for both configurations or modify providers at test runtime.
 			kubernetesagentparams.WithKubernetesUseEndpointSlices(),
-		},
-		DeployArgoRollout: true,
-	})))
+		),
+		kindprovisioner.WithDeployArgoRollout(),
+	)))
 }
 
 func (suite *kindSuite) SetupSuite() {

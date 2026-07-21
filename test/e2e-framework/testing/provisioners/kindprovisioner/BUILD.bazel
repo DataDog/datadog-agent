@@ -17,5 +17,6 @@ go_library(
         "//test/e2e-framework/testing/provisioners/local/kubernetes",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/optional",
     ],
 )
