@@ -7,7 +7,6 @@
 package fx
 
 import (
-	"context"
 	"time"
 
 	"go.uber.org/fx"
@@ -34,8 +33,18 @@ func Module() fxutil.Module {
 
 // installErrortrackingHandler is a no-op when the feature is disabled
 // (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
+// gate). Registration runs synchronously here, at fx.Invoke time, rather
+// than from an OnStart hook: some components (e.g. npcollector) log
+// construction-time errors from their own constructor, which Fx may
+// resolve — and thus run — before app.Start() fires any OnStart hook.
+// Registering synchronously (ahead of any later fx.Invoke that forces
+// such a component's construction) ensures those early errors aren't
+// dropped for lack of a registered submitter. This is safe before atel's
+// own OnStart: SubmitErrorLog only enqueues into errLogsCh, which
+// createAtel already allocates. The matching clear runs synchronously
+// inside atel.stop() (deliberately not as a separate OnStop hook here) so
+// it precedes the final flush-goroutine drain.
+func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
 	}
@@ -47,11 +56,6 @@ func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agent
 	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
 	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
 
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
-			return nil
-		},
-	})
+	pkglogsetup.RegisterErrortrackingSubmitter(submitter)
+	pkglogsetup.RegisterErrortrackingBouncer(bouncer)
 }
