@@ -7,7 +7,6 @@ package testsuite
 
 import (
 	_ "embed"
-	"encoding/binary"
 	"slices"
 	"strings"
 	"testing"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -183,12 +181,10 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			tp := v.IdxTracerPayloads[0]
-			strs := tp.Strings
-			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", idxStr(strs, tp.Chunks[0].Spans[0].ResourceRef))
-			for _, s := range tp.Chunks[0].Spans {
-				assert.Len(t, idxStr(strs, s.ServiceRef), 100)
-				assert.Len(t, idxStr(strs, s.NameRef), 100)
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
+			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, s.Service, 100)
+				assert.Len(t, s.Name, 100)
 			}
 		})
 	})
@@ -213,12 +209,10 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			tp := v.IdxTracerPayloads[0]
-			strs := tp.Strings
-			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", idxStr(strs, tp.Chunks[0].Spans[0].ResourceRef))
-			for _, s := range tp.Chunks[0].Spans {
-				assert.Len(t, idxStr(strs, s.ServiceRef), 100)
-				assert.Len(t, idxStr(strs, s.NameRef), 100)
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
+			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, s.Service, 100)
+				assert.Len(t, s.Name, 100)
 			}
 		})
 	})
@@ -251,27 +245,21 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			tp := v.IdxTracerPayloads[0]
-			strs := tp.Strings
-			events := tp.Chunks[0].Spans[0].Events
-			assert.Len(t, events, 1)
-			spanEvent := events[0]
-			assert.Equal(t, "event-name", idxStr(strs, spanEvent.NameRef))
-			assert.NotZero(t, spanEvent.Time)
+			assert.Len(t, v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents, 1)
+			spanEvent := v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents[0]
+			assert.Equal(t, "event-name", spanEvent.Name)
+			assert.NotZero(t, spanEvent.TimeUnixNano)
 			assert.Len(t, spanEvent.Attributes, 1)
-			val, ok := idxStrAttr(strs, spanEvent.Attributes, "key")
-			assert.True(t, ok, "span event missing key attribute")
-			assert.Equal(t, "value", val)
+			assert.Equal(t, pb.AttributeAnyValue_AttributeAnyValueType(0), spanEvent.Attributes["key"].Type)
+			assert.Equal(t, "value", spanEvent.Attributes["key"].StringValue)
 		})
 	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.
-// The convert-traces feature is enabled by default, so to carries its tracer
-// payloads in the v1 string-indexed idx format.
 func payloadsEqual(t *testing.T, from pb.Traces, to *pb.AgentPayload) {
 	got := 0
-	for _, tracerPayload := range to.IdxTracerPayloads {
+	for _, tracerPayload := range to.TracerPayloads {
 		got += len(tracerPayload.Chunks)
 	}
 	if want := len(from); want != got {
@@ -279,9 +267,9 @@ func payloadsEqual(t *testing.T, from pb.Traces, to *pb.AgentPayload) {
 	}
 	var found int
 	for _, t1 := range from {
-		for _, tracerPayload := range to.IdxTracerPayloads {
+		for _, tracerPayload := range to.TracerPayloads {
 			for _, t2 := range tracerPayload.Chunks {
-				if tracesEqual(t1, tracerPayload.Strings, t2) {
+				if tracesEqual(t1, t2) {
 					found++
 					break
 				}
@@ -297,23 +285,16 @@ func payloadsEqual(t *testing.T, from pb.Traces, to *pb.AgentPayload) {
 	assert.Equal(t, to.RareSamplerEnabled, defaultAgentConfig.RareSamplerEnabled)
 }
 
-// tracesEqual reports whether the legacy-format trace from and the indexed chunk
-// to are equal traces. The latter is allowed to contain additional tags.
-func tracesEqual(from pb.Trace, toStrings []string, to *idx.TraceChunk) bool {
+// tracesEqual reports whether from and to are equal traces. The latter is allowed
+// to contain additional tags.
+func tracesEqual(from pb.Trace, to *pb.TraceChunk) bool {
 	if want, got := len(from), len(to.Spans); want != got {
 		return false
-	}
-	// The trace ID is carried at the chunk level in the idx format; its low 64
-	// bits are the legacy uint64 trace ID.
-	if len(from) > 0 && len(to.TraceID) == 16 {
-		if from[0].TraceID != binary.BigEndian.Uint64(to.TraceID[8:]) {
-			return false
-		}
 	}
 	var found int
 	for _, s1 := range from {
 		for _, s2 := range to.Spans {
-			if spansEqual(s1, toStrings, s2) {
+			if spansEqual(s1, s2) {
 				found++
 				break
 			}
@@ -322,64 +303,38 @@ func tracesEqual(from pb.Trace, toStrings []string, to *idx.TraceChunk) bool {
 	return found == len(from)
 }
 
-// spansEqual reports whether the legacy-format span s1 and the indexed span s2
-// are equal spans. s2 is permitted to have tags not present in s1, but not the
-// other way around.
-func spansEqual(s1 *pb.Span, toStrings []string, s2 *idx.Span) bool {
-	if s1.Name != idxStr(toStrings, s2.NameRef) ||
-		s1.Service != idxStr(toStrings, s2.ServiceRef) ||
+// spansEqual reports whether s1 and s2 are equal spans. s2 is permitted to have
+// tags not present in s1, but not the other way around.
+func spansEqual(s1, s2 *pb.Span) bool {
+	if s1.Name != s2.Name ||
+		s1.Service != s2.Service ||
 		// obfuscation changes resource so we leave it out
-		// s1.Resource != idxStr(toStrings, s2.ResourceRef) ||
+		// s1.Resource != s2.Resource ||
+		s1.TraceID != s2.TraceID ||
 		s1.SpanID != s2.SpanID ||
 		s1.ParentID != s2.ParentID ||
-		s1.Start != int64(s2.Start) ||
-		s1.Duration != int64(s2.Duration) ||
-		(s1.Error != 0) != s2.Error ||
-		s1.Type != idxStr(toStrings, s2.TypeRef) {
+		s1.Start != s2.Start ||
+		s1.Duration != s2.Duration ||
+		s1.Error != s2.Error ||
+		s1.Type != s2.Type {
 		return false
 	}
-	for k, v := range s1.Meta {
-		// env/version/component are promoted out of the attribute map into
-		// dedicated span fields during conversion.
-		switch k {
-		case "env":
-			if idxStr(toStrings, s2.EnvRef) != v {
-				return false
-			}
-			continue
-		case "version":
-			if idxStr(toStrings, s2.VersionRef) != v {
-				return false
-			}
-			continue
-		case "component":
-			if idxStr(toStrings, s2.ComponentRef) != v {
-				return false
-			}
-			continue
-		case "credit_card_number":
-			// credit card obfuscation may rewrite this value; tests that care
-			// about the obfuscated value assert on it explicitly.
-			if !idxHasAttr(toStrings, s2.Attributes, k) {
-				return false
-			}
-			continue
-		}
-		if got, ok := idxStrAttr(toStrings, s2.Attributes, k); !ok || got != v {
+	for k := range s1.Meta {
+		if _, ok := s2.Meta[k]; !ok {
 			return false
 		}
 	}
-	for k, v := range s1.Metrics {
-		if got, ok := idxNumAttr(toStrings, s2.Attributes, k); !ok || got != v {
+	for k := range s1.Metrics {
+		if _, ok := s2.Metrics[k]; !ok {
 			return false
 		}
 	}
-	if len(s1.SpanEvents) != len(s2.Events) {
+	if len(s1.SpanEvents) != len(s2.SpanEvents) {
 		return false
 	}
 	for i, se := range s1.SpanEvents {
-		if se.Name != idxStr(toStrings, s2.Events[i].NameRef) ||
-			se.TimeUnixNano != s2.Events[i].Time {
+		if se.Name != s2.SpanEvents[i].Name ||
+			se.TimeUnixNano != s2.SpanEvents[i].TimeUnixNano {
 			return false
 		}
 	}

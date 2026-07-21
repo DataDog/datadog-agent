@@ -84,6 +84,11 @@ func newTestReceiverConfig() *config.AgentConfig {
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.
 	conf.ReceiverIdleTimeout = 0
+	// Enable convert-traces by default for tests since most tests expect V1 behavior
+	if conf.Features == nil {
+		conf.Features = make(map[string]struct{})
+	}
+	conf.Features["convert-traces"] = struct{}{}
 
 	return conf
 }
@@ -1446,14 +1451,15 @@ func TestHandleTraces(t *testing.T) {
 }
 
 func TestHandleTracesWithoutConvertFeature(t *testing.T) {
-	// Test that the old code path (with disable-convert-traces feature) still works
+	// Test that the old code path (without convert-traces feature) still works
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
 	assert.Nil(t, err)
 
-	// prepare the receiver WITH the disable-convert-traces feature
-	conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
+	// prepare the receiver WITHOUT the convert-traces feature
+	conf := newTestReceiverConfigWithFeatures() // no features
 	receiver := newTestReceiverFromConfig(conf)
+	receiver.conf.Features = make(map[string]struct{}) // explicitly disable convert-traces
 
 	// response recorder
 	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1682,6 +1688,176 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 		_, _ = io.Copy(buffer, bytes.NewReader(bts))
 		_, _ = traces.UnmarshalMsg(buffer.Bytes())
 		bufferPool.Put(buffer)
+	}
+}
+
+// buildV05Payload builds a msgpack-encoded v0.5 ("dictionary") trace payload with
+// nTraces chunks of nSpansPerChunk spans each, referencing a shared string dictionary.
+// The wire layout mirrors what tracers POST to /v0.5/traces and is decoded identically
+// by both the legacy (pb.Traces) and converted (idx.InternalTracerPayload) paths, so the
+// same bytes can feed both BenchmarkDecodeV05Legacy and BenchmarkDecodeV05Converted.
+func buildV05Payload(b *testing.B, nTraces, nSpansPerChunk int) []byte {
+	b.Helper()
+	// Shared string dictionary. Spans reference entries by index.
+	dict := []string{
+		0:  "", // index 0 is conventionally the empty string
+		1:  "my-service",
+		2:  "my-operation",
+		3:  "my-resource",
+		4:  "web",
+		5:  "http.method",
+		6:  "GET",
+		7:  "http.status_code",
+		8:  "env",
+		9:  "prod",
+		10: "version",
+		11: "1.2.3",
+		12: "component",
+		13: "net/http",
+		14: "_sampling_priority_v1",
+	}
+	traces := make([][][12]interface{}, nTraces)
+	for t := 0; t < nTraces; t++ {
+		rootID := uint64(t*nSpansPerChunk + 1)
+		spans := make([][12]interface{}, nSpansPerChunk)
+		for s := 0; s < nSpansPerChunk; s++ {
+			spanID := uint64(t*nSpansPerChunk + s + 1)
+			parentID := rootID
+			if s == 0 {
+				parentID = 0 // first span in the chunk is the local root
+			}
+			spans[s] = [12]interface{}{
+				1,                 // service (dict ref)
+				2,                 // name (dict ref)
+				3,                 // resource (dict ref)
+				uint64(t + 1),     // traceID
+				spanID,            // spanID
+				parentID,          // parentID
+				int64(1234567890), // start
+				int64(1000),       // duration
+				0,                 // error
+				map[interface{}]interface{}{ // meta (dict ref -> dict ref)
+					5:  6,
+					8:  9,
+					10: 11,
+					12: 13,
+				},
+				map[interface{}]float64{ // metrics (dict ref -> float64)
+					7:  200,
+					14: 1,
+				},
+				4, // type (dict ref)
+			}
+		}
+		traces[t] = spans
+	}
+	payload := [2]interface{}{0: dict, 1: traces}
+	bts, err := vmsgp.Marshal(&payload)
+	require.NoError(b, err)
+	return bts
+}
+
+// benchIDProvider is a no-op container-ID provider for the decode benchmarks.
+var benchIDProvider = NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+	return "", nil
+})
+
+// buildV04Payload builds a msgpack-encoded v0.4 trace payload (a pb.Traces blob) with
+// nTraces chunks of nSpansPerChunk spans each. The per-span attribute shape (4 meta,
+// 2 metrics) mirrors buildV05Payload so the converted v0.4 and v0.5 decode paths can be
+// compared on equivalent input.
+func buildV04Payload(b *testing.B, nTraces, nSpansPerChunk int) []byte {
+	b.Helper()
+	traces := make(pb.Traces, nTraces)
+	for t := 0; t < nTraces; t++ {
+		rootID := uint64(t*nSpansPerChunk + 1)
+		trace := make(pb.Trace, nSpansPerChunk)
+		for s := 0; s < nSpansPerChunk; s++ {
+			spanID := uint64(t*nSpansPerChunk + s + 1)
+			parentID := rootID
+			if s == 0 {
+				parentID = 0 // first span in the chunk is the local root
+			}
+			trace[s] = &pb.Span{
+				Service:  "my-service",
+				Name:     "my-operation",
+				Resource: "my-resource",
+				Type:     "web",
+				TraceID:  uint64(t + 1),
+				SpanID:   spanID,
+				ParentID: parentID,
+				Start:    1234567890,
+				Duration: 1000,
+				Meta: map[string]string{
+					"http.method": "GET",
+					"env":         "prod",
+					"version":     "1.2.3",
+					"component":   "net/http",
+				},
+				Metrics: map[string]float64{
+					"http.status_code":      200,
+					"_sampling_priority_v1": 1,
+				},
+			}
+		}
+		traces[t] = trace
+	}
+	bts, err := traces.MarshalMsg(nil)
+	require.NoError(b, err)
+	return bts
+}
+
+// BenchmarkDecodeV04Converted measures the convert-traces (default) v0.4 decode path:
+// decode the msgpack pb.Traces payload directly into the internal idx.InternalTracerPayload
+// format via UnmarshalMsgConverted.
+func BenchmarkDecodeV04Converted(b *testing.B) {
+	bts := buildV04Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		if _, err := recv.decodeConvertedTracerPayload(v04, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkDecodeV05Legacy measures the legacy (convert-traces disabled) v0.5 decode
+// path: decode the dictionary payload into pb.Traces and build a pb.TracerPayload.
+func BenchmarkDecodeV05Legacy(b *testing.B) {
+	bts := buildV05Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(bts))
+		if _, err := recv.decodeTracerPayload(v05, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkDecodeV05Converted measures the convert-traces (default) v0.5 decode path:
+// decode the dictionary payload directly into the internal idx.InternalTracerPayload
+// format. Compare against BenchmarkDecodeV05Legacy to gauge the feature's impact.
+func BenchmarkDecodeV05Converted(b *testing.B) {
+	bts := buildV05Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(bts))
+		if _, err := recv.decodeConvertedTracerPayload(v05, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

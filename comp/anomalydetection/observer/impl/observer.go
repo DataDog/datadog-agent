@@ -265,8 +265,8 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
-	// enabled so the live observer gets full telemetry while the testbench
-	// replay keeps using the parameterless path.
+	// enabled so the live observer gets full telemetry. Replay enables the same
+	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
@@ -771,6 +771,12 @@ func (o *observerImpl) Flush() {
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	// Catalog scorers are unwatched standalone instances. Replay needs the same
+	// transition watcher as the live observer so scorer correlation episodes open
+	// and close as severity changes; telemetry gauges are optional here.
+	if scorer != nil {
+		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+	}
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)

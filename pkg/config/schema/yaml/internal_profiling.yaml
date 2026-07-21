@@ -45,7 +45,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: internal profiling
   extra_tags:
     node_type: setting
     type: array
