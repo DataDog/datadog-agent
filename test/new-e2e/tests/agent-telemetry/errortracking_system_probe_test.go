@@ -109,6 +109,13 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 		assert.NotEmpty(c, logs, "no system-probe filter unmarshal error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for system-probe error logs")
 
+	// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+	if len(logs) == 0 {
+		out, _ := s.Env().RemoteHost.Execute(
+			"sudo grep -n -i 'errortracking\\|Error unmarshalling network_path' /var/log/datadog/system-probe.log || true")
+		s.T().Logf("system-probe.log errortracking/filter lines:\n%s", out)
+	}
+
 	for _, l := range logs {
 		assertCommonLogShape(s.T(), l)
 		assert.Contains(s.T(), l.Tags, "agent.flavor:"+flavor.SystemProbe,

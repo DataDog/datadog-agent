@@ -9,6 +9,7 @@ go_library(
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/impl",
         "//comp/core/config",
+        "//comp/core/log/def",
         "//pkg/config/utils",
         "//pkg/util/fxutil",
         "//pkg/util/log/errortracking",
