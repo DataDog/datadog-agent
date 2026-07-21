@@ -286,4 +286,26 @@ impl Aggregator {
 
         Ok(())
     }
+
+    // TODO(dsec-157): refactor so submit_event_platform_event depends on
+    // submit_event_platform_event_bytes.
+    pub fn submit_event_platform_event_bytes(
+        &self,
+        check_id: &str,
+        raw_event: &[u8],
+        event_type: &str,
+    ) -> Result<()> {
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_event_type = CStringGuard::new(event_type)?;
+
+        (self.cb_submit_event_platform_event)(
+            cstr_check_id.as_ptr(),
+            raw_event.as_ptr() as *mut c_char,
+            raw_event.len() as c_int,
+            cstr_event_type.as_ptr(),
+        );
+
+        Ok(())
+    }
 }
