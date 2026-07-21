@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The ``ddot-collector`` image now starts in standalone mode by default.
+    Using it in bundled mode now requires to explicitly set ``DD_OTEL_STANDALONE`` to false.
