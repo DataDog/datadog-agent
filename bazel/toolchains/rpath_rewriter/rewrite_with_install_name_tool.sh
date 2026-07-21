@@ -2,13 +2,19 @@
 
 set -euo pipefail
 
-INSTALL_NAME_TOOL=$1
-OTOOL=$2
-PREFIX=$3
-INPUT=$4
-OUTPUT=$5
+HELPER=$1
+INSTALL_NAME_TOOL=$2
+OTOOL=$3
+PREFIX=$4
+INPUT=$5
+OUTPUT=$6
 
-# PREFIX is the full rpath (e.g. {install_dir}/embedded/lib); use as-is, do not append /lib
+source "$HELPER"
+
+# PREFIX is the full rpath, or a relative path signaled as ./<suffix>.#rewrite_with_install_name_tool.sh
+# In the relative case, ./../lib becomes @loader_path/../lib.
+PREFIX=$(origin_rpath "@loader_path" "$PREFIX")
+
 cp "$INPUT" "$OUTPUT"
 # Restore owner-write so install_name_tool can modify dylibs installed as
 # read-only by their build system (e.g. Python lib-dynload modules).

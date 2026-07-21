@@ -289,6 +289,13 @@ string_flag(
     make_variable = "INSTALL_DIR",
 )
 
+# Determines whether rpath-rewriting will use relative or absolute paths.
+# Paths are made relative by using $ORIGIN in linux and @loader_path in macos.
+bool_flag(
+    name = "relative_rpaths",
+    build_setting_default = False,
+)
+
 # Configuration value to determine if we are using the standard install path.
 # This can be used to detect custom builds, where we might not to create some pieces.
 # Currently this is used only for installer symlinks. It is likely that we should not
