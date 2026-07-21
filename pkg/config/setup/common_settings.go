@@ -1334,6 +1334,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 
+	// Data Security (sensitive-data-scanner results) event platform forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
+
 	// The cardinality of tags to send for checks.
 	// Choices are: low, orchestrator, high.
 	// Changing this setting may impact your custom metrics billing.
