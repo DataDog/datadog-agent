@@ -178,7 +178,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return nil
 	}
 
-	metrics, err := ParseMetricsWithFilterFunc(data, p.ScraperConfig.TextFilterBlacklist)
+	metrics, err := ParseMetricsWithFilterFunc(data, p.ScraperConfig.TextFilterBlacklist, "")
 	if err != nil {
 		return err
 	}

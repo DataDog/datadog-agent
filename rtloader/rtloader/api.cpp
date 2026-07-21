@@ -597,6 +597,11 @@ void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
 }
 
+void set_parse_prometheus_metrics_cb(rtloader_t *rtloader, cb_parse_prometheus_metrics_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setParsePrometheusMetricsCb(cb);
+}
+
 /*
  * _util API
  */

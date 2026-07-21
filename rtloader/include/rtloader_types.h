@@ -140,6 +140,8 @@ typedef double (*cb_get_process_start_time_t)(void);
 typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
 // (check_name, metric_name, metric_value, metric_type)
 typedef void (*cb_emit_agent_telemetry_t)(char *, char *, double, char *);
+// (raw_text, content_type, error_message) -> json_result
+typedef char *(*cb_parse_prometheus_metrics_t)(char *, char *, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

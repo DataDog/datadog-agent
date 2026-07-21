@@ -517,6 +517,15 @@ public:
     */
     virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
 
+    //! setParsePrometheusMetricsCb member.
+    /*!
+      \param A cb_parse_prometheus_metrics_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow parsing
+      Prometheus/OpenMetrics text format using the Go parser.
+    */
+    virtual void setParsePrometheusMetricsCb(cb_parse_prometheus_metrics_t) = 0;
+
 protected:
     //! _allocateInternalErrorDiagnoses member.
     /*!

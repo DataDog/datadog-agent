@@ -1081,6 +1081,11 @@ void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
     _set_emit_agent_telemetry_cb(cb);
 }
 
+void Three::setParsePrometheusMetricsCb(cb_parse_prometheus_metrics_t cb)
+{
+    _set_parse_prometheus_metrics_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
