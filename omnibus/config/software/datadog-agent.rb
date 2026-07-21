@@ -200,6 +200,12 @@ build do
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
+
+    # par-control (private action runner control plane, Rust). Installs into
+    # embedded/bin on Linux and bin/agent on Windows (see the pkg_install target).
+    if linux_target? || windows_target?
+      command "bazel run #{bazel_flags} //pkg/privateactionrunner/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
   end
 
   # System-probe

@@ -218,6 +218,14 @@ configure_make(
     }),
 )
 
+# The full install tree (include/ + lib/) as a single directory, for consumers
+# that need an OPENSSL_DIR-style prefix (e.g. the Rust openssl-sys build script).
+filegroup(
+    name = "gen_dir",
+    srcs = [":openssl"],
+    output_group = "gen_dir",
+)
+
 foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
