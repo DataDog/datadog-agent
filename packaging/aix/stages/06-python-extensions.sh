@@ -211,8 +211,15 @@ log "lxml==$LXML_VERSION installed successfully"
 #                                       -bbigtoc removes this limit for AIX XCOFF.
 
 log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
-log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:..."
-export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
+log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:..."
+# $EMBEDDED_DESTDIR/bin (where pip installs the maturin console script below) must
+# come before the rest of PATH: a stray or toolbox-provided system-wide maturin
+# binary elsewhere on PATH would otherwise shadow the one we just installed,
+# silently falling back to whatever (possibly ancient) version comes first. An
+# old maturin computes its own AIX platform tag instead of matching CPython's,
+# producing wheels pip itself then refuses to install ("is not a supported
+# wheel on this platform").
+export PATH="/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:$PATH"
 export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
