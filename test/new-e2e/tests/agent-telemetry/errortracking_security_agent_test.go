@@ -103,9 +103,7 @@ func (s *errorTrackingSecurityAgentSuite) TestPayloadShape() {
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for security-agent error logs")
 
 	for _, l := range logs {
-		assertCommonLogShape(s.T(), l)
-		assert.Contains(s.T(), l.Tags, "agent.flavor:"+flavor.SecurityAgent,
-			"tags must identify the security-agent as the emitting binary; got: %q", l.Tags)
+		assertCommonLogShape(s.T(), l, flavor.SecurityAgent)
 	}
 }
 
