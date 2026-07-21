@@ -28,7 +28,7 @@ from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
-    _resolve_platform,
+    _resolve_target_platform,
     bin_name,
     get_build_flags,
     get_version,
