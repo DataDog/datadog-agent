@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "exec",
@@ -17,5 +17,14 @@ go_library(
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
     ],
+)
+
+go_test(
+    name = "exec_test",
+    srcs = ["installer_exec_test.go"],
+    embed = [":exec"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

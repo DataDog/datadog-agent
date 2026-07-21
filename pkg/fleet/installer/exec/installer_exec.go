@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,7 +25,41 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ErrResourceExhausted indicates that the installer subprocess crashed at Go-runtime bootstrap
+// because the host ran out of memory, threads, or paging capacity, rather than failing for some
+// other reason. Use errors.Is(err, ErrResourceExhausted) to distinguish this case from other
+// "run failed" errors.
+var ErrResourceExhausted = errors.New("installer subprocess crashed due to host resource exhaustion (memory/thread limit)")
+
+// resourceExhaustionSignatures are known Go-runtime crash signatures produced when a process fails
+// to bootstrap because the host is out of memory, threads, or paging capacity.
+var resourceExhaustionSignatures = []string{
+	"pageAlloc: out of memory",
+	"out of memory allocating heap arena",
+	"cannot allocate memory",
+	"failed to create new OS thread",
+	"VirtualAlloc",
+	"paging file is too small",
+}
+
+// isResourceExhaustionCrash returns true if the given subprocess output matches a known
+// Go-runtime crash signature for host memory/thread/paging exhaustion, e.g.:
+//   - "fatal error: pageAlloc: out of memory"
+//   - "out of memory allocating heap arena metadata"
+//   - "runtime: failed to create new OS thread (have N already; errno=11)"
+//   - "VirtualAlloc ... errno=1455"
+//   - "paging file is too small"
+func isResourceExhaustionCrash(output []byte) bool {
+	for _, sig := range resourceExhaustionSignatures {
+		if bytes.Contains(output, []byte(sig)) {
+			return true
+		}
+	}
+	return false
+}
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
@@ -374,6 +409,14 @@ func (iCmd *installerCmd) Run() error {
 	err := iCmd.Cmd.Run()
 	if err == nil {
 		return nil
+	}
+
+	if isResourceExhaustionCrash(errBuf.Bytes()) {
+		// The full Go-runtime crash output can be a multi-KB stack trace with no actionable
+		// signal beyond "the host ran out of memory/threads". Keep that off the primary error
+		// (which surfaces to users and Error Tracking) and only log it at debug level.
+		log.Debugf("installer subprocess crashed due to host resource exhaustion, full output:\n%s", errBuf.String())
+		return fmt.Errorf("run failed: %w: %w", ErrResourceExhausted, err)
 	}
 
 	if len(errBuf.Bytes()) == 0 {

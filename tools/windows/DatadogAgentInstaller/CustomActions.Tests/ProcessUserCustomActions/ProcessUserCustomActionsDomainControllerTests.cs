@@ -1,5 +1,6 @@
 using AutoFixture.Xunit2;
 using FluentAssertions;
+using Moq;
 using WixToolset.Dtf.WindowsInstaller;
 using Xunit;
 
@@ -20,6 +21,25 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .ProcessDdAgentUserCredentials()
                 .Should()
                 .Be(ActionResult.Failure);
+
+            Test.Properties.Should()
+                .BeEmpty();
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_Skips_LsaSecretLookup_With_No_Username_On_DomainController()
+        {
+            // Regression test: on a Domain Controller with no DDAGENTUSER_NAME provided, we must fail
+            // fast before attempting to read the password from the LSA secret store. Otherwise the LSA
+            // lookup fails and logs a misleading "system cannot find the file specified" error that
+            // obscures the real problem (missing required username on DCs).
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.NativeMethods.Verify(n => n.FetchSecret(It.IsAny<string>()), Times.Never());
 
             Test.Properties.Should()
                 .BeEmpty();
