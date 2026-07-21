@@ -4,138 +4,75 @@ use serde_json::{json, Value};
 use super::{Scanner, ScanningRule};
 
 fn parse(yaml: &str) -> Vec<ScanningRule> {
-    serde_yaml::from_str(yaml).expect("deserialize scanning rules")
+    serde_yaml::from_str(yaml).expect("failed to deserialize scanning rules")
 }
 
 fn scanner(yaml: &str) -> Scanner {
-    Scanner::new(&parse(yaml)).expect("build scanner")
+    Scanner::new(&parse(yaml)).expect("failed to build scanner")
 }
 
 /// Scans `data` and returns the matches as JSON, so tests can assert against a
 /// single `json!` literal.
 fn scan_json(scanner: &Scanner, data: &Value) -> Value {
-    let matches = scanner.scan(data).expect("scan");
-    serde_json::to_value(matches).expect("serialize matches")
+    let matches = scanner.scan(data).expect("failed to scan data");
+    serde_json::to_value(matches).expect("failed to serialize matches")
 }
 
 // --- config parsing -------------------------------------------------------
 
 #[test]
-fn parses_included_keyword_rule() {
+fn builds_scanner_from_all_rule_kinds() {
     let rules = parse(
         r#"
+# included proximity keyword
 - id: rule-included
-  name: Token With Included Keyword
   pattern: '\d{6}'
   proximity_keywords:
     look_ahead_character_count: 30
     included_keywords: ['token']
-    excluded_keywords: []
-"#,
-    );
-
-    assert_eq!(rules.len(), 1);
-    assert_eq!(rules[0].id, "rule-included");
-    let keywords = rules[0]
-        .config
-        .inner
-        .proximity_keywords
-        .as_ref()
-        .expect("proximity keywords parsed");
-    assert_eq!(keywords.included_keywords, vec!["token".to_string()]);
-    assert!(keywords.excluded_keywords.is_empty());
-    // `match_action` defaults to `None` when omitted.
-    assert_eq!(rules[0].config.match_action, MatchAction::None);
-}
-
-#[test]
-fn parses_excluded_keyword_rule() {
-    let rules = parse(
-        r#"
+# excluded proximity keyword
 - id: rule-excluded
-  name: Token With Excluded Keyword
   pattern: '\d{6}'
   proximity_keywords:
     look_ahead_character_count: 30
-    included_keywords: []
     excluded_keywords: ['test']
-"#,
-    );
-
-    let keywords = rules[0]
-        .config
-        .inner
-        .proximity_keywords
-        .as_ref()
-        .expect("proximity keywords parsed");
-    assert_eq!(keywords.excluded_keywords, vec!["test".to_string()]);
-}
-
-#[test]
-fn parses_suppression_rule() {
-    let rules = parse(
-        r#"
+# precedence + suppressions (ends_with / exact_match)
 - id: rule-suppression
-  name: Email With Suppression
   precedence: Specific
   pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
   suppressions:
     ends_with: ['@example.com']
     exact_match: ['ignore@corp.io']
-"#,
-    );
-
-    // `suppressions` and `precedence` are private fields of dd-sds
-    // `RootRuleConfig`; a successful build proves they were accepted and compiled.
-    Scanner::new(&rules).expect("scanner builds with suppressions");
-}
-
-#[test]
-fn parses_luhn_checksum_rule() {
-    let rules = parse(
-        r#"
+# secondary validator
 - id: rule-luhn
-  name: Credit Card With Luhn
   pattern: '\d{16}'
   validator:
     type: LuhnChecksum
 "#,
     );
 
+    // Each rule kind parsed and kept its id, in order.
+    let ids: Vec<&str> = rules.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(
-        rules[0].config.inner.validator,
+        ids,
+        ["rule-included", "rule-excluded", "rule-suppression", "rule-luhn"]
+    );
+    
+    // Spot-check the parsed config beyond the id.
+    let included = rules[0].config.inner.proximity_keywords.as_ref().unwrap();
+    assert_eq!(included.included_keywords, vec!["token".to_string()]);
+    let excluded = rules[1].config.inner.proximity_keywords.as_ref().unwrap();
+    assert_eq!(excluded.excluded_keywords, vec!["test".to_string()]);
+    assert_eq!(
+        rules[3].config.inner.validator,
         Some(SecondaryValidator::LuhnChecksum)
     );
-}
-
-#[test]
-fn builds_scanner_from_all_rule_kinds() {
-    let rules = parse(
-        r#"
-- id: rule-included
-  name: Token With Included Keyword
-  pattern: '\d{6}'
-  proximity_keywords:
-    look_ahead_character_count: 30
-    included_keywords: ['token']
-- id: rule-excluded
-  name: Token With Excluded Keyword
-  pattern: '\d{6}'
-  proximity_keywords:
-    look_ahead_character_count: 30
-    excluded_keywords: ['test']
-- id: rule-suppression
-  name: Email With Suppression
-  pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
-  suppressions:
-    ends_with: ['@example.com']
-- id: rule-luhn
-  name: Credit Card With Luhn
-  pattern: '\d{16}'
-  validator:
-    type: LuhnChecksum
-"#,
-    );
+    // `suppressions` is private on `RootRuleConfig`, so round-trip through
+    // serde to confirm `ends_with` parsed.
+    let suppression = serde_json::to_value(&rules[2].config).expect("serialize config");
+    assert_eq!(suppression["suppressions"]["ends_with"], json!(["@example.com"]));
+    // `match_action` defaults to `None` when omitted.
+    assert_eq!(rules[0].config.match_action, MatchAction::None);
 
     Scanner::new(&rules).expect("scanner builds from every rule kind");
 }
@@ -147,7 +84,6 @@ fn suppression_drops_matching_rows() {
     let scanner = scanner(
         r#"
 - id: email
-  name: Email
   pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
   suppressions:
     ends_with: ['@example.com']
@@ -176,7 +112,6 @@ fn included_keyword_required_for_match() {
     let scanner = scanner(
         r#"
 - id: token
-  name: Six Digit Token
   pattern: '\d{6}'
   proximity_keywords:
     look_ahead_character_count: 30
@@ -205,7 +140,6 @@ fn excluded_keyword_suppresses_match() {
     let scanner = scanner(
         r#"
 - id: code
-  name: Six Digit Code
   pattern: '\d{6}'
   proximity_keywords:
     look_ahead_character_count: 30
@@ -234,7 +168,6 @@ fn luhn_checksum_filters_invalid_numbers() {
     let scanner = scanner(
         r#"
 - id: credit-card
-  name: Credit Card
   pattern: '\d{16}'
   validator:
     type: LuhnChecksum
@@ -262,7 +195,6 @@ fn no_matches_produce_empty() {
     let scanner = scanner(
         r#"
 - id: email
-  name: Email
   pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
 "#,
     );
@@ -276,7 +208,6 @@ fn column_name_with_brackets_is_preserved() {
     let scanner = scanner(
         r#"
 - id: email
-  name: Email
   pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
 "#,
     );
@@ -297,7 +228,6 @@ fn column_name_with_dots_is_preserved() {
     let scanner = scanner(
         r#"
 - id: email
-  name: Email
   pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
 "#,
     );
