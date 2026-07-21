@@ -105,9 +105,7 @@ func (s *errorTrackingProcessAgentSuite) TestPayloadShape() {
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for process-agent error logs")
 
 	for _, l := range logs {
-		assertCommonLogShape(s.T(), l)
-		assert.Contains(s.T(), l.Tags, "agent.flavor:"+flavor.ProcessAgent,
-			"tags must identify the process-agent as the emitting binary; got: %q", l.Tags)
+		assertCommonLogShape(s.T(), l, flavor.ProcessAgent)
 	}
 }
 
