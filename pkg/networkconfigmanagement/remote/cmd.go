@@ -11,6 +11,7 @@ import (
 	"io"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -107,10 +108,41 @@ func executeShellCommand(ctx context.Context, client sshClient, cmd *profile.Pla
 		if r.err != nil {
 			return "", r.err
 		}
-		return r.message, cmd.Validator.Validate(r.message)
+		output := cleanShellOutput(r.message, commands)
+		return output, cmd.Validator.Validate(output)
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+}
+
+var (
+	promptRE       = regexp.MustCompile(`^\S+[#>]\s*$`)
+	promptPrefixRE = regexp.MustCompile(`^\S+[#>]\s+`)
+)
+
+// cleanShellOutput strips device prompts and command echoes from a shell
+// transcript, leaving only the real command output.
+func cleanShellOutput(transcript string, sent []string) string {
+	echoed := make(map[string]struct{}, len(sent))
+	for _, c := range sent {
+		echoed[c] = struct{}{}
+	}
+	var kept []string
+	for _, line := range strings.Split(transcript, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if promptRE.MatchString(trimmed) {
+			continue
+		}
+		echo := trimmed
+		if loc := promptPrefixRE.FindStringIndex(echo); loc != nil {
+			echo = strings.TrimSpace(echo[loc[1]:])
+		}
+		if _, isEcho := echoed[echo]; isEcho {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
 }
 
 // We found experimentally that some systems silently fail with unexpected
