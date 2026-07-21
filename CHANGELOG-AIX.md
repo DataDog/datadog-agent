@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Build embedded OpenSSL with the same hardening flags as the Linux omnibus/bazel build (`no-idea no-mdc2 no-rc5 no-ssl3 no-gost no-filenames`, dynamic zlib loading) — the AIX build previously shipped OpenSSL with default settings, retaining legacy/weak algorithms and the GOST engine that Linux deliberately strips
+
 
 ---
 
