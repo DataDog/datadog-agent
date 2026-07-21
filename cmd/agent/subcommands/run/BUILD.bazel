@@ -49,6 +49,7 @@ go_library(
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/fx",
         "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/datasecurity",
         "//comp/core/autodiscovery/providers/datastreams",
         "//comp/core/autodiscovery/providers/networkpath",
         "//comp/core/config",
