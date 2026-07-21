@@ -23,6 +23,7 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
@@ -115,6 +116,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 
+	var err error
 	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
 		return err
@@ -196,12 +198,12 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.RollbackError) {
 	log := LoggerFromContext(ctx)
 	conn, err := n.connect(dc.device)
 	if err != nil {
 		log.Errorf("unable to connect to device: %s", err)
-		return nil, err
+		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to connect to %s: %w", dc.device.DeviceID(), err)
 	}
 	if dc.profile == nil {
 		log.Debug("No profile specified, testing known profiles")
@@ -209,7 +211,7 @@ func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, d
 		if !ok {
 			dc.noMatchingProfile = true
 			_ = conn.Close()
-			return nil, fmt.Errorf("no matching NCM profile for device %s", dc.device.DeviceID())
+			return nil, types.WrapErrorf(types.ErrNoProfile, "no matching NCM profile for device %s", dc.device.DeviceID())
 		}
 		dc.profile = prof
 	}

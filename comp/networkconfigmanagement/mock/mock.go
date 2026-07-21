@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 type mockNetworkConfigManagement struct {
@@ -51,8 +52,8 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*ncmremote.PushResult, error) {
-	return nil, errors.New("TODO unimplemented")
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*ncmremote.PushResult, types.RollbackError) {
+	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
 // SetMaxReportInterval implements [networkconfigmanagement.Component].
