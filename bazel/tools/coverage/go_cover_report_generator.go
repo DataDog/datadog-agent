@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 
 	"golang.org/x/tools/cover"
@@ -179,33 +178,15 @@ func zeroBlocksForBaselineFile(fileName string) ([]cover.ProfileBlock, error) {
 	return blocks, nil
 }
 
-func lcovLineToBlock(line int, count int64) cover.ProfileBlock {
-	return cover.ProfileBlock{
-		StartLine: line,
-		StartCol:  0,
-		EndLine:   line,
-		EndCol:    1,
-		NumStmt:   1,
-		Count:     int(count),
-	}
-}
-
-func parseLcovProfiles(path string) (profiles []*cover.Profile, baselineOnly bool, isLcov bool, err error) {
+func parseBaselineProfiles(path string) ([]*cover.Profile, bool, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	defer file.Close()
 
-	type lcovRecord struct {
-		fileName   string
-		lineCounts map[int]int64
-	}
-
-	var records []lcovRecord
-	var current *lcovRecord
-	hasLcovMarker := false
-	hasDALines := false
+	var fileNames []string
+	hasBaselineMarker := false
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -213,74 +194,42 @@ func parseLcovProfiles(path string) (profiles []*cover.Profile, baselineOnly boo
 			continue
 		}
 		if strings.HasPrefix(line, "mode: ") {
-			return nil, false, false, nil
+			return nil, false, nil
 		}
 		switch {
 		case strings.HasPrefix(line, "SF:"):
-			hasLcovMarker = true
-			if current != nil {
-				records = append(records, *current)
-			}
-			current = &lcovRecord{
-				fileName:   line[len("SF:"):],
-				lineCounts: make(map[int]int64),
-			}
-		case strings.HasPrefix(line, "DA:") && current != nil:
-			hasLcovMarker = true
-			hasDALines = true
-			parts := strings.SplitN(line[len("DA:"):], ",", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			lineNumber, err := strconv.Atoi(parts[0])
-			if err != nil {
-				continue
-			}
-			count, err := strconv.ParseInt(parts[1], 10, 64)
-			if err != nil {
-				continue
-			}
-			current.lineCounts[lineNumber] = count
-		case line == "end_of_record" && current != nil:
-			records = append(records, *current)
-			current = nil
+			hasBaselineMarker = true
+			fileNames = append(fileNames, line[len("SF:"):])
+		case strings.HasPrefix(line, "DA:"):
+			// Full LCOV reports are handled by Bazel's default merger.
+			return nil, false, nil
+		case line == "end_of_record":
+			continue
+		default:
+			// Ignore LH/LF/FN metadata from baseline files.
+			continue
 		}
-	}
-	if current != nil {
-		records = append(records, *current)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
-	if !hasLcovMarker {
-		return nil, false, false, nil
+	if !hasBaselineMarker {
+		return nil, false, nil
 	}
 
-	profiles = make([]*cover.Profile, 0, len(records))
-	for _, record := range records {
-		profile := &cover.Profile{
-			FileName: record.fileName,
+	profiles := make([]*cover.Profile, 0, len(fileNames))
+	for _, fileName := range fileNames {
+		blocks, err := zeroBlocksForBaselineFile(fileName)
+		if err != nil {
+			return nil, true, err
+		}
+		profiles = append(profiles, &cover.Profile{
+			FileName: fileName,
 			Mode:     "atomic",
-		}
-		if len(record.lineCounts) == 0 {
-			blocks, err := zeroBlocksForBaselineFile(record.fileName)
-			if err != nil {
-				return nil, false, true, err
-			}
-			profile.Blocks = blocks
-		} else {
-			lines := make([]int, 0, len(record.lineCounts))
-			for line := range record.lineCounts {
-				lines = append(lines, line)
-			}
-			sort.Ints(lines)
-			for _, line := range lines {
-				profile.Blocks = append(profile.Blocks, lcovLineToBlock(line, record.lineCounts[line]))
-			}
-		}
-		profiles = append(profiles, profile)
+			Blocks:   blocks,
+		})
 	}
-	return profiles, !hasDALines, true, nil
+	return profiles, true, nil
 }
 
 func writeProfiles(path, mode string, profilesByFile map[string]*cover.Profile) error {
@@ -341,16 +290,12 @@ func generateReport(reportsFile, outputFile string) error {
 			continue
 		}
 
-		lcovProfiles, baselineOnly, isLcovProfile, err := parseLcovProfiles(reportPath)
+		baselineProfiles, isBaselineProfile, err := parseBaselineProfiles(reportPath)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", reportPath, err)
 		}
-		if isLcovProfile {
-			if baselineOnly {
-				if err := mergeBaselineProfiles(profilesByFile, lcovProfiles, &mode); err != nil {
-					return err
-				}
-			} else if err := mergeProfiles(profilesByFile, lcovProfiles, &mode); err != nil {
+		if isBaselineProfile {
+			if err := mergeBaselineProfiles(profilesByFile, baselineProfiles, &mode); err != nil {
 				return err
 			}
 		}

@@ -15,5 +15,7 @@ test:iot          --test_tag_filters=flavor_iot       --config=gorace
 # Usage: bazel test --config=no-dd-agent-go-tests //...
 test:no-dd-agent-go-tests  --test_tag_filters=-dd_agent_go_test --config=gorace
 
-# Use go coverage format instead of lcov for coverage reports.
-coverage --@rules_go//go/config:cover_format=go_cover
+# Go-only coverage: emit go cover profiles and merge Bazel baseline files.
+# Usage: bazel coverage --config=coverage:go //pkg/...
+coverage:go --@rules_go//go/config:cover_format=go_cover
+coverage:go --coverage_report_generator=//bazel/tools/coverage:coverage

@@ -142,7 +142,7 @@ example.com/uncovered.go:1.0,1.1 1 0
 	}
 }
 
-func TestGenerateReportFromLcov(t *testing.T) {
+func TestIgnoresFullLcovProfile(t *testing.T) {
 	dir := t.TempDir()
 	lcov := filepath.Join(dir, "coverage.dat")
 	reports := filepath.Join(dir, "reports.txt")
@@ -165,11 +165,7 @@ end_of_record
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
-example.com/foo.go:1.0,1.1 1 2
-example.com/foo.go:2.0,2.1 1 0
-`
-	if string(got) != want {
+	if string(got) != "mode: atomic\n" {
 		t.Fatalf("unexpected merged profile:\n%s", got)
 	}
 }
