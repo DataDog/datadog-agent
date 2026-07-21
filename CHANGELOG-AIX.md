@@ -12,6 +12,7 @@
 
 - Bump the embedded Python from 3.13.12 to 3.13.14, matching the version used by the Linux omnibus/bazel build
 - Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
+- Disable Python's `dbm` C-extension backends (`dbm.gnu`/`dbm.ndbm`) to match the Linux omnibus/bazel build, which links no dbm backend either; `gdbm` is no longer staged into the embedded tree
 
 
 ---
