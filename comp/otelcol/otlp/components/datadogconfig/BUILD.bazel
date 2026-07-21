@@ -35,7 +35,10 @@ dd_agent_go_test(
         "config_test.go",
         "config_warnings_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = [
+        "testdata/config.yaml",
+        "testdata/unmarshal.yaml",
+    ],
     embed = [":datadogconfig"],
     deps = [
         "@com_github_stretchr_testify//assert",
