@@ -10,6 +10,7 @@ import (
 	kubehealthfx "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/fx"
 	agentfx "github.com/DataDog/datadog-agent/comp/logs/agent/fx"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
+	severityproviderfx "github.com/DataDog/datadog-agent/comp/logs/severityprovider/fx"
 	streamlogs "github.com/DataDog/datadog-agent/comp/logs/streamlogs/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -21,6 +22,7 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		kubehealthfx.Module(),
 		agentfx.Module(),
+		severityproviderfx.Module(),
 		streamlogs.Module(),
 		auditorfx.Module(),
 	)

@@ -28,6 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 )
 
+var openShiftPrivilegedPSSLabels = pulumi.StringMap{
+	"pod-security.kubernetes.io/enforce": pulumi.String("privileged"),
+	"pod-security.kubernetes.io/warn":    pulumi.String("privileged"),
+	"pod-security.kubernetes.io/audit":   pulumi.String("privileged"),
+}
+
 // DeployComponents deploys the OpenShift agent and test workloads onto an existing Kubernetes provider.
 // fakeIntake may be nil. agentOptions is the full set of agent options to use; pass nil to skip
 // agent deployment entirely (e.g. when WithoutAgent() was called). Use agentOptions to pass
@@ -100,12 +106,12 @@ func DeployComponents(
 			}
 
 			// Dogstatsd clients that report to the standalone dogstatsd deployment
-			if _, err := dogstatsd.K8sAppDefinition(env, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			if _, err := dogstatsd.K8sAppDefinitionWithOptions(env, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", []dogstatsd.K8sAppOption{dogstatsd.WithNamespaceLabels(openShiftPrivilegedPSSLabels)}, dependsOnDDAgent /* for admission */); err != nil {
 				return err
 			}
 
 			// Dogstatsd clients that report to the Agent
-			if _, err := dogstatsd.K8sAppDefinition(env, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			if _, err := dogstatsd.K8sAppDefinitionWithOptions(env, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", []dogstatsd.K8sAppOption{dogstatsd.WithNamespaceLabels(openShiftPrivilegedPSSLabels)}, dependsOnDDAgent /* for admission */); err != nil {
 				return err
 			}
 		}

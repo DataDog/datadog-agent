@@ -38,7 +38,6 @@ properties:
         default: false
         visibility: public
         description: Enable the NCCL collective performance check.
-        comment: NCCL
       host_socket_path:
         node_type: setting
         type: string

@@ -70,7 +70,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-        comment: Remote config products
   apm_semantics:
     node_type: section
     type: object

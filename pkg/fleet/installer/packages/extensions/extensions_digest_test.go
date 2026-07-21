@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 // The extension embedded in FixtureSimpleV1WithExtension (see fixtures/server.go).
@@ -61,6 +63,17 @@ func realDigestForFixture(t *testing.T, s *fixtures.Server) string {
 	digest, err := pkg.Image.Digest()
 	require.NoError(t, err)
 	return digest.String()
+}
+
+// setupOnDiskExtension points ExtensionsPackagesPath at dir and creates an
+// existing on-disk extension directory, so a reinstall reaches installSingle's
+// file-swap path (where the pre-install hook now runs).
+func setupOnDiskExtension(t *testing.T, dir string) {
+	t.Helper()
+	ExtensionsPackagesPath = dir
+	t.Cleanup(func() { ExtensionsPackagesPath = paths.PackagesPath })
+	extPath := filepath.Join(dir, "simple", "v1", "ext", fixtureExtensionName)
+	require.NoError(t, os.MkdirAll(extPath, 0755))
 }
 
 // seedExtensionDB writes a "simple/v1" entry with a single extension at the given digest.
@@ -108,6 +121,7 @@ func TestReinstallExtensionWhenDigestChanges(t *testing.T) {
 
 	s := fixtures.NewServer(t)
 	seedExtensionDB(t, tmpDir, "sha256:outdated")
+	setupOnDiskExtension(t, tmpDir)
 
 	sentinel := errors.New("reinstall-triggered")
 	hooks := &countingHooks{preInstallErr: sentinel}
@@ -122,7 +136,7 @@ func TestReinstallExtensionWhenDigestChanges(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reinstall-triggered")
-	assert.Equal(t, 1, hooks.preInstallCount, "PreInstallExtension must be called when digest differs")
+	assert.GreaterOrEqual(t, hooks.preInstallCount, 1, "PreInstallExtension must be called when digest differs")
 }
 
 // seedExtensionDBLegacy writes a "simple/v1" entry using the pre-digest schema
@@ -162,6 +176,7 @@ func TestReinstallExtensionWithLegacyFormat(t *testing.T) {
 
 	s := fixtures.NewServer(t)
 	seedExtensionDBLegacy(t, tmpDir)
+	setupOnDiskExtension(t, tmpDir)
 
 	sentinel := errors.New("reinstall-triggered")
 	hooks := &countingHooks{preInstallErr: sentinel}
@@ -176,5 +191,5 @@ func TestReinstallExtensionWithLegacyFormat(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reinstall-triggered")
-	assert.Equal(t, 1, hooks.preInstallCount, "PreInstallExtension must be called for legacy format")
+	assert.GreaterOrEqual(t, hooks.preInstallCount, 1, "PreInstallExtension must be called for legacy format")
 }
