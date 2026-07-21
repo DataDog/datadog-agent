@@ -433,11 +433,6 @@ else
     CURRENT_LIB=
 fi
 
-# Note: gdbm is intentionally NOT staged here. Python is configured with
-# --with-dbmliborder= (empty, see 02-python.sh) to disable the dbm module
-# family entirely, matching the Linux omnibus/bazel build — the agent and its
-# checks don't use Python's dbm module, so there is nothing to link it against.
-
 # ── libxml2 (build from source) ───────────────────────────────────────────────
 if lib_done libxml2 "$LIBXML2_VERSION"; then
     log "libxml2 ${LIBXML2_VERSION} already installed — skipping"

@@ -344,15 +344,10 @@ log "AIX patching complete."
 #   baked in at build time, making it impossible to fully bundle without rebuilding
 #   libintl from source. Since the agent does not use Python's i18n/gettext support,
 #   suppress the detection entirely.
-# ac_cv_header_*panel*=no / ac_cv_search_update_panels=no : unlike the Linux build
-#   (deps/cpython.BUILD.bazel), which links no curses/readline support at all, AIX
-#   intentionally keeps the _curses and readline modules linked against the toolbox
-#   ncurses/readline staged in Stage 1. AIX has no alternative Python install, so an
-#   interactive `python3` REPL with working line-editing/history is the main tool
-#   operators have for troubleshooting checks (e.g. pymqi, ibm_db) by hand. The
-#   toolbox ncurses headers reference the panel extension, but panel itself isn't
-#   packaged, so its detection is suppressed to avoid a link failure.
-
+# ac_cv_header_*panel*=no / ac_cv_search_update_panels=no : the toolbox ncurses
+#   headers reference the panel extension, but panel itself isn't packaged;
+#   suppress its detection to avoid a link failure while keeping ncurses itself
+#   to ease interactive debugging.
 log "Configuring Python ${PYTHON_VERSION} (--prefix=$EMBEDDED)"
 log "  (Note: configure can take several minutes on POWER8)"
 
