@@ -7,7 +7,7 @@ import tasks.libs.cws.common as common
 @dataclass
 class ConfigSetting:
     name: str  # noqa: F841
-    config_key: str
+    config_key: str  # noqa: F841
     env_var: str
     description: str
     type: str
