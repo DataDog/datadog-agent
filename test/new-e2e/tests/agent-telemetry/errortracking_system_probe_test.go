@@ -80,6 +80,19 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 	// comes.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
+	// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+	// require.EventuallyWithT below calls FailNow on timeout, which aborts the
+	// test via runtime.Goexit — t.Cleanup still runs after that, unlike code
+	// placed after the call.
+	s.T().Cleanup(func() {
+		if !s.T().Failed() {
+			return
+		}
+		out, _ := s.Env().RemoteHost.Execute(
+			"sudo grep -n -i 'errortracking\\|Error unmarshalling network_path' /var/log/datadog/system-probe.log || true")
+		s.T().Logf("system-probe.log errortracking/filter lines:\n%s", out)
+	})
+
 	// testify's suite.Run executes test methods in alphabetical order
 	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
 	// re-provisions the same host in place rather than a fresh one. Re-assert
@@ -109,17 +122,8 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 		assert.NotEmpty(c, logs, "no system-probe filter unmarshal error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for system-probe error logs")
 
-	// TEMPORARY diagnostic for investigating CI failure; remove before merge.
-	if len(logs) == 0 {
-		out, _ := s.Env().RemoteHost.Execute(
-			"sudo grep -n -i 'errortracking\\|Error unmarshalling network_path' /var/log/datadog/system-probe.log || true")
-		s.T().Logf("system-probe.log errortracking/filter lines:\n%s", out)
-	}
-
 	for _, l := range logs {
-		assertCommonLogShape(s.T(), l)
-		assert.Contains(s.T(), l.Tags, "agent.flavor:"+flavor.SystemProbe,
-			"tags must identify system-probe as the emitting binary; got: %q", l.Tags)
+		assertCommonLogShape(s.T(), l, flavor.SystemProbe)
 	}
 }
 
