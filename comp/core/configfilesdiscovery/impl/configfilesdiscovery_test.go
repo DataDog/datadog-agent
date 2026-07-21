@@ -435,6 +435,9 @@ func TestSchedulerSendsCollectedConfig(t *testing.T) {
 				Truncated: true,
 			},
 		},
+		envVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+		},
 	}
 	s := newADScheduler(
 		targetResolver{},
@@ -449,7 +452,7 @@ func TestSchedulerSendsCollectedConfig(t *testing.T) {
 	})
 
 	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
-	assert.Equal(t, collectedConfig{
+	assert.Equal(t, CollectedConfig{
 		Integration: "redisdb",
 		Runtime:     RuntimeDocker,
 		RuntimeID:   "abc123",
@@ -460,7 +463,61 @@ func TestSchedulerSendsCollectedConfig(t *testing.T) {
 				Truncated: true,
 			},
 		},
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+		},
 	}, collectedConfigs[0])
+}
+
+func TestSchedulerSendsEnvOnlyCollectedConfig(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		envVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{"redisdb": collector},
+		sender,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig("redisdb", "docker://abc123"),
+	})
+
+	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
+	assert.Equal(t, CollectedConfig{
+		Integration: "redisdb",
+		Runtime:     RuntimeDocker,
+		RuntimeID:   "abc123",
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}, collectedConfigs[0])
+}
+
+func TestSchedulerSkipsEmptyCollectedConfig(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{"redisdb": collector},
+		sender,
+	)
+
+	s.Schedule([]integration.Config{
+		checkConfig("redisdb", "docker://abc123"),
+	})
+
+	collector.waitForRuns(t, 1)
+	s.Stop()
+	assert.Empty(t, sender.recordedBatches())
 }
 
 func TestSchedulerBatchesMultipleCompletedConfigCollections(t *testing.T) {
@@ -569,6 +626,15 @@ func TestSchedulerFlushesOversizedConfigCollectionAlone(t *testing.T) {
 	assert.Greater(t, collectedConfigRawBytes(batches[0][0]), configCollectionBatchMaxRawConfigBytes)
 }
 
+func TestSchedulerCountsEnvVarsInCollectedConfigRawBytes(t *testing.T) {
+	assert.Equal(t, len("REDIS_PORT")+len("6379")+len("REDIS_TLS_ENABLED")+len("true"), collectedConfigRawBytes(CollectedConfig{
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}))
+}
+
 func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
 	sender := &recordingCollectedConfigSender{}
 	collector := &recordingConfigCollector{
@@ -654,7 +720,7 @@ func TestEventPlatformSenderSendsAgentDiscoveryPayload(t *testing.T) {
 	}, "test-host")
 
 	beforeSend := time.Now()
-	err := sender.SendCollectedConfigs([]collectedConfig{
+	err := sender.SendCollectedConfigs([]CollectedConfig{
 		{
 			Integration: testRedisIntegrationName,
 			Runtime:     RuntimeDocker,
@@ -672,6 +738,10 @@ func TestEventPlatformSenderSendsAgentDiscoveryPayload(t *testing.T) {
 					Truncated:     false,
 					PayloadFormat: testRedisConfigPayloadFormat,
 				},
+			},
+			EnvVars: []ConfigEnvVar{
+				{Name: "REDIS_PORT", Value: "6379"},
+				{Name: "REDIS_TLS_ENABLED", Value: "true"},
 			},
 		},
 		{
@@ -731,6 +801,16 @@ func TestEventPlatformSenderSendsAgentDiscoveryPayload(t *testing.T) {
 						PayloadFormat: testRedisConfigPayloadFormat,
 					},
 				},
+				EnvVars: []*agentdiscovery.AgentDiscoveryEnvVar{
+					{
+						Name:  "REDIS_PORT",
+						Value: "6379",
+					},
+					{
+						Name:  "REDIS_TLS_ENABLED",
+						Value: "true",
+					},
+				},
 			},
 			{
 				Integration:        testRedisIntegrationName,
@@ -757,7 +837,7 @@ func TestEventPlatformSenderSkipsEmptyCollections(t *testing.T) {
 		ok:        true,
 	}, "test-host")
 
-	err := sender.SendCollectedConfigs([]collectedConfig{
+	err := sender.SendCollectedConfigs([]CollectedConfig{
 		{
 			Integration: testRedisIntegrationName,
 			Runtime:     RuntimeDocker,
@@ -775,7 +855,7 @@ func TestEventPlatformSenderReturnsSendError(t *testing.T) {
 		ok:        true,
 	}, "test-host")
 
-	err := sender.SendCollectedConfigs([]collectedConfig{
+	err := sender.SendCollectedConfigs([]CollectedConfig{
 		{
 			Integration: testRedisIntegrationName,
 			Runtime:     RuntimeDocker,
@@ -831,6 +911,7 @@ type recordingConfigCollector struct {
 	runs    []runCall
 	unblock chan struct{}
 	files   []ConfigFile
+	envVars []ConfigEnvVar
 	err     error
 }
 
@@ -838,11 +919,11 @@ type runCall struct {
 	reader ConfigReader
 }
 
-func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) ([]ConfigFile, error) {
+func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) (CollectedConfig, error) {
 	if c.unblock != nil {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return CollectedConfig{}, ctx.Err()
 		case <-c.unblock:
 		}
 	}
@@ -852,25 +933,31 @@ func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigRea
 	c.runs = append(c.runs, runCall{
 		reader: reader,
 	})
-	return c.files, c.err
+	if c.err != nil {
+		return CollectedConfig{}, c.err
+	}
+	return CollectedConfig{
+		ConfigFiles: c.files,
+		EnvVars:     c.envVars,
+	}, nil
 }
 
 type recordingCollectedConfigSender struct {
 	mu      sync.Mutex
-	batches [][]collectedConfig
+	batches [][]CollectedConfig
 	err     error
 }
 
-func (r *recordingCollectedConfigSender) SendCollectedConfigs(configs []collectedConfig) error {
+func (r *recordingCollectedConfigSender) SendCollectedConfigs(configs []CollectedConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	copiedConfigs := make([]collectedConfig, len(configs))
+	copiedConfigs := make([]CollectedConfig, len(configs))
 	copy(copiedConfigs, configs)
 	r.batches = append(r.batches, copiedConfigs)
 	return r.err
 }
 
-func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, count int) []collectedConfig {
+func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, count int) []CollectedConfig {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -884,7 +971,7 @@ func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, c
 	return r.flattenCollectedConfigsLocked()
 }
 
-func (r *recordingCollectedConfigSender) waitForBatches(t *testing.T, count int) [][]collectedConfig {
+func (r *recordingCollectedConfigSender) waitForBatches(t *testing.T, count int) [][]CollectedConfig {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -893,18 +980,22 @@ func (r *recordingCollectedConfigSender) waitForBatches(t *testing.T, count int)
 		return len(r.batches) >= count
 	}, 2*time.Second, 10*time.Millisecond)
 
+	return r.recordedBatches()
+}
+
+func (r *recordingCollectedConfigSender) recordedBatches() [][]CollectedConfig {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	batches := make([][]collectedConfig, len(r.batches))
+	batches := make([][]CollectedConfig, len(r.batches))
 	for i, batch := range r.batches {
-		batches[i] = make([]collectedConfig, len(batch))
+		batches[i] = make([]CollectedConfig, len(batch))
 		copy(batches[i], batch)
 	}
 	return batches
 }
 
-func (r *recordingCollectedConfigSender) flattenCollectedConfigsLocked() []collectedConfig {
-	var configs []collectedConfig
+func (r *recordingCollectedConfigSender) flattenCollectedConfigsLocked() []CollectedConfig {
+	var configs []CollectedConfig
 	for _, batch := range r.batches {
 		configs = append(configs, batch...)
 	}

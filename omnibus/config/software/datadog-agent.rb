@@ -250,7 +250,7 @@ build do
 
   end
 
-  # system-probe-lite (service discovery agent)
+  # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
     command "bazel run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end

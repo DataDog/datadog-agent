@@ -102,8 +102,6 @@ check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
 check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
 check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
 
-check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
-check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
 check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
 check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
 # libexslt ships with libxslt-devel; stage 01 copies it silently if present.
