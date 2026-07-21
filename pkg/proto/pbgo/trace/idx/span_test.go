@@ -427,6 +427,75 @@ func TestUnmarshalSpanUnknownFieldNestedStrings(t *testing.T) {
 	assert.Equal(t, "nested-b", strings.Get(span.span.NameRef))
 }
 
+// TestUnmarshalSpanUnknownFieldMapStrings verifies that string harvesting
+// recurses into a msgpack map used as an unknown field value, adding both keys
+// and values (and strings inside further-nested containers) in exact stream
+// order while skipping non-string scalars. A later known field references the
+// last harvested string by index, so any reordering or omission in the map
+// branch would break this test. Stream order:
+//
+//	field 1 (service): "svc"                         -> string index 1
+//	field 99 (unknown map, 3 entries):
+//	  "mk1" -> index 2, "mv1"                         -> index 3
+//	  "mk2" -> index 4, ["av1"]                       -> index 5
+//	  "mk3" -> index 6, bin{0x01,0x02}                -> skipped (not a string)
+//	field 2 (name): ref index 5                       -> "av1"
+func TestUnmarshalSpanUnknownFieldMapStrings(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 3) // span struct: 3 fields
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendString(bts, "svc")
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendMapHeader(bts, 3) // unknown value is itself a map
+	bts = msgp.AppendString(bts, "mk1")
+	bts = msgp.AppendString(bts, "mv1")
+	bts = msgp.AppendString(bts, "mk2")
+	bts = msgp.AppendArrayHeader(bts, 1) // nested container inside a map value
+	bts = msgp.AppendString(bts, "av1")
+	bts = msgp.AppendString(bts, "mk3")
+	bts = msgp.AppendBytes(bts, []byte{0x01, 0x02}) // non-string scalar: skipped
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 5) // name: streaming-string ref to index 5
+	span := &InternalSpan{Strings: strings}
+	o, err := span.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, "svc", strings.Get(span.span.ServiceRef))
+	assert.Equal(t, "mk1", strings.Get(2))
+	assert.Equal(t, "mv1", strings.Get(3))
+	assert.Equal(t, "mk2", strings.Get(4))
+	assert.Equal(t, "av1", strings.Get(5))
+	assert.Equal(t, "mk3", strings.Get(6))
+	assert.Equal(t, 7, strings.Len(), "table holds \"\", svc and the 5 harvested strings; the bin scalar is not added")
+	assert.Equal(t, "av1", strings.Get(span.span.NameRef))
+}
+
+// TestUnmarshalSpanListUnknownFieldSharedTable verifies harvesting keeps the
+// string table synchronized across objects that share it: the first span
+// introduces a new string only inside an unknown field, and the second span
+// references it by index.
+//
+//	span[0] field 99 (unknown): "cross"       -> string index 1
+//	span[1] field 1 (service):  ref index 1   -> "cross"
+func TestUnmarshalSpanListUnknownFieldSharedTable(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendArrayHeader(bts, 2)
+	bts = msgp.AppendMapHeader(bts, 1) // span[0]: single unknown field
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "cross")
+	bts = msgp.AppendMapHeader(bts, 1) // span[1]: service references the harvested string
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendUint32(bts, 1)
+	spans, o, err := UnmarshalSpanList(bts, strings)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	require.Len(t, spans, 2)
+	assert.Equal(t, "cross", strings.Get(1))
+	assert.Equal(t, "cross", strings.Get(spans[1].span.ServiceRef))
+}
+
 // TestUnmarshalSpanEventUnknownField verifies SpanEvent.UnmarshalMsg skips an
 // unknown field and harvests its inline string so a later known field's index
 // reference resolves. Layout:
