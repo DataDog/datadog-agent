@@ -63,6 +63,8 @@ BPF_PERCPU_ARRAY_MAP(llm_body_scratch, llm_body_t, 1)
 // it: every request body is delivered, in order.
 typedef struct {
     llm_conn_key_t key;
+    __u32 stream_id; // HTTP/2 stream id (from the request's frame header)
+    __u32 pid;       // client PID that wrote the request (for service resolution)
     __u32 len;
     __u32 _pad;
     __u8 data[LLM_REQ_BUFFER_SIZE];
@@ -79,6 +81,8 @@ BPF_PERCPU_ARRAY_MAP(llm_req_event_scratch, llm_req_event_t, 1)
 // usage/finish fields (near the end) too.
 typedef struct {
     llm_conn_key_t key;
+    __u32 stream_id;  // HTTP/2 stream id (from the response's first frame header)
+    __u32 end_stream; // 1 if this read starts with a frame carrying END_STREAM
     __u32 len;
     __u32 _pad;
     __u8 data[LLM_REQ_BUFFER_SIZE];
@@ -110,6 +114,27 @@ static __always_inline void llmo_read_req_body(__u8 *dst, char *src) {
 #pragma unroll
     for (int i = 0; i < LLM_REQ_BUFFER_SIZE / LLM_BODY_CHUNK; i++) {
         read_into_user_buffer_llmo((char *)dst + i * LLM_BODY_CHUNK, src + i * LLM_BODY_CHUNK);
+    }
+}
+
+// llmo_frame_hdr reads the 9-byte HTTP/2 frame header at the start of buffer and
+// extracts the stream id (low 31 bits of the last 4 bytes) and the END_STREAM
+// flag (defined only for DATA and HEADERS frames). Best-effort: meaningful only
+// when buffer begins at a frame boundary — the first write of a request or the
+// first read of a response, which is the common case. A mid-frame continuation
+// read yields a bogus id/flag the caller treats as "same/current stream".
+static __always_inline void llmo_frame_hdr(char *buffer, __u32 *stream_id, __u32 *end_stream) {
+    *stream_id = 0;
+    *end_stream = 0;
+    __u8 hdr[9];
+    if (bpf_probe_read_user(hdr, sizeof(hdr), buffer) < 0) {
+        return;
+    }
+    *stream_id = ((__u32)(hdr[5] & 0x7f) << 24) | ((__u32)hdr[6] << 16) | ((__u32)hdr[7] << 8) | (__u32)hdr[8];
+    __u8 ftype = hdr[3];
+    __u8 fflags = hdr[4];
+    if ((ftype == 0x00 || ftype == 0x01) && (fflags & 0x01)) {
+        *end_stream = 1;
     }
 }
 
@@ -148,10 +173,14 @@ static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffe
     }
 
     ev->key = key;
+    __u32 sid = 0, eos = 0;
+    llmo_frame_hdr(buffer, &sid, &eos);
+    ev->stream_id = sid;
+    ev->pid = bpf_get_current_pid_tgid() >> 32;
     ev->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
     llmo_read_req_body(ev->data, buffer);
     bpf_ringbuf_output(&llm_request_events, ev, sizeof(*ev), 0);
-    log_debug("[llmo] body streamed len=%u", ev->len);
+    log_debug("[llmo] req streamed len=%u stream=%u pid=%u", ev->len, ev->stream_id, ev->pid);
 }
 
 // llmo_maybe_capture_response captures the TAIL of the decrypted response
@@ -200,9 +229,14 @@ static __always_inline void llmo_maybe_capture_response(conn_tuple_t *t, char *b
         // Stream a large window from the START of the response: the assistant
         // answer is near the start, and for responses up to this size the
         // usage/finish fields (near the end) are included too.
+        __u32 sid = 0, eos = 0;
+        llmo_frame_hdr(buffer, &sid, &eos);
+        ev->stream_id = sid;
+        ev->end_stream = eos;
         ev->len = len < LLM_REQ_BUFFER_SIZE ? len : LLM_REQ_BUFFER_SIZE;
         llmo_read_req_body(ev->data, buffer);
         bpf_ringbuf_output(&llm_response_events, ev, sizeof(*ev), 0);
+        log_debug("[llmo] resp streamed len=%u stream=%u eos=%u", ev->len, ev->stream_id, ev->end_stream);
     }
     log_debug("[llmo] response stored len=%u off=%llu", body->len, off);
 }

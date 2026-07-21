@@ -94,15 +94,18 @@ type llmReqParsed struct {
 	prompt       string
 	reqToolCalls []llmToolCall
 	toolResults  []llmToolResult
+	sessionID    string // app-supplied session/conversation id (see parseSessionID)
 }
 
 // llmReqEvent mirrors the eBPF llm_req_event_t: a connection key plus a captured
 // request body, streamed once per request.
 type llmReqEvent struct {
-	Key  llmConnKey
-	Len  uint32
-	Pad  uint32
-	Data [llmReqBodyBufferSize]byte
+	Key      llmConnKey
+	StreamID uint32
+	Pid      uint32
+	Len      uint32
+	Pad      uint32
+	Data     [llmReqBodyBufferSize]byte
 }
 
 func newLLMConnKey(c types.ConnectionKey) llmConnKey {
@@ -249,6 +252,10 @@ type llmSpanInfo struct {
 	// running tool workflows, which are represented by the agent workflow span
 	// instead, so a flat llm span here would be a duplicate.
 	suppressFlat bool
+	// sessionID is an app-supplied session/conversation id parsed from the
+	// request (OpenAI "user"/metadata, Anthropic metadata.user_id). When set, it
+	// groups multiple requests into one LLM Observability session.
+	sessionID string
 }
 
 // detectProvider infers the LLM provider from the model name. Anthropic models
@@ -496,12 +503,16 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 
 	// Emit an LLM Observability span so it lands in the "AI" section, grouped by
 	// ml_app = the resolved service (e.g. openai-test).
-	span, _ := llmobs.StartLLMSpan(context.Background(), llmoSpanName,
+	llmOpts := []llmobs.StartSpanOption{
 		llmobs.WithMLApp(info.service),
 		llmobs.WithModelName(info.model),
 		llmobs.WithModelProvider(info.provider),
 		llmobs.WithStartTime(start),
-	)
+	}
+	if info.sessionID != "" {
+		llmOpts = append(llmOpts, llmobs.WithSessionID(info.sessionID))
+	}
+	span, _ := llmobs.StartLLMSpan(context.Background(), llmoSpanName, llmOpts...)
 
 	var input, output []llmobs.LLMMessage
 	// Prefer the full parsed message list (system, user, ...) so every request
@@ -582,10 +593,14 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	t2 := start.Add(time.Duration(2 * latencyNs / 3))
 	tags := map[string]string{"http.url": path, "llm.source": "apm-lite-ebpf"}
 
-	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
+	agentOpts := []llmobs.StartSpanOption{
 		llmobs.WithMLApp(info.service),
 		llmobs.WithStartTime(start),
-	)
+	}
+	if info.sessionID != "" {
+		agentOpts = append(agentOpts, llmobs.WithSessionID(info.sessionID))
+	}
+	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation", agentOpts...)
 
 	// Base input messages (system + user), shared by both generations.
 	var baseInput []llmobs.LLMMessage
@@ -697,6 +712,7 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.prompt = req.prompt
 		info.reqToolCalls = req.reqToolCalls
 		info.toolResults = req.toolResults
+		info.sessionID = req.sessionID
 	}
 
 	// Response body tail -> token usage (parsed per provider).
@@ -709,10 +725,13 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 		info.response = parseResponseText(data, info.provider)
 		info.toolCalls = parseToolCalls(data, info.provider)
 	}
-	// Prefer the streamed, per-connection cached answer over the head map: the
-	// head is a single slot overwritten by later responses, so at poll-batched
-	// processing time it may hold a different (e.g. tool_call) response with no
-	// text, leaving the span output empty.
+	// Prefer the streamed, per-connection cached answer over the head map (the
+	// head is a single slot churned by later responses).
+	//
+	// NOTE: this is latest-wins per connection, so when one connection serves
+	// several conversations, a request can be paired with a later conversation's
+	// answer. Correct per-request pairing needs HTTP/2 stream-id keying (a FIFO
+	// queue does not work: transactions aren't processed in wire order).
 	if c, ok := h.lookupRespContent(key); ok && c != "" {
 		info.response = c
 	}
@@ -765,18 +784,14 @@ type llmRespReasm struct {
 // window from the start of the response (the full assistant answer, plus usage
 // for responses that fit), streamed once per response.
 type llmRespEvent struct {
-	Key  llmConnKey
-	Len  uint32
-	Pad  uint32
-	Data [llmReqBodyBufferSize]byte
+	Key       llmConnKey
+	StreamID  uint32
+	EndStream uint32
+	Len       uint32
+	Pad       uint32
+	Data      [llmReqBodyBufferSize]byte
 }
 
-// startLLMOResponseConsumer consumes response-tail events from the ring buffer
-// and caches, per connection, the token usage of tool-call generations
-// (detected via finish_reason/stop_reason). Because it runs continuously, it
-// observes every turn's response in order — so a tool-call generation's usage
-// is cached before its follow-up is processed, unlike the poll-batched map
-// reads that only ever see the latest response.
 // StartLLMORequestConsumer consumes streamed request-body events, parses each,
 // and queues it FIFO per connection for captureLLMBody to drain. Streaming (vs
 // a single map slot) means a connection that fires several requests in quick
@@ -828,6 +843,7 @@ func (h *StatKeeper) processLLMRequestEvent(sample []byte) {
 	// history; parse them to reconstruct a workflow (llm + tool spans).
 	req.reqToolCalls = parseToolCalls(raw, req.provider)
 	req.toolResults = parseToolResults(raw, req.provider)
+	req.sessionID = parseSessionID(raw, req.provider)
 
 	h.enqueueReq(ev.Key, req)
 }

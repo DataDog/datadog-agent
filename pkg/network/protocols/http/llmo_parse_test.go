@@ -117,3 +117,54 @@ func TestParseFullResponseFallsBackOnFragment(t *testing.T) {
 	assert.Equal(t, int64(52), tot)
 	assert.True(t, isToolCallGen(tail, providerOpenAI), "regex fallback finds finish_reason on the fragment")
 }
+
+func TestParseSessionID(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      []byte
+		provider string
+		want     string
+	}{
+		{
+			name:     "openai user field",
+			raw:      []byte(`{"model":"gpt-4o-mini","user":"session-abc123","messages":[{"role":"user","content":"hi"}]}`),
+			provider: providerOpenAI,
+			want:     "session-abc123",
+		},
+		{
+			name:     "openai metadata session_id",
+			raw:      []byte(`{"model":"gpt-4o-mini","metadata":{"session_id":"conv-77"},"messages":[{"role":"user","content":"hi"}]}`),
+			provider: providerOpenAI,
+			want:     "conv-77",
+		},
+		{
+			name:     "openai user preferred over metadata",
+			raw:      []byte(`{"model":"gpt-4o-mini","user":"u1","metadata":{"session_id":"s1"},"messages":[{"role":"user","content":"hi"}]}`),
+			provider: providerOpenAI,
+			want:     "u1",
+		},
+		{
+			name:     "openai none",
+			raw:      []byte(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`),
+			provider: providerOpenAI,
+			want:     "",
+		},
+		{
+			name:     "anthropic metadata user_id",
+			raw:      []byte(`{"model":"claude-haiku-4-5","metadata":{"user_id":"sess-xyz"},"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`),
+			provider: providerAnthropic,
+			want:     "sess-xyz",
+		},
+		{
+			name:     "behind frame header, nul padded",
+			raw:      padTo(append(http2DataFrameHeader(80), []byte(`{"model":"gpt-4o-mini","user":"S-9","messages":[{"role":"user","content":"hi"}]}`)...), llmReqBodyBufferSize),
+			provider: providerOpenAI,
+			want:     "S-9",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseSessionID(tt.raw, tt.provider))
+		})
+	}
+}

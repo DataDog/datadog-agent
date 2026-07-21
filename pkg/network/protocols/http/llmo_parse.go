@@ -58,6 +58,11 @@ type openAIMessageJSON struct {
 type openAIEnvelopeJSON struct {
 	Model    string              `json:"model"`
 	Messages []openAIMessageJSON `json:"messages"`
+	// User is OpenAI's stable end-user identifier; apps often set it (or a
+	// metadata field) to a session/conversation id, giving a wire-visible way to
+	// group requests into one LLM Obs session.
+	User     string                     `json:"user"`
+	Metadata map[string]json.RawMessage `json:"metadata"`
 	Choices  []struct {
 		Message      openAIMessageJSON `json:"message"`
 		FinishReason string            `json:"finish_reason"`
@@ -95,10 +100,41 @@ type anthropicEnvelopeJSON struct {
 	Messages   []anthropicMessageJSON `json:"messages"`
 	Content    []anthropicBlockJSON   `json:"content"`
 	StopReason string                 `json:"stop_reason"`
-	Usage      struct {
+	// Metadata.user_id is Anthropic's optional stable end-user id (session-like).
+	Metadata struct {
+		UserID string `json:"user_id"`
+	} `json:"metadata"`
+	Usage struct {
 		InputTokens  int64 `json:"input_tokens"`
 		OutputTokens int64 `json:"output_tokens"`
 	} `json:"usage"`
+}
+
+// parseSessionID extracts a wire-visible session/conversation id from a request
+// body: OpenAI's "user" (or metadata.session_id / conversation_id), or
+// Anthropic's metadata.user_id. Empty when the app supplied none. Used to group
+// multiple requests into one LLM Observability session.
+func parseSessionID(raw []byte, provider string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	if provider == providerAnthropic {
+		if env, ok := decodeLLMEnvelope[anthropicEnvelopeJSON](raw); ok {
+			return env.Metadata.UserID
+		}
+		return ""
+	}
+	if env, ok := decodeLLMEnvelope[openAIEnvelopeJSON](raw); ok {
+		if env.User != "" {
+			return env.User
+		}
+		for _, k := range []string{"session_id", "conversation_id"} {
+			if v, present := env.Metadata[k]; present {
+				return jsonText(v)
+			}
+		}
+	}
+	return ""
 }
 
 // decodeLLMEnvelope decodes the JSON object in a captured window into T. It
