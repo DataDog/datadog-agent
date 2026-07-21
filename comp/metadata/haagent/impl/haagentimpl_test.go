@@ -85,6 +85,22 @@ func TestGet(t *testing.T) {
 	assert.NotEqual(t, p.State, io.data.State)
 }
 
+func TestGetReflectsLiveStateWithoutExplicitRefresh(t *testing.T) {
+	overrides := map[string]any{}
+	io := getTestInventoryPayload(t, overrides)
+	haAgentMock := io.haAgent.(haagentmock.Component)
+
+	haAgentMock.SetEnabled(true)
+	io.refreshMetadata()
+	assert.NotNil(t, io.Get(), "metadata should be present while HA Agent is enabled")
+
+	// Simulate the HA Agent state changing after the periodic inventory collector last ran,
+	// without a new collection cycle (or an explicit refreshMetadata call) happening in between.
+	haAgentMock.SetEnabled(false)
+
+	assert.Nil(t, io.Get(), "Get() must reflect the current state, not the value cached by the last periodic collection")
+}
+
 func TestFlareProviderFilename(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 	assert.Equal(t, "ha-agent.json", io.FlareFileName)
