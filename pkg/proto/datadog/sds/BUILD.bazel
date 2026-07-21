@@ -1,0 +1,5 @@
+# Compiled with prost-build (cargo) by the datasecurity Rust check; not built or
+# consumed by Bazel. Disable proto generation inherited from ../BUILD.bazel.
+# gazelle:proto disable
+
+exports_files(["sds_result.proto"])
