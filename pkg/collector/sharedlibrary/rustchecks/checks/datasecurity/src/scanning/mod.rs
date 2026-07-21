@@ -37,7 +37,7 @@ impl Scanner {
 
         let scanner = ScannerBuilder::new(&scanner_rules)
             .build()
-            .context("building sds scanner")?;
+            .context("failed to build sds scanner")?;
         Ok(Self { scanner, rule_ids })
     }
 
@@ -47,7 +47,7 @@ impl Scanner {
         let hits = self
             .scanner
             .scan(&mut event)
-            .context("scanning query result")?;
+            .context("failed to scan query result")?;
 
         Ok(aggregate_matches(&self.rule_ids, &hits))
     }

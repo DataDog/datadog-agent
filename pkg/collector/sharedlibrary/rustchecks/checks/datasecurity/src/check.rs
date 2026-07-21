@@ -16,7 +16,7 @@ pub fn check(check: &AgentCheck) -> Result<()> {
         config.scan_data.len()
     );
 
-    let scanner = Scanner::new(&config.scanning_rules).context("creating sds scanner")?;
+    let scanner = Scanner::new(&config.scanning_rules).context("failed to create sds scanner")?;
 
     for sub_task in &config.scan_data {
         run_sub_task(check, &config, &scanner, sub_task)?;
@@ -39,7 +39,7 @@ fn run_sub_task(
 
     // TODO(DSEC-139): fetch the rows from postgres.
     let data = fetch_data(sub_task);
-    let matches = scanner.scan(&data).context("scanning sub task data")?;
+    let matches = scanner.scan(&data).context("failed to scan sub task data")?;
 
     let payload = ScanEventPayload {
         task_id: config.task_id.clone(),
@@ -53,7 +53,7 @@ fn run_sub_task(
     );
 
     // TODO(DSEC-140): send sdsresult rather than an event
-    let payload_json = serde_json::to_string(&payload).context("serializing scan event payload")?;
+    let payload_json = serde_json::to_string(&payload).context("failed to serialize scan event payload")?;
     check.event(
         "datasecurity scan result",
         &payload_json,

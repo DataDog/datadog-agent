@@ -15,11 +15,11 @@ impl CheckConfig {
             scanning_rules: check
                 .instance
                 .get("scanning_rules")
-                .context("reading scanning_rules from instance config")?,
+                .context("failed to read scanning_rules from instance config")?,
             scan_data: check
                 .instance
                 .get("scan_data")
-                .context("reading scan_data from instance config")?,
+                .context("failed to read scan_data from instance config")?,
         })
     }
 }
