@@ -67,6 +67,21 @@ var logsDDTagsTests = []logsDDTagsTest{
 		outLogRecordDdtags: "",
 	},
 	{
+		// `kube_service` lives in attributes.KubernetesDDTags but not in
+		// knownConventionKeys. Regression guard for the bug where such keys
+		// were diverted into ddtags, even though the OTLP logs translator
+		// (attributes.TagsFromAttributes) already promotes them from
+		// resource attributes into tags downstream.
+		name:             "enabled, KubernetesDDTags-only key (kube_service) stays a resource attribute",
+		logsTagsAsDDTags: true,
+		taggerTags:       []string{"kube_service:mysvc"},
+		outResourceAttributes: map[string]any{
+			"container.id": "test",
+			"kube_service": "mysvc",
+		},
+		outLogRecordDdtags: "",
+	},
+	{
 		name:             "enabled, USM tag (service) flows through USM path, not ddtags",
 		logsTagsAsDDTags: true,
 		taggerTags:       []string{"service:svc"},

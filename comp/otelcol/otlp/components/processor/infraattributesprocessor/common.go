@@ -162,6 +162,10 @@ func (p infraTagsProcessor) ProcessTags(
 // If ddtags is non-nil, a truly custom key is instead appended to *ddtags as
 // "k:v" and NOT written to resourceAttributes (the promote mode is ignored in
 // this case, since it only makes sense for the resource-attribute path).
+// Keys in attributes.KubernetesDDTags are exempted from this diversion: the
+// OTLP logs translator (attributes.TagsFromAttributes) already promotes them
+// from resource attributes into tags downstream, so they must stay on
+// resourceAttributes rather than being moved into ddtags.
 func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, ddtags *[]string) {
 	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
 		resourceAttributes.PutStr(k, v)
@@ -172,6 +176,10 @@ func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote Cont
 		return
 	}
 	if ddtags != nil {
+		if _, isKnownDDTag := attributes.KubernetesDDTags[k]; isKnownDDTag {
+			resourceAttributes.PutStr(k, v)
+			return
+		}
 		*ddtags = append(*ddtags, k+":"+v)
 		return
 	}
