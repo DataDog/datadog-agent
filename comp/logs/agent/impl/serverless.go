@@ -16,7 +16,9 @@ import (
 	kubehealthimpl "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/impl"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorimpl "github.com/DataDog/datadog-agent/comp/logs/auditor/impl"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -24,30 +26,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
-// NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) agent.ServerlessLogsAgent {
+// NewServerlessLogsAgent creates a new instance of the logs agent for
+// serverless. useRegistryAuditor selects between the two auditors this
+// caller base needs:
+//
+//   - true: a registry auditor that persists tailer offsets to
+//     registry.json under logs_config.run_path, so a cold-start instance
+//     (no registry yet) reads from the beginning and captures the app's
+//     startup line, while a restart within the same instance resumes from
+//     the persisted offset instead of re-reading it. See
+//     cmd/serverless-init/log/log.go for the tailingMode this pairs with,
+//     and cmd/serverless-init/main.go's preloadEarly for the run_path
+//     default.
+//   - false: a no-op auditor that persists nothing.
+//
+// This is an explicit parameter rather than always constructing the
+// registry auditor because pkg/serverless/logs.SetupLogAgent, which calls
+// into this function, is also imported directly by the datadog-lambda-extension
+// repository outside this codebase. Defaulting to the registry auditor
+// would make that external caller start writing registry.json to disk on
+// its next dependency bump with no corresponding code change on its side.
+// Requiring the bool forces every caller, in-repo or out-of-repo, to make
+// that choice at compile time.
+func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, useRegistryAuditor bool) agent.ServerlessLogsAgent {
 
 	log := logComponent.NewTemporaryLoggerWithoutInit()
 
-	// Registry auditor (was a NullAuditor): persists tailer offsets to
-	// registry.json under logs_config.run_path so a cold-start instance (no
-	// registry yet) reads from the beginning and captures the app's startup
-	// line, while a restart within the same instance resumes from the
-	// persisted offset instead of re-reading it. See
-	// cmd/serverless-init/log/log.go for the tailingMode this pairs with, and
-	// cmd/serverless-init/main.go's preloadEarly for the run_path default.
-	auditor := auditorimpl.NewComponent(auditorimpl.Dependencies{
-		Log:        log,
-		Config:     pkgconfigsetup.Datadog(),
-		KubeHealth: kubehealthimpl.NewComponent().Comp,
-	}).Comp
+	var registryOrNoopAuditor auditor.Component
+	if useRegistryAuditor {
+		registryOrNoopAuditor = auditorimpl.NewComponent(auditorimpl.Dependencies{
+			Log:        log,
+			Config:     pkgconfigsetup.Datadog(),
+			KubeHealth: kubehealthimpl.NewComponent().Comp,
+		}).Comp
+	} else {
+		registryOrNoopAuditor = auditornoop.NewAuditor()
+	}
 
 	logsAgent := &logAgent{
 		log:     log,
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
-		auditor:         auditor,
+		auditor:         registryOrNoopAuditor,
 		sources:         sources.NewLogSources(),
 		services:        service.NewServices(),
 		tracker:         tailers.NewTailerTracker(),

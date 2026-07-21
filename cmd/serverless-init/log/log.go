@@ -82,7 +82,9 @@ func CreateConfig(defaultSource string, flushTimeout time.Duration) *Config {
 
 // SetupLogAgent creates the log agent and sets the base tags
 func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, origin string) logsAgent.ServerlessLogsAgent {
-	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression, hostname)
+	// serverless-init persists tailer offsets across restarts (see tailingMode
+	// above), so it always wants the registry auditor.
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression, hostname, true)
 
 	tagsArray := serverlessTag.MapToArray(tags)
 

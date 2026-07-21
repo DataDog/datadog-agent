@@ -85,7 +85,7 @@ func TestDrainTailersDeliversUnreadLine(t *testing.T) {
 	fakeCompression := compressionmock.NewMockCompressor()
 	hostnameService := hostnameimpl.NewHostnameService()
 
-	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService)
+	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService, false)
 	logsAgent, ok := serverlessLogsAgent.(*logAgent)
 	require.True(t, ok, "Expected NewServerlessLogsAgent to return *logAgent type")
 
@@ -127,5 +127,10 @@ func TestDrainTailersDeliversUnreadLine(t *testing.T) {
 	logsAgent.DrainTailers(ctx)
 	logsAgent.Flush(ctx)
 
-	require.Equal(t, 1, intake.count(pendingLine))
+	// pipelineProvider.Flush can return before the message is fully in
+	// flight from decoder to sender, so poll briefly instead of asserting
+	// once immediately after Flush.
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
+		return intake.count(pendingLine) == 1
+	})
 }

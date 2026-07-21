@@ -60,7 +60,7 @@ func newTestServerlessLogsAgent(t *testing.T, intake *capturingIntake, runPath s
 	hostnameService := hostnameimpl.NewHostnameService()
 
 	setRegistryConfigForTest(t, runPath)
-	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService)
+	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService, true)
 	logsAgent, ok := serverlessLogsAgent.(*logAgent)
 	require.True(t, ok, "Expected NewServerlessLogsAgent to return *logAgent type")
 
