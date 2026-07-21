@@ -265,8 +265,9 @@ else
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     # Hardening flags match the Linux omnibus/bazel build (deps/openssl.BUILD.bazel
-    # DEFAULT_CONFIG): strip legacy/weak algorithms and the GOST engine, and load
-    # zlib dynamically (dlopen at runtime) rather than linking it at build time.
+    # DEFAULT_CONFIG): strip legacy/weak algorithms and the GOST engine.
+    # no-zlib (not zlib-dynamic like Linux, on purpose): shared zlib can't be
+    # dlopen'd on AIX.
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
@@ -280,8 +281,7 @@ else
         no-ssl3 \
         no-gost \
         no-filenames \
-        zlib-dynamic \
-        --with-zlib-include="$EMBEDDED_DESTDIR/include"
+        no-zlib
     make -j"$NPROC"
     make install_sw DESTDIR="$STAGING"
     lib_cache_save openssl "$OPENSSL_VERSION" "$_pre"
