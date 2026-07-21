@@ -1,4 +1,3 @@
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 
 # Rust shared-library checks are Linux-only.
@@ -25,18 +24,4 @@ rust_test(
     crate = ":example",
     edition = "2024",
     target_compatible_with = _LINUX,
-)
-
-# Stage the cdylib with the loader naming convention
-# (libdatadog-agent-<check_id>.so) and owner-only perms. Enable/disable shipping
-# via ENABLED_CHECKS in //pkg/collector/sharedlibrary/rustchecks:BUILD.bazel,
-# which aggregates this into the `:install` target callers use.
-pkg_files(
-    name = "checks_d_files",
-    srcs = [":example"],
-    attributes = pkg_attributes(mode = "0500"),
-    prefix = "checks.d",
-    renames = {":example": "libdatadog-agent-example.so"},
-    target_compatible_with = _LINUX,
-    visibility = ["//visibility:public"],
 )

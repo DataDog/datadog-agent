@@ -1,18 +1,24 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
-# Built-in Rust shared-library checks shipped with the Agent. To enable a check,
-# add its `:checks_d_files` target here; to disable it, remove the line. This is
-# the single source of truth for which checks get staged into `checks.d` by the
-# `:install` target that omnibus and `agent.build` invoke.
-ENABLED_CHECKS = [
-    "//pkg/collector/sharedlibrary/rustchecks/checks/example:checks_d_files",
-]
+# Rust shared-library checks are Linux-only.
+_LINUX = ["@platforms//os:linux"]
 
-pkg_filegroup(
+# Rust checks are disabled by default; add a check id -> cdylib target entry
+# here to ship it.
+ENABLED_CHECKS = {
+    "example": "//pkg/collector/sharedlibrary/rustchecks/checks/example:example",
+}
+
+# Stage every enabled cdylib into checks.d with the loader naming convention
+# (libdatadog-agent-<check_id>.so) and owner-only perms.
+pkg_files(
     name = "enabled_checks",
-    srcs = ENABLED_CHECKS,
-    target_compatible_with = ["@platforms//os:linux"],
+    srcs = ENABLED_CHECKS.values(),
+    attributes = pkg_attributes(mode = "0500"),
+    prefix = "checks.d",
+    renames = {target: "libdatadog-agent-" + check_id + ".so" for check_id, target in ENABLED_CHECKS.items()},
+    target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
 )
 
@@ -21,6 +27,6 @@ pkg_filegroup(
 pkg_install(
     name = "install",
     srcs = [":enabled_checks"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
 )
