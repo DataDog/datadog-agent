@@ -96,7 +96,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
-# gazelle:exclude test/new-e2e/test-infra-definition
 # gazelle:exclude test/new-e2e/tests/agent-configuration
 # gazelle:exclude test/new-e2e/tests/agent-devx
 # gazelle:exclude test/new-e2e/tests/agent-health
