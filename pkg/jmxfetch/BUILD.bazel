@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jmxfetch",
+    srcs = [
+        "jmxfetch.go",
+        "jmxfetch_nix.go",
+        "jmxfetch_windows.go",
+        "limiter.go",
+        "runner.go",
+        "scheduler.go",
+        "state.go",
+        "stub.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/jmxfetch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/jmxlogger/def",
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/ipc/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/dogstatsd/config",
+        "//comp/dogstatsd/server/def",
+        "//pkg/collector/check",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/status/health",
+        "//pkg/status/jmx",
+        "//pkg/util/cache",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/log",
+        "//pkg/util/net",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+go_test(
+    name = "jmxfetch_test",
+    srcs = [
+        "jmxfetch_nix_test.go",
+        "jmxfetch_test.go",
+        "limiter_test.go",
+        "runner_test.go",
+        "utils_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":jmxfetch"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

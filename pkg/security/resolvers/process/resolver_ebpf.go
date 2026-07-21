@@ -79,11 +79,12 @@ type EBPFResolver struct {
 	envVarsResolver     *envvars.Resolver
 	userSessionResolver *usersessions.Resolver
 
-	inodeFileMap ebpf.Map
-	procCacheMap ebpf.Map
-	pidCacheMap  ebpf.Map
-	pathIDMap    ebpf.Map
-	opts         ResolverOpts
+	inodeFileMap        ebpf.Map
+	procCacheMap        ebpf.Map
+	pidCacheMap         ebpf.Map
+	pathIDMap           ebpf.Map
+	kernelThreadPidsMap ebpf.Map
+	opts                ResolverOpts
 
 	// stats
 	hitsStats                 map[string]*atomic.Int64
@@ -100,14 +101,28 @@ type EBPFResolver struct {
 	brokenLineage             *atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
-	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
-	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
+
+	// preReparentCb, if non-nil, is invoked just before an entry's parent
+	// link is updated (e.g. subreaper or procfs reparenting). It is called
+	// with the resolver lock held; the implementation must not call back into
+	// the resolver. Used to snapshot inherited SECL variables so they keep
+	// their pre-reparent value after the parent chain changes.
+	preReparentCb func(*model.ProcessCacheEntry)
+}
+
+// SetPreReparentCb registers a callback invoked just before the parent
+// link of a process cache entry is updated.
+func (p *EBPFResolver) SetPreReparentCb(cb func(*model.ProcessCacheEntry)) {
+	p.Lock()
+	defer p.Unlock()
+	p.preReparentCb = cb
 }
 
 // DequeueExited dequeue exited process
@@ -298,7 +313,7 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
 	}
-	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+	if IsKworker(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 		return errors.New("process is kthread")
 	}
 
@@ -415,7 +430,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
-		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.PathKey, entry.Process.Pid)
+		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 		if err != nil {
 			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
 		}
@@ -425,6 +440,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	entry.ForkTime = entry.ExecTime
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
+	entry.SID = utils.PidSID(uint32(filledProc.Pid))
 	entry.TTYName = utils.PidTTY(uint32(filledProc.Pid))
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
@@ -595,9 +611,20 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
 		}
+		cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
+		// resolve the cgroup source
+		switch source {
+		case model.ProcessCacheEntryFromEvent:
+			cgroupContext.CGroupSource = model.CGroupSourceEvent
+		case model.ProcessCacheEntryFromProcFS, model.ProcessCacheEntryFromSnapshot:
+			cgroupContext.CGroupSource = model.CGroupSourceProcFS
+		default:
+			cgroupContext.CGroupSource = model.CGroupSourceUnknown
+		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, createdAt, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}
@@ -742,31 +769,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	return nil
 }
 
-func (p *EBPFResolver) resolveFullFilePath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
-	var (
-		pathnameStr, mountPath string
-		source                 model.MountSource
-		origin                 model.MountOrigin
-		err                    error
-		maxDepthRetry          = 3
-	)
-	for maxDepthRetry > 0 {
-		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFullFilePath(e, &pce.PIDContext)
-		if err == nil {
-			return pathnameStr, mountPath, source, origin, nil
-		}
-		parent, exists := p.entryCache[pce.PPid]
-		if !exists {
-			break
-		}
-
-		pce = parent
-		maxDepthRetry--
-	}
-
-	return pathnameStr, mountPath, source, origin, err
-}
-
 // setProcessPath resolves process file path
 func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
@@ -781,7 +783,7 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
+	pathnameStr, mountPath, source, origin, err := p.pathResolver.ResolveFullFilePath(&fileEvent.FileFields, &pce.PIDContext)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -814,7 +816,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) setProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.PathKey, entry.Pid)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
 		if err != nil {
 			return "", err
 		}
@@ -990,8 +992,8 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		return nil
 	}
 
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		return nil
 	}
 
@@ -1194,17 +1196,12 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
-	tags := tmeta.GetTags()
-	if len(tags) == 0 {
-		return nil
-	}
-
 	p.Lock()
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
 	if entry != nil {
-		entry.TracerTags = tags
+		entry.TracerMetadata = tmeta
 	}
 
 	return nil
@@ -1231,30 +1228,27 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	}
 }
 
-// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event, and prunes
-// expired entries
-func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event for the
+// provided process, and prunes expired entries. Credentials are attributed to the process that made the IMDS request,
+// so only that process should report them (not its ancestors).
+func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event, process *model.Process) []model.AWSSecurityCredentials {
 	p.Lock()
 	defer p.Unlock()
 
-	entry := p.entryCache[e.ProcessContext.Pid]
-	if entry != nil {
-		// check if we should delete
-		var toDelete []int
-		for id, key := range entry.AWSSecurityCredentials {
-			if key.Expiration.Before(e.ResolveEventTime()) {
-				toDelete = append([]int{id}, toDelete...)
-			}
+	// check if we should delete
+	var toDelete []int
+	for id, key := range process.AWSSecurityCredentials {
+		if key.Expiration.Before(e.ResolveEventTime()) {
+			toDelete = append([]int{id}, toDelete...)
 		}
-
-		// delete expired entries
-		for _, id := range toDelete {
-			entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials[0:id], entry.AWSSecurityCredentials[id+1:]...)
-		}
-
-		return entry.AWSSecurityCredentials
 	}
-	return nil
+
+	// delete expired entries
+	for _, id := range toDelete {
+		process.AWSSecurityCredentials = append(process.AWSSecurityCredentials[0:id], process.AWSSecurityCredentials[id+1:]...)
+	}
+
+	return process.AWSSecurityCredentials
 }
 
 // Start starts the resolver
@@ -1273,6 +1267,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	if p.pathIDMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
+		return err
+	}
+
+	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
 		return err
 	}
 
@@ -1312,21 +1310,23 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncBoundSockets sets the bound sockets discovered during the snapshot
-func (p *EBPFResolver) SyncBoundSockets(pid uint32, boundSockets []model.SnapshottedBoundSocket) {
-	p.SnapshottedBoundSockets[pid] = boundSockets
-}
-
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
-	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
-	// required.
 	p.Lock()
 	defer p.Unlock()
 
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
+		return
+	}
+
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		value := uint8(1)
+		if err = p.kernelThreadPidsMap.Put(uint32(filledProc.Pid), value); err != nil {
+			seclog.Errorf("couldn't push kernel_thread_pids entry to kernel space: %s", err)
+		}
 		return
 	}
 
@@ -1391,8 +1391,6 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
 	}
-
-	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
@@ -1604,7 +1602,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),

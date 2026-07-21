@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fixes a regression in serverless-init and the Lambda extension where the
+    trace-agent's EVPProxy was disabled at startup, producing
+    "EVPProxy is disabled: Has been disabled in config" 405 responses to
+    clients sending LLM Observability spans (and other EVP-routed payloads).
+    The ``evp_proxy_config.*`` and ``ol_proxy_config.*`` default registrations
+    were only reachable under the non-serverless build, so the trace-agent's
+    unconditional read of ``evp_proxy_config.enabled`` returned ``false`` and
+    clobbered the package-level ``true`` default. The defaults have been moved
+    into the shared APM config setup so they take effect under both the
+    regular and ``serverless`` build tags.

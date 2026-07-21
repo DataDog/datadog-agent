@@ -10,14 +10,32 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/jsonapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// newTestClient builds a ConnectionsClient with retry intervals tight enough
+// that 5xx tests don't waste real time before exhausting MaxElapsedTime.
+func newTestClient(baseUrl string) *ConnectionsClient {
+	return &ConnectionsClient{
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		baseUrl:    baseUrl,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+		retryOpts: parutil.RetryHTTPOptions{
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     2 * time.Millisecond,
+			MaxElapsedTime:  20 * time.Millisecond,
+		},
+	}
+}
 
 // mockTagsProvider is a test double for TagsProvider
 type mockTagsProvider struct {
@@ -29,10 +47,13 @@ func (m *mockTagsProvider) GetTags(ctx context.Context, runnerID, hostname strin
 		return m.tags
 	}
 	// Default: return basic tags
-	return []string{
+	tags := []string{
 		"runner-id:" + runnerID,
-		"hostname:" + hostname,
 	}
+	if hostname != "" {
+		tags = append(tags, "hostname:"+hostname)
+	}
+	return tags
 }
 
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
@@ -63,7 +84,7 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
 	runnerName := "runner-123"
 	connectionName := "HTTP (runner-123)"
-	tags := []string{"runner-id:test", "hostname:test-host"}
+	tags := []string{"runner-id:test"}
 
 	request := buildConnectionRequest(httpDef, runnerID, runnerName, tags)
 
@@ -122,12 +143,7 @@ func TestCreateConnection_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := &ConnectionsClient{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	client := newTestClient(server.URL)
 
 	httpDef := ConnectionDefinition{
 		FQNPrefix:       "com.datadoghq.http",
@@ -153,6 +169,25 @@ func TestCreateConnection_Success(t *testing.T) {
 	assert.Contains(t, receivedBody, `"tags":[`)
 	assert.Contains(t, receivedBody, `"runner-id:runner-id-123"`)
 	assert.Contains(t, receivedBody, `"hostname:test-hostname"`)
+}
+
+func TestCreateConnection_MissingAppKey(t *testing.T) {
+	client := newTestClient("http://localhost")
+	client.appKey = ""
+
+	httpDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials: CredentialConfig{
+			Type:             "HTTPNoAuth",
+			AdditionalFields: nil,
+		},
+	}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "app key is required")
 }
 
 func TestCreateConnection_ErrorResponses(t *testing.T) {
@@ -190,12 +225,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := &ConnectionsClient{
-				httpClient: &http.Client{Timeout: 10 * time.Second},
-				baseUrl:    server.URL,
-				apiKey:     "test-api-key",
-				appKey:     "test-app-key",
-			}
+			client := newTestClient(server.URL)
 
 			httpDef := ConnectionDefinition{
 				FQNPrefix:       "com.datadoghq.http",
@@ -206,7 +236,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 				},
 			}
 
-			tags := []string{"runner-id:runner-id-123", "hostname:test-hostname"}
+			tags := []string{"runner-id:runner-id-123"}
 
 			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
@@ -215,6 +245,87 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.responseBody)
 		})
 	}
+}
+
+func TestCreateConnection_RetriesOn5xxThenSucceeds(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := atomic.AddInt32(&hits, 1)
+		if n < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"errors": ["temporary"]}`))
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"data": {"id": "conn-123"}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	// Give this test a longer budget than the default helper since we expect
+	// real retries to occur.
+	client.retryOpts.MaxElapsedTime = 1 * time.Second
+
+	httpDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials:     CredentialConfig{Type: "HTTPNoAuth"},
+	}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 3, atomic.LoadInt32(&hits), "should have retried until success")
+}
+
+func TestCreateConnection_NoRetryOn4xx(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"errors": ["forbidden"]}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+
+	httpDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials:     CredentialConfig{Type: "HTTPNoAuth"},
+	}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "403")
+	assert.EqualValues(t, 1, atomic.LoadInt32(&hits), "4xx must not be retried")
+}
+
+func TestCreateConnection_5xxExhaustsBudgetThenFails(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"errors": ["broken"]}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+
+	httpDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials:     CredentialConfig{Type: "HTTPNoAuth"},
+	}
+
+	start := time.Now()
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Greater(t, atomic.LoadInt32(&hits), int32(1), "5xx should retry at least once")
+	assert.Less(t, time.Since(start), 1*time.Second, "should bail within MaxElapsedTime budget")
 }
 
 func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
@@ -298,7 +409,7 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := []string{"runner-id:runner-123", "hostname:test-host"}
+			tags := []string{"runner-id:runner-123"}
 			request := buildConnectionRequest(tt.definition, tt.runnerID, tt.runnerName, tags)
 
 			jsonBytes, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())

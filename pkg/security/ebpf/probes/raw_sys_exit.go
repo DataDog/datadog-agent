@@ -221,9 +221,30 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 		},
 		{
 			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SocketEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_socket_exit"),
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.PrCtlEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("handle_sys_prctl_exit"),
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.PivotRootEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_pivot_root_exit"),
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetSidEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_setsid_exit"),
 			},
 		},
 	}

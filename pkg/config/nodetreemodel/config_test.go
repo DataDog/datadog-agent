@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -275,29 +275,29 @@ func TestSetUnkownKey(t *testing.T) {
 
 func TestAllSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
+	cfg.SetDefault("a", 0)                         // "a"   @ file
+	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
+	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var (defined)
+	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var (undefined, falls back to default)
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
 	cfg.Set("b.c", 123, model.SourceAgentRuntime)
 
-	// AllSettings does not include 'known' nor 'bindenv (undefined)'
+	// AllSettings does not include 'known' keys
 	expected := map[string]interface{}{
 		"a": 987, // file
 		"b": map[string]interface{}{
 			"c": 123, // agent-runtime
 			"d": 0,   // default
-			// b.e is not included
+			"e": 0,   // default
 		},
 		"f": map[string]interface{}{
-			"g": "456", // env-var defined
-			// f.h is not included
+			"g": 456, // env-var defined
+			"h": 0,   // default (env-var undefined)
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettings())
@@ -305,13 +305,10 @@ func TestAllSettings(t *testing.T) {
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
-	t.Setenv("TEST_F_G", "456")
+	cfg.SetDefault("a", 0)             // "a"   @ file
+	cfg.SetDefault("b.c", 0)           // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)           // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0) // "b.e" @ default
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -321,9 +318,6 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 		"a": 987,
 		"b": map[string]interface{}{
 			"c": 123,
-		},
-		"f": map[string]interface{}{
-			"g": "456",
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsWithoutDefault())
@@ -354,17 +348,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceSecretBackend:      map[string]interface{}{},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -382,7 +376,7 @@ func TestAllSettingsWithoutSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	// includes secrets
@@ -404,7 +398,7 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	result := cfg.AllSettingsWithoutDefaultOrSecrets()
@@ -416,49 +410,12 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestGetSecretSettingPaths(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("api_key", "")
-	cfg.SetDefault("proxy.https", "")
-	cfg.SetDefault("proxy.http", "")
-	cfg.BuildSchema()
-
-	assert.Empty(t, cfg.GetSecretSettingPaths())
-
-	cfg.Set("api_key", "resolved_key", model.SourceSecretBackend)
-	cfg.Set("proxy.https", "resolved_proxy", model.SourceSecretBackend)
-
-	paths := cfg.GetSecretSettingPaths()
-	assert.ElementsMatch(t, []string{"api_key", "proxy.https"}, paths)
-}
-
-func TestIsSet(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c") //nolint:forbidigo // testing behavior
-	cfg.BuildSchema()
-
-	cfg.Set("b", 123, model.SourceAgentRuntime)
-
-	assert.True(t, cfg.IsSet("a"))
-	assert.True(t, cfg.IsSet("b"))
-	assert.False(t, cfg.IsSet("c"))
-
-	assert.True(t, cfg.IsKnown("a"))
-	assert.True(t, cfg.IsKnown("b"))
-	assert.True(t, cfg.IsKnown("c"))
-
-	assert.False(t, cfg.IsSet("unknown"))
-	assert.False(t, cfg.IsKnown("unknown"))
-}
-
 func TestIsConfigured(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c") //nolint:forbidigo // testing behavior
-	cfg.BindEnv("d")  //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("c", 0)
+	cfg.BindEnvAndSetDefault("d", 0)
 
 	t.Setenv("TEST_D", "123")
 
@@ -476,11 +433,9 @@ func TestIsConfigured(t *testing.T) {
 
 func TestEnvVarMultipleSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b", 0)
 	cfg.SetDefault("c", 0)
-	cfg.BindEnv("a", "TEST_MY_ENVVAR") //nolint:forbidigo // testing behavior
-	cfg.BindEnv("b", "TEST_MY_ENVVAR") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", 0, "TEST_MY_ENVVAR")
+	cfg.BindEnvAndSetDefault("b", 0, "TEST_MY_ENVVAR")
 
 	t.Setenv("TEST_MY_ENVVAR", "123")
 
@@ -493,8 +448,7 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 
 func TestEmptyEnvVarSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", -1)
-	cfg.BindEnv("a") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", -1)
 
 	// This empty string is ignored, so the default value of -1 will be returned by GetInt
 	t.Setenv("TEST_A", "")
@@ -508,12 +462,12 @@ func TestEmptyEnvVarSettings(t *testing.T) {
 
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (not defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (env var defined)
+	cfg.SetDefault("a", 0)                         // "a"   @ file
+	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
+	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var
+	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
@@ -539,7 +493,6 @@ logs_config:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -1421,7 +1374,9 @@ user:
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("api_key") //nolint:forbidigo // testing behavior
+	// Enable the dynamic schema so api_key can be Set even though it has no default value,
+	// which is required to exercise the "unset with no previous value" behavior below.
+	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)
@@ -1443,7 +1398,7 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	_, found = cfg.AllSettings()["api_key"]
 	assert.False(t, found)
 
-	cfg.SetWithoutSource("api_key", "0123456789abcdef")
+	cfg.SetInTest("api_key", "0123456789abcdef")
 
 	// api_key is set
 	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
@@ -1523,6 +1478,40 @@ func TestOnUpdate(t *testing.T) {
 	assert.Equal(t, 2, gotNewValue)
 }
 
+// TestUnsetForSourceListenerCanReadConfig reproduces a deadlock where
+// UnsetForSource notified OnUpdate subscribers while still holding the
+// write lock. Any subscriber that read the config (via the read side of
+// the RWMutex) would block against the held write lock forever.
+func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("log_level", "info")
+	cfg.BuildSchema()
+
+	observed := []string{}
+	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) {
+		// A realistic listener reads the current config. Before the fix
+		// this call deadlocked because UnsetForSource still held the
+		// config write lock.
+		observed = append(observed, cfg.GetString("log_level"))
+	})
+
+	cfg.Set("log_level", "debug", model.SourceRC)
+
+	done := make(chan struct{})
+	go func() {
+		cfg.UnsetForSource("log_level", model.SourceRC)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UnsetForSource deadlocked while notifying listeners")
+	}
+
+	assert.Equal(t, []string{"debug", "info"}, observed)
+}
+
 func TestSetInvalidSource(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
@@ -1534,12 +1523,12 @@ func TestSetInvalidSource(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 }
 
-func TestSetWithoutSource(t *testing.T) {
+func TestSetInTest(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
-	cfg.SetWithoutSource("a", 2)
+	cfg.SetInTest("a", 2)
 
 	assert.Equal(t, 2, cfg.Get("a"))
 	assert.Equal(t, model.SourceUnknown, cfg.GetSource("a"))
@@ -1549,8 +1538,8 @@ func TestSetWithoutSource(t *testing.T) {
 			Field string
 		}
 		assert.Panics(t, func() {
-			cfg.SetWithoutSource("b", dummyStruct{Field: "oops"})
-		}, "SetWithoutSource should panic when passed a struct")
+			cfg.SetInTest("b", dummyStruct{Field: "oops"})
+		}, "SetInTest should panic when passed a struct")
 	})
 }
 
@@ -1566,12 +1555,6 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 	assert.Equal(t, 1, cfg.Get("a"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 
-	assert.PanicsWithValue(t, "cannot SetKnown() once the config has been marked as ready for use", func() {
-		cfg.SetKnown("a") //nolint:forbidigo // testing behavior
-	})
-	assert.PanicsWithValue(t, "cannot BindEnv() once the config has been marked as ready for use", func() {
-		cfg.BindEnv("a") //nolint:forbidigo // testing behavior
-	})
 	assert.PanicsWithValue(t, "cannot SetEnvKeyReplacer() once the config has been marked as ready for use", func() {
 		cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	})
@@ -1584,32 +1567,16 @@ func TestEnvVarTransformers(t *testing.T) {
 	cfg.BindEnvAndSetDefault("tag_set", []map[string]string{}, "TEST_TAG_SET")
 	cfg.BindEnvAndSetDefault("list_keypairs", map[string]interface{}{}, "TEST_LIST_KEYPAIRS")
 
-	t.Setenv("TEST_LIST_OF_NUMS", "34,67.5,901.125")
+	t.Setenv("TEST_LIST_OF_NUMS", "[34,67.5,901.125]")
 	t.Setenv("TEST_LIST_OF_FRUIT", "apple,banana,cherry")
 	t.Setenv("TEST_TAG_SET", `[{"cat":"meow"},{"dog":"bark"}]`)
 	t.Setenv("TEST_LIST_KEYPAIRS", `a=1,b=2,c=3`)
 
-	cfg.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
-		vals := []interface{}{}
-		for str := range strings.SplitSeq(in, ",") {
-			f, err := strconv.ParseFloat(str, 64)
-			if err != nil {
-				continue
-			}
-			vals = append(vals, f)
-		}
-		return vals
-	})
+	cfg.ParseEnvJSON("list_of_nums", []float64{})
 	cfg.ParseEnvAsStringSlice("list_of_fruit", func(in string) []string {
 		return strings.Split(in, ",")
 	})
-	cfg.ParseEnvAsSliceMapString("tag_set", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			assert.Fail(t, "failed to json.Unmarshal", err)
-		}
-		return out
-	})
+	cfg.ParseEnvJSON("tag_set", []map[string]string{})
 	cfg.ParseEnvAsMapStringInterface("list_keypairs", func(in string) map[string]interface{} {
 		parts := strings.Split(in, ",")
 		res := map[string]interface{}{}
@@ -1652,8 +1619,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 1: DD_DD_URL set before DD_URL
 	t.Run("DD_DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
@@ -1665,8 +1632,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 2: DD_URL set before DD_DD_URL
 	t.Run("DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		config.BuildSchema()
@@ -1678,8 +1645,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
 	t.Run("Only DD_URL is set", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
 
@@ -1690,7 +1657,7 @@ func TestEnvVarOrdering(t *testing.T) {
 
 func TestWarningLogged(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("bad_key", "DD_BAD_KEY") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("bad_key", "", "DD_BAD_KEY")
 	t.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
 	splitKeyFunc = func(_ string) []string {
@@ -1727,6 +1694,91 @@ func TestSequenceID(t *testing.T) {
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
 
+func TestParseEnvSplitComma(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a,b,c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitComma("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitComma("my_list")
+		cfg2.ParseEnvSplitComma("my_list")
+	})
+}
+
+func TestParseEnvSplitSpace(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a b c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitSpace("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitSpace("my_list")
+		cfg2.ParseEnvSplitSpace("my_list")
+	})
+}
+
+func TestParseEnvJSON(t *testing.T) {
+	t.Run("parses string slice", func(t *testing.T) {
+		t.Setenv("TEST_MY_LIST", `["a","b","c"]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_list", []string{}, "TEST_MY_LIST")
+		cfg.ParseEnvJSON("my_list", []string{})
+		cfg.BuildSchema()
+
+		assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+		assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	})
+
+	t.Run("parses slice of map[string]string", func(t *testing.T) {
+		t.Setenv("TEST_MY_TAGS", `[{"key":"val"},{"foo":"bar"}]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_tags", []map[string]string{}, "TEST_MY_TAGS")
+		cfg.ParseEnvJSON("my_tags", []map[string]string{})
+		cfg.BuildSchema()
+
+		val := cfg.Get("my_tags")
+		tags, ok := val.([]map[string]string)
+		require.True(t, ok)
+		assert.Equal(t, []map[string]string{{"key": "val"}, {"foo": "bar"}}, tags)
+	})
+
+	t.Run("panics on duplicate registration", func(t *testing.T) {
+		assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg.BindEnvAndSetDefault("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+		})
+	})
+}
+
 func TestMultipleTransformersRaisesError(t *testing.T) {
 	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
@@ -1761,19 +1813,15 @@ fruit:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	// default wins over invalid file
 	cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
-	// file only (missing default)
-	cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
-	// env wins over file
-	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	//// env wins over file
+	cfg.BindEnvAndSetDefault("fruit.cherry.seed.num", "abc")
 	// env var is defined
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
 	// default setting will be overridden by invalid file data
 	cfg.BindEnvAndSetDefault("fruit.egg.yoke", "yellow")
 	cfg.BuildSchema()
-
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
-
 	// invalid file data is preserved in merged tree
 	// maintains compatibility with viper
 	actualEgg := cfg.Get("fruit.egg")
@@ -1783,7 +1831,6 @@ fruit:
 		},
 	}
 	assert.Equal(t, expectEgg, actualEgg)
-
 	// In the merged tree, the following appears:
 	// fruit.apple.core.seeds from default
 	// fruit.banana           from file (empty section)
@@ -1821,30 +1868,36 @@ tree(#ptr<000011>) source=default
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-  > egg
+  > cherry
     inner(#ptr<000013>)
+    > seed
+      inner(#ptr<000014>)
+      > num
+          leaf(#ptr<000015>), val:"abc", source:default
+  > egg
+    inner(#ptr<000016>)
     > yoke
-        leaf(#ptr<000014>), val:"yellow", source:default
-tree(#ptr<000015>) source=file
+        leaf(#ptr<000017>), val:"yellow", source:default
+tree(#ptr<000018>) source=file
 > fruit
-  inner(#ptr<000016>)
+  inner(#ptr<000019>)
   > apple
-      leaf(#ptr<000017>), val:<nil>, source:file
+      leaf(#ptr<000020>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000018>), val:<nil>, source:file
+      leaf(#ptr<000021>), val:<nil>, source:file
   > donut
       leaf(#ptr<000009>), val:12, source:file
   > egg
       leaf(#ptr<000010>), val:[map[foo:bar]], source:file
-tree(#ptr<000019>) source=environment-variable
+tree(#ptr<000022>) source=environment-variable
 > fruit
-  inner(#ptr<000020>)
+  inner(#ptr<000023>)
   > cherry
-    inner(#ptr<000006>)
+    inner(#ptr<000024>)
     > seed
-      inner(#ptr<000007>)
+      inner(#ptr<000025>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable`
 	assert.Equal(t, expect, txt)
@@ -1916,4 +1969,87 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 > my_int_setting
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
+}
+
+// TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
+// unknown config keys do not crash the agent with "fatal error: concurrent map writes".
+// This reproduces the race condition where multiple goroutines call GetBool (or other
+// getters) simultaneously, each writing to the unknownKeys map under only an RLock.
+func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("known_key", true)
+	cfg.BuildSchema()
+
+	const numGoroutines = 200
+
+	// Use a barrier so all goroutines start at the same instant,
+	// maximizing the chance of concurrent map writes.
+	var ready sync.WaitGroup
+	ready.Add(1)
+
+	var done sync.WaitGroup
+	done.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer done.Done()
+			ready.Wait() // all goroutines wait here until released
+
+			// Use a mix of getters with unknown keys to trigger checkKnownKey writes
+			key := fmt.Sprintf("unknown_key_%d", id)
+			cfg.GetBool(key)
+			cfg.GetString(key)
+			cfg.GetInt(key)
+		}(i)
+	}
+
+	// Release all goroutines simultaneously
+	ready.Done()
+	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
+	done.Wait()
+
+	// If we reach here without a fatal "concurrent map writes" crash, the test passed
+	assert.True(t, cfg.GetBool("known_key"))
+}
+
+func TestClearEnvVars(t *testing.T) {
+	t.Setenv("TEST_A", "from-env")
+	t.Setenv("TEST_B", "from-env")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", "default-a")
+	cfg.SetDefault("b", "default-b")
+	cfg.(*ntmConfig).bindEnv("a", []string{"TEST_A"}) //nolint:forbidigo // testing behavior
+	cfg.(*ntmConfig).bindEnv("b", []string{"TEST_B"}) //nolint:forbidigo // testing behavior
+	cfg.BuildSchema()
+
+	assert.Equal(t, "from-env", cfg.GetString("a"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("a"))
+
+	cfg.(*ntmConfig).ClearEnvVars()
+
+	assert.Equal(t, "default-a", cfg.GetString("a"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+
+	cfg.Set("a", "from-stream", model.SourceFile)
+	assert.Equal(t, "from-stream", cfg.GetString("a"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("a"))
+
+	// rebuild must not repopulate the env layer once skipped
+	t.Setenv("TEST_B", "leaked-via-rebuild")
+	cfg.(*ntmConfig).buildEnvVars()
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+}
+
+func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.SetDefault("key", "value")
+	cfg.BuildSchema()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.Get("key")
+	}
 }

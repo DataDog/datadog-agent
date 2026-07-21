@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add ``private_action_runner.api_key_only_enrollment`` configuration flag to
+    explicitly control Private Action Runner enrollment mode. When set to
+    ``true``, enrollment uses the API key only (no app key required, no
+    auto-connections created). When ``false`` (default), the app key is required
+    and connections are auto-created during enrollment.

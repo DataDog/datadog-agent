@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "snmplog",
+    srcs = ["snmplog.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/snmplog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)

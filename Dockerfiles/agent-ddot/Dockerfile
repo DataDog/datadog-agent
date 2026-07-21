@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_DD_VERSION=latest
-FROM gcr.io/datadoghq/agent:$BASE_IMAGE_DD_VERSION AS baseimage
+FROM registry.datadoghq.com/agent:$BASE_IMAGE_DD_VERSION AS baseimage
 
 FROM baseimage
 
@@ -16,3 +16,6 @@ RUN chmod 755 -R /opt/entrypoints \
   && rm -rf /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run
+
+# Set owner-only (0500) perms on built-in Rust shared-library checks (no-op when none are present).
+RUN find /etc/datadog-agent/checks.d -name 'libdatadog-agent-*.so' -exec chmod 0500 {} \;

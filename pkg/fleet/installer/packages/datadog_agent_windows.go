@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -141,6 +142,13 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	if err := ensureADPProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write ADP process manager config: %w", err)
+	}
+	if err := ensurePARProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write PAR process manager config: %w", err)
+	}
+
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
 	// - OCI: done at the end of setup script (setup.go)
@@ -175,6 +183,48 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
+	}
+	return nil
+}
+
+func resolveDatadogProgramFilesInstallRoot() (string, error) {
+	installRoot := paths.ResolveDatadogProgramFilesDir()
+	if installRoot == "" {
+		return "", errors.New("cannot resolve Datadog Agent install path for processes.d")
+	}
+	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
+		installRoot = resolved
+	}
+	paths.DatadogProgramFilesDir = installRoot
+	return installRoot, nil
+}
+
+func ensureADPProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WriteADPProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
+		log.Warnf("ADP: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+func ensurePARProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WritePARProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
+		log.Warnf("PAR: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }
@@ -480,6 +530,9 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
+	}
+	if env.MsiParams.AgentUserKeepRights != "" {
+		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
@@ -944,6 +997,8 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preInstallDDOTExtension(ctx)
+	case "eudm":
+		return preInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -954,6 +1009,8 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
+	case "eudm":
+		return postInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -964,6 +1021,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preRemoveDDOTExtension(ctx)
+	case "eudm":
+		return preRemoveEUDMExtension(ctx)
 	default:
 		return nil
 	}

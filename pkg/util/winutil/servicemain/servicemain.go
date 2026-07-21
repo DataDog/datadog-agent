@@ -31,6 +31,12 @@ const (
 	// EnvHardStopTimeoutOverride is an environment variable that a user can set
 	// to override DefaultHardStopTimeout.
 	EnvHardStopTimeoutOverride = "DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS"
+	// EnvCrashOnHardStopTimeout, when set to a non-empty value, causes the hard
+	// stop timeout handler to deliberately crash the service (rather than just
+	// cancel the clean-exit context) so the operating system's Windows Error
+	// Reporting captures a minidump with all goroutine stacks. Intended for
+	// diagnosing shutdown hangs in tests.
+	EnvCrashOnHardStopTimeout = "DD_CRASH_ON_HARDSTOP_TIMEOUT"
 )
 
 // DefaultSettings provides default values to Service implementations when embedded
@@ -186,6 +192,9 @@ func RunningAsWindowsService() bool {
 func Run(service Service) {
 	var s controlHandler
 	s.service = service
+
+	stopStartupTrace := startStartupTrace(s.service.Name())
+	defer stopStartupTrace()
 
 	s.eventlog(messagestrings.MSG_SERVICE_STARTING, s.service.Name())
 
@@ -350,7 +359,17 @@ func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, cance
 // We cancel a context that causes controlHandler.Execute to return and cause the service
 // to properly shutdown (from Windows perspective), which eventually returns to main to exit.
 // Any shutdown operations the Agent may be in the middle of will be abruptly halted, like with a SIGKILL.
+//
+// If EnvCrashOnHardStopTimeout is set, the service is deliberately crashed instead, so
+// Windows Error Reporting produces a minidump that captures every goroutine's stack.
+// This relies on GOTRACEBACK=wer (or WER global dumps) being configured by the caller.
 func (s *controlHandler) terminateProcessOnTimeout(cancelCleanExit context.CancelFunc) {
 	<-time.After(time.Duration(s.service.HardStopTimeout()))
+	if v, ok := os.LookupEnv(EnvCrashOnHardStopTimeout); ok && v != "" {
+		s.eventlog(messagestrings.MSG_SERVICE_FAILED, EnvCrashOnHardStopTimeout+" set, crashing service on hard stop timeout to produce a dump")
+		// An uncaught panic in this goroutine becomes a fatal runtime error, which the
+		// runtime forwards to WER when GOTRACEBACK=wer.
+		panic("hard stop timeout reached")
+	}
 	cancelCleanExit()
 }

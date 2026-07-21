@@ -11,17 +11,18 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/stretchr/testify/assert"
 )
 
-func fakeContainerEvent(objID string) event {
-	event := newEvent()
-	event.withObjectID(objID)
-	event.withObjectKind("container")
-	event.withEventType("delete")
-
-	return event
+func fakeContainerEvent(objID string) LifecycleEvent {
+	return LifecycleEvent{
+		ObjectKind: types.ObjectKindContainer,
+		ProtoEvent: &model.Event{
+			TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: objID}},
+		},
+	}
 }
 
 func modelEvents(objIDs ...string) []*model.Event {
@@ -40,7 +41,7 @@ func TestSingleQueueAdd(t *testing.T) {
 	tests := []struct {
 		name string
 		data []*model.EventsPayload
-		ev   event
+		ev   LifecycleEvent
 		want []*model.EventsPayload
 	}{
 		{

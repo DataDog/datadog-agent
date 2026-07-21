@@ -26,29 +26,32 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -63,10 +66,10 @@ type service struct {
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 	}
-	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 )
 
 // Name returns the service name
@@ -87,6 +90,72 @@ type cliParams struct {
 func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
+	opts := []fx.Option{
+		fx.Supply(params),
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
+		}),
+		core.Bundle(core.WithSecrets()),
+		remotehostnameimpl.Module(),
+		statsdFx.Module(),
+
+		// workloadmeta setup
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
+		}),
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+			stopper := startstop.NewSerialStopper()
+
+			statsdClient, err := statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
+
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			hostnameDetected, err := hostname.Get(context.TODO())
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression, secretsComp)
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			if runtimeAgent == nil {
+				return status.NewInformationProvider(nil), nil, nil
+			}
+
+			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
+		}),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
+
+		statusimpl.Module(),
+
+		configsyncfx.Module(configsync.NewDefaultParams()),
+		autoexitfx.Module(),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: start.RuntimeSettings(),
+				Config:   c,
+			}
+		}),
+		settingsfx.Module(),
+		logscompressionfx.Module(),
+		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", defaultSecurityAgentConfigFilePaths[0])),
+		configstreamconsumerfx.Module(),
+	}
+
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
@@ -108,68 +177,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 			return nil
 		},
-		fx.Supply(params),
-		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
-		}),
-		core.Bundle(core.WithSecrets()),
-		remotehostnameimpl.Module(),
-		statsd.Module(),
-
-		// workloadmeta setup
-		wmcatalog.GetCatalog(),
-		workloadmetafx.Module(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, compression logscompression.Component, hostname hostnameinterface.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
-			stopper := startstop.NewSerialStopper()
-
-			statsdClient, err := statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
-
-			if err != nil {
-				return status.NewInformationProvider(nil), nil, err
-			}
-
-			hostnameDetected, err := hostname.Get(context.TODO())
-			if err != nil {
-				return status.NewInformationProvider(nil), nil, err
-			}
-
-			runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression)
-			if err != nil {
-				return status.NewInformationProvider(nil), nil, err
-			}
-
-			if runtimeAgent == nil {
-				return status.NewInformationProvider(nil), nil, nil
-			}
-
-			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
-			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
-		}),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: python.GetPythonVersion,
-			},
-		),
-
-		statusimpl.Module(),
-
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-		autoexitfx.Module(),
-		fx.Provide(func(c config.Component) settings.Params {
-			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-				},
-				Config: c,
-			}
-		}),
-		settingsimpl.Module(),
-		logscompressionfx.Module(),
-		ipcfx.ModuleReadWrite(),
+		opts...,
 	)
 
 	return err

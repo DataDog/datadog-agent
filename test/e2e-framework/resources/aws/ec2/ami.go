@@ -10,8 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ssm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

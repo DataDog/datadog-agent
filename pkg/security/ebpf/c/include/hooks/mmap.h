@@ -26,7 +26,7 @@ int hook_vm_mmap_pgoff(ctx_t *ctx) {
         .mmap.flags = flags,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -34,6 +34,22 @@ int hook_vm_mmap_pgoff(ctx_t *ctx) {
 // and not in position 5 or 6 where we cannot read it
 HOOK_ENTRY("get_unmapped_area")
 int hook_get_unmapped_area(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 offset = CTX_PARM4(ctx);
+    syscall->mmap.offset = offset;
+
+    return 0;
+}
+
+// Since kernel 6.13, get_unmapped_area is a static inline wrapper and can no longer be hooked.
+// It calls __get_unmapped_area, which keeps `pgoff` in the same argument position, so we hook it
+// as a fallback to still read the mmap offset.
+HOOK_ENTRY("__get_unmapped_area")
+int hook___get_unmapped_area(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
@@ -55,8 +71,8 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MMAP);
+    apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -107,7 +123,8 @@ int hook_security_mmap_file(ctx_t *ctx) {
     syscall->resolver.dentry = syscall->mmap.dentry;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
 
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 

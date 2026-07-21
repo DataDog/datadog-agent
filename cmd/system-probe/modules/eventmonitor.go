@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -21,11 +22,11 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
 func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
@@ -40,20 +41,19 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
+	opts.ProbeOpts.WorkloadMeta = deps.WMeta
+	opts.ProbeOpts.FilterStore = deps.FilterStore
 	secmoduleOpts := secmodule.Opts{}
 
-	// adapt options
-	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		secmodule.UpdateEventMonitorOpts(&opts, secconfig)
-	} else {
-		secmodule.DisableRuntimeSecurity(secconfig)
-	}
+	secmodule.UpdateEventMonitorOpts(&opts, secconfig)
 
 	hostname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
-	if hostname == "" {
+
+	// there is no hostname on Fargate instance
+	if !fargate.IsSidecar() && hostname == "" {
 		return nil, errors.New("hostname from core agent is empty")
 	}
 
@@ -63,43 +63,71 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		return nil, module.ErrNotEnabled
 	}
 
-	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname)
+	cwsEnabled := secconfig.RuntimeSecurity.IsRuntimeEnabled()
+	runtimeUsageEnabled := pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled")
+
+	if cwsEnabled || runtimeUsageEnabled {
+		stopChan := make(chan struct{})
+
+		cmdServer, err := secmodule.NewCommandServer(secconfig.RuntimeSecurity)
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventConsumer(cws)
-		evm.SetCWSStatusProvider(cws)
-		log.Info("event monitoring cws consumer initialized")
+
+		if cwsEnabled {
+			cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(cws)
+			evm.SetCWSStatusProvider(cws)
+			log.Info("event monitoring cws consumer initialized")
+		}
+
+		if runtimeUsageEnabled {
+			usage, err := secmodule.NewUsageConsumer(cmdServer, evm, secconfig.RuntimeSecurity, stopChan)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(usage)
+			log.Info("event monitoring usage consumer initialized")
+		}
 	}
 
-	netconfig := netconfig.New()
+	ncfg := netconfig.New()
 	// only add the network consumer if the pkg/network/events
 	// module was initialized by the network tracer module
 	// (this will happen only if the network consumer is enabled
 	// in config and the network tracer module is loaded successfully)
-	if events.Initialized() {
-		network, err := events.NewNetworkConsumer(evm)
-		if err != nil {
-			return nil, err
-		}
-		evm.RegisterEventConsumer(network)
-		log.Info("event monitoring network consumer initialized")
-
-		if netconfig.DirectSend {
-			ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+	if module.IsLoaded(config.NetworkTracerModule) {
+		if events.Initialized() {
+			network, err := events.NewNetworkConsumer(evm)
 			if err != nil {
 				return nil, err
 			}
-			if ds != nil {
-				evm.RegisterEventConsumer(ds)
-				log.Info("event monitoring direct sender consumer initialized")
+			evm.RegisterEventConsumer(network)
+			log.Info("event monitoring network consumer initialized")
+
+			if ncfg.DirectSend {
+				ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+				if err != nil {
+					return nil, err
+				}
+				if ds != nil {
+					evm.RegisterEventConsumer(ds)
+					log.Info("event monitoring direct sender consumer initialized")
+				}
+			}
+		} else if ncfg.DirectSend {
+			err := sender.NewDirectSenderPoller(deps.Log, deps.SysprobeConfig)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
 
-	if netconfig.EnableUSMEventStream {
-		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
+	if ncfg.EnableUSMEventStream {
+		if err := createProcessMonitorConsumer(evm, ncfg); err != nil {
 			return nil, err
 		}
 	}

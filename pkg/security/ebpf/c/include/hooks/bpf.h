@@ -64,8 +64,7 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
     };
     bpf_probe_read(&syscall.bpf.attr, sizeof(syscall.bpf.attr), &uattr);
 
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

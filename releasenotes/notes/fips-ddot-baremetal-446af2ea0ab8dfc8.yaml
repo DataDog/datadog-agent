@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Fleet installer: When FIPS mode is specified or when the Datadog FIPS Agent is installed via DEB/RPM,
+    with OTel Collector enabled, the installer now automatically selects the
+    FIPS-compiled DDOT (Datadog Distribution of OpenTelemetry) extension from
+    the OCI registry.

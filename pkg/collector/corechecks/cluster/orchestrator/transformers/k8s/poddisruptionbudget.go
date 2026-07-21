@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractPodDisruptionBudget returns the protobuf model corresponding to a Kubernetes
+//
+//nolint:revive
 func ExtractPodDisruptionBudget(ctx processors.ProcessorContext, pdb *policyv1.PodDisruptionBudget) *model.PodDisruptionBudget {
 	if pdb == nil {
 		return nil
@@ -26,9 +28,8 @@ func ExtractPodDisruptionBudget(ctx processors.ProcessorContext, pdb *policyv1.P
 		Spec:     extractPodDisruptionBudgetSpec(&pdb.Spec),
 		Status:   extractPodDisruptionBudgetStatus(&pdb.Status),
 	}
-	pctx := ctx.(*processors.K8sProcessorContext)
 	result.Tags = append(result.Tags, transformers.RetrieveUnifiedServiceTags(pdb.ObjectMeta.Labels)...)
-	result.Tags = append(result.Tags, transformers.RetrieveMetadataTags(pdb.ObjectMeta.Labels, pdb.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	result.Tags = append(result.Tags, transformers.RetrieveTeamTag(pdb.ObjectMeta.Labels, pdb.ObjectMeta.Annotations)...)
 	return &result
 }
 

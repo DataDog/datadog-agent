@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -29,6 +30,8 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
+
+	ddotProcmgrConfigName = "datadog-agent-ddot.yaml"
 )
 
 var (
@@ -219,7 +222,7 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
+// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
 func writeOTelConfig(ctx HookContext) error {
 	return writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, false, 0640)
 }
@@ -270,6 +273,10 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+	}
+
 	return nil
 }
 
@@ -284,6 +291,10 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
 
+	if err := removeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
+
 	return nil
 }
 
@@ -294,6 +305,33 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(dst, data, perm)
+}
+
+// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT into the package processes.d. The
+// config's --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr
+// substitutes at launch with its own config directory (/etc/datadog-agent for the stable procmgr,
+// /etc/datadog-agent-exp for the experiment procmgr), so the experiment collector reads the
+// experiment config without the process definition itself changing.
+func writeDDOTProcmgrConfig(installRoot string) error {
+	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
+	if _, err := os.Stat(otelAgentPath); err != nil {
+		return nil
+	}
+	processesDir := filepath.Join(installRoot, "processes.d")
+	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
+		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
+	}
+	path := filepath.Join(processesDir, ddotProcmgrConfigName)
+	return os.WriteFile(path, []byte(config), 0644)
+}
+
+func removeDDOTProcmgrConfig(installRoot string) error {
+	path := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
@@ -320,18 +358,23 @@ func modifyDDOTUnitFileForBackwardsCompatibility(ctx HookContext, unitName strin
 		return fmt.Errorf("failed to read unit file %s: %w", unitPath, err)
 	}
 
-	// Modify the content
-	modifiedContent := string(content)
-	// Remove "/ext/ddot" from all paths
-	modifiedContent = strings.ReplaceAll(modifiedContent, "/ext/ddot", "")
+	// Modify the content line-by-line so we can skip ConditionPathExists lines
+	// from the OCI path rewrite. The processes.d gate must always reference the
+	// Agent package tree, not the standalone DDOT package tree.
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		// Remove "/ext/ddot" from all paths
+		lines[i] = strings.ReplaceAll(line, "/ext/ddot", "")
 
-	// For OCI packages, replace "/opt/datadog-packages/datadog-agent" with "/opt/datadog-packages/datadog-agent-ddot"
-	// Do specific replacements first to avoid double-replacement issues
-	if isOCI {
-		// Replace paths with /stable or /experiment suffix first
-		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+		// For OCI packages, rewrite Agent package paths to DDOT package paths,
+		// but skip ConditionPathExists lines so the processes.d gate keeps
+		// pointing at the Agent install directory.
+		if isOCI && !strings.HasPrefix(strings.TrimSpace(lines[i]), "ConditionPathExists=!") {
+			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
+			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+		}
 	}
+	modifiedContent := strings.Join(lines, "\n")
 
 	// Write the modified content back
 	if err := os.WriteFile(unitPath, []byte(modifiedContent), 0644); err != nil {

@@ -12,15 +12,20 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/random"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
@@ -69,7 +74,7 @@ func TestDownload(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -85,7 +90,7 @@ func TestDownloadMirror(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -100,7 +105,7 @@ func TestDownloadLayout(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -115,7 +120,7 @@ func TestDownloadConfigLayer(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
 	assert.NoError(t, err)
 
 	extensionsFS := s.ExtensionsFS(fixtures.FixtureSimpleV1WithExtension)
@@ -208,6 +213,32 @@ func TestGetRefAndKeychain(t *testing.T) {
 			expectedRef:            "gcr.io/datadoghq/agent-package@sha256:1234",
 			expectedKeychain:       google.Keychain,
 		},
+		// Userinfo in the override URL is dropped (credentials must use the
+		// dedicated RegistryUsername / RegistryPassword fields).
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "https://user:pass@fake.io",
+			expectedRef:      "fake.io/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "user:pass@fake.io",
+			expectedRef:      "fake.io/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "http://user@fake.io:8080",
+			expectedRef:      "fake.io:8080/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:                "install.datad0g.com/agent-package:latest",
+			regOverrideByImage: map[string]string{"agent-package": "https://user:pass@fake.io"},
+			expectedRef:        "fake.io/agent-package:latest",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
 	}
 
 	for _, tt := range tests {
@@ -221,6 +252,115 @@ func TestGetRefAndKeychain(t *testing.T) {
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}
+}
+
+func TestFormatImageRef(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "bare host", in: "fake.io", want: "fake.io"},
+		{name: "bare host with port", in: "fake.io:443", want: "fake.io:443"},
+		{name: "https prefix", in: "https://fake.io", want: "fake.io"},
+		{name: "http prefix", in: "http://fake.io", want: "fake.io"},
+		{name: "https with port", in: "https://fake.io:443", want: "fake.io:443"},
+		{name: "userinfo with scheme", in: "https://user:pass@fake.io", want: "fake.io"},
+		{name: "userinfo without scheme", in: "user:pass@fake.io", want: "fake.io"},
+		{name: "user-only userinfo", in: "https://user@fake.io", want: "fake.io"},
+		{name: "userinfo with port", in: "http://user:pass@fake.io:8080", want: "fake.io:8080"},
+		{name: "userinfo with path", in: "https://user:pass@fake.io/repo", want: "fake.io/repo"},
+		{name: "trailing slash preserved", in: "fake.io/", want: "fake.io/"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, formatImageRef(tt.in))
+		})
+	}
+}
+
+func TestDownloadIndexVariantSelection(t *testing.T) {
+	plat := oci.Platform{OS: runtime.GOOS, Architecture: runtime.GOARCH}
+
+	baseImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	baseDigest, err := baseImg.Digest()
+	require.NoError(t, err)
+
+	fipsImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	fipsDigest, err := fipsImg.Digest()
+	require.NoError(t, err)
+	require.NotEqual(t, baseDigest, fipsDigest)
+
+	bothFlavorIndex := mutate.AppendManifests(empty.Index,
+		mutate.IndexAddendum{
+			Add:        baseImg,
+			Descriptor: oci.Descriptor{Platform: &plat},
+		},
+		mutate.IndexAddendum{
+			Add: fipsImg,
+			Descriptor: oci.Descriptor{
+				Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+			},
+		},
+	)
+
+	t.Run("FIPSMode=false picks the base manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	t.Run("FIPSMode=true picks the FIPS manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, fipsDigest, gotDigest)
+	})
+
+	// Even if the FIPS manifest is listed first in the index, a non-FIPS
+	// request must skip it instead of accepting it via Satisfies' empty-variant
+	// wildcard.
+	t.Run("FIPSMode=false skips FIPS manifest regardless of index order", func(t *testing.T) {
+		reorderedIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add: fipsImg,
+				Descriptor: oci.Descriptor{
+					Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+				},
+			},
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(reorderedIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	// FIPS mode must not fall back to a base manifest if no FIPS variant is
+	// present in the index.
+	t.Run("FIPSMode=true returns ErrPackageNotFound when no FIPS manifest exists", func(t *testing.T) {
+		baseOnlyIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		_, err := d.downloadIndex(baseOnlyIndex)
+		require.Error(t, err)
+	})
 }
 
 func TestPackageURL(t *testing.T) {
@@ -283,6 +423,62 @@ func TestIsStreamResetError(t *testing.T) {
 			assert.Equal(t, tc.expected, isStreamResetError(tc.err))
 		})
 	}
+}
+
+func TestWithRegistryOverride(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:            "original.registry.com",
+		RegistryAuthOverride:        "docker",
+		RegistryUsername:            "origuser",
+		RegistryPassword:            "origpass",
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+		Site:                        "datadoghq.com",
+	}
+	client := http.DefaultClient
+	d := NewDownloader(original, client)
+
+	overridden := d.WithRegistryOverride("custom.registry.com", "password", "newuser", "newpass")
+
+	// Overridden downloader has new values
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
+
+	// Image-scoped override maps are preserved (env vars take precedence)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
+
+	// Original is unchanged
+	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
+	assert.Equal(t, "docker", d.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", d.env.RegistryUsername)
+	assert.Equal(t, "origpass", d.env.RegistryPassword)
+
+	// Shares same HTTP client
+	assert.Same(t, d.client, overridden.client)
+
+	// Non-registry fields are preserved
+	assert.Equal(t, "datadoghq.com", overridden.env.Site)
+}
+
+func TestWithRegistryOverridePartial(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:     "original.registry.com",
+		RegistryAuthOverride: "docker",
+		RegistryUsername:     "origuser",
+		RegistryPassword:     "origpass",
+	}
+	d := NewDownloader(original, http.DefaultClient)
+
+	// Only override URL, leave auth/username/password empty
+	overridden := d.WithRegistryOverride("custom.registry.com", "", "", "")
+
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "docker", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "origpass", overridden.env.RegistryPassword)
 }
 
 func TestGetRefAndKeychains(t *testing.T) {

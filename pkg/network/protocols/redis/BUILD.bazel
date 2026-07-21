@@ -1,0 +1,94 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+go_library(
+    name = "redis",
+    srcs = [
+        "client.go",
+        "kernel_requirements.go",
+        "model_linux.go",
+        "protocol.go",
+        "server.go",
+        "stats.go",
+        "statskeeper.go",
+        "telemetry.go",
+        "testutils.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/redis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/protocols",
+        "//pkg/network/protocols/events",
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/telemetry",
+        "//pkg/network/types",
+        "//pkg/network/usm/buildmode",
+        "//pkg/network/usm/config",
+        "//pkg/network/usm/utils",
+        "//pkg/process/util",
+        "//pkg/util/intern",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "//pkg/util/sync",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_davecgh_go_spew//spew",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//unix",
+    ],
+)
+
+go_test(
+    name = "redis_test",
+    srcs = [
+        "stats_test.go",
+        "statskeeper_test.go",
+        "types_linux_test.go",
+    ],
+    # FIXME(agent-build) remove allow_empty once we don't build with omnibus
+    data = glob(
+        ["testdata/**"],
+        allow_empty = True,
+    ),
+    embed = [":redis"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/network/config",
+        "//pkg/process/util",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)

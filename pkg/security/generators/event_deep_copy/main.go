@@ -13,17 +13,19 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
-	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
 	"unicode"
 
 	"github.com/Masterminds/sprig/v3"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 )
@@ -69,13 +71,15 @@ type FieldNode struct {
 	Children            map[string]*FieldNode // Child fields
 }
 
-// AstFiles manages AST files and provides lazy loading of external packages.
-// External packages are loaded on-demand when their types are referenced.
+// AstFiles holds the AST files participating in code generation.
+//
+// Every file the generator may need to resolve symbols against — the model
+// package files plus any external package files whose types are referenced —
+// must be passed up-front via -input / -types-file / -extra-srcs. We rely on
+// the Bazel macro to declare these as inputs so the action stays hermetic;
+// there is no on-demand loading.
 type AstFiles struct {
 	files              []*ast.File       // Loaded AST files
-	cfg                *packages.Config  // Package loading configuration
-	loadedPackages     map[string]bool   // Tracks load attempts (success or failure)
-	packageShortNames  map[string]string // Maps import alias to full package path
 	packagePrefixCache map[string]string // Caches package name to qualifier mapping
 }
 
@@ -84,72 +88,23 @@ type AstFiles struct {
 // ============================================================================
 
 // LookupSymbol searches for a symbol across all loaded AST files.
-// If not found, attempts to lazy-load external packages to find the symbol.
 func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
-	// Search in currently loaded files
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj
 		}
 	}
-
-	// Attempt lazy loading of external packages
-	for _, importPath := range af.packageShortNames {
-		if af.loadedPackages[importPath] {
-			continue
-		}
-
-		if err := af.loadExternalPackage(importPath); err != nil {
-			continue
-		}
-
-		// Retry search in newly loaded files
-		for _, file := range af.files {
-			if obj := file.Scope.Lookup(symbol); obj != nil {
-				return obj
-			}
-		}
-	}
-
 	return nil
 }
 
-// loadExternalPackage loads an external package's AST files and appends them to the AstFiles.
-func (af *AstFiles) loadExternalPackage(pkgPath string) error {
-	if af.loadedPackages[pkgPath] {
-		return nil
-	}
-
-	af.loadedPackages[pkgPath] = true
-
-	pkgs, err := packages.Load(af.cfg, pkgPath)
-	if err != nil {
-		return fmt.Errorf("failed to load package %s: %w", pkgPath, err)
-	}
-
-	for _, pkg := range pkgs {
-		if pkg.Syntax != nil {
-			af.files = append(af.files, pkg.Syntax...)
-			if verbose {
-				log.Printf("Lazy-loaded external package %s (%d files)", pkgPath, len(pkg.Syntax))
-			}
-		}
-	}
-
-	return nil
-}
-
-// GetPackageForType determines the package prefix for a given type name.
-// Searches loaded AST files and lazy-loads external packages as needed.
-// Returns the package prefix (e.g., "eval.", "utils.") or empty string for model package types.
+// GetPackageForType determines the package prefix for a given type name by
+// searching the loaded AST files. Returns the package prefix (e.g., "eval.",
+// "utils.") or an empty string for model package types.
 func (af *AstFiles) GetPackageForType(typeName string) string {
-	// Search in currently loaded files
 	if prefix := af.searchLoadedFiles(typeName); prefix != "" || af.typeFoundInModel(typeName) {
 		return prefix
 	}
-
-	// Type not found - attempt lazy loading from imports
-	return af.lazyLoadAndSearch(typeName)
+	return ""
 }
 
 // searchLoadedFiles looks for a type in already loaded AST files and returns its package prefix
@@ -178,32 +133,6 @@ func (af *AstFiles) typeFoundInModel(typeName string) bool {
 		}
 	}
 	return false
-}
-
-// lazyLoadAndSearch attempts to lazy-load external packages and search for the type
-func (af *AstFiles) lazyLoadAndSearch(typeName string) string {
-	for shortName, importPath := range af.packageShortNames {
-		if af.loadedPackages[importPath] {
-			continue
-		}
-
-		if err := af.loadExternalPackage(importPath); err != nil {
-			if verbose {
-				log.Printf("Warning: %v", err)
-			}
-			continue
-		}
-
-		// Search in newly loaded files
-		for _, file := range af.files {
-			if obj := file.Scope.Lookup(typeName); obj != nil {
-				prefix := shortName + "."
-				af.packagePrefixCache[shortName] = prefix
-				return prefix
-			}
-		}
-	}
-	return ""
 }
 
 // getPrefixForPackage returns the appropriate prefix for a package name
@@ -243,61 +172,29 @@ func (af *AstFiles) Parse() []ast.Spec {
 	return specs
 }
 
-// newAstFiles loads the primary package and discovers its imports for lazy loading.
-// External packages are loaded on-demand when their types are encountered during analysis.
-func newAstFiles(cfg *packages.Config, primaryFile string) (*AstFiles, error) {
-	pkgs, err := packages.Load(cfg, "file="+primaryFile)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-		return nil, fmt.Errorf("failed to get syntax from package containing %s", primaryFile)
-	}
-
+// newAstFiles parses each input file with go/parser. The downstream code only
+// reads ast.File scopes and struct tags, so we don't need go/packages' import
+// graph or type info — and avoiding it keeps this generator hermetic under
+// Bazel (no Go toolchain required at action time). The caller is responsible
+// for passing every file whose types may be looked up during recursion,
+// including external package files; otherwise those types fall through
+// unresolved.
+func newAstFiles(files ...string) (*AstFiles, error) {
 	astFiles := &AstFiles{
-		files:              pkgs[0].Syntax,
-		cfg:                cfg,
-		loadedPackages:     make(map[string]bool),
-		packageShortNames:  make(map[string]string),
 		packagePrefixCache: make(map[string]string),
 	}
-
-	astFiles.discoverImports(pkgs[0].Syntax)
-
-	if verbose {
-		log.Printf("Loaded primary package with %d files and %d imports",
-			len(pkgs[0].Syntax), len(astFiles.packageShortNames))
-	}
-
-	return astFiles, nil
-}
-
-// discoverImports extracts import declarations from AST files to enable lazy loading
-func (af *AstFiles) discoverImports(files []*ast.File) {
+	fset := token.NewFileSet()
 	for _, file := range files {
-		for _, imp := range file.Imports {
-			importPath := strings.Trim(imp.Path.Value, `"`)
-			shortName := af.extractPackageName(imp, importPath)
-
-			af.packageShortNames[shortName] = importPath
-
-			if verbose {
-				log.Printf("Found import: %s → %s", shortName, importPath)
-			}
+		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", file, err)
 		}
+		astFiles.files = append(astFiles.files, f)
 	}
-}
-
-// extractPackageName determines the short name for an imported package
-func (af *AstFiles) extractPackageName(imp *ast.ImportSpec, importPath string) string {
-	if imp.Name != nil {
-		return imp.Name.Name // Explicit alias
+	if verbose {
+		log.Printf("Parsed %d input files", len(astFiles.files))
 	}
-
-	// Use last component of path
-	parts := strings.Split(importPath, "/")
-	return parts[len(parts)-1]
+	return astFiles, nil
 }
 
 // getFieldName extracts the field name from an AST expression
@@ -312,7 +209,16 @@ func getFieldName(expr ast.Expr) string {
 	case *ast.MapType:
 		return getFieldName(expr.Value)
 	case *ast.SelectorExpr:
-		return getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+		// Get the full qualified name
+		fullName := getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+		// Strip package prefix if it's a built-in type (e.g., "net.byte" -> "byte")
+		if dotIdx := strings.LastIndex(fullName, "."); dotIdx >= 0 {
+			baseName := fullName[dotIdx+1:]
+			if isBuiltinType(baseName) {
+				return baseName
+			}
+		}
+		return fullName
 	default:
 		return ""
 	}
@@ -401,10 +307,23 @@ func analyzeMapField(mapType *ast.MapType, pkgPrefix string) *StructField {
 		return nil // Map value is an interface
 	}
 
+	typeName := getFieldName(mapType.Value)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsMap:    true,
 		MapValue: descriptor,
-		OrigType: pkgPrefix + getFieldName(mapType.Value),
+		OrigType: pkgPrefix + typeName,
 	}
 }
 
@@ -415,19 +334,45 @@ func analyzeArrayField(arrayType *ast.ArrayType, pkgPrefix string) *StructField 
 		return nil // Array element is an interface
 	}
 
+	typeName := getFieldName(arrayType.Elt)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsArray:      true,
 		IsFixedArray: arrayType.Len != nil,
 		ArrayElement: descriptor,
-		OrigType:     pkgPrefix + getFieldName(arrayType.Elt),
+		OrigType:     pkgPrefix + typeName,
 	}
 }
 
 // analyzePointerField analyzes a pointer type and returns its StructField
 func analyzePointerField(starExpr *ast.StarExpr, pkgPrefix string) *StructField {
+	typeName := getFieldName(starExpr.X)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsOrigTypePtr: true,
-		OrigType:      pkgPrefix + getFieldName(starExpr.X),
+		OrigType:      pkgPrefix + typeName,
 	}
 }
 
@@ -458,6 +403,13 @@ func analyzeTypeDescriptor(expr ast.Expr) *TypeDescriptor {
 
 	// Simple type
 	desc.TypeName = getFieldName(expr)
+	// Strip package prefix from built-in types in TypeName
+	if strings.Contains(desc.TypeName, ".") {
+		baseName := desc.TypeName[strings.LastIndex(desc.TypeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			desc.TypeName = baseName
+		}
+	}
 	return desc
 }
 
@@ -499,12 +451,22 @@ func analyzeMapDescriptor(mapType *ast.MapType, desc *TypeDescriptor) *TypeDescr
 // qualifiedType adds package qualification to a type name if needed.
 // Primitive types remain unqualified.
 func qualifiedType(module *common.Module, kind string) string {
-	switch kind {
-	case "int", "string", "bool":
+	// Built-in types should never be package-qualified
+	if isBuiltinType(kind) {
 		return kind
-	default:
-		return module.SourcePkgPrefix + kind
 	}
+
+	// Check if this is a qualified built-in type (e.g., "net.byte") and strip the package
+	if strings.Contains(kind, ".") {
+		baseName := kind[strings.LastIndex(kind, ".")+1:]
+		if isBuiltinType(baseName) {
+			return baseName
+		}
+		// Already qualified non-built-in types (e.g., "net.IPNet", "time.Duration") - return as-is
+		return kind
+	}
+
+	return module.SourcePkgPrefix + kind
 }
 
 // isBasicType checks if a type string represents a basic type or commonly used stdlib alias.
@@ -517,6 +479,17 @@ func isBasicType(kind string) bool {
 	case "time.Duration", "time.Time":
 		return true
 	case "containerutils.CGroupID", "containerutils.ContainerID":
+		return true
+	}
+	return false
+}
+
+// isBuiltinType checks if a type name is a Go built-in type that should never be package-qualified
+func isBuiltinType(typeName string) bool {
+	switch typeName {
+	case "string", "bool", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"byte", "rune", "float32", "float64", "complex64", "complex128":
 		return true
 	}
 	return false
@@ -704,6 +677,15 @@ func qualifyFieldType(fieldInfo *StructField, unqualifiedType string, module *co
 	} else {
 		fieldInfo.OrigType = qualifiedType(module, fieldInfo.OrigType)
 	}
+
+	// Final cleanup: strip package prefix from built-in types that may have been incorrectly qualified
+	// This handles cases like "net.byte" -> "byte"
+	if strings.Contains(fieldInfo.OrigType, ".") {
+		baseName := fieldInfo.OrigType[strings.LastIndex(fieldInfo.OrigType, ".")+1:]
+		if isBuiltinType(baseName) {
+			fieldInfo.OrigType = baseName
+		}
+	}
 }
 
 // recurseIntoType recursively processes a field's type if it's a struct
@@ -778,12 +760,21 @@ func attachArrayElementNode(parent *FieldNode, field *StructField, currentPath s
 		return
 	}
 
+	elementOrigType := field.OrigType
+	// Strip package prefix from built-in types in element OrigType
+	if strings.Contains(elementOrigType, ".") {
+		baseName := elementOrigType[strings.LastIndex(elementOrigType, ".")+1:]
+		if isBuiltinType(baseName) {
+			elementOrigType = baseName
+		}
+	}
+
 	parent.ElementOfArrayField = &FieldNode{
-		Name:     field.OrigType,
+		Name:     elementOrigType,
 		FullPath: currentPath + "[]",
 		Field: &StructField{
-			Name:          field.OrigType,
-			OrigType:      field.OrigType,
+			Name:          elementOrigType,
+			OrigType:      elementOrigType,
 			IsArray:       field.ArrayElement.IsArray,
 			IsFixedArray:  field.ArrayElement.IsFixedArray,
 			IsMap:         field.ArrayElement.IsMap,
@@ -977,31 +968,42 @@ var eventDeepCopyTemplate string
 // ============================================================================
 
 var (
-	modelFile string
-	typesFile string
-	pkgname   string
-	output    string
-	verbose   bool
-	buildTags string
+	modelFile          string
+	typesFile          string
+	extraSrcs          string
+	pkgname            string
+	output             string
+	verbose            bool
+	buildTags          string
+	moduleNameOverride string
 )
 
 func init() {
 	flag.StringVar(&modelFile, "input", os.Getenv("GOFILE"), "Go file to generate from")
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
+	flag.StringVar(&extraSrcs, "extra-srcs", "", "Comma-separated list of additional .go files whose declarations the generator may need to look up (e.g. external package files for types referenced from the model).")
 	flag.StringVar(&pkgname, "package", "github.com/DataDog/datadog-agent/pkg/security/secl/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
 	flag.StringVar(&output, "output", "event_deep_copy_unix.go", "Generated output file")
+	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	flag.Parse()
 }
 
 func main() {
-	cfg := &packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
+	files := []string{modelFile}
+	if typesFile != "" && typesFile != modelFile {
+		files = append(files, typesFile)
+	}
+	if extraSrcs != "" {
+		for _, p := range strings.Split(extraSrcs, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				files = append(files, p)
+			}
+		}
 	}
 
-	astFiles, err := newAstFiles(cfg, modelFile)
+	astFiles, err := newAstFiles(files...)
 	if err != nil {
 		panic(err)
 	}
@@ -1038,8 +1040,12 @@ func createModule() *common.Module {
 	return module
 }
 
-// determineModuleName derives the module name from the output path
+// determineModuleName derives the module name from the override flag, the
+// output path, or the package basename — in that order.
 func determineModuleName() string {
+	if moduleNameOverride != "" {
+		return moduleNameOverride
+	}
 	moduleName := path.Base(path.Dir(output))
 	if moduleName == "." {
 		return path.Base(pkgname)
@@ -1097,36 +1103,30 @@ func executeTemplate(tmpl *template.Template, data TemplateData) string {
 	if err := tmpl.Execute(&buffer, data); err != nil {
 		panic(err)
 	}
-	return removeEmptyLines(&buffer)
+	output := removeEmptyLines(&buffer)
+
+	// Final cleanup: fix any package-qualified built-in types that slipped through
+	// This handles patterns like "[]net.byte" -> "[]byte", "*pkg.int" -> "*int", etc.
+	for _, builtinType := range []string{"byte", "rune", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "float32", "float64",
+		"complex64", "complex128", "bool", "string"} {
+		// Replace patterns like "net.byte" with just "byte"
+		// Match package.builtin where package is one or more word characters
+		pattern := `(\w+)\.` + builtinType + `\b`
+		re := regexp.MustCompile(pattern)
+		output = re.ReplaceAllString(output, builtinType)
+	}
+
+	return output
 }
 
-// writeFormattedOutput writes the generated code to a temp file, formats it, and renames it
+// writeFormattedOutput formats the generated source with go/format and writes it to disk.
 func writeFormattedOutput(content string) {
-	tmpfile, err := os.CreateTemp(path.Dir(output), "event_deep_copy")
+	formatted, err := format.Source([]byte(content))
 	if err != nil {
-		panic(err)
+		log.Fatalf("formatting %s: %v\n%s", output, err, content)
 	}
-	defer os.Remove(tmpfile.Name())
-
-	if _, err := tmpfile.WriteString(content); err != nil {
+	if err := os.WriteFile(output, formatted, 0644); err != nil {
 		panic(err)
-	}
-
-	if err := tmpfile.Close(); err != nil {
-		panic(err)
-	}
-
-	formatWithGofmt(tmpfile.Name())
-
-	if err := os.Rename(tmpfile.Name(), output); err != nil {
-		panic(err)
-	}
-}
-
-// formatWithGofmt runs gofmt on the specified file
-func formatWithGofmt(filename string) {
-	cmd := exec.Command("gofmt", "-s", "-w", filename)
-	if gofmtOutput, err := cmd.CombinedOutput(); err != nil {
-		log.Fatal(string(gofmtOutput))
 	}
 }

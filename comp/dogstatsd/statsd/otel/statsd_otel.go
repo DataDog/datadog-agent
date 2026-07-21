@@ -10,7 +10,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

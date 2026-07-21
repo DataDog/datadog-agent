@@ -25,7 +25,7 @@ const (
 
 	// MaxPathDepth defines the maximum depth of a path
 	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
-	MaxPathDepth = 1189
+	MaxPathDepth = 1160
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16
@@ -47,6 +47,8 @@ const (
 )
 
 const (
+	// the following flags have to be kept in sync with their kernel counterparts in pkg/security/ebpf/c/include/constants/enums.h
+
 	// EventFlagsAsync async event
 	EventFlagsAsync = 1 << iota
 
@@ -61,6 +63,11 @@ const (
 
 	// EventFlagsAnomalyDetectionEvent true if the event is marked as being an anomaly
 	EventFlagsAnomalyDetectionEvent
+
+	// EventFlagsInternal true if the event is an internal event used to keep caches & internal resources up-to-date
+	EventFlagsInternal
+
+	// non kernel flags
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
@@ -695,6 +702,7 @@ func initConstants() {
 	initCompressionTypeConstants()
 	initFileTypeConstants()
 	initLinkageTypeConstants()
+	initSocketDomainConstants()
 	initSocketTypeConstants()
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()

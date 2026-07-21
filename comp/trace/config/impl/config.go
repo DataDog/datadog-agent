@@ -99,7 +99,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return
 		}
 
-		if c.coreConfig.IsSet(apmConfigAPIKeyConfigKey) {
+		if c.coreConfig.IsConfigured(apmConfigAPIKeyConfigKey) {
 			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
 			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
 			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
@@ -108,7 +108,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
-			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastChars(oldAPIKey), scrubber.HideKeyExceptLastChars(newAPIKey))
 			// Update API Key on config, and propagate the signal to registered listeners
 			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
 			c.updateAPIKey(oldAPIKey, newAPIKey)
@@ -188,7 +188,7 @@ func (c *cfg) GetConfigHandler() http.Handler {
 				return
 			}
 
-			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettingsWithoutSecrets())
+			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
 			if err != nil {
 				log.Errorf("Unable to marshal runtime config response: %s", err)
 				body, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -212,14 +212,14 @@ func (c *cfg) GetConfigHandler() http.Handler {
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
 func (c *cfg) SetMaxMemCPU(isContainerized bool) {
-	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
+	if c.coreConfig.Object().IsConfigured("apm_config.max_cpu_percent") {
 		c.MaxCPU = c.coreConfig.Object().GetFloat64("apm_config.max_cpu_percent") / 100
 	} else if isContainerized {
 		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
 		c.MaxCPU = 0
 	}
 
-	if c.coreConfig.Object().IsSet("apm_config.max_memory") {
+	if c.coreConfig.Object().IsConfigured("apm_config.max_memory") {
 		c.MaxMemory = c.coreConfig.Object().GetFloat64("apm_config.max_memory")
 	} else if isContainerized {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")

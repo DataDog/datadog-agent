@@ -18,22 +18,26 @@
   # Set bundler install path to cached folder
   - !reference [.cache_omnibus_ruby_deps, setup]
   - |
-    export GOMODCACHE=~/gomodcache
-    mkdir -p $GOMODCACHE
+    export GOPATH="$(go env GOPATH)"
+    export GOMODCACHE="$GOPATH/pkg/mod"
+    mkdir -p "$GOMODCACHE"
 
 .agent_dmg:
   extends: .bazel:defs:cache:macos
   stage: package_build
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_deps", "go_mod_tidy_check"]
   rules:
      - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
          SIGN: true  # for `main` and release branches
+     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+       variables:
+         SIGN: true  # for release and RC tags (CI_COMMIT_BRANCH is unset on tag pipelines)
      - if: $CI_COMMIT_BRANCH =~ /notarization/
        variables:
          SIGN: true  # for branches with "notarization" in their name - should we need to tune it
      - !reference [.on_macos_files_change]
-     - !reference [.on_packaging_change]
+     - !reference [.on_macos_change]
      - !reference [.on_all_builds]
      - !reference [.manual]
   artifacts:
@@ -46,8 +50,6 @@
       aud: ci-identities
   variables:
     KEYCHAIN_NAME: "build.keychain"
-    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
-    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
     NOTARIZATION_TIMEOUT: 15m
     NOTARIZATION_ATTEMPTS: 3
@@ -59,13 +61,7 @@
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
-    - rm -rf "$OMNIBUS_GIT_CACHE_DIR" || true
   after_script:
-    # Destroy the keychain used to sign packages
-    - |
-      if [ "${SIGN:-false}" = true ]; then
-        security delete-keychain "build.keychain" || true
-      fi
     - sudo umount /Volumes/Agent || true
   script:
     - set -eo pipefail
@@ -75,6 +71,7 @@
     # List Python and Go existing environments and their disk space
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
+    - !reference [.retrieve_linux_go_deps]
     - bash .gitlab/build/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
 

@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v7"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -64,7 +65,7 @@ func (c *SecurityAgentAPIClient) logConnectError(err error) {
 // SendEvents sends events to the security agent
 func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, msgs chan *api.SecurityEventMessage, onConnectCb func()) {
 	for {
-		seclog.Trace("connecting to security agent event grpc server")
+		seclog.Debugf("connecting to security agent event grpc server")
 
 		stream, err := c.SecurityAgentAPIClient.SendEvent(context.Background())
 		if err != nil {
@@ -165,18 +166,27 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 
 	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
 	if family == "vsock" {
-		cmdPort, parseErr := strconv.Atoi(socketPath)
-		if parseErr != nil {
-			return nil, parseErr
+		cmdPort, err := strconv.ParseUint(socketPath, 10, 16)
+		if err != nil {
+			return nil, err
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%s' for vsock", cfg.SocketPath)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		socketPath = "passthrough:target"
+
+		cid := uint32(vsock.Host)
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			cid, err = socket.ParseVSockAddress(vsockAddr)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
-			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
+			return vsock.Dial(cid, uint32(cmdPort), &vsock.Config{})
 		}))
 	}
 

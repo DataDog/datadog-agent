@@ -24,10 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 )
 
 type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error)
@@ -47,7 +47,7 @@ func testSocketPath(t *testing.T) string {
 }
 
 func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
-	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
+	packetPoolUDS := packets.NewPool(cfg, cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
 	return packets.NewPoolManager[packets.Packet](packetPoolUDS)
 }
 

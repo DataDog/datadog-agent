@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/api/types/system"
 )
 
 // GetTags returns tags that are automatically added to metrics and events on a
@@ -25,24 +25,22 @@ func GetTags(ctx context.Context) ([]string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
-	return getTags(ctx, du.cli)
+	info, err := safeInfo(ctx, du.cli)
+	if err != nil {
+		return []string{}, err
+	}
+	return buildSwarmTags(info), nil
 }
 
-func getTags(ctx context.Context, client client.SystemAPIClient) ([]string, error) {
-	tags := []string{}
-	info, err := client.Info(ctx)
-	if err != nil {
-		return tags, err
+// buildSwarmTags derives the docker swarm-related host tags from a daemon
+// /info response.
+func buildSwarmTags(info system.Info) []string {
+	if info.Swarm.LocalNodeState != swarm.LocalNodeStateActive {
+		return []string{}
 	}
-	switch info.Swarm.LocalNodeState {
-	case swarm.LocalNodeStateActive:
-		nodeRole := swarm.NodeRoleWorker
-		if info.Swarm.ControlAvailable {
-			nodeRole = swarm.NodeRoleManager
-		}
-		tags = append(tags, fmt.Sprintf("docker_swarm_node_role:%s", nodeRole))
-	default:
-		break
+	nodeRole := swarm.NodeRoleWorker
+	if info.Swarm.ControlAvailable {
+		nodeRole = swarm.NodeRoleManager
 	}
-	return tags, nil
+	return []string{fmt.Sprintf("docker_swarm_node_role:%s", nodeRole)}
 }

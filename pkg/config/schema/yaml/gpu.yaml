@@ -1,0 +1,109 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/gpu.yaml.schema.json
+node_type: section
+type: object
+visibility: public
+description: |-
+  Configuration for GPU Monitoring on non-containerized Linux hosts.
+  Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+tags:
+- template_section:Common
+- full-agent-only:true
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set to true to enable the GPU check in the core Agent.
+      Required for GPU monitoring on non-containerized Linux hosts.
+      Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+  nccl:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      NCCL collective communication metrics. When enabled, the Agent listens on a
+      Unix domain socket for events emitted by the NCCL profiler plugin in
+      training pods and emits per-collective performance metrics.
+      Pair with admission_controller.nccl_profiler to inject the plugin into
+      training pods, or mount the plugin into containers manually.
+    tags:
+    - template_section:Common
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enable the NCCL collective performance check.
+      host_socket_path:
+        node_type: setting
+        type: string
+        default: /var/run/datadog
+        visibility: public
+        description: |-
+          Host directory containing the Agent's NCCL socket. Must match the
+          hostPath volume mounted into training pods.
+        comment: |-
+          host_socket_path is read by the helm chart and operator to decide whether
+          to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
+          the directory is already mounted; this setting matters for NCCL-only setups.
+      socket_path:
+        node_type: setting
+        type: string
+        default: /var/run/datadog/nccl.socket
+        visibility: public
+        description: |-
+          Full path to the Unix domain socket the Agent listens on for NCCL events.
+          Must be under host_socket_path.
+  collection_interval_override:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+      cadence when > 0, taking precedence over the instance's min_collection_interval.
+      Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
+  disabled_collectors:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  integrate_with_workloadmeta_processes:
+    node_type: setting
+    type: boolean
+    default: true
+  nvlink:
+    node_type: section
+    type: object
+    properties:
+      fec_light_error_threshold:
+        node_type: setting
+        type: integer
+        default: 3
+  nvml_lib_path:
+    node_type: setting
+    type: string
+    default: ''
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: true
+  sp_process_metrics_request_timeout:
+    node_type: setting
+    type: string
+    default: 3s
+    format: duration
+    tags:
+    - golang_type:duration
+  use_sp_process_metrics:
+    node_type: setting
+    type: boolean
+    default: false
+  workload_tag_cache_size:
+    node_type: setting
+    type: integer
+    default: 1024

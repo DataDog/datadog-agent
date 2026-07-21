@@ -158,6 +158,10 @@ func (c *collector) parseV2TaskContainers(
 					Name:   container.DockerName,
 					Labels: container.Labels,
 				},
+				Owner: &workloadmeta.EntityID{
+					Kind: workloadmeta.KindECSTask,
+					ID:   task.TaskARN,
+				},
 				Image:      image,
 				Runtime:    containerRuntime,
 				NetworkIPs: ips,

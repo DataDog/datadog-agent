@@ -1,0 +1,93 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "debugfs.go",
+        "debugfs_stat_collector_linux.go",
+        "debugfs_stat_collector_nonlinux.go",
+        "debugfs_stat_collector_noop.go",
+        "errors_collector_linux.go",
+        "errors_collector_nonlinux.go",
+        "errors_telemetry.go",
+        "modifier.go",
+        "perf_metrics.go",
+        "perf_metrics_nonlinux.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/maps",
+        "//pkg/ebpf/names",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_prometheus_client_golang//prometheus",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "telemetry_test",
+    srcs = [
+        "debugfs_test.go",
+        "errors_collector_linux_test.go",
+        "errors_telemetry_test.go",
+        "modifier_test.go",
+        "types_linux_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)

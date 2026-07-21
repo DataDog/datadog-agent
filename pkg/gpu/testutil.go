@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 

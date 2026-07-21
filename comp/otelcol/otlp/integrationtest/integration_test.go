@@ -40,7 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -48,26 +49,26 @@ import (
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	fxnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
+	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
@@ -81,11 +82,11 @@ import (
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -95,7 +96,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
 		logtrace.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
@@ -115,6 +116,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 				return nil, err
 			}
 			c.Set("otelcollector.enabled", true, pkgconfigmodel.SourceFile)
+			c.Set("hostname", "otel-integration-test", pkgconfigmodel.SourceFile)
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
@@ -125,16 +127,16 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(h hostnameinterface.Component) serializerexporter.SourceProviderFunc {
 			return h.Get
 		}),
-		hostnameinterface.MockModule(),
+		hostnamemock.MockModule(),
 		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
-			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return logdef.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
 		}),
-		logsagentpipelineimpl.Module(),
+		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
@@ -149,15 +151,15 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		}),
 		fx.Supply("test-host"),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return defaultforwarder.Forwarder(c), nil
+			return c, nil
 		}),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(pidfilePath)),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		taggerfx.Module(),
-		noopsimpl.Module(),
+		fxnoop.Module(),
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
@@ -191,7 +193,7 @@ func TestIntegration(t *testing.T) {
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
-		ConfPaths:  []string{"integration_test_config.yaml"},
+		ConfPaths:  []string{"testdata/integration_test_config.yaml"},
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}

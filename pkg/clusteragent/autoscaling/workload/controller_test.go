@@ -36,6 +36,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -55,7 +56,7 @@ type fixture struct {
 const testMaxAutoscalerObjects int = 2
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
@@ -66,7 +67,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
+				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -74,6 +75,8 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 				// Patching controller and horizontal controller scaler to use the fake scaler
 				c.scaler = scaler
 				c.horizontalController.scaler = scaler
+				c.verticalController.inPlaceResizeSupported = func() *bool { b := true; return &b }()
+				c.verticalController.inPlaceResizeSupportedTime = clock.Now()
 				return c.Controller, err
 			},
 		),
@@ -144,7 +147,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 		UpstreamCR:                     dpaTyped,
 		CustomRecommenderConfiguration: nil,
 	}
-	dpaInternal, found := f.store.Get("default/dpa-0")
+	dpaInternal, found := f.store.Peek("default/dpa-0")
 	assert.True(t, found)
 	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 
@@ -153,7 +156,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	f.Objects = nil
 
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 0)
+	assert.Len(t, f.store.List(nil), 0)
 
 	// Re-create object
 	f.InformerObjects = append(f.InformerObjects, dpa)
@@ -184,7 +187,10 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedDPA := &datadoghq.DatadogPodAutoscaler{
@@ -216,21 +222,24 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 
 	// We flag the object as deleted in the store, we expect delete operation in Kubernetes
 	dpaInternal.Deleted = true
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 	f.InformerObjects = append(f.InformerObjects, expectedUnstructured)
 	f.Objects = append(f.Objects, expectedDPA)
 	f.Actions = nil
 
 	f.ExpectDeleteAction("default", "dpa-0")
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 1) // Still in store
+	assert.Len(t, f.store.List(nil), 1) // Still in store
 
 	// Next reconcile the controller is going to remove the object from the store
 	f.InformerObjects = nil
 	f.Objects = nil
 	f.Actions = nil
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 0)
+	assert.Len(t, f.store.List(nil), 0)
 }
 
 func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
@@ -253,7 +262,10 @@ func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedDPA := &datadoghq.DatadogPodAutoscaler{
@@ -390,7 +402,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			f.Objects = append(f.Objects, dpaTyped)
 
 			f.RunControllerSync(true, id)
-			_, found := f.store.Get(id)
+			_, found := f.store.Peek(id)
 			assert.True(t, found)
 
 			// Test that object gets updated with correct error status
@@ -430,8 +442,8 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 
 			f.ExpectUpdateStatusAction(mustUnstructured(t, expectedDPAError))
 			f.RunControllerSync(true, id)
-			assert.Len(t, f.store.GetAll(), 1)
-			pai, found := f.store.Get(id)
+			assert.Len(t, f.store.List(nil), 1)
+			pai, found := f.store.Peek(id)
 			assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
 			assert.EqualError(t, pai.Error(), "Autoscaling target cannot be set to the cluster agent")
 		})
@@ -475,11 +487,17 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 			Replicas: 4,
 		},
 	}, schema.GroupResource{}, nil).Maybe()
+	// Pod carries the current recommendation annotation so the in-place path (default) sees
+	// it as complete and does not attempt a resize patch.
 	f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      "Deployment",
 		Name:      "app-0",
-	}, []*workloadmeta.KubernetesPod{{}})
+	}, []*workloadmeta.KubernetesPod{{
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{model.RecommendationIDAnnotation: "abc123"},
+		},
+	}})
 
 	// Recs are vertical error, horizontal able to recommend
 	dpaInternal := model.FakePodAutoscalerInternal{
@@ -523,7 +541,10 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 			Version: "abc123",
 		},
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Check generated status based on current state (both directions activated)
 	cpuReqSum, memReqSum := dpaInternal.MainScalingValues.Vertical.SumCPUMemoryRequests()
@@ -569,7 +590,7 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 					DesiredResources: dpaInternal.MainScalingValues.Vertical.ContainerResources,
 					PodCPURequest:    cpuReqSum,
 					PodMemoryRequest: memReqSum,
-					Scaled:           pointer.Ptr[int32](0),
+					Scaled:           pointer.Ptr[int32](1),
 				},
 				LastAction: dpaInternal.VerticalLastAction,
 			},
@@ -708,7 +729,7 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 		},
 	}
 	f.ExpectUpdateStatusAction(mustUnstructured(t, dpaStatusUpdate))
-	assert.Len(t, f.store.GetAll(), 2)
+	assert.Len(t, f.store.List(nil), 2)
 	f.InformerObjects = append(f.InformerObjects, dpa2)
 	f.Objects = append(f.Objects, dpaTyped2)
 	f.RunControllerSync(true, dpa2ID)
@@ -758,21 +779,30 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	dpaInternal1 := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "dpa-1",
 		Spec:      &dpa1Spec,
 	}
-	f.store.Set("default/dpa-1", dpaInternal1.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-1")
+		item.Upsert(dpaInternal1.Build(), controllerID)
+	}
 
 	dpaInternal2 := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "dpa-2",
 		Spec:      &dpa2Spec,
 	}
-	f.store.Set("default/dpa-2", dpaInternal2.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-2")
+		item.Upsert(dpaInternal2.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedStatus := datadoghqcommon.DatadogPodAutoscalerStatus{
@@ -800,7 +830,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	f.Actions = nil
 	f.ExpectCreateAction(expectedUnstructured2)
 	f.RunControllerSync(true, "default/dpa-2")
-	assert.Len(t, f.store.GetAll(), 3)
+	assert.Len(t, f.store.List(nil), 3)
 
 	dpaTime := testTime.Add(-1 * time.Hour)
 	dpa1Time := testTime
@@ -888,11 +918,14 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 
 	// Check that when object (dpa1) is deleted, heap is updated accordingly
 	dpaInternal1.Deleted = true
-	f.store.Set("default/dpa-1", dpaInternal1.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-1")
+		item.Upsert(dpaInternal1.Build(), controllerID)
+	}
 	f.Actions = nil
 	f.ExpectDeleteAction("default", "dpa-1")
 	f.RunControllerSync(true, "default/dpa-1")
-	assert.Len(t, f.store.GetAll(), 3)
+	assert.Len(t, f.store.List(nil), 3)
 
 	f.InformerObjects = nil
 	f.Objects = nil
@@ -908,7 +941,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	f.Objects = append(f.Objects, expectedDPAError)
 
 	f.RunControllerSync(true, "default/dpa-2")
-	assert.Len(t, f.store.GetAll(), 2)
+	assert.Len(t, f.store.List(nil), 2)
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
@@ -1197,7 +1230,10 @@ func TestVerticalConstraintsIdempotent(t *testing.T) {
 			},
 		},
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Pods already on the constrained hash (steady state after first patch).
 	f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
@@ -1269,6 +1305,398 @@ func TestVerticalConstraintsIdempotent(t *testing.T) {
 	f.Actions = nil // expect zero actions
 
 	f.RunControllerSync(true, "default/dpa-0")
+}
+
+func TestProfileManagedDPA(t *testing.T) {
+	t.Run("Create in K8s from store", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		expectedDPA := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "prod",
+				Name:      "web-app-a1b2c3d4",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+			},
+			Spec: dpaSpec,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			},
+		}
+		f.ExpectCreateAction(mustUnstructured(t, expectedDPA))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Delete K8s CRD when deleted flag set", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Deleted:     true,
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpa.SetLabels(map[string]string{model.ProfileLabelKey: "high-cpu"})
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		f.ExpectDeleteAction("prod", "web-app-a1b2c3d4")
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Clean store after K8s gone", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Deleted:     true,
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		// K8s object gone, store entry flagged deleted → should clean store.
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+		assert.Len(t, f.store.List(nil), 0)
+	})
+
+	t.Run("Orphan when profile label removed from K8s object", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// Store has a profile-managed DPA.
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Generation:  1,
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		// K8s object exists but customer removed the profile label.
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 2, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		_ = dpaTyped
+		// dpa (informer object) has no profile label by default from newFakePodAutoscaler.
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// After orphaning, the controller processes the DPA as local-owned.
+		// It hits the heap validation error since we haven't added it to
+		// the heap, producing a status update with error conditions.
+		expectedStatus := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta:   podAutoscalerMeta,
+			ObjectMeta: dpaTyped.ObjectMeta,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "ClusterAutoscalerLimitReached", fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			},
+		}
+		f.ExpectUpdateStatusAction(mustUnstructured(t, expectedStatus))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+
+		pai, found := f.store.Peek("prod/web-app-a1b2c3d4")
+		require.True(t, found)
+		assert.False(t, pai.IsProfileManaged(), "DPA should no longer be profile-managed after label removal")
+		assert.Empty(t, pai.ProfileName(), "Profile name should be cleared")
+		assert.False(t, pai.Deleted(), "DPA should NOT be deleted, it's orphaned")
+	})
+
+	t.Run("Startup: K8s DPA with profile label populates store", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "web-app-a1b2c3d4",
+				Namespace: "prod",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+			},
+			Spec: dpaSpec,
+		}
+		obj, err := autoscaling.ToUnstructured(dpa)
+		require.NoError(t, err)
+
+		f.InformerObjects = append(f.InformerObjects, obj)
+		f.Objects = append(f.Objects, dpa)
+
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+
+		pai, found := f.store.Peek("prod/web-app-a1b2c3d4")
+		require.True(t, found)
+		assert.Equal(t, "high-cpu", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+	})
+
+	t.Run("Create in K8s with burstable annotation", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1-burstable",
+			PreviewAnnotationKey:       `{"burstable":true}`,
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
+				},
+				Spec: dpaSpec,
+			},
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		expectedDPA := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "prod",
+				Name:      "web-app-a1b2c3d4",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1-burstable",
+					model.PreviewAnnotationKey:          `{"burstable":true}`,
+				},
+			},
+			Spec: dpaSpec,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+					Burstable: pointer.Ptr(true),
+				},
+			},
+		}
+		f.ExpectCreateAction(mustUnstructured(t, expectedDPA))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Update in K8s sets burstable annotation when profile becomes burstable", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// K8s object exists without burstable annotation (applied hash = "hash1")
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpaTyped.Annotations = map[string]string{model.ProfileTemplateHashAnnotation: "hash1"}
+		dpa.SetLabels(dpaTyped.Labels)
+		dpa.SetAnnotations(dpaTyped.Annotations)
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// Store: desired hash changed to include -burstable suffix
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			Generation:                 1,
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1-burstable",
+			AppliedProfileHash:         "hash1",
+			PreviewAnnotationKey:       `{"burstable":true}`,
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
+				},
+				Spec: dpaSpec,
+			},
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:         "prod",
+				Name:              "web-app-a1b2c3d4",
+				Generation:        1,
+				UID:               dpaTyped.UID,
+				CreationTimestamp: metav1.NewTime(testTime),
+				Labels:            map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1-burstable",
+					model.PreviewAnnotationKey:          `{"burstable":true}`,
+				},
+			},
+			Spec: dpaSpec,
+		}
+		f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Update in K8s removes burstable annotation when profile no longer burstable", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// K8s object exists with burstable annotation (applied hash = "hash1-burstable")
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpaTyped.Annotations = map[string]string{
+			model.ProfileTemplateHashAnnotation: "hash1-burstable",
+			model.PreviewAnnotationKey:          `{"burstable":true}`,
+		}
+		dpa.SetLabels(dpaTyped.Labels)
+		dpa.SetAnnotations(dpaTyped.Annotations)
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// Store: desired hash reverted to "hash1" (burstable removed)
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			Generation:                 1,
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1",
+			AppliedProfileHash:         "hash1-burstable",
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
+					// No burstable annotation
+				},
+				Spec: dpaSpec,
+			},
+		}
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
+
+		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:         "prod",
+				Name:              "web-app-a1b2c3d4",
+				Generation:        1,
+				UID:               dpaTyped.UID,
+				CreationTimestamp: metav1.NewTime(testTime),
+				Labels:            map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1",
+				},
+			},
+			Spec: dpaSpec,
+		}
+		f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
 }
 
 func mustUnstructured(t *testing.T, structIn any) *unstructured.Unstructured {

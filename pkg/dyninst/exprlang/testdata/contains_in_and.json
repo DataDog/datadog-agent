@@ -1,0 +1,39 @@
+{
+  "type": "and",
+  "operation": "",
+  "left": {
+    "type": "contains",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "m",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": "k",
+      "error": ""
+    },
+    "error": ""
+  },
+  "right": {
+    "type": "eq",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "x",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 1,
+      "error": ""
+    },
+    "error": ""
+  },
+  "error": ""
+}

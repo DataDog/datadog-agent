@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "client_builder.go",
+        "helpers.go",
+        "server.go",
+        "server_builder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/config",
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/testutil",
+        "//pkg/network/usm/config",
+        "//pkg/network/usm/testutil",
+        "//pkg/util/kernel",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_stretchr_testify//require",
+    ],
+)

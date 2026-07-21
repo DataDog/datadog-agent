@@ -21,12 +21,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestPodDisruptionBudgetHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.PodDisruptionBudget{}
+	resource := &policyv1.PodDisruptionBudget{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pdb",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("policy", "poddisruptionbudgets")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewPodDisruptionBudgetHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestPodDisruptionBudgetHandlers_ExtractResource(t *testing.T) {
 	handlers := &PodDisruptionBudgetHandlers{}
@@ -93,16 +118,16 @@ func TestPodDisruptionBudgetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*policyv1.PodDisruptionBudget)
 	assert.True(t, ok)
 	assert.Equal(t, "test-pdb", resource1.Name)
-	assert.NotSame(t, pdb1, resource1) // Should be a copy
+	assert.Same(t, pdb1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*policyv1.PodDisruptionBudget)
 	assert.True(t, ok)
 	assert.Equal(t, "pdb2", resource2.Name)
-	assert.NotSame(t, pdb2, resource2) // Should be a copy
+	assert.Same(t, pdb2, resource2) // ResourceList returns raw informer references
 }
 
 func TestPodDisruptionBudgetHandlers_ResourceUID(t *testing.T) {
@@ -294,7 +319,7 @@ func TestPodDisruptionBudgetProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process pod disruption budgets
-	processor := processors.NewProcessor(&PodDisruptionBudgetHandlers{})
+	processor := processors.NewProcessor(&PodDisruptionBudgetHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*policyv1.PodDisruptionBudget{pdb1, pdb2})
 
 	assert.Equal(t, 2, listed)
@@ -401,4 +426,14 @@ func createTestPodDisruptionBudget() *policyv1.PodDisruptionBudget {
 			},
 		},
 	}
+}
+
+func TestPodDisruptionBudgetHandlers_CloneResource(t *testing.T) {
+	handlers := &PodDisruptionBudgetHandlers{}
+	original := createTestPodDisruptionBudget()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*policyv1.PodDisruptionBudget)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

@@ -1,5 +1,8 @@
 .bazel:defs:
   needs: [ ]
+  id_tokens:
+    BUILDBARN_ID_TOKEN:
+      aud: buildbarn.us1.ddbuild.io
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
 
@@ -63,6 +66,10 @@
   extends: .bazel:defs:cache:progressive
   tags: [ "arch:amd64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
 
 .bazel:runner:linux-arm64:
   #extends: .bazel:defs:cache:persistent
@@ -70,14 +77,24 @@
   extends: .bazel:defs:cache:progressive
   tags: [ "arch:arm64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
 
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-amd64", "specific:true" ]
+  # Drop GOPROXY entries not usable from macOS runners before bazel forwards
+  # GOPROXY into its repository rules.
+  before_script:
+    - !reference [.sanitize_goproxy]
 
 .bazel:runner:macos-arm64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-arm64", "specific:true" ]
+  before_script:
+    - !reference [.sanitize_goproxy]
 
 .bazel:runner:windows-amd64:
   extends: [ .bazel:defs:cache:windows, .windows_docker_default ]
@@ -98,6 +115,8 @@
     - >-
       .\tools\ci\docker-run-with-bazel-cache.ps1
       --env=CI_IDENTITIES_GITLAB_ID_TOKEN
+      --env=CI_JOB_ID
+      --env=CI_JOB_NAME_SLUG
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"

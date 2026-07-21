@@ -9,14 +9,15 @@ import (
 	"expvar"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +39,8 @@ type noAggregationStreamWorker struct {
 	flushConfig          FlushAndSerializeInParallel
 	maxMetricsPerPayload int
 
-	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
+	// Shared MetricSamplePool stored in the Demultiplexer. The worker that pulls
+	// a batch from samplesChan owns it until it returns the batch to this pool.
 	metricSamplePool *metrics.MetricSamplePool
 
 	seriesSink   *metrics.IterableSeries
@@ -47,6 +49,8 @@ type noAggregationStreamWorker struct {
 	taggerBuffer *tagset.HashlessTagsAccumulator
 	metricBuffer *tagset.HashlessTagsAccumulator
 
+	// Shared no-aggregation input queue. Multiple workers receive from the same
+	// channel so available workers pull work instead of being selected by demux.
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
@@ -54,6 +58,15 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	// observerHandle is set when the observer component is wired in.
+	// Nil when the feature is disabled or the observer is not included in the binary.
+	observerHandle observer.Handle
+
+	// lookback receives the final no-aggregation series after the worker has
+	// applied the same tag enrichment, type mapping, and value normalization used
+	// for normal serialization.
+	lookback DogStatsDLookback
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -68,11 +81,11 @@ var (
 	expvarNoAggSamplesProcessedUnsupportedType = expvar.Int{}
 	expvarNoAggFlush                           = expvar.Int{}
 
-	tlmNoAggSamplesProcessed                = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
+	tlmNoAggSamplesProcessed                = telemetryimpl.GetCompatComponent().NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
 	tlmNoAggSamplesProcessedOk              = tlmNoAggSamplesProcessed.WithValues("ok")
 	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues("unsupported_type")
 
-	tlmNoAggFlush = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
+	tlmNoAggFlush = telemetryimpl.GetCompatComponent().NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
 )
 
 func init() {
@@ -81,10 +94,15 @@ func init() {
 	noaggExpvars.Set("Flush", &expvarNoAggFlush)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
+// newNoAggregationStreamWorker creates one consumer of the shared no-aggregation
+// queue. Each worker has its own serializer, but all workers share samplesChan
+// and metricSamplePool so batches are assigned by channel receive and returned
+// to the common pool after processing.
+func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
+	samplesChan chan metrics.MetricSampleBatch,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
+	lookback DogStatsDLookback,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -94,45 +112,31 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		seriesSink:   nil,
 		sketchesSink: nil,
 
+		metricSamplePool: metricSamplePool,
+
 		taggerBuffer: tagset.NewHashlessTagsAccumulator(),
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
+		samplesChan: samplesChan,
 
 		hostTagProvider: hosttags.NewHostTagProvider(),
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 
-		tagger: tagger,
+		tagger:   tagger,
+		lookback: lookback,
 	}
 }
 
-func (w *noAggregationStreamWorker) addSamples(samples metrics.MetricSampleBatch) {
-	if len(samples) == 0 {
-		return
-	}
-	// FIXME: instrument
-	w.samplesChan <- samples
-}
-
-func (w *noAggregationStreamWorker) stop(wait bool) {
-	var blockChan chan struct{}
-	if wait {
-		blockChan = make(chan struct{})
-	}
-
-	trigger := trigger{
+func (w *noAggregationStreamWorker) stop() {
+	blockChan := make(chan struct{})
+	w.stopChan <- trigger{
 		time:      time.Now(),
 		blockChan: blockChan,
 	}
-
-	w.stopChan <- trigger
-
-	if wait {
-		<-blockChan
-	}
+	<-blockChan
 }
 
 // mainloop of the no aggregation stream worker:
@@ -166,7 +170,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
+			func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -203,6 +207,10 @@ func (w *noAggregationStreamWorker) run() {
 								continue
 							}
 
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(&sample)
+							}
+
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
@@ -220,7 +228,10 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize
-							w.seriesSink.Append(&serie)
+							if w.lookback != nil {
+								w.lookback.AppendDogStatsDNoAggSerie(&serie)
+							}
+							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()

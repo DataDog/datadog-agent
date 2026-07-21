@@ -213,6 +213,7 @@ namespace Datadog.CustomActions
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
+            _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -251,6 +252,7 @@ namespace Datadog.CustomActions
                 Constants.TraceAgentServiceName,
                 Constants.AgentServiceName,
                 Constants.InstallerServiceName,
+                Constants.ProcmgrServiceName,
             };
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
@@ -372,6 +374,7 @@ namespace Datadog.CustomActions
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.PrivateActionRunnerServiceName,
+                    Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,

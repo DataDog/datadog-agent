@@ -17,6 +17,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
@@ -81,6 +82,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 				return err
 			}
 		}
+		// Fleet policies are merged after LoadDatadog's override pass, so re-run
+		// ADP overrides that depend on values fleet policies may set.
+		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
+		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
+		pkgconfigsetup.SanitizeDataPlaneConfig(config)
 	}
 
 	for k, v := range p.cliOverride {
@@ -92,5 +98,5 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 // GetInstallPath returns the install path for the agent
 func GetInstallPath() string {
-	return pkgconfigsetup.InstallPath
+	return defaultpaths.GetInstallPath()
 }

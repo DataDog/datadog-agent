@@ -17,8 +17,8 @@ import (
 
 func TestWinKMem(t *testing.T) {
 	kcheck := new(KMemCheck)
-	m := mocksender.NewMockSender(kcheck.ID())
-	kcheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	m := mocksender.NewMockSender(t, kcheck.ID())
+	kcheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// since we're using the default config, there should
 	// be the default number

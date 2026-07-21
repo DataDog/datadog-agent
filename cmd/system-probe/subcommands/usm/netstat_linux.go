@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/procnet"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )

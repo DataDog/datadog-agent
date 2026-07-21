@@ -8,18 +8,20 @@
 package headers
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/DataDog/nikos/apt"
-	"github.com/DataDog/nikos/cos"
-	"github.com/DataDog/nikos/rpm"
-	"github.com/DataDog/nikos/types"
-	"github.com/DataDog/nikos/wsl"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/apt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/cos"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/wsl"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,20 +80,21 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	}
 	defer backend.Close()
 
-	return retry.Do(func() error {
+	_, err = backoff.Retry(context.Background(), func() (struct{}, error) {
 		if err := backend.GetKernelHeaders(outputDir); err != nil {
-			return fmt.Errorf("failed to download kernel headers: %s", err)
+			return struct{}{}, fmt.Errorf("failed to download kernel headers: %s", err)
 		}
-		return nil
-	}, retry.Attempts(2), retry.Delay(5*time.Second), retry.OnRetry(func(_ uint, err error) {
-		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
+		return struct{}{}, nil
+	}, backoff.WithMaxTries(2), backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithNotify(func(err error, delay time.Duration) {
+		log.Infof("%s. Waiting %s and retrying kernel header download.", err, delay)
 	}))
+	return err
 }
 
 func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
 	var reposDir string
 	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel", "redhat", "centos", "amazon", "oracle":
+	case "fedora", "rhel", "redhat", "centos", "amazon", "oracle", "rocky":
 		reposDir = h.yumReposDir
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic", "suse", "sles", "sled", "caasp":
 		reposDir = h.zypperReposDir
@@ -125,6 +128,8 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 		} else {
 			backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
 		}
+	case "rocky":
+		backend, err = rpm.NewRockyBackend(target, reposDir, logger)
 	case "centos":
 		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic":

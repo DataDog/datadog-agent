@@ -10,9 +10,12 @@ import (
 	"context"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -20,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -43,6 +44,8 @@ type Launcher struct {
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
+	addedSourcesDone    chan struct{}
+	removedSourcesDone  chan struct{}
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -64,6 +67,7 @@ type Launcher struct {
 	oldInfoMap    map[string]*oldTailerInfo
 	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
+	stopOnce      sync.Once
 }
 
 const (
@@ -103,6 +107,8 @@ func NewLauncher(
 	}
 
 	return &Launcher{
+		addedSourcesDone:       make(chan struct{}),
+		removedSourcesDone:     make(chan struct{}),
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
@@ -124,7 +130,7 @@ func NewLauncher(
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
-	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
+	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry
 	tracker.Add(s.tailers)
 	go s.run()
@@ -133,8 +139,14 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
 func (s *Launcher) Stop() {
-	s.stop <- struct{}{}
-	<-s.done
+	s.stopOnce.Do(func() {
+		// stop the launcher source subscriptions from blocking
+		close(s.addedSourcesDone)
+		close(s.removedSourcesDone)
+
+		s.stop <- struct{}{}
+		<-s.done
+	})
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
@@ -391,12 +403,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		return
 	}
 
+	// Reuse a single resolver so the /var/log/containers scan happens at most once
+	// across all files for this source rather than once per file.
+	symlinkResolver := fileprovider.NewContainerLogSymlinkResolver()
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
 
-		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file, symlinkResolver) {
 			continue
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {

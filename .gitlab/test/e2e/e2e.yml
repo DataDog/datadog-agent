@@ -58,6 +58,8 @@
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - export DD_CIVISIBILITY_FLAKY_RETRY_ENABLED=false
+    - export DD_TAGS="gitlab.pipeline_source:${CI_PIPELINE_SOURCE}"
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
@@ -89,7 +91,10 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
+    E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev
+    E2E_IMAGE_PULL_USERNAME: AWS,_json_key
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
+    E2E_PREBUILD_S3_URI: "$S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
   script:
@@ -99,7 +104,9 @@
       if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
-    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev -c ddagent:imagePullUsername=AWS,_json_key -c ddagent:imagePullPassword=$(aws ecr get-login-password),$E2E_GCP_IMAGE_PULL_PASSWORD --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    # E2E_IMAGE_PULL_PASSWORD is a comma-separated list of passwords for the different registries
+    - export E2E_IMAGE_PULL_PASSWORD=$(aws ecr get-login-password),$E2E_GCP_IMAGE_PULL_PASSWORD
+    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
@@ -107,6 +114,14 @@
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
         dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
+      fi
+    # Upload e2e coverage to Datadog Code Coverage (side-by-side with Codecov)
+    - |
+      if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
+        DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+        for coverage in "$E2E_COVERAGE_OUT_DIR"/*/coverage.txt; do
+          datadog-ci coverage upload --format=go-coverprofile "$coverage" || true
+        done
       fi
   artifacts:
     expire_in: 2 weeks
@@ -123,18 +138,30 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
+# Wait for the fakeintake image to publish (v<sha> on PRs, pinned tag on main).
+# Both optional: absent on non-fakeintake pipelines. Reference from every e2e
+# needs block (directly or via .needs_new_e2e_template) so no job races the image.
+.needs_fakeintake_publish:
+  - job: publish_fakeintake
+    optional: true
+  - job: publish_fakeintake_pinned
+    optional: true
+
 .needs_new_e2e_template:
   - go_e2e_deps
-  - go_e2e_test_binaries
+  - job: go_e2e_test_binaries
+    artifacts: false
   - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
+  - !reference [.needs_fakeintake_publish]
 
 new-e2e-base-coverage:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - go_tools_deps
     - agent_deb-x64-a7
   rules:
@@ -150,7 +177,8 @@ new-e2e-base:
   needs:
     - go_e2e_deps
     - go_tools_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
@@ -162,7 +190,8 @@ new-e2e-base:
     EXTRA_PARAMS: --run TestAgentBaselineSuite
 
 # Build test binaries job that creates pre-compiled test binaries
-# This job runs early in the pipeline and creates artifacts that can be reused by test jobs
+# This job runs early in the pipeline and uploads per-package tarballs to S3
+# so that each test job can download only the binaries it needs.
 go_e2e_test_binaries:
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -180,12 +209,7 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar czf test-binaries.tar.gz test-binaries
-  artifacts:
-    expire_in: 1 week
-    paths:
-      - test-binaries.tar.gz
-      - manifest.json
+    - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -267,7 +291,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -275,6 +299,7 @@ new-e2e-containers-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -285,8 +310,8 @@ new-e2e-containers-eks-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -312,6 +337,7 @@ new-e2e-containers-openshift-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
@@ -330,8 +356,9 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # Same as new-e2e-containers-eks-init.
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -404,25 +431,37 @@ new-e2e-agent-subcommands:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip "Windows"
 
-
 new-e2e-agent-health:
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - agent_deb-x64-a7
   rules:
     - !reference [.on_healthplatform_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
+
+new-e2e-agent-telemetry:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-telemetry
+    TEAM: agent-runtimes
 
 new-e2e-privateactionrunner:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
+    - qa_agent_linux
+    - qa_dca
   rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_mergequeue]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -495,6 +534,7 @@ new-e2e-npm-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -559,6 +599,39 @@ new-e2e-amp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
     ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip "ADP"
+
+# Exploratory variant of new-e2e-amp that runs the agent-metric-pipelines
+# suite with ADP enabled (see test/new-e2e/tests/agent-metric-pipelines/common/adp.go).
+# Manual-only — does not run automatically on PRs to avoid doubling CI cost.
+# Used to surface ADP/Core Agent DogStatsD compatibility gaps. See DADP-72.
+new-e2e-amp-adp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    # Upstream qa_* and agent_deb-* jobs are gated by their own rules and may
+    # not exist in every pipeline. This job is .manual-only (always created),
+    # so we mark these as optional to keep the config valid. If you trigger
+    # this job in a pipeline where upstream artifacts weren't built, it will
+    # fail at runtime — verify the upstream jobs are green before clicking.
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: qa_agent_linux
+      optional: true
+    - job: qa_agent_linux_jmx
+      optional: true
+    - job: qa_agent_fips_linux_jmx
+      optional: true
+    - job: qa_dca
+      optional: true
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "ADP"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-alp:
   extends: .new_e2e_template
@@ -607,7 +680,6 @@ new-e2e-cws:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-sbom:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
@@ -620,6 +692,24 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
+
+new-e2e-usm:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/usm
+    EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
+    TEAM: universal-service-monitoring
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -737,20 +827,46 @@ new-e2e-apm:
     MAX_RETRIES_FLAG: "--max-retries=3"
     TARGETS: ./tests/fleet
 
+# Fleet e2e jobs are split by platform group (linux/windows) via E2E_FLEET_PLATFORM_GROUP.
+# Linux platforms are fast, so all their tests run in a single job. Windows is the
+# wall-clock bottleneck (slow MSI install/uninstall on every test), so each Windows
+# suite's test methods are sharded across two jobs (two VMs per platform) to roughly
+# halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
+# (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetConfig
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetConfig$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade
+  parallel:
+    matrix:
+      # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
+      # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetExtensions
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetExtensions$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -883,8 +999,22 @@ new-e2e-ha-agent-failover:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-anomalydetection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_anomalydetection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/anomalydetection
+    TEAM: q-branch
+
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.new_e2e_template_needs_deb_x64, needs]
+    # netpath dynamic-tests run the agent as a Docker container, pulling the
+    # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
+    - qa_agent_linux
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
@@ -903,6 +1033,7 @@ new-e2e-otel-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
@@ -943,6 +1074,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent_full
     - qa_ot_agent_standalone
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
@@ -968,6 +1100,7 @@ new-e2e-otel:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
@@ -980,6 +1113,8 @@ new-e2e-otel:
     TEAM: injection-platform
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -1038,12 +1173,86 @@ new-e2e-ssi-gke:
     E2E_PRE_INITIALIZED: "true"
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-ssi-gke-autopilot-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+
+new-e2e-ssi-gke-autopilot:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-autopilot-init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+  allow_failure: true
+
+new-e2e-ssi-openshift-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    E2E_PROVISIONER: openshift
+    E2E_STACK_NAME_SUFFIX: openshift
+    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+
+new-e2e-ssi-openshift:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-openshift-init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    E2E_PROVISIONER: openshift
+    E2E_STACK_NAME_SUFFIX: openshift
+    E2E_PRE_INITIALIZED: "true"
+    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-ssi-aks:
+  extends: .new-e2e_ssi_extra_distribution
+  variables:
+    E2E_PROVISIONER: aks
+    E2E_STACK_NAME_SUFFIX: aks
+    # Image volume is not supported on AKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+
+new-e2e-ssi-gradual-rollout:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi-gradual-rollout/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ssi-gradual-rollout
+    TEAM: apm-release-platform
 
 .new-e2e_package_signing:
   variables:
-    TARGETS: ./tests/agent-platform/package-signing
+    TARGETS: ./tests/agent-platform/tests
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS
+    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS --run TestPackageSigningComponent
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-package-signing-debian-a7-x86_64:
@@ -1081,10 +1290,27 @@ new-e2e-cspm:
     - !reference [.needs_new_e2e_template]
     - qa_agent_linux
     - qa_dca
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
     ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestCSPM
+      - EXTRA_PARAMS: --run TestDockerHostCSPM
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL8
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestHostBenchmarksAlmaLinux9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
   timeout: 35m
 
 new-e2e-gpu:
@@ -1094,7 +1320,7 @@ new-e2e-gpu:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
-    TEAM: ebpf-platform
+    TEAM: gpu-monitoring-agent
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.
@@ -1106,6 +1332,19 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-autoscaling:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+  rules:
+    - !reference [.on_autoscaling_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/autoscaling
+    TEAM: container-autoscaling
   retry: !reference [.retry_only_infra_failure, retry]
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731

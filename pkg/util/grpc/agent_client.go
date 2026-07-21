@@ -55,6 +55,7 @@ func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, t
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			log.Debugf("dialing vsock address with CID %d and port %d", cid, port)
 			return vsock.Dial(cid, uint32(port), &vsock.Config{})
 		}))
 	}

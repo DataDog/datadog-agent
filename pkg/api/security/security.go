@@ -140,10 +140,31 @@ func GetAuthTokenFilepath(config configModel.Reader) string {
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), authTokenName)
 }
 
+// PersistAuthTokenFilepath stores the resolved auth_token_file_path back into the config when
+// the setting was left at its empty default, so downstream readers (notably the configstream
+// snapshot producer) see a concrete absolute path rather than re-deriving the fallback on
+// each call. Absolute is required because remote agents consuming the snapshot may run from
+// a different cwd than the core agent.
+func PersistAuthTokenFilepath(config configModel.ReaderWriter) {
+	if config.GetString("auth_token_file_path") != "" {
+		return
+	}
+	resolved := GetAuthTokenFilepath(config)
+	if abs, err := filepath.Abs(resolved); err == nil {
+		resolved = abs
+	}
+	config.Set("auth_token_file_path", resolved, configModel.SourceConfigPostInit)
+}
+
 // FetchAuthToken gets the authentication token from the auth token file
 // Requires that the config has been set up before calling
 func FetchAuthToken(config configModel.Reader) (string, error) {
 	return filesystem.TryFetchArtifact(GetAuthTokenFilepath(config), &authtokenFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
+}
+
+// LoadAuthTokenFromPath reads the auth token at path, no config component required.
+func LoadAuthTokenFromPath(path string) (string, error) {
+	return filesystem.TryFetchArtifact(path, &authtokenFactory{})
 }
 
 // FetchOrCreateAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist

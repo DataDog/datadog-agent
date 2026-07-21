@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
-import time
 from collections import Counter
 
 from invoke.context import Context
@@ -18,14 +18,19 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
-from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
+from tasks.libs.common.datadog_api import send_event
+from tasks.libs.owners.linter import (
+    ai_artefacts_have_owner,
+    codeowner_has_orphans,
+    directory_has_packages_without_owner,
+    skills_use_agents_directory,
+)
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
-ALL_TEAMS = '@datadog/agent-all'
+ALL_TEAMS = '@datadog/agent-community-eng'
 
 
 def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
@@ -72,6 +77,28 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
 
 
 @task
+def is_pr_ready(ctx, git_ref: str, target_branch: str | None = None):
+    """Exit with code 0 if the PR for the given branch exists and is ready (not draft), 1 otherwise.
+
+    If --target-branch is set, also checks that the PR targets the given branch.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(git_ref))
+    if not prs:
+        print(color_message(f"No open PR found for branch {git_ref!r}", "yellow"))
+        raise Exit(code=1)
+    if prs[0].draft:
+        print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
+        raise Exit(code=1)
+    if target_branch and prs[0].base.ref != target_branch:
+        print(color_message(f"PR for branch {git_ref!r} targets {prs[0].base.ref!r}, not {target_branch!r}", "yellow"))
+        raise Exit(code=1)
+    print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
+
+
+@task
 def update_windows_runner_version(
     ctx,
     new_version=None,
@@ -89,7 +116,7 @@ def update_windows_runner_version(
 
 
 @task
-def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
+def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
     """
     Run multiple checks on the provided CODEOWNERS file
     """
@@ -104,7 +131,12 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
 
     # Define linters
-    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
+    linters = [
+        directory_has_packages_without_owner,
+        codeowner_has_orphans,
+        functools.partial(ai_artefacts_have_owner, ctx),
+        functools.partial(skills_use_agents_directory, ctx),
+    ]
 
     # Execute linters
     for linter in linters:
@@ -125,33 +157,6 @@ def get_milestone_id(_, milestone):
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
     print(m.number)
-
-
-@task
-def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
-    from tasks.libs.ciproviders.github_api import GithubAPI
-
-    gh = GithubAPI()
-    rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
-    metric = create_gauge(
-        metric_name='github.rate_limit.remaining',
-        timestamp=int(time.time()),
-        value=rate_limit_info[0],
-        tags=[
-            'source:github',
-            'repository:datadog-agent',
-            f'app_instance:{app_instance}',
-        ],
-    )
-    send_metrics([metric])
-
-
-@task
-def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-    from .libs.ciproviders.github_api import GithubAPI
-
-    GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
 def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:

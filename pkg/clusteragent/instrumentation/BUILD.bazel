@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "instrumentation",
+    srcs = [
+        "controller.go",
+        "conversion.go",
+        "events.go",
+        "status.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//tools/cache",
+        "@io_k8s_client_go//util/retry",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+dd_agent_go_test(
+    name = "instrumentation_test",
+    srcs = [
+        "controller_test.go",
+        "events_test.go",
+        "helpers_test.go",
+        "status_test.go",
+    ],
+    embed = [":instrumentation"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//tools/cache",
+    ],
+)

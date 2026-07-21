@@ -1,0 +1,64 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "cached_entity.go",
+        "completeness.go",
+        "doc.go",
+        "dump.go",
+        "flare_provider.go",
+        "store.go",
+        "workloadmeta.go",
+        "workloadmeta_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/mock",
+        "//comp/core/workloadmeta/telemetry",
+        "//comp/def",
+        "//pkg/config/env",
+        "//pkg/errors",
+        "//pkg/status/health",
+        "//pkg/util/common",
+        "//pkg/util/fxutil",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "completeness_test.go",
+        "dump_test.go",
+        "filter_test.go",
+        "store_example_test.go",
+        "store_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/collectors/util",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/errors",
+        "//pkg/languagedetection/languagemodels",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+    ],
+)

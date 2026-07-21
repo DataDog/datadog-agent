@@ -1,0 +1,74 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+exports_files([
+    "ebpf_types_linux.go",
+    "ebpf_types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "ebpf_types_godefs",
+    src = "ebpf_types.go",
+    hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "noisyneighbor",
+    srcs = [
+        "ebpf_types_linux.go",
+        "probe.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+# ebpf_types_linux_test.go and probe_test.go must be in separate rules because
+# ebpf_types_linux_test.go needs //pkg/ebpf/ebpftest:cgo_align (for TestCgoAlignment)
+# while probe_test.go needs //pkg/ebpf/ebpftest (for TestBuildMode/CORE).
+# Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+# and cannot coexist in the same rule's deps.
+
+dd_agent_go_test(
+    name = "noisyneighbor_types_test",
+    # keep: split from noisyneighbor_test; see comment above.
+    srcs = ["ebpf_types_linux_test.go"],
+    embed = [":noisyneighbor"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "noisyneighbor_test",
+    # keep: split from noisyneighbor_types_test; see comment above.
+    srcs = ["probe_test.go"],
+    embed = [":noisyneighbor"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/util/kernel",
+        "@com_github_stretchr_testify//require",
+    ],
+)

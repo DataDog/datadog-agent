@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
@@ -52,6 +52,7 @@ type InstallAgentParams struct {
 	RemoteUpdates           string `installer_arg:"DD_REMOTE_UPDATES"`
 	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
 	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
+	KeepUserRights          string `installer_arg:"DDAGENTUSER_KEEP_RIGHTS"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -87,6 +88,16 @@ func WithAgentUser(username string) InstallAgentOption {
 func WithAgentUserPassword(password string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.AgentUserPassword = password
+		return nil
+	}
+}
+
+// WithKeepUserRights specifies the DDAGENTUSER_KEEP_RIGHTS parameter. When set to a
+// truthy value (1/true/yes), the installer skips re-applying the ddagentuser
+// SeDeny*LogonRight assignments so operator customizations survive upgrades.
+func WithKeepUserRights(value string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.KeepUserRights = value
 		return nil
 	}
 }

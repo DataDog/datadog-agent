@@ -101,8 +101,8 @@ func TestDiskCheck(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, diskCheck.ID())
+	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	expectedMonoCounts := 2
 	expectedRates := 2
@@ -149,8 +149,8 @@ func TestDiskCheckWithoutCoreLoader(t *testing.T) {
 	cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
 
 	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, diskCheck.ID())
+	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
 }
 
@@ -163,8 +163,8 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 			cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
 
 			diskCheck := new(Check)
-			mock := mocksender.NewMockSender(diskCheck.ID())
-			err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+			mock := mocksender.NewMockSender(t, diskCheck.ID())
+			err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
 		})
 	}
@@ -178,8 +178,8 @@ func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, diskCheck.ID())
+	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	diskCheck.cfg.excludedFilesystems = []string{"vfat"}
 	diskCheck.cfg.excludedDisks = []string{"/dev/sda2"}
 
@@ -211,8 +211,8 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, diskCheck.ID())
+	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	diskCheck.cfg.excludedMountpointRe = regexp.MustCompile("/boot/efi")
 	diskCheck.cfg.excludedDiskRe = regexp.MustCompile("/dev/sda2")
@@ -248,8 +248,8 @@ func TestDiskCheckTags(t *testing.T) {
 
 	config := integration.Data([]byte("use_mount: true\ntag_by_filesystem: true\nall_partitions: true\ndevice_tag_re:\n  /boot/efi: role:esp\n  /dev/sda2: device_type:sata,disk_size:large"))
 
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	mock := mocksender.NewMockSender(t, diskCheck.ID())
+	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 
 	expectedMonoCounts := 2
 	expectedGauges := 16

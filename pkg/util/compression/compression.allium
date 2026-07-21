@@ -1,0 +1,255 @@
+-- allium: 3
+-- compression.allium
+
+-- Scope: Compression abstraction for the Datadog Agent
+-- Includes: Compressor contract, StreamCompressor lifecycle, selector logic
+-- Excludes:
+--   - Algorithm internals (zlib/gzip/zstd framing, buffer management)
+--   - Caller-side serialization and batching logic
+--   - HTTP transport (content-encoding negotiation with intake)
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum CompressionKind { zlib | zstd | gzip | none }
+
+enum ContentEncoding { deflate | zstd | gzip | identity }
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+external entity Config {
+    serializer_compressor_kind: String
+    serializer_zstd_compressor_level: Integer
+}
+
+external entity BuildManifest {
+    -- The set of CompressionKinds available in this build.
+    -- Determined at compile time by build tags.
+    -- gzip and none are always present.
+    available_kinds: Set<CompressionKind>
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity Compressor {
+    kind: CompressionKind
+    content_encoding: ContentEncoding
+    level: Integer?
+
+    -- Derived
+    encoding_for_kind: if kind = zlib: deflate
+        else if kind = zstd: zstd
+        else if kind = gzip: gzip
+        else: identity
+}
+
+entity StreamCompressor {
+    compressor: Compressor
+    output: ByteArray
+    state: open | flushed | closed
+
+    transitions state {
+        open -> flushed
+        open -> closed
+        flushed -> open
+        flushed -> closed
+        terminal: closed
+    }
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    gzip_level: Integer = 6
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Compression {
+    compress: (src: ByteArray) -> ByteArray
+    decompress: (src: ByteArray) -> ByteArray
+    compress_bound: (source_len: Integer) -> Integer
+    content_encoding: () -> ContentEncoding
+
+    @invariant RoundtripIdentity
+        -- For all inputs including empty:
+        -- decompress(compress(input)) = input
+
+    @invariant ValidFrame
+        -- compress(empty) produces a valid compressed frame,
+        -- not empty output. This is a consequence of RoundtripIdentity
+        -- holding for empty input.
+
+    @invariant CompressBoundCorrectness
+        -- For all inputs:
+        -- len(compress(input)) <= compress_bound(len(input))
+
+    @invariant ContentEncodingStability
+        -- content_encoding() returns the same value for the
+        -- lifetime of the Compressor instance.
+
+    @guidance
+        -- A Compressor instance is NOT safe for concurrent use.
+        -- Callers that need per-goroutine compression create
+        -- their own instances.
+}
+
+contract Streaming {
+    new_stream_compressor: (output: ByteArray) -> StreamCompressor
+
+    @invariant FlushPushesToBuffer
+        -- Flush pushes compressed bytes to the output buffer.
+        -- It does not finalize the compressed frame.
+
+    @invariant CloseFinalizesFrame
+        -- Close implicitly flushes and then finalizes the
+        -- compressed frame. After Close the output buffer
+        -- contains a complete, decompressible frame.
+
+    @invariant EmptyStreamProducesValidFrame
+        -- Close without any preceding Write produces a valid
+        -- compressed frame, consistent with the ValidFrame
+        -- invariant on one-shot compression.
+
+    @guidance
+        -- A StreamCompressor instance is NOT safe for concurrent use.
+        -- Each goroutine should obtain its own StreamCompressor
+        -- from a Compressor instance.
+        --
+        -- Callers use two patterns:
+        -- 1. Write, Write, ..., Close (logs sender)
+        -- 2. Write, Flush, measure output size, Write, Flush, ..., Close (serializer)
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Selector: resolve a requested compression kind against what is available.
+--
+-- Build tags determine which kinds are available. Three configurations
+-- exist, selectable via --build-exclude on the invoke build command:
+--   zlib && zstd  — all four kinds (default for all agent builds)
+--   zlib && !zstd — zlib, gzip, none (zstd excluded, e.g. no-cgo builds)
+--   !zlib && !zstd — gzip, none only
+
+rule SelectCompressor {
+    when: SelectCompressor(config, manifest)
+    let requested = config.serializer_compressor_kind
+    let level =
+        if requested = "zstd": config.serializer_zstd_compressor_level
+        else if requested = "gzip": config.gzip_level
+        else: 0
+    ensures:
+        if requested = "zlib" and zlib in manifest.available_kinds:
+            Compressor.created(kind: zlib, level: level, content_encoding: deflate)
+        else if requested = "zstd" and zstd in manifest.available_kinds:
+            Compressor.created(kind: zstd, level: level, content_encoding: zstd)
+        else if requested = "gzip":
+            Compressor.created(kind: gzip, level: level, content_encoding: gzip)
+        else if requested = "none":
+            Compressor.created(kind: none, level: 0, content_encoding: identity)
+        else:
+            CompressorFallback(requested: requested, manifest: manifest)
+}
+
+rule CompressorFallback {
+    when: CompressorFallback(requested, manifest)
+    ensures:
+        if requested = "zstd" and zlib in manifest.available_kinds:
+            Compressor.created(
+                kind: zlib,
+                level: 0,
+                content_encoding: deflate
+            )
+        else:
+            Compressor.created(
+                kind: none,
+                level: 0,
+                content_encoding: identity
+            )
+    @guidance
+        -- The zlib && !zstd build logs a warning when zstd is
+        -- requested and falls back to zlib. All other unrecognized
+        -- or unavailable kinds log an error and fall back to noop.
+        --
+        -- This means a misconfigured agent can silently send
+        -- uncompressed data. See open question below.
+}
+
+-- StreamCompressor lifecycle
+
+rule StreamWrite {
+    when: StreamWrite(stream, data)
+    requires: stream.state != closed
+    ensures: stream.state = open
+    @guidance
+        -- Compressed bytes may or may not appear in the output
+        -- buffer after a write. Use Flush to ensure they do.
+}
+
+rule StreamFlush {
+    when: StreamFlush(stream)
+    requires: stream.state != closed
+    ensures: stream.state = flushed
+    @guidance
+        -- All compressed bytes produced so far are pushed to the
+        -- output buffer. The frame is not finalized.
+}
+
+rule StreamClose {
+    when: StreamClose(stream)
+    requires: stream.state != closed
+    ensures: stream.state = closed
+    @guidance
+        -- Implicitly flushes, then finalizes the compressed frame.
+        -- The output buffer now contains a complete frame that
+        -- is decompressible via the parent Compressor's decompress.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant GzipAlwaysAvailable {
+    for manifest in BuildManifests:
+        gzip in manifest.available_kinds
+        and none in manifest.available_kinds
+}
+
+invariant ContentEncodingMapping {
+    for compressor in Compressors:
+        compressor.content_encoding = compressor.encoding_for_kind
+}
+
+invariant ZstdCrossCompatibility {
+    -- Data compressed by the cgo zstd implementation is
+    -- decompressible by the nocgo zstd implementation and
+    -- vice versa, for all inputs including empty.
+    -- This holds for all compression levels.
+    for compressor_a in Compressors where kind = zstd:
+        for compressor_b in Compressors where kind = zstd:
+            for input in ByteArrays:
+                compressor_b.decompress(compressor_a.compress(input)) = input
+}
+
+-- NOTE: There is no invariant guaranteeing compression on fallback.
+-- The current fallback can produce a noop compressor, which sends
+-- uncompressed data. See open question below.
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "Compression level configurability is inconsistent: zstd exposes serializer_zstd_compressor_level in config, gzip is hardcoded to 6, and zlib has no level at all. This is accidental incompleteness, not intentional design. Should all algorithms expose a config key for level, or should we at minimum add serializer_gzip_compressor_level?"
+
+open question "Selector fallback can silently produce a noop compressor, sending uncompressed data to intake. This happens when an unrecognized kind is configured, or when a kind is requested in a build that excluded it (except zstd in a zlib-only build, which falls back to zlib). Should all fallback paths produce gzip instead of noop, ensuring the agent always compresses on the wire?"

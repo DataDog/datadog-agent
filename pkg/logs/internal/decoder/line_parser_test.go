@@ -131,6 +131,64 @@ func TestMultilineParser(t *testing.T) {
 	assert.Equal(t, message.RawDataLen, 11+12+14)
 }
 
+func TestMultilineParserForwardsCompleteEmptyLine(t *testing.T) {
+	// A complete (non-partial) blank line must be forwarded to the line
+	// handler rather than dropped. Downstream aggregators (e.g. the Go stack
+	// trace aggregator) rely on observing the blank line that separates a
+	// panic header from its goroutine block. Regression test for blank lines
+	// being silently swallowed on the partial-line parser path used by
+	// container/CRI log sources.
+	p := NewMockFailingParser(header)
+	timeout := 1000 * time.Millisecond
+	contentLenLimit := 256 * 100
+
+	lineHandler := NewMockLineHandler()
+	lineParser := NewMultiLineParser(lineHandler, timeout, p, contentLenLimit)
+
+	// empty content, but a non-zero raw length (the trailing newline)
+	logMessage := message.NewMessage([]byte(""), nil, "", 0)
+	lineParser.process(logMessage, 1)
+
+	select {
+	case msg := <-lineHandler.ch:
+		assert.Equal(t, "", string(msg.GetContent()))
+		assert.Equal(t, 1, msg.RawDataLen)
+	case <-time.After(time.Second):
+		t.Fatal("expected the complete blank line to be forwarded to the line handler")
+	}
+}
+
+func TestMultilineParserForwardsBlankLineBetweenAggregatedLines(t *testing.T) {
+	// A blank line arriving between two aggregated (partial) lines must be
+	// forwarded on its own once complete, preserving the blank line for
+	// downstream aggregators instead of collapsing it away.
+	p := NewMockFailingParser(header)
+	timeout := 1000 * time.Millisecond
+	contentLenLimit := 256 * 100
+
+	lineHandler := NewMockLineHandler()
+	lineParser := NewMultiLineParser(lineHandler, timeout, p, contentLenLimit)
+
+	// complete line "foo"
+	logMessage := message.NewMessage([]byte(header+"foo\\n"), nil, "", 0)
+	lineParser.process(logMessage, 5)
+	msg := <-lineHandler.ch
+	assert.Equal(t, "foo", string(msg.GetContent()))
+
+	// complete blank line
+	logMessage = message.NewMessage([]byte(""), nil, "", 0)
+	lineParser.process(logMessage, 1)
+	msg = <-lineHandler.ch
+	assert.Equal(t, "", string(msg.GetContent()))
+	assert.Equal(t, 1, msg.RawDataLen)
+
+	// complete line "bar"
+	logMessage = message.NewMessage([]byte(header+"bar\\n"), nil, "", 0)
+	lineParser.process(logMessage, 5)
+	msg = <-lineHandler.ch
+	assert.Equal(t, "bar", string(msg.GetContent()))
+}
+
 func TestMultilineParserTimeout(t *testing.T) {
 	p := NewMockFailingParser(header)
 	timeout := 100 * time.Millisecond
@@ -176,13 +234,27 @@ func TestMultilineParserLimit(t *testing.T) {
 	logMessage := message.NewMessage([]byte(header+"aaaa\\n"), nil, "", 0)
 	lineParser.process(logMessage, 13)
 
+	// oversized chunks: raw content (no flag bytes), IsTruncated=true
+	// SingleLineHandler adds ...TRUNCATED... markers downstream
 	for i := 0; i < 10; i++ {
-		message := <-lineHandler.ch
-		assert.Equal(t, line, string(message.GetContent()))
-		assert.Equal(t, message.RawDataLen, 7+len(line))
+		msg := <-lineHandler.ch
+		assert.Equal(t, line, string(msg.GetContent()))
+		assert.True(t, msg.ParsingExtra.IsTruncated)
+		assert.Equal(t, msg.RawDataLen, 7+len(line))
 	}
 
-	message := <-lineHandler.ch
-	assert.Equal(t, "aaaa", string(message.GetContent()))
-	assert.Equal(t, message.RawDataLen, 13)
+	// final short chunk: raw content, IsTruncated=false (not oversized itself)
+	msg := <-lineHandler.ch
+	assert.Equal(t, "aaaa", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 13)
+
+	// next normal message stays clean
+	logMessage = message.NewMessage([]byte(header+"clean\\n"), nil, "", 0)
+	lineParser.process(logMessage, 14)
+
+	msg = <-lineHandler.ch
+	assert.Equal(t, "clean", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 14)
 }

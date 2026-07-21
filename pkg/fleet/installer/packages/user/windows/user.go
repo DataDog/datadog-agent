@@ -239,6 +239,13 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 			// At this point we know the account does exist, so we won't treat this as an error and instead
 			// will assume the account is a regular domain account.
 			return false, nil
+		} else if errors.Is(err, STATUS_NAME_TOO_LONG) {
+			// This error can be returned when the domain name portion of the account name
+			// cannot be resolved, e.g. when querying a trusted/parent domain.
+			// Similar to STATUS_INVALID_ACCOUNT_NAME, at this point we know the account
+			// does exist (SID lookup succeeded), so we assume the account is a regular
+			// domain account.
+			return false, nil
 		}
 
 		// Do not add punctuation after %w, the error message already contains it.

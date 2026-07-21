@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -24,6 +25,12 @@ func newMessage(content string) *message.Message {
 	return m
 }
 
+func newMessageWithTimestamp(content, timestamp string) *message.Message {
+	m := newMessage(content)
+	m.ParsingExtra.Timestamp = timestamp
+	return m
+}
+
 func assertMessageContent(t *testing.T, m *message.Message, content string) {
 	t.Helper()
 	isMultiLine := len(strings.Split(content, "\\n")) > 1
@@ -31,10 +38,25 @@ func assertMessageContent(t *testing.T, m *message.Message, content string) {
 	assert.Equal(t, m.IsMultiLine, isMultiLine)
 }
 
-func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
-	t.Helper()
-	assert.Equal(t, content, string(m.GetContent()))
-	assert.Equal(t, m.IsMultiLine, true)
+// processMsg calls Process with nil tokens and returns only the messages, for tests that
+// don't need to inspect token propagation.
+func processMsg(ag Aggregator, msg *message.Message, label Label) []*message.Message {
+	completed := ag.Process(msg, label, nil)
+	out := make([]*message.Message, len(completed))
+	for i, c := range completed {
+		out[i] = c.Msg
+	}
+	return out
+}
+
+// flushMsgs calls Flush and returns only the messages.
+func flushMsgs(ag Aggregator) []*message.Message {
+	completed := ag.Flush()
+	out := make([]*message.Message, len(completed))
+	for i, c := range completed {
+		out[i] = c.Msg
+	}
+	return out
 }
 
 // NOTE: The Aggregator.Process return slice shares its backing array with the
@@ -44,15 +66,15 @@ func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
 func TestNoAggregate(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
-	msgs := ag.Process(newMessage("1"), noAggregate)
+	msgs := processMsg(ag, newMessage("1"), noAggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "1")
 
-	msgs = ag.Process(newMessage("2"), noAggregate)
+	msgs = processMsg(ag, newMessage("2"), noAggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "2")
 
-	msgs = ag.Process(newMessage("3"), noAggregate)
+	msgs = processMsg(ag, newMessage("3"), noAggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "3")
 }
@@ -60,13 +82,13 @@ func TestNoAggregate(t *testing.T) {
 func TestNoAggregateEndsGroup(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
-	require.Empty(t, ag.Process(newMessage("1"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("1"), startGroup))
 
-	msgs := ag.Process(newMessage("2"), startGroup) // flushes "1"
+	msgs := processMsg(ag, newMessage("2"), startGroup) // flushes "1"
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "1")
 
-	msgs = ag.Process(newMessage("3"), noAggregate) // flushes "2", then emits "3"
+	msgs = processMsg(ag, newMessage("3"), noAggregate) // flushes "2", then emits "3"
 	require.Len(t, msgs, 2)
 	assertMessageContent(t, msgs[0], "2")
 	assertMessageContent(t, msgs[1], "3")
@@ -76,17 +98,17 @@ func TestAggregateGroups(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
 	// Accumulate a group
-	require.Empty(t, ag.Process(newMessage("1"), startGroup))
-	require.Empty(t, ag.Process(newMessage("2"), aggregate))
-	require.Empty(t, ag.Process(newMessage("3"), aggregate))
+	require.Empty(t, processMsg(ag, newMessage("1"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("2"), aggregate))
+	require.Empty(t, processMsg(ag, newMessage("3"), aggregate))
 
 	// New startGroup flushes the previous group
-	msgs := ag.Process(newMessage("4"), startGroup)
+	msgs := processMsg(ag, newMessage("4"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "1\\n2\\n3")
 
 	// noAggregate flushes "4" then emits "5"
-	msgs = ag.Process(newMessage("5"), noAggregate)
+	msgs = processMsg(ag, newMessage("5"), noAggregate)
 	require.Len(t, msgs, 2)
 	assertMessageContent(t, msgs[0], "4")
 	assertMessageContent(t, msgs[1], "5")
@@ -95,27 +117,72 @@ func TestAggregateGroups(t *testing.T) {
 func TestAggregateDoesntStartGroup(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
-	msgs := ag.Process(newMessage("1"), aggregate)
+	msgs := processMsg(ag, newMessage("1"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "1")
 
-	msgs = ag.Process(newMessage("2"), aggregate)
+	msgs = processMsg(ag, newMessage("2"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "2")
 
-	msgs = ag.Process(newMessage("3"), aggregate)
+	msgs = processMsg(ag, newMessage("3"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "3")
+}
+
+// TestAggregateCarriesLastLineTimestamp asserts that when the auto-multiline
+// aggregator emits a combined message, its ParsingExtra.Timestamp equals the
+// LAST aggregated line's timestamp. The Docker socket tailer uses this field
+// as the lastSince offset; if it held the first line's timestamp instead,
+// any reader restart would cause Docker to replay lines 2..N as duplicates.
+func TestAggregateCarriesLastLineTimestamp(t *testing.T) {
+	const (
+		ts1 = "2026-05-11T10:00:00.000000001Z"
+		ts2 = "2026-05-11T10:00:00.000000002Z"
+		ts3 = "2026-05-11T10:00:00.000000003Z"
+		ts4 = "2026-05-11T10:00:00.000000004Z"
+	)
+
+	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("1", ts1), startGroup))
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("2", ts2), aggregate))
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("3", ts3), aggregate))
+
+	// A new startGroup flushes the previous bucket [L1, L2, L3].
+	msgs := processMsg(ag, newMessageWithTimestamp("4", ts4), startGroup)
+	require.Len(t, msgs, 1)
+	assertMessageContent(t, msgs[0], "1\\n2\\n3")
+	assert.Equal(t, ts3, msgs[0].ParsingExtra.Timestamp,
+		"aggregated message must carry the LAST line's parser timestamp so the tailer offset advances past every combined line")
+
+	// The pending single-line "4" carries its own timestamp.
+	msgs = flushMsgs(ag)
+	require.Len(t, msgs, 1)
+	assertMessageContent(t, msgs[0], "4")
+	assert.Equal(t, ts4, msgs[0].ParsingExtra.Timestamp)
+}
+
+// TestSingleLineKeepsOwnTimestamp confirms the fix is a no-op for single-line
+// flushes (the carry-forward only runs when len(b.lines) > 1).
+func TestSingleLineKeepsOwnTimestamp(t *testing.T) {
+	const ts1 = "2026-05-11T10:00:00.000000001Z"
+
+	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+
+	msgs := processMsg(ag, newMessageWithTimestamp("solo", ts1), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, ts1, msgs[0].ParsingExtra.Timestamp)
 }
 
 func TestForceFlush(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
-	require.Empty(t, ag.Process(newMessage("1"), startGroup))
-	require.Empty(t, ag.Process(newMessage("2"), aggregate))
-	require.Empty(t, ag.Process(newMessage("3"), aggregate))
+	require.Empty(t, processMsg(ag, newMessage("1"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("2"), aggregate))
+	require.Empty(t, processMsg(ag, newMessage("3"), aggregate))
 
-	msgs := ag.Flush()
+	msgs := flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "1\\n2\\n3")
 }
@@ -124,75 +191,99 @@ func TestTagTruncatedLogs(t *testing.T) {
 	ag := NewCombiningAggregator(10, true, false, status.NewInfoRegistry())
 
 	// "1234567890" (len=10) as startGroup: immediately flushed (size >= maxContentSize)
-	msgs := ag.Process(newMessage("1234567890"), startGroup)
+	msgs := processMsg(ag, newMessage("1234567890"), startGroup)
 	require.Len(t, msgs, 1)
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
 	assertMessageContent(t, msgs[0], "1234567890...TRUNCATED...")
 
 	// aggregate on empty bucket: add+flush immediately; carries TRUNCATED prefix
-	msgs = ag.Process(newMessage("12345678901"), aggregate)
+	msgs = processMsg(ag, newMessage("12345678901"), aggregate)
 	require.Len(t, msgs, 1)
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...12345678901...TRUNCATED...")
 
-	msgs = ag.Process(newMessage("12345"), aggregate)
+	msgs = processMsg(ag, newMessage("12345"), aggregate)
 	require.Len(t, msgs, 1)
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...12345")
 
-	// "1234" + "5678" fits (8 < 10) but adding "90" overflows
-	require.Empty(t, ag.Process(newMessage("1234"), startGroup))
-	require.Empty(t, ag.Process(newMessage("5678"), aggregate))
+	// "12\\n34" fits (6 < 10), but adding "567" would overflow (11 >= 10).
+	// The aggregator should abandon multiline aggregation and emit standalone events.
+	require.Empty(t, processMsg(ag, newMessage("12"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("34"), aggregate))
 
-	msgs = ag.Process(newMessage("90"), aggregate)
-	require.Len(t, msgs, 2)
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("auto_multiline")}, msgs[0].ParsingExtra.Tags)
-	assertMessageContent(t, msgs[0], "1234\\n5678...TRUNCATED...")
+	msgs = processMsg(ag, newMessage("567"), aggregate)
+	require.Len(t, msgs, 3)
+	assert.False(t, msgs[0].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[0], "12")
 
-	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("auto_multiline")}, msgs[1].ParsingExtra.Tags)
-	assertTrailingMultiline(t, msgs[1], "...TRUNCATED...90")
+	assert.False(t, msgs[1].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[1], "34")
+
+	assert.False(t, msgs[2].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[2].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[2].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[2], "567")
 
 	// noAggregate resets truncation carry; "00" should not be truncated
-	msgs = ag.Process(newMessage("00"), noAggregate)
+	msgs = processMsg(ag, newMessage("00"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Empty(t, msgs[0].ParsingExtra.Tags)
 	assertMessageContent(t, msgs[0], "00")
 }
 
-func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
-	ag := NewCombiningAggregator(5, true, false, status.NewInfoRegistry())
+func TestSingleGroupOverflowStopsAggregation(t *testing.T) {
+	ag := NewCombiningAggregator(8, true, false, status.NewInfoRegistry())
 
-	require.Empty(t, ag.Process(newMessage("123"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("123"), startGroup))
 
-	// "123" + "456" overflows (3+3=6 >= 5)
-	msgs := ag.Process(newMessage("456"), aggregate)
+	// "123\\n456" would overflow (3+2+3=8 >= 8), so the lines stay separate.
+	msgs := processMsg(ag, newMessage("456"), aggregate)
 	require.Len(t, msgs, 2)
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("auto_multiline")}, msgs[0].ParsingExtra.Tags)
-	assertTrailingMultiline(t, msgs[0], "123...TRUNCATED...")
+	assert.False(t, msgs[0].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[0], "123")
 
-	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("auto_multiline")}, msgs[1].ParsingExtra.Tags)
-	assertTrailingMultiline(t, msgs[1], "...TRUNCATED...456")
+	assert.False(t, msgs[1].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[1], "456")
+}
+
+func TestOverflowedGroupEmitsOriginalTokens(t *testing.T) {
+	ag := NewCombiningAggregator(8, false, false, status.NewInfoRegistry())
+
+	firstTokens := []Token{1, 2}
+	secondTokens := []Token{3, 4}
+
+	require.Empty(t, ag.Process(newMessage("123"), startGroup, firstTokens))
+
+	completed := ag.Process(newMessage("456"), aggregate, secondTokens)
+	require.Len(t, completed, 2)
+	assert.Equal(t, firstTokens, completed[0].Tokens)
+	assert.Equal(t, secondTokens, completed[1].Tokens)
 }
 
 func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 	ag := NewCombiningAggregator(5, true, false, status.NewInfoRegistry())
 
 	// Exactly maxContentSize — simulates truncation in the framer
-	msgs := ag.Process(newMessage("12345"), startGroup)
+	msgs := processMsg(ag, newMessage("12345"), startGroup)
 	require.Len(t, msgs, 1)
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
 	assertMessageContent(t, msgs[0], "12345...TRUNCATED...")
 
-	msgs = ag.Process(newMessage("456"), aggregate)
+	msgs = processMsg(ag, newMessage("456"), aggregate)
 	require.Len(t, msgs, 1)
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
@@ -200,25 +291,30 @@ func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 }
 
 func TestTagMultiLineLogs(t *testing.T) {
-	ag := NewCombiningAggregator(10, false, true, status.NewInfoRegistry())
+	ag := NewCombiningAggregator(12, false, true, status.NewInfoRegistry())
 
-	require.Empty(t, ag.Process(newMessage("12345"), startGroup))
-	require.Empty(t, ag.Process(newMessage("6789"), aggregate))
+	require.Empty(t, processMsg(ag, newMessage("1234"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("5678"), aggregate))
 
-	// "12345\n6789" (11 bytes) + "1" (1) overflows at 12 >= 10
-	msgs := ag.Process(newMessage("1"), aggregate)
-	require.Len(t, msgs, 2)
-	assert.True(t, msgs[0].ParsingExtra.IsMultiLine)
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.MultiLineSourceTag("auto_multiline")}, msgs[0].ParsingExtra.Tags)
-	assertMessageContent(t, msgs[0], "12345\\n6789...TRUNCATED...")
+	// "1234\\n5678" fits (10 < 12), but adding "90" would overflow (14 >= 12).
+	msgs := processMsg(ag, newMessage("90"), aggregate)
+	require.Len(t, msgs, 3)
+	assert.False(t, msgs[0].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[0], "1234")
 
-	assert.True(t, msgs[1].ParsingExtra.IsMultiLine)
-	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.MultiLineSourceTag("auto_multiline")}, msgs[1].ParsingExtra.Tags)
-	assertTrailingMultiline(t, msgs[1], "...TRUNCATED...1")
+	assert.False(t, msgs[1].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[1], "5678")
 
-	msgs = ag.Process(newMessage("2"), noAggregate)
+	assert.False(t, msgs[2].ParsingExtra.IsMultiLine)
+	assert.False(t, msgs[2].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[2].ParsingExtra.Tags)
+	assertMessageContent(t, msgs[2], "90")
+
+	msgs = processMsg(ag, newMessage("2"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.False(t, msgs[0].ParsingExtra.IsMultiLine)
 	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
@@ -229,66 +325,64 @@ func TestTagMultiLineLogs(t *testing.T) {
 func TestSingleLineTooLongTruncation(t *testing.T) {
 	ag := NewCombiningAggregator(5, false, true, status.NewInfoRegistry())
 
-	// Phase 1: multi-line log where messages overflow
-	require.Empty(t, ag.Process(newMessage("123"), startGroup))
-
-	// "123"(3) + "456"(3) = 6 >= 5 → overflow, emits 2 messages
-	msgs := ag.Process(newMessage("456"), aggregate)
+	// Phase 1: aggregation overflow should emit intact standalone lines and not start truncation carry.
+	require.Empty(t, processMsg(ag, newMessage("12"), startGroup))
+	msgs := processMsg(ag, newMessage("3"), aggregate)
 	require.Len(t, msgs, 2)
-	assertTrailingMultiline(t, msgs[0], "123...TRUNCATED...")
-	assertTrailingMultiline(t, msgs[1], "...TRUNCATED...456")
+	assertMessageContent(t, msgs[0], "12")
+	assertMessageContent(t, msgs[1], "3")
 
 	// bucket empty, add "123456" → immediately flushed (6 >= 5)
-	msgs = ag.Process(newMessage("123456"), aggregate)
+	msgs = processMsg(ag, newMessage("123456"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "123456...TRUNCATED...")
 
 	// bucket empty, shouldTruncate=true, add "123" → flushed with prefix
-	msgs = ag.Process(newMessage("123"), aggregate)
+	msgs = processMsg(ag, newMessage("123"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123")
 
 	// Force flush: start empty group — nothing emitted
-	require.Empty(t, ag.Process(newMessage(""), startGroup))
+	require.Empty(t, processMsg(ag, newMessage(""), startGroup))
 
 	// Phase 2: single-line logs each too large
-	msgs = ag.Process(newMessage("123456"), startGroup)
+	msgs = processMsg(ag, newMessage("123456"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "123456...TRUNCATED...")
 
-	msgs = ag.Process(newMessage("123456"), startGroup)
+	msgs = processMsg(ag, newMessage("123456"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123456...TRUNCATED...")
 
-	msgs = ag.Process(newMessage("123456"), startGroup)
+	msgs = processMsg(ag, newMessage("123456"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123456...TRUNCATED...")
 
 	// "123" fits (3 < 5): buffered
-	require.Empty(t, ag.Process(newMessage("123"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("123"), startGroup))
 
 	// Force flush: flushes "123" with prefix
-	msgs = ag.Process(newMessage(""), startGroup)
+	msgs = processMsg(ag, newMessage(""), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123")
 
 	// Phase 3: noAggregate clears the TRUNCATED carry
-	msgs = ag.Process(newMessage("123456"), startGroup)
+	msgs = processMsg(ag, newMessage("123456"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "123456...TRUNCATED...")
 
 	// noAggregate: shouldTruncate is explicitly cleared → no prefix
-	msgs = ag.Process(newMessage("123456"), noAggregate)
+	msgs = processMsg(ag, newMessage("123456"), noAggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "123456...TRUNCATED...")
 
-	msgs = ag.Process(newMessage("123456"), startGroup)
+	msgs = processMsg(ag, newMessage("123456"), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123456...TRUNCATED...")
 
-	require.Empty(t, ag.Process(newMessage("123"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("123"), startGroup))
 
-	msgs = ag.Process(newMessage(""), startGroup)
+	msgs = processMsg(ag, newMessage(""), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123")
 }
@@ -299,18 +393,18 @@ func TestRegexAggregatorNoMatchSendsLinesIndividually(t *testing.T) {
 	re := regexp.MustCompile(`^NEVER_MATCHES_ANYTHING$`)
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 
-	msgs := ag.Process(newMessage("first line"), noAggregate)
+	msgs := processMsg(ag, newMessage("first line"), noAggregate)
 	require.Empty(t, msgs, "first line should be buffered until a second line arrives")
 
-	msgs = ag.Process(newMessage("second line"), noAggregate)
+	msgs = processMsg(ag, newMessage("second line"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "first line", string(msgs[0].GetContent()))
 
-	msgs = ag.Process(newMessage("third line"), noAggregate)
+	msgs = processMsg(ag, newMessage("third line"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "second line", string(msgs[0].GetContent()))
 
-	msgs = ag.Flush()
+	msgs = flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "third line", string(msgs[0].GetContent()))
 }
@@ -320,26 +414,26 @@ func TestRegexAggregatorNoMatchThenMatchSwitchesToMultiLine(t *testing.T) {
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 
 	// Lines before the first match are sent individually
-	require.Empty(t, ag.Process(newMessage("no match line 1"), noAggregate))
+	require.Empty(t, processMsg(ag, newMessage("no match line 1"), noAggregate))
 
-	msgs := ag.Process(newMessage("no match line 2"), noAggregate)
+	msgs := processMsg(ag, newMessage("no match line 2"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "no match line 1", string(msgs[0].GetContent()))
 
 	// Pattern matches — flushes buffered line, starts multiline aggregation
-	msgs = ag.Process(newMessage("START of multiline"), noAggregate)
+	msgs = processMsg(ag, newMessage("START of multiline"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "no match line 2", string(msgs[0].GetContent()))
 
 	// Continuation is now aggregated (pattern has matched)
-	require.Empty(t, ag.Process(newMessage("continuation line"), noAggregate))
+	require.Empty(t, processMsg(ag, newMessage("continuation line"), noAggregate))
 
 	// Next match flushes the combined group
-	msgs = ag.Process(newMessage("START of second group"), noAggregate)
+	msgs = processMsg(ag, newMessage("START of second group"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "START of multiline\\ncontinuation line", string(msgs[0].GetContent()))
 
-	msgs = ag.Flush()
+	msgs = flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "START of second group", string(msgs[0].GetContent()))
 }
@@ -348,14 +442,14 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 	re := regexp.MustCompile(`^START`)
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 
-	require.Empty(t, ag.Process(newMessage("START first group"), noAggregate))
-	require.Empty(t, ag.Process(newMessage("continuation"), noAggregate))
+	require.Empty(t, processMsg(ag, newMessage("START first group"), noAggregate))
+	require.Empty(t, processMsg(ag, newMessage("continuation"), noAggregate))
 
-	msgs := ag.Process(newMessage("START second group"), noAggregate)
+	msgs := processMsg(ag, newMessage("START second group"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "START first group\\ncontinuation", string(msgs[0].GetContent()))
 
-	msgs = ag.Flush()
+	msgs = flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "START second group", string(msgs[0].GetContent()))
 }
@@ -363,112 +457,411 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 // Tests for detectingAggregator
 
 func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// startGroup: stored as pending, nothing emitted
-	require.Empty(t, ag.Process(newMessage("Error: Exception"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Error: Exception"), startGroup))
 
-	// First aggregate: emits tagged startGroup + current line
-	msgs := ag.Process(newMessage("  at line 1"), aggregate)
+	// First aggregate: emits tagged startGroup + current line (leading spaces trimmed)
+	msgs := processMsg(ag, newMessage("  at line 1"), aggregate)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Error: Exception", string(msgs[0].GetContent()))
 	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Equal(t, "  at line 1", string(msgs[1].GetContent()))
+	assert.Equal(t, "at line 1", string(msgs[1].GetContent()))
 	assert.NotContains(t, msgs[1].ParsingExtra.Tags, "auto_multiline_detected:true")
 
-	// Subsequent aggregate: emitted immediately without tags
-	msgs = ag.Process(newMessage("  at line 2"), aggregate)
+	// Subsequent aggregate: emitted immediately without tags (leading spaces trimmed)
+	msgs = processMsg(ag, newMessage("  at line 2"), aggregate)
 	require.Len(t, msgs, 1)
-	assert.Equal(t, "  at line 2", string(msgs[0].GetContent()))
+	assert.Equal(t, "at line 2", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 }
 
 func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// startGroup: stored
-	require.Empty(t, ag.Process(newMessage("Single line 1"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Single line 1"), startGroup))
 
 	// Another startGroup flushes the previous without tagging
-	msgs := ag.Process(newMessage("Single line 2"), startGroup)
+	msgs := processMsg(ag, newMessage("Single line 2"), startGroup)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Single line 1", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	// Flush to get the second message
-	msgs = ag.Flush()
+	msgs = flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Single line 2", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 }
 
 func TestDetectingAggregator_NoAggregateOutputsImmediately(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
-	msgs := ag.Process(newMessage("No aggregate 1"), noAggregate)
+	msgs := processMsg(ag, newMessage("No aggregate 1"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "No aggregate 1", string(msgs[0].GetContent()))
 	assert.Empty(t, msgs[0].ParsingExtra.Tags)
 
-	msgs = ag.Process(newMessage("No aggregate 2"), noAggregate)
+	msgs = processMsg(ag, newMessage("No aggregate 2"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "No aggregate 2", string(msgs[0].GetContent()))
 	assert.Empty(t, msgs[0].ParsingExtra.Tags)
 }
 
 func TestDetectingAggregator_FlushPendingMessage(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
-	require.Empty(t, ag.Process(newMessage("Pending message"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Pending message"), startGroup))
 
-	msgs := ag.Flush()
+	msgs := flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Pending message", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 }
 
 func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// Single line stored
-	require.Empty(t, ag.Process(newMessage("Single"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Single"), startGroup))
 
 	// New startGroup flushes "Single" without tag
-	msgs := ag.Process(newMessage("Multi start"), startGroup)
+	msgs := processMsg(ag, newMessage("Multi start"), startGroup)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Single", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 
-	// aggregate: tags "Multi start" and emits + continuation
-	msgs = ag.Process(newMessage("  continuation"), aggregate)
+	// aggregate: tags "Multi start" and emits + continuation (leading spaces trimmed)
+	msgs = processMsg(ag, newMessage("  continuation"), aggregate)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Multi start", string(msgs[0].GetContent()))
 	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Equal(t, "  continuation", string(msgs[1].GetContent()))
+	assert.Equal(t, "continuation", string(msgs[1].GetContent()))
 	assert.NotContains(t, msgs[1].ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	// Another single line stored
-	require.Empty(t, ag.Process(newMessage("Another single"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Another single"), startGroup))
 
-	msgs = ag.Flush()
+	msgs = flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Another single", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 }
 
 func TestDetectingAggregator_IsEmpty(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	assert.True(t, ag.IsEmpty())
 
-	require.Empty(t, ag.Process(newMessage("Pending"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("Pending"), startGroup))
 	assert.False(t, ag.IsEmpty())
 
-	msgs := ag.Flush()
+	msgs := flushMsgs(ag)
 	require.Len(t, msgs, 1)
 	assert.True(t, ag.IsEmpty())
 
-	msgs = ag.Process(newMessage("Immediate"), noAggregate)
+	msgs = processMsg(ag, newMessage("Immediate"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.True(t, ag.IsEmpty())
+}
+
+func TestDetectingAggregator_TruncatesTaggedStartLineAndPrefixesContinuation(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	require.Empty(t, processMsg(ag, newMessage("123456"), startGroup))
+
+	msgs := processMsg(ag, newMessage("abc"), aggregate)
+	require.Len(t, msgs, 2)
+
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+
+	assert.Equal(t, "...TRUNCATED...abc", string(msgs[1].GetContent()))
+	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[1].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_NoAggregateInheritsTruncationCarry(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+
+	msgs = processMsg(ag, newMessage("ok"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "...TRUNCATED...ok", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_StartGroupInheritsTruncationCarry(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+
+	require.Empty(t, processMsg(ag, newMessage("abc"), startGroup))
+
+	msgs = processMsg(ag, newMessage("tail"), aggregate)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "...TRUNCATED...abc", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+
+	assert.Equal(t, "tail", string(msgs[1].GetContent()))
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_TruncationDoesNotTagWhenDisabled(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, false, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_UsesExistingTruncatedFlag(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, true, false)
+
+	msg := newMessage("already-truncated")
+	msg.ParsingExtra.IsTruncated = true
+
+	msgs := processMsg(ag, msg, noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "already-truncated...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
+}
+
+// COAT telemetry tests
+
+// AGNTLOG-617: The DetectingAggregator must TrimSpace content just like SingleLineHandler,
+// PassThroughAggregator, and CombiningAggregator do. Without TrimSpace, trailing \r from
+// CRLF line endings (or other trailing whitespace) breaks anchored log_processing_rules
+// like ^\{.*\}$ because the anchor can't match past the trailing bytes.
+func TestDetectingAggregator_TrimSpaceMatchesOtherAggregators(t *testing.T) {
+	jsonPattern := regexp.MustCompile(`^\{.*\}$`)
+
+	testCases := []struct {
+		name    string
+		content string
+		label   Label
+	}{
+		{"trailing CR (noAggregate)", `{"key":"val"}` + "\r", noAggregate},
+		{"trailing space (noAggregate)", `{"key":"val"}` + " ", noAggregate},
+		{"trailing tab (noAggregate)", `{"key":"val"}` + "\t", noAggregate},
+		{"leading space (noAggregate)", " " + `{"key":"val"}`, noAggregate},
+		{"leading+trailing whitespace (noAggregate)", " \t" + `{"key":"val"}` + "\r ", noAggregate},
+		{"trailing CR (aggregate)", `{"key":"val"}` + "\r", aggregate},
+		{"trailing CR (startGroup then flush)", `{"key":"val"}` + "\r", startGroup},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
+
+			var msgs []*message.Message
+			msgs = processMsg(ag, newMessage(tc.content), tc.label)
+			if tc.label == startGroup {
+				require.Empty(t, msgs)
+				msgs = flushMsgs(ag)
+			}
+			require.Len(t, msgs, 1)
+
+			emitted := string(msgs[0].GetContent())
+			assert.True(t, jsonPattern.MatchString(emitted),
+				"anchored pattern should match trimmed content %q but got %q", `{"key":"val"}`, emitted)
+			assert.Equal(t, `{"key":"val"}`, emitted,
+				"content should be trimmed to match SingleLineHandler / PassThroughAggregator behavior")
+		})
+	}
+}
+
+// Verify that PassThroughAggregator and CombiningAggregator already handle trailing
+// whitespace correctly (they call bytes.TrimSpace), serving as the baseline.
+func TestPassThroughAndCombiningAggregator_TrimSpaceBaseline(t *testing.T) {
+	jsonPattern := regexp.MustCompile(`^\{.*\}$`)
+	contentWithCR := `{"key":"val"}` + "\r"
+
+	t.Run("PassThroughAggregator", func(t *testing.T) {
+		ag := NewPassThroughAggregator(100)
+		msgs := processMsg(ag, newMessage(contentWithCR), noAggregate)
+		require.Len(t, msgs, 1)
+		emitted := string(msgs[0].GetContent())
+		assert.True(t, jsonPattern.MatchString(emitted),
+			"PassThroughAggregator should trim; got %q", emitted)
+	})
+
+	t.Run("CombiningAggregator_noAggregate", func(t *testing.T) {
+		ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+		msgs := processMsg(ag, newMessage(contentWithCR), noAggregate)
+		require.Len(t, msgs, 1)
+		emitted := string(msgs[0].GetContent())
+		assert.True(t, jsonPattern.MatchString(emitted),
+			"CombiningAggregator should trim; got %q", emitted)
+	})
+}
+
+func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// startGroup followed by two aggregates: both aggregates would be combined
+	ag.Process(newMessage("timestamp line"), startGroup, nil)
+	ag.Process(newMessage("  continuation 1"), aggregate, nil)
+	ag.Process(newMessage("  continuation 2"), aggregate, nil)
+	ag.Flush()
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(3), totalAfter-totalBefore)
+	assert.Equal(t, float64(3), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoCombineForStandaloneAggregates(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// Aggregate lines without a preceding startGroup should NOT count as would-combine
+	ag.Process(newMessage("orphan 1"), aggregate, nil)
+	ag.Process(newMessage("orphan 2"), aggregate, nil)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_OverflowingGroupsAreNotCombined(t *testing.T) {
+	// maxContentSize=20 so combining would overflow and be abandoned
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 20, false, true)
+
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	// startGroup(10 bytes) + aggregate(15 bytes) would overflow once the escaped
+	// newline separator is added, so combining mode would abandon aggregation.
+	ag.Process(newMessage("1234567890"), startGroup, nil)     // 10 bytes content
+	ag.Process(newMessage("123456789012345"), aggregate, nil) // 10+2+15 >= 20 → do not combine
+
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_LateOverflowDropsWholeGroup(t *testing.T) {
+	// The first three lines fit together, but the fourth would overflow and cause
+	// combining mode to abandon aggregation for the whole group.
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	ag.Process(newMessage("1234"), startGroup, nil) // 4
+	ag.Process(newMessage("12"), aggregate, nil)    // 4+2+2 = 8
+	ag.Process(newMessage("12"), aggregate, nil)    // 8+2+2 = 12
+	ag.Process(newMessage("12"), aggregate, nil)    // 12+2+2 = 16 >= 15, abandon group
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(4), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	// A single startGroup >= maxContentSize is excluded from truncation counts
+	// (it would be truncated regardless of auto-multiline)
+	ag.Process(newMessage("12345"), startGroup, nil) // RawDataLen=5 >= maxContentSize=5
+	ag.Process(newMessage("67"), aggregate, nil)     // Not in group since startGroup was oversized
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoCountsWhenNotDefaultPath(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, false)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	ag.Process(newMessage("timestamp line"), startGroup, nil)
+	ag.Process(newMessage("  continuation"), aggregate, nil)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(0), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_MultiGroupWithOverflow(t *testing.T) {
+	// maxContentSize=15 to make the second group overflow and be abandoned
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// Group 1: fits (5 content + 2 LF + 3 content = 10 < 15)
+	ag.Process(newMessage("12345"), startGroup, nil) // 5 bytes
+	ag.Process(newMessage("678"), aggregate, nil)    // 5+2+3 = 10 < 15 → combine
+
+	// Group 2: would overflow (10+2+10 = 22 >= 15), so it is not counted as combined.
+	ag.Process(newMessage("1234567890"), startGroup, nil) // 10 bytes, starts new group
+	ag.Process(newMessage("1234567890"), aggregate, nil)  // 10+2+10 >= 15 → abandon aggregation
+	ag.Process(newMessage("123"), aggregate, nil)         // Aggregate out of a group should not count as would-combine
+
+	// noAggregate standalone
+	ag.Process(newMessage("standalone"), noAggregate, nil)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(6), totalAfter-totalBefore)
+	assert.Equal(t, float64(2), combineAfter-combineBefore) // only group 1 is combined
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
 }

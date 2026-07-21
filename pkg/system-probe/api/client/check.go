@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -36,12 +37,12 @@ var checkTelemetry = struct {
 	malformedResponses telemetry.Counter
 	requestDuration    telemetry.Gauge
 }{
-	telemetry.NewCounter(telemetrySubsystem, "requests__total", []string{checkLabelName}, "Counter measuring how many system-probe check requests were made"),
-	telemetry.NewCounter(telemetrySubsystem, "requests__failed", []string{checkLabelName}, "Counter measuring how many system-probe check requests failed to be sent"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__not_received", []string{checkLabelName}, "Counter measuring how many responses from system-probe check were not read from the socket"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__errors", []string{checkLabelName}, "Counter measuring how many non_ok status code received from system-probe checks"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__malformed", []string{checkLabelName}, "Counter measuring how many malformed responses were received from system-probe checks"),
-	telemetry.NewGauge(telemetrySubsystem, "requests__duration", []string{checkLabelName, "status"}, "Histogram measuring the duration of system-probe check requests"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "requests__total", []string{checkLabelName}, "Counter measuring how many system-probe check requests were made"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "requests__failed", []string{checkLabelName}, "Counter measuring how many system-probe check requests failed to be sent"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "responses__not_received", []string{checkLabelName}, "Counter measuring how many responses from system-probe check were not read from the socket"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "responses__errors", []string{checkLabelName}, "Counter measuring how many non_ok status code received from system-probe checks"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "responses__malformed", []string{checkLabelName}, "Counter measuring how many malformed responses were received from system-probe checks"),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "requests__duration", []string{checkLabelName, "status"}, "Histogram measuring the duration of system-probe check requests"),
 }
 
 // startChecker is a helper to ensure that the system-probe is started before making a request. It's
@@ -127,8 +128,8 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 		option(config)
 	}
 
-	return &CheckClient{
-		checkClient: &http.Client{
+	return NewCheckClient(
+		&http.Client{
 			Timeout: config.checkRequestTimeout,
 			Transport: &http.Transport{
 				MaxIdleConns:          2,
@@ -139,7 +140,7 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
-		startupClient: &http.Client{
+		&http.Client{
 			Timeout: config.startupCheckRequestTimeout,
 			Transport: &http.Transport{
 				MaxIdleConns:          2,
@@ -150,6 +151,14 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
+	)
+}
+
+// NewCheckClient builds a check client with the given HTTP clients.
+func NewCheckClient(checkClient, startupClient *http.Client) *CheckClient {
+	return &CheckClient{
+		checkClient:    checkClient,
+		startupClient:  startupClient,
 		startupChecker: getStartChecker(),
 	}
 }

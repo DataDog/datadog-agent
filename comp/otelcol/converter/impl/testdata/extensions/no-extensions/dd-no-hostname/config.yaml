@@ -1,0 +1,17 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+service:
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

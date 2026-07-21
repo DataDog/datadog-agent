@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -38,7 +39,7 @@ type ProcessDiscoveryCheck struct {
 
 	probe      procutil.Probe
 	scrubber   *procutil.DataScrubber
-	userProbe  *LookupIdProbe
+	userProbe  *LookupIDProbe
 	info       *HostInfo
 	initCalled bool
 
@@ -58,7 +59,7 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ b
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
-	if d.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
@@ -136,7 +137,7 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
 
-func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIDProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
 		proc.Cmdline = scrubber.ScrubProcessCommand(proc)

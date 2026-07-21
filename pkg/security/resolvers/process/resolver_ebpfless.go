@@ -93,7 +93,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 
 // NewEntry returns a new entry
 func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, cgroupID containerutils.CGroupID, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 
 	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
@@ -127,6 +127,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
 	entry.Process.ContainerContext.ContainerID = containerutils.ContainerID(ctrID)
+	entry.Process.CGroup.CGroupID = cgroupID
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 
@@ -135,12 +136,12 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, cgroupID containerutils.CGroupID, ts uint64, tty string) *model.ProcessCacheEntry {
 	if key.Pid == 0 {
 		return nil
 	}
 
-	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromEvent)
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, cgroupID, ts, tty, model.ProcessCacheEntryFromEvent)
 
 	p.Lock()
 	defer p.Unlock()
@@ -152,12 +153,12 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file 
 
 // AddProcFSEntry add a procfs entry
 func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, cgroupID containerutils.CGroupID, ts uint64, tty string) *model.ProcessCacheEntry {
 	if key.Pid == 0 {
 		return nil
 	}
 
-	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromProcFS)
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, cgroupID, ts, tty, model.ProcessCacheEntryFromProcFS)
 
 	p.Lock()
 	defer p.Unlock()

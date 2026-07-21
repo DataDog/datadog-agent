@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/winregistry/mock",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/winregistry/def",
+        ],
+        "//conditions:default": [],
+    }),
+)

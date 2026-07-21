@@ -53,10 +53,6 @@ def build(
     )
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
 
-    # go generate only works if you are in the module the target file is in, so we
-    # need to move into the pkg/trace module.
-    with ctx.cd("./pkg/trace"):
-        ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/trace-agent",

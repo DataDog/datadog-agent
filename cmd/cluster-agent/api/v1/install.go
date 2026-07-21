@@ -9,7 +9,7 @@
 package v1
 
 import (
-	"github.com/gorilla/mux"
+	"net/http"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -19,7 +19,7 @@ import (
 )
 
 // InstallMetadataEndpoints registers endpoints for metadata
-func InstallMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {
+func InstallMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component) {
 	log.Debug("Registering metadata endpoints")
 	if pkgconfigsetup.Datadog().GetBool("cloud_foundry") {
 		installCloudFoundryMetadataEndpoints(r)
@@ -29,8 +29,14 @@ func InstallMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {
 }
 
 // InstallChecksEndpoints registers endpoints for cluster checks
-func InstallChecksEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
+func InstallChecksEndpoints(r *http.ServeMux, sc clusteragent.ServerContext) {
 	log.Debug("Registering checks endpoints")
 	installClusterCheckEndpoints(r, sc)
 	installEndpointsCheckEndpoints(r, sc)
+}
+
+// InstallInstrumentationChecksEndpoints registers endpoint for instrumentation checks
+func InstallInstrumentationChecksEndpoints(r *http.ServeMux, configLister clusteragent.ConfigLister) {
+	log.Debug("Registering instrumentation checks endpoints")
+	installInstrumentationCheckEndpoints(r, configLister)
 }

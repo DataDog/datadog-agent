@@ -13,16 +13,20 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,6 +61,26 @@ type Config struct {
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
+		// SinkOverride, if set, is invoked once per program load. It receives
+		// the production sink along with handles to the eventbuf state owned
+		// by that sink, so tests can both forward events and assert on
+		// userspace-side invariants (Buffer.Len/Bytes, Budget.Used). The
+		// returned dispatcher.Sink is registered in place of the production
+		// sink.
+		SinkOverride func(
+			real dispatcher.Sink,
+			buffer *eventbuf.Buffer,
+			budget *eventbuf.Budget,
+		) dispatcher.Sink
+		// OnLoaderReady, if set, is invoked once during module construction
+		// after the loader has been created (and before the dispatcher takes
+		// ownership of its readers). Tests use this to observe
+		// OutputReader().AvailableBytes().
+		OnLoaderReady func(l *loader.Loader)
+		// OnProgramLoaded, if set, is invoked once per program load with the
+		// loaded *loader.Program, before the sink is registered. Tests use
+		// this to observe DropNotifyLostAt().
+		OnProgramLoaded func(prog *loader.Program)
 	}
 }
 
@@ -68,14 +92,15 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		return nil, err
 	}
 
+	stateDir := dynamicInstrumentationStateDir()
 	c := &Config{
 		Config:                 *ebpf.NewConfig(),
 		LogUploaderURL:         withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
-		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
-		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
+		SymDBCacheDir:          filepath.Join(stateDir, "symdb-uploads"),
+		ProbeTombstoneFilePath: filepath.Join(stateDir, "debugger-probes-tombstone.json"),
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
 		ActuatorConfig: actuator.Config{
@@ -83,6 +108,15 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		},
 	}
 	return c, nil
+}
+
+// dynamicInstrumentationStateDir returns the directory under which dynamic
+// instrumentation persists its writable state (tombstone and SymDB upload
+// cache). It lives under run_path (a root-owned directory) rather than a
+// world-writable location like /tmp, so an unprivileged user cannot pre-create
+// the path or plant symlinks that root would follow when writing.
+func dynamicInstrumentationStateDir() string {
+	return filepath.Join(defaultpaths.GetDefaultRunPath(), "system-probe", "dynamic-instrumentation")
 }
 
 const diNS = "dynamic_instrumentation"

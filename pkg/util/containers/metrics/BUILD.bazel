@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metrics",
+    srcs = ["facade.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/containers/metrics/containerd",
+        "//pkg/util/containers/metrics/cri",
+        "//pkg/util/containers/metrics/docker",
+        "//pkg/util/containers/metrics/ecsfargate",
+        "//pkg/util/containers/metrics/ecsmanagedinstances",
+        "//pkg/util/containers/metrics/kubelet",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/containers/metrics/system",
+    ],
+)

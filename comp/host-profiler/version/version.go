@@ -3,13 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package version provides version information for the host profiler.
 package version
 
 import "github.com/DataDog/datadog-agent/pkg/version"
 
-const ProfilerName = "full-host-profiler"
+// Datadog semantic conventions (bundled mode).
+const (
+	BundledProfilerName  = "host-profiler-bundled"
+	DDProfilerNameKey    = "profiler_name"
+	DDProfilerVersionKey = "profiler_version"
+)
+
+// OpenTelemetry semantic conventions (standalone mode).
+const (
+	StandaloneProfilerName = "host-profiler-standalone"
+	OTelProfilerNameKey    = "telemetry.distro.name"
+	OTelProfilerVersionKey = "telemetry.distro.version"
+	OTelContainerIDKey     = "container.id"
+)
 
 var ProfilerVersion = version.AgentVersion

@@ -19,6 +19,15 @@ type ProbeIDer interface {
 	GetVersion() int
 }
 
+// MaxStringLiteralLength is the maximum length of a string literal that
+// can be used in a condition expression.
+const MaxStringLiteralLength = 255
+
+// MaxMapStringKeyLength is the maximum length of a string key for map
+// index expressions. The AES hash supports up to 8 parallel lanes,
+// processing 128 bytes per loop iteration for keys longer than 128 bytes.
+const MaxMapStringKeyLength = 512
+
 // ProbeDefinition abstracts the configuration of a probe.
 type ProbeDefinition interface {
 	ProbeIDer
@@ -37,6 +46,12 @@ type ProbeDefinition interface {
 	// GetCaptureExpressions returns the capture expressions of the probe, or
 	// nil if the probe does not have capture expressions.
 	GetCaptureExpressions() []CaptureExpressionDefinition
+	// GetWhen returns the JSON condition expression for the probe, or nil
+	// if the probe fires unconditionally.
+	GetWhen() json.RawMessage
+	// GetWhenDSL returns the human-readable DSL string for the probe's
+	// condition, or "" if the probe fires unconditionally.
+	GetWhenDSL() string
 }
 
 // CaptureExpressionDefinition defines a single capture expression on a probe.

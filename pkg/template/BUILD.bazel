@@ -1,0 +1,15 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_sdk_overrides:defs.bzl", "go_sdk_overrides")
+
+write_source_files(
+    name = "generate",
+    files = go_sdk_overrides(),
+)
+
+go_library(
+    name = "template",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/template",
+    visibility = ["//visibility:public"],
+)

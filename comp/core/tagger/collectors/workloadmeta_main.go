@@ -30,17 +30,20 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource           = workloadmetaCollectorName + "-static"
-	podSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
-	processSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
-	kubeMetadataSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
-	deploymentSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
-	gpuSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
-	crdSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
-	kubeCapabilitiesSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
+	staticSource              = workloadmetaCollectorName + "-static"
+	podSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+	kubeMetadataSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	deploymentSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	kueueQueueSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
+	kueueResourceFlavorSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueResourceFlavor)
+	kueueWorkloadSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueWorkload)
+	gpuSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	crdSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
+	kubeCapabilitiesSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )
@@ -52,6 +55,7 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
+	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
@@ -138,6 +142,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           true,
 		},
 	})
 }
@@ -181,6 +186,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
+		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),

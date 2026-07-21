@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "slog",
+    srcs = [
+        "disabled.go",
+        "logger_test_utils.go",
+        "wrapper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log/slog/formatters",
+        "//pkg/util/log/slog/handlers",
+        "//pkg/util/log/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "slog_test",
+    srcs = [
+        "logger_test_utils_test.go",
+        "wrapper_test.go",
+    ],
+    embed = [":slog"],
+    deps = [
+        "//pkg/util/log/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

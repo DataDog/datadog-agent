@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "aws",
+    srcs = [
+        "secrets.go",
+        "session.go",
+        "ssm.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/aws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
+        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "aws_test",
+    srcs = [
+        "secrets_test.go",
+        "ssm_test.go",
+    ],
+    embed = [":aws"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

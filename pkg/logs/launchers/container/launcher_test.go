@@ -17,11 +17,11 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

@@ -33,7 +33,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 )
+
+type countingLogger struct {
+	errors []string
+}
+
+func (l *countingLogger) Infof(_ string, _ ...interface{})  {}
+func (l *countingLogger) Tracef(_ string, _ ...interface{}) {}
+func (l *countingLogger) Warnf(_ string, _ ...interface{})  {}
+func (l *countingLogger) Debugf(_ string, _ ...interface{}) {}
+func (l *countingLogger) Errorf(format string, params ...interface{}) {
+	l.errors = append(l.errors, fmt.Sprintf(format, params...))
+}
+func (l *countingLogger) IsTracing() bool { return false }
 
 func savePolicy(filename string, testPolicy *PolicyDef) error {
 	yamlBytes, err := yaml.Marshal(testPolicy)
@@ -641,61 +655,87 @@ func TestActionSetVariableSize(t *testing.T) {
 }
 
 func TestActionSetEmptyScope(t *testing.T) {
-	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{
-				{
-					Set: &SetDefinition{
-						Name:   "scopedvar1",
-						Append: true,
-						Value:  "bar",
-						Size:   1,
-						Scope:  "process",
+	for _, tc := range []struct {
+		name          string
+		scope         Scope
+		variableName  string
+		variableStore string
+	}{
+		{
+			name:          "process",
+			scope:         ScopeProcess,
+			variableName:  "scopedvar1",
+			variableStore: "process.scopedvar1",
+		},
+		{
+			name:          "cgroup",
+			scope:         ScopeCGroup,
+			variableName:  "scopedvar1",
+			variableStore: "cgroup.scopedvar1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: `open.file.path == "/tmp/test"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:   tc.variableName,
+								Append: true,
+								Value:  "bar",
+								Size:   1,
+								Scope:  tc.scope,
+							},
+						},
 					},
-				},
-			},
-		}},
+				}},
+			}
+
+			tmpDir := t.TempDir()
+
+			if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+				t.Fatal(err)
+			}
+
+			provider, err := NewPoliciesDirProvider(tmpDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loader := NewPolicyLoader(provider)
+
+			rs := newRuleSet()
+			logger := &countingLogger{}
+			rs.logger = logger
+			if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+				t.Error(err)
+			}
+
+			opts := rs.evalOpts
+
+			existingScopedVariable := opts.VariableStore.Get(tc.variableStore)
+			assert.NotNil(t, existingScopedVariable)
+			stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+			assert.NotNil(t, stringArrayScopedVar)
+			assert.True(t, ok)
+
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			event.SetFieldValue("open.file.path", "/tmp/test")
+
+			ctx := eval.NewContext(event)
+			if !rs.Evaluate(event) {
+				t.Errorf("Expected event to match rule")
+			}
+
+			assert.Empty(t, logger.errors)
+
+			value, set := stringArrayScopedVar.GetValue(ctx, false)
+			assert.Nil(t, value)
+			assert.False(t, set)
+		})
 	}
-
-	tmpDir := t.TempDir()
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	provider, err := NewPoliciesDirProvider(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	loader := NewPolicyLoader(provider)
-
-	rs := newRuleSet()
-	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
-		t.Error(err)
-	}
-
-	opts := rs.evalOpts
-
-	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	assert.NotNil(t, existingScopedVariable)
-	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, stringArrayScopedVar)
-	assert.True(t, ok)
-
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.FileOpenEventType)
-	event.SetFieldValue("open.file.path", "/tmp/test")
-
-	ctx := eval.NewContext(event)
-	if !rs.Evaluate(event) {
-		t.Errorf("Expected event to match rule")
-	}
-
-	value, set := stringArrayScopedVar.GetValue(ctx, false)
-	assert.Nil(t, value)
-	assert.False(t, set)
 }
 
 func TestVariableFieldConflictProtection(t *testing.T) {
@@ -3313,8 +3353,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/secl/schemas")
-	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
+	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(schemas.AssetFS))
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -25,7 +25,7 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := NewRuleFilterModelWithKernelVersion(RuleFilterEventConfig{}, kv, "functional_tests_host")
+	m := NewRuleFilterModelWithKernelVersion(RuleFilterEventConfig{}, kv, "functional_tests_host", runtime.GOOS)
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 
 	t.Run("true", func(t *testing.T) {

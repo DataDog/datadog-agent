@@ -1,0 +1,33 @@
+---
+name: Slack emoji PR updates
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [closed]
+
+jobs:
+  run_slapr:
+    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+    - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      id: octo-sts
+      with:
+        scope: DataDog/datadog-agent
+        policy: self.slapr.read-members
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        token: ${{ steps.octo-sts.outputs.token }}
+        sparse-checkout: tasks/libs/pipeline/github_slack_map.yaml
+        sparse-checkout-cone-mode: false
+    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # 1.1.0
+      with:
+        review-map: tasks/libs/pipeline/github_slack_map.yaml
+        github-token: ${{ steps.octo-sts.outputs.token }}
+        slack-api-token: ${{ secrets.SLACK_SLAPR_BOT_TOKEN }}
+        slack-channel-id: ${{ vars.DEFAULT_CHANNEL_ID }}
+        bot-user-id: ${{ vars.SLAPR_BOT_ID }}
+        emoji-approved: done

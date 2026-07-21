@@ -30,7 +30,7 @@ from requests.adapters import HTTPAdapter
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_current_pr, get_default_branch
 from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
@@ -1072,7 +1072,7 @@ def read_content(ctx, file_path, git_ref: str | None = None):
             response.raise_for_status()
             content = response.text
         elif not git_ref:
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
         elif ctx.run(f"git cat-file -e '{git_ref}:{file_path}'", hide=True, warn=True).ok:
             content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
@@ -1211,13 +1211,16 @@ def retrieve_all_paths(yaml):
 
 def gitlab_configuration_is_modified(ctx):
     branch = get_current_branch(ctx)
+    pr = get_current_pr(branch_name=branch)
+    target_branch = pr.base.ref if pr else "main"  # Fallback to main if PR cannot be found
+
     if branch == "main":
         # We usually squash merge on main so comparing only to the last commit
         diff = ctx.run("git diff HEAD^1..HEAD", hide=True).stdout.strip().splitlines()
     else:
         # On dev branch we compare all the new commits
-        ctx.run("git fetch origin main:main")
-        ancestor = get_common_ancestor(ctx, branch)
+        ctx.run(f"git fetch origin {target_branch}:{target_branch}")
+        ancestor = get_common_ancestor(ctx, branch, base=target_branch)
         diff = ctx.run(f"git diff {ancestor}..HEAD", hide=True).stdout.strip().splitlines()
     modified_files = re.compile(r"^diff --git a/(.*) b/(.*)")
     changed_lines = re.compile(r"^@@ -\d+,\d+ \+(\d+),(\d+) @@")

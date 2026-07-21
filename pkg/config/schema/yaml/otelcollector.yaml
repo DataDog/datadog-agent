@@ -1,0 +1,67 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/otelcollector.yaml.schema.json
+node_type: section
+type: object
+properties:
+  converter:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      features:
+        node_type: setting
+        type: array
+        default:
+        - infraattributes
+        - prometheus
+        - pprof
+        - zpages
+        - health_check
+        - ddflare
+        - datadog
+        items:
+          type: string
+        env_parser: comma_and_space_separated
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+  extension_timeout:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: in seconds, 0 for default value
+  extension_url:
+    node_type: setting
+    type: string
+    default: https://localhost:7777
+  flare:
+    node_type: section
+    type: object
+    properties:
+      timeout:
+        node_type: setting
+        type: integer
+        default: 60
+  gateway:
+    node_type: section
+    type: object
+    properties:
+      mode:
+        node_type: setting
+        type: boolean
+        default: false
+  installation_method:
+    node_type: setting
+    type: string
+    default: ''
+  submit_dummy_metadata:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: dev flag - to be removed
+tags:
+- full-agent-only:true

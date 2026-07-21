@@ -15,8 +15,12 @@
 #![allow(non_camel_case_types)] // C ABI types use C naming conventions
 
 use std::ffi::c_char;
+use std::panic::{self, AssertUnwindSafe};
 use std::ptr;
 
+use log::error;
+
+use crate::language::Language;
 use crate::params::Params;
 use crate::services::{self, Service, ServicesResponse};
 use crate::tracer_metadata::TracerMetadata;
@@ -67,6 +71,9 @@ pub struct dd_tracer_metadata {
     pub service_name: dd_str,
     pub service_env: dd_str,
     pub service_version: dd_str,
+    pub process_tags: dd_str,
+    pub container_id: dd_str,
+    pub logs_collected: bool,
 }
 
 #[repr(C)]
@@ -145,6 +152,15 @@ impl From<Option<String>> for dd_str {
     }
 }
 
+impl From<Option<Language>> for dd_str {
+    fn from(opt: Option<Language>) -> Self {
+        match opt {
+            Some(lang) => dd_str::from_str(lang.as_str()),
+            None => dd_str::NULL,
+        }
+    }
+}
+
 impl From<Vec<String>> for dd_strs {
     fn from(v: Vec<String>) -> Self {
         if v.is_empty() {
@@ -195,12 +211,15 @@ impl From<TracerMetadata> for dd_tracer_metadata {
         Self {
             schema_version: tm.schema_version,
             runtime_id: dd_str::from(tm.runtime_id),
-            tracer_language: dd_str::from_str(tm.tracer_language.as_str()),
+            tracer_language: dd_str::from(tm.tracer_language),
             tracer_version: dd_str::from(tm.tracer_version),
             hostname: dd_str::from(tm.hostname),
             service_name: dd_str::from(tm.service_name),
             service_env: dd_str::from(tm.service_env),
             service_version: dd_str::from(tm.service_version),
+            process_tags: dd_str::from(tm.process_tags),
+            container_id: dd_str::from(tm.container_id),
+            logs_collected: tm.logs_collected,
         }
     }
 }
@@ -234,7 +253,7 @@ impl From<Service> for dd_service {
             udp_ports: vec_u16_to_slice(svc.udp_ports),
             log_files: dd_strs::from(svc.log_files),
             apm_instrumentation: svc.apm_instrumentation,
-            language: dd_str::from_str(svc.language.as_str()),
+            language: dd_str::from(svc.language),
         }
     }
 }
@@ -272,6 +291,115 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
 }
 
 // ---------------------------------------------------------------------------
+// Logger bridge
+// ---------------------------------------------------------------------------
+
+/// Callback type used to forward Rust log records to the Go logging subsystem.
+///
+/// Parameters:
+/// - `level`: severity — 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+/// - `msg` / `msg_len`: UTF-8 log message (NOT NUL-terminated).
+///
+/// The pointer is only valid for the duration of the call; do not retain it.
+pub type dd_log_fn = unsafe extern "C" fn(level: u32, msg: *const c_char, msg_len: usize);
+
+/// Stores the Go log callback set via `dd_discovery_init_logger`. Written once.
+static LOGGER_CALLBACK: std::sync::OnceLock<dd_log_fn> = std::sync::OnceLock::new();
+
+/// Logger backend that forwards records to the registered Go callback.
+struct GoLogger;
+
+impl log::Log for GoLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        // All records pass through; the Go side applies the actual filter,
+        // which can change at runtime via `agent config set log_level`.
+        // The Rust-side max_level is pinned to Trace in `dd_discovery_init_logger`
+        // so the `log!` macros never short-circuit and we never miss a record
+        // after a runtime level change.
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        let Some(&callback) = LOGGER_CALLBACK.get() else {
+            return;
+        };
+        // PANIC SAFETY: `record.args().to_string()` invokes `Display` impls
+        // supplied by callers; if any of them panics, that panic must not
+        // unwind across the C ABI back to the `log!` macro call site, which
+        // would be undefined behaviour per the Rust nomicon.
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+            let level: u32 = match record.level() {
+                log::Level::Error => 1,
+                log::Level::Warn => 2,
+                log::Level::Info => 3,
+                log::Level::Debug => 4,
+                log::Level::Trace => 5,
+            };
+            let message = record.args().to_string();
+            // SAFETY: `callback` was registered by the Go runtime and is valid
+            // for the process lifetime. `message` lives until the end of this
+            // closure, which outlives the synchronous callback invocation.
+            unsafe { callback(level, message.as_ptr() as *const c_char, message.len()) };
+        }));
+    }
+
+    fn flush(&self) {}
+}
+
+static GO_LOGGER: GoLogger = GoLogger;
+
+/// Register a Go logging callback. Idempotent: only the first call has effect;
+/// subsequent calls (e.g. from racing goroutines at start-up) are ignored.
+///
+/// All records are forwarded to the callback regardless of severity. Filtering
+/// is applied on the Go side, which lets `agent config set log_level` take
+/// effect at runtime without re-initialising the bridge. The Rust-side
+/// `max_level` is pinned to `Trace` so the `log!` macros never drop records
+/// before they reach the callback.
+///
+/// # Panic safety
+/// Wrapped in `catch_unwind` following the convention in this file: unwinding
+/// across a C ABI boundary is undefined behaviour per the Rust nomicon.
+///
+/// # Safety
+/// `callback` must be a valid function pointer that remains valid for the
+/// lifetime of the process.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn) {
+    // PANIC SAFETY: defensive guard so that a future panic added to this
+    // body cannot unwind across the C ABI boundary, which would be undefined
+    // behaviour. The current body has no panicking calls.
+    let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+        if LOGGER_CALLBACK.set(callback).is_err() {
+            return;
+        }
+        // `set_logger` returns Err if another logger was already registered
+        // (e.g. in a test harness). In that case LOGGER_CALLBACK is set but
+        // GoLogger is not installed, so all Rust log records would be silently
+        // dropped. Surface the conflict so it is not invisible to the caller.
+        if log::set_logger(&GO_LOGGER).is_err() {
+            // Use the callback directly — the log facade is unavailable — so
+            // the error reaches the Go structured logger instead of being lost
+            // to stderr.
+            let msg = "[dd_discovery] a Rust logger was already registered; \
+                       log records will not be forwarded to the Go logger";
+            // SAFETY: `callback` was just stored in LOGGER_CALLBACK above and
+            // its lifetime is the process (per dd_discovery_init_logger's
+            // safety contract). `msg` is a static `&str` whose bytes outlive
+            // this synchronous call.
+            unsafe { callback(1, msg.as_ptr() as *const c_char, msg.len()) };
+            return;
+        }
+        // Pin the Rust-side filter to Trace so every record reaches GoLogger.
+        // The agent applies its own filter on the Go side inside `pkg/util/log`,
+        // and that filter tracks runtime `ChangeLogLevel` calls. A Rust-side
+        // snapshot taken at init would go stale the first time the operator
+        // changes the log level, so we deliberately do not mirror it.
+        log::set_max_level(log::LevelFilter::Trace);
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // Exported C ABI functions
 // ---------------------------------------------------------------------------
 
@@ -288,6 +416,12 @@ unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<i32>> {
     Some(slice.to_vec())
 }
 
+#[cfg(feature = "force-ffi-panic")]
+#[allow(clippy::panic)]
+fn force_ffi_panic() {
+    panic!("force-ffi-panic feature is enabled");
+}
+
 /// Run service discovery and return a heap-allocated result.
 ///
 /// # Parameters
@@ -297,13 +431,25 @@ unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<i32>> {
 ///   Pass NULL + 0 for none.
 ///
 /// # Returns
-/// Pointer to a `dd_discovery_result`. The caller MUST pass it to
-/// `dd_discovery_free` exactly once after reading the fields.
+/// A non-null pointer to a heap-allocated `dd_discovery_result` on success.
+/// Returns NULL if an internal panic occurs. On a NULL return no memory was
+/// allocated; the caller must NOT call `dd_discovery_free` on NULL.
+/// On a non-NULL return, the caller MUST pass the pointer to `dd_discovery_free`
+/// exactly once after reading the fields.
+///
+/// # Panic safety
+/// The Rust nomicon states: "You must absolutely catch any panics at the FFI
+/// boundary" (<https://doc.rust-lang.org/nomicon/unwinding.html>), because an
+/// unwinding panic across a C ABI boundary is undefined behaviour. This
+/// function wraps its body in `std::panic::catch_unwind` and returns NULL on
+/// panic, matching the convention used by Go's `net/http` handler (which
+/// recovers panics per request) and Tokio (which catches panics in spawned
+/// tasks).
 ///
 /// # Safety
 /// - If `new_pids` is non-NULL, it must point to a valid array of `new_pids_len` i32 values.
 /// - If `heartbeat_pids` is non-NULL, it must point to a valid array of `heartbeat_pids_len` i32 values.
-/// - The returned pointer must be freed with `dd_discovery_free` exactly once.
+/// - A non-NULL returned pointer must be freed with `dd_discovery_free` exactly once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dd_discovery_get_services(
     new_pids: *const i32,
@@ -311,20 +457,48 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     heartbeat_pids: *const i32,
     heartbeat_pids_len: usize,
 ) -> *mut dd_discovery_result {
-    // SAFETY: caller guarantees new_pids points to a valid array.
-    let new = unsafe { pids_from_c(new_pids, new_pids_len) };
-    // SAFETY: caller guarantees heartbeat_pids points to a valid array.
-    let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
+    // the C ABI boundary, which would be undefined behaviour. On panic, NULL is
+    // returned so the caller can surface an error without crashing the process.
+    match panic::catch_unwind(AssertUnwindSafe(|| {
+        #[cfg(feature = "force-ffi-panic")]
+        force_ffi_panic();
 
-    let params = Params {
-        new_pids: new,
-        heartbeat_pids: heartbeat,
-    };
+        // When `force-ffi-panic` is enabled the panic above makes the
+        // block below unreachable. Suppress only that case so legitimate
+        // unreachable_code warnings inside the block are still reported in
+        // normal builds.
+        #[cfg_attr(feature = "force-ffi-panic", allow(unreachable_code))]
+        {
+            // SAFETY: caller guarantees new_pids points to a valid array.
+            let new = unsafe { pids_from_c(new_pids, new_pids_len) };
+            // SAFETY: caller guarantees heartbeat_pids points to a valid array.
+            let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
 
-    let resp = services::get_services(params);
-    let result = services_response_to_result(resp);
+            let params = Params {
+                new_pids: new,
+                heartbeat_pids: heartbeat,
+            };
 
-    Box::into_raw(Box::new(result))
+            let resp = services::get_services(params);
+            let result = services_response_to_result(resp);
+
+            Box::into_raw(Box::new(result))
+        }
+    })) {
+        Ok(ptr) => ptr,
+        Err(e) => {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                *s
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "<unknown>"
+            };
+            error!("dd_discovery_get_services: caught internal panic: {msg}");
+            ptr::null_mut()
+        }
+    }
 }
 
 /// Free a `dd_discovery_result` previously returned by `dd_discovery_get_services`.
@@ -338,47 +512,64 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
         return;
     }
 
-    // SAFETY: `result` was created by `Box::into_raw(Box::new(...))` in
-    // `dd_discovery_get_services` and has not been freed yet.
-    let result = unsafe { Box::from_raw(result) };
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
+    // the C ABI boundary. A panic during deallocation is a bug, but it is better
+    // to leak memory than to abort the calling process.
+    match panic::catch_unwind(AssertUnwindSafe(|| {
+        // SAFETY: `result` was created by `Box::into_raw(Box::new(...))` in
+        // `dd_discovery_get_services` and has not been freed yet.
+        let result = unsafe { Box::from_raw(result) };
 
-    // Free the services array and all nested allocations
-    if !result.services.is_null() {
-        // SAFETY: `result.services` came from `Box::into_raw` in `services_response_to_result`.
-        let services = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.services,
-                result.services_len,
-            ))
-        };
+        // Free the services array and all nested allocations
+        if !result.services.is_null() {
+            // SAFETY: `result.services` came from `Box::into_raw` in `services_response_to_result`.
+            let services = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.services,
+                    result.services_len,
+                ))
+            };
 
-        for service in services.iter() {
-            // SAFETY: All service fields are either NULL or heap-allocated via `Box::into_raw`.
-            unsafe {
-                free_dd_service(service);
+            for service in services.iter() {
+                // SAFETY: All service fields are either NULL or heap-allocated via `Box::into_raw`.
+                unsafe {
+                    free_dd_service(service);
+                }
             }
         }
-    }
 
-    // Free the injected_pids array
-    if !result.injected_pids.is_null() {
-        // SAFETY: `result.injected_pids` came from `Box::into_raw` in `services_response_to_result`.
-        let _injected = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.injected_pids,
-                result.injected_pids_len,
-            ))
-        };
-    }
+        // Free the injected_pids array
+        if !result.injected_pids.is_null() {
+            // SAFETY: `result.injected_pids` came from `Box::into_raw` in `services_response_to_result`.
+            let _injected = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.injected_pids,
+                    result.injected_pids_len,
+                ))
+            };
+        }
 
-    if !result.gpu_pids.is_null() {
-        // SAFETY: `result.gpu_pids` came from `Box::into_raw` in `services_response_to_result`.
-        let _gpu = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.gpu_pids,
-                result.gpu_pids_len,
-            ))
-        };
+        if !result.gpu_pids.is_null() {
+            // SAFETY: `result.gpu_pids` came from `Box::into_raw` in `services_response_to_result`.
+            let _gpu = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.gpu_pids,
+                    result.gpu_pids_len,
+                ))
+            };
+        }
+    })) {
+        Ok(()) => {}
+        Err(e) => {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                *s
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "<unknown>"
+            };
+            error!("dd_discovery_free: caught internal panic, memory may have leaked: {msg}");
+        }
     }
 }
 
@@ -514,6 +705,9 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         service_name,
         service_env,
         service_version,
+        process_tags,
+        container_id,
+        logs_collected: _,
     } = metadata;
     // SAFETY: Caller guarantees valid heap pointers or NULL.
     unsafe {
@@ -524,6 +718,8 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         free_dd_str(service_name);
         free_dd_str(service_env);
         free_dd_str(service_version);
+        free_dd_str(process_tags);
+        free_dd_str(container_id);
     }
 }
 
@@ -578,14 +774,19 @@ mod tests {
                 generated_name_source: Some(ServiceNameSource::CommandLine),
                 additional_generated_names: vec!["alt1".to_string(), "alt2".to_string()],
                 tracer_metadata: vec![TracerMetadata {
-                    schema_version: 1,
+                    schema_version: 2,
                     runtime_id: Some("runtime123".to_string()),
-                    tracer_language: Language::Python,
+                    tracer_language: "python".to_string(),
                     tracer_version: "1.0.0".to_string(),
                     hostname: "localhost".to_string(),
                     service_name: Some("my-service".to_string()),
                     service_env: Some("prod".to_string()),
                     service_version: Some("2.0.0".to_string()),
+                    process_tags: Some(
+                        "entrypoint.name:myapp,entrypoint.type:executable".to_string(),
+                    ),
+                    container_id: Some("abc123-container-id".to_string()),
+                    logs_collected: true,
                 }],
                 ust: UST {
                     service: Some("ust-service".to_string()),
@@ -596,7 +797,7 @@ mod tests {
                 udp_ports: Some(vec![9000]),
                 log_files: vec!["/var/log/app.log".to_string()],
                 apm_instrumentation: true,
-                language: Language::Python,
+                language: Some(Language::Python),
             }],
             injected_pids: vec![5678, 9012],
             gpu_pids: vec![1111, 2222],
@@ -638,12 +839,28 @@ mod tests {
         assert!(!service.tracer_metadata.data.is_null());
         assert_eq!(service.tracer_metadata.len, 1);
         let metadata = unsafe { &*service.tracer_metadata.data };
-        assert_eq!(metadata.schema_version, 1);
+        assert_eq!(metadata.schema_version, 2);
         assert_eq!(unsafe { dd_str_to_str(&metadata.runtime_id) }, "runtime123");
         assert_eq!(
             unsafe { dd_str_to_str(&metadata.tracer_language) },
             "python"
         );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.hostname) }, "localhost");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.service_name) },
+            "my-service"
+        );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_env) }, "prod");
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_version) }, "2.0.0");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.process_tags) },
+            "entrypoint.name:myapp,entrypoint.type:executable"
+        );
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.container_id) },
+            "abc123-container-id"
+        );
+        assert_eq!(metadata.logs_collected, true);
 
         // Verify UST
         assert_eq!(
@@ -709,7 +926,7 @@ mod tests {
                 udp_ports: Some(vec![]),
                 log_files: vec![],
                 apm_instrumentation: false,
-                language: Language::Unknown,
+                language: None,
             }],
             injected_pids: vec![],
             gpu_pids: vec![],

@@ -10,16 +10,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -917,6 +919,17 @@ func (p *WindowsProbe) Start() error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				log.Criticalf("panic in event processing goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for {
 			ev := p.zeroEvent()
@@ -1490,6 +1503,11 @@ func (p *WindowsProbe) FlushDiscarders() error {
 	return nil
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *WindowsProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return p.config.Probe.EnableDiscarders
+}
+
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
 	if !p.config.Probe.EnableDiscarders {
@@ -1545,6 +1563,11 @@ func (p *WindowsProbe) DumpProcessCache(_ bool) (string, error) {
 func (p *WindowsProbe) NewEvent() *model.Event {
 	return NewWindowsEvent(p.fieldHandlers)
 }
+
+// EnrichRuleEvent is a no-op on Windows. The Windows process model does not
+// share the Linux argv/envp truncation pipeline, so there is nothing to
+// backfill here.
+func (p *WindowsProbe) EnrichRuleEvent(_ *model.Event) {}
 
 // HandleActions executes the actions of a triggered rule
 func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {

@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "modifiers",
+    srcs = [
+        "helper_call_patcher.go",
+        "sleepable_modifier.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/modifiers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/names",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_sys//unix",
+    ],
+)
+
+go_test(
+    name = "modifiers_test",
+    srcs = ["sleepable_modifier_test.go"],
+    embed = [":modifiers"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
+        "//pkg/ebpf/telemetry",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//unix",
+    ],
+)

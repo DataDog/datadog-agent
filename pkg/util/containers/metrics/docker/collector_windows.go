@@ -8,7 +8,7 @@
 package docker
 
 import (
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"

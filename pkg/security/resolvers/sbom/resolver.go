@@ -12,17 +12,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -31,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -44,14 +50,56 @@ const (
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
+	maxPendingFileEvents     = 256
+	// maxForwardWait bounds how long forwarding keeps retrying while the image's
+	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
+	// re-arming when no image SBOM will ever be produced (for example when
+	// container image SBOM collection is disabled and the image stays pending).
+	maxForwardWait = 30 * time.Minute
 )
 
+// pendingFileEvent holds the minimal information needed to re-process a file
+// access once the SBOM for its container becomes available.
+type pendingFileEvent struct {
+	filePath string
+	fileMode uint16
+	uid      uint32
+}
+
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+
+// Event defines the SBOM event type
+type Event int
+
+const (
+	// SBOMComputed is used to notify that a SBOM was computed
+	SBOMComputed Event = iota + 1
+)
 
 // Data use the keep the result of a scan of a same workload across multiple
 // container
 type Data struct {
-	files fileQuerier
+	files    fileQuerier
+	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+}
+
+// newData builds the cached scan Data from a freshly generated report. It keeps
+// only the compact representation: per-package metadata in packages (dropping the
+// plain-text InstalledFiles) and murmur3 hashes of the file paths in the file
+// querier. Runtime file->package lookups use the hashes and forwarding only needs
+// the package metadata, so retaining the paths would waste megabytes per workload
+// for the lifetime of the data cache. The file querier stores pointers into
+// packages so LastAccess updates stay visible to the forwarding path.
+func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data {
+	packages := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		packages[i] = report[i].Package
+	}
+
+	return &Data{
+		files:    newFileQuerier(report, packages, usrMerged),
+		packages: packages,
+	}
 }
 
 // SBOM defines an SBOM
@@ -63,11 +111,18 @@ type SBOM struct {
 	data *Data
 
 	workloadKey workloadKey
+	status      workloadmeta.SBOMStatus
 
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
 
-	refresher *debouncer.Debouncer
+	refresher         *debouncer.Debouncer
+	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+	forwardRetryCount int
+
+	invalidated bool
+
+	usrMerged bool
 }
 
 type workloadKey string
@@ -83,8 +138,8 @@ func (s *SBOM) IsComputed() bool {
 
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
-	// build file cache
-	s.data.files = newFileQuerier(pkgs)
+	// build the compact file cache and package metadata, dropping installed-file lists
+	s.data = newData(pkgs, s.usrMerged)
 }
 
 func (s *SBOM) stop() {
@@ -93,6 +148,11 @@ func (s *SBOM) stop() {
 
 		// don't forget to set the refresher to nil otherwise it generates a memleak
 		s.refresher = nil
+	}
+
+	if s.forwarder != nil {
+		s.forwarder.Stop()
+		s.forwarder = nil
 	}
 
 	// change the state so that already queued sbom won't be handled
@@ -112,6 +172,8 @@ func NewSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, work
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
+	*utils.Notifier[Event, *sbompkg.ScanResult]
+
 	cfg *config.RuntimeSecurityConfig
 
 	sbomsLock sync.RWMutex
@@ -126,6 +188,10 @@ type Resolver struct {
 	pendingScanLock sync.Mutex
 	pendingScan     []containerutils.ContainerID
 
+	// pending file events: file accesses received before the SBOM was ready
+	pendingFileEventsLock sync.Mutex
+	pendingFileEvents     map[containerutils.ContainerID][]pendingFileEvent
+
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
 	hostRootDevice uint64
@@ -135,6 +201,12 @@ type Resolver struct {
 	failedSBOMGenerations *atomic.Uint64
 	sbomsCacheHit         *atomic.Uint64
 	sbomsCacheMiss        *atomic.Uint64
+
+	wmeta workloadmeta.Component
+
+	// Callback for when SBOM policies should be generated
+	policyGeneratorCb func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef)
+	policyGenLock     sync.RWMutex
 }
 
 type sbomCollector interface {
@@ -142,7 +214,7 @@ type sbomCollector interface {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*Resolver, error) {
 	sbomCollector := collectorv2.NewOSScanner()
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
@@ -156,6 +228,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	resolver := &Resolver{
+		Notifier:              utils.NewNotifier[Event, *sbompkg.ScanResult](),
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
@@ -166,9 +239,11 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
+		wmeta:                 wmeta,
+		pendingFileEvents:     make(map[containerutils.ContainerID][]pendingFileEvent),
 	}
 
-	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
 		// should be trigger from a function already locking the sbom, see Add, Delete
 		sbom.stop()
 		resolver.removePendingScan(sbom.ContainerID)
@@ -199,6 +274,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
 		r.hostSBOM.setReport(report)
 		r.hostSBOM.state.Store(computedState)
 	}
@@ -212,9 +288,9 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case sbom := <-r.scanChan:
-				if err := retry.Do(func() error {
-					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond), retry.DelayType(retry.FixedDelay)); err != nil {
+				if _, err := backoff.Retry(ctx, func() (struct{}, error) {
+					return struct{}{}, r.analyzeWorkload(sbom)
+				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
 					if errors.Is(err, errNoProcessForContainerID) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
@@ -240,15 +316,8 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		refresher = sbom.refresher
 		if refresher == nil {
 			refresher = debouncer.New(
-				3*time.Second, func() {
-					// invalid cache data
-					r.removeSBOMData(sbom.workloadKey)
-
-					r.sbomsLock.Lock()
-					sbom.Lock()
-					r.triggerScan(sbom)
-					sbom.Unlock()
-					r.sbomsLock.Unlock()
+				r.cfg.SBOMResolverRefreshInterval, func() {
+					r.refreshScan(sbom)
 				},
 			)
 			refresher.Start()
@@ -263,6 +332,126 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
+// refreshScan invalidates a workload's cached SBOM data and re-queues it for a
+// full re-scan. The state is reset to pending because analyzeWorkload drops any
+// SBOM not in the pending state: a workload is left in the computed state by its
+// initial scan, so without this reset the refresh re-scan is discarded and the
+// runtime properties are never recomputed.
+func (r *Resolver) refreshScan(sbom *SBOM) {
+	r.removeSBOMData(sbom.workloadKey)
+
+	r.sbomsLock.Lock()
+	sbom.Lock()
+	sbom.state.Store(pendingState)
+	r.triggerScan(sbom)
+	sbom.Unlock()
+	r.sbomsLock.Unlock()
+}
+
+func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	container, err := r.wmeta.GetContainer(string(containerID))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
+	}
+
+	imageID := container.Image.ID
+	if imageID == "" {
+		return nil, fmt.Errorf("Container '%s' has no image ID, cannot forward SBOM", containerID)
+	}
+
+	existingImage, err := r.wmeta.GetImage(imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range r.wmeta.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
+			}
+		}
+	}
+
+	if existingImage == nil {
+		return nil, fmt.Errorf("Image metadata for '%s' not found in workloadmeta, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	if existingImage.SBOM == nil {
+		return nil, fmt.Errorf("Image '%s' has no SBOM, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	return existingImage.SBOM, nil
+}
+
+// triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
+// This function assumes sbom is already locked by the caller
+func (r *Resolver) triggerForwarding(sbom *SBOM) {
+	// Create forwarder debouncer on demand
+	if sbom.forwarder == nil {
+		sbom.forwarder = debouncer.New(
+			r.cfg.SBOMResolverForwardInterval, func() {
+				// Forward current SBOM data with LastAccess to remote collector
+				sbom.Lock()
+				defer sbom.Unlock()
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
+					if err != nil || imageSBOM == nil {
+						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+					} else {
+						sbom.status = imageSBOM.Status
+					}
+				}
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					// Retry until the image's Trivy SBOM is ready: an idle workload may
+					// produce no further file accesses to re-trigger forwarding, and the
+					// overlayfs scan can take several minutes. Bound the total wait so a
+					// permanently-pending image (e.g. container image SBOM collection
+					// disabled) stops re-arming instead of looping forever.
+					sbom.forwardRetryCount++
+					if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
+						seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
+						return
+					}
+					sbom.forwarder.Call()
+					return
+				}
+				sbom.forwardRetryCount = 0
+
+				if sbom.data == nil || len(sbom.data.packages) == 0 {
+					return
+				}
+
+				seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
+
+				// Snapshot the package metadata: the forwarded report outlives the
+				// lock and the backing slice keeps being mutated (LastAccess) at runtime.
+				packages := make([]sbomtypes.Package, len(sbom.data.packages))
+				copy(packages, sbom.data.packages)
+
+				// Create SBOM report and notify listeners
+				packagesReport := NewPackagesReport(packages, sbom.ContainerID)
+				scanResult := &sbompkg.ScanResult{
+					Report:           packagesReport,
+					CreatedAt:        time.Now(),
+					GenerationMethod: "security-agent",
+					RequestID:        string(sbom.ContainerID),
+				}
+				r.Notifier.NotifyListeners(SBOMComputed, scanResult)
+			},
+		)
+		sbom.forwarder.Start()
+	}
+
+	// Trigger the debouncer (will execute after 5 seconds of inactivity)
+	sbom.forwarder.Call()
+}
+
 // generateSBOM calls the collector to generate the SBOM of a sbom
 func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	seclog.Infof("Generating SBOM for %s", root)
@@ -274,9 +463,85 @@ func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFi
 		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
 	}
 
-	seclog.Infof("SBOM successfully generated from %s", root)
+	seclog.Infof("SBOM successfully generated from %s with %d packages", root, len(report))
 
 	return report, nil
+}
+
+// isUsrMerged reports whether root uses the merged-/usr layout, where /bin is a
+// symlink into /usr/bin. There the package database and a resolved exec path may
+// disagree on the /bin vs /usr/bin prefix for the same file.
+func isUsrMerged(root string) bool {
+	fi, err := os.Lstat(root + "/bin")
+	return err == nil && fi.Mode()&fs.ModeSymlink != 0
+}
+
+// escapeFilePathForRule escapes special characters in file paths for use in rule expressions
+// This prevents filenames with quotes, backslashes, or other special characters from breaking the syntax
+func escapeFilePathForRule(path string) string {
+	// Escape backslashes first (must be done before escaping quotes)
+	path = strings.ReplaceAll(path, `\`, `\\`)
+	// Escape double quotes
+	path = strings.ReplaceAll(path, `"`, `\"`)
+	return path
+}
+
+// generateSBOMPolicyDef generates a policy definition from SBOM packages
+func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID, packages []sbomtypes.PackageWithInstalledFiles) *rules.PolicyDef {
+	var sbomMacros []*rules.MacroDefinition
+	var sbomRules []*rules.RuleDefinition
+	fileCount := 0
+
+	for _, pkg := range packages {
+		if len(pkg.InstalledFiles) == 0 {
+			continue
+		}
+
+		fileCount += len(pkg.InstalledFiles)
+		pkgName := strings.ReplaceAll(pkg.Package.Name, "-", "_")
+		pkgName = strings.ReplaceAll(pkgName, ".", "_")
+		macroName := "sbom_pkg_files_" + strings.ToLower(pkgName)
+
+		// Build the macro expression with the list of files
+		// Escape filenames to prevent special characters (e.g., ", \) from breaking the expression
+		macroExpression := "[ " + strings.Join(lo.Map(pkg.InstalledFiles, func(file string, _ int) string {
+			return `"` + escapeFilePathForRule(file) + `"`
+		}), ", ") + " ]"
+
+		sbomMacros = append(sbomMacros, &rules.MacroDefinition{
+			ID:         macroName,
+			Expression: macroExpression,
+		})
+
+		// Create a rule that detects when files from this package are opened
+		ruleName := "sbom_detect_file_in_pkg_" + strings.ToLower(pkgName)
+		sbomRules = append(sbomRules, &rules.RuleDefinition{
+			ID:         ruleName,
+			Expression: "open.file.path in " + macroName,
+			Silent:     true, // These are internal tracking rules
+			Tags: map[string]string{
+				"sbom_container":       string(containerID),
+				"sbom_package_name":    pkg.Package.Name,
+				"sbom_package_version": pkg.Package.Version,
+			},
+		})
+
+		seclog.Debugf("Generated SBOM macro: %s with %d files", macroName, len(pkg.InstalledFiles))
+	}
+
+	if len(sbomMacros) == 0 {
+		return nil
+	}
+
+	seclog.Infof("Generated %d SBOM macros and %d rules for container %s (%d total files)",
+		len(sbomMacros), len(sbomRules), containerID, fileCount)
+
+	policyDef := &rules.PolicyDef{
+		Macros: sbomMacros,
+		Rules:  sbomRules,
+	}
+
+	return policyDef
 }
 
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
@@ -312,6 +577,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 		}
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
+			sbom.usrMerged = isUsrMerged(containerProcRootPath)
 			sbom.setReport(report)
 			scanned = true
 			break
@@ -360,55 +626,74 @@ func (r *Resolver) removePendingScan(containerID containerutils.ContainerID) {
 }
 
 // analyzeWorkload generates the SBOM of the provided sbom and send it to the security agent
-func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
-	sbom.Lock()
-	defer sbom.Unlock()
+func (r *Resolver) analyzeWorkload(sb *SBOM) error {
+	sb.Lock()
+	defer sb.Unlock()
 
-	seclog.Infof("analyzing sbom '%s'", sbom.ContainerID)
+	seclog.Infof("analyzing sbom '%s'", sb.ContainerID)
 
-	if currentState := sbom.state.Load(); currentState != pendingState {
-		r.removePendingScan(sbom.ContainerID)
+	if currentState := sb.state.Load(); currentState != pendingState {
+		r.removePendingScan(sb.ContainerID)
 
 		if currentState != stoppedState {
 			// should not append, ignore
-			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, currentState)
+			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sb.ContainerID, currentState)
 			return nil
 		}
 	}
 
 	// bail out if the workload has been analyzed while queued up
 	r.dataCacheLock.RLock()
-	if data, exists := r.dataCache.Get(sbom.workloadKey); exists {
+	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
 		r.dataCacheLock.RUnlock()
-		sbom.data = data
+		sb.data = data
 
-		r.removePendingScan(sbom.ContainerID)
+		r.removePendingScan(sb.ContainerID)
 
 		return nil
 	}
 	r.dataCacheLock.RUnlock()
 
-	report, err := r.doScan(sbom)
-	if err != nil {
-		return err
+	report, scanErr := r.doScan(sb)
+	if scanErr != nil {
+		return scanErr
 	}
 
-	data := &Data{
-		files: newFileQuerier(report),
-	}
-	sbom.data = data
+	data := newData(report, sb.usrMerged)
+	sb.data = data
 
 	// mark the SBOM as successful
-	sbom.state.Store(computedState)
+	sb.state.Store(computedState)
 
 	// add to cache
 	r.dataCacheLock.Lock()
-	r.dataCache.Add(sbom.workloadKey, data)
+	r.dataCache.Add(workloadKey(sb.workloadKey), data)
 	r.dataCacheLock.Unlock()
 
-	r.removePendingScan(sbom.ContainerID)
+	r.removePendingScan(sb.ContainerID)
 
-	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, data.files.len())
+	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
+
+	// replay any file accesses that arrived before the SBOM was ready
+	r.processPendingFileEvents(sb)
+	r.triggerForwarding(sb)
+
+	// NOTE: Don't forward SBOM to remote collector immediately, since LastAccess is not yet populated.
+	// The SBOM will be forwarded later when packages are accessed at runtime (via the forwarder debouncer).
+
+	// Notify policy generator if callback is set
+	r.policyGenLock.RLock()
+	cb := r.policyGeneratorCb
+	r.policyGenLock.RUnlock()
+
+	if cb != nil {
+		// Generate policy definition from SBOM packages
+		policyDef := r.generateSBOMPolicyDef(sb.ContainerID, report)
+		if policyDef != nil {
+			cb(string(sb.workloadKey), sb.ContainerID, policyDef)
+		}
+	}
+
 	return nil
 }
 
@@ -418,23 +703,127 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 	sbom := r.hostSBOM
 	if containerID != "" {
-		sbom, _ = r.sboms.Get(containerID)
+		sbom, _ = r.sboms.Peek(containerID)
 	}
 	return sbom
 }
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *sbomtypes.Package {
-	sbom := r.getSBOM(containerID)
+func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
+	if pc.Process.ContainerContext.IsNull() {
+		return nil
+	}
+
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
+		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
 		return nil
 	}
 
 	sbom.Lock()
+
+	// If the SBOM scan hasn't completed yet, queue this access so it is replayed once
+	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
+	if !sbom.IsComputed() {
+		sbom.Unlock()
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		return nil
+	}
+
 	defer sbom.Unlock()
 
-	return sbom.data.files.queryFile(file.PathnameStr)
+	// replay any file accesses that arrived before the SBOM was ready
+	r.processPendingFileEvents(sbom)
+
+	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+
+	pkg := sbom.data.files.queryFile(file.PathnameStr)
+	if pkg != nil {
+		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
+
+		oldLastAccess := pkg.LastAccess
+		oldSuidBit := pkg.SuidBit
+		oldAccessedByRoot := pkg.AccessedByRoot
+
+		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields. SuidBit
+		// and AccessedByRoot are sticky within a scan generation: once a package's
+		// setuid binary has run, or it has run as root, that holds until the next
+		// SBOM refresh, regardless of later accesses to its non-setuid files.
+		pkg.LastAccess = time.Now()
+		pkg.SuidBit = pkg.SuidBit || fs.FileMode(file.Mode)&04000 != 0
+		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
+
+		// Trigger forwarding debouncer to send updated SBOM to remote collector
+		if pkg.LastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
+			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
+			sbom.invalidated = true
+		}
+	}
+
+	if sbom.invalidated {
+		r.triggerForwarding(sbom)
+		sbom.invalidated = false
+	}
+
+	return pkg
+}
+
+// queuePendingFileEvent stores a file access that arrived before the SBOM for
+// the given container was ready. The queue keeps the last maxPendingFileEvents
+// entries per container, dropping the oldest when full.
+func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
+	if containerID == "" {
+		return
+	}
+	r.pendingFileEventsLock.Lock()
+	defer r.pendingFileEventsLock.Unlock()
+
+	events := r.pendingFileEvents[containerID]
+	event := pendingFileEvent{filePath: filePath, fileMode: fileMode, uid: uid}
+	if len(events) >= maxPendingFileEvents {
+		// drop the oldest entry to keep the last N
+		events = append(events[1:], event)
+	} else {
+		events = append(events, event)
+	}
+	r.pendingFileEvents[containerID] = events
+}
+
+// processPendingFileEvents drains the pending file-event queue for the given
+// SBOM and applies the file accesses against the now-available data.
+// Must be called with sbom.Lock() already held.
+func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
+	r.pendingFileEventsLock.Lock()
+	events, ok := r.pendingFileEvents[sbom.ContainerID]
+	if ok {
+		delete(r.pendingFileEvents, sbom.ContainerID)
+	}
+	r.pendingFileEventsLock.Unlock()
+
+	if !ok || len(events) == 0 {
+		return
+	}
+
+	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
+
+	now := time.Now()
+	for _, event := range events {
+		pkg := sbom.data.files.queryFile(event.filePath)
+		if pkg == nil {
+			continue
+		}
+		pkg.LastAccess = now
+		pkg.SuidBit = pkg.SuidBit || fs.FileMode(event.fileMode)&04000 != 0
+		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
+
+		sbom.invalidated = true
+	}
 }
 
 // newSBOM (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
@@ -503,10 +892,17 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	workloadKey := workloadKey(utils.GetTagValue("image_id", workload.Tags))
+	if workloadKey == "" {
+		workloadKey = getWorkloadKey(workload.Selector.Copy())
+	}
+
 	_, ok := r.sboms.Get(id)
 	if !ok {
-		workloadKey := getWorkloadKey(workload.Selector.Copy())
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
+		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
+			sbom.status = imageSBOM.Status
+		}
 		r.queueWorkload(sbom)
 	}
 }
@@ -520,7 +916,7 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 		return r.hostSBOM
 	}
 
-	sbom, _ := r.sboms.Get(id)
+	sbom, _ := r.sboms.Peek(id)
 	return sbom
 }
 
@@ -536,7 +932,7 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
-	sbom, ok := r.sboms.Get(id)
+	sbom, ok := r.sboms.Peek(id)
 	if !ok {
 		return
 	}
@@ -552,8 +948,20 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 
+	r.pendingFileEventsLock.Lock()
+	delete(r.pendingFileEvents, sbom.ContainerID)
+	r.pendingFileEventsLock.Unlock()
+
 	// should be called under sbom.Lock and sbomsLock.Lock
 	r.sboms.Remove(sbom.ContainerID)
+}
+
+// SetPolicyGeneratorCallback sets a callback to be called when an SBOM is computed
+// This callback can be used to generate policies based on the SBOM data
+func (r *Resolver) SetPolicyGeneratorCallback(cb func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef)) {
+	r.policyGenLock.Lock()
+	defer r.policyGenLock.Unlock()
+	r.policyGeneratorCb = cb
 }
 
 // SendStats sends stats

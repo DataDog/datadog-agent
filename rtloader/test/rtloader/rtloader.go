@@ -173,8 +173,10 @@ func getFakeCheck() (string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	ret = C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	ret = C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 	if ret != 1 || check == nil {
 		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
@@ -212,8 +214,10 @@ func runFakeCheck() (string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	checkResultStr := C.run_check(rtloader, check)
 	defer C.call_free(unsafe.Pointer(checkResultStr))
@@ -245,8 +249,10 @@ func cancelFakeCheck() error {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	C.cancel_check(rtloader, check)
 
@@ -254,6 +260,90 @@ func cancelFakeCheck() error {
 	runtime.UnlockOSThread()
 
 	return fetchError()
+}
+
+func discoverFakeConfig(serviceJSON string) (string, error) {
+	var module *C.rtloader_pyobject_t
+	var class *C.rtloader_pyobject_t
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
+
+	classStr := helpers.TrackedCString("fake_check")
+	defer C.call_free(classStr)
+
+	ret := C.get_class(rtloader, (*C.char)(classStr), &module, &class)
+	if ret != 1 || module == nil || class == nil {
+		return "", errors.New(C.GoString(C.get_error(rtloader)))
+	}
+	defer C.rtloader_decref(rtloader, module)
+	defer C.rtloader_decref(rtloader, class)
+
+	serviceJSONStr := helpers.TrackedCString(serviceJSON)
+	defer C.call_free(serviceJSONStr)
+
+	discoveryResultStr := C.discover_config(rtloader, class, (*C.char)(serviceJSONStr))
+	if discoveryResultStr == nil {
+		if err := fetchError(); err != nil {
+			return "", err
+		}
+		return "", errors.New("discover_config returned NULL")
+	}
+	defer C.call_free(unsafe.Pointer(discoveryResultStr))
+
+	return C.GoString(discoveryResultStr), fetchError()
+}
+
+func getFakeDiscoverConfigServiceJSON() (string, error) {
+	code := fmt.Sprintf(`
+import fake_check
+with open(r'%s', 'w') as f:
+	f.write(fake_check.discover_config_service_json or '')`, tmpfile.Name())
+
+	return runString(code)
+}
+
+func resetFakeDiscoverConfig() error {
+	code := `import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigReturn(value string) error {
+	code := fmt.Sprintf(`import fake_check
+fake_check.discover_config_return = %q
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`, value)
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigReturnNonString() error {
+	code := `import fake_check
+fake_check.discover_config_return = {"unexpected": "dict"}
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigException(message string) error {
+	code := fmt.Sprintf(`import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = %q
+fake_check.discover_config_service_json = None`, message)
+
+	_, err := runString(code)
+	return err
 }
 
 func runFakeGetWarnings() ([]string, error) {
@@ -277,8 +367,10 @@ func runFakeGetWarnings() ([]string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	warns := C.get_checks_warnings(rtloader, check)
 

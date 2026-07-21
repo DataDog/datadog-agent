@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "installers",
+    srcs = ["installers.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_cenkalti_backoff_v7//:backoff"],
+)

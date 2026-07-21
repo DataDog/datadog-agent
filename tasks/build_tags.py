@@ -1,291 +1,79 @@
 """
-Utilities to manage build tags
+Utilities to manage build tags.
+
+The canonical tag-set data lives in build_tags.bzl, which is written in the
+common subset of Starlark and Python so it can be both `load()`ed by
+//BUILD.bazel (for GAZELLE_BUILD_TAGS) and exec'd here. This module loads that
+data, layers on the AgentFlavor-keyed `build_tags` mapping and the codegen
+payload (which can't live in Starlark — no enums), and provides the @task entry
+points and helpers that operate on the tags.
 """
 
-# TODO: check if we really need the typing import.
-# Recent versions of Python should be able to use dict and list directly in type hints,
-# so we only need to check that we don't run this code with old Python versions.
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
+import json
 import os
 import sys
+from pathlib import Path
+from typing import Any
 
 from invoke import task
 
 from tasks.flavor import AgentFlavor
 
-# Common build tags, added on all builds
-COMMON_TAGS = {
-    # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
-    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
-    "grpcnotrace",
-    # removes the import to golang.org/x/net/trace in github.com/grpc-ecosystem/go-grpc-middleware
-    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
-    "retrynotrace",
-    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
-    # which makes the agent significantly smaller.
-    # This can be removed when we start using containerd v2.1 or later.
-    "no_dynamic_plugins",
-    # Remove some dependencies from Trivy to reduce binary size.
-    "trivy_no_javadb",
-}
+# Load the shared Starlark/Python data file. It is valid Python (set([...])
+# literals, set operators/methods), so we exec it and rebind the names below.
+# An explicit SourceFileLoader is needed because importlib won't infer one from
+# the .bzl extension. Typed as Any so the dynamic attribute access is mypy-clean.
+_BZL_PATH = Path(__file__).with_name("build_tags.bzl")
+_loader = importlib.machinery.SourceFileLoader("tasks._build_tags_data", str(_BZL_PATH))
+_spec = importlib.util.spec_from_loader(_loader.name, _loader)
+assert _spec is not None
+_data: Any = importlib.util.module_from_spec(_spec)
+_loader.exec_module(_data)
 
-# ALL_TAGS lists all available build tags.
-# Used to remove unknown tags from provided tag lists.
-ALL_TAGS = {
-    "bundle_installer",
-    "clusterchecks",
-    "consul",
-    "containerd",
-    "cri",
-    "crio",
-    # Opt out of the ASM build requirements of dd-trace-go
-    "datadog.no_waf",
-    "docker",
-    "ec2",
-    "etcd",
-    "fargateprocess",
-    "goexperiment.systemcrypto",  # used for FIPS mode
-    "jetson",
-    "jmx",
-    "kubeapiserver",
-    "kubelet",
-    "linux_bpf",
-    "ncm",
-    "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
-    "netgo",
-    "npm",
-    "nvml",  # used for the nvidia go-nvml library
-    "oracle",
-    "orchestrator",
-    "osusergo",
-    "otlp",
-    "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
-    "podman",
-    "python",
-    "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
-    "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
-    "serverless",
-    "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
-    "sharedlibrarycheck",
-    "systemd",
-    "systemprobechecks",  # used to include system-probe based checks in the agent build
-    "test",  # used for unit-tests
-    "trivy",
-    "wmi",
-    "zk",
-    "zlib",
-    "zstd",
-    "cel",
-    "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
-}.union(COMMON_TAGS)
+# Gazelle / "all tags" sets
+COMMON_TAGS = _data.COMMON_TAGS
+ALL_TAGS = _data.ALL_TAGS
+GAZELLE_EXTRA_TAGS = _data.GAZELLE_EXTRA_TAGS
+GAZELLE_OMIT_TAGS = _data.GAZELLE_OMIT_TAGS
+GAZELLE_BUILD_TAGS = _data.GAZELLE_BUILD_TAGS
 
-### Tag inclusion lists
+# Per-binary inclusion lists
+AGENT_TAGS = _data.AGENT_TAGS
+AGENT_HEROKU_TAGS = _data.AGENT_HEROKU_TAGS
+FIPS_TAGS = _data.FIPS_TAGS
+CLUSTER_AGENT_TAGS = _data.CLUSTER_AGENT_TAGS
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = _data.CLUSTER_AGENT_CLOUDFOUNDRY_TAGS
+DOGSTATSD_TAGS = _data.DOGSTATSD_TAGS
+IOT_AGENT_TAGS = _data.IOT_AGENT_TAGS
+INSTALLER_TAGS = _data.INSTALLER_TAGS
+PROCESS_AGENT_TAGS = _data.PROCESS_AGENT_TAGS
+PROCESS_AGENT_HEROKU_TAGS = _data.PROCESS_AGENT_HEROKU_TAGS
+SECURITY_AGENT_TAGS = _data.SECURITY_AGENT_TAGS
+SBOMGEN_TAGS = _data.SBOMGEN_TAGS
+SERVERLESS_TAGS = _data.SERVERLESS_TAGS
+SYSTEM_PROBE_TAGS = _data.SYSTEM_PROBE_TAGS
+TRACE_AGENT_TAGS = _data.TRACE_AGENT_TAGS
+TRACE_AGENT_HEROKU_TAGS = _data.TRACE_AGENT_HEROKU_TAGS
+CWS_INSTRUMENTATION_TAGS = _data.CWS_INSTRUMENTATION_TAGS
+OTEL_AGENT_TAGS = _data.OTEL_AGENT_TAGS
+LOADER_TAGS = _data.LOADER_TAGS
+HOST_PROFILER_TAGS = _data.HOST_PROFILER_TAGS
+PRIVATEACTIONRUNNER_TAGS = _data.PRIVATEACTIONRUNNER_TAGS
+SECRET_GENERIC_CONNECTOR_TAGS = _data.SECRET_GENERIC_CONNECTOR_TAGS
+AGENT_TEST_TAGS = _data.AGENT_TEST_TAGS
 
-# AGENT_TAGS lists the tags needed when building the agent.
-AGENT_TAGS = {
-    "consul",
-    "containerd",
-    "cri",
-    "datadog.no_waf",
-    "crio",
-    "docker",
-    "ec2",
-    "etcd",
-    "fargateprocess",
-    "jetson",
-    "jmx",
-    "kubeapiserver",
-    "kubelet",
-    "ncm",
-    "netcgo",
-    "nvml",
-    "oracle",
-    "orchestrator",
-    "otlp",
-    "podman",
-    "python",
-    "sharedlibrarycheck",
-    "systemd",
-    "systemprobechecks",
-    "trivy",
-    "zk",
-    "zlib",
-    "zstd",
-    "cel",
-}
-
-# AGENT_HEROKU_TAGS lists the tags for Heroku agent build
-AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
-    {
-        "containerd",
-        "cri",
-        "crio",
-        "docker",
-        "ec2",
-        "fargateprocess",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "nvml",
-        "oracle",
-        "orchestrator",
-        "podman",
-        "systemd",
-        "trivy",
-        "cel",
-    }
-).union(
-    {
-        "bundle_installer",
-    }
-)
-
-FIPS_TAGS = {"goexperiment.systemcrypto", "requirefips"}
-
-# CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {
-    "clusterchecks",
-    "datadog.no_waf",
-    "kubeapiserver",
-    "orchestrator",
-    "zlib",
-    "zstd",
-    "ec2",
-    "cel",
-}
-
-# CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "cel"}
-
-# DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
-
-# IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"}
-
-# INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"ec2"}
-
-# PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = {
-    "containerd",
-    "cri",
-    "crio",
-    "datadog.no_waf",
-    "ec2",
-    "docker",
-    "fargateprocess",
-    "kubelet",
-    "netcgo",
-    "podman",
-    "zlib",
-    "zstd",
-}
-
-# PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
-PROCESS_AGENT_HEROKU_TAGS = {
-    "datadog.no_waf",
-    "fargateprocess",
-    "netcgo",
-    "zlib",
-    "zstd",
-}
-
-# SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {
-    "netcgo",
-    "datadog.no_waf",
-    "docker",
-    "zlib",
-    "zstd",
-    "ec2",
-}
-
-# SBOMGEN_TAGS lists the tags necessary to build sbomgen
-SBOMGEN_TAGS = {
-    "trivy",
-    "containerd",
-    "docker",
-    "crio",
-}
-
-# SERVERLESS_TAGS lists the tags necessary to build serverless
-SERVERLESS_TAGS = {"serverless", "otlp"}
-
-# SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = {
-    "datadog.no_waf",
-    "ec2",
-    "linux_bpf",
-    "netcgo",
-    "npm",
-    "nvml",
-    "pcap",
-    "zlib",
-    "zstd",
-    "seclmax",
-}
-
-# TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {
-    "docker",
-    "containerd",
-    "datadog.no_waf",
-    "kubelet",
-    "otlp",
-    "netcgo",
-    "podman",
-}
-
-# TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
-TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
-    {
-        "containerd",
-        "docker",
-        "kubeapiserver",
-        "kubelet",
-        "podman",
-    }
-)
-
-CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
-
-OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
-
-LOADER_TAGS = set()
-
-FULL_HOST_PROFILER_TAGS = set()
-
-PRIVATEACTIONRUNNER_TAGS = set()
-
-SECRET_GENERIC_CONNECTOR_TAGS = set()
-
-# AGENT_TEST_TAGS lists the tags that have to be added to run tests
-AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
-
-
-### Tag exclusion lists
-
-# List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
-
-# List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {
-    "linux_bpf",
-    "nvml",
-    "requirefips",
-    "crio",
-}
-
-# List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "nvml", "cri", "crio"}
-
-# Unit test build tags
-UNIT_TEST_TAGS = {"test"}
-
-# List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
+# Exclusion lists
+LINUX_ONLY_TAGS = _data.LINUX_ONLY_TAGS
+AIX_EXCLUDED_TAGS = _data.AIX_EXCLUDED_TAGS
+WINDOWS_INCLUDED_TAGS = _data.WINDOWS_INCLUDED_TAGS
+WINDOWS_EXCLUDED_TAGS = _data.WINDOWS_EXCLUDED_TAGS
+DARWIN_EXCLUDED_TAGS = _data.DARWIN_EXCLUDED_TAGS
+UNIT_TEST_TAGS = _data.UNIT_TEST_TAGS
+UNIT_TEST_EXCLUDED_TAGS = _data.UNIT_TEST_EXCLUDED_TAGS
 
 # Build type: maps flavor to build tags map
 build_tags = {
@@ -300,28 +88,28 @@ build_tags = {
         "security-agent": SECURITY_AGENT_TAGS,
         "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
-        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
-        "full-host-profiler": FULL_HOST_PROFILER_TAGS,
+        "host-profiler": HOST_PROFILER_TAGS,
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.fips: {
         "agent": AGENT_TAGS.union(FIPS_TAGS),
@@ -332,7 +120,7 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS.union(FIPS_TAGS),
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
@@ -340,33 +128,67 @@ build_tags = {
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS.union(FIPS_TAGS),
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS.union(FIPS_TAGS),
         # Test setups
-        "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "otel-agent": OTEL_AGENT_TAGS.union(FIPS_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
-        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
-        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
-        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
 }
+
+
+def build_tags_codegen_payload() -> dict[str, object]:
+    """Structured view of the tag data consumed by the codegen.
+
+    All list values are sorted and deduplicated so the generated JSON / .go
+    files are byte-stable.
+    """
+    return {
+        "common_tags": sorted(COMMON_TAGS),
+        "unit_test_tags": sorted(UNIT_TEST_TAGS),
+        "linux_only_tags": sorted(LINUX_ONLY_TAGS),
+        "windows_included_tags": sorted(WINDOWS_INCLUDED_TAGS),
+        "windows_excluded_tags": sorted(WINDOWS_EXCLUDED_TAGS),
+        "darwin_excluded_tags": sorted(DARWIN_EXCLUDED_TAGS),
+        "flavor_specific_tags": {
+            flavor.name: sorted(build_tags[flavor]["unit-tests"] - COMMON_TAGS - UNIT_TEST_TAGS)
+            for flavor in AgentFlavor
+            if "unit-tests" in build_tags.get(flavor, {})
+        },
+        "gazelle_build_tags": sorted(GAZELLE_BUILD_TAGS),
+    }
 
 
 _GOOS_TO_SYS_PLATFORM = {
     "windows": "win32",
 }
+
+
+def _resolve_platform(platform=None):
+    """Return the effective target platform as a sys.platform-style string.
+
+    If platform is explicitly provided, normalize it from GOOS format to
+    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
+    the GOOS env var, then sys.platform.
+    """
+    if platform is None:
+        platform = os.getenv("GOOS") or sys.platform
+    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
 
 
 def compute_build_tags_for_flavor(
@@ -385,10 +207,7 @@ def compute_build_tags_for_flavor(
 
     Then, remove from these the provided list of tags to exclude.
     """
-    # Normalize GOOS values (e.g. "windows") to sys.platform values (e.g. "win32")
-    # so that downstream functions like filter_incompatible_tags work correctly.
-    if platform is not None:
-        platform = _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+    platform = _resolve_platform(platform)
 
     build_include = (
         get_default_build_tags(build=build, flavor=flavor, platform=platform)
@@ -430,7 +249,7 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    platform = platform or sys.platform
+    platform = _resolve_platform(platform)
     include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
@@ -440,21 +259,25 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, platform=sys.platform):
+def filter_incompatible_tags(include, platform=None):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
+    platform = _resolve_platform(platform)
     exclude = set()
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32" or os.getenv("GOOS") == "windows":
-        include = include.union(["wmi"])
-        exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
+    if platform == "win32":
+        include = include.union(WINDOWS_INCLUDED_TAGS)
+        exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
+
+    if platform == "aix":
+        exclude = exclude.union(AIX_EXCLUDED_TAGS)
 
     return get_build_tags(include, exclude)
 
@@ -483,49 +306,9 @@ def get_build_tags(include, exclude):
     return list(known_include - known_exclude)
 
 
-@task
-def audit_tag_impact(ctx, build_exclude=None, csv=False):
-    """
-    Measure each tag's contribution to the binary size
-    """
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(IOT_AGENT_TAGS))
-
-    max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
-    print(f"size with all tags is {max_size / 1000} kB")
-
-    iot_agent_size = _compute_build_size(ctx, flavor=AgentFlavor.iot)
-    print(f"iot agent size is {iot_agent_size / 1000} kB\n")
-
-    report = {"unaccounted": max_size - iot_agent_size, "iot_agent": iot_agent_size}
-
-    for tag in tags_to_audit:
-        exclude_string = ','.join(build_exclude + [tag])
-        size = _compute_build_size(ctx, build_exclude=exclude_string)
-        delta = max_size - size
-        print(f"tag {tag} adds {delta / 1000} kB (excludes: {exclude_string})")
-        report[tag] = delta
-        report["unaccounted"] -= delta
-
-    if csv:
-        print("\nCSV output in bytes:")
-        for k, v in report.items():
-            print(f"{k};{v}")
-
-
-def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
-    import os
-
-    from .agent import build as agent_build
-
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor)
-
-    statinfo = os.stat('bin/agent/agent')
-    return statinfo.st_size
-
-
-def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+def compute_config_build_tags(
+    targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
+):
     flavor = AgentFlavor[flavor]
 
     if targets == "all":
@@ -540,10 +323,25 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     if build_include is None:
         build_include = []
         for target in targets:
-            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor, platform=platform))
     else:
-        build_include = filter_incompatible_tags(build_include.split(","))
+        build_include = filter_incompatible_tags(build_include.split(","), platform=platform)
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
+
+
+@task
+def codegen_to_json(_, output=""):
+    """Emit build-tag data as JSON.
+
+    Writes to --output= path if provided (so callers can sidestep stdout noise
+    from dda/rich's console init on Windows), otherwise prints to stdout.
+    """
+    text = json.dumps(build_tags_codegen_payload(), indent=2, sort_keys=True)
+    if output:
+        with open(output, "w") as f:
+            f.write(text)
+    else:
+        print(text)

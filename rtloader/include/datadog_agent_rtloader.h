@@ -140,24 +140,26 @@ DATADOG_AGENT_RTLOADER_API int get_attr_bool(rtloader_t *rtloader, rtloader_pyob
                                              bool *value);
 
 /*! \fn int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char
-   *instance, const char *check_id, const char *check_name, rtloader_pyobject_t **check) \brief Attempts to instantiate
-   a datadog python check with the supplied configuration parameters. \param rtloader_t A rtloader_t * pointer to the
-   RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to instantiate.
+   *instance, const char *check_id, const char *check_name, const char *provider, rtloader_pyobject_t **check) \brief
+   Attempts to instantiate a datadog python check with the supplied configuration parameters. \param rtloader_t A
+   rtloader_t * pointer to the RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check
+   class we wish to instantiate.
     \param init_config A constant C-string with the init config for the check instance.
     \param instance A constant C-string with the instance-specific config for the check instance.
     \param check_id A constant C-string unique identifier for the check instance.
     \param check_name A constant C-string with the check name.
+    \param provider A constant C-string with the configuration provider name for the check instance.
     \param check A rtloader_pyobject_t ** pointer to the check instantiated if successful or NULL otherwise.
     \return An integer with the success of the operation. Zero for success, non-zero for failure.
     \sa rtloader_pyobject_t, rtloader_t
 */
 DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
                                          const char *instance, const char *check_id, const char *check_name,
-                                         rtloader_pyobject_t **check);
+                                         const char *provider, rtloader_pyobject_t **check);
 
 /*! \fn int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
-                                               const char *instance, const char *check_id, const char *check_name,
-                                               const char *agent_config, rtloader_pyobject_t **check)
+                                               const char *instance, const char *check_id, const char *check_name, const
+   char *provider, const char *agent_config, rtloader_pyobject_t **check)
     \brief Attempts to instantiate a datadog python check with the supplied configuration
     parameters.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
@@ -167,6 +169,7 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
     \param check_id A constant C-string unique identifier for the check instance.
     \param check_name A constant C-string with the check name.
     \param agent_config A constant C-string with the agent_config.
+    \param provider A constant C-string with the configuration provider name for the check instance.
     \param check A rtloader_pyobject_t ** pointer to the check instantiated if successful or NULL otherwise.
     \return An integer with the success of the operation. Zero for success, non-zero for failure.
     \sa rtloader_pyobject_t, rtloader_t, get_check
@@ -176,7 +179,17 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
 DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class,
                                                     const char *init_config, const char *instance, const char *check_id,
                                                     const char *check_name, const char *agent_config,
-                                                    rtloader_pyobject_t **check);
+                                                    const char *provider, rtloader_pyobject_t **check);
+
+/*! \fn char *discover_config(rtloader_t *, rtloader_pyobject_t *py_class, const char *service_json)
+    \brief Runs a check class's discovery bridge against a service JSON payload.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to run discovery against.
+    \param service_json A constant C-string containing service metadata for discovery.
+    \return A C-string with the JSON serialized discovered configs, or NULL if an error occurred.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API char *discover_config(rtloader_t *, rtloader_pyobject_t *py_class, const char *service_json);
 
 /*! \fn char *run_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Runs a check instance.
@@ -355,15 +368,6 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error
     The returned list must be freed by the caller.
 */
 DATADOG_AGENT_RTLOADER_API char *get_integration_list(rtloader_t *);
-
-/*! \fn char *get_interpreter_memory_usage(rtloader_t *)
-    \brief Routine to get python interpreter memory usage (pympler).
-    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-
-    TODO.
-*/
-DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 
 // AGGREGATOR API
 /*! \fn void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t)
@@ -685,6 +689,24 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
+
+/*! \fn void set_report_issue_cb(rtloader_t *, cb_report_issue_t)
+    \brief Sets a callback for reporting health platform issues from Python checks.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_report_issue_t prototype to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_report_issue_cb(rtloader_t *, cb_report_issue_t);
+
+/*! \fn void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t)
+    \brief Sets a callback for resolving health platform issues from Python checks.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_resolve_issue_t prototype to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t);
 
 #ifdef __cplusplus
 }

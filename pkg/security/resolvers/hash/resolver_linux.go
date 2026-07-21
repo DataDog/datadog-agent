@@ -25,13 +25,13 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 

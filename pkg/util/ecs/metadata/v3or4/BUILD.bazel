@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "v3or4",
+    srcs = [
+        "client.go",
+        "client_nodocker.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/telemetry",
+        "//pkg/util/log",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+    ],
+)
+
+dd_agent_go_test(
+    name = "v3or4_test",
+    srcs = ["client_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":v3or4"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
+    deps = [
+        "//pkg/util/ecs/metadata/testutil",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//require",
+    ],
+)

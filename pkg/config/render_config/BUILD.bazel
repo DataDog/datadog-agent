@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# keep: Config generator
+go_binary(
+    name = "render_config",
+    embed = [":render_config_lib"],
+    tags = ["render_config"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "render_config_lib",
+    srcs = ["render_config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/render_config",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_pmezard_go_difflib//difflib",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

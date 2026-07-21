@@ -50,6 +50,11 @@ func NewCSIProvider(cfg LibraryInjectionConfig) *CSIProvider {
 	}
 }
 
+// GetName returns the injection mode for this provider.
+func (p *CSIProvider) GetName() string {
+	return string(InjectionModeCSI)
+}
+
 // InjectInjector mutates the pod to add the APM injector using CSI volumes.
 func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
@@ -121,11 +126,11 @@ func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) Mutation
 			},
 		},
 	})
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		ReadOnly:  true,
-	})
+	}, cfg.ContainerName)
 
 	return MutationResult{
 		Status: MutationStatusInjected,

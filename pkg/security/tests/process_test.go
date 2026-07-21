@@ -21,20 +21,22 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	"github.com/creack/pty"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,7 +106,7 @@ func TestProcessEBPFLess(t *testing.T) {
 	}
 
 	t.Run("proc-scan", func(t *testing.T) {
-		err := retry.Do(func() error {
+		err := retry(t, func() error {
 			var found bool
 			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
 				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
@@ -116,7 +118,7 @@ func TestProcessEBPFLess(t *testing.T) {
 				return errors.New("not found")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NoError(t, err)
 	})
 }
@@ -1146,13 +1148,17 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
-	executable := which(t, "touch")
+	procRoot := "/proc"
+	processPid := strconv.Itoa(os.Getpid())
+	if env.IsContainerized() {
+		procRoot = "/host/proc"
+		processPid = "self"
+	}
+	openPath := fmt.Sprintf("%s/%s/maps", procRoot, processPid)
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
-		Expression: `open.file.path =~ "/proc/*/maps" && open.file.path != "/proc/${process.pid}/maps"`,
+		Expression: fmt.Sprintf(`open.file.path == "%s/${process.pid}/maps"`, procRoot),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
@@ -1162,8 +1168,8 @@ func TestProcessPIDVariable(t *testing.T) {
 	defer test.Close()
 
 	test.WaitSignalFromRule(t, func() error {
-		cmd := exec.Command(executable, fmt.Sprintf("/proc/%d/maps", os.Getpid()))
-		return cmd.Run()
+		_, err := os.Open(openPath)
+		return err
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "test_rule_var", rule.ID, "wrong rule triggered")
 	}, "test_rule_var")
@@ -1517,25 +1523,25 @@ func TestProcessExecExit(t *testing.T) {
 		if !ok {
 			t.Skip("not supported")
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 	} else {
 		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
 		if !ok {
 			t.Skip("not supported")
 		}
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 	}
 	if err != nil {
 		t.Error(err)
@@ -1878,7 +1884,6 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		test.WaitSignalFromRule(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
@@ -2494,12 +2499,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "symlink_true_exec",
-			Expression: `exec.file.name == "true"`,
+			Expression: `exec.file.name == "echo"`,
 		},
 	}
 
@@ -2511,7 +2514,7 @@ func TestSymLinkResolution(t *testing.T) {
 
 	t.Run("exec true via symlink", func(t *testing.T) {
 		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
-		err := os.Symlink("/bin/true", tmpLink)
+		err := os.Symlink("/bin/echo", tmpLink)
 		require.NoError(t, err)
 
 		test.WaitSignalFromRule(t, func() error {
@@ -2526,4 +2529,280 @@ func TestSymLinkResolution(t *testing.T) {
 		}, "symlink_true_exec")
 		assert.NoError(t, err)
 	})
+}
+
+func TestProcessSID(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("process.sid not supported in ebpfless mode")
+	}
+
+	shPath := which(t, "sh")
+	truePath := which(t, "true")
+
+	const sidTestEnv = "DD_CWS_SID_TEST"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_sid_after_setsid",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in ["%s"] && process.sid != 0`, shPath, sidTestEnv),
+		},
+		{
+			ID:         "test_sid_inherited",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in ["%s"] && process.sid != 0`, truePath, sidTestEnv),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("sid-updated-after-setsid", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			cmd := exec.Command(shPath, "-c", "true")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			cmd.Env = []string{sidTestEnv + "=1"}
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_sid_after_setsid")
+			assert.Equal(t, event.ProcessContext.Pid, event.ProcessContext.SID, "after setsid, SID should equal PID (process is session leader)")
+			assert.NotZero(t, event.ProcessContext.SID, "SID should not be zero")
+		}, "test_sid_after_setsid")
+	})
+
+	t.Run("sid-inherited-not-leader", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			// "; :" forces sh to fork before exec'ing truePath, otherwise
+			// sh would exec-optimize into true and become the session leader itself.
+			cmd := exec.Command(shPath, "-c", truePath+"; :")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			cmd.Env = []string{sidTestEnv + "=1"}
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_sid_inherited")
+			assert.NotEqual(t, event.ProcessContext.Pid, event.ProcessContext.SID, "true should not be the session leader")
+			assert.NotZero(t, event.ProcessContext.SID, "SID should not be zero")
+			foundLeader := false
+			for a := event.ProcessContext.Ancestor; a != nil; a = a.Ancestor {
+				if a.Pid == event.ProcessContext.SID {
+					foundLeader = true
+					break
+				}
+			}
+			assert.True(t, foundLeader, "SID should match an ancestor's PID (the session leader)")
+		}, "test_sid_inherited")
+	})
+}
+
+// TestProcessEnrichLongArgsOnMatch verifies that when an exec event with
+// truncated argv/envp matches a rule, EnrichRuleEvent backfills the full
+// command line and environment from /proc/<pid> before serialization.
+func TestProcessEnrichLongArgsOnMatch(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("enrichment on rule match is only implemented for the eBPF probe")
+	}
+
+	bashExec, err := whichNonFatal("bash")
+	if err != nil {
+		t.Skipf("skipping: bash not available on this system (%v); enrichment requires an argv-preserving shell", err)
+	}
+
+	const argMarker = "DD_CWS_ENRICH_TEST_MARKER_v1"
+	const envMarker = "DD_CWS_ENRICH_ENV_MARKER_v1"
+
+	const oversizeArgLen = sharedconsts.MaxArgEnvSize * 3
+	const overflowArgCount = sharedconsts.MaxArgsEnvsSize * 2
+
+	longArg := strings.Repeat("A", oversizeArgLen)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_enrich_args",
+			Expression: fmt.Sprintf(`exec.file.name == "bash" && exec.argv in ["%s"]`, argMarker),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// make sure bash stays the live for /proc to be readable.
+	const shScript = "sleep 30; :"
+
+	runCase := func(name string, extraArgs []string, validate func(event *model.Event)) {
+		t.Run(name, func(t *testing.T) {
+			args := append([]string{"-c", shScript, argMarker}, extraArgs...)
+
+			envp := []string{
+				"PATH=" + os.Getenv("PATH"),
+				envMarker + "=1",
+			}
+			for i := 0; i < sharedconsts.MaxArgsEnvsSize*2; i++ {
+				envp = append(envp, fmt.Sprintf("DD_CWS_FILLER_%04d=%s", i, utils.RandString(64)))
+			}
+
+			var cmd *exec.Cmd
+			err := test.GetEventSent(t, func() error {
+				cmd = exec.Command(bashExec, args...)
+				cmd.Env = envp
+				if err := cmd.Start(); err != nil {
+					return err
+				}
+				return nil
+			}, func(rule *rules.Rule, event *model.Event) bool {
+				assertTriggeredRule(t, rule, "test_rule_enrich_args")
+				validate(event)
+				return true
+			}, getEventTimeout, "test_rule_enrich_args")
+			if err != nil {
+				t.Error(err)
+			}
+
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		})
+	}
+
+	// single arg longer than MaxArgEnvSize: kernel would only ship the
+	// first MaxArgEnvSize-4 chars + "..."; /proc has the full string.
+	runCase("single-oversize-arg", []string{longArg}, func(event *model.Event) {
+		argv, err := event.GetFieldValue("exec.argv")
+		require.NoError(t, err)
+		argvSlice, ok := argv.([]string)
+		require.True(t, ok, "exec.argv should be []string, got %T", argv)
+
+		require.GreaterOrEqual(t, len(argvSlice), 4, "argv too short: %v", argvSlice)
+		assert.Equal(t, "-c", argvSlice[0])
+		assert.Equal(t, shScript, argvSlice[1])
+		assert.Equal(t, argMarker, argvSlice[2])
+		assert.Equal(t, longArg, argvSlice[3], "long arg must be re-resolved from /proc in full (got len=%d, want=%d)", len(argvSlice[3]), oversizeArgLen)
+
+		assert.False(t, event.Exec.ArgsTruncated)
+	})
+
+	// many args above MaxArgsEnvsSize: kernel stops after the cap; /proc
+	// still has them all.
+	runCase("many-args", func() []string {
+		extras := make([]string, overflowArgCount)
+		for i := range extras {
+			extras[i] = fmt.Sprintf("filler-arg-%05d", i)
+		}
+		return extras
+	}(), func(event *model.Event) {
+		argv, err := event.GetFieldValue("exec.argv")
+		require.NoError(t, err)
+		argvSlice, ok := argv.([]string)
+		require.True(t, ok, "exec.argv should be []string, got %T", argv)
+
+		expectedLen := 3 + overflowArgCount
+		assert.Equal(t, expectedLen, len(argvSlice))
+
+		if len(argvSlice) == expectedLen {
+			assert.Equal(t, fmt.Sprintf("filler-arg-%05d", overflowArgCount-1), argvSlice[expectedLen-1])
+		}
+
+		assert.False(t, event.Exec.ArgsTruncated)
+
+		envp, err := event.GetFieldValue("exec.envp")
+		require.NoError(t, err)
+		envpSlice, ok := envp.([]string)
+		require.True(t, ok, "exec.envp should be []string, got %T", envp)
+		assert.Greater(t, len(envpSlice), sharedconsts.MaxArgsEnvsSize, "envp should exceed the kernel cap after enrichment (got %d)", len(envpSlice))
+
+		foundMarker := slices.ContainsFunc(envpSlice, func(e string) bool {
+			return strings.HasPrefix(e, envMarker+"=")
+		})
+		assert.True(t, foundMarker, "envMarker should be present in enriched envp")
+
+		assert.False(t, event.Exec.EnvsTruncated)
+	})
+}
+
+// TestProcessEnrichLongArgsOnKillRule verifies that argv enrichment runs
+// before HandleActions, so that a rule whose kill action SIGKILLs the
+// matched process still ships the full untruncated argv. With the previous
+// ordering (HandleActions before EnrichRuleEvent) the matched PID's /proc
+// entry was already gone by enrichment time and the alert kept the
+// kernel-truncated argv.
+func TestProcessEnrichLongArgsOnKillRule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("enrichment on rule match is only implemented for the eBPF probe")
+	}
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	bashExec, err := whichNonFatal("bash")
+	if err != nil {
+		t.Skipf("skipping: bash not available on this system (%v); enrichment requires an argv-preserving shell", err)
+	}
+
+	const argMarker = "DD_CWS_ENRICH_KILL_MARKER_v1"
+	const oversizeArgLen = sharedconsts.MaxArgEnvSize * 3
+	longArg := strings.Repeat("A", oversizeArgLen)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_enrich_kill",
+		Expression: fmt.Sprintf(`exec.file.name == "bash" && exec.argv in ["%s"]`, argMarker),
+		Actions: []*rules.ActionDefinition{{
+			Kill: &rules.KillDefinition{
+				Signal: "SIGKILL",
+			},
+		}},
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// long sleep so the process is alive long enough for the agent to
+	// match, enrich and kill. If enrichment ran after HandleActions the
+	// SIGKILL would race ahead and /proc/<pid> would be gone.
+	const shScript = "sleep 30; :"
+	var cmd *exec.Cmd
+
+	err = test.GetEventSent(t, func() error {
+		cmd = exec.Command(bashExec, "-c", shScript, argMarker, longArg)
+		return cmd.Start()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_rule_enrich_kill")
+
+		argv, err := event.GetFieldValue("exec.argv")
+		require.NoError(t, err)
+		argvSlice, ok := argv.([]string)
+		require.True(t, ok, "exec.argv should be []string, got %T", argv)
+
+		require.GreaterOrEqual(t, len(argvSlice), 4, "argv too short: %v", argvSlice)
+		assert.Equal(t, "-c", argvSlice[0])
+		assert.Equal(t, shScript, argvSlice[1])
+		assert.Equal(t, argMarker, argvSlice[2])
+		assert.Equal(t, longArg, argvSlice[3], "long arg must be re-resolved from /proc before kill (got len=%d, want=%d)", len(argvSlice[3]), oversizeArgLen)
+
+		assert.False(t, event.Exec.ArgsTruncated)
+		return true
+	}, getEventTimeout, "test_rule_enrich_kill")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// agent's SIGKILL should already have reaped the process; Wait
+	// returns the exit status (or error if already gone) - either is
+	// fine, we just need to avoid leaving a zombie.
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Wait()
+	}
 }

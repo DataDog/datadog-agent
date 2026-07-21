@@ -20,9 +20,9 @@ var (
 				return 0, false
 			}
 			return int(pc.Process.Pid), true
-		}, nil),
+		}, nil, eval.VariableOpts{}),
 		"builtins.uuid4": eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
 			return uuid.New().String(), true
-		}, nil),
+		}, nil, eval.VariableOpts{}),
 	}
 )

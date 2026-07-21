@@ -1,0 +1,67 @@
+name: Update ebpf-profiler to branch
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [ebpf-profiler-datadog-branch-updated]
+
+permissions: {}
+
+jobs:
+  update-ebpf-profiler:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: .go-version
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Update go.mod replace directive to datadog branch
+        run: sed -i "s|go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v[^ ]*|go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog|" go.mod
+
+      - name: Set up Bazel cache
+        uses: ./.github/actions/bazel-cache
+
+      - name: Tidy and generate licenses
+        run: |
+          go mod tidy
+          dda inv -- -e tidy
+          dda inv -- -e install-tools
+          dda inv -- -e generate-licenses
+
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.update-ebpf-profiler-branch.create-pr
+
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        name: Create draft PR
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
+          branch: update-ebpf-profiler-to-datadog
+          commit-message: "chore(deps): switch ebpf-profiler replace directive to datadog branch"
+          title: "Bump opentelemetry-ebpf-profiler dependency to latest fork version"
+          body: |
+            ### What does this PR do?
+            Bump profiler's version to match latest rebase on datadog's fork.
+
+            ### Motivation
+
+            ### Describe how you validated your changes
+
+            ### Additional Notes
+          draft: true
+          team-reviewers: |
+            profiling-full-host
+            opentelemetry-agent
+          labels: changelog/no-changelog,qa/no-code-change

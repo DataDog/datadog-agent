@@ -12,14 +12,20 @@ package kubernetesapiserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -27,7 +33,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -42,14 +47,21 @@ const (
 
 	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
 	eventTokenKey                      = "event"
+	componentStatusMaxVersionString    = "v1.35.0"
 	maxEventCardinality                = 300
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
+	defaultEventCollectionBufferSize   = 10000
+
+	// eventCollectionModePoll re-opens a watch against the API server on every check run (legacy behavior).
+	eventCollectionModePoll = "poll"
+	// eventCollectionModeWatch streams events through a single persistent reflector-backed watch.
+	eventCollectionModeWatch = "watch"
 )
 
 var (
-	kubeEvents = telemetry.NewCounterWithOpts(
+	kubeEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"kube_events",
 		[]string{"kind", "component", "type", "reason", "source"},
@@ -57,13 +69,15 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
-	emittedEvents = telemetry.NewCounterWithOpts(
+	emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
 		[]string{"kind", "type", "source", "is_bundled"},
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+
+	componentStatusMaxVersion = semver.MustParse(componentStatusMaxVersionString)
 )
 
 // KubeASConfig is the config of the API server.
@@ -73,12 +87,14 @@ type KubeASConfig struct {
 	UseComponentStatus  bool `yaml:"use_component_status"`
 
 	// Event collection configuration
-	CollectEvent             bool `yaml:"collect_events"`
-	MaxEventCollection       int  `yaml:"max_events_per_run"`
-	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
-	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
-	UnbundleEvents           bool `yaml:"unbundle_events"`
-	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
+	CollectEvent              bool   `yaml:"collect_events"`
+	MaxEventCollection        int    `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
+	EventCollectionTimeoutMs  int    `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents        int    `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents            bool   `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents   bool   `yaml:"bundle_unspecified_events"`
+	EventCollectionMode       string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
+	EventCollectionBufferSize int    `yaml:"event_collection_buffer_size"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -107,10 +123,11 @@ func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
 }
 
 type eventCollection struct {
-	LastResVer  string
-	LastTime    time.Time
-	Filter      string
-	Transformer eventTransformer
+	LastResVer     string
+	LastTime       time.Time
+	Filter         string
+	Transformer    eventTransformer
+	EventCollector *apiserver.EventCollector
 }
 
 // KubeASCheck grabs metrics and events from the API server.
@@ -121,6 +138,11 @@ type KubeASCheck struct {
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
+
+	mu                     sync.Mutex
+	eventCollectorRunning  bool
+	eventCollectorCanceled bool // set by Cancel; prevents startEventCollection after teardown
+	informersStopCh        chan struct{}
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -129,8 +151,22 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 	c.UseComponentStatus = true
+	c.EventCollectionMode = eventCollectionModePoll
 
-	return yaml.Unmarshal(data, c)
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+
+	if c.EventCollectionMode != eventCollectionModePoll && c.EventCollectionMode != eventCollectionModeWatch {
+		return fmt.Errorf("invalid event_collection_mode %q: must be %q or %q", c.EventCollectionMode, eventCollectionModePoll, eventCollectionModeWatch)
+	}
+
+	return nil
+}
+
+// useEventWatchCollection reports whether events should be collected via the persistent reflector-backed watch.
+func (c *KubeASConfig) useEventWatchCollection() bool {
+	return c.EventCollectionMode == eventCollectionModeWatch
 }
 
 // NewKubeASCheck returns a new KubeASCheck
@@ -156,8 +192,8 @@ func newCheck(tagger tagger.Component) check.Check {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}
@@ -176,6 +212,10 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
 
+	if k.instance.EventCollectionBufferSize < 1 {
+		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
+	}
+
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
@@ -190,7 +230,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 			Source: "datadog-cluster-autoscaler",
 		})
 	}
-
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
 	// When we use only the bundled transformer, we apply filtered_event_types.
 	// When we use only the unbundled transformer, we apply collected_event_types.
@@ -219,58 +258,61 @@ func (k *KubeASCheck) Run() error {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	// The Cluster Agent will passed in the `skip_leader_election` bool.
+
+	// Determine current leadership (unless the check is configured as a cluster check)
+	isCurrentLeader := k.instance.LeaderSkip
 	if !k.instance.LeaderSkip {
-		// Only run if Leader Election is enabled.
 		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
-			if errLeader == apiserver.ErrNotLeader {
-				// Only the leader can instantiate the apiserver client.
-				log.Debugf("Not leader (leader is %q). Skipping the Kubernetes API Server check", leader)
-				return nil
+			if errLeader != apiserver.ErrNotLeader {
+				_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
+				return errLeader
 			}
-
-			_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
-			return err
+			log.Debugf("Not leader (leader is %q). Skipping the Kubernetes API Server check", leader)
+			isCurrentLeader = false
+		} else {
+			log.Tracef("Current leader: %q, running the Kubernetes API Server check", leader)
+			isCurrentLeader = true
 		}
-
-		log.Tracef("Current leader: %q, running the Kubernetes API Server check", leader)
 	}
-	// API Server client initialisation on first run
+
+	if !isCurrentLeader {
+		if k.instance.useEventWatchCollection() {
+			k.stopEventCollection()
+		}
+		return nil
+	}
+
+	// API Server client init on first run as leader.
 	if k.ac == nil {
-		// Using GetAPIClient (no wait) as check we'll naturally retry with each check run
+		// Using GetAPIClient (no wait) so the check retries naturally on each run.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
 			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
 			return err
 		}
 
-		err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
-		if err != nil {
+		if err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery()); err != nil {
 			log.Errorf("Could not initialize the global resource type cache: %s", err)
 		}
 
-		// We detect OpenShift presence for quota collection
 		if k.instance.CollectOShiftQuotas {
 			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
 		}
 	}
 
+	if k.instance.CollectEvent && k.instance.useEventWatchCollection() {
+		if err := k.startEventCollection(); err != nil {
+			return err
+		}
+	}
+
 	// Running the Control Plane status check.
-	if k.instance.UseComponentStatus {
-		err = k.componentStatusCheck(sender)
-		if err != nil {
-			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
-		}
-	} else {
-		err = k.controlPlaneHealthCheck(context.TODO(), sender)
-		if err != nil {
-			k.Warnf("Could not collect control plane status from health checks: %s", err.Error()) //nolint:errcheck
-		}
+	if err := k.componentStatusCheck(sender); err != nil {
+		k.Warnf("failed to read component status: %s", err.Error())
 	}
 
 	// Running OpenShift ClusterResourceQuota collection if available
@@ -284,7 +326,14 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if k.instance.CollectEvent {
-		events, err := k.eventCollectionCheck()
+		var events []event.Event
+		var err error
+		if k.instance.useEventWatchCollection() {
+			events, err = k.newEventCollectionCheck(sender)
+		} else {
+			events, err = k.legacyEventCollectionCheck()
+		}
+
 		if err != nil {
 			return err
 		}
@@ -304,7 +353,107 @@ func (k *KubeASCheck) Run() error {
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
+// startEventCollection builds a new EventCollector and starts it. It is idempotent.
+func (k *KubeASCheck) startEventCollection() error {
+	k.mu.Lock()
+	if k.eventCollectorCanceled || k.eventCollectorRunning {
+		k.mu.Unlock()
+		return nil
+	}
+	ec := k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
+	if ec == nil {
+		k.mu.Unlock()
+		return errors.New("could not create EventCollector: invalid buffer size")
+	}
+	k.eventCollection.EventCollector = ec
+	k.informersStopCh = make(chan struct{})
+	stopCh := k.informersStopCh
+	k.eventCollectorRunning = true
+	k.mu.Unlock()
+
+	// If the checkpoint is present, seed the watermark from it so the initial list only forwards newer events.
+	resVer, err := k.readEventCheckpointWithRetry()
+	if err != nil {
+		log.Warnf("Could not read persisted event checkpoint after retries, starting fresh: %s", err)
+	} else {
+		ec.SetCheckpoint(resVer)
+	}
+
+	return ec.Start(stopCh)
+}
+
+// readEventCheckpointWithRetry reads the persisted event checkpoint, retrying with backoff
+func (k *KubeASCheck) readEventCheckpointWithRetry() (string, error) {
+	const maxAttempts = 5
+
+	delay := time.Second
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
+		if err == nil {
+			return resVer, nil
+		}
+		lastErr = err
+		if attempt < maxAttempts {
+			log.Warnf("Could not read persisted event checkpoint (attempt %d/%d): %s", attempt, maxAttempts, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return "", lastErr
+}
+
+// stopEventCollection stops the running EventCollector by closing its stop
+// channel. It is idempotent.
+func (k *KubeASCheck) stopEventCollection() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if !k.eventCollectorRunning {
+		return
+	}
+
+	close(k.informersStopCh)
+	k.eventCollection.EventCollector = nil
+	k.eventCollectorRunning = false
+}
+
+// Cancel stops the EventCollector when the check is unscheduled.
+func (k *KubeASCheck) Cancel() {
+	k.mu.Lock()
+	k.eventCollectorCanceled = true
+	k.mu.Unlock()
+	k.stopEventCollection()
+}
+
+func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Event, error) {
+	k.mu.Lock()
+	ec := k.eventCollection.EventCollector
+	k.mu.Unlock()
+
+	if ec == nil {
+		return nil, nil
+	}
+
+	events := ec.Drain()
+
+	sender.Gauge("datadog.cluster_agent.kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
+
+	// Persist the delivered-up-to checkpoint so a restart resumes from here.
+	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, ec.Checkpoint(), time.Now()); err != nil {
+		k.Warnf("Could not persist event checkpoint: %s", err.Error())
+	}
+
+	ddevents, errs := k.eventCollection.Transformer.Transform(events)
+
+	for _, err := range errs {
+		k.Warnf("Error transforming events: %s", err.Error())
+	}
+
+	return ddevents, nil
+}
+
+func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
@@ -393,35 +542,73 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 }
 
 func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
-	componentsStatus, err := k.ac.ComponentStatuses()
+	serverVersion, err := k.ac.Cl.Discovery().ServerVersion()
 	if err != nil {
 		return err
 	}
 
-	return k.parseComponentStatus(sender, componentsStatus)
-}
+	log.Debugf("Kubernetes API Server version: %s", serverVersion)
+	semverServerVersion, err := semver.NewVersion(serverVersion.GitVersion)
+	if err != nil {
+		log.Warnf("Could not parse kubernetes API Server version %s: %s.", serverVersion, err.Error())
+		return err
+	}
 
-func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender.Sender) error {
-	ready, err := k.ac.IsAPIServerReady(ctx)
+	// the ComponentStatus API was deprecated in Kubernetes 1.19.
+	// As of today the current version still supports it be we want to make the cut here to prevent future issues.
+	// Minimum version to use the new readyz endpoint is 1.35.0.
+	// or allow users to force the use of the old API using the `use_component_status` config option.
+	if semverServerVersion.LessThan(componentStatusMaxVersion) || k.instance.UseComponentStatus {
+		log.Debugf("Kubernetes API Server version %s is lower than %s. ComponentStatus collection will be done using 'core/v1.ComponentStatus'", serverVersion, componentStatusMaxVersionString)
 
-	var (
-		msg    string
-		status servicecheck.ServiceCheckStatus
-	)
-
-	if ready {
-		msg = "ok"
-		status = servicecheck.ServiceCheckOK
-	} else {
-		status = servicecheck.ServiceCheckCritical
+		componentsStatus, err := k.ac.ComponentStatuses()
 		if err != nil {
-			msg = err.Error()
-		} else {
-			msg = "unknown error"
+			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error())
+			return err
+		}
+
+		err = k.parseComponentStatus(sender, componentsStatus)
+
+		if err != nil {
+			k.Warnf("Could not parse control plane status from ComponentStatus: %s", err.Error())
+			return err
+		}
+	} else {
+		log.Debugf("Kubernetes API Server version %s is higher than %s. ComponentStatus collection will be done using 'readyz'", serverVersion, componentStatusMaxVersionString)
+
+		err = k.controlPlaneHealthCheck(sender)
+		if err != nil {
+			k.Warnf("Could not collect control plane status from health checks: %s", err.Error())
+			return err
 		}
 	}
 
-	sender.ServiceCheck(KubeControlPaneCheck, status, "", nil, msg)
+	return nil
+}
+
+func (k *KubeASCheck) controlPlaneHealthCheck(sender sender.Sender) error {
+	apiServerReady, etcdReady, err := k.ac.IsAPIServerReady()
+
+	if err != nil {
+		return err
+	}
+
+	var (
+		status  servicecheck.ServiceCheckStatus
+		message string
+	)
+
+	for component, ready := range map[string]bool{"apiserver": apiServerReady, "etcd": etcdReady} {
+		status = servicecheck.ServiceCheckCritical
+		message = component + " not ready"
+
+		if ready {
+			status = servicecheck.ServiceCheckOK
+			message = "ok"
+		}
+
+		sender.ServiceCheck(KubeControlPaneCheck, status, "", []string{"component:" + component}, message)
+	}
 
 	return nil
 }

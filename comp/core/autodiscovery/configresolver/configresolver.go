@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
+// ErrServiceNotReady is transient: the service isn't ready yet and the config
+// will resolve on a later reconcile. Callers must not treat it as a misconfiguration.
+var ErrServiceNotReady = errors.New("unable to resolve, service not ready")
+
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
 // variables in the config init, instances, and logs config.
 // When there is an error, it continues replacing. When there are multiple
@@ -40,6 +44,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricConfig:    tpl.MetricConfig,
 		LogsConfig:      tpl.LogsConfig,
 		ADIdentifiers:   tpl.ADIdentifiers,
+		CELSelector:     tpl.CELSelector,
 		ClusterCheck:    tpl.ClusterCheck,
 		Provider:        tpl.Provider,
 		ServiceID:       svc.GetServiceID(),
@@ -48,6 +53,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
 		ImageName:       svc.GetImageName(),
+		Discovery:       tpl.Discovery,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
@@ -57,7 +63,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
-		return resolvedConfig, errors.New("unable to resolve, service not ready")
+		return resolvedConfig, ErrServiceNotReady
 	}
 
 	var tags []string
@@ -142,7 +148,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 
 	if config.IsLogConfig() {
 		p := tmplvar.YAMLParser
-		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer {
+		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer || config.Provider == names.InstrumentationChecks {
 			p = tmplvar.JSONParser
 		}
 		res = append(res, dataToResolve{

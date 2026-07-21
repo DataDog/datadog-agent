@@ -14,7 +14,7 @@ const defaultNvkindVersion = "eeeb9ca30763177fbe7b4d10fb6b7e21725e2295"
 
 // defaultHostGoVersion is the default version of Go to install in the host. This version
 // must be compatible with the nvkind utility
-const defaultHostGoVersion = "1.23"
+const defaultHostGoVersion = "1.25"
 
 // defaultKindNodeImage is the default image to use for the kind nodes.
 const defaultKindNodeImage = "kindest/node"
@@ -23,7 +23,7 @@ const defaultKindNodeImage = "kindest/node"
 // validate the GPU setup with the default CUDA installation. Note that the CUDA
 // version in this image must be equal or less than the one installed in the
 // AMI.
-const defaultCudaSanityCheckImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
+const defaultCudaSanityCheckImage = "docker.io/nvidia/cuda:12.6.3-base-ubuntu22.04"
 
 // KindClusterOptions contains the options for creating a kind cluster with the Nvidia GPU operator
 type KindClusterOptions struct {

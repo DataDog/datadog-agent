@@ -15,38 +15,8 @@ type sizeComputerFunc[T any] func(T) int
 
 type consumeChunkFunc[T any] func(T) error
 
-// computeProtoEventSize returns the size of a tags stream event in bytes
+// computeTagsEventInBytes returns the size of a tags stream event in bytes
 func computeTagsEventInBytes(event *pb.StreamTagsEvent) int { return proto.Size(event) }
-
-// processChunksInPlace splits the passed slice into contiguous chunks such that the total size of each chunk is at most maxChunkSize
-// and applies the consume function to each of these chunks
-//
-// The size of an item is computed with computeSize
-// If an item has a size large than maxChunkSize, it is placed in a singleton chunk (chunk with one item)
-//
-// The consume function is applied to different chunks in-place, without any need extra memory allocation
-func processChunksInPlace[T any](slice []T, maxChunkSize int, computeSize sizeComputerFunc[T], consume consumeChunkFunc[[]T]) error {
-	idx := 0
-	for idx < len(slice) {
-		chunkSize := computeSize(slice[idx])
-		j := idx + 1
-
-		for j < len(slice) {
-			eventSize := computeSize(slice[j])
-			if chunkSize+eventSize > maxChunkSize {
-				break
-			}
-			chunkSize += eventSize
-			j++
-		}
-
-		if err := consume(slice[idx:j]); err != nil {
-			return err
-		}
-		idx = j
-	}
-	return nil
-}
 
 func splitBySize[T any](slice []T, maxChunkSize int, computeSize func(T) int) [][]T {
 	var chunks [][]T
@@ -75,7 +45,7 @@ func splitBySize[T any](slice []T, maxChunkSize int, computeSize func(T) int) []
 // The size of an item is computed with computeSize
 // If an item has a size large than maxChunkSize, it is placed in a singleton chunk (chunk with one item)
 //
-// Prefer using processChunksInPlace for better CPU and memory performance. This implementation is only kept for benchmarking purposes.
+// Prefer using grpc.ProcessChunksInPlace for better CPU and memory performance. This implementation is only kept for benchmarking purposes.
 func processChunksWithSplit[T any](slice []T, maxChunkSize int, computeSize sizeComputerFunc[T], consume consumeChunkFunc[[]T]) error {
 	chunks := splitBySize(slice, maxChunkSize, computeSize)
 

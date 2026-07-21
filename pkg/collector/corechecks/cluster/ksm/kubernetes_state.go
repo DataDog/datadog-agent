@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -125,6 +126,25 @@ const (
 	// enabled on the node agents, because unassigned pods cannot be collected
 	// from node agents.
 	clusterUnassignedPodCollection podCollectionMode = "cluster_unassigned"
+
+	// clusterAggregatesOnlyPodCollection is the authoritative source for the
+	// cluster-aggregate `.total` metric family. It emits only the `.total`
+	// aggregators (no per-pod metrics). Meant to run on the cluster-agent or
+	// a cluster check runner (same isRunningOnNodeAgent guard as
+	// clusterUnassignedPodCollection) — never on a node agent. When a cluster
+	// check runner pool exists (a prerequisite for node_kubelet's
+	// clusterUnassignedPodCollection companion mode), the check's normal
+	// cluster-check dispatch (cluster_check: true in its instance config)
+	// assigns this to exactly one runner in that pool, same as any other
+	// cluster check; it only falls back to running directly on the
+	// cluster-agent if no runner pool exists. Other modes suppress these
+	// aggregators so the cluster sees exactly one authoritative source.
+	//
+	// Pod data is sourced via the same direct API-server reflector mechanism
+	// the default/cluster_unassigned modes use — not workloadmeta — to avoid
+	// depending on workloadmeta's pod store lifecycle (whether it's running,
+	// and whether it's already fully populated) for correctness.
+	clusterAggregatesOnlyPodCollection podCollectionMode = "cluster_aggregates_only"
 )
 
 // KSMConfig contains the check config parameters
@@ -230,8 +250,16 @@ type KSMConfig struct {
 	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 
 	// PodCollectionMode defines how pods are collected.
-	// Accepted values are: "default", "node_kubelet", and "cluster_unassigned".
+	// Accepted values are: "default", "node_kubelet", "cluster_unassigned",
+	// and "cluster_aggregates_only".
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
+
+	// ClusterAggregatesEnabled tells a node_kubelet or cluster_unassigned
+	// instance to suppress its .total accumulators, because a dedicated
+	// cluster_aggregates_only instance is deployed elsewhere in the cluster as
+	// the sole authoritative source. Off by default (legacy behavior). Set by
+	// the operator/helm on the suppressing instances alongside that deployment.
+	ClusterAggregatesEnabled bool `yaml:"cluster_aggregates_enabled"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -243,6 +271,8 @@ type KSMCheck struct {
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
 	cancel                     context.CancelFunc
+	cancelCR                   context.CancelFunc
+	crMu                       sync.Mutex
 	isCLCRunner                bool
 	isRunningOnNodeAgent       bool
 	clusterIDTagValue          string
@@ -290,11 +320,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = pkgconfigsetup.Datadog()
 
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}
@@ -325,9 +355,18 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	// Start custom resource discovery if not
-	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
-		k.customResourceDiscoverer = customresources.StartDiscovery()
+	// Start custom resource discovery if not running in a mode that only
+	// consumes pods from workloadmeta (no API discovery needed in those modes).
+	if k.instance.usesCustomResourceMetrics() &&
+		k.instance.PodCollectionMode != nodeKubeletPodCollection &&
+		k.instance.PodCollectionMode != clusterAggregatesOnlyPodCollection {
+		k.crMu.Lock()
+		if k.cancelCR == nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			k.customResourceDiscoverer = customresources.StartDiscovery(ctx)
+			k.cancelCR = cancel
+		}
+		k.crMu.Unlock()
 	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
@@ -372,10 +411,26 @@ func (k *KSMCheck) buildStores() error {
 
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
-		// In this case we don't need to set up anything related to the API
-		// server.
+		// Pods come from the kubelet, nothing API-server related to set up.
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
+	case clusterAggregatesOnlyPodCollection:
+		collectors = []string{"pods"}
+		k.setupLabelsAndAnnotationsAsTagsFunc()
+
+		// Watch pods directly via the same API-server client mechanism as
+		// defaultPodCollection, rather than through workloadmeta.
+		apiServerClient, err = apiserver.GetAPIClient()
+		if err != nil {
+			return err
+		}
+
+		err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
+		if err != nil {
+			return err
+		}
+
+		builder.WithKubeClient(apiServerClient.InformerCl)
 	case defaultPodCollection, clusterUnassignedPodCollection:
 		// We can try to get the API Client directly because this code will be retried if it fails
 		apiServerClient, err = apiserver.GetAPIClient()
@@ -404,7 +459,7 @@ func (k *KSMCheck) buildStores() error {
 
 		// Enable the KSM default collectors if the config collectors list is empty.
 		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
+			collectors = defaultCollectors()
 		}
 
 		builder.WithKubeClient(apiServerClient.InformerCl)
@@ -431,7 +486,6 @@ func (k *KSMCheck) buildStores() error {
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	k.cancel = cancel
 	builder.WithContext(ctx)
 
 	resyncPeriod := k.instance.ResyncPeriod
@@ -469,10 +523,12 @@ func (k *KSMCheck) buildStores() error {
 	}
 
 	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		cancel()
 		return err
 	}
 
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
+		cancel()
 		return err
 	}
 
@@ -490,6 +546,13 @@ func (k *KSMCheck) buildStores() error {
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
+
+	// Cancel the old reflectors after the new store is created. Cancelling the
+	// old context ensures previous reflectors release their resources.
+	if k.cancel != nil {
+		k.cancel()
+	}
+	k.cancel = cancel
 
 	return nil
 }
@@ -535,6 +598,10 @@ func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+func (c *KSMConfig) usesCustomResourceMetrics() bool {
+	return len(c.CustomResource.Spec.Resources) > 0
+}
+
 type customResources struct {
 	collectors []string
 	factories  []customresource.RegistryFactory
@@ -555,6 +622,25 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 			collectors: collectors,
 			factories: []customresource.RegistryFactory{
 				customresources.NewExtendedPodFactoryForKubelet(),
+			},
+		}
+	}
+
+	if k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection {
+		// Enable ONLY the extended pod store — it produces the 4
+		// owner-tagged source metrics for the .total family. Deliberately
+		// omit the plain "pods" collector so the standard pod store (~54
+		// per-pod generators, all discarded by processMetrics in this mode)
+		// is never built or watched. extendedCollectors["pods"] is
+		// "core/v1, Resource=pods_extended", the exact key
+		// WithCustomResourceStoreFactories registers NewExtendedPodFactory
+		// under (util.GVRFromType("pods_extended", *v1.Pod)), so BuildStores
+		// finds and builds it. Returning nil collectors instead would build
+		// neither store and make .total disappear.
+		return customResources{
+			collectors: []string{extendedCollectors["pods"]},
+			factories: []customresource.RegistryFactory{
+				customresources.NewExtendedPodFactory(c),
 			},
 		}
 	}
@@ -582,12 +668,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
-	customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
-	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
+	if k.instance.usesCustomResourceMetrics() {
+		customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
+		customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
 
-	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
-	maps.Copy(clients, customResourceClients)
-	factories = append(factories, customResourceFactories...)
+		collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+		maps.Copy(clients, customResourceClients)
+		factories = append(factories, customResourceFactories...)
+	}
 
 	return customResources{
 		collectors: collectors,
@@ -650,18 +738,21 @@ func (k *KSMCheck) Run() error {
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
 	// Only check if discoverer was initialized (not in node_kubelet mode)
-	if k.customResourceDiscoverer != nil {
+	k.crMu.Lock()
+	discoverer := k.customResourceDiscoverer
+	k.crMu.Unlock()
+	if discoverer != nil {
 		wasUpdated := false
-		k.customResourceDiscoverer.SafeRead(func() {
-			wasUpdated = k.customResourceDiscoverer.WasUpdated
+		discoverer.SafeRead(func() {
+			wasUpdated = discoverer.WasUpdated
 		})
 
 		if wasUpdated {
 			if err := k.buildStores(); err != nil {
 				log.Errorf("Failed to rebuild KSM: %v", err)
 			}
-			k.customResourceDiscoverer.SafeWrite(func() {
-				k.customResourceDiscoverer.WasUpdated = false
+			discoverer.SafeWrite(func() {
+				discoverer.WasUpdated = false
 			})
 		}
 	}
@@ -755,12 +846,49 @@ func (k *KSMCheck) Cancel() {
 	if k.cancel != nil {
 		k.cancel()
 	}
+	k.crMu.Lock()
+	if k.cancelCR != nil {
+		log.Infof("Shutting down custom resource informers")
+		k.cancelCR()
+		k.cancelCR = nil
+	}
+	k.crMu.Unlock()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
 func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
+	// Suppress .total accumulation on the per-node instances that would otherwise
+	// collide, but only when the instance sets cluster_aggregates_enabled: true:
+	//   - node_kubelet      (per-node agents — same reduced-tag gauge collides across nodes)
+	//   - cluster_unassigned (CLC runner — partial view, would emit an incomplete .total)
+	// default mode is intentionally excluded: a single full-pod check is already the
+	// authoritative source for .total (no collision), so it must stay unaffected (design goal #5).
+	//
+	// Turning this on also starts the DCA's cluster_aggregates_only reflector
+	// warmup in the same window these instances start suppressing — there is no
+	// clean "DCA serving first, then nodes go quiet" handoff. Expect a brief
+	// (seconds-scale) window at flag-flip where .total is absent, then correct.
+	// The flag is a config signal, not a live DCA health check. While it is off
+	// (the default), nodes fall back to the pre-fix under-reported emission
+	// rather than going silent.
+	suppressClusterAggregates := (k.instance.PodCollectionMode == nodeKubeletPodCollection ||
+		k.instance.PodCollectionMode == clusterUnassignedPodCollection) &&
+		k.instance.ClusterAggregatesEnabled
+	// In cluster_aggregates_only mode, the check emits only the .total family
+	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
+	// double-emission of per-pod metrics already produced by node-agents.
+	aggregatesOnly := k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
+			if suppressClusterAggregates && isClusterAggregateSourceMetric(metricFamily.Name) {
+				continue
+			}
+			// In cluster_aggregates_only mode accumulate only the four .total source
+			// metrics. Accumulating other aggregators (e.g. pod.count) would double-count
+			// with node-agents which already emit those metrics individually.
+			if aggregatesOnly && !isClusterAggregateSourceMetric(metricFamily.Name) {
+				continue
+			}
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
@@ -768,6 +896,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
+			}
+			if aggregatesOnly {
+				continue
 			}
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
@@ -1089,6 +1220,18 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 		} else {
 			builder.WithUnassignedPodsCollection()
 		}
+	case clusterAggregatesOnlyPodCollection:
+		if k.isRunningOnNodeAgent {
+			log.Warnf("cluster_aggregates_only is enabled but KSM is running in a node agent, so the option will be ignored " +
+				"(it is only supported on the cluster agent or a cluster check runner)")
+			k.instance.PodCollectionMode = defaultPodCollection
+		}
+		// Else: leave the builder unconfigured here. buildStores() takes the
+		// same API-server-client branch it uses for defaultPodCollection, and
+		// the default (non-WLM) reflector path runs as-is — no field selector
+		// is set, so it watches all pods in the configured namespaces (all
+		// namespaces by default, same as this mode needs; still subject to
+		// instance.Namespaces if the user has restricted it).
 	default:
 		log.Warnf("invalid pod collection mode %q, falling back to the default mode", k.instance.PodCollectionMode)
 		k.instance.PodCollectionMode = defaultPodCollection
@@ -1177,6 +1320,7 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	k := &KSMCheck{
 		CheckBase:                  base,
+		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
@@ -1266,6 +1410,17 @@ func (k *KSMCheck) isKnownMetric(name string) bool {
 		return true
 	}
 	return false
+}
+
+// defaultCollectors returns the KSM default resource collectors with
+// "endpoints" added back for backward compatibility (upstream KSM v2.18
+// replaced "endpoints" with "endpointslices" in its defaults).
+func defaultCollectors() []string {
+	collectors := options.DefaultResources.AsSlice()
+	if _, found := options.DefaultResources["endpoints"]; !found {
+		collectors = append(collectors, "endpoints")
+	}
+	return collectors
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.

@@ -58,6 +58,7 @@ func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonPolicyCmd.AddCommand(commonCheckPoliciesCommands(globalParams)...)
 	commonPolicyCmd.AddCommand(commonReloadPoliciesCommands(globalParams)...)
 	commonPolicyCmd.AddCommand(downloadPolicyCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(dumpLoadedPoliciesCommands(globalParams)...)
 
 	return []*cobra.Command{commonPolicyCmd}
 }
@@ -148,7 +149,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
@@ -198,6 +199,70 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify whether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
+}
+
+type dumpLoadedPoliciesCliParams struct {
+	*command.GlobalParams
+
+	outputPath     string
+	includeBundled bool
+}
+
+func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &dumpLoadedPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
+	dumpLoadedPoliciesCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "Dump the currently loaded policies as JSON",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(dumpLoadedPolicies,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	dumpLoadedPoliciesCmd.Flags().StringVar(&cliParams.outputPath, "output", "", "Path to write JSON output (default: stdout)")
+	dumpLoadedPoliciesCmd.Flags().BoolVar(&cliParams.includeBundled, "include-bundled", false, "Include bundled policies in the output")
+
+	return []*cobra.Command{dumpLoadedPoliciesCmd}
+}
+
+func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component, cliParams *dumpLoadedPoliciesCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	response, err := client.GetLoadedPolicies(cliParams.includeBundled)
+	if err != nil {
+		return fmt.Errorf("unable to get loaded policies: %w", err)
+	}
+
+	if len(response.Error) > 0 {
+		return fmt.Errorf("get loaded policies request failed: %s", response.Error)
+	}
+
+	var writer io.Writer
+	if cliParams.outputPath == "" || cliParams.outputPath == "-" {
+		writer = os.Stdout
+	} else {
+		f, err := os.Create(cliParams.outputPath)
+		if err != nil {
+			return fmt.Errorf("unable to create output file: %w", err)
+		}
+		defer f.Close()
+		writer = f
+	}
+
+	_, err = fmt.Fprintln(writer, response.Policies)
+	return err
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
@@ -301,7 +366,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
@@ -392,7 +457,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	})
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
@@ -493,6 +558,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err != nil {
 		return err
 	}
+	defer res.Body.Close()
 
 	resBytes, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -502,7 +568,6 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if res.StatusCode != 200 {
 		return fmt.Errorf("failed to download policies: %s (error code %d)", string(resBytes), res.StatusCode)
 	}
-	defer res.Body.Close()
 
 	// Unzip the downloaded file containing both default and custom policies
 	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
@@ -597,7 +662,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	return err
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {

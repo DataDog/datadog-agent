@@ -1,0 +1,35 @@
+# ConditionFailed signal: Discard a pending entry silently (no Ready).
+# Also exercises Close emitting any remaining in-flight invocations.
+config: {}
+ops:
+  - !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+  - !discard {key: k1}
+  # Now start a fresh invocation that we'll leave in-flight.
+  - !add-fragment {key: k2, side: entry, seq: 0, final: false, expect_return: false, bytes: 32}
+  - !close {}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+state:
+  budget_used: 64
+  bytes: 64
+  tree_size: 1
+---
+op: !discard {key: k1}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0
+---
+op: !add-fragment {key: k2, side: entry, seq: 0, final: false, expect_return: false, bytes: 32}
+state:
+  budget_used: 32
+  bytes: 32
+  tree_size: 1
+---
+op: !close {}
+readys:
+  - {key: k2, entry_frags: 1, entry_bytes: 32, return_frags: 0, return_bytes: 0, entry_truncated: true}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

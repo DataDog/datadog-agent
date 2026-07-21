@@ -8,6 +8,7 @@ package idx
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -64,6 +65,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 		}
 		dict[i] = str
 	}
+	dictSize := sz
 	stringTable, newZeroRef := buildStringTable(dict)
 	tp.Strings = stringTable
 	// read num chunks
@@ -77,6 +79,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 		tp.Chunks = make([]*InternalTraceChunk, sz)
 	}
 	chunkConvertedFields := ChunkConvertedFields{}
+	convertedTagSet := false
 	for i := range tp.Chunks {
 		sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 		if err != nil {
@@ -91,13 +94,22 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 			tp.Chunks[i].Spans = make([]*InternalSpan, sz)
 		}
 		convertedFields := NewSpanConvertedFields()
+		var rootSampling RootSamplingMergeState
 		for j := range tp.Chunks[i].Spans {
 			if tp.Chunks[i].Spans[j] == nil {
 				tp.Chunks[i].Spans[j] = NewInternalSpan(stringTable, &Span{})
 			}
-			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, newZeroRef); err != nil {
+			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, dictSize, newZeroRef); err != nil {
 				return err
 			}
+			if !convertedTagSet {
+				// _dd.convertedv1 marks that this payload was converted from the v0.5
+				// wire format. It is a debugging aid, so we only tag the first span of
+				// the payload rather than paying the allocation on every span.
+				tp.Chunks[i].Spans[j].SetStringAttribute("_dd.convertedv1", "v05")
+				convertedTagSet = true
+			}
+			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, tp.Chunks[i].Spans[j].ParentID())
 		}
 		tp.Chunks[i].ApplyPromotedFields(convertedFields, &chunkConvertedFields)
 	}
@@ -109,12 +121,15 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 // has.
 const spanPropertyCount = 12
 
-func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
+func readV05StringRef(dictSize uint32, newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 	var parsedRef uint32
 	var err error
 	parsedRef, bts, err = msgp.ReadUint32Bytes(bts)
 	if err != nil {
 		return 0, bts, err
+	}
+	if parsedRef >= dictSize {
+		return 0, bts, fmt.Errorf("dictionary index %d out of range", parsedRef)
 	}
 	if parsedRef == 0 && newZeroRef != 0 {
 		// This string was moved from index 0 to index newZeroRef, so we return the new index
@@ -127,7 +142,7 @@ func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 // in pkg/trace/api/version.go
 // The provided InternalSpan must have a pre-populated Strings field
 // newZeroRef is the new location for string ref `0` (0 if unchanged) see buildStringTable for more details
-func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, newZeroRef uint32) ([]byte, error) {
+func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, dictSize uint32, newZeroRef uint32) ([]byte, error) {
 	var (
 		sz  uint32
 		err error
@@ -140,17 +155,17 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, errors.New("encoded span needs exactly 12 elements in array")
 	}
 	// Service (0)
-	s.span.ServiceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ServiceRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Name (1)
-	s.span.NameRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.NameRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Resource (2)
-	s.span.ResourceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ResourceRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
@@ -198,22 +213,29 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if s.span.Attributes == nil && sz > 0 {
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
-	for sz > 0 {
-		sz--
-		var key, val uint32
-		key, bts, err = readV05StringRef(newZeroRef, bts)
-		if err != nil {
+	if sz > 0 {
+		if err = checkSlabCount(sz, bts); err != nil {
 			return bts, err
 		}
-		val, bts, err = readV05StringRef(newZeroRef, bts)
-		if err != nil {
-			return bts, err
-		}
-		s.handlePromotedMetaFields(key, val, convertedFields)
-		s.span.Attributes[key] = &AnyValue{
-			Value: &AnyValue_StringValueRef{
-				StringValueRef: val,
-			},
+		// Slab-allocate the AnyValue containers and their string-ref oneof wrappers
+		// for every meta entry in two allocations, rather than two per entry. The map
+		// holds pointers into these backing arrays, which live as long as the span.
+		values := make([]AnyValue, sz)
+		refs := make([]AnyValue_StringValueRef, sz)
+		for i := uint32(0); i < sz; i++ {
+			var key, val uint32
+			key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			val, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			s.handlePromotedMetaFields(key, val, convertedFields)
+			refs[i].StringValueRef = val
+			values[i].Value = &refs[i]
+			s.span.Attributes[key] = &values[i]
 		}
 	}
 	// Metrics (10)
@@ -224,33 +246,38 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if s.span.Attributes == nil && sz > 0 {
 		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
-	for sz > 0 {
-		sz--
-		var (
-			key uint32
-			val float64
-		)
-		key, bts, err = readV05StringRef(newZeroRef, bts)
-		if err != nil {
+	if sz > 0 {
+		if err = checkSlabCount(sz, bts); err != nil {
 			return bts, err
 		}
-		val, bts, err = parseFloat64Bytes(bts)
-		if err != nil {
-			return bts, err
-		}
-		s.handlePromotedMetricsFields(key, val, convertedFields)
-		s.span.Attributes[key] = &AnyValue{
-			Value: &AnyValue_DoubleValue{
-				DoubleValue: val,
-			},
+		// Slab-allocate the AnyValue containers and their double oneof wrappers for
+		// every metric in two allocations, rather than two per metric.
+		values := make([]AnyValue, sz)
+		doubles := make([]AnyValue_DoubleValue, sz)
+		for i := uint32(0); i < sz; i++ {
+			var (
+				key uint32
+				val float64
+			)
+			key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
+			if err != nil {
+				return bts, err
+			}
+			val, bts, err = parseFloat64Bytes(bts)
+			if err != nil {
+				return bts, err
+			}
+			s.handlePromotedMetricsFields(key, val, convertedFields)
+			doubles[i].DoubleValue = val
+			values[i].Value = &doubles[i]
+			s.span.Attributes[key] = &values[i]
 		}
 	}
 	// Type (11)
-	s.span.TypeRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.TypeRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
-	s.SetStringAttribute("_dd.convertedv1", "v05")
 	return bts, nil
 }
 
@@ -266,4 +293,19 @@ func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (u
 		return 0, nil, errors.New("too long payload")
 	}
 	return sz, bts, err
+}
+
+// minBytesPerSlabEntry is a conservative lower bound on the wire size of one meta/metrics/meta_struct
+// entry: every entry reads at least two msgpack values (e.g. two 1-byte nils).
+const minBytesPerSlabEntry = 2
+
+// checkSlabCount guards a slab pre-allocation (make([]AnyValue, n) and its oneof-wrapper sibling)
+// against a claimed entry count that couldn't possibly be backed by the remaining bytes. Without this,
+// a tiny malicious payload could set a map header to millions of entries and force a large allocation
+// before decoding ever reaches the missing bytes and fails naturally.
+func checkSlabCount(n uint32, remaining []byte) error {
+	if uint64(n)*minBytesPerSlabEntry > uint64(len(remaining)) {
+		return fmt.Errorf("not enough data for %d entries", n)
+	}
+	return nil
 }

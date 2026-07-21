@@ -20,7 +20,7 @@ import (
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -118,8 +118,8 @@ func (c *WinCrashConfig) Parse(data []byte) error {
 }
 
 // Configure accepts the configuration
-func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := wcd.CommonConfigure(senderManager, initConfig, data, source)
+func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	err := wcd.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}

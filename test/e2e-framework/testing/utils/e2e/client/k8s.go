@@ -85,7 +85,7 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 	return stdoutSb.String(), suppressGoCoverWarning(stderrSb.String()), nil
 }
 
-// DownloadFromPod downloads a folder from a pod to a local destination
+// DownloadFromPod downloads a file or folder from a pod to a local destination
 func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPath, destPath string) error {
 	reader, outStream := io.Pipe()
 	// Tar from the parent directory to avoid embedding parent folders (e.g., /tmp)
@@ -140,21 +140,40 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 		return err
 	}
 
-	tarReader := tar.NewReader(reader)
+	if err := extractTar(reader, baseName, destPath); err != nil {
+		cancel()
+		return err
+	}
+	// Reading the tar is complete; cancel the exec stream so it doesn't hang.
+	cancel()
+
+	// Ensure the exec stream completed successfully
+	streamErr := <-streamErrCh
+
+	return streamErr
+}
+
+// extractTar reads a tar stream produced by `tar cf - -C <parent> <baseName>`
+// and writes its contents into destPath. When baseName is a directory the
+// top-level directory entry is stripped so children land directly in destPath.
+// When baseName is a single file it is written into destPath as-is.
+func extractTar(r io.Reader, baseName, destPath string) error {
+	tarReader := tar.NewReader(r)
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
-			// Reading the tar file is complete let's cancel the execution stream, as it is not stopped and will hang otherwise.
-			cancel()
 			break
 		}
 		if err != nil {
 			return err
 		}
-		// Strip the top-level folder (baseName) so contents land directly in destPath
 		entryName := strings.TrimPrefix(header.Name, "./")
-		if entryName == baseName || entryName == baseName+"/" {
-			// Skip the root directory entry
+
+		// When downloading a directory, skip the top-level directory entry and
+		// strip its prefix from children so contents land directly in destPath.
+		// Only skip directory entries here; a single file whose name equals
+		// baseName must be kept, otherwise single-file downloads produce nothing.
+		if (entryName == baseName || entryName == baseName+"/") && header.Typeflag == tar.TypeDir {
 			continue
 		}
 		if after, ok := strings.CutPrefix(entryName, baseName+"/"); ok {
@@ -186,8 +205,5 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 			}
 		}
 	}
-	// Ensure the exec stream completed successfully
-	streamErr := <-streamErrCh
-
-	return streamErr
+	return nil
 }

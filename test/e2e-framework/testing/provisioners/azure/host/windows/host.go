@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 )
 
 const (

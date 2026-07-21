@@ -37,10 +37,21 @@ func (*lang) Name() string {
 func (*lang) Kinds() map[string]rule.KindInfo {
 	return map[string]rule.KindInfo{
 		name: {
-			MatchAttrs:    []string{"output"},
-			NonEmptyAttrs: map[string]bool{"output": true, "src": true, "types": true},
+			MatchAttrs: []string{"output"},
+			MergeableAttrs: map[string]bool{ // always replicate //go:generate args
+				"build_tags":  true,
+				"linecomment": true,
+				"src":         true,
+				"trimprefix":  true,
+				"types":       true,
+			},
+			NonEmptyAttrs: map[string]bool{"src": true, "types": true},
 		},
 	}
+}
+
+func (*lang) KnownDirectives() []string {
+	return []string{name, name + "_src"}
 }
 
 func (*lang) Loads() []rule.LoadInfo {
@@ -51,29 +62,53 @@ func (*lang) Loads() []rule.LoadInfo {
 }
 
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
-	var goFiles []string
-	for _, f := range args.RegularFiles {
-		if strings.HasSuffix(f, ".go") {
-			goFiles = append(goFiles, f)
+	// srcOverrides maps output filename -> override src filename, populated by
+	// # gazelle:go_stringer_src <output>=<src> directives in the BUILD file.
+	srcOverrides := map[string]string{}
+	if args.File != nil {
+		for _, d := range args.File.Directives {
+			if d.Key == name && d.Value == "off" {
+				return language.GenerateResult{}
+			}
+			if d.Key == name+"_src" {
+				if output, src, ok := strings.Cut(d.Value, "="); ok {
+					srcOverrides[strings.TrimSpace(output)] = strings.TrimSpace(src)
+				}
+			}
 		}
 	}
-	if len(goFiles) == 0 {
-		return language.GenerateResult{}
-	}
-	var rules []*rule.Rule
-	for _, f := range goFiles {
+	var liveRules []*rule.Rule
+	for _, f := range args.RegularFiles {
+		if !strings.HasSuffix(f, ".go") {
+			continue
+		}
 		directives, err := readDirectives(filepath.Join(args.Dir, f))
 		if err != nil {
 			continue
 		}
-		rules = append(rules, directives...)
+		liveRules = append(liveRules, directives...)
 	}
-	if len(rules) == 0 {
-		return language.GenerateResult{}
+	for _, r := range liveRules {
+		if override, ok := srcOverrides[r.AttrString("output")]; ok {
+			r.SetAttr("src", override)
+		}
+	}
+	liveOutputs := make(map[string]bool, len(liveRules))
+	for _, r := range liveRules {
+		liveOutputs[r.AttrString("output")] = true
+	}
+	var staleRules []*rule.Rule
+	if args.File != nil {
+		for _, r := range args.File.Rules {
+			if r.Kind() == name && !liveOutputs[r.AttrString("output")] {
+				staleRules = append(staleRules, rule.NewRule(name, r.Name()))
+			}
+		}
 	}
 	return language.GenerateResult{
-		Gen:     rules,
-		Imports: make([]interface{}, len(rules)),
+		Empty:   staleRules,
+		Gen:     liveRules,
+		Imports: make([]interface{}, len(liveRules)),
 	}
 }
 

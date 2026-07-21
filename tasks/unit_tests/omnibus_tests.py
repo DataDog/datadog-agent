@@ -55,7 +55,7 @@ class TestOmnibusCache(unittest.TestCase):
             for platform, get_dd_api_key_env in {
                 "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
                 "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
-                "win32": {"API_KEY_ORG2": "api-key"},
+                "win32": {"AGENT_API_KEY_ORG2": "api-key"},
             }.items():
                 with (
                     self.subTest(platform=platform),
@@ -76,9 +76,11 @@ class TestOmnibusCache(unittest.TestCase):
             (r'git .*', Result()),
             (r'aws(\.exe)? s3 .*', Result()),
             (r'go mod .*', Result()),
+            (r'go run .*compress_schema\.go .*', Result()),
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -231,6 +233,38 @@ class TestOmnibusCache(unittest.TestCase):
         )
 
 
+class TestOmnibusRunTask(unittest.TestCase):
+    def setUp(self):
+        self.mock_ctx = MockContextRaising(run={})
+        self.mock_ctx.set_result_for('run', re.compile(r'bundle exec omnibus build agent .*'), Result())
+
+    def test_formats_overrides_as_single_hash_option(self):
+        omnibus.omnibus_run_task(
+            self.mock_ctx,
+            task="build",
+            target_project="agent",
+            base_dir="/opt/dd/omnibus",
+            env={},
+            host_distribution="ubuntu",
+            cache_dir="/var/cache/dd/omnibus/cache",
+        )
+
+        command = self.mock_ctx.run.mock_calls[0].args[0]
+        self.assertIn(
+            "--override=base_dir:/opt/dd/omnibus cache_dir:/var/cache/dd/omnibus/cache host_distribution:ubuntu",
+            command,
+        )
+        self.assertEqual(command.count("--override="), 1)
+
+
+class TestOmnibusEnvPassthrough(unittest.TestCase):
+    def test_omnibus_base_dir_is_not_forwarded_to_regular_builds(self):
+        with mock.patch('tasks.omnibus.warnings.warn'):
+            env = omnibus._passthrough_env_for_os({'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus'}, 'linux')
+
+        self.assertNotIn('OMNIBUS_BASE_DIR', env)
+
+
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
@@ -320,6 +354,7 @@ class TestRpathEdit(unittest.TestCase):
         self.mock_ctx.set_result_for(
             'run', 'install_name_tool -change some/path/somelib.dylib some/path/somelib.dylib some/file', Result()
         )
+        self.mock_ctx.set_result_for('run', 'codesign --sign - --force some/file', Result())
         omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", "macos")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
@@ -336,8 +371,9 @@ class TestRpathEdit(unittest.TestCase):
             )
             in call_list
         )
+        assert mock.call('codesign --sign - --force some/file') in call_list
         # We can't assert regex based temporary name in calls, hence we're checking that we get the correct total number of calls
-        assert len(call_list) == 8
+        assert len(call_list) == 9
 
 
 class TestBuildRepackagedAgent(unittest.TestCase):
@@ -416,3 +452,41 @@ Description: Datadog Monitoring Agent
                 'https://apt.datad0g.com/pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb',
             )
             self.assertEqual(env['OMNIBUS_REPACKAGE_SOURCE_SHA256'], 'def456abc789')
+
+    def test_repackaged_agent_uses_omnibus_path_overrides(self):
+        packages_content = """
+Package: datadog-agent
+Version: 1:7.67.0~devel.git.113.2750233.pipeline.63448947-1
+Architecture: amd64
+Filename: pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb
+SHA256: def456abc789
+Description: Datadog Monitoring Agent
+"""
+        mock_ctx = MockContextRaising(run={})
+        mock_ctx.set_result_for('run', re.compile(r'dpkg --print-architecture'), Result('amd64'))
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus',
+                    'OMNIBUS_CACHE_DIR': '/var/cache/dd/omnibus/cache',
+                },
+                clear=True,
+            ),
+            mock.patch('os.path.exists', return_value=False),
+            mock.patch('tasks.omnibus.get_omnibus_env', return_value={}),
+            mock.patch('tasks.omnibus.bundle_install_omnibus'),
+            mock.patch('tasks.omnibus.omnibus_run_task') as mock_run_task,
+            mock.patch('requests.get') as mock_get,
+        ):
+            mock_response = mock.MagicMock()
+            mock_response.__enter__.return_value.iter_lines.return_value = packages_content.splitlines()
+            mock_get.return_value = mock_response
+
+            omnibus.build_repackaged_agent(mock_ctx)
+
+        _, kwargs = mock_run_task.call_args
+        self.assertEqual(kwargs['base_dir'], '/var/cache/dd/omnibus')
+        self.assertEqual(kwargs['cache_dir'], '/var/cache/dd/omnibus/cache')
+        self.assertEqual(kwargs['env']['OMNIBUS_BASE_DIR'], '/var/cache/dd/omnibus')

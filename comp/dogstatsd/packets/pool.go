@@ -6,7 +6,7 @@
 package packets
 
 import (
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -31,7 +31,7 @@ type Pool struct {
 var usedByTestTelemetry = false
 
 // NewPool creates a new pool with a specified buffer size
-func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
+func NewPool(cfg pkgconfigmodel.Reader, bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 	return &Pool{
 		pool: ddsync.NewTypedPool(func() *Packet {
 			packet := &Packet{
@@ -42,7 +42,7 @@ func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 			return packet
 		}),
 		// telemetry
-		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()),
+		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(cfg),
 		packetsTelemetry: packetsTelemetry,
 	}
 }

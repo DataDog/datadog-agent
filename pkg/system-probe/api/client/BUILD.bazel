@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = [
+        "check.go",
+        "client.go",
+        "client_others.go",
+        "client_unix.go",
+        "client_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/api/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//pkg/config/setup",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/funcs",
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)

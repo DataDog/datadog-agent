@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_test(
+    name = "test_test",
+    srcs = [
+        "buffer_test.go",
+        "example_test.go",
+    ],
+    embed = [":test"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/testutil",
+    ],
+)
+
+go_library(
+    name = "test",
+    srcs = [
+        "agent.go",
+        "backend.go",
+        "buffer.go",
+        "doc.go",
+        "runner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/test",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/api/security",
+        "//pkg/config/create",
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/testutil",
+        "//pkg/util/grpc",
+        "//pkg/util/testutil",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_v2//interceptors/auth",
+        "@com_github_tinylib_msgp//msgp",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

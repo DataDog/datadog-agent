@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -178,6 +180,10 @@ func TestCSPM(t *testing.T) {
 		provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
 				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
+				// Surface the EC2 host's dockerd inside the kind nodes so
+				// TestDockerRulesFilteredOnContainerdCRI can reproduce the
+				// GKE-COS shape (containerd CRI alongside dockerd).
+				scenkindvm.WithMountDockerSocket(),
 			),
 		),
 	))
@@ -189,14 +195,111 @@ func (s *cspmTestSuite) TestFindings() {
 	})
 	require.NoError(s.T(), err)
 	require.Len(s.T(), res.Items, 1)
-	agentPod := res.Items[0]
-	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
+	agentPodName := s.waitForSecurityAgentPodReady("datadog", res.Items[0].Name)
+	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
 	require.NoError(s.T(), err)
-	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"cat", "/tmp/reports"})
+	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"cat", "/tmp/reports"})
 	require.NoError(s.T(), err)
 	findings, err := parseFindingOutput(dumpContent)
 	require.NoError(s.T(), err)
 	s.checkFindings(findings, mergeFindings(expectedFindingsMasterEtcdNode, expectedFindingsWorkerNode))
+}
+
+func (s *cspmTestSuite) waitForSecurityAgentPodReady(namespace, podName string) string {
+	s.T().Helper()
+
+	var selectedPodName string
+	require.Eventuallyf(s.T(), func() bool {
+		pod, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+		if err != nil {
+			s.T().Logf("unable to get pod %s: %v", podName, err)
+			return false
+		}
+		if !podHasContainer(pod, "security-agent") {
+			s.T().Logf("pod %s does not contain security-agent yet", pod.Name)
+			return false
+		}
+		if !isContainerReady(pod, "security-agent") {
+			s.T().Logf("security-agent container is not ready yet in pod %s", pod.Name)
+			return false
+		}
+		selectedPodName = pod.Name
+		return true
+	}, 3*time.Minute, 5*time.Second, "security-agent container was not ready in pod %s", podName)
+
+	return selectedPodName
+}
+
+func podHasContainer(pod *corev1.Pod, containerName string) bool {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == containerName {
+			return true
+		}
+	}
+	return false
+}
+
+func isContainerReady(pod *corev1.Pod, containerName string) bool {
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == containerName {
+			return status.Ready
+		}
+	}
+	return false
+}
+
+// TestDockerRulesFilteredOnContainerdCRI reproduces the GKE-COS shape -
+// kubelet on containerd with a reachable dockerd - and asserts the filter
+// suppresses CIS Docker rules while keeping CIS Kubernetes rules.
+func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	require.NoError(s.T(), err)
+	require.Len(s.T(), pods.Items, 1)
+	agentPod := s.waitForSecurityAgentPodReady("datadog", pods.Items[0].Name)
+
+	// Without a reachable dockerd the scope gate would skip docker rules
+	// on its own, so the test would pass for the wrong reason.
+	info, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+		"datadog", agentPod, "security-agent",
+		[]string{"curl", "-sS", "--unix-socket", "/host/var/run/docker.sock", "http://localhost/info"})
+	require.NoError(s.T(), err, "agent pod must be able to reach dockerd via /host/var/run/docker.sock")
+	require.Contains(s.T(), info, `"ServerVersion"`, "/info response from the agent pod must look like a real Docker daemon")
+
+	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec(
+		"datadog", agentPod, "security-agent",
+		[]string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
+	require.NoError(s.T(), err)
+	dump, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+		"datadog", agentPod, "security-agent",
+		[]string{"cat", "/tmp/reports"})
+	require.NoError(s.T(), err)
+	findings, err := parseFindingOutput(dump)
+	require.NoError(s.T(), err)
+
+	for rule := range findings {
+		assert.NotContains(s.T(), rule, "cis-docker-1.2.0-",
+			"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
+	}
+
+	seenKubernetesRule := false
+	for rule, results := range findings {
+		if !strings.HasPrefix(rule, "cis-kubernetes-1.5.1-") {
+			continue
+		}
+		for _, r := range results {
+			if r["result"] == "passed" || r["result"] == "failed" {
+				seenKubernetesRule = true
+				break
+			}
+		}
+		if seenKubernetesRule {
+			break
+		}
+	}
+	assert.True(s.T(), seenKubernetesRule,
+		"expected at least one cis-kubernetes-1.5.1-* finding with result passed or failed; the filter must not be over-greedy")
 }
 
 func (s *cspmTestSuite) TestMetrics() {

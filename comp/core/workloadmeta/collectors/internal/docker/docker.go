@@ -18,14 +18,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/network"
+	dockerclient "github.com/moby/moby/client"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -62,11 +63,13 @@ type resolveHook func(ctx context.Context, co container.InspectResponse) (string
 type dependencies struct {
 	fx.In
 
+	Config      config.Component
 	FilterStore workloadfilter.Component
 }
 
 type collector struct {
 	id      string
+	cfg     config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -93,6 +96,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
+			cfg:                    deps.Config,
 			catalog:                workloadmeta.NodeAgent,
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
@@ -199,7 +203,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 		return errors.New("Start was not called")
 	}
 
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, dockerclient.ContainerListOptions{}, filter, c.store)
 	if err != nil {
 		return err
 	}
@@ -459,35 +463,32 @@ func extractPorts(container container.InspectResponse) []workloadmeta.ContainerP
 	return ports
 }
 
-func extractPort(port nat.Port) []workloadmeta.ContainerPort {
+func extractPort(port network.Port) []workloadmeta.ContainerPort {
 	var output []workloadmeta.ContainerPort
 
-	// Try to parse a port range, eg. 22-25
-	first, last, err := port.Range()
-	if err != nil {
-		log.Debugf("cannot get port range from nat.Port: %s", err)
-		return output
-	}
+	pr := port.Range()
+	first := int(pr.Start())
+	last := int(pr.End())
 
 	if last > first {
 		output = make([]workloadmeta.ContainerPort, 0, last-first+1)
 		for p := first; p <= last; p++ {
 			output = append(output, workloadmeta.ContainerPort{
 				Port:     p,
-				Protocol: port.Proto(),
+				Protocol: string(port.Proto()),
 			})
 		}
 
 		return output
 	}
 
-	// Try to parse a single port (most common case)
-	p := port.Int()
+	// Single port (most common case)
+	p := int(port.Num())
 	if p > 0 {
 		output = []workloadmeta.ContainerPort{
 			{
 				Port:     p,
-				Protocol: port.Proto(),
+				Protocol: string(port.Proto()),
 			},
 		}
 	}
@@ -499,8 +500,8 @@ func extractNetworkIPs(networks map[string]*network.EndpointSettings) map[string
 	networkIPs := make(map[string]string)
 
 	for net, settings := range networks {
-		if len(settings.IPAddress) > 0 {
-			networkIPs[net] = settings.IPAddress
+		if settings.IPAddress.IsValid() {
+			networkIPs[net] = settings.IPAddress.String()
 		}
 	}
 
@@ -708,8 +709,8 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		shouldAssignDigests = false
 	}
 
-	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
-	// NOTE: Docker returns the RootFS layers in chronological order
+	// inspectIdx tracks the current RootFS layer index (in Docker, RootFS.Layers
+	// holds diff_ids in chronological order).
 	inspectIdx := 0
 
 	// Docker returns the history layers in reverse-chronological order
@@ -718,20 +719,20 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		isEmptyLayer := history[i].Size == 0
 		isInheritedLayer := isInheritedLayer(history[i])
 
-		digest := ""
+		diffID := ""
 		if shouldAssignDigests && (isInheritedLayer || !isEmptyLayer) {
 			if isInheritedLayer {
-				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it diff_id: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
 			}
-			digest = inspect.RootFS.Layers[inspectIdx]
+			diffID = inspect.RootFS.Layers[inspectIdx]
 			inspectIdx++
 		} else {
 			// Fallback to previous behavior
-			digest = history[i].ID
+			diffID = history[i].ID
 		}
 
 		layer := workloadmeta.ContainerImageLayer{
-			Digest:    digest,
+			DiffID:    diffID,
 			SizeBytes: history[i].Size,
 			History: &v1.History{
 				Created:    &created,

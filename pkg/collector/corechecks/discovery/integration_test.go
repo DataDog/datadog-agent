@@ -37,9 +37,9 @@ func TestDiscoveryCheckIntegrationWithProcessLogProvider(t *testing.T) {
 
 	// Now test that the discovery check picks up this warning
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	// Run the check
@@ -86,9 +86,9 @@ func TestDiscoveryCheckWithMultipleWarnings(t *testing.T) {
 
 	// Test discovery check
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -130,9 +130,9 @@ func TestDirectWarningInterface(t *testing.T) {
 
 	// Verify warnings are captured by the discovery check
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()

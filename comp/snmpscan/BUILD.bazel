@@ -1,0 +1,3 @@
+# gazelle:ignore
+
+# gazelle:dd_agent_go_test on

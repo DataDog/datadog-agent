@@ -11,6 +11,8 @@ package run
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -21,13 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
@@ -39,9 +42,11 @@ import (
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -96,7 +101,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
-				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
+				LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultHostProfilerLogFile()),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
 			fx.Invoke(func(l log.Component) {
@@ -109,7 +114,10 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		opts = append(opts, getTraceAgentOptions(ctx)...)
 		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
-		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
+		opts = append(opts,
+			fx.Invoke(initStandaloneConfig),
+			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
+		)
 	}
 
 	return fxutil.OneShot(run, opts...)
@@ -117,6 +125,21 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 func run(collector collector.Component) error {
 	return collector.Run()
+}
+
+// initStandaloneConfig performs one-time config setup for standalone mode (no core agent).
+// K8S_NODE_IP is set by upstream Helm charts for the node IP; we use it as
+// kubernetes_kubelet_host so the kubelet client can resolve the node hostname.
+func initStandaloneConfig() {
+	const kubeletHostAgentConfig = "kubernetes_kubelet_host"
+	pkgconfigenv.DetectFeatures(setup.Datadog())
+	k8sNodeIP := os.Getenv("K8S_NODE_IP")
+	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
+	if k8sNodeIP != "" {
+		setup.Datadog().Set(kubeletHostAgentConfig, k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	} else if _, exists := os.LookupEnv("DD_KUBERNETES_KUBELET_HOST"); exists {
+		slog.Warn("DD_KUBERNETES_KUBELET_HOST used as fallback to K8S_NODE_IP but is not officially supported")
+	}
 }
 
 func getRemoteTaggerOptions() []fx.Option {
@@ -128,7 +151,7 @@ func getRemoteTaggerOptions() []fx.Option {
 
 func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 	return []fx.Option{
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
 

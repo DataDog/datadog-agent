@@ -161,6 +161,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		assert.NoError(t, err)
 		conf := newTestReceiverConfig()
+		conf.DebuggerLogsEnabled = true
 		conf.Hostname = "myhost"
 		conf.FargateOrchestrator = "orchestrator"
 		conf.DebuggerProxy.DDURL = srv.URL
@@ -174,6 +175,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.NoError(t, err)
 		rec := httptest.NewRecorder()
 		conf := newTestReceiverConfig()
+		conf.DebuggerLogsEnabled = true
 		conf.Site = "asd:\r\n"
 		r := newTestReceiverFromConfig(conf)
 		r.debuggerLogsProxyHandler().ServeHTTP(rec, req)
@@ -291,10 +293,49 @@ func TestDebuggerProxyHandler(t *testing.T) {
 	})
 }
 
+func TestDebuggerProxyLogsDisabled(t *testing.T) {
+	t.Run("logs_proxy_drops_when_disabled", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.DebuggerLogsEnabled = false
+		conf.DebuggerProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		assert.False(t, called, "request should not be proxied when logs are disabled")
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+	})
+
+	t.Run("v2_intake_proxy_drops_when_disabled", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.DebuggerLogsEnabled = false
+		conf.DebuggerIntakeProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		rec := httptest.NewRecorder()
+		receiver.debuggerV2IntakeProxyHandler().ServeHTTP(rec, req)
+		assert.False(t, called, "request should not be proxied when logs are disabled")
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+	})
+}
+
 func getConf() *traceconfig.AgentConfig {
 	conf := newTestReceiverConfig()
 	conf.DebuggerProxy.AdditionalEndpoints = make(map[string][]string)
 	conf.DebuggerIntakeProxy.AdditionalEndpoints = make(map[string][]string)
+	conf.DebuggerLogsEnabled = true
 	conf.DefaultEnv = "test"
 	conf.Hostname = "myhost"
 	conf.AgentVersion = "v1"

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-noop",
+    srcs = ["tagger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+    ],
+)

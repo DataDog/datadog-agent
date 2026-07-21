@@ -199,7 +199,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
-	child.TracerTags = pc.TracerTags
+	child.TracerMetadata = pc.TracerMetadata
 
 	child.SetForkParent(pc)
 }
@@ -239,10 +239,8 @@ func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *Pr
 var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	processContextZero.Pid = pid
-	processContextZero.Tid = tid
-	processContextZero.IsKworker = isKworker
+func GetPlaceholderProcessCacheEntry(pidContext PIDContext) *ProcessCacheEntry {
+	processContextZero.PIDContext = pidContext
 	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

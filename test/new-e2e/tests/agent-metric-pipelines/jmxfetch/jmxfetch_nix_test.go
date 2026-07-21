@@ -29,8 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/secretsmanager"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/secretsmanager"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,10 +46,11 @@ const testCertsARN = "arn:aws:secretsmanager:us-east-1:376334461865:secret:agent
 type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
 
-	fips bool
+	fips       bool
+	adpEnabled bool
 }
 
-func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
+func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adpEnabled bool) {
 	adLabelsManifest, err := makeADLabelsManifest(mtls, fips)
 	require.NoError(t, err)
 
@@ -65,44 +67,76 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 
 	t.Parallel()
 
+	agentOptions := []dockeragentparams.Option{
+		dockeragentparams.WithLogs(),
+		dockeragentparams.WithJMX(),
+		choice(fips, dockeragentparams.WithFIPS(), none),
+		// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
+		choice(fips && adpEnabled, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
+		dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+	}
+	if adpEnabled {
+		agentOptions = append(agentOptions, common.WithADPEnabledDocker())
+	}
+
+	stackName := fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)
+	if adpEnabled {
+		stackName += "-adp"
+	}
+
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
 			awsdocker.WithRunOptions(
-				ec2docker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithJMX(),
-					choice(fips, dockeragentparams.WithFIPS(), none),
-					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
-				),
+				ec2docker.WithAgentOptions(agentOptions...),
 				choice(mtls, ec2docker.WithPreAgentInstallHook(fetchCertificates), none),
 			),
 		)),
-		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
+		e2e.WithStackName(stackName),
 	}
 
 	e2e.Run(t,
-		&jmxfetchNixTest{fips: fips},
+		&jmxfetchNixTest{fips: fips, adpEnabled: adpEnabled},
 		suiteParams...,
 	)
 }
 
 func TestJMXFetchNix(t *testing.T) {
-	testJMXFetchNix(t, false, false)
+	testJMXFetchNix(t, false, false, false)
 }
 
 func TestJMXFetchNixFIPS(t *testing.T) {
-	testJMXFetchNix(t, false, true)
+	testJMXFetchNix(t, false, true, false)
 }
 
 func TestJMXFetchNixMtls(t *testing.T) {
-	testJMXFetchNix(t, true, false)
+	testJMXFetchNix(t, true, false, false)
 }
 
 func TestJMXFetchNixMtlsFIPS(t *testing.T) {
-	testJMXFetchNix(t, true, true)
+	testJMXFetchNix(t, true, true, false)
+}
+
+func TestJMXFetchNixADP(t *testing.T) {
+	testJMXFetchNix(t, false, false, true)
+}
+
+func TestJMXFetchNixFIPSADP(t *testing.T) {
+	testJMXFetchNix(t, false, true, true)
+}
+
+func TestJMXFetchNixMtlsADP(t *testing.T) {
+	testJMXFetchNix(t, true, false, true)
+}
+
+func TestJMXFetchNixMtlsFIPSADP(t *testing.T) {
+	testJMXFetchNix(t, true, true, true)
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
+	if j.adpEnabled {
+		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	}
+
 	metricNames := []string{
 		"test.e2e.jmxfetch.counter_100",
 		"test.e2e.jmxfetch.gauge_200",
@@ -140,6 +174,10 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
+	if j.adpEnabled {
+		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	}
+
 	status, err := j.Env().Agent.Client.JMX(agentclient.WithArgs([]string{"list", "collected", "with-rate-metrics"}))
 	require.NoError(j.T(), err)
 	assert.NotEmpty(j.T(), status.Content)
@@ -185,6 +223,9 @@ func (j *jmxfetchNixTest) TestJMXFIPSMode() {
 	require.NoError(j.T(), err)
 	if j.fips {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
+		if j.adpEnabled {
+			assert.Contains(j.T(), env, "DD_SKIP_SSL_VALIDATION=false")
+		}
 	} else {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
 	}

@@ -18,7 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -173,7 +173,10 @@ func getContainerHostType() model.ContainerHostType {
 	case fargate.EKS:
 		return model.ContainerHostType_fargateEKS
 	case fargate.ECSManagedInstances:
-		return model.ContainerHostType_sidecar
+		if fargate.IsSidecar() {
+			return model.ContainerHostType_sidecar
+		}
+		return model.ContainerHostType_notSpecified
 	}
 	return model.ContainerHostType_notSpecified
 }

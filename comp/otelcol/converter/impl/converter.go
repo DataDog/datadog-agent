@@ -14,11 +14,15 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 )
 
 type ddConverter struct {
 	coreConfig config.Component
+	hostname   hostnameinterface.Component
 	logger     *zap.Logger
 }
 
@@ -36,7 +40,9 @@ var (
 // the core config component is not available and the converter will not
 // attempt to enhance the configuration using agent data.
 type Requires struct {
-	Conf config.Component
+	Conf     config.Component
+	Hostname hostnameinterface.Component
+	Log      corelog.Component // ensures the agent logger is initialized before this component
 }
 
 // NewFactory returns a new converter factory.
@@ -50,15 +56,17 @@ func newConverter(set confmap.ConverterSettings) confmap.Converter {
 	}
 }
 
-// NewConverterForAgent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConverterForAgent(reqs Requires) (converter.Component, error) {
+// NewComponent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+func NewComponent(reqs Requires) (converter.Component, error) {
 	return &ddConverter{
 		coreConfig: reqs.Conf,
+		hostname:   reqs.Hostname,
+		logger:     zap.New(zapAgent.NewZapCore()),
 	}, nil
 }
 
 // Convert autoconfigures conf and stores both the provided and enhanced conf.
-func (c *ddConverter) Convert(_ context.Context, conf *confmap.Conf) error {
-	c.enhanceConfig(conf)
+func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
+	c.enhanceConfig(ctx, conf)
 	return nil
 }

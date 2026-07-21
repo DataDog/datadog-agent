@@ -14,7 +14,6 @@ import (
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
@@ -22,12 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
+func (c *collector) sbomCollectionIsEnabled() bool {
+	return c.imageMetadataCollectionIsEnabled() && c.cfg.GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
-	if !sbomCollectionIsEnabled() {
+	if !c.sbomCollectionIsEnabled() {
 		return nil
 	}
 

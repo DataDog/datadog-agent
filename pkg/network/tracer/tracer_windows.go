@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,7 +67,8 @@ type Tracer struct {
 	// windows event handle for stopping the closed connection event loop
 	hStopClosedLoopEvent windows.Handle
 
-	processCache *processCache
+	processCache        *processCache
+	interfaceClassifier *InterfaceClassifier
 }
 
 // NewTracer returns an initialized tracer struct
@@ -123,6 +125,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
+	tr.interfaceClassifier = NewInterfaceClassifier()
+
 	if config.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
@@ -163,6 +167,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 
 				for i := range closedConnStats {
 					tr.addProcessInfo(&closedConnStats[i])
+					tr.addInterfaceInfo(&closedConnStats[i])
 					tr.state.StoreClosedConnection(&closedConnStats[i])
 				}
 
@@ -185,6 +190,9 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
+	if t.interfaceClassifier != nil {
+		t.interfaceClassifier.Close()
+	}
 
 	windows.SetEvent(t.hStopClosedLoopEvent)
 	t.closedEventLoop.Wait()
@@ -228,9 +236,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 
 	for i := range activeConnStats {
 		t.addProcessInfo(&activeConnStats[i])
+		t.addInterfaceInfo(&activeConnStats[i])
 	}
 	for i := range closedConnStats {
 		t.addProcessInfo(&closedConnStats[i])
+		t.addInterfaceInfo(&closedConnStats[i])
 		t.state.StoreClosedConnection(&closedConnStats[i])
 	}
 
@@ -274,6 +284,10 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 func (t *Tracer) getStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
+		"universal_service_monitoring": map[string]interface{}{
+			"state":                         usmstate.Get(),
+			"discovery_service_map_enabled": t.config.DiscoveryServiceMapEnabled,
+		},
 	}
 	return stats, nil
 }
@@ -326,6 +340,11 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// GetProcessCacheTags returns a map of PID -> []string tags from the process cache.
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return t.processCache.GetAllPIDTags()
+}
+
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
@@ -368,4 +387,20 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
+}
+
+func (t *Tracer) addInterfaceInfo(c *network.ConnectionStats) {
+	if t.interfaceClassifier == nil || c.InterfaceIndex == 0 {
+		return
+	}
+	result := t.interfaceClassifier.Classify(c.InterfaceIndex)
+	if result.InterfaceName == "" {
+		return
+	}
+	c.Tags = append(c.Tags,
+		intern.GetByString("interface_name:"+result.InterfaceName),
+		intern.GetByString("interface_type:"+result.InterfaceType),
+	)
+	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%q",
+		c.Pid, c.InterfaceIndex, result.InterfaceName, result.InterfaceType)
 }

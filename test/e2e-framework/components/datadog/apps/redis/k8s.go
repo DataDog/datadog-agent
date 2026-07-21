@@ -40,8 +40,10 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	opts = append(opts, pulumi.Parent(k8sComponent))
 
-	ns, err := corev1.NewNamespace(e.Ctx(), namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(namespace),
 		},
 	}, opts...)
@@ -50,6 +52,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 	}
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
 
 	if _, err := appsv1.NewDeployment(e.Ctx(), "redis", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
@@ -73,6 +86,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("redis"),
@@ -360,6 +374,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("query"),

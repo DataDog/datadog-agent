@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "api",
+    srcs = ["delegated_auth.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/http",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "api_test",
+    srcs = ["delegated_auth_test.go"],
+    embed = [":api"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "akeyless",
+    srcs = ["vault.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/akeyless",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "akeyless_test",
+    srcs = ["vault_test.go"],
+    embed = [":akeyless"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

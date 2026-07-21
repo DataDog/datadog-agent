@@ -9,6 +9,8 @@ slack_teams_channels_check           @DataDog/agent-devx
 lint*                                @DataDog/agent-devx
 notify*                              @DataDog/agent-devx
 check_modules_replace                @DataDog/agent-devx
+fakeintake_check_version_bump        @DataDog/agent-devx
+publish_fakeintake_pinned            @DataDog/agent-devx
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -19,13 +21,20 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-tests_*                                 @DataDog/multiple
+# tests_* defaults to agent-devx, with overrides below
+tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
+tests_gpu                               @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+tests_windows-x64                       @DataDog/windows-products
 tests_windows_sysprobe*                 @DataDog/windows-products
+tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
+tests_flavor_*                          @DataDog/agent-runtimes
+tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
+tests_rtloader*                         @DataDog/agent-runtimes
+tests_serverless-init*                  @DataDog/serverless-azure-gcp
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
-protobuf_test                           @DataDog/multiple
 test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
@@ -34,13 +43,20 @@ golang_deps_send_count_metrics       @DataDog/agent-runtimes
 golang_deps_diff                     @DataDog/agent-runtimes
 golang_deps_commenter                @DataDog/agent-runtimes
 
+# Agent telemetry (COAT) metric PR reminder
+agenttelemetry_metric_vm_reminder*   @DataDog/fleet-remediation
+
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
+secret_generic_connector-build*      @DataDog/agent-configuration
 build_windows_container_entrypoint   @DataDog/windows-products
+generate_config_schema-linux         @DataDog/agent-configuration
+generate_config_schema-macos         @DataDog/agent-configuration
+generate_config_schema-windows       @DataDog/agent-configuration
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
@@ -106,6 +122,8 @@ cws_instrumentation_dev_branch*        @DataDog/agent-security
 dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
+dev_branch-host-profiler-standalone    @DataDog/profiling-full-host
+dev_deploy-host-profiler-devtest       @DataDog/profiling-full-host
 qa_agent*                              @DataDog/agent-devx
 qa_ot_agent*                           @DataDog/agent-devx
 qa_cws_instrumentation*                @DataDog/agent-devx
@@ -121,9 +139,11 @@ internal_kubernetes_deploy*            @Datadog/agent-delivery
 
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
+deploy_host_profiler_to_reliability_env_*  @DataDog/profiling-full-host
 deploy_installer*                      @DataDog/agent-delivery
 deploy_ddot_oci*                       @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
+deploy_macos_install_script            @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-products
 powershell_script_signing              @DataDog/windows-products
@@ -136,11 +156,15 @@ deploy_containers*                     @Datadog/agent-delivery
 deploy_latest_rc_only                  @Datadog/agent-delivery
 deploy_mutable_image_tags*             @Datadog/agent-delivery
 deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
+deploy_mutable_secret_generic_connector_tags*  @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery
 deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
+
+# Deploy Secret Generic Connector
+deploy_containers-secret-generic-connector* @DataDog/agent-configuration
 
 # Trigger release
 trigger_manual_prod_release*            @DataDog/agent-delivery
@@ -156,6 +180,7 @@ integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
 build_otel_agent_*            @DataDog/opentelemetry-agent
 build_host_profiler_*         @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
+profiler_deps_check           @DataDog/profiling-full-host
 ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
@@ -174,7 +199,64 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
 e2e_pre_test*                     @DataDog/agent-devx
-new-e2e*                          @DataDog/multiple
+# new-e2e* defaults to @DataDog/agent-devx
+# More detailed rules are following for precise team match
+# latest match wins
+new-e2e*                          @DataDog/agent-devx
+# --- E2E framework / infra ---
+new-e2e-base*                           @DataDog/agent-devx
+new-e2e-unit-tests                      @DataDog/agent-devx
+new-e2e-cleanup-on-failure              @DataDog/agent-devx
+# --- Agent core ---
+new-e2e-agent-configuration*            @DataDog/agent-configuration
+new-e2e-agent-subcommands*              @DataDog/agent-configuration
+new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
+new-e2e-agent-health                    @DataDog/fleet-remediation
+new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
+new-e2e-remote-config                   @DataDog/remote-config
+# --- Containers / orchestration / SSI ---
+new-e2e-autoscaling*                    @DataDog/container-autoscaling
+new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
+new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
+new-e2e-language-detection              @DataDog/container-experiences
+new-e2e-process*                        @DataDog/container-experiences
+new-e2e-ssi*                            @DataDog/injection-platform
+# --- Networking ---
+new-e2e-npm*                            @DataDog/cloud-network-monitoring
+new-e2e-netpath*                        @DataDog/network-path
+new-e2e-ndm-netflow*                    @DataDog/ndm-integrations
+new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
+new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
+# --- Pipelines (metrics / logs / traces) ---
+new-e2e-amp                             @DataDog/agent-metric-pipelines
+new-e2e-amp-adp                         @DataDog/agent-data-plane
+new-e2e-alp*                            @DataDog/agent-log-pipelines
+new-e2e-apm*                            @DataDog/agent-apm
+# --- Security ---
+new-e2e-cws*                            @DataDog/agent-security
+new-e2e-sbom*                           @DataDog/agent-security
+new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+# --- OpenTelemetry ---
+new-e2e-otel*                           @DataDog/opentelemetry-agent
+# --- Fleet / installer (non-Windows) ---
+new-e2e-fleet*                          @DataDog/fleet
+new-e2e-installer*                      @DataDog/fleet
+# --- Agent packaging (install scripts, step-by-step, package signing) ---
+new-e2e-agent-platform-*                @DataDog/fleet
+new-e2e-platform-integrations-*         @DataDog/agent-integrations
+new-e2e-package-signing-*               @DataDog/agent-delivery
+# --- GPU ---
+new-e2e-gpu*                            @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+# --- Action platform / discovery ---
+new-e2e-privateactionrunner             @DataDog/action-platform
+new-e2e-discovery                       @DataDog/agent-discovery
+# --- Windows-only jobs (single owner: windows-products) ---
+new-e2e-windows-*                       @DataDog/windows-products
+# --- Shared-ownership overrides (must come after the per-category rules above) ---
+new-e2e-installer-windows*              @DataDog/fleet @DataDog/windows-products
+new-e2e-windows-security-agent          @DataDog/windows-products @DataDog/agent-security
+new-e2e-windows-fips-compliance-test*   @DataDog/windows-products @DataDog/agent-runtimes
+new-e2e-windows-systemprobe*            @DataDog/windows-products @DataDog/ebpf-platform
 go_e2e_test_binaries              @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 
@@ -189,7 +271,8 @@ test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
-single_machine_performance*       @DataDog/single-machine-performance
+single_machine_performance*                                   @DataDog/single-machine-performance
+single-machine-performance-metal-runners-regression_detector* @DataDog/ebpf-platform
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security
@@ -202,3 +285,6 @@ validate_experiment_systemd_units @DataDog/fleet
 
 # Fuzz testing
 test_fuzz                         @DataDog/chaos-engineering
+
+# Workspaces
+prebuild-workspace-image-check    @DataDog/agent-devx

@@ -1,0 +1,10 @@
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -143,6 +143,6 @@
+     ],
+     cgo = True,
+-    copts = ["-DZSTD_LEGACY_SUPPORT=4 -DZSTD_MULTITHREAD=1"],
++    copts = ["-DZSTD_LEGACY_SUPPORT=4 -DZSTD_MULTITHREAD=1 -DNDEBUG"],
+     importpath = "github.com/DataDog/zstd",
+     visibility = ["//visibility:public"],
+ )

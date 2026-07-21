@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes an issue with the NetFlow collector where certain packets would be dropped, producing
+    error logs and lost data. The issue was caused when a packet had trailing padding
+    which was not properly handled.

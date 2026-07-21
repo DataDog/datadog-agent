@@ -26,9 +26,14 @@
             "lineNumber": 235
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 59
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 32
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -87,6 +92,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{m1: nil, m2: nil, m3: nil, m4: nil, m5: nil, ...}}"
+    "message": "{m1: nil, m2: nil, m3: nil, m4: nil, m5: nil, ...}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

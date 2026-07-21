@@ -82,45 +82,54 @@ if enabled := pkgconfigsetup.SystemProbe().GetBool("<check_name>.enabled"); enab
 }
 ```
 
-### 9. Register eBPF Programs in Build System (`tasks/system_probe.py`)
+### 9. Register eBPF Programs in Build System
 
-**For container integration checks** (like oom-kill, tcp-queue-length, seccomp-tracer):
+eBPF programs, CGO type generation, and runtime compilation bundles are all
+managed by **Bazel**.
 
-In `ninja_container_integrations_ebpf_programs()`, add your program name to the list:
+**Add the eBPF CO-RE program** in the check's `c/runtime/BUILD.bazel` using
+`ebpf_program_suite` (see existing targets in
+`pkg/collector/corechecks/ebpf/c/runtime/BUILD.bazel`). Then:
+1. Add the target to `_BAZEL_EBPF_CORE_TARGETS` in `tasks/system_probe.py`
+   (needed for the copy step that stages `.o` files).
+2. Add it to the `all_ebpf_programs` filegroup in `pkg/ebpf/BUILD.bazel`.
+
+**Add runtime compilation support** by creating a `runtime_compilation_bundle`
+target in `pkg/ebpf/bytecode/BUILD.bazel`:
 ```python
-container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "seccomp-tracer"]
+runtime_compilation_bundle(
+    name = "<check-name>",
+    header_deps = _CORECHECK_HEADERS,
+    include_dirs = ["pkg/ebpf/c"],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:<check-name>.go",
+    out_name = "<check-name>",
+    src_c = "//pkg/collector/corechecks/ebpf/c/runtime:<check-name>-kern.c",
+)
 ```
-- File must be named `<check>-kern.c` in `pkg/collector/corechecks/ebpf/c/runtime/`
-- Automatically builds CO-RE and debug versions
+Then add the `_flat` target to `_BAZEL_RUNTIME_FLAT_TARGETS` in
+`tasks/system_probe.py` and both the `_flat` and `_verify_test` targets to the
+convenience targets in `pkg/ebpf/BUILD.bazel` (`all_ebpf_programs` and
+`verify_generated_files` respectively).
 
-**Add runtime compilation support** in `ninja_runtime_compilation_files()`:
+**Add CGO type generation** by creating a `cgo_godefs` target in the check's
+`BUILD.bazel`:
 ```python
-runtime_compiler_files = {
-    # ... existing entries
-    "pkg/collector/corechecks/ebpf/probe/<check>/<check>.go": "<check-name>",
-}
-```
-- This enables runtime compilation fallback when CO-RE isn't available
-- The key is the Go file with `//go:generate` directives
-- The value is the base name for generated C and Go files
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-**Add CGO type generation** in `ninja_cgo_type_files()`:
-```python
-def_files = {
-    # ... existing entries
-    "pkg/collector/corechecks/ebpf/probe/<check>/<check>_kern_types.go": [
-        "pkg/collector/corechecks/ebpf/c/runtime/<check>-kern-user.h",
-    ],
-}
+exports_files(["<check>_kern_types.go", "<check>_kern_types_linux.go", "<check>_kern_types_linux_test.go"])
+
+cgo_godefs(
+    name = "<check>_kern_types_godefs",
+    src = "<check>_kern_types.go",
+)
 ```
+Then add the `_test` and `_test_file_test` targets to the
+`verify_generated_files` test suite in `pkg/ebpf/BUILD.bazel`.
+
 - Generates Go types from C structs for BPF map keys/values
 - Header file must use `__u32`, `__u64` etc. types and include `ktypes.h`
-
-**For other eBPF program types:**
-- Network programs: Add to `ninja_network_ebpf_programs()`
-- GPU programs: Add to `ninja_gpu_ebpf_programs()`
-- Discovery programs: Add to `ninja_discovery_ebpf_programs()`
-- Dynamic instrumentation: Add to `ninja_dynamic_instrumentation_ebpf_programs()`
+- `bazel test //pkg/ebpf:verify_generated_files` checks all committed files
+- `bazel run //<pkg>:<name>_godefs` regenerates a single output
 
 ## Building
 

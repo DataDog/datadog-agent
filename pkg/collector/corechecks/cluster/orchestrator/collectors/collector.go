@@ -49,11 +49,10 @@ type CollectorMetadata struct {
 	Name                                 string
 	NodeType                             pkgorchestratormodel.NodeType
 	Kind                                 string
+	Group                                string
 	Version                              string
 	IsSkipped                            bool
 	SkippedReason                        string
-	LabelsAsTags                         map[string]string
-	AnnotationsAsTags                    map[string]string
 	SupportsTerminatedResourceCollection bool
 	IsGenericCollector                   bool
 }
@@ -62,18 +61,33 @@ type CollectorMetadata struct {
 func (cm CollectorMetadata) CollectorTags() []string {
 	// This is only set for Kubernetes collectors that rely on a dedicated resource API.
 	// This is not applicable to certain collectors like ECS Task collector or Kubernetes cluster collector.
-	if cm.Version == "" {
+	gv := cm.GroupVersion()
+	if gv == "" {
 		return nil
 	}
-	return []string{"kube_api_version:" + cm.Version}
+	return []string{"kube_api_version:" + gv}
 }
 
 // FullName returns a string that contains the collector name and version.
 func (cm CollectorMetadata) FullName() string {
-	if cm.Version != "" {
-		return fmt.Sprintf("%s/%s", cm.Version, cm.Name)
+	gv := cm.GroupVersion()
+	if gv != "" {
+		return fmt.Sprintf("%s/%s", gv, cm.Name)
 	}
 	return cm.Name
+}
+
+// GroupVersion returns the combined "group/version" string, or just "version" when group is empty.
+// Returns an empty string when either group or version is missing (except core API resources
+// which have an empty group but a valid version).
+func (cm CollectorMetadata) GroupVersion() string {
+	if cm.Group == "" && cm.Version != "" {
+		return cm.Version
+	}
+	if cm.Group == "" || cm.Version == "" {
+		return ""
+	}
+	return cm.Group + "/" + cm.Version
 }
 
 // K8sCollectorRunConfig is the configuration used to initialize or run the kubernetes collector.

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	nethttp "net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -67,101 +65,6 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 	return monitor
 }
 
-// statusCodeCount holds the expected status code and count for validation.
-type statusCodeCount struct {
-	statusCode uint16
-	count      int
-}
-
-// getHTTPLikeProtocolStats extracts HTTP protocol stats from the monitor.
-func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
-	t.Helper()
-
-	allStats := monitor.GetHTTPStats()
-	if allStats == nil {
-		return nil
-	}
-
-	statsObj, ok := allStats[protocolType]
-	if !ok {
-		return nil
-	}
-
-	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
-	if !ok {
-		return nil
-	}
-
-	return stats
-}
-
-// verifyHTTPStats validates that the expected HTTP endpoints are present in the stats.
-// expectedEndpoints maps http.Key (without connection details) to expected status code and count.
-// serverPort is used to filter stats to only those matching the server port.
-// additionalValidator is optional - if provided, performs custom validation on each RequestStat.
-// Returns true if all expected endpoints are found with matching status codes and counts.
-func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
-	t.Helper()
-
-	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
-	if len(stats) == 0 {
-		return false
-	}
-
-	// Build result map from actual stats
-	result := make(map[http.Key]statusCodeCount)
-
-	for key, reqStats := range stats {
-		// Only check stats matching the server port
-		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-			continue
-		}
-
-		// Iterate through all status codes in the stats
-		for statusCode, stat := range reqStats.Data {
-			if stat == nil || stat.Count == 0 {
-				continue
-			}
-
-			// Run additional validation if provided
-			if additionalValidator != nil && !additionalValidator(t, stat) {
-				continue
-			}
-
-			// Create a simplified key for comparison (normalize path and method only)
-			simpleKey := http.Key{
-				Method: key.Method,
-				Path: http.Path{
-					Content: key.Path.Content,
-				},
-			}
-
-			// Store in result map
-			result[simpleKey] = statusCodeCount{
-				statusCode: statusCode,
-				count:      stat.Count,
-			}
-		}
-	}
-
-	// Compare result with expected endpoints
-	if len(result) != len(expectedEndpoints) {
-		return false
-	}
-
-	for key, expected := range expectedEndpoints {
-		actual, ok := result[key]
-		if !ok {
-			return false
-		}
-		if actual.statusCode != expected.statusCode || actual.count != expected.count {
-			return false
-		}
-	}
-
-	return true
-}
-
 // makeIISTagValidator creates a validator function that checks for expected IIS dynamic tags.
 func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *http.RequestStat) bool {
 	return func(t *testing.T, stat *http.RequestStat) bool {
@@ -188,57 +91,28 @@ func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *htt
 	}
 }
 
-// TestHTTPStats tests basic HTTP monitoring functionality on Windows.
-func TestHTTPStats(t *testing.T) {
-	serverPort := tracetestutil.FreeTCPPort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-	t.Logf("Using server address: %s (port: %d)", serverAddr, serverPort)
+// TestUSMStateLifecycle verifies that the Windows USM monitor drives the
+// global usmstate.
+// transitions that the Linux monitor does. The agent status template at
+// pkg/status/systemprobe/status_templates/systemprobe.tmpl reads this state;
+// without these transitions it would render as `<no value>`.
+func TestUSMStateLifecycle(t *testing.T) {
+	prev := usmstate.Get()
+	t.Cleanup(func() { usmstate.Set(prev) })
 
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableKeepAlive: true,
+	t.Run("running on construction", func(t *testing.T) {
+		usmstate.Set(usmstate.Disabled)
+		_ = setupWindowsMonitor(t, getHTTPCfg())
+		require.Equal(t, usmstate.Running, usmstate.Get())
 	})
-	t.Cleanup(srvDoneFn)
 
-	monitor := setupWindowsMonitor(t, getHTTPCfg())
-
-	// Define test endpoints with status codes in path
-	testEndpointPath := "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test"
-	healthEndpointPath := "/" + strconv.Itoa(nethttp.StatusOK) + "/api/health"
-
-	// Make first request: GET /204/test with 204 status
-	resp1, err := nethttp.Get("http://" + serverAddr + testEndpointPath)
-	require.NoError(t, err)
-	defer resp1.Body.Close()
-
-	// Make second request: GET /200/api/health with 200 status
-	resp2, err := nethttp.Get("http://" + serverAddr + healthEndpointPath)
-	require.NoError(t, err)
-	defer resp2.Body.Close()
-
-	srvDoneFn()
-
-	// Define expected endpoints
-	expectedEndpoints := map[http.Key]statusCodeCount{
-		{
-			Path:   http.Path{Content: http.Interner.GetString(testEndpointPath)},
-			Method: http.MethodGet,
-		}: {
-			statusCode: 204,
-			count:      1,
-		},
-		{
-			Path:   http.Path{Content: http.Interner.GetString(healthEndpointPath)},
-			Method: http.MethodGet,
-		}: {
-			statusCode: 200,
-			count:      1,
-		},
-	}
-
-	// Verify both endpoints were captured by the monitor
-	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
-	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
+	t.Run("restricted when discovery service map is enabled", func(t *testing.T) {
+		usmstate.Set(usmstate.Disabled)
+		cfg := getHTTPCfg()
+		cfg.DiscoveryServiceMapEnabled = true
+		_ = setupWindowsMonitor(t, cfg)
+		require.Equal(t, usmstate.Restricted, usmstate.Get())
+	})
 }
 
 // TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.
@@ -278,7 +152,7 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	})
 
 	// Setup monitor
-	monitor := setupWindowsMonitor(t, getHTTPCfg())
+	monitor := setupWindowsTestMonitor(t, getHTTPCfg())
 
 	// Make HTTP GET request to IIS
 	t.Logf("Making HTTP GET request to: %s%s", serverAddr, testPath)
@@ -304,7 +178,8 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	}
 
 	// Verify the monitor captured the HTTP traffic with IIS tags
+	accumulated := make(map[http.Key]statusCodeCount)
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
+		return verifyHTTPStats(t, monitor, accumulated, expectedEndpoints, serverPort, 1, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }

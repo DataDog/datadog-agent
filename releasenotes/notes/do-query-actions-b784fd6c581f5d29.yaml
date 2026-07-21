@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add the ``comp/dataobs/queryactions`` agent component for Data Observability query actions.
+    When enabled via ``data_observability.query_actions.enabled: true``, the component
+    subscribes to the ``DO_QUERY_ACTIONS`` Remote Configuration product and schedules
+    a ``do_query_actions`` Python check to execute SQL queries against monitored Postgres
+    instances on configurable intervals. Results are forwarded to the
+    ``data-obs-intake.<site>/api/v2/query-actions`` event platform endpoint.

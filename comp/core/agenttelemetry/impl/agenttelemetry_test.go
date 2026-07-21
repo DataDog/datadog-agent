@@ -14,7 +14,9 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -26,8 +28,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -53,6 +55,21 @@ func newClientMock() client {
 // Sender mock
 type senderMock struct {
 	sentMetrics []*agentmetric
+
+	// Captures from the errortracking flush path. Protected by mu
+	// because the flush job may run concurrently with test setup and
+	// assertions; readers MUST take the lock or use a synchronisation
+	// barrier (e.g. wait on runner.stop().Done) that establishes
+	// happens-before with the job's completion.
+	//
+	// sendLogsCallCount counts sendLogsBatch invocations; sentLogs
+	// flattens every batch into one accumulating slice. The pair lets
+	// tests distinguish "1 call with N records" from "N calls with 1
+	// record each" — the latter would be a regression to per-batch
+	// dispatch that the flattened slice alone cannot detect.
+	sentLogsMu        sync.Mutex
+	sentLogs          []Log
+	sendLogsCallCount int
 }
 
 func (s *senderMock) startSession(_ context.Context) *senderSession {
@@ -66,6 +83,34 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
+func (s *senderMock) sendLogsBatch(_ context.Context, logs []Log) error {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	s.sendLogsCallCount++
+	s.sentLogs = append(s.sentLogs, logs...)
+	return nil
+}
+
+// capturedLogs returns a thread-safe snapshot of the records captured
+// via sendLogsBatch. Tests should call this rather than reading
+// sentLogs directly.
+func (s *senderMock) capturedLogs() []Log {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	out := make([]Log, len(s.sentLogs))
+	copy(out, s.sentLogs)
+	return out
+}
+
+// sendLogsCalls returns a thread-safe snapshot of how many times
+// sendLogsBatch was invoked. Pair with capturedLogs to assert
+// "one HTTP call per flush" (N records via 1 call, not 1 record via N
+// calls).
+func (s *senderMock) sendLogsCalls() int {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	return s.sendLogsCallCount
+}
 
 // Runner mock (TODO: use use mock.Mock)
 type runnerMock struct {
@@ -75,7 +120,7 @@ type runnerMock struct {
 
 func (r *runnerMock) run() {
 	for _, j := range r.jobs {
-		j.a.run(j.profiles)
+		j.Run()
 	}
 }
 
@@ -123,7 +168,7 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 func makeTelMock(t *testing.T) telemetry.Component {
 	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
 	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	tel.Reset()
 	return tel
 }
@@ -186,6 +231,98 @@ func getCommonYAMLConfig(enabled bool, site string) string {
 		return fmt.Sprintf("agent_telemetry:\n  enabled: %t", enabled)
 	}
 	return fmt.Sprintf("site: %s\nagent_telemetry:\n  enabled: %t", site, enabled)
+}
+
+func findErrortrackingJob(t *testing.T, runner *runnerMock) job {
+	t.Helper()
+
+	for _, scheduledJob := range runner.jobs {
+		if scheduledJob.profiles == nil {
+			return scheduledJob
+		}
+	}
+
+	t.Fatal("errortracking job not found")
+	return job{}
+}
+
+func TestCreateAtel_NegativeErrortrackingBufferSizeDoesNotPanic(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: -1
+`)
+	log := makeLogMock(t)
+
+	var atel *atel
+	assert.NotPanics(t, func() {
+		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
+	})
+	require.NotNil(t, atel)
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+}
+
+func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    flush_interval_seconds: -1
+    startup_jitter_seconds: -1
+    shutdown_drain_timeout_seconds: -1
+`, &senderMock{}, nil, runner)
+
+	assert.Equal(t, 60*time.Second, atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, 5*time.Second, atel.shutdownDrainTimeout)
+
+	assert.NotPanics(t, func() {
+		require.NoError(t, atel.start())
+	})
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(defaultErrortrackingFlushIntervalSeconds), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
+}
+
+func TestCreateAtel_ErrortrackingZeroValuesPreserveCurrentSemantics(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: 0
+    flush_interval_seconds: 0
+    startup_jitter_seconds: 0
+    shutdown_drain_timeout_seconds: 0
+`, &senderMock{}, nil, runner)
+
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, 0, cap(atel.errLogsCh))
+	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
+
+	require.NoError(t, atel.start())
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(5), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
 }
 
 func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error {
@@ -469,9 +606,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 5 jobs with different schedules:
+	// Default configuration has 6 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 5, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 6, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -479,8 +616,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 15 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent, injector)
-	assert.Equal(t, 15, totalProfiles)
+	// Default config has 20 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe)
+	assert.Equal(t, 20, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -509,7 +646,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -548,7 +685,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -625,7 +762,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -657,7 +794,9 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	assert.Nil(t, m.GetLabel())
 }
 
-func TestTagSpecifiedAggregationCounter(t *testing.T) {
+// TestAggregateTagsAliasBackwardCompat verifies that the deprecated aggregate_tags YAML key
+// is accepted and behaves identically to preserve_tags for existing custom configurations.
+func TestAggregateTagsAliasBackwardCompat(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -667,6 +806,43 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_tags:
+                  - tag1
+    `
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2"}, "")
+	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1"})
+	counter.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b2"})
+	counter.AddWithTags(30, map[string]string{"tag1": "a2", "tag2": "b3"})
+
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	r.(*runnerMock).run()
+
+	// aggregate_tags: [tag1] should aggregate by tag1, dropping tag2
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 2, len(s.sentMetrics[0].metrics))
+	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
+
+	require.Contains(t, metrics, "tag1:a1:")
+	assert.Equal(t, float64(30), metrics["tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics, "tag1:a2:")
+	assert.Equal(t, float64(30), metrics["tag1:a2:"].Counter.GetValue())
+}
+
+func TestTagSpecifiedAggregationCounter(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.zoo
+                preserve_tags:
                   - tag1
     `
 
@@ -715,7 +891,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -781,7 +957,7 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	tel := makeTelMock(t)
@@ -854,13 +1030,13 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
         - name: bar
           metric:
             metrics:
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate a tel
@@ -897,7 +1073,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -968,10 +1144,10 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -1132,6 +1308,25 @@ func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
 }
 
+// TestSenderConfigLogsNoSSL verifies that logs_no_ssl: true causes buildURL to
+// produce an http:// URL. Previously buildURL hardcoded "https" and ignored
+// Endpoint.UseSSL(), silently dropping all telemetry in no-SSL environments.
+func TestSenderConfigLogsNoSSL(t *testing.T) {
+	c := `
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      logs_dd_url: "localhost:19999"
+      logs_no_ssl: true
+    `
+	sndr := makeSenderImpl(t, nil, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "http://localhost:19999/api/v2/apmtelemetry", url)
+}
+
 func TestGetAsJSONScrub(t *testing.T) {
 	var c = `
     agent_telemetry:
@@ -1141,13 +1336,13 @@ func TestGetAsJSONScrub(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar_auth
-                aggregate_tags:
+                preserve_tags:
                   - password
               - name: foo.bar_key
-                aggregate_tags:
+                preserve_tags:
                   - api_key
               - name: foo.bar_text
-                aggregate_tags:
+                preserve_tags:
                   - text
     `
 
@@ -1180,7 +1375,7 @@ func TestGetAsJSONScrub(t *testing.T) {
 	assert.Equal(t, "********", metric.(MetricPayload).Tags["password"])
 	metric, ok = metrics["foo.bar_key"]
 	require.True(t, ok)
-	assert.Equal(t, "********", metric.(MetricPayload).Tags["api_key"])
+	assert.Equal(t, "********90", metric.(MetricPayload).Tags["api_key"])
 	metric, ok = metrics["foo.bar_text"]
 	require.True(t, ok)
 	assert.Equal(t, "test", metric.(MetricPayload).Tags["text"])
@@ -1195,14 +1390,14 @@ func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: foo.cat
-                aggregate_tags:
+                preserve_tags:
                   - tag
               - name: zoo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: zoo.cat
@@ -1312,7 +1507,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -1615,7 +1810,7 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
     `
@@ -1732,7 +1927,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -2083,7 +2278,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
     `
 
 	// setup and initiate atel
@@ -2107,6 +2302,48 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	compressBodyLen := len(cl1.(*clientMock).body)
 	nonCompressBodyLen := len(cl2.(*clientMock).body)
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
+}
+
+func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: points
+          metric:
+            metrics:
+              - name: point.sent
+                aggregate_tags:
+                  - domain
+                  - remote_agent
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	corePointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain"}, "", telemetry.Options{DefaultMetric: true})
+	adpPointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain", "remote_agent"}, "", telemetry.Options{DefaultMetric: false})
+	corePointSent.Set(5, "https://api.datadoghq.com")
+	adpPointSent.Set(400, "https://api.datadoghq.com", "agent-data-plane")
+
+	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	require.True(t, ok)
+	require.Len(t, metrics, 2)
+
+	coreMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{"domain": "https://api.datadoghq.com"})
+	require.True(t, ok)
+	assert.Equal(t, 5.0, coreMetric.Value)
+
+	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
+		"domain":       "https://api.datadoghq.com",
+		"remote_agent": "agent-data-plane",
+	})
+	require.True(t, ok)
+	assert.Equal(t, 400.0, adpMetric.Value)
 }
 
 func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
@@ -2166,7 +2403,7 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
         metric:
           metrics:
             - name: checks.execution_time
-              aggregate_tags:
+              preserve_tags:
                 - check_name
             - name: pymem.inuse
         schedule:

@@ -10,23 +10,28 @@ package collectorimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -50,6 +55,7 @@ type ExtraFactories interface {
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
 	GetAgentConfig() config.Component
+	GetProfilerName() string
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -129,6 +135,11 @@ func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory 
 	return []confmap.ConverterFactory{}
 }
 
+// GetProfilerName returns the name of the profiler when the Agent Core is available.
+func (e extraFactoriesWithAgentCore) GetProfilerName() string {
+	return version.BundledProfilerName
+}
+
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
 type extraFactoriesWithoutAgentCore struct{}
 
@@ -158,7 +169,10 @@ func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
 
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return []extension.Factory{}
+	return []extension.Factory{
+		ddprofilingextensionimpl.NewFactory(),
+		healthcheckextension.NewFactory(),
+	}
 }
 
 // GetProcessors returns the processors for the collector when the Agent Core is not available.
@@ -167,6 +181,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
+		ddhostnameprocessor.NewFactory(),
 	}
 }
 
@@ -177,10 +192,15 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 	}
 }
 
+// GetProfilerName returns the name of the profiler when the Agent Core is not available.
+func (e extraFactoriesWithoutAgentCore) GetProfilerName() string {
+	return version.StandaloneProfilerName
+}
+
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(), otlpreceiver.NewFactory()}
+		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(extraFactories.GetProfilerName()), otlpreceiver.NewFactory(), prometheusreceiver.NewFactory()}
 		receiverFactories = append(receiverFactories, extraFactories.GetReceivers()...)
 		receivers, err := otelcol.MakeFactoryMap(receiverFactories...)
 		if err != nil {
@@ -195,7 +215,11 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processorFactories := []processor.Factory{attributesprocessor.NewFactory(), cumulativetodeltaprocessor.NewFactory()}
+		processorFactories := []processor.Factory{
+			attributesprocessor.NewFactory(),
+			cumulativetodeltaprocessor.NewFactory(),
+			filterprocessor.NewFactory(),
+		}
 		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
 		processors, err := otelcol.MakeFactoryMap(processorFactories...)
 		if err != nil {

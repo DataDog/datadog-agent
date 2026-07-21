@@ -1,11 +1,17 @@
 {
-  "type": "unsupported",
-  "operation": "eq",
-  "argument": [
-    {
-      "ref": "hits"
-    },
-    true
-  ],
+  "type": "eq",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "hits",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": true,
+    "error": ""
+  },
   "error": ""
 }

@@ -56,6 +56,12 @@ const (
 	// AnnotationSize is the annotiation used to identify the package size.
 	AnnotationSize = "com.datadoghq.package.size"
 
+	// VariantFIPS is the value used in oci.Platform.Variant to mark a FIPS-compliant
+	// build. The OCI spec defines variant for CPU variants; Datadog overloads it as a
+	// build flavor to distinguish sibling manifests for the same os/arch within a single
+	// OCI index.
+	VariantFIPS = "fips"
+
 	// DatadogPackageLayerMediaType is the media type for the main Datadog Package layer.
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	// DatadogPackageConfigLayerMediaType is the media type for the optional Datadog Package config layer.
@@ -68,6 +74,65 @@ const (
 
 // ErrNoLayerMatchesAnnotations is the error returned when no layer matches the requested annotations.
 var ErrNoLayerMatchesAnnotations = errors.New("no layer matches the requested annotations")
+
+// RegistryError annotates an error returned while talking to a specific OCI
+// registry. When Downloader.Download has to try multiple registries, each
+// per-registry failure is wrapped in a RegistryError so callers can iterate
+// them (see RegistryErrors) and present each attempt to the user with its
+// registry context — similar to how os.LinkError carries the path alongside
+// the underlying error.
+//
+// Registry is the ref returned by getRefAndKeychain, which guarantees no
+// embedded userinfo (formatImageRef strips it). Callers do not need to
+// re-redact before logging or exporting Registry.
+type RegistryError struct {
+	Registry string // the registry URL / reference that was attempted
+	Err      error  // the underlying error returned by that registry
+}
+
+// Error implements the error interface.
+func (e *RegistryError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Registry, e.Err)
+}
+
+// Unwrap lets errors.Is / errors.As reach the underlying error (e.g. a
+// go-containerregistry *transport.Error, a *net.DNSError, etc.).
+func (e *RegistryError) Unwrap() error {
+	return e.Err
+}
+
+// RegistryErrors walks err and returns all *RegistryError values found in its
+// chain, across multierr branches. Useful for presenting per-registry failure
+// summaries when a multi-registry download fails. Returns an empty slice if
+// there are no RegistryError values.
+func RegistryErrors(err error) []*RegistryError {
+	var out []*RegistryError
+	collectRegistryErrors(err, &out)
+	return out
+}
+
+func collectRegistryErrors(err error, out *[]*RegistryError) {
+	if err == nil {
+		return
+	}
+	if re, ok := err.(*RegistryError); ok {
+		*out = append(*out, re)
+		// Don't descend further: a RegistryError's Err is the underlying
+		// transport / net error, not another RegistryError.
+		return
+	}
+	// multierr (and any other Unwrap-returns-slice error) — walk each child.
+	if u, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range u.Unwrap() {
+			collectRegistryErrors(e, out)
+		}
+		return
+	}
+	// Single-wrap chains.
+	if u, ok := err.(interface{ Unwrap() error }); ok {
+		collectRegistryErrors(u.Unwrap(), out)
+	}
+}
 
 const (
 	layerMaxSize   = 3 << 30 // 3GiB
@@ -112,8 +177,36 @@ func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 	}
 }
 
+// WithRegistryOverride returns a new Downloader with the given registry overrides applied.
+// The returned Downloader shares the same HTTP client as the original.
+// Image-scoped override maps (from DD_INSTALLER_REGISTRY_URL_<IMAGE> env vars) are
+// preserved and take precedence over the per-extension override, matching the
+// existing priority order.
+func (d *Downloader) WithRegistryOverride(url, auth, username, password string) *Downloader {
+	envCopy := *d.env
+	if url != "" {
+		envCopy.RegistryOverride = url
+	}
+	if auth != "" {
+		envCopy.RegistryAuthOverride = auth
+	}
+	if username != "" {
+		envCopy.RegistryUsername = username
+	}
+	if password != "" {
+		envCopy.RegistryPassword = password
+	}
+	return &Downloader{
+		env:    &envCopy,
+		client: d.client,
+	}
+}
+
 // Download downloads the Datadog Package referenced in the given Package struct.
-func (d *Downloader) Download(ctx context.Context, packageURL string) (*DownloadedPackage, error) {
+func (d *Downloader) Download(ctx context.Context, packageURL string) (_ *DownloadedPackage, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.download")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.url", packageURL)
 	log.Debugf("Downloading package from %s", packageURL)
 	url, err := url.Parse(packageURL)
 	if err != nil {
@@ -151,6 +244,9 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 			return nil, fmt.Errorf("could not parse package size: %w", err)
 		}
 	}
+	span.SetTag("package.name", name)
+	span.SetTag("package.version", version)
+	span.SetTag("package.size", int64(size))
 	log.Debugf("Successfully downloaded package from %s", packageURL)
 	return &DownloadedPackage{
 		Image:   image,
@@ -246,15 +342,27 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 	}
 }
 
-// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+// formatImageRef formats the image ref by removing the http:// or https://
+// prefix and dropping any embedded userinfo. Credentials must be supplied via
+// the dedicated RegistryUsername / RegistryPassword config fields; userinfo
+// in the URL is unsupported and would otherwise leak into logs and spans.
 func formatImageRef(override string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
+	override = strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
+	// Parse with a scheme so url.Parse populates User; bare host[:port]/path
+	// inputs would otherwise be treated as opaque.
+	u, err := url.Parse("https://" + override)
+	if err != nil || u.User == nil {
+		return override
+	}
+	log.Warnf("ignoring userinfo in registry override URL; use installer.registry.username / installer.registry.password instead")
+	u.User = nil
+	return strings.TrimPrefix(u.String(), "https://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
-func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
+func (d *Downloader) downloadRegistry(ctx context.Context, rawURL string) (oci.Image, error) {
 	transport := telemetry.WrapRoundTripper(d.client.Transport)
 	var err error
 	if d.env.Mirror != "" {
@@ -264,12 +372,12 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		}
 	}
 	var multiErr error
-	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
+	for _, refAndKeychain := range getRefAndKeychains(d.env, rawURL) {
 		log.Debugf("Downloading index from %s", refAndKeychain.ref)
 		ref, err := name.ParseReference(refAndKeychain.ref)
 		if err != nil {
-			multiErr = multierr.Append(multiErr, fmt.Errorf("could not parse reference: %w", err))
-			log.Warnf("could not parse reference: %s", err.Error())
+			multiErr = multierr.Append(multiErr, &RegistryError{Registry: refAndKeychain.ref, Err: err})
+			log.Debugf("could not parse reference: %s", err.Error())
 			continue
 		}
 		index, err := remote.Index(
@@ -279,9 +387,12 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			remote.WithTransport(transport),
 		)
 		if err != nil {
-			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
-			log.Warnf("could not download image using %s: %s", url, err.Error())
+			multiErr = multierr.Append(multiErr, &RegistryError{Registry: refAndKeychain.ref, Err: err})
+			log.Debugf("could not download image using %s: %s", rawURL, err.Error())
 			continue
+		}
+		if span, ok := telemetry.SpanFromContext(ctx); ok {
+			span.SetTag("registry.ref", refAndKeychain.ref)
 		}
 		return d.downloadIndex(index)
 	}
@@ -305,12 +416,23 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
+	desiredVariant := ""
+	if d.env.FIPSMode {
+		desiredVariant = VariantFIPS
+		platform.Variant = VariantFIPS
+	}
 	indexManifest, err := index.IndexManifest()
 	if err != nil {
 		return nil, fmt.Errorf("could not get index manifest: %w", err)
 	}
 	for _, manifest := range indexManifest.Manifests {
 		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		// Platform.Satisfies treats an empty required Variant as a wildcard, so
+		// the non-FIPS path could otherwise accept a FIPS-tagged manifest
+		// depending on index order. Filter to an exact variant match.
+		if manifest.Platform != nil && manifest.Platform.Variant != desiredVariant {
 			continue
 		}
 		image, err := index.Image(manifest.Digest)
@@ -326,7 +448,20 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
-func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) error {
+func (d *DownloadedPackage) ExtractLayers(ctx context.Context, mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.extract_layers")
+	defer func() { span.Finish(err) }()
+	span.SetTag("media.type", string(mediaType))
+	span.SetTag("package.name", d.Name)
+	totalAttempts := 0
+	totalCompressedSize := int64(0)
+	layerCount := 0
+	defer func() {
+		span.SetTag("network_attempts", totalAttempts)
+		span.SetTag("layer_size", totalCompressedSize)
+		span.SetTag("layer_count", layerCount)
+	}()
+
 	manifest, err := d.Image.Manifest()
 	if err != nil {
 		return fmt.Errorf("could not get image manifest: %w", err)
@@ -348,42 +483,15 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 			continue
 		}
 		matchesAnnotationsCount++
+		layerCount++
+		totalCompressedSize += layerManifest.Size
 
 		layer, err := d.Image.LayerByDigest(layerManifest.Digest)
 		if err != nil {
 			return fmt.Errorf("could not get layer: %w", err)
 		}
-		err = withNetworkRetries(
-			func() error {
-				var err error
-				defer func() {
-					if err != nil {
-						deferErr := tar.Clean(dir)
-						if deferErr != nil {
-							err = deferErr
-						}
-					}
-				}()
-				uncompressedLayer, err := layer.Uncompressed()
-				if err != nil {
-					return err
-				}
-
-				switch layerManifest.MediaType {
-				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-				case DatadogPackageInstallerLayerMediaType:
-					err = writeBinary(uncompressedLayer, dir)
-				default:
-					return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
-				}
-				uncompressedLayer.Close()
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		)
+		attempts, err := extractLayer(ctx, d.Name, layerManifest, layer, dir)
+		totalAttempts += attempts
 		if err != nil {
 			return fmt.Errorf("could not extract layer: %w", err)
 		}
@@ -394,10 +502,67 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 	return nil
 }
 
+// extractLayer extracts a single layer to dir, with retries on transient network errors.
+// Returns the total number of attempts made (1 if it succeeded on the first try).
+func extractLayer(ctx context.Context, pkgName string, layerManifest oci.Descriptor, layer oci.Layer, dir string) (attempts int, err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "oci.extract_layer")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.name", pkgName)
+	resource := string(layerManifest.MediaType)
+	if extName := layerManifest.Annotations["com.datadoghq.package.extension.name"]; extName != "" {
+		resource = resource + "/" + extName
+		span.SetTag("extension.name", extName)
+	}
+	span.SetResourceName(resource)
+	span.SetTag("media.type", string(layerManifest.MediaType))
+	span.SetTag("layer.digest", layerManifest.Digest.String())
+	span.SetTag("layer.size", layerManifest.Size)
+	defer func() { span.SetTag("network_attempts", attempts) }()
+
+	attempts, err = withNetworkRetries(
+		func() error {
+			var err error
+			defer func() {
+				if err != nil {
+					deferErr := tar.Clean(dir)
+					if deferErr != nil {
+						err = deferErr
+					}
+				}
+			}()
+			uncompressedLayer, err := layer.Uncompressed()
+			if err != nil {
+				return err
+			}
+
+			switch layerManifest.MediaType {
+			case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
+				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+			case DatadogPackageInstallerLayerMediaType:
+				err = writeBinary(uncompressedLayer, dir)
+			default:
+				return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
+			}
+			uncompressedLayer.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+	return attempts, err
+}
+
 // WriteOCILayout writes the image as an OCI layout to the given directory.
-func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
+func (d *DownloadedPackage) WriteOCILayout(ctx context.Context, dir string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "oci.write_layout")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.name", d.Name)
+	attempts := 0
+	defer func() { span.SetTag("network_attempts", attempts) }()
+
 	var layoutPath layout.Path
-	return withNetworkRetries(
+	attempts, err = withNetworkRetries(
 		func() error {
 			layoutPath, err = layout.Write(dir, empty.Index)
 			if err != nil {
@@ -411,9 +576,12 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 			return nil
 		},
 	)
+	return err
 }
 
 // PackageURL returns the package URL for the given site, package and version.
+// Both base and FIPS flavors live under the same URL — flavor selection
+// happens at download time via Platform.Variant in downloadIndex.
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
@@ -423,20 +591,22 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	}
 }
 
-func withNetworkRetries(f func() error) error {
-	var err error
-	for i := 0; i < networkRetries; i++ {
+// withNetworkRetries calls f and retries it on transient network errors.
+// It returns the total number of attempts made (1 if f succeeded on the first try,
+// up to networkRetries if all attempts failed) alongside the final error.
+func withNetworkRetries(f func() error) (attempts int, err error) {
+	for attempts = 1; attempts <= networkRetries; attempts++ {
 		err = f()
 		if err == nil {
-			return nil
+			return attempts, nil
 		}
 		if !isRetryableNetworkError(err) {
-			return err
+			return attempts, err
 		}
 		log.Warnf("retrying after network error: %s", err)
 		time.Sleep(time.Second)
 	}
-	return err
+	return networkRetries, err
 }
 
 // isRetryableNetworkError returns true if the error is a network error we should retry on

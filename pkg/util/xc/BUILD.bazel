@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "xc",
+    srcs = [
+        "docs.go",
+        "nix.go",
+        "stub.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/xc",
+    visibility = ["//visibility:public"],
+)

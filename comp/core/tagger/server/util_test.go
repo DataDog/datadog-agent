@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 type mockStreamTagsEvent struct {
@@ -121,7 +123,7 @@ func Test(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			slice := make([][]int, 0, len(testCase.expected))
-			processChunksInPlace(testCase.events, testCase.maxChunkSize, computeSize, getConsumeFunc(&slice))
+			grpcutil.ProcessChunksInPlace(testCase.events, testCase.maxChunkSize, computeSize, getConsumeFunc(&slice))
 			if len(testCase.expected) > 0 || len(slice) > 0 {
 				assert.Truef(t, reflect.DeepEqual(testCase.expected, slice), "expected %v, found %v", testCase.expected, slice)
 			}

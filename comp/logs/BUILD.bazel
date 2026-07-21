@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logs",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/kubehealth/fx",
+        "//comp/logs/agent/fx",
+        "//comp/logs/agent/mock",
+        "//comp/logs/auditor/fx",
+        "//comp/logs/auditor/mock",
+        "//comp/logs/severityprovider/fx",
+        "//comp/logs/streamlogs/fx",
+        "//pkg/util/fxutil",
+    ],
+)

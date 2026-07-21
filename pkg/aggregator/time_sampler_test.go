@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -38,6 +40,42 @@ func testTimeSampler(store *tags.Store) *TimeSampler {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	return sampler
 }
+
+type recordingDogStatsDLookback struct {
+	wanted       map[string]struct{}
+	observations []recordedDogStatsDLookbackObservation
+	flushes      []recordedDogStatsDLookbackFlush
+}
+
+type recordedDogStatsDLookbackObservation struct {
+	sample    metrics.MetricSample
+	timestamp float64
+	ctx       DogStatsDLookbackContext
+}
+
+type recordedDogStatsDLookbackFlush struct {
+	timestamp     float64
+	forceFlushAll bool
+}
+
+func (r *recordingDogStatsDLookback) WantsDogStatsDMetric(name string) bool {
+	_, found := r.wanted[name]
+	return found
+}
+
+func (r *recordingDogStatsDLookback) ObserveDogStatsDSample(sample *metrics.MetricSample, timestamp float64, ctx DogStatsDLookbackContext) {
+	r.observations = append(r.observations, recordedDogStatsDLookbackObservation{
+		sample:    *sample,
+		timestamp: timestamp,
+		ctx:       ctx,
+	})
+}
+
+func (r *recordingDogStatsDLookback) FlushDogStatsDBuckets(timestamp float64, forceFlushAll bool) {
+	r.flushes = append(r.flushes, recordedDogStatsDLookbackFlush{timestamp: timestamp, forceFlushAll: forceFlushAll})
+}
+
+func (r *recordingDogStatsDLookback) AppendDogStatsDNoAggSerie(*metrics.Serie) {}
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
@@ -80,6 +118,130 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 }
 func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
+}
+
+func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "other.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test"},
+		SampleRate: 1,
+	}, 10, matcher)
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      2,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test", "role:web"},
+		Host:       "sample-host",
+		SampleRate: 1,
+		NoIndex:    true,
+		Source:     metrics.MetricSource(9),
+	}, 11, matcher)
+
+	require.Len(t, lookback.observations, 1)
+	observation := lookback.observations[0]
+	require.Equal(t, "target.metric", observation.sample.Name)
+	require.Equal(t, float64(11), observation.timestamp)
+	require.Equal(t, "target.metric", observation.ctx.Name)
+	require.Equal(t, "sample-host", observation.ctx.Host)
+	require.ElementsMatch(t, []string{"env:test", "role:web"}, observation.ctx.Tags)
+	require.True(t, observation.ctx.NoIndex)
+	require.Equal(t, metrics.MetricSource(9), observation.ctx.Source)
+	require.False(t, observation.ctx.ContextKey.IsZero())
+}
+
+func TestTimeSamplerDogStatsDLookbackFlushesBuckets(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+
+	series, sketches := flushSerie(samper, 123, false)
+	require.Empty(t, series)
+	require.Empty(t, sketches)
+	require.Equal(t, []recordedDogStatsDLookbackFlush{{timestamp: 123}}, lookback.flushes)
+}
+
+func TestTimeSamplerDogStatsDLookbackForceFlushesAllBuckets(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+
+	series, sketches := flushSerie(samper, 123, true)
+	require.Empty(t, series)
+	require.Empty(t, sketches)
+	require.Equal(t, []recordedDogStatsDLookbackFlush{{timestamp: 123, forceFlushAll: true}}, lookback.flushes)
+}
+
+func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"counter.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"counter.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 1,
+	}, 1001, matcher)
+	samper.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 1,
+	}, 1005, matcher)
+
+	require.Len(t, lookback.observations, 2)
+	require.Equal(t, lookback.observations[0].ctx.ContextKey, lookback.observations[1].ctx.ContextKey)
+	for _, observation := range lookback.observations {
+		require.Equal(t, []string{"instance:a"}, observation.ctx.Tags)
+	}
+}
+
+func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      math.NaN(),
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}, 10, matcher)
+
+	require.Empty(t, lookback.observations)
+}
+
+func TestTimeSamplerDogStatsDLookbackIgnoresRejectedDistributionSamples(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      math.NaN(),
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+	}, 10, matcher)
+
+	require.Empty(t, lookback.observations)
 }
 
 func testContextSampling(t *testing.T, store *tags.Store) {
@@ -312,12 +474,11 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
-			now    float64
-			name   = "m.0"
-			tags   = []string{"a"}
-			host   = "host"
-			exp    = &quantile.Sketch{}
-			keyGen = ckey.NewKeyGenerator()
+			now  float64
+			name = "m.0"
+			tags = []string{"a"}
+			host = "host"
+			exp  = &quantile.Sketch{}
 		)
 
 		for i := 0; i < bucketSize; i++ {
@@ -330,17 +491,18 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 		_, flushed := flushSerie(sampler, now, false)
 		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-			Name:     name,
-			Tags:     tagset.CompositeTagsFromSlice(tags),
-			Host:     host,
-			Interval: 10,
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:     name,
+				Tags:     tagset.CompositeTagsFromSlice(tags),
+				Host:     host,
+				Interval: 10,
+			},
 			Points: []metrics.SketchPoint{
 				{
 					Sketch: exp,
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
 		}, flushed[0])
 
 		_, flushed = flushSerie(sampler, now, false)
@@ -382,14 +544,15 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10000, Sketch: expSketch},
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
 	// The samples added after the flush time remains in the dist sampler
@@ -426,27 +589,29 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 2, len(flushed))
 	sort.Slice(flushed, func(i, j int) bool {
-		return flushed[i].Name < flushed[j].Name
+		return flushed[i].GetName() < flushed[j].GetName()
 	})
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name1",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name1",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name2",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name2",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample2),
 	}, flushed[1])
 }
 func TestSketchContextSampling(t *testing.T) {
@@ -499,14 +664,15 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "distribution.metric.name1",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "distribution.metric.name1",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12340.0, Sketch: expSketch},
 			{Ts: 12350.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&dSample1),
 	}, sketches[0])
 }
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
@@ -581,7 +747,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		names = append(names, metric.Name)
 	}
 	for _, sketch := range sketches {
-		names = append(names, sketch.Name)
+		names = append(names, sketch.GetName())
 	}
 	assert.ElementsMatch(t, names, []string{
 		"test.histogram.max",
@@ -662,16 +828,123 @@ func TestForcedFlush(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     testSketch.Name,
-		Tags:     tagset.CompositeTags{},
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     testSketch.Name,
+			Tags:     tagset.CompositeTags{},
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 990.0, Sketch: expSketch},
 			{Ts: 1010.0, Sketch: expSketch},
 			{Ts: 1020.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(testSketch),
 	}, sSerie[0])
+}
+
+// testTimeSamplerStripCountAggregates verifies the numeric aggregation:
+// two CountType samples whose only differing tag is stripped by the
+// filterlist must collapse to a single context AND their values must
+// sum in the resulting Serie's Point.
+func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	sampler := testTimeSampler(store)
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"count.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	// Both samples land in bucket 1000 (bucket size = 10).
+	sampler.sample(&metrics.MetricSample{
+		Name:       "count.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 1,
+	}, 1001, matcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "count.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 1,
+	}, 1005, matcher)
+
+	series, _ := flushSerie(sampler, 1020, true)
+
+	require.Len(t, series, 1)
+	expected := &metrics.Serie{
+		Name:     "count.metric",
+		Points:   []metrics.Point{{Ts: 1000.0, Value: float64(1.2)}},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"instance:a"}),
+		Host:     "",
+		MType:    metrics.APIRateType,
+		Interval: 10,
+	}
+	metrics.AssertSerieEqual(t, expected, series[0])
+}
+
+func TestTimeSamplerStripCountAggregates(t *testing.T) {
+	testWithTagsStore(t, testTimeSamplerStripCountAggregates)
+}
+
+// testTimeSamplerStripCounterAggregates verifies the numeric aggregation for
+// CounterType (DogStatsD `|c`): two samples whose only differing tag is
+// stripped must collapse to a single context, with each sample's value
+// inflated by 1/SampleRate before accumulation, and the bucket total then
+// normalised to a per-second rate by dividing by the bucket interval.
+//
+// Sample inflation (addSample):  value * (1/SampleRate)
+// Rate normalisation (flush):    accumulated_total / interval
+//
+// With bucket_interval=10:
+//
+//	sample1: 4 * (1/0.5)  =  8
+//	sample2: 3 * (1/0.25) = 12
+//	total = 20  →  rate = 20/10 = 2.0
+func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	sampler := testTimeSampler(store)
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"counter.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	// Both samples land in bucket 1000 (bucket size = 10).
+	sampler.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      4,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 0.5, // inflated to 8
+	}, 1001, matcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      3,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 0.25, // inflated to 12
+	}, 1005, matcher)
+
+	series, _ := flushSerie(sampler, 1020, true)
+
+	require.Len(t, series, 1)
+	expected := &metrics.Serie{
+		Name:     "counter.metric",
+		Points:   []metrics.Point{{Ts: 1000.0, Value: 2.0}}, // (8+12)/10
+		Tags:     tagset.CompositeTagsFromSlice([]string{"instance:a"}),
+		Host:     "",
+		MType:    metrics.APIRateType,
+		Interval: 10,
+	}
+	metrics.AssertSerieEqual(t, expected, series[0])
+}
+
+func TestTimeSamplerStripCounterAggregates(t *testing.T) {
+	testWithTagsStore(t, testTimeSamplerStripCounterAggregates)
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {

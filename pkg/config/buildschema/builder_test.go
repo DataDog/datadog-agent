@@ -1,0 +1,201 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package buildschema
+
+import (
+	"testing"
+	"time"
+)
+
+// nodeAt returns the nested node at the given dot-separated path inside the schema.
+func nodeAt(schema map[string]interface{}, path ...string) map[string]interface{} {
+	curr := schema
+	for _, key := range path {
+		props, ok := curr["properties"].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		next, ok := props[key].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		curr = next
+	}
+	return curr
+}
+
+// TestLeafNodeHasNodeTypeSettings verifies that every leaf node produced by
+// addToSchema carries node_type: "setting".
+func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
+	cases := []struct {
+		name string
+		call func(b *builder)
+	}{
+		{"bool default", func(b *builder) { b.BindEnvAndSetDefault("leaf_bool", true) }},
+		{"int default", func(b *builder) { b.BindEnvAndSetDefault("leaf_int", 42) }},
+		{"string default", func(b *builder) { b.BindEnvAndSetDefault("leaf_string", "hello") }},
+		{"float64 default", func(b *builder) { b.BindEnvAndSetDefault("leaf_float", 3.14) }},
+		{"[]string default", func(b *builder) { b.BindEnvAndSetDefault("leaf_strslice", []string{"a"}) }},
+		{"nested setting", func(b *builder) { b.BindEnvAndSetDefault("section.leaf", "val") }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewSchemaBuilder("", "", nil).(*builder)
+			tc.call(b)
+
+			// Determine the expected leaf location
+			var leaf map[string]interface{}
+			switch tc.name {
+			case "nested setting":
+				leaf = nodeAt(b.Schema, "section", "leaf")
+			default:
+				// All other cases use a top-level key
+				props := b.Schema["properties"].(map[string]interface{})
+				for _, v := range props {
+					leaf = v.(map[string]interface{})
+					break
+				}
+			}
+
+			if leaf == nil {
+				t.Fatal("leaf node not found in schema")
+			}
+
+			nodeType, ok := leaf["node_type"]
+			if !ok {
+				t.Errorf("leaf node is missing node_type field: %v", leaf)
+				return
+			}
+			if nodeType != "setting" {
+				t.Errorf("leaf node has node_type=%q, want %q", nodeType, "setting")
+			}
+		})
+	}
+}
+
+// TestDurationNodeIsStringType verifies that a time.Duration default produces
+// type:"string" (not "number") and serialises the default as a human-readable
+// string so that the generated schema stays consistent with the YAML schema.
+func TestDurationNodeIsStringType(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("my.interval", 15*time.Minute)
+
+	leaf := nodeAt(b.Schema, "my", "interval")
+	if leaf == nil {
+		t.Fatal("leaf node not found")
+	}
+
+	if got := leaf["type"]; got != "string" {
+		t.Errorf("duration node type = %q, want %q", got, "string")
+	}
+	if got := leaf["format"]; got != "duration" {
+		t.Errorf("duration node format = %q, want %q", got, "duration")
+	}
+	if got := leaf["default"]; got != "15m0s" {
+		t.Errorf("duration node default = %q, want %q", got, "15m0s")
+	}
+}
+
+// TestParseEnvSetsEnvParser verifies that ParseEnvSplitComma, ParseEnvSplitSpace,
+// and ParseEnvJSON set the correct env_parser value on the schema node.
+func TestParseEnvSetsEnvParser(t *testing.T) {
+	cases := []struct {
+		name       string
+		call       func(b *builder)
+		path       []string
+		wantParser string
+	}{
+		{
+			name:       "ParseEnvSplitComma",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitComma("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "comma_separated",
+		},
+		{
+			name:       "ParseEnvSplitSpace",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitSpace("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "space_separated",
+		},
+		{
+			name:       "ParseEnvJSON",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvJSON("my_list", []string{}) },
+			path:       []string{"my_list"},
+			wantParser: "json",
+		},
+		{
+			name: "ParseEnvSplitComma nested key",
+			call: func(b *builder) {
+				b.BindEnvAndSetDefault("section.my_list", []string{})
+				b.ParseEnvSplitComma("section.my_list")
+			},
+			path:       []string{"section", "my_list"},
+			wantParser: "comma_separated",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewSchemaBuilder("", "", nil).(*builder)
+			tc.call(b)
+
+			leaf := nodeAt(b.Schema, tc.path...)
+			if leaf == nil {
+				t.Fatalf("node not found at path %v", tc.path)
+			}
+			got, ok := leaf["env_parser"].(string)
+			if !ok {
+				t.Fatalf("env_parser not set or wrong type: %v", leaf)
+			}
+			if got != tc.wantParser {
+				t.Errorf("env_parser = %q, want %q", got, tc.wantParser)
+			}
+		})
+	}
+}
+
+// TestParseEnvPanicsOnUnknownKey verifies that ParseEnvSplitComma panics when
+// called for a key that has not been registered in the schema.
+func TestParseEnvPanicsOnUnknownKey(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("known_key", []string{})
+
+	for _, fn := range []func(){
+		func() { b.ParseEnvSplitComma("unknown_key") },
+		func() { b.ParseEnvSplitSpace("unknown_key") },
+		func() { b.ParseEnvJSON("unknown_key", []string{}) },
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Error("expected panic for unknown key, got none")
+				}
+			}()
+			fn()
+		}()
+	}
+}
+
+// TestSectionNodeHasNodeTypeSection verifies that intermediate section nodes
+// carry node_type: "section" (existing behaviour, regression guard).
+func TestSectionNodeHasNodeTypeSection(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("my_section.my_leaf", "val")
+
+	section := nodeAt(b.Schema, "my_section")
+	if section == nil {
+		t.Fatal("section node not found")
+	}
+	nodeType, ok := section["node_type"]
+	if !ok {
+		t.Error("section node is missing node_type field")
+		return
+	}
+	if nodeType != "section" {
+		t.Errorf("section node has node_type=%q, want %q", nodeType, "section")
+	}
+}

@@ -23,8 +23,10 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,8 +36,8 @@ var headerTelemetry = struct {
 	success telemetry.Counter
 	error   telemetry.Counter
 }{
-	success: telemetry.NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
-	error:   telemetry.NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
+	success: telemetryimpl.GetCompatComponent().NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
+	error:   telemetryimpl.GetCompatComponent().NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
 }
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
@@ -199,7 +201,7 @@ func (h *headerProvider) getKernelHeaders(hv kernel.Version) ([]string, headerFe
 		// The `kheaders` module will be automatically added and removed if present and needed.
 		var err error
 		var dirs []string
-		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
+		if dirs, err = getSysfsHeaderDirs(os.TempDir(), hv); err == nil {
 			return dirs, sysfsHeadersFound, nil
 		}
 		log.Debugf("unable to find system kernel headers: %v", err)
@@ -389,10 +391,39 @@ func getDownloadedHeaderDirs(headerDownloadDir string) []string {
 	return dirs
 }
 
-func getSysfsHeaderDirs(v kernel.Version) ([]string, error) {
-	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("linux-headers-%s", v))
-	fi, err := os.Stat(tmpPath)
-	if err == nil && fi.IsDir() {
+var errInvalidTempDirectory = errors.New("invalid system-probe temp directory")
+
+func checkTempDirPermissions(dir string) error {
+	sfi, statErr := os.Lstat(dir)
+	if statErr != nil {
+		return statErr
+	}
+
+	if !sfi.IsDir() {
+		return fmt.Errorf("%w: %s is not a directory", errInvalidTempDirectory, dir)
+	}
+	if sfi.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %s is not allowed to be a symlink", errInvalidTempDirectory, dir)
+	}
+
+	stat, ok := sfi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("unable to verify permissions of %s", dir)
+	}
+	if stat.Uid != 0 || stat.Gid != 0 || sfi.Mode().Perm()&os.FileMode(0022) != 0 {
+		return fmt.Errorf("%w: %s must be owned by user=0, group=0, and no group/world write permissions: found user=%d, group=%d, permissions=%s", errInvalidTempDirectory, dir, stat.Uid, stat.Gid, sfi.Mode().Perm())
+	}
+	return nil
+}
+
+func getSysfsHeaderDirs(tmpDir string, v kernel.Version) ([]string, error) {
+	sysprobeTmpPath := filepath.Join(tmpDir, "system-probe")
+	tmpPath := filepath.Join(sysprobeTmpPath, fmt.Sprintf("linux-headers-%s", v))
+
+	if fi, err := os.Stat(tmpPath); err == nil && fi.IsDir() {
+		if err := checkTempDirPermissions(sysprobeTmpPath); err != nil {
+			return nil, err
+		}
 		hv, err := getHeaderVersion(tmpPath)
 		if err != nil {
 			// remove tmp dir if it errors
@@ -418,7 +449,16 @@ func getSysfsHeaderDirs(v kernel.Version) ([]string, error) {
 		}
 	}
 
-	if err = archive.TarXZExtractAll(sysfsHeadersPath, tmpPath); err != nil {
+	if _, err := os.Lstat(sysprobeTmpPath); errors.Is(err, fs.ErrNotExist) {
+		if err := os.MkdirAll(sysprobeTmpPath, 0755); err != nil {
+			return nil, fmt.Errorf("create system-probe temp directory: %s", err)
+		}
+	}
+
+	if err := checkTempDirPermissions(sysprobeTmpPath); err != nil {
+		return nil, err
+	}
+	if err := archive.TarXZExtractAll(sysfsHeadersPath, tmpPath); err != nil {
 		return nil, fmt.Errorf("unable to extract kernel headers: %w", err)
 	}
 	log.Debugf("found valid kernel headers at %s", tmpPath)

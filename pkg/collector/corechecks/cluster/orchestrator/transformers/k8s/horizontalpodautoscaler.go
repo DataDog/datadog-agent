@@ -18,6 +18,8 @@ import (
 
 // ExtractHorizontalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Horizontal Pod Autoscaler resource.
 // https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L33
+//
+//nolint:revive
 func ExtractHorizontalPodAutoscaler(ctx processors.ProcessorContext, v *v2.HorizontalPodAutoscaler) *model.HorizontalPodAutoscaler {
 	if v == nil {
 		return &model.HorizontalPodAutoscaler{}
@@ -35,9 +37,8 @@ func ExtractHorizontalPodAutoscaler(ctx processors.ProcessorContext, v *v2.Horiz
 		m.Tags = append(m.Tags, conditionTags...)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
-	m.Tags = append(m.Tags, transformers.RetrieveMetadataTags(v.ObjectMeta.Labels, v.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	m.Tags = append(m.Tags, transformers.RetrieveTeamTag(v.ObjectMeta.Labels, v.ObjectMeta.Annotations)...)
 	return m
 }
 

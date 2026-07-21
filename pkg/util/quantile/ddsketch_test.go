@@ -7,9 +7,12 @@ package quantile
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -356,6 +359,145 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestConvertDDSketchIntoSketchPoolSafety verifies that converting two DDSketches
+// back-to-back does not corrupt the first sketch's bins via sync.Pool reuse.
+// This is a regression test for the use-after-free bug where sparseStore.bins
+// shared the pool's backing array, allowing a second conversion to overwrite the
+// first sketch's data.
+func TestConvertDDSketchIntoSketchPoolSafety(t *testing.T) {
+	makeSketch := func(value float64) *ddsketch.DDSketch {
+		s, err := ddsketch.NewDefaultDDSketch(0.01)
+		require.NoError(t, err)
+		for i := 0; i < 100; i++ {
+			require.NoError(t, s.Add(value*float64(i+1)))
+		}
+		return s
+	}
+
+	// Convert the first sketch and immediately snapshot its bins.
+	first, err := ConvertDDSketchIntoSketch(makeSketch(1.0))
+	require.NoError(t, err)
+	firstBinsBefore := make([]bin, len(first.bins))
+	copy(firstBinsBefore, first.bins)
+
+	// Convert a second sketch with very different values. If the pool backing
+	// array is shared, this will overwrite the first sketch's bins.
+	_, err = ConvertDDSketchIntoSketch(makeSketch(1e6))
+	require.NoError(t, err)
+
+	// The first sketch's bins must be unchanged.
+	assert.Equal(t, firstBinsBefore, []bin(first.bins),
+		"first sketch bins were corrupted by pool reuse after second conversion")
+}
+
+// createTestDDSketch creates a DDSketch with a mapping compatible with the Sketch
+// parameters, adding `count` copies of `value`.
+func createTestDDSketch(cfg *Config, value float64, count int) (*ddsketch.DDSketch, error) {
+	gamma := cfg.gamma.v
+	offset := float64(cfg.norm.bias) + 0.5
+	m, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
+	if err != nil {
+		return nil, err
+	}
+	sketch := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
+	for i := 0; i < count; i++ {
+		if err := sketch.Add(value); err != nil {
+			return nil, err
+		}
+	}
+	return sketch, nil
+}
+
+// snapshotBins returns a copy of the sketch's bin (key, count) pairs.
+func snapshotBins(s *Sketch) []bin {
+	k, n := s.Cols()
+	result := make([]bin, len(k))
+	for i := range k {
+		result[i] = bin{k: Key(k[i]), n: uint16(n[i])}
+	}
+	return result
+}
+
+// TestConvertDDSketchIntoSketch_PoolCorruption is the reproduction test from
+// https://github.com/DataDog/datadog-agent/issues/48508.
+// It verifies that converting a second sketch does not corrupt the bins of a
+// previously converted sketch via sync.Pool backing-array reuse.
+func TestConvertDDSketchIntoSketch_PoolCorruption(t *testing.T) {
+	cfg := Default()
+
+	// Sketch A: 894 samples at ~0.7ms → keys around 865–878
+	sketchA, err := createTestDDSketch(cfg, 0.0007, 894)
+	require.NoError(t, err)
+
+	// Sketch B: 1 sample at ~1.0s → key around 1338–1339
+	sketchB, err := createTestDDSketch(cfg, 1.0, 1)
+	require.NoError(t, err)
+
+	// Convert A and snapshot its bins
+	resultA, err := convertDDSketchIntoSketch(cfg, sketchA)
+	require.NoError(t, err)
+	binsA := snapshotBins(resultA)
+
+	// Convert B — without the fix, this reuses A's pool backing array and
+	// overwrites bin[0] of resultA
+	_, err = convertDDSketchIntoSketch(cfg, sketchB)
+	require.NoError(t, err)
+
+	// A's bins must be unchanged
+	binsAfter := snapshotBins(resultA)
+	require.Equal(t, binsA, binsAfter,
+		"pool reuse corrupted previous sketch: bin[0] changed from %v to %v",
+		binsA[0], binsAfter[0])
+
+	// Bin keys must be monotonically non-decreasing
+	for i := 1; i < len(binsAfter); i++ {
+		require.LessOrEqual(t, binsAfter[i-1].k, binsAfter[i].k,
+			"non-monotonic bin keys at index %d: key %d > key %d",
+			i, binsAfter[i-1].k, binsAfter[i].k)
+	}
+}
+
+// TestConvertDDSketchIntoSketch_DenseStorePoolReuse verifies that every
+// getDenseStore call inside ConvertDDSketchIntoSketch is matched by exactly one
+// putDenseStore call. This is the real invariant: the pool must not leak.
+//
+// Strategy: swap the get/put function variables for counters so the test is
+// deterministic regardless of sync.Pool scheduling or GC timing. Asserting
+// "no allocation on the second call" would be flaky because sync.Pool can drop
+// entries on any GC cycle; asserting gets == puts is always correct.
+func TestConvertDDSketchIntoSketch_DenseStorePoolReuse(t *testing.T) {
+	var gets, puts int32
+
+	origGet := denseStoreGetFn
+	origPut := denseStorePutFn
+	denseStoreGetFn = func() store.Store {
+		atomic.AddInt32(&gets, 1)
+		return store.NewDenseStore()
+	}
+	denseStorePutFn = func(s store.Store) {
+		atomic.AddInt32(&puts, 1)
+		s.Clear()
+	}
+	t.Cleanup(func() {
+		denseStoreGetFn = origGet
+		denseStorePutFn = origPut
+	})
+
+	input, err := ddsketch.NewDefaultDDSketch(0.01)
+	require.NoError(t, err)
+	for i := 1; i <= 100; i++ {
+		require.NoError(t, input.Add(float64(i)))
+	}
+
+	_, err = ConvertDDSketchIntoSketch(input)
+	require.NoError(t, err)
+
+	g := atomic.LoadInt32(&gets)
+	p := atomic.LoadInt32(&puts)
+	assert.Equal(t, g, p,
+		"every getDenseStore call must be matched by a putDenseStore call: got %d get(s) but %d put(s)", g, p)
 }
 
 // BenchmarkDDSketchConversion benchmarks the DDSketch to Sketch conversion

@@ -21,6 +21,7 @@ import (
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypespkg "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -318,99 +319,108 @@ func setupTagger(t *testing.T) tagger.Component {
 	return fakeTagger
 }
 
-func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
-
-	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
-		"distribution.metric": {
-			Tags:   []string{"env", "pod_name"},
-			Action: "exclude",
-		},
-	}, logmock.New(t))
-
-	fakeTagger := setupTagger(t)
-
-	contextResolver := newContextResolver(fakeTagger, store, "test")
-
-	// Two distributions with different tagger tags that will be stripped should get the same context key
-	dist1 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container1",
-			Cardinality:           "low",
-		},
+// testStrippingOriginTagsSameKey checks that two samples whose only difference is
+// in origin tags covered by the strip list resolve to the same context key.
+func testStrippingOriginTagsSameKey(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cases := []struct {
+		metricName string
+		mtype      metrics.MetricType
+	}{
+		{"distribution.metric", metrics.DistributionType},
+		{"count.metric", metrics.CounterType},
 	}
-	dist2 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container2",
-			Cardinality:           "low",
-		},
+	for _, tc := range cases {
+		t.Run(tc.mtype.String(), func(t *testing.T) {
+			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+				tc.metricName: {Tags: []string{"env", "pod_name"}, Action: "exclude"},
+			}, logmock.New(t))
+			fakeTagger := setupTagger(t)
+			contextResolver := newContextResolver(fakeTagger, store, "test")
+
+			s1 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container1", Cardinality: "low"},
+			}
+			s2 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container2", Cardinality: "low"},
+			}
+
+			key1 := contextResolver.trackContext(s1, 0, matcher)
+			key2 := contextResolver.trackContext(s2, 0, matcher)
+
+			assert.Equal(t, key1, key2, "stripped origin tags should produce the same context key")
+			ctx, ok := contextResolver.get(key1)
+			require.True(t, ok)
+			metrics.AssertCompositeTagsEqual(t, ctx.Tags(),
+				tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+		})
 	}
-
-	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
-	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
-
-	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
-	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
-
-	// Check only the unstripped tags remain
-	context1, ok := contextResolver.get(contextKey1)
-	require.True(t, ok)
-	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
 }
 
-func TestTrackContextStrippingOriginTags(t *testing.T) {
-	testWithTagsStore(t, testTrackContextStrippingOriginTags)
+func TestStrippingOriginTagsSameKey(t *testing.T) {
+	testWithTagsStore(t, testStrippingOriginTagsSameKey)
 }
 
-func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store) {
-	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
-		"distribution.metric": {
-			Tags:   []string{"env"},
-			Action: "exclude",
-		},
-	}, logmock.New(t))
-
-	fakeTagger := setupTagger(t)
-
-	contextResolver := newContextResolver(fakeTagger, store, "test")
-
-	// Two distributions with different tagger tags that will be stripped should get the same context key
-	dist1 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container1",
-			Cardinality:           "low",
-		},
+// testStrippingOriginTagsDiffersKey checks that when the strip list does not cover
+// all differing origin tags, contexts remain distinct.
+func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cases := []struct {
+		metricName string
+		mtype      metrics.MetricType
+	}{
+		{"distribution.metric", metrics.DistributionType},
+		{"count.metric", metrics.CounterType},
 	}
-	dist2 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container2",
-			Cardinality:           "low",
-		},
+	for _, tc := range cases {
+		t.Run(tc.mtype.String(), func(t *testing.T) {
+			// Strip only env; container1 vs container2 still differ on pod_name.
+			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+				tc.metricName: {Tags: []string{"env"}, Action: "exclude"},
+			}, logmock.New(t))
+			fakeTagger := setupTagger(t)
+			contextResolver := newContextResolver(fakeTagger, store, "test")
+
+			s1 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container1", Cardinality: "low"},
+			}
+			s2 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container2", Cardinality: "low"},
+			}
+
+			key1 := contextResolver.trackContext(s1, 0, matcher)
+			key2 := contextResolver.trackContext(s2, 0, matcher)
+
+			assert.NotEqual(t, key1, key2, "unstripped origin tag pod_name must keep contexts distinct")
+		})
 	}
-
-	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
-	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
-
-	// Pod name should be different between contexts
-	assert.NotEqual(t, contextKey1, contextKey2)
 }
 
-func TestTrackContextStrippingOriginTagsDiffers(t *testing.T) {
-	testWithTagsStore(t, testTrackContextStrippingOriginTagsDiffers)
+func TestStrippingOriginTagsDiffersKey(t *testing.T) {
+	testWithTagsStore(t, testStrippingOriginTagsDiffersKey)
 }
 
+// testTrackContextStrippingMetricTags verifies that both metric and origin tags
+// are stripped together for Distribution. Samples differ on a metric tag ("thing")
+// AND on origin container; both are in the strip list, so they collapse to one key.
 func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name", "thing"},
@@ -457,46 +467,102 @@ func TestTrackContextStrippingMetricTags(t *testing.T) {
 	testWithTagsStore(t, testTrackContextStrippingMetricTags)
 }
 
-func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store) {
-	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
-		"distribution.metric": {
-			Tags:   []string{"env", "pod_name"},
-			Action: "exclude",
-		},
-	}, logmock.New(t))
-
-	fakeTagger := setupTagger(t)
-
-	contextResolver := newContextResolver(fakeTagger, store, "test")
-
-	dist1 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container1",
-			Cardinality:           "low",
-		},
+// testStrippingMetricTagsSameKey checks that two samples whose only difference is
+// in metric tags covered by the strip list resolve to the same context key.
+func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cases := []struct {
+		metricName string
+		mtype      metrics.MetricType
+	}{
+		{"counter.metric", metrics.CounterType},
+		{"distribution.metric", metrics.DistributionType},
 	}
-	dist2 := &metrics.MetricSample{
-		Name:  "distribution.metric",
-		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
-		OriginInfo: taggertypespkg.OriginInfo{
-			ContainerIDFromSocket: "container_id://container2",
-			Cardinality:           "low",
-		},
+	for _, tc := range cases {
+		t.Run(tc.mtype.String(), func(t *testing.T) {
+			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+				tc.metricName: {Tags: []string{"env", "region"}, Action: "exclude"},
+			}, logmock.New(t))
+			contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+
+			s1 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Value:      5,
+				Tags:       []string{"env:prod", "region:us-east", "instance:a"},
+				SampleRate: 1,
+			}
+			s2 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Value:      7,
+				Tags:       []string{"env:dev", "region:us-west", "instance:a"},
+				SampleRate: 1,
+			}
+
+			key1 := contextResolver.trackContext(s1, 0, matcher)
+			key2 := contextResolver.trackContext(s2, 0, matcher)
+
+			assert.Equal(t, key1, key2, "stripped metric tags should produce the same context key")
+			ctx, ok := contextResolver.get(key1)
+			require.True(t, ok)
+			metrics.AssertCompositeTagsEqual(t, ctx.Tags(),
+				tagset.CompositeTagsFromSlice([]string{"instance:a"}))
+			// Single resolved context for both samples — proves they aggregate.
+			assert.Equal(t, uint64(1), contextResolver.countsByMtype[tc.mtype])
+		})
 	}
-
-	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
-	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
-
-	// Both distributions should have a different context key
-	assert.NotEqual(t, contextKey1, contextKey2)
 }
 
-func TestTrackContextStrippingMetricTagsDiffers(t *testing.T) {
-	testWithTagsStore(t, testTrackContextStrippingMetricTagsDiffers)
+func TestStrippingMetricTagsSameKey(t *testing.T) {
+	testWithTagsStore(t, testStrippingMetricTagsSameKey)
+}
+
+// testStrippingMetricTagsDiffersKey checks that when a metric tag is NOT in the
+// strip list, samples remain in separate contexts even when other tags differ and
+// are stripped.
+func testStrippingMetricTagsDiffersKey(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cases := []struct {
+		metricName string
+		mtype      metrics.MetricType
+	}{
+		{"distribution.metric", metrics.DistributionType},
+		{"count.metric", metrics.CounterType},
+	}
+	for _, tc := range cases {
+		t.Run(tc.mtype.String(), func(t *testing.T) {
+			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+				tc.metricName: {Tags: []string{"env", "pod_name"}, Action: "exclude"},
+			}, logmock.New(t))
+			fakeTagger := setupTagger(t)
+			contextResolver := newContextResolver(fakeTagger, store, "test")
+
+			s1 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0", "thing:zing"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container1", Cardinality: "low"},
+			}
+			s2 := &metrics.MetricSample{
+				Name:       tc.metricName,
+				Mtype:      tc.mtype,
+				Tags:       []string{"version:1.0", "thing:zang"},
+				SampleRate: 1,
+				OriginInfo: taggertypespkg.OriginInfo{ContainerIDFromSocket: "container_id://container2", Cardinality: "low"},
+			}
+
+			key1 := contextResolver.trackContext(s1, 0, matcher)
+			key2 := contextResolver.trackContext(s2, 0, matcher)
+
+			assert.NotEqual(t, key1, key2, "unstripped metric tag 'thing' must keep contexts distinct")
+		})
+	}
+}
+
+func TestStrippingMetricTagsDiffersKey(t *testing.T) {
+	testWithTagsStore(t, testStrippingMetricTagsDiffersKey)
 }
 
 func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
@@ -547,4 +613,133 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 
 func TestTrackContextGaugesTagsUnstripped(t *testing.T) {
 	testWithTagsStore(t, testTrackContextGaugesTagsUnstripped)
+}
+
+// Negative case: filterlist has no rule for this count metric, so the
+// configured tags must NOT be stripped and the two samples remain in
+// separate contexts.
+func testTrackContextCountUnconfiguredTagsUnstripped(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"other.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+
+	count1 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CounterType,
+		Value:      1,
+		Tags:       []string{"env:prod"},
+		SampleRate: 1,
+	}
+	count2 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CounterType,
+		Value:      1,
+		Tags:       []string{"env:dev"},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(count1, 0, matcher)
+	key2 := contextResolver.trackContext(count2, 0, matcher)
+
+	assert.NotEqual(t, key1, key2,
+		"counts with no matching filterlist rule must keep distinct context keys")
+	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.CounterType])
+}
+
+func TestTrackContextCountUnconfiguredTagsUnstripped(t *testing.T) {
+	testWithTagsStore(t, testTrackContextCountUnconfiguredTagsUnstripped)
+}
+
+// shouldAggregateTags must opt in only the metric types that participate in
+// tag aggregation. Adding a new type silently here is a regression vector,
+// so the table is exhaustive.
+//
+// CounterType is included because that's what DogStatsD `|c` lines parse as
+// (comp/dogstatsd/server/enrich.go); DistributionType covers `|d`.
+func TestShouldAggregateTags(t *testing.T) {
+	cases := map[metrics.MetricType]bool{
+		metrics.GaugeType:              false,
+		metrics.RateType:               false,
+		metrics.CountType:              false,
+		metrics.MonotonicCountType:     false,
+		metrics.CounterType:            true,
+		metrics.HistogramType:          false,
+		metrics.HistorateType:          false,
+		metrics.SetType:                false,
+		metrics.DistributionType:       true,
+		metrics.GaugeWithTimestampType: false,
+		metrics.CountWithTimestampType: false,
+	}
+	for mt, want := range cases {
+		t.Run(mt.String(), func(t *testing.T) {
+			ms := &metrics.MetricSample{Mtype: mt}
+			assert.Equal(t, want, shouldAggregateTags(ms))
+		})
+	}
+}
+
+// tagFilterEnabledCases covers all combinations of data_plane.enabled and
+// metric_tag_filterlist_adp_only, verifying when tag stripping is active.
+//
+// Filtering is active iff: adpEnabled || !adpOnly
+var tagFilterEnabledCases = []struct {
+	name             string
+	adpEnabled       bool
+	adpOnly          bool
+	filteringEnabled bool
+}{
+	{"adp_disabled_adp_only_true", false, true, false},
+	{"adp_enabled_adp_only_true", true, true, true},
+	{"adp_disabled_adp_only_false", false, false, true},
+	{"adp_enabled_adp_only_false", true, false, true},
+}
+
+// testTagFilterADPGate verifies that tag stripping respects the data_plane.enabled
+// and metric_tag_filterlist_adp_only config values.
+func testTagFilterADPGate(t *testing.T, store *tags.Store) {
+	for _, tc := range tagFilterEnabledCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCfg := configmock.New(t)
+			mockCfg.SetInTest("data_plane.enabled", tc.adpEnabled)
+			mockCfg.SetInTest("metric_tag_filterlist_adp_only", tc.adpOnly)
+
+			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+				"dist.metric": {Tags: []string{"env"}, Action: "exclude"},
+			}, logmock.New(t))
+
+			cr := newContextResolver(nooptagger.NewComponent(), store, "test")
+			assert.Equal(t, tc.filteringEnabled, cr.tagFilterEnabled)
+
+			s1 := &metrics.MetricSample{
+				Name:       "dist.metric",
+				Mtype:      metrics.DistributionType,
+				Tags:       []string{"env:prod", "version:1"},
+				SampleRate: 1,
+			}
+			s2 := &metrics.MetricSample{
+				Name:       "dist.metric",
+				Mtype:      metrics.DistributionType,
+				Tags:       []string{"env:dev", "version:1"},
+				SampleRate: 1,
+			}
+
+			key1 := cr.trackContext(s1, 0, matcher)
+			key2 := cr.trackContext(s2, 0, matcher)
+
+			if tc.filteringEnabled {
+				assert.Equal(t, key1, key2, "tag stripping should merge contexts when filtering is active")
+			} else {
+				assert.NotEqual(t, key1, key2, "tag stripping must not apply when filtering is inactive")
+			}
+		})
+	}
+}
+
+func TestTagFilterADPGate(t *testing.T) {
+	testWithTagsStore(t, testTagFilterADPGate)
 }

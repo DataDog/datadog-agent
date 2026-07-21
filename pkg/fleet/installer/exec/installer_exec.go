@@ -67,7 +67,7 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "installer."+command)
 	span.SetTag("args", strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
+	cmd := exec.CommandContext(ctx, path, append(strings.Fields(command), args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return i.setupInstallerCmd(ctx, span, cmd)
@@ -334,27 +334,6 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	repositories := repository.NewRepositories(paths.PackagesPath, nil)
 	return repositories.AvailableDiskSpace()
-}
-
-// getStates retrieves the state of all packages & their configuration from disk.
-func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
-	cmd := i.newInstallerCmd(ctx, "get-states")
-	defer func() { cmd.span.Finish(err) }()
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
-	}
-	var pkgStates *repository.PackageStates
-	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())
-	}
-
-	return pkgStates, nil
 }
 
 // State returns the state of a package.

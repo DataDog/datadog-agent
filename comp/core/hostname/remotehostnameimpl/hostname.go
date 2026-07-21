@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -24,7 +24,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
@@ -39,34 +39,60 @@ const (
 
 	// NoExpiration maps to go-cache corresponding value
 	NoExpiration = cache.NoExpiration
-	// maxAttempts is the maximum number of times we try to get the hostname
-	// from the core-agent before bailing out.
-	maxAttempts = 6
+	// defaultMaxAttempts is the default number of times we try to get the
+	// hostname from the core-agent before bailing out.
+	defaultMaxAttempts = 6
 )
 
+// Option configures the remote hostname component retry behavior.
+type Option func(*remotehostimpl)
+
+// WithMaxAttempts sets the maximum number of retry attempts to reach
+// the core-agent for hostname resolution.
+func WithMaxAttempts(maxAttempts uint) Option {
+	return func(r *remotehostimpl) { r.maxAttempts = maxAttempts }
+}
+
+// WithMaxRetryDelay caps the exponential backoff between retry attempts.
+func WithMaxRetryDelay(maxRetryDelay time.Duration) Option {
+	return func(r *remotehostimpl) { r.maxRetryDelay = maxRetryDelay }
+}
+
+// options wraps []Option for fx injection.
+type options []Option
+
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(opts ...Option) fxutil.Module {
 	return fxutil.Component(
+		fx.Supply(options(opts)),
 		fx.Provide(newRemoteHostImpl))
 }
 
 var cachKey = "hostname"
 
 type remotehostimpl struct {
-	cache *cache.Cache
-	ipc   ipc.Component
+	cache         *cache.Cache
+	ipc           ipc.Component
+	maxAttempts   uint
+	maxRetryDelay time.Duration
 }
 
 type dependencies struct {
 	fx.In
-	IPC ipc.Component
+	IPC  ipc.Component
+	Opts options
 }
 
 func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
-	return &remotehostimpl{
-		cache: cache.New(defaultExpire, defaultPurge),
-		ipc:   deps.IPC,
+	r := &remotehostimpl{
+		cache:       cache.New(defaultExpire, defaultPurge),
+		ipc:         deps.IPC,
+		maxAttempts: defaultMaxAttempts,
 	}
+	for _, o := range deps.Opts {
+		o(r)
+	}
+	return r
 }
 
 func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
@@ -108,32 +134,39 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		return "", fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", pkgconfigsetup.GetIPCPort())
 	}
 
-	var hostname string
-	err = retry.Do(func() error {
+	backOff := backoff.NewExponentialBackOff()
+	if r.maxRetryDelay > 0 {
+		backOff.MaxInterval = r.maxRetryDelay
+		backOff.RandomizationFactor = 0 // prevent jitter from increasing delays beyond configured max
+	}
+	retryOpts := []backoff.RetryOption{
+		backoff.WithBackOff(backOff),
+		backoff.WithMaxTries(r.maxAttempts),
+	}
+
+	return backoff.Retry(ctx, func() (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
 
-		hostname = reply.Hostname
-		return nil
-	}, retry.LastErrorOnly(true), retry.Attempts(maxAttempts), retry.Context(ctx))
-	return hostname, err
+		return reply.Hostname, nil
+	}, retryOpts...)
 }
 
 // getHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the

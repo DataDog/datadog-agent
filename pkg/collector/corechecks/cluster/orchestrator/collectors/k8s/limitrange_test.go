@@ -16,8 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestLimitRangeCollector(t *testing.T) {
@@ -58,8 +57,7 @@ func TestLimitRangeCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewLimitRangeCollector(metadataAsTags)
+	collector := NewLimitRangeCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{limitRange},

@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "connfilter",
+    srcs = [
+        "connfilter.go",
+        "connfiltertype.go",
+        "defaultconnfilters.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "connfilter_test",
+    srcs = [
+        "connfilter_test.go",
+        "testutils_test.go",
+    ],
+    embed = [":connfilter"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/structure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

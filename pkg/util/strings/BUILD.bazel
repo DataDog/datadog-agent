@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "strings",
+    srcs = [
+        "matcher.go",
+        "truncate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/strings",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "strings_test",
+    srcs = [
+        "matcher_test.go",
+        "truncate_test.go",
+    ],
+    embed = [":strings"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

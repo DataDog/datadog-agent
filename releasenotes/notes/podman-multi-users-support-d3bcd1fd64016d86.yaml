@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``podman_db_path`` configuration option now accepts a comma-separated list of paths to support monitoring containers from multiple users simultaneously (e.g. root and rootless users). Example: ``podman_db_path: "/var/lib/containers/storage/db.sql,/home/myuser/.local/share/containers/storage/db.sql"``. When ``podman_db_path`` is not set, the Agent automatically discovers Podman databases for the root user and for all users under ``/home/``. Log collection (``logs_config.use_podman_logs``) is also updated to work correctly with both explicit multi-path configuration and auto-discovery.

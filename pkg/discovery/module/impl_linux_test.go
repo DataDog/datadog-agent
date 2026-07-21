@@ -13,29 +13,27 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
-	gorillamux "github.com/gorilla/mux"
-	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
-	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -59,10 +57,10 @@ type testDiscoveryModule struct {
 	client *http.Client
 }
 
-func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
+func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
-	mux := gorillamux.NewRouter()
+	mux := http.NewServeMux()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)
@@ -83,14 +81,16 @@ func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
-	// Skip on CentOS 7 due to Rust binary not being statically linked
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-
-	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
-		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
+	// CentOS 7 arm64 is not a supported platform (arm64 support starts at CentOS 8)
+	// and the binary requires GLIBC_2.18 which is not available on CentOS 7 (glibc 2.17).
+	if runtime.GOARCH == "arm64" {
+		platform, err := kernel.Platform()
+		require.NoError(t, err)
+		platformVersion, err := kernel.PlatformVersion()
+		require.NoError(t, err)
+		if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
+			t.Skip("system-probe-lite requires GLIBC_2.18 on arm64; CentOS 7 (glibc 2.17) is unsupported on arm64")
+		}
 	}
 
 	curDir, err := testutil.CurDir()
@@ -101,13 +101,10 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	socketDir := t.TempDir()
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
+	cfg := &splite.Config{Socket: socketPath}
+
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
-	cmd.Env = append(os.Environ(),
-		"DD_DISCOVERY_ENABLED=true",
-		"DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true",
-		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
-	)
+	cmd := exec.CommandContext(ctx, binaryPath, cfg.Args()...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Start())
@@ -116,10 +113,17 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 		_ = cmd.Wait()
 	})
 
+	// Dial rather than stat: the socket file becomes visible after bind(2) but
+	// before listen(2), so a stale poll can win that window and the subsequent
+	// HTTP request fails with ECONNREFUSED.
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
-		return err == nil
-	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not appear")
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not become ready")
 
 	return &testDiscoveryModule{
 		url: "http://sysprobe",
@@ -134,20 +138,40 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 type discoveryTestSuite struct {
 	suite.Suite
-	setupModule func(t *testing.T) *testDiscoveryModule
-	discovery   *testDiscoveryModule
+	setupModule            func(t *testing.T) *testDiscoveryModule
+	discovery              *testDiscoveryModule
+	expectedImplementation string
 }
 
 func (s *discoveryTestSuite) SetupTest() {
 	s.discovery = s.setupModule(s.T())
 }
 
+func (s *discoveryTestSuite) TestState() {
+	t := s.T()
+
+	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	resp, err := s.discovery.client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var state map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	require.Equal(t, s.expectedImplementation, state["implementation"])
+}
+
 func TestDiscovery(t *testing.T) {
-	t.Run("go", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
-	})
 	t.Run("rust", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule, expectedImplementation: "system-probe-lite"})
+	})
+	t.Run("rust-library", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustLibraryDiscoveryModule, expectedImplementation: "system-probe"})
 	})
 }
 
@@ -292,104 +316,22 @@ func buildFakeServer(t *testing.T) string {
 	return filepath.Dir(serverBin)
 }
 
-func newDiscovery() *discovery {
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
-	if err != nil {
-		panic(err)
+func setMemfdMtime(t *testing.T, fd int, mtime time.Time) {
+	t.Helper()
+	path := fmt.Sprintf("/proc/self/fd/%d", fd)
+	ts := []unix.Timespec{
+		unix.NsecToTimespec(mtime.UnixNano()),
+		unix.NsecToTimespec(mtime.UnixNano()),
 	}
-	return mod.(*discovery)
-}
-
-// addSockets adds only listening sockets to a map to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
-	family network.ConnectionFamily, ctype network.ConnectionType, state uint64,
-) {
-	for _, sock := range sockets {
-		if sock.St != state {
-			continue
-		}
-		port := uint16(sock.LocalPort)
-		if state == udpListen && network.IsPortInEphemeralRange(family, ctype, port) == network.EphemeralTrue {
-			continue
-		}
-		sockMap[sock.Inode] = socketInfo{port: port}
-	}
-}
-
-func getNsInfoOld(pid int) (*namespaceInfo, error) {
-	path := kernel.HostProc(strconv.Itoa(pid))
-	proc, err := procfs.NewFS(path)
-	if err != nil {
-		return nil, err
-	}
-
-	TCP, _ := proc.NetTCP() //nolint:staticcheck
-	UDP, _ := proc.NetUDP()
-	TCP6, _ := proc.NetTCP6() //nolint:staticcheck
-	UDP6, _ := proc.NetUDP6()
-
-	tcpSockets := make(map[uint64]socketInfo)
-	udpSockets := make(map[uint64]socketInfo)
-
-	addSockets(tcpSockets, TCP, network.AFINET, network.TCP, tcpListen)
-	addSockets(tcpSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
-	addSockets(udpSockets, UDP, network.AFINET, network.UDP, udpListen)
-	addSockets(udpSockets, UDP6, network.AFINET6, network.UDP, udpListen)
-
-	return &namespaceInfo{
-		tcpSockets: tcpSockets,
-		udpSockets: udpSockets,
-	}, nil
-}
-
-func TestGetNSInfo(t *testing.T) {
-	lTCP, err := net.Listen("tcp", "localhost:0")
+	err := unix.UtimesNanoAt(unix.AT_FDCWD, path, ts, 0)
 	require.NoError(t, err)
-	defer lTCP.Close()
 
-	res, err := getNsInfo(os.Getpid())
+	// Read back and verify the timestamp was applied.
+	var stat unix.Stat_t
+	err = unix.Stat(path, &stat)
 	require.NoError(t, err)
-	resOld, err := getNsInfoOld(os.Getpid())
-	require.NoError(t, err)
-	require.Equal(t, res, resOld)
-}
-
-func BenchmarkGetNSInfo(b *testing.B) {
-	sockets := make([]net.Listener, 0)
-	for i := 0; i < 100; i++ {
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(b, err)
-		sockets = append(sockets, l)
-	}
-	defer func() {
-		for _, l := range sockets {
-			l.Close()
-		}
-	}()
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getNsInfo(os.Getpid())
-	}
-}
-
-func BenchmarkGetNSInfoOld(b *testing.B) {
-	sockets := make([]net.Listener, 0)
-	for i := 0; i < 100; i++ {
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(b, err)
-		sockets = append(sockets, l)
-	}
-	defer func() {
-		for _, l := range sockets {
-			l.Close()
-		}
-	}()
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getNsInfoOld(os.Getpid())
-	}
+	got := time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)
+	require.Equalf(t, mtime.UnixNano(), got.UnixNano(), "memfd mtime was not set correctly: want %v (%d), got %v (%d)", mtime, mtime.UnixNano(), got, got.UnixNano())
 }
 
 func createTracerMemfd(t *testing.T, data []byte) int {
@@ -405,93 +347,4 @@ func createTracerMemfd(t *testing.T, data []byte) int {
 	err = unix.Munmap(mappedData)
 	require.NoError(t, err)
 	return fd
-}
-
-func TestValidInvalidTracerMetadata(t *testing.T) {
-	discovery := newDiscovery()
-	require.NotEmpty(t, discovery)
-	self := os.Getpid()
-
-	t.Run("valid metadata", func(t *testing.T) {
-		// Test with valid metadata from file
-		curDir, err := testutil.CurDir()
-		require.NoError(t, err)
-		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
-		data, err := os.ReadFile(testDataPath)
-		require.NoError(t, err)
-
-		createTracerMemfd(t, data)
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
-		require.Equal(t, true, info.APMInstrumentation)
-	})
-
-	t.Run("invalid metadata", func(t *testing.T) {
-		createTracerMemfd(t, []byte("invalid data"))
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, false, info.APMInstrumentation)
-	})
-}
-
-func TestDetectAPMInjectorFromMaps(t *testing.T) {
-	tests := []struct {
-		name     string
-		maps     string
-		expected bool
-	}{
-		{
-			name:     "empty maps",
-			maps:     "",
-			expected: false,
-		},
-		{
-			name: "no injector in maps",
-			maps: `aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173                      /usr/bin/bash
-aaaacd4ac000-aaaacd4b0000 r--p 000ec000 00:22 25173                      /usr/bin/bash
-aaaacd4b0000-aaaacd4b4000 rw-p 000f0000 00:22 25173                      /usr/bin/bash
-ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /usr/lib64/libc.so.6
-ffffb74ec000-ffffb74fd000 ---p 0018c000 00:22 13920                      /usr/lib64/libc.so.6`,
-			expected: false,
-		},
-		{
-			name: "injector present",
-			maps: `aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173                      /usr/bin/bash
-aaaacd4ac000-aaaacd4b0000 r--p 000ec000 00:22 25173                      /usr/bin/bash
-ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/datadog-packages/datadog-apm-inject/1.0.0/inject/launcher.preload.so
-ffffb74ec000-ffffb74fd000 ---p 0018c000 00:22 13920                      /usr/lib64/libc.so.6`,
-			expected: true,
-		},
-		{
-			name: "injector with different version",
-			maps: `aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173                      /usr/bin/bash
-ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/datadog-packages/datadog-apm-inject/2.5.3-beta/inject/launcher.preload.so`,
-			expected: true,
-		},
-		{
-			name: "similar but not matching paths",
-			maps: `aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173                      /opt/datadog-packages/datadog-apm-inject/1.0.0/launcher.preload.so
-aaaacd4ac000-aaaacd4b0000 r--p 000ec000 00:22 25173                      /opt/datadog-packages/datadog-apm-inject/1.0.0/inject/launcher.so
-ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/other-packages/datadog-apm-inject/1.0.0/inject/launcher.preload.so`,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := detectAPMInjectorFromMapsReader(strings.NewReader(tt.maps))
-			require.Equal(t, tt.expected, result)
-		})
-	}
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
-	wincommand "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command"
+	wincommand "github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/command"
 )
 
 type agentHostExecutor struct {

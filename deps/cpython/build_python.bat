@@ -3,10 +3,15 @@ for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
 :: Make sure input paths are proper Windows paths as needed
 for %%F in (%OUTDIR%) do set destdir=%%~fF\\
 for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
+for %%F in (%PYTHON_FOR_BUILD%) do set PYTHON_FOR_BUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
+set response_file=%sourcedir%\PCbuild\msbuild.rsp
 
 set script_errorlevel=0
+
+:: Avoid import-time bytecode writes during the build and ensurepip bootstrap.
+set PYTHONDONTWRITEBYTECODE=1
 
 :: Start from a clean state
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
@@ -33,7 +38,6 @@ set TCLTK_DIR=%cd%\%TCLTK_DIR%\\
 :: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
 :: so we write the arguments to a .rsp file that will be added to msbuild calls instead to not have to worry
 :: about that
-set response_file=%sourcedir%\PCbuild\msbuild.rsp
 echo "" > %response_file%
 echo "/p:bz2Dir=%BZ2_DIR%" >> %response_file%
 echo "/p:mpdecimalDir=%MPDECIMAL_DIR%" >> %response_file%
@@ -47,6 +51,9 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
 :: This simplifies the requirements on the input files and their names and gives us more control
 echo "/p:SkipCopySSLDLL=1" >> %response_file%
+:: but _hashlib.pyd needs OPENSSL_DIR registered as a DLL search directory for PGO tests.
+echo import os; os.add_dll_directory(r'%OPENSSL_DIR%') >sitecustomize.py
+set "PYTHONPATH=%cd%;%PYTHONPATH%"
 
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
@@ -71,17 +78,9 @@ xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 
 :: Create final layout from the build
 :: --include-dev - include include/ and libs/ directories
-:: --include-venv - necessary for ensurepip to work
+:: --include-venv - include venv support
 :: --include-stable - adds python3.dll
-%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
-
-if %errorlevel% neq 0 (
-   set script_errorlevel=%errorlevel%
-   goto :cleanup
-)
-
-:: Bootstrap pip
-%destdir%\python.exe -m ensurepip
+%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --copy %destdir% --include-dev --include-venv --include-stable -vv
 
 if %errorlevel% neq 0 (
    set script_errorlevel=%errorlevel%

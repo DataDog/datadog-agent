@@ -39,7 +39,7 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = math.MaxUint32 //nolint:deadcode,unused
+	allEventTypes = math.MaxUint32 //nolint:unused
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
@@ -580,10 +580,16 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 
 		isDiscarder := true
 		for _, r := range bucket.GetRules() {
+			needsFullResponse := ruleNeedsFullDNSResponse(r)
+
 			ok, err := r.PartialEval(ctx, "dns.response.code")
 			if err != nil {
 				var nf *eval.ErrFieldNotFound
 				if errors.As(err, &nf) {
+					if needsFullResponse {
+						isDiscarder = false
+						break
+					}
 					continue
 				}
 				isDiscarder = false
@@ -601,6 +607,16 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 	}
 
 	return setDNSDiscarderMask(manager, ^allowMask)
+}
+
+func ruleNeedsFullDNSResponse(rule *rules.Rule) bool {
+	for _, field := range rule.GetFields() {
+		if strings.HasPrefix(field, "dns.response.") && field != "dns.response.code" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
@@ -641,6 +657,25 @@ func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
 	return nil
 }
 
+func auidDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
+	value, err := event.GetFieldValue("process.auid")
+	if err != nil {
+		return false, err
+	}
+
+	auid := value.(int)
+	probe.erpcRequest.OP = erpc.DiscardAuidOp
+	probe.erpcRequest.Data = [256]byte{}
+	binary.LittleEndian.PutUint32(probe.erpcRequest.Data[:4], uint32(auid))
+	binary.LittleEndian.PutUint64(probe.erpcRequest.Data[4:12], uint64(event.GetEventType()))
+	err = probe.Erpc.Request(probe.erpcRequest)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
 func init() {
 	allDiscarderHandlers["open.file.path"] = filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
@@ -686,7 +721,7 @@ func init() {
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "removexattr.file.path", &event.RemoveXAttr.File, false
 		})
-
+	allDiscarderHandlers["process.auid"] = auidDiscarder
 	allDiscarderHandlers["mmap.file.path"] = filenameDiscarderWrapper(model.MMapEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "mmap.file.path", &event.MMap.File, false

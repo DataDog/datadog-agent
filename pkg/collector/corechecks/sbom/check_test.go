@@ -198,6 +198,7 @@ func TestConfigure(t *testing.T) {
 		integration.Data{},
 		integration.Data{},
 		"source",
+		"",
 	)
 	assert.NoError(t, err)
 }

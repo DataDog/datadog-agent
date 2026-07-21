@@ -17,6 +17,8 @@ import (
 
 // ExtractCronJobV1 returns the protobuf model corresponding to a Kubernetes
 // CronJob resource.
+//
+//nolint:revive
 func ExtractCronJobV1(ctx processors.ProcessorContext, cj *batchv1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
 		Metadata: extractMetadata(&cj.ObjectMeta),
@@ -63,9 +65,8 @@ func ExtractCronJobV1(ctx processors.ProcessorContext, cj *batchv1.CronJob) *mod
 
 	cronJob.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(cj.Spec.JobTemplate.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveUnifiedServiceTags(cj.ObjectMeta.Labels)...)
-	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveMetadataTags(cj.ObjectMeta.Labels, cj.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveTeamTag(cj.ObjectMeta.Labels, cj.ObjectMeta.Annotations)...)
 
 	return &cronJob
 }

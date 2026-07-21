@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The orchestrator check now collects force-deleted pods by default. The
+    ``orchestrator_explorer.terminated_pods_improved.enabled`` option will be
+    removed in a future release.

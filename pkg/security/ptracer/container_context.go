@@ -74,7 +74,9 @@ func newContainerContext(containerID containerutils.ContainerID) (*ebpfless.Cont
 	}
 	retrieveEnvMetadata(ctx)
 
-	ctx.CreatedAt = uint64(time.Now().UnixNano())
+	if ctx.ID != "" {
+		ctx.CreatedAt = uint64(time.Now().UnixNano())
+	}
 
 	return ctx, nil
 }

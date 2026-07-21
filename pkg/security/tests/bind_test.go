@@ -176,6 +176,74 @@ func TestBindEvent(t *testing.T) {
 		}, "test_bind_af_inet_tcp")
 	})
 
+	t.Run("bind-af-inet-tcp-protocol-zero", func(t *testing.T) {
+		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		port, err := getFreePort("tcp")
+		if err != nil {
+			t.Fatalf("failed to get free port: %v", err)
+		}
+
+		sa := &unix.SockaddrInet4{
+			Port: port,
+			Addr: [4]byte{0, 0, 0, 0},
+		}
+
+		test.WaitSignalFromRule(t, func() error {
+			return unix.Bind(fd, sa)
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "bind", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(port), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
+			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
+			// socket(AF_INET, SOCK_STREAM, 0) creates a TCP socket; the kernel sets
+			// sk->sk_protocol = IPPROTO_TCP. The eBPFless ptracer mirrors that
+			// resolution so that bind.protocol is consistent with the eBPF path.
+			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
+
+			test.validateBindSchema(t, event)
+		}, "test_bind_af_inet_tcp")
+	})
+
+	t.Run("bind-af-inet-udp-protocol-zero", func(t *testing.T) {
+		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		port, err := getFreePort("udp")
+		if err != nil {
+			t.Fatalf("failed to get free port: %v", err)
+		}
+
+		sa := &unix.SockaddrInet4{
+			Port: port,
+			Addr: [4]byte{0, 0, 0, 0},
+		}
+
+		test.WaitSignalFromRule(t, func() error {
+			return unix.Bind(fd, sa)
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "bind", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(port), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
+			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
+			// socket(AF_INET, SOCK_DGRAM, 0) creates a UDP socket; the kernel sets
+			// sk->sk_protocol = IPPROTO_UDP. The eBPFless ptracer mirrors that
+			// resolution so that bind.protocol is consistent with the eBPF path.
+			assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Bind.Protocol, "wrong protocol")
+
+			test.validateBindSchema(t, event)
+		}, "test_bind_af_inet_udp")
+	})
+
 	test.RunMultiMode(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		port, err := getFreePort("udp")
 		if err != nil {

@@ -1,0 +1,73 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "autodiscovery.go",
+        "common.go",
+        "common_windows.go",
+        "helpers.go",
+        "import.go",
+        "loader.go",
+        "tagger_params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/config",
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/secrets/noop-impl/types",
+        "//comp/core/settings/def",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/config/autodiscovery",
+        "//pkg/config/env",
+        "//pkg/config/legacy",
+        "//pkg/config/model",
+        "//pkg/config/settings",
+        "//pkg/config/settings/http",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
+        "//pkg/config/utils",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/jsonquery",
+        "//pkg/util/log",
+        "@com_github_fatih_color//:color",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@io_k8s_apimachinery//pkg/util/errors",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/messagestrings",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "import_docker_test.go",
+        "import_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":common"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/legacy",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

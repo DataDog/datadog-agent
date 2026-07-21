@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewServiceCollectorVersions builds the group of collector versions.
-func NewServiceCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewServiceCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewServiceCollector(metadataAsTags),
+		NewServiceCollector(tagger),
 	)
 }
 
@@ -39,11 +39,7 @@ type ServiceCollector struct {
 
 // NewServiceCollector creates a new collector for the Kubernetes Service
 // resource.
-func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.ServiceName, utilTypes.ServiceVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewServiceCollector(tagger tagger.Component) *ServiceCollector {
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,12 +50,11 @@ func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector 
 			Name:                                 utilTypes.ServiceName,
 			Kind:                                 kubernetes.ServiceKind,
 			NodeType:                             orchestrator.K8sService,
+			Group:                                utilTypes.ServiceGroup,
 			Version:                              utilTypes.ServiceVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewServiceHandlers(tagger)),
 	}
 }
 

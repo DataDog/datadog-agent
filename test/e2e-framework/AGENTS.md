@@ -16,13 +16,13 @@ test/e2e-framework/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
 │   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
 │   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
-│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm)
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm)
 │   │   ├── azure/        # host (linux, windows), kubernetes (aks)
 │   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
 │   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
-│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm
+│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm
 ├── components/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
@@ -102,6 +102,33 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
 
+For `environments.DockerHost`, use `dockeragentparams.WithAgentServiceEnvVariable`
+or `AgentServiceEnvironment` for environment variables that must be visible
+inside the Agent container. `dockeragentparams.WithEnvironmentVariables` only
+sets the environment for the `docker-compose` command and compose-file variable
+interpolation.
+
+## Driving the framework outside of `go test`
+
+The client and component layers no longer depend on `*testing.T` (PR #51954), so the
+framework can be driven from a standalone binary. Use the `testing/standalone` package:
+
+```go
+ctx := standalone.NewContext(localOutputDir) // implements common.Context (T() returns nil)
+provisioner := awshost.Provisioner(awshost.WithRunOptions(...))
+env, err := standalone.Provision[environments.Host](ctx, "my-stack", provisioner)
+defer standalone.Destroy(ctx, "my-stack", provisioner)
+// env.RemoteHost.Execute(...), env.RemoteHost.GetFolder(remote, local), etc.
+```
+
+`standalone.Provision` mirrors `BaseSuite.reconcileEnv` (CreateEnv → ProvisionEnv →
+`environments.BuildEnvFromResources` → `Init`) without any test dependency.
+`environments.BuildEnvFromResources` is the shared import loop, used by both `BaseSuite`
+and the standalone driver — keep them in sync.
+
+Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
+retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
 ## Beyond out of the box environments
 
 The stock environments are highly customizable via provisioner options (OS,
@@ -155,11 +182,36 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
 
+## Fakeintake image version
+
+Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
+`components/datadog/fakeintake/docker.go`) resolves through
+`components/datadog/fakeintake.ImageURL(...)`: it uses the
+`FakeintakeImageOverride` runner parameter (`E2E_FAKEINTAKE_IMAGE_OVERRIDE`) when
+set — read through the runner parameter store like any other `E2E_*` value, not
+`os.Getenv` — otherwise the pinned tag from `test/fakeintake/version.Tag`.
+`WithImageURL(...)` on any fakeintake provisioner still wins over both.
+
+CI wiring (`.gitlab-ci.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
+by every e2e job through its team rule (`.on_<team>_or_e2e_changes`) — sets
+`E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the PR-built `v<sha>` image on a fakeintake
+*server* change (`.fakeintake_server_paths`). So such a PR runs the **whole**
+e2e suite against the PR's image (including mixed PRs), and no e2e job can miss
+the override. `.needs_new_e2e_template` gains optional needs on `publish_fakeintake`
+(PR `v<sha>`) and `publish_fakeintake_pinned` (main pinned tag) so e2e waits for
+the image to exist. Plain `.on_fakeintake_changes` is for non-consuming
+build/publish/version-check jobs only. See `test/fakeintake/AGENTS.md`
+§ "Image version pinning" for the full workflow (bumping VERSION, the
+strictly-increasing CI check, publish jobs).
+
 ## Key files
 
 - `testing/e2e/suite.go` — `BaseSuite` and `Run()` (test entry point)
 - `testing/e2e/suite_params.go` — `SuiteOption` (WithProvisioner, WithDevMode, etc.)
+- `testing/standalone/standalone.go` — non-test driver (`Provision`/`Destroy`/`Context`)
+- `cmd/ai-sandbox/main.go` — standalone consumer (provision + run AI agent + retrieve dir)
 - `testing/environments/host.go` — Host environment definition
+- `testing/environments/environments.go` — `CreateEnv` / `BuildEnvFromResources` (shared import loop)
 - `testing/provisioners/aws/host/host.go` — AWS host provisioner
 - `components/datadog/agentparams/params.go` — agent configuration options
 - `scenarios/aws/ec2/run.go` — EC2 + Agent + FakeIntake Pulumi program

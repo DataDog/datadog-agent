@@ -21,7 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +42,8 @@ type Probe struct {
 	gracePeriod    time.Duration
 	logLimiter     *log.Limit
 	diagnosticHint string
+
+	healthPlatform healthplatformdef.Component
 
 	stats Stats
 }
@@ -68,12 +73,18 @@ type StatsSnapshot struct {
 	ConfigError          string
 }
 
-const defaultInterval = 60 * time.Second
+const (
+	defaultInterval = 60 * time.Second
+
+	healthCheckID   = "admission-controller-connectivity"
+	healthCheckName = "Admission Controller Connectivity"
+	healthIssueID   = "admission-controller-connectivity-failure"
+)
 
 // New creates a new admission controller connectivity probe.
 // The namespace parameter specifies where dry-run ConfigMaps are created; this
 // should be the namespace the cluster agent is deployed in.
-func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component) *Probe {
+func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform healthplatformdef.Component) *Probe {
 	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
 	if interval <= 0 {
 		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
@@ -81,12 +92,13 @@ func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace str
 	}
 
 	return &Probe{
-		k8sClient:    k8sClient,
-		isLeaderFunc: isLeaderFunc,
-		namespace:    namespace,
-		interval:     interval,
-		gracePeriod:  time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
-		logLimiter:   log.NewLogLimit(1, 10*time.Minute),
+		k8sClient:      k8sClient,
+		isLeaderFunc:   isLeaderFunc,
+		namespace:      namespace,
+		interval:       interval,
+		gracePeriod:    time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
+		logLimiter:     log.NewLogLimit(1, 10*time.Minute),
+		healthPlatform: healthPlatform,
 	}
 }
 
@@ -152,7 +164,8 @@ func (p *Probe) Run(ctx context.Context) {
 	case <-time.After(p.gracePeriod):
 	}
 
-	p.diagnosticHint = diagnosticHintForProvider(cloudprovider.DCAGetName(ctx))
+	provider := cloudprovider.DCAGetName(ctx)
+	p.diagnosticHint = diagnosticHintForProvider(provider)
 	log.Infof("Admission controller probe is now active (namespace=%s, interval=%s)", p.namespace, p.interval)
 
 	// Run the first probe immediately, then on the configured interval.
@@ -198,6 +211,7 @@ func (p *Probe) runProbe(ctx context.Context) {
 	p.stats.mu.Unlock()
 
 	if err == nil {
+		p.clearHealthIssue()
 		return
 	}
 
@@ -213,6 +227,7 @@ func (p *Probe) handleError(err error) {
 		if p.logLimiter.ShouldLog() {
 			log.Errorf("Admission controller probe misconfigured: %s", msg)
 		}
+		p.clearHealthIssue()
 		return
 	}
 
@@ -225,12 +240,39 @@ func (p *Probe) handleError(err error) {
 				p.diagnosticHint,
 			)
 		}
+		p.reportHealthIssue()
 		return
 	}
 
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
+	p.reportHealthIssue()
+}
+
+func (p *Probe) reportHealthIssue() {
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+		"remediation": p.diagnosticHint,
+	})
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        healthIssueID,
+			IssueName: admissionprobe.IssueName,
+			IssueType: admissionprobe.IssueType,
+			Title:     "Admission Controller Unreachable",
+			Source:    "cluster-agent",
+		}
+	} else {
+		issue.Id = healthIssueID
+	}
+
+	if reportErr := p.healthPlatform.ReportIssue(issue); reportErr != nil {
+		log.Warnf("Failed to report admission probe health issue: %v", reportErr)
+	}
+}
+
+func (p *Probe) clearHealthIssue() {
+	p.healthPlatform.ResolveIssue(healthIssueID)
 }
 
 func (p *Probe) execute(ctx context.Context) error {

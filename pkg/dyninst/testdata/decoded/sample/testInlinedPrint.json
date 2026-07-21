@@ -31,9 +31,14 @@
             "lineNumber": 101
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -63,16 +68,11 @@
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "25"
+    "message": "25",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -111,9 +111,14 @@
             "lineNumber": 102
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -143,16 +148,11 @@
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "3"
+    "message": "3",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -191,9 +191,14 @@
             "lineNumber": 102
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -223,16 +228,11 @@
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "150"
+    "message": "150",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -276,9 +276,14 @@
             "lineNumber": 102
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -308,16 +313,11 @@
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "150"
+    "message": "150",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -351,9 +351,14 @@
             "lineNumber": 103
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -387,6 +392,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

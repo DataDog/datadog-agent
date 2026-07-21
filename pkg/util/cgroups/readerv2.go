@@ -62,11 +62,15 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 
 		id, err := r.filter(fullPath, de.Name())
 		if id != "" {
-			relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
-			if err != nil {
-				return err
+			// If we already have a cgroup with this id, that means that we have a sub-cgroup.
+			// In that case, we keep the parent's stats path.
+			if _, exists := res[id]; !exists {
+				relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+				if err != nil {
+					return err
+				}
+				res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
 			}
-			res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
 		}
 
 		return err

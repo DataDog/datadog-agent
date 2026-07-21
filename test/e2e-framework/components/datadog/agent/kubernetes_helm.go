@@ -7,11 +7,11 @@ package agent
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.155.1"
+	HelmVersion = "3.225.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -73,6 +73,11 @@ type HelmInstallationArgs struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default HelmVersion for this installation.
+	// When empty, HelmVersion is used.
+	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type HelmComponent struct {
@@ -113,9 +118,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	helmComponent.ClusterAgentToken = randomClusterAgentToken.Result
 
-	// Create namespace if necessary
-	ns, err := corev1.NewNamespace(e.Ctx(), args.Namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), args.Namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(args.Namespace),
 		},
 	}, opts...)
@@ -123,6 +129,32 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		return nil, err
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	if args.OpenShiftControlPlaneMonitoring {
+		etcdMetricClientSecret, err := corev1.GetSecret(
+			e.Ctx(),
+			"openshift-etcd-metric-client-source",
+			pulumi.ID("openshift-etcd-operator/etcd-metric-client"),
+			nil,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		copiedSecret, err := corev1.NewSecret(e.Ctx(), "openshift-etcd-metric-client", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Namespace: ns.Metadata.Name(),
+				Name:      pulumi.String("etcd-metric-client"),
+			},
+			Data: etcdMetricClientSecret.Data,
+			Type: etcdMetricClientSecret.Type,
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, utils.PulumiDependsOn(copiedSecret))
+	}
 
 	// Create secret if necessary
 	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
@@ -184,7 +216,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS, true)
 	}
 	values.configureImagePullSecret(imgPullSecret)
-	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
+	if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
+		return nil, err
+	}
 
 	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
@@ -208,13 +242,17 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		valuesYAML = append(valuesYAML, config)
 	}
 
+	chartVersion := HelmVersion
+	if args.HelmChartVersion != "" {
+		chartVersion = args.HelmChartVersion
+	}
 	linux, err := helm.NewInstallation(e, helm.InstallArgs{
 		RepoURL:        args.RepoURL,
 		ChartName:      args.ChartPath,
 		InstallName:    linuxInstallName,
 		Namespace:      args.Namespace,
 		ValuesYAML:     valuesYAML,
-		Version:        pulumi.String(HelmVersion),
+		Version:        pulumi.String(chartVersion),
 		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
 	if err != nil {
@@ -232,7 +270,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	if args.DeployWindows {
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
 		values.configureImagePullSecret(imgPullSecret)
-		values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
+		if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
+			return nil, err
+		}
 		defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
 		var windowsValuesYAML pulumi.AssetOrArchiveArray
@@ -240,13 +280,17 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		windowsValuesYAML = append(windowsValuesYAML, args.ValuesYAML...)
 
 		windowsInstallName := baseName + "-windows"
+		// Windows depends on Linux completing first: the Linux release owns
+		// the cluster agent and the CRDs; Windows must join an already-running
+		// cluster agent to function correctly.
+		windowsOpts := append(opts, pulumi.DependsOn([]pulumi.Resource{linux}))
 		windows, err := helm.NewInstallation(e, helm.InstallArgs{
 			RepoURL:     args.RepoURL,
 			ChartName:   args.ChartPath,
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
-		}, opts...)
+		}, windowsOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -714,8 +758,11 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"tlsVerify": pulumi.Bool(false),
 			},
 			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			// socketEnabled must be false to prevent the admission controller from injecting
+			// a UDS socket volume that conflicts with OpenShift SCCs.
 			"apm": pulumi.Map{
-				"portEnabled": pulumi.Bool(true),
+				"portEnabled":   pulumi.Bool(true),
+				"socketEnabled": pulumi.Bool(false),
 			},
 			"sbom": pulumi.Map{
 				"containerImage": pulumi.Map{
@@ -813,6 +860,12 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"checksCardinality":    pulumi.String("high"),
+			// The operator subchart is not needed for Windows node agents
+			// and would otherwise try to create CRDs already owned by the
+			// Linux release (datadogAgents, datadogAgentInternals, etc.).
+			"operator": pulumi.Map{
+				"enabled": pulumi.Bool(false),
+			},
 			"logs": pulumi.Map{
 				"enabled":             pulumi.Bool(true),
 				"containerCollectAll": pulumi.Bool(true),
@@ -855,6 +908,20 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
+		// CRDs are owned by the Linux release. Disable the four CRDs that
+		// datadog/datadog enables by default in its datadog-crds dependency
+		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
+		// datadog-crds subchart renders CRDs via templates/ with Helm
+		// ownership annotations, so if the Windows release tries to create
+		// them it fails with a "meta.helm.sh/release-name" ownership error.
+		"datadog-crds": pulumi.Map{
+			"crds": pulumi.Map{
+				"datadogMetrics":                      pulumi.Bool(false),
+				"datadogPodAutoscalers":               pulumi.Bool(false),
+				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
+				"datadogInstrumentations":             pulumi.Bool(false),
+			},
+		},
 	}
 }
 
@@ -877,14 +944,45 @@ func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 	}
 }
 
-func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintake.Fakeintake, dualShipping bool) {
-	if fakeintake == nil {
-		return
+func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakeintake, dualShipping bool) error {
+	if fi == nil {
+		return nil
+	}
+
+	rootJSON, err := fakeintake.RCRootJSON()
+	if err != nil {
+		return fmt.Errorf("fakeintake rc root json: %w", err)
+	}
+
+	// DD_REMOTE_CONFIGURATION_ENABLED is intentionally omitted here: the Helm chart already sets it
+	// based on its own configuration defaults, and adding it again creates a duplicate env var that
+	// breaks Kubernetes strategic merge patch ordering.
+	rcEnvVars := pulumi.StringMapArray{
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_RC_DD_URL"),
+			"value": fi.URL,
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_NO_TLS"),
+			"value": pulumi.String("true"),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_CONFIG_ROOT"),
+			"value": pulumi.String(rootJSON),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT"),
+			"value": pulumi.String(rootJSON),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL"),
+			"value": pulumi.String("5s"),
+		},
 	}
 
 	var endpointsEnvVar pulumi.StringMapArray
 	if dualShipping {
-		useSSL := fakeintake.Scheme.ApplyT(func(scheme string) bool {
+		useSSL := fi.Scheme.ApplyT(func(scheme string) bool {
 			if scheme != "https" {
 				e.Ctx().Log.Warn("Fakeintake is used in HTTP with dual-shipping, some endpoints will not work", nil)
 			}
@@ -903,19 +1001,19 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_USE_HTTP"),
@@ -923,38 +1021,38 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 		}
 	} else {
 		endpointsEnvVar = pulumi.StringMapArray{
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SKIP_SSL_VALIDATION"),
@@ -971,15 +1069,17 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 		}
 	}
 
+	allEnvVars := append(rcEnvVars, endpointsEnvVar...)
+
 	for _, section := range []string{"datadog", "clusterAgent", "clusterChecksRunner"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}
 
 		if _, found := values[section].(pulumi.Map)["env"]; !found {
-			values[section].(pulumi.Map)["env"] = endpointsEnvVar
+			values[section].(pulumi.Map)["env"] = allEnvVars
 		} else {
-			values[section].(pulumi.Map)["env"] = append(values[section].(pulumi.Map)["env"].(pulumi.StringMapArray), endpointsEnvVar...)
+			values[section].(pulumi.Map)["env"] = append(values[section].(pulumi.Map)["env"].(pulumi.StringMapArray), allEnvVars...)
 		}
 	}
 
@@ -989,20 +1089,46 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 				if _, ok := values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"]; !ok {
 					values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"] = pulumi.Array{
 						pulumi.Map{
-							"env": endpointsEnvVar,
+							"env": allEnvVars,
 						},
 					}
 				} else {
 					values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"] =
 						append(values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"].(pulumi.Array),
 							pulumi.Map{
-								"env": endpointsEnvVar,
+								"env": allEnvVars,
 							},
 						)
 				}
 			}
 		}
 	}
+
+	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
+	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
+	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
+	// to fakeintake over plain HTTP instead of the real OPMS backend.
+	if agents, ok := values["agents"].(pulumi.Map); ok {
+		containers, ok := agents["containers"].(pulumi.Map)
+		if !ok {
+			containers = pulumi.Map{}
+			agents["containers"] = containers
+		}
+		par, ok := containers["privateActionRunner"].(pulumi.Map)
+		if !ok {
+			par = pulumi.Map{}
+			containers["privateActionRunner"] = par
+		}
+		parEnvDict, ok := par["envDict"].(pulumi.StringMap)
+		if !ok {
+			parEnvDict = pulumi.StringMap{}
+			par["envDict"] = parEnvDict
+		}
+		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
+		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
+	}
+
+	return nil
 }
 
 func (values HelmValues) ToYAMLPulumiAssetOutput() pulumi.AssetOutput {

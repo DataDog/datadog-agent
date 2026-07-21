@@ -15,6 +15,7 @@ scenario_name = "aws/dockervm"
     help={
         "config_path": doc.config_path,
         "install_agent": doc.install_agent,
+        "pipeline_id": doc.pipeline_id,
         "agent_version": doc.container_agent_version,
         "stack_name": doc.stack_name,
         "architecture": aws_doc.architecture,
@@ -30,6 +31,7 @@ def create_docker(
     ctx: Context,
     config_path: str | None = None,
     stack_name: str | None = None,
+    pipeline_id: str | None = None,
     install_agent: bool | None = True,
     agent_version: str | None = None,
     architecture: str | None = None,
@@ -55,6 +57,7 @@ def create_docker(
         config_path,
         key_pair_required=True,
         stack_name=stack_name,
+        pipeline_id=pipeline_id,
         install_agent=install_agent,
         agent_version=agent_version,
         use_fakeintake=use_fakeintake,
@@ -72,7 +75,7 @@ def create_docker(
 
 def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    remoteHost = tool.RemoteHost("aws-vm", outputs)
+    remoteHost = tool.RemoteHost("aws-dockervm", outputs)
     host = remoteHost.address
     user = remoteHost.user
 

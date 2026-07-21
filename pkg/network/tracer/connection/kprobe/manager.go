@@ -60,19 +60,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-var batchProbes = []probes.ProbeFuncName{
-	probes.TCPDoneFlushReturn,
-	probes.TCPCloseFlushReturn,
-	probes.UDPDestroySockReturn,
-	probes.UDPv6DestroySockReturn,
-}
-
 func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPOngoingConnectPid},
-		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
 		{Name: probes.PortBindingsMap},
@@ -86,7 +78,6 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.IPMakeSkbArgsMap},
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
-		{Name: probes.TCPCloseProgsMap},
 		{Name: probes.SSLCertsStatemArgsMap},
 		{Name: probes.SSLCertsI2DX509ArgsMap},
 		{Name: probes.SSLHandshakeStateMap},
@@ -113,7 +104,6 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Probes = append(mgr.Probes, slices.Map(ssluprobes.OpenSSLUProbes, funcNameToSSLProbe)...)
 	mgr.Probes = append(mgr.Probes, ssluprobes.GetSchedExitProbeSSL())
 
-	mgr.Probes = append(mgr.Probes, slices.Map(batchProbes, funcNameToProbe)...)
 	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
 		probes.SKBFreeDatagramLocked,
 		probes.UnderscoredSKBFreeDatagramLocked,
@@ -124,6 +114,14 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Probes = append(mgr.Probes,
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
 	)
+
+	// These probes in both the runtime-compiled and CO-RE kprobe ELFs, not in
+	// the prebuilt ELF.  The manager will skip probes not found in the ELF.
+	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
+		probes.TCPEnterLoss,
+		probes.TCPEnterRecovery,
+		probes.TCPSendProbe0,
+	}, funcNameToProbe)...)
 
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can

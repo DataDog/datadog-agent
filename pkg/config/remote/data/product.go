@@ -38,10 +38,16 @@ const (
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductClusterAutoscalingValues receives values for cluster autoscaling
 	ProductClusterAutoscalingValues = "CLUSTER_AUTOSCALING_VALUES"
-	// ProductDataStreamsLiveMessages is to capture messages from Kafka
-	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductKubeActions receives Kubernetes actions to execute
+	ProductKubeActions = "K8S_ACTIONS"
 	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
+	// ProductAgentFlags is to receive remote feature flags
+	ProductAgentFlags = "AGENT_REMOTE_FLAGS"
+	// ProductDOQueryActions is to execute database queries remotely for Data Observability
+	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
+	// ProductNetworkPath is to configure Network Path scheduled tests
+	ProductNetworkPath Product = "NETWORK_PATH"
 )
 
 // ProductListToString converts a product list to string list

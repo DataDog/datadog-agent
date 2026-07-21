@@ -7,9 +7,14 @@ e2e_pre_test:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - go_tools_deps
+    # PR pipelines run against v<sha> (publish_fakeintake); main uses the pinned
+    # tag (publish_fakeintake_pinned). Both optional: absent otherwise.
     - job: publish_fakeintake
+      optional: true
+    - job: publish_fakeintake_pinned
       optional: true
   script:
     - dda inv -- -e new-e2e-tests.run --targets ./test-infra-definition --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)

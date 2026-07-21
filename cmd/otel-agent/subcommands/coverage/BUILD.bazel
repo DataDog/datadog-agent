@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "coverage",
+    srcs = [
+        "command.go",
+        "command_nocoverage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/coverage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/otel-agent/subcommands",
+        "//comp/core/config",
+        "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/log/fx",
+        "//comp/core/secrets/fx-noop",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)

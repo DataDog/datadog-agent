@@ -15,10 +15,14 @@ import (
 	"time"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/singlestep"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -42,6 +46,9 @@ var namespaceSelectionHelmValues string
 //go:embed testdata/workload_selection.yaml
 var workloadSelectionHelmValues string
 
+//go:embed testdata/registry_allow_list.yaml
+var registryAllowListHelmValues string
+
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
 type ssiSuite struct {
@@ -51,28 +58,43 @@ type ssiSuite struct {
 // TestSSISuite is the single entry point: one cluster is provisioned once with the base config,
 // then UpdateEnv is called at the start of each test group.
 func TestSSISuite(t *testing.T) {
-	e2e.Run(t, &ssiSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
+	if getProvisionerType() == ProvisionerAKS {
+		flake.Mark(t)
+	}
+
+	opts := ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(baseHelmValues),
 		},
-	})))
+	}
+	if isOpenShift() {
+		opts.PreAgentHook = openShiftSCC
+	}
+
+	e2e.Run(t, &ssiSuite{}, e2e.WithProvisioner(Provisioner(opts)))
 }
 
 func (v *ssiSuite) TestInjectionMode() {
-	v.UpdateEnv(Provisioner(ProvisionerOptions{
+	var namespaceLabels map[string]string
+	var csiPodSecurityContext *corev1.PodSecurityContextArgs
+	var csiContainerSecurityContext *corev1.SecurityContextArgs
+	opts := ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(injectionModeHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "injection-mode", []singlestep.Namespace{
 				{
-					Name: "injection-mode",
+					Name:   "injection-mode",
+					Labels: namespaceLabels,
 					Apps: []singlestep.App{
 						{
-							Name:    "injection-mode-app-csi",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
+							Name:                     "injection-mode-app-csi",
+							Image:                    "registry.datadoghq.com/injector-dev/python",
+							Version:                  "16ad9d4b",
+							Port:                     8080,
+							PodSecurityContext:       csiPodSecurityContext,
+							ContainerSecurityContext: csiContainerSecurityContext,
 							PodAnnotations: map[string]string{
 								"admission.datadoghq.com/apm-inject.injection-mode": "csi",
 							},
@@ -95,19 +117,52 @@ func (v *ssiSuite) TestInjectionMode() {
 								"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
 							},
 						},
+						{
+							// The cluster-agent is started with
+							// DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED=true
+							// (see injection_mode.yaml) and the Datadog CSI driver is
+							// installed in this suite. The AutoProvider must therefore
+							// pick the CSI provider for this "auto" pod. The pod
+							// security context mirrors the csi pod since the resulting
+							// volume is a CSI volume.
+							Name:                     "injection-mode-app-auto",
+							Image:                    "registry.datadoghq.com/injector-dev/python",
+							Version:                  "16ad9d4b",
+							Port:                     8080,
+							PodSecurityContext:       csiPodSecurityContext,
+							ContainerSecurityContext: csiContainerSecurityContext,
+							PodAnnotations: map[string]string{
+								"admission.datadoghq.com/apm-inject.injection-mode": "auto",
+							},
+						},
 					},
 				},
 			}, dependsOnAgent)
 		},
-	}))
+	}
+	if isOpenShift() {
+		opts.PreAgentHook = openShiftSCC
+		namespaceLabels = openShiftInjectionModeNamespaceLabels()
+		csiPodSecurityContext, csiContainerSecurityContext = openShiftCSIAppSecurityContexts()
+	}
+
+	v.UpdateEnv(Provisioner(opts))
 
 	testCases := []struct {
 		name string
 		mode testutils.InjectionMode
+		// effectiveMode is the value the webhook records in the
+		// internal.apm.datadoghq.com/effective-injection-mode annotation. For
+		// explicit modes it is the bare mode; for "auto" it is the resolved
+		// mode suffixed with " (auto)".
+		effectiveMode string
 	}{
-		{"injection-mode-app-csi", testutils.InjectionModeCSI},
-		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer},
-		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume},
+		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
+		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
+		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
+		// "auto" mode with CSI auto-detection enabled and the Datadog CSI
+		// driver installed must resolve to the CSI provider.
+		{"injection-mode-app-auto", testutils.InjectionModeCSI, testutils.EffectiveAutoMode(testutils.InjectionModeCSI)},
 	}
 
 	k8s := v.Env().KubernetesCluster.Client()
@@ -115,11 +170,36 @@ func (v *ssiSuite) TestInjectionMode() {
 
 	for _, tc := range testCases {
 		v.Run(tc.name, func() {
-			pod := FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+			pod := WaitForMutatedPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+
+			// The cluster-agent's CSI driver watcher learns about the CSIDriver
+			// asynchronously from workloadmeta. The auto pod may have been admitted
+			// before the watcher synced, resolving it to init_container (pods are never
+			// re-mutated). If the pod did not observe the APM-enabled driver, re-admit it
+			// once: this case runs last, so the watcher is synced by now and the fresh
+			// admission resolves to the CSI provider.
+			if tc.name == "injection-mode-app-auto" && pod.Annotations[testutils.CSIDriverStatusAnnotation] != testutils.CSIDriverStatusAPMEnabled {
+				RestartPod(v.T(), k8s, "injection-mode", tc.name)
+				pod = FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+			}
+
 			podValidator := testutils.NewPodValidator(pod, tc.mode)
 			podValidator.RequireInjection(v.T(), []string{tc.name})
 			podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 			podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+
+			// Validate the webhook outcome annotations.
+			podValidator.RequireEffectiveInjectionMode(v.T(), tc.effectiveMode)
+			podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+			podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+
+			// csi-driver-status records the watcher's state at admission time for every
+			// mode, but only the auto pod is re-admitted above once the watcher has synced.
+			// The explicit modes do not depend on the watcher and may carry a stale status
+			// if they were admitted during the initial sync window, so only assert it here.
+			if tc.name == "injection-mode-app-auto" {
+				podValidator.RequireCSIDriverStatus(v.T(), testutils.CSIDriverStatusAPMEnabled)
+			}
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
@@ -174,13 +254,21 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "application", "local-sdk-injection-app")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "application", "local-sdk-injection-app")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"local-sdk-injection-app"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -239,13 +327,21 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "expect-injection", "namespace-selection-inject")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "expect-injection", "namespace-selection-inject")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"namespace-selection-inject"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -306,13 +402,21 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "targeted-namespace", "workload-selection-inject")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "targeted-namespace", "workload-selection-inject")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"workload-selection-inject"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -326,4 +430,193 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireNoInjection(v.T())
 	})
+}
+
+func (v *ssiSuite) TestRegistryAllowList() {
+	if isGKEAutopilot() {
+		v.T().Skip("registry allow-list is cluster-agent logic already covered by other provisioners; " +
+			"on GKE Autopilot the Helm chart forces images to gcr.io/datadoghq, which is unrelated to SSI behavior")
+	}
+	// All three apps run in the same cluster with allow list = registry.datadoghq.com.
+	// The default container registry for injector and library images is registry.datadoghq.com.
+	// - "allowed": default injector and library, both from registry.datadoghq.com — injection proceeds.
+	// - "injector-blocked": injector image overridden to fake.registry.invalid — injection blocked.
+	// - "library-blocked": injector is allowed, but python-lib.custom-image points to
+	//   fake.registry.invalid — injection blocked by library registry check.
+	v.UpdateEnv(Provisioner(ProvisionerOptions{
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(registryAllowListHelmValues),
+		},
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "registry-allow-list", []singlestep.Namespace{
+				{
+					Name: "registry-allow-list",
+					Apps: []singlestep.App{
+						{
+							Name:    "registry-allow-list-allowed",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+						},
+						{
+							Name:    "registry-allow-list-injector-blocked",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+							PodAnnotations: map[string]string{
+								// Override injector to a registry not in the allow list.
+								"admission.datadoghq.com/apm-inject.custom-image": "fake.registry.invalid/apm-inject:0.54.0",
+							},
+						},
+						{
+							Name:    "registry-allow-list-library-blocked",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+							// admission.datadoghq.com/enabled triggers annotation-based (local SDK)
+							// injection so the webhook processes python-lib.custom-image. Without
+							// this label, the target match takes over and the annotation is ignored.
+							PodLabels: map[string]string{
+								"admission.datadoghq.com/enabled": "true",
+							},
+							PodAnnotations: map[string]string{
+								// Override python library to a registry not in the allow list.
+								"admission.datadoghq.com/python-lib.custom-image": "fake.registry.invalid/dd-lib-python-init:v3.18.1",
+							},
+						},
+					},
+				},
+			}, dependsOnAgent)
+		},
+	}))
+
+	v.Run("InjectionAllowedByAllowList", func() {
+		intake := v.Env().FakeIntake.Client()
+		k8s := v.Env().KubernetesCluster.Client()
+
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-allowed")
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-allowed"})
+		podValidator.RequireInjectorVersion(v.T(), "0.54.0")
+		podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
+
+		require.Eventually(v.T(), func() bool {
+			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
+			return len(traces) != 0
+		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
+	})
+
+	v.Run("InjectorRegistryBlockedByAllowList", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-injector-blocked")
+
+		// The injector image is overridden to fake.registry.invalid via pod annotation,
+		// which is not in the allow list. No SSI artifacts should be injected, even if KPI
+		// env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireNoInjectionArtifacts(v.T())
+		// The allow-list rejection happens before injection starts, so the webhook
+		// records a "skipped" status alongside the injection-error annotation.
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusSkipped)
+
+		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
+		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
+		require.Contains(v.T(), errAnnotation, "not in the allow list")
+	})
+
+	v.Run("LibraryRegistryBlockedByAllowList", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-library-blocked")
+
+		// The injector is from the allowed registry, but the python library is overridden
+		// to fake.registry.invalid via annotation. No SSI artifacts should be injected, even
+		// if KPI env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireNoInjectionArtifacts(v.T())
+		// The allow-list rejection happens before injection starts, so the webhook
+		// records a "skipped" status alongside the injection-error annotation.
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusSkipped)
+
+		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
+		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
+		require.Contains(v.T(), errAnnotation, "not in the allow list")
+	})
+}
+
+func isOpenShift() bool {
+	switch getProvisionerType() {
+	case ProvisionerOpenShift, ProvisionerOpenShiftLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+func isGKEAutopilot() bool {
+	return getProvisionerType() == ProvisionerGKEAutopilot
+}
+
+func openShiftInjectionModeNamespaceLabels() map[string]string {
+	return map[string]string{
+		"pod-security.kubernetes.io/enforce": "privileged",
+		"pod-security.kubernetes.io/warn":    "privileged",
+		"pod-security.kubernetes.io/audit":   "privileged",
+	}
+}
+
+func openShiftCSIAppSecurityContexts() (*corev1.PodSecurityContextArgs, *corev1.SecurityContextArgs) {
+	return &corev1.PodSecurityContextArgs{
+			SeLinuxOptions: &corev1.SELinuxOptionsArgs{
+				User:  pulumi.String("system_u"),
+				Role:  pulumi.String("system_r"),
+				Type:  pulumi.String("spc_t"),
+				Level: pulumi.String("s0"),
+			},
+		}, &corev1.SecurityContextArgs{
+			Privileged:               pulumi.Bool(true),
+			AllowPrivilegeEscalation: pulumi.Bool(true),
+			RunAsUser:                pulumi.Int(0),
+			RunAsNonRoot:             pulumi.Bool(false),
+		}
+}
+
+func openShiftSCC(e config.Env, kubeProvider *kubernetes.Provider) error {
+	resourceOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
+
+	for _, binding := range []struct {
+		name      string
+		roleName  string
+		namespace string
+	}{
+		{name: "datadog-csi-driver-privileged", roleName: "system:openshift:scc:privileged", namespace: "datadog"},
+		{name: "datadog-csi-driver-hostmount-anyuid", roleName: "system:openshift:scc:hostmount-anyuid", namespace: "datadog"},
+		{name: "injection-mode-privileged", roleName: "system:openshift:scc:privileged", namespace: "injection-mode"},
+		{name: "injection-mode-hostmount-anyuid", roleName: "system:openshift:scc:hostmount-anyuid", namespace: "injection-mode"},
+	} {
+		if _, err := rbacv1.NewClusterRoleBinding(e.Ctx(), e.CommonNamer().ResourceName(binding.name), &rbacv1.ClusterRoleBindingArgs{
+			Metadata: &metav1.ObjectMetaArgs{
+				Name: pulumi.String(binding.name),
+			},
+			RoleRef: &rbacv1.RoleRefArgs{
+				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+				Kind:     pulumi.String("ClusterRole"),
+				Name:     pulumi.String(binding.roleName),
+			},
+			Subjects: rbacv1.SubjectArray{
+				&rbacv1.SubjectArgs{
+					Kind:      pulumi.String("ServiceAccount"),
+					Name:      pulumi.String("default"),
+					Namespace: pulumi.String(binding.namespace),
+				},
+			},
+		}, resourceOpts...); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

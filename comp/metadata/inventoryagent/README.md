@@ -132,7 +132,7 @@ The payload is a JSON dict with the following fields
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
   - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
   - `infrastructure_mode` -- **string**: The monitoring mode the agent is configured in, each mode offers different
-    amount of feature (default is `full`, other potential values are `end_user_device` or `basic`).
+    amount of feature (default is `full`; other values include `end_user_device`, `basic`, `cloud_cost_only`, and `none`).
   - `application_monitoring_config` -- **string**: the Application Monitoring configuration, as a YAML string.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)

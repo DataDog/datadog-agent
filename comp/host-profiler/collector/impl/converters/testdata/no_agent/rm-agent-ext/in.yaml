@@ -1,0 +1,39 @@
+service:
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      processors: [batch]
+      exporters: [otlp_http]
+  extensions:
+    - ddprofiling
+    - hpflare
+    - hpflare/prod
+    - custom
+    - other
+
+extensions:
+  ddprofiling:
+    config: value
+  hpflare:
+    config: value
+  hpflare/prod:
+    config: prod
+  custom:
+    config: value
+  other:
+    config: value
+
+processors:
+  batch:
+    timeout: 10s
+
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+
+exporters:
+  otlp_http:
+    endpoint: http://localhost:4318
+    headers:
+      dd-api-key: test-key

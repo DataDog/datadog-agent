@@ -1,133 +1,206 @@
 # Global build settings
 
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("//compliance/rules:purl.bzl", "purl_for_generic")
+load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
 
-# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
-# gazelle:exclude cmd
-# gazelle:exclude comp
-# gazelle:exclude internal/remote-agent
-# gazelle:exclude internal/third_party
-# gazelle:exclude internal/tools/gotest-custom
-# gazelle:exclude internal/tools/independent-lint
-# gazelle:exclude internal/tools/modformatter
-# gazelle:exclude pkg/aggregator
-# gazelle:exclude pkg/api
-# gazelle:exclude pkg/cli
-# gazelle:exclude pkg/cloudfoundry
-# gazelle:exclude pkg/clusteragent
-# gazelle:exclude pkg/collector
-# gazelle:exclude pkg/commonchecks
-# gazelle:exclude pkg/compliance
-# gazelle:exclude pkg/config
-# gazelle:exclude pkg/containerlifecycle
-# gazelle:exclude pkg/databasemonitoring
-# gazelle:exclude pkg/diagnose
-# gazelle:exclude pkg/discovery
-# gazelle:exclude pkg/dyninst/decode
-# gazelle:exclude pkg/dyninst/dispatcher
-# gazelle:exclude pkg/dyninst/dwarf
-# gazelle:exclude pkg/dyninst/dyninsttest
-# gazelle:exclude pkg/dyninst/ebpf
-# gazelle:exclude pkg/dyninst/ebpfbench
-# gazelle:exclude pkg/dyninst/exprlang
-# gazelle:exclude pkg/dyninst/gosym
-# gazelle:exclude pkg/dyninst/gotype
-# gazelle:exclude pkg/dyninst/htlhash
-# gazelle:exclude pkg/dyninst/irgen
-# gazelle:exclude pkg/dyninst/irprinter
-# gazelle:exclude pkg/dyninst/loader
-# gazelle:exclude pkg/dyninst/module
-# gazelle:exclude pkg/dyninst/object
-# gazelle:exclude pkg/dyninst/output
-# gazelle:exclude pkg/dyninst/process
-# gazelle:exclude pkg/dyninst/procsubscribe
-# gazelle:exclude pkg/dyninst/symbol
-# gazelle:exclude pkg/dyninst/symdb
-# gazelle:exclude pkg/dyninst/testdata
-# gazelle:exclude pkg/dyninst/testprogs
-# gazelle:exclude pkg/dyninst/trietest
-# gazelle:exclude pkg/dyninst/uploader
-# gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/ebpf
-# gazelle:exclude pkg/errors
-# gazelle:exclude pkg/eventmonitor
-# gazelle:exclude pkg/fips
-# gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet
-# gazelle:exclude pkg/gohai
-# gazelle:exclude pkg/gpu
-# gazelle:exclude pkg/hosttags
-# gazelle:exclude pkg/inventory
-# gazelle:exclude pkg/jmxfetch
-# gazelle:exclude pkg/kubestatemetrics
-# gazelle:exclude pkg/languagedetection
-# gazelle:exclude pkg/logs
-# gazelle:exclude pkg/metrics
-# gazelle:exclude pkg/network
-# gazelle:exclude pkg/networkconfigmanagement
-# gazelle:exclude pkg/networkdevice
-# gazelle:exclude pkg/networkpath
-# gazelle:exclude pkg/obfuscate
-# gazelle:exclude pkg/opentelemetry-mapping-go
-# gazelle:exclude pkg/orchestrator
-# gazelle:exclude pkg/persistentcache
-# gazelle:exclude pkg/pidfile
-# gazelle:exclude pkg/privateactionrunner
-# gazelle:exclude pkg/privileged-logs
-# gazelle:exclude pkg/process
-# gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto
-# gazelle:exclude pkg/redact
-# gazelle:exclude pkg/remoteconfig
-# gazelle:exclude pkg/runtime
-# gazelle:exclude pkg/sbom
-# gazelle:exclude pkg/security
-# gazelle:exclude pkg/serializer
-# gazelle:exclude pkg/serverless
-# gazelle:exclude pkg/snmp
-# gazelle:exclude pkg/ssi
-# gazelle:exclude pkg/status
-# gazelle:exclude pkg/system-probe
-# gazelle:exclude pkg/tagger
-# gazelle:exclude pkg/tagset
-# gazelle:exclude pkg/telemetry
-# gazelle:exclude pkg/template
-# gazelle:exclude pkg/trace
-# gazelle:exclude pkg/util
-# gazelle:exclude pkg/version
-# gazelle:exclude pkg/windowsdriver
-# TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
-# Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
-# support or we upgrade to a Bazel version containing a fix: https://github.com/bazelbuild/bazel/pull/26842
-# In the meantime, temporarily remove this exclusion locally if regeneration of BUILD files is required
-# gazelle:exclude rtloader
-# gazelle:exclude tasks
-# gazelle:exclude test
-# gazelle:exclude tools
-# gazelle:exclude .gitlab
-# gazelle:prefix github.com/DataDog/datadog-agent
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
+        package = "datadog-agent",
+        version = release_json.get("current_milestone"),
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+# Temporary export for hybrid omnibus/bazel build.
+# This glob is empty running bazel alone in a pipeline job.
+# It covers real files in the omnibus build after dda commands have run.
+exports_files(glob(
+    ["bin/**"],
+    allow_empty = True,
+))
+
+exports_files(["go.mod"])
+
+# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# gazelle:exclude cmd/agent/subcommands/*.go
+# gazelle:exclude cmd/agent/subcommands/processchecks
+# gazelle:exclude cmd/cluster-agent/*.go
+# gazelle:exclude cmd/cluster-agent/custommetrics
+# gazelle:exclude cmd/cluster-agent/subcommands/*.go
+# gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
+# gazelle:exclude cmd/cluster-agent/subcommands/start
+# gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
+# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
+# gazelle:exclude cmd/serverless-init/*.go
+# gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
+# rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
+# Bazel go_deps graph (progs is a separate module outside go.work). Keep this
+# binary out of Bazel, consistent with testprogs binaries relying on the
+# ninja-built Go toolchain matrix (see PR #50629).
+# gazelle:exclude pkg/dyninst/testprogs/progs/busyloop
+# gazelle:exclude pkg/dyninst/testprogs/progs/drop_tester
+# gazelle:exclude pkg/dyninst/testprogs/progs/fault
+# gazelle:exclude pkg/dyninst/testprogs/progs/panic_recover
+# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
+# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
+# gazelle:exclude pkg/dyninst/testprogs/progs/simple
+# gazelle:exclude pkg/ebpf/_obj
+# It is a generated via genrule src that shouldn't be added to the runtime
+# library.
+# gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
+# gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
+# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
+# gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
+# gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
+# gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
+# gazelle:exclude pkg/serverless/otlp
+# gazelle:exclude pkg/serverless/trace/span_modifer_test.go
+# gazelle:exclude pkg/serverless/trace/span_modifier.go
+# gazelle:exclude pkg/serverless/trace/trace_test.go
+# gazelle:exclude pkg/serverless/trace/trace.go
+# gazelle:exclude pkg/system-probe/api/client/check_test.go
+# Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
+#   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
+# because //pkg/util/kubernetes/kubelet depends on //pkg/util/kubernetes. Go build
+# tags hide this in single-config compiles; Bazel analyzes the full target graph.
+# TODO: break the cycle (e.g. move GetKubeAPIServerHostname to another package, or
+# trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
+# gazelle:exclude pkg/util/kubernetes/hostname.go
+# gazelle:exclude test/benchmarks/kubernetes_state
+# gazelle:exclude test/new-e2e/examples
+# gazelle:exclude test/new-e2e/system-probe/config
+# gazelle:exclude test/new-e2e/system-probe/test
+# gazelle:exclude test/new-e2e/test-infra-definition
+# gazelle:exclude test/new-e2e/tests/agent-configuration
+# gazelle:exclude test/new-e2e/tests/agent-devx
+# gazelle:exclude test/new-e2e/tests/agent-health
+# gazelle:exclude test/new-e2e/tests/agent-log-pipelines
+# gazelle:exclude test/new-e2e/tests/agent-metric-pipelines
+# gazelle:exclude test/new-e2e/tests/agent-platform/common
+# gazelle:exclude test/new-e2e/tests/agent-platform/tests
+# gazelle:exclude test/new-e2e/tests/agent-runtimes
+# gazelle:exclude test/new-e2e/tests/agent-subcommands/check
+# gazelle:exclude test/new-e2e/tests/agent-subcommands/dogstatsdreplay
+# gazelle:exclude test/new-e2e/tests/agent-subcommands/status
+# gazelle:exclude test/new-e2e/tests/agent-telemetry
+# gazelle:exclude test/new-e2e/tests/anomalydetection
+# gazelle:exclude test/new-e2e/tests/apm
+# gazelle:exclude test/new-e2e/tests/autoscaling/spot
+# gazelle:exclude test/new-e2e/tests/containers
+# gazelle:exclude test/new-e2e/tests/cspm
+# gazelle:exclude test/new-e2e/tests/cws/api
+# gazelle:exclude test/new-e2e/tests/discovery
+# gazelle:exclude test/new-e2e/tests/ddot
+# gazelle:exclude test/new-e2e/tests/fips-compliance
+# gazelle:exclude test/new-e2e/tests/fleet
+# gazelle:exclude test/new-e2e/tests/gpu
+# gazelle:exclude test/new-e2e/tests/ha-agent
+# gazelle:exclude test/new-e2e/tests/installer/host
+# gazelle:exclude test/new-e2e/tests/installer/script
+# gazelle:exclude test/new-e2e/tests/installer/unix
+# gazelle:exclude test/new-e2e/tests/installer/windows/fixtures
+# gazelle:exclude test/new-e2e/tests/installer/windows/remote-host-assertions
+# gazelle:exclude test/new-e2e/tests/installer/windows/resources
+# gazelle:exclude test/new-e2e/tests/installer/windows/suite-assertions
+# gazelle:exclude test/new-e2e/tests/language-detection
+# gazelle:exclude test/new-e2e/tests/ndm
+# gazelle:exclude test/new-e2e/tests/netpath
+# gazelle:exclude test/new-e2e/tests/npm
+# gazelle:exclude test/new-e2e/tests/orchestrator
+# gazelle:exclude test/new-e2e/tests/otel
+# gazelle:exclude test/new-e2e/tests/privateactionrunner
+# gazelle:exclude test/new-e2e/tests/process
+# gazelle:exclude test/new-e2e/tests/remote-config
+# gazelle:exclude test/new-e2e/tests/sbom
+# gazelle:exclude test/new-e2e/tests/security-agent-functional
+# gazelle:exclude test/new-e2e/tests/ssi
+# gazelle:exclude test/new-e2e/tests/ssi-gradual-rollout
+# gazelle:exclude test/new-e2e/tests/sysprobe-functional
+# gazelle:exclude test/new-e2e/tests/usm
+# gazelle:exclude test/new-e2e/tests/windows/common/fixtures
+# gazelle:exclude test/new-e2e/tests/windows/domain-test
+# gazelle:exclude test/new-e2e/tests/windows/fips-test
+# gazelle:exclude test/new-e2e/tests/windows/install-test
+# gazelle:exclude test/new-e2e/tests/windows/scripts
+# gazelle:exclude test/new-e2e/tests/windows/service-test
+# gazelle:exclude test/new-e2e/tests/windows/windows-certificate
+# gazelle:exclude internal/qbranch/anomalydetection-testbench
+# gazelle:exclude tools/retry_file_dump
+# gazelle:exclude vendor
+
+# ======= TESTDATA EXCLUDES =======
+# gazelle:exclude **/testdata/**/*.go
+# ======= END TESTDATA EXCLUDES =======
+
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr //pkg/proto/pbgo/procmgr
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
+# gazelle:resolve proto datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//proto/healthplatform:healthplatform_proto
+# gazelle:resolve proto go datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//healthplatform
+# GAZELLE_BUILD_TAGS is the source-of-truth tag list from
+# tasks/build_tags.bzl, shared with the dda inv build-tag code.
 gazelle(
     name = "gazelle",
-    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = GAZELLE_BUILD_TAGS,
+    external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    extra_args = [
+        "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-strict",  # don't swallow syntax errors or unknown directives
+    ],
     gazelle = ":gazelle_binary",
+    prefix = "github.com/DataDog/datadog-agent",
 )
+
+# Our dd_agent_go_test extension wraps the built-in Go extension and must replace it,
+# not extend it, to avoid duplicate rule generation.
+_LANGUAGES_WITHOUT_GO = [
+    lang
+    for lang in DEFAULT_LANGUAGES
+    if "//language/go" not in str(lang)
+]
 
 gazelle_binary(
     name = "gazelle_binary",
-    languages = DEFAULT_LANGUAGES + [
+    languages = _LANGUAGES_WITHOUT_GO + [
+        "//bazel/rules/cws_codegen:gazelle_extension",
+        "//bazel/rules/go:gazelle_extension",
+        "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
+        "//bazel/rules/write_pb_go:gazelle_extension",
     ],
 )
 
 # bazel run //:go -- ...
 alias(
     name = "go",
-    actual = "@rules_go//go",
+    actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
 )
 
 # bazel run //:go_mod_tidy_all -- -x
@@ -248,4 +321,63 @@ string_flag(
     name = "output_config_dir",
     build_setting_default = "/tmp",
     make_variable = "OUTPUT_CONFIG_DIR",
+)
+
+# Use this configuration setting to select options that should be applied for
+# to a non-developer version of the product. It does not mean this is a delivery
+# pipeline. This is set for most CI runs, so that size and performance tests
+# are accurate.
+bool_flag(
+    name = "release",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_release",
+    flag_values = {
+        "//:release": "True",
+    },
+)
+
+# Matches Linux targets built with --//:release=true.
+# More specific than //:is_release (adds a platform constraint), so Bazel's
+# ambiguity resolution prefers it over the plain is_release setting when both
+# would match on Linux.
+# TODO(agent_build): We may need this for other platforms. Feel free to add if needed.
+config_setting(
+    name = "linux_and_release",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {
+        "//:release": "True",
+    },
+)
+
+# bazel run //:write_all regenerates all protobuf-generated Go files in the repo.
+write_source_files(
+    name = "write_all",
+    additional_update_targets = [
+        "//comp/forwarder/defaultforwarder/internal/retry:write_pb_go",
+        "//pkg/discovery/tracermetadata/model:tracer_metadata_gen",
+        "//pkg/proto/msgpgo:key_gen",
+        "//pkg/proto/pbgo/core:remoteconfig_gen",
+        "//pkg/proto/pbgo/core:write_pb_go",
+        "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
+        "//pkg/proto/pbgo/languagedetection:write_pb_go",
+        "//pkg/proto/pbgo/mocks/core:api_mockgen",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/executor:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
+        "//pkg/proto/pbgo/process:write_pb_go",
+        "//pkg/proto/pbgo/procmgr:write_pb_go",
+        "//pkg/proto/pbgo/sbom:write_pb_go",
+        "//pkg/proto/pbgo/trace/idx:write_pb_go",
+        "//pkg/proto/pbgo/trace:agent_payload_gen",
+        "//pkg/proto/pbgo/trace:span_gen",
+        "//pkg/proto/pbgo/trace:stats_gen",
+        "//pkg/proto/pbgo/trace:trace_gen",
+        "//pkg/proto/pbgo/trace:tracer_payload_gen",
+        "//pkg/proto/pbgo/trace:write_pb_go",
+        "//pkg/security/proto/api:write_pb_go",
+    ],
 )

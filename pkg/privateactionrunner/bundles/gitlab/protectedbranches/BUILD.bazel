@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "protectedbranches",
+    srcs = [
+        "entrypoint.gen.go",
+        "get_protected_branch.gen.go",
+        "list_protected_branches.gen.go",
+        "protect_repository_branch.gen.go",
+        "unprotect_repository_branch.gen.go",
+        "update_protected_branch.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/protectedbranches",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

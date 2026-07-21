@@ -1,0 +1,31 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condUint32",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condUint32_cond",
+          "location": {
+            "method": "main.condUint32"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "tag=match",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

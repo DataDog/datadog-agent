@@ -1,6 +1,6 @@
 # Running E2E tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](../../../../test/new-e2e/) folder.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e) folder.
 
 ## Prerequisites
 
@@ -21,80 +21,39 @@ Before running E2E tests, ensure you have the following installed:
 
 ### Cloud Provider Setup
 
-#### AWS Configuration
+You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin-8h`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
 
-E2E tests require access to the `agent-sandbox` AWS account:
+For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
-1. **Role Access**: Ensure you have the `account-admin` role on the `agent-sandbox` account
-2. **AWS Keypair**: Set up an existing AWS keypair for your account
-3. **Authentication**: Validate your connection with login using aws-vault:
-   ```bash
-   aws-vault login sso-agent-sandbox-account-admin
-   ```
+### One-time setup
 
-#### GCP Configuration (for GKE tests)
+Run the setup task once on a fresh machine. The default path is AWS-only and asks at most one question (your GitHub team, used to tag resources). It auto-creates the EC2 keypair (using your existing aws-vault session) and generates a Pulumi passphrase.
 
-If you plan to run tests on Google Kubernetes Engine:
+```bash
+dda inv e2e.setup
+```
 
-1. **Install GKE Plugin**: Install the GKE authentication plugin
-2. **PATH Configuration**: Add the plugin to your system PATH
-3. **Authentication**: Validate your connection with GCP authentication:
-   ```bash
-   gcloud auth application-default login
-   ```
+For Azure or GCP support:
 
-### Environment Configuration
+```bash
+dda inv e2e.setup --with-azure --with-gcp
+```
 
-Set up the required environment variables:
+The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
-1. **Pulumi Configuration**: Set `PULUMI_CONFIG_PASSPHRASE` in your terminal rc file (`.bashrc`, `.zshrc`, etc.)
-   ```bash
-   export PULUMI_CONFIG_PASSPHRASE="your-random-password"
-   ```
-   /// tip
-   Generate a secure random password using 1Password or your preferred password manager.
-   You can use `security` on macOS to safely get this password.
-   ///
-
-## Setting Up the Development Environment
-
-E2E tests should be run within a [developer environment](../../tutorials/dev/env.md) to ensure consistency and proper isolation.
-
-### Start a Developer Environment
-
-1. **Clone the repository** (if using local checkout):
-   ```bash
-   git clone https://github.com/DataDog/datadog-agent.git
-   cd datadog-agent
-   ```
-
-2. **Start the environment** The following example is for an amd64 environment:
-   ```bash
-   dda env dev start --id devenv-amd --arch amd64
-   ```
-
-   Or use a remote clone for better isolation:
-   ```bash
-   dda env dev start --clone
-   ```
-
-3. **Enter the environment shell**:
-   ```bash
-   dda env dev shell --id devenv-amd
-   ```
-
-For detailed information about developer environments, see the [Using developer environments](../../tutorials/dev/env.md) tutorial.
 
 ## Running E2E Tests
 
 ### Basic Test Execution
 
-E2E tests are located in the `test/new-e2e/` directory. To run a basic test use the invoke task `new-e2e-tests.run`, specifying a target folder relative to `test/new-e2e/`:
+E2E tests are located in the `test/new-e2e/` directory. After running `dda inv e2e.setup` once, you can run them like unit tests — no `aws-vault exec` wrapping, no exported `PULUMI_CONFIG_PASSPHRASE`. The runner reads the passphrase from your local config and auto-wraps the test command with `aws-vault exec` against the configured profile.
 
 ```bash
 # Run a simple VM test
 dda inv new-e2e-tests.run --targets=./examples --run=^TestVMSuite$
 ```
+
+If you manage AWS credentials yourself (e.g. via SAML2AWS or another tool), pass `--no-aws-vault` to skip the auto-wrap.
 
 Replace ./examples with your subfolder.
 This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.
@@ -160,7 +119,7 @@ By default, the image is names `agent` unless you override it with the `--target
 Then push the image to a registry:
 ```bash
 # Login to ECR
-aws-vault exec sso-agent-sandbox-account-admin -- \
+aws-vault exec sso-agent-sandbox-account-admin-8h -- \
 aws ecr get-login-password --region us-east-1 | \
 docker login --username AWS --password-stdin 376334461865.dkr.ecr.us-east-1.amazonaws.com
 # Push the image
@@ -294,4 +253,4 @@ func (v *vmSuite) TestAgentInstallation() {
 - [Test Categories](../../guidelines/testing/test-categories.md) - Understanding different test types
 - [Unit Testing](unit.md) - Running unit tests
 - [Using Developer Environments](../../tutorials/dev/env.md) - Setting up development environments
-- [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) - Infrastructure provisioning framework
+- [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) - Infrastructure provisioning framework

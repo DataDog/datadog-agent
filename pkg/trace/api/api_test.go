@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -38,7 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -75,7 +75,15 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
-	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	port, err := testutil.FindTCPPort()
+	if err != nil {
+		panic(err)
+	}
+	conf.ReceiverPort = port
+	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
+	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
+	// block for 60 seconds waiting for the connection to close.
+	conf.ReceiverIdleTimeout = 0
 	// Enable convert-traces by default for tests since most tests expect V1 behavior
 	if conf.Features == nil {
 		conf.Features = make(map[string]struct{})
@@ -159,7 +167,7 @@ func TestServerShutdown(t *testing.T) {
 			defer wg.Done()
 			for n := 0; n < 200; n++ {
 				// Send to TCP endpoint
-				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d/v0.4/traces", conf.ReceiverPort), bytes.NewReader(bts))
 				req.Header.Set("Content-Type", "application/msgpack")
 				resp, _ := tcpClient.Do(req)
 				if resp != nil {
@@ -805,6 +813,30 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.Contains(respBody, "too few bytes left to read")
 }
 
+func TestHandleTracesV05RejectsInvalidDictionaryIndex(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v05, r.handleTraces))
+	defer server.Close()
+
+	data := []byte("\x91\x90\x91\x91\x9c\x0000000000\x80\x800")
+	var decoded pb.Traces
+	decodeErr := decoded.UnmarshalMsgDictionary(data)
+	assert.ErrorContains(decodeErr, "dictionary index 0 out of range")
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(header.TraceCount, "1")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestTraceCount(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.NoError(t, err)
@@ -1051,7 +1083,7 @@ func TestHandleStats(t *testing.T) {
 
 		resp.Body.Close()
 		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
-		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.True(t, proto.Equal(gotp, p), "payload did not match")
 		assert.Equal(t, "lang1", gotlang, "lang did not match")
 		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
 		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
@@ -1061,8 +1093,9 @@ func TestHandleStats(t *testing.T) {
 	})
 	t.Run("timeout", func(t *testing.T) {
 		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 1100 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 500 * time.Millisecond}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
@@ -1082,7 +1115,7 @@ func TestHandleStats(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
+		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 	})
 }
 
@@ -1092,8 +1125,9 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 	// must be set independently to avoid "connection reset by peer" errors.
 	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
 		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		cfg.ReceiverIdleTimeout = idleTimeout
-		readTimeout := time.Duration(cfg.ReceiverTimeout) * time.Second
+		readTimeout := cfg.ReceiverTimeoutDuration
 
 		rcv := newTestReceiverFromConfig(cfg)
 		rcv.Start()
@@ -1144,8 +1178,8 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 	}
 
 	t.Run("without idle timeout", func(t *testing.T) {
-		// With no IdleTimeout, Go falls back to ReadTimeout (1s). The second request on the
-		// same connection after 2s must fail with a connection reset.
+		// With no IdleTimeout, Go falls back to ReadTimeout (50ms). The second request on the
+		// same connection after 2×ReadTimeout must fail with a connection reset.
 		firstErr, secondErr := runTest(t, 0)
 		require.NoError(t, firstErr)
 		require.Error(t, secondErr, "expected connection reset when IdleTimeout falls back to ReadTimeout")
@@ -1153,7 +1187,7 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 
 	t.Run("with idle timeout", func(t *testing.T) {
 		// With IdleTimeout > ReadTimeout, the connection stays alive and both requests succeed.
-		firstErr, secondErr := runTest(t, 5*time.Second)
+		firstErr, secondErr := runTest(t, 500*time.Millisecond)
 		require.NoError(t, firstErr)
 		require.NoError(t, secondErr, "keepalive connection must survive past ReadTimeout")
 	})
@@ -1654,6 +1688,176 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 		_, _ = io.Copy(buffer, bytes.NewReader(bts))
 		_, _ = traces.UnmarshalMsg(buffer.Bytes())
 		bufferPool.Put(buffer)
+	}
+}
+
+// buildV05Payload builds a msgpack-encoded v0.5 ("dictionary") trace payload with
+// nTraces chunks of nSpansPerChunk spans each, referencing a shared string dictionary.
+// The wire layout mirrors what tracers POST to /v0.5/traces and is decoded identically
+// by both the legacy (pb.Traces) and converted (idx.InternalTracerPayload) paths, so the
+// same bytes can feed both BenchmarkDecodeV05Legacy and BenchmarkDecodeV05Converted.
+func buildV05Payload(b *testing.B, nTraces, nSpansPerChunk int) []byte {
+	b.Helper()
+	// Shared string dictionary. Spans reference entries by index.
+	dict := []string{
+		0:  "", // index 0 is conventionally the empty string
+		1:  "my-service",
+		2:  "my-operation",
+		3:  "my-resource",
+		4:  "web",
+		5:  "http.method",
+		6:  "GET",
+		7:  "http.status_code",
+		8:  "env",
+		9:  "prod",
+		10: "version",
+		11: "1.2.3",
+		12: "component",
+		13: "net/http",
+		14: "_sampling_priority_v1",
+	}
+	traces := make([][][12]interface{}, nTraces)
+	for t := 0; t < nTraces; t++ {
+		rootID := uint64(t*nSpansPerChunk + 1)
+		spans := make([][12]interface{}, nSpansPerChunk)
+		for s := 0; s < nSpansPerChunk; s++ {
+			spanID := uint64(t*nSpansPerChunk + s + 1)
+			parentID := rootID
+			if s == 0 {
+				parentID = 0 // first span in the chunk is the local root
+			}
+			spans[s] = [12]interface{}{
+				1,                 // service (dict ref)
+				2,                 // name (dict ref)
+				3,                 // resource (dict ref)
+				uint64(t + 1),     // traceID
+				spanID,            // spanID
+				parentID,          // parentID
+				int64(1234567890), // start
+				int64(1000),       // duration
+				0,                 // error
+				map[interface{}]interface{}{ // meta (dict ref -> dict ref)
+					5:  6,
+					8:  9,
+					10: 11,
+					12: 13,
+				},
+				map[interface{}]float64{ // metrics (dict ref -> float64)
+					7:  200,
+					14: 1,
+				},
+				4, // type (dict ref)
+			}
+		}
+		traces[t] = spans
+	}
+	payload := [2]interface{}{0: dict, 1: traces}
+	bts, err := vmsgp.Marshal(&payload)
+	require.NoError(b, err)
+	return bts
+}
+
+// benchIDProvider is a no-op container-ID provider for the decode benchmarks.
+var benchIDProvider = NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+	return "", nil
+})
+
+// buildV04Payload builds a msgpack-encoded v0.4 trace payload (a pb.Traces blob) with
+// nTraces chunks of nSpansPerChunk spans each. The per-span attribute shape (4 meta,
+// 2 metrics) mirrors buildV05Payload so the converted v0.4 and v0.5 decode paths can be
+// compared on equivalent input.
+func buildV04Payload(b *testing.B, nTraces, nSpansPerChunk int) []byte {
+	b.Helper()
+	traces := make(pb.Traces, nTraces)
+	for t := 0; t < nTraces; t++ {
+		rootID := uint64(t*nSpansPerChunk + 1)
+		trace := make(pb.Trace, nSpansPerChunk)
+		for s := 0; s < nSpansPerChunk; s++ {
+			spanID := uint64(t*nSpansPerChunk + s + 1)
+			parentID := rootID
+			if s == 0 {
+				parentID = 0 // first span in the chunk is the local root
+			}
+			trace[s] = &pb.Span{
+				Service:  "my-service",
+				Name:     "my-operation",
+				Resource: "my-resource",
+				Type:     "web",
+				TraceID:  uint64(t + 1),
+				SpanID:   spanID,
+				ParentID: parentID,
+				Start:    1234567890,
+				Duration: 1000,
+				Meta: map[string]string{
+					"http.method": "GET",
+					"env":         "prod",
+					"version":     "1.2.3",
+					"component":   "net/http",
+				},
+				Metrics: map[string]float64{
+					"http.status_code":      200,
+					"_sampling_priority_v1": 1,
+				},
+			}
+		}
+		traces[t] = trace
+	}
+	bts, err := traces.MarshalMsg(nil)
+	require.NoError(b, err)
+	return bts
+}
+
+// BenchmarkDecodeV04Converted measures the convert-traces (default) v0.4 decode path:
+// decode the msgpack pb.Traces payload directly into the internal idx.InternalTracerPayload
+// format via UnmarshalMsgConverted.
+func BenchmarkDecodeV04Converted(b *testing.B) {
+	bts := buildV04Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		if _, err := recv.decodeConvertedTracerPayload(v04, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkDecodeV05Legacy measures the legacy (convert-traces disabled) v0.5 decode
+// path: decode the dictionary payload into pb.Traces and build a pb.TracerPayload.
+func BenchmarkDecodeV05Legacy(b *testing.B) {
+	bts := buildV05Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(bts))
+		if _, err := recv.decodeTracerPayload(v05, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkDecodeV05Converted measures the convert-traces (default) v0.5 decode path:
+// decode the dictionary payload directly into the internal idx.InternalTracerPayload
+// format. Compare against BenchmarkDecodeV05Legacy to gauge the feature's impact.
+func BenchmarkDecodeV05Converted(b *testing.B) {
+	bts := buildV05Payload(b, 10, 10)
+	recv := HTTPReceiver{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	for n := 0; n < b.N; n++ {
+		req, _ := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(bts))
+		if _, err := recv.decodeConvertedTracerPayload(v05, req, benchIDProvider, "python", "3.8.1", "1.2.3"); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

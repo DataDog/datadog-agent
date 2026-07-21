@@ -520,6 +520,54 @@ func TestConvertToIdx_SpanPriorityTakesPrecedence(t *testing.T) {
 	assert.Equal(t, int32(2), result.Chunks[0].Priority)
 }
 
+// Test that a root span's _sampling_priority_v1 is not overwritten by a later child span metric.
+func TestConvertToIdx_RootSpanSamplingPriorityNotOverwrittenByChild(t *testing.T) {
+	const (
+		traceID     = uint64(2474985802196436598)
+		rootSpanID  = uint64(2474985802196436598)
+		childSpanID = uint64(4517865208795174629)
+	)
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Spans: []*pb.Span{
+					{
+						Service:  "weblog",
+						Name:     "http.request",
+						Resource: "GET /rasp/ssrf",
+						Type:     "web",
+						TraceID:  traceID,
+						SpanID:   rootSpanID,
+						ParentID: 0,
+						Metrics: map[string]float64{
+							"_sampling_priority_v1": 2.0,
+							"_dd.top_level":         1.0,
+						},
+					},
+					{
+						Service:  "weblog",
+						Name:     "http.request",
+						Resource: "http.request",
+						Type:     "http",
+						TraceID:  traceID,
+						SpanID:   childSpanID,
+						ParentID: rootSpanID,
+						Error:    1,
+						Metrics: map[string]float64{
+							"_sampling_priority_v1": -1.0,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := ConvertToIdx(payload, "")
+
+	require.Len(t, result.Chunks, 1)
+	assert.Equal(t, int32(2), result.Chunks[0].Priority)
+}
+
 // Test that MetaStruct fields are converted correctly
 func TestConvertToIdx_MetaStructConverted(t *testing.T) {
 	payload := &pb.TracerPayload{
@@ -1675,4 +1723,38 @@ func compareEventAttributes(t *testing.T, event1, event2 *idx.InternalSpanEvent,
 	}
 
 	assert.Equal(t, keys1, keys2, "chunk %d span %d event %d: attributes should match", chunkIdx, spanIdx, eventIdx)
+}
+
+// TestConvertArrayValue_NilAndNilElement ensures converting an array attribute
+// tolerates both a nil array and a nil element inside the array (both are valid
+// msgpack decode results) without panicking, and that nil elements are dropped
+// rather than stored as unusable nil AnyValue entries (which several V1 paths
+// dereference).
+func TestConvertArrayValue_NilAndNilElement(t *testing.T) {
+	st := idx.NewStringTable()
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(nil, st)
+		assert.NotNil(t, got)
+		assert.Empty(t, got.Values)
+	})
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(&pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+			nil,
+			{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "keep"},
+			nil,
+		}}, st)
+		// Nil elements are dropped; only the convertible entry survives.
+		require.Len(t, got.Values, 1)
+		require.NotNil(t, got.Values[0])
+		assert.Equal(t, "keep", got.Values[0].AsString(st))
+
+		// Downstream V1 paths iterate every element and must not panic.
+		av := &idx.AnyValue{Value: &idx.AnyValue_ArrayValue{ArrayValue: got}}
+		assert.NotPanics(t, func() {
+			_ = av.AsString(st)
+			_ = av.Msgsize()
+		})
+	})
 }

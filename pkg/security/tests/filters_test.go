@@ -22,7 +22,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -97,7 +97,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
@@ -109,7 +109,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -133,6 +133,160 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// generate a basename up to the current limit of the agent
+	basename := strings.Repeat("a", model.MaxSegmentLength)
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path =~ "{{.Root}}/aaaaa*"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd1, fd2 int
+	var testFile1, testFile2 string
+
+	testFile1, _, err = test.Path(basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-oba-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	// stats
+	err = retry(t, func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
+	assert.NoError(t, err)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
+func TestFilterOpenParentBasenameApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// generate a basename up to the current limit of the agent
+	basename := strings.Repeat("a", model.MaxSegmentLength)
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path =~ "{{.Root}}/test/*"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd1, fd2 int
+	var testDir, testFile1, testFile2 string
+
+	testDir, _, err = test.Path("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(testDir), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile1, _, err = test.Path("test/" + basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	testDir2, _, err := test.Path("test-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(testDir2), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-2/" + basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	// stats
+	err = retry(t, func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
+	assert.NoError(t, err)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
 func TestFilterOpenLeafDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -140,7 +294,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
@@ -214,7 +368,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "/tmp/no-approver-*"`,
+		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
 	}
 
 	outputDir := t.TempDir()
@@ -287,7 +441,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/no-parent-*/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
@@ -387,7 +541,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	}
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
@@ -399,7 +553,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForProbeEvent(test, func() error {
@@ -438,15 +592,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 1005`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == 1005`,
 		},
 		{
 			ID:         "test_equal_2",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 0`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == 0`,
 		},
 		{
 			ID:         "test_equal_3",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -492,7 +646,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_lesser",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid < 500`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid < 500`,
 		},
 	}
 
@@ -528,7 +682,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_greater",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid > 1000`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid > 1000`,
 		},
 	}
 
@@ -564,7 +718,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_4",
-			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid != AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid != AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -600,7 +754,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `unlink.file.path =~ "/tmp/test-a*" && process.auid == 1009`,
+			Expression: `unlink.file.path =~ "/tm*/*est-a*" && process.auid == 1009`,
 		},
 	}
 
@@ -904,7 +1058,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
@@ -916,7 +1070,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -929,7 +1083,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
@@ -941,7 +1095,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -1086,7 +1240,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/parent*/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	testDrive, err := newTestDrive(t, "xfs", nil, "")
@@ -1356,4 +1510,64 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func TestAuidDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Rule that does not match (auid == 424242 is very unlikely)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_auid_discarder",
+			Expression: `open.file.path == "{{.Root}}/auid_discarder_test" && process.auid == 424242`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("auid_discarder_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	// 1. send first event not matching the rule to create a discarder.
+	// it's expected that we receive the event
+	err = test.GetProbeEvent(func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_CREAT|syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *model.Event) bool {
+		if event.GetEventType() != model.FileOpenEventType {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}, 3*time.Second, model.FileOpenEventType)
+
+	if err != nil {
+		t.Fatal("Failed to get the first open event for auid discarder")
+	}
+
+	// 2. Re-open testFile : event should be discarded now
+	err = test.GetProbeEvent(func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *model.Event) bool {
+		if event.GetEventType() != model.FileOpenEventType {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}, 3*time.Second, model.FileOpenEventType)
+	assert.Error(t, err, "Event should have been discarded by auid discarder")
 }

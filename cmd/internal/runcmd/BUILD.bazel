@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "runcmd",
+    srcs = ["runcmd.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/internal/runcmd",
+    visibility = ["//cmd:__subpackages__"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_dig//:dig",
+    ],
+)
+
+dd_agent_go_test(
+    name = "runcmd_test",
+    srcs = ["runcmd_test.go"],
+    embed = [":runcmd"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

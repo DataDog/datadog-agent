@@ -110,7 +110,7 @@ bool Three::init()
     }
 
     // add custom builtins init funcs to Python inittab, one by one
-    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
+    // These must be called before Py_Initialize.
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
@@ -225,7 +225,7 @@ void Three::freePyInfo(py_info_t *info)
     info->version = NULL;
     if (info->path) {
         _free(info->path);
-        info->version = NULL;
+        info->path = NULL;
     }
     _free(info);
     return;
@@ -292,7 +292,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     RtLoaderPyObject *&check)
+                     const char *provider_str, RtLoaderPyObject *&check)
 {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
@@ -305,6 +305,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
+    PyObject *provider = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -346,7 +347,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         goto done;
     }
     // As stated in the Python C-API documentation
-    // https://github.com/python/cpython/blob/2.7/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
+    // https://github.com/python/cpython/blob/3.10/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
     // over ownership of the given item (instance in this case). This means that we should NOT DECREF it
     if (PyTuple_SetItem(instances, 0, instance) != 0) {
         setError("could not set instance item on instances: " + _fetchPythonError());
@@ -424,10 +425,30 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
+    if (provider_str != NULL && strlen(provider_str) != 0) {
+        provider = PyUnicode_FromString(provider_str);
+        if (provider == NULL) {
+            std::ostringstream err;
+            err << "error could not set provider: " << provider_str;
+            setError(err.str());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+
+        if (PyObject_SetAttrString(py_check, "provider", provider) != 0) {
+            setError("error could not set 'provider' attr: " + _fetchPythonError());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+    }
+
 done:
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
+    Py_XDECREF(provider);
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
@@ -442,6 +463,44 @@ done:
 
     check = reinterpret_cast<RtLoaderPyObject *>(py_check);
     return true;
+}
+
+char *Three::discoverConfig(RtLoaderPyObject *py_class, const char *service_json)
+{
+    if (py_class == NULL) {
+        return NULL;
+    }
+
+    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char func_name[] = "discover_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(klass, func_name, format, service_json);
+    if (result == NULL) {
+        setError("error invoking 'discover_config' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    if (!PyUnicode_Check(result)) {
+        setError("error invoking 'discover_config' method: method returned non-string result");
+        goto done;
+    }
+
+    ret = as_string(result);
+    if (ret == NULL) {
+        // as_string clears the error, so we can't fetch it here
+        setError("error converting 'discover_config' result to string");
+        goto done;
+    }
+
+done:
+    Py_XDECREF(result);
+    return ret;
 }
 
 char *Three::runCheck(RtLoaderPyObject *check)
@@ -542,6 +601,11 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
             goto done;
         }
         warnings[idx] = as_string(warn);
+        if (warnings[idx] == NULL) {
+            // NULL terminates the array for the caller; stop here to avoid
+            // leaking strings allocated past the terminator.
+            break;
+        }
     }
 
 done:
@@ -590,21 +654,17 @@ PyObject *Three::_importFrom(const char *module, const char *name)
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
         setError(_fetchPythonError());
-        goto error;
+        return NULL;
     }
 
     obj_symbol = PyObject_GetAttrString(obj_module, name);
+    Py_DECREF(obj_module);
     if (obj_symbol == NULL) {
         setError(_fetchPythonError());
-        goto error;
+        return NULL;
     }
 
     return obj_symbol;
-
-error:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(obj_symbol);
-    return NULL;
 }
 
 PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
@@ -749,7 +809,7 @@ std::string Three::_fetchPythonError() const
                 if (fmt_exc != NULL) {
                     Py_ssize_t len = PyList_Size(fmt_exc);
                     // docs are not clear but `PyList_Size` can actually fail and in case it would
-                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+                    // return -1, see https://github.com/python/cpython/blob/3.12/Objects/listobject.c#L224
                     if (len == -1) {
                         // don't fetch the actual error or the caller might think it was the root cause,
                         // while it's not. Setting `ret_val` empty will make the function return "unknown error".
@@ -897,6 +957,15 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     }
 
     PyObject *py_value = PyUnicode_FromString(value);
+    if (py_value == NULL) {
+        // Passing NULL to PyObject_SetAttrString deletes the attribute
+        // instead of reporting the failure, so guard here.
+        setError("error converting value to python string for '" + std::string(module) + "." + std::string(attr)
+                 + "' attribute: " + _fetchPythonError());
+        Py_XDECREF(py_module);
+        return;
+    }
+
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
@@ -1046,6 +1115,16 @@ void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
     _set_emit_agent_telemetry_cb(cb);
 }
 
+void Three::setReportIssueCb(cb_report_issue_t cb)
+{
+    _set_report_issue_cb(cb);
+}
+
+void Three::setResolveIssueCb(cb_resolve_issue_t cb)
+{
+    _set_resolve_issue_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
@@ -1102,52 +1181,4 @@ done:
     GILRelease(state);
 
     return wheels;
-}
-
-// getInterpreterMemoryUsage return a dict with the python interpreters memory
-// usage snapshot. The returned dict must be freed by calling....
-char *Three::getInterpreterMemoryUsage()
-{
-    PyObject *pyMemory = NULL;
-    PyObject *memSummary = NULL;
-    PyObject *args = NULL;
-    PyObject *summary = NULL;
-    char *memUsage = NULL;
-
-    rtloader_gilstate_t state = GILEnsure();
-
-    pyMemory = PyImport_ImportModule(_PY_MEM_MODULE);
-    if (pyMemory == NULL) {
-        setError("could not import " _PY_MEM_MODULE ": " + _fetchPythonError());
-        goto done;
-    }
-
-    memSummary = PyObject_GetAttrString(pyMemory, _PY_MEM_SUMMARY_FUNC);
-    if (memSummary == NULL) {
-        setError("could not fetch " _PY_MEM_SUMMARY_FUNC " attr: " + _fetchPythonError());
-        goto done;
-    }
-
-    args = PyTuple_New(0);
-    summary = PyObject_Call(memSummary, args, NULL);
-    if (summary == NULL) {
-        setError("error fetching interpreter memory usage: " + _fetchPythonError());
-        goto done;
-    }
-
-    if (PyDict_Check(summary) == 0) {
-        setError("'" _PY_MEM_SUMMARY_FUNC "' did not return a dictionary");
-        goto done;
-    }
-
-    memUsage = as_json(summary);
-
-done:
-    Py_XDECREF(summary);
-    Py_XDECREF(args);
-    Py_XDECREF(memSummary);
-    Py_XDECREF(pyMemory);
-    GILRelease(state);
-
-    return memUsage;
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 	"unsafe"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -156,7 +157,7 @@ type Process struct {
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`

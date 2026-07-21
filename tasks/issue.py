@@ -6,7 +6,7 @@ from collections import defaultdict
 from invoke.tasks import task
 
 from tasks.libs.ciproviders.github_api import GithubAPI, get_pr_size
-from tasks.libs.owners.parsing import read_owners, search_owners
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
     GITHUB_SLACK_REVIEW_MAP,
@@ -17,7 +17,7 @@ from tasks.libs.pipeline.notifications import (
 def ask_reviews(_, pr_id, action, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if pr.base.ref != 'main':
+    if pr.base.ref != gh.repo.default_branch and action != "labeled":
         print("We don't ask for reviews on non main target PRs.")
         return
     if action != "labeled" and _is_revert(pr):
@@ -50,7 +50,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
 
     # Compute per-team file counts and PR size
-    file_counts = _get_team_file_counts(pr, requested)
+    file_counts = _get_team_file_counts(pr)
     size = get_pr_size(pr)
     max_files = max(file_counts.values()) if file_counts else 0
 
@@ -71,7 +71,10 @@ def ask_reviews(_, pr_id, action, team_slugs):
         channels[channel].append(slug)
 
     for channel, slugs in channels.items():
-        if channel == DEFAULT_SLACK_CHANNEL:
+        if not channel:
+            print(f"No channel for {', '.join(slugs)}, ignore.")
+            continue
+        elif channel == DEFAULT_SLACK_CHANNEL:
             missing_teams = ", ".join(f"@datadog/{s}" for s in slugs)
             message = (
                 f'Hello :{random.choice(waves)}:!\n'
@@ -112,83 +115,13 @@ def _is_revert(pr) -> bool:
     return False
 
 
-def _get_team_file_counts(pr, team_slugs, owners_file='.github/CODEOWNERS'):
+def _get_team_file_counts(pr, owners_file='.github/CODEOWNERS'):
     """Return a dict mapping each team slug to the number of PR files it owns."""
     owners = read_owners(owners_file)
-    counts = {slug: 0 for slug in team_slugs}
+    counts = defaultdict(int)
     for f in pr.get_files():
         file_owners = owners.of(f.filename)
-        for _kind, owner_handle in file_owners:
+        for _, owner_handle in file_owners:
             normalized = owner_handle.casefold().removeprefix("@datadog/")
-            for slug in team_slugs:
-                if slug.casefold() == normalized:
-                    counts[slug] += 1
+            counts[normalized] += 1
     return counts
-
-
-@task
-def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
-    """
-    Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
-    """
-
-    gh = GithubAPI()
-    pr = gh.repo.get_pull(int(pr_id))
-
-    requested_reviewers = []
-    for page in pr.get_review_requests():
-        for rr in page:
-            requested_reviewers.append(rr)
-
-    if len(requested_reviewers) > 0:
-        print(
-            f"This PR already has already requested review to {requested_reviewers}, this action should not be run on it."
-        )
-        return
-
-    if pr.user.login != "dependabot[bot]":
-        print("This is not a (dependabot) bump PR, this action should not be run on it.")
-        return
-
-    folder = ""
-    title = pr.title.removeprefix("build(deps): ")
-    if title.lower().startswith("bump the "):
-        match = re.match(r"^[Bb]ump the (\S+) group (.*$)", title)
-        if match.group(2).startswith("in"):
-            match_folder = re.match(r"^in (\S+).*$", match.group(2))
-            folder = match_folder.group(1).removeprefix("/")
-    else:
-        match = re.match(r"^[Bb]ump (\S+) from (\S+) to (\S+)( in .*)?$", title)
-        if match.group(4):
-            match_folder = re.match(r"^ in (\S+).*$", match.group(4))
-            folder = match_folder.group(1).removeprefix("/")
-    dependency = match.group(1)
-
-    # Find the responsible team for each file that uses the dependency; count uses per team.
-    owner_usage_count = {}
-    git_files = ctx.run("git ls-files | grep -e \"^.*.go$\"", hide=True).stdout
-    for file in git_files.splitlines():
-        if not file.startswith(folder):
-            continue
-        in_import = False
-        with open(file) as f:
-            for line in f:
-                # Look for the import block
-                if "import (" in line:
-                    in_import = True
-                if in_import:
-                    # Early exit at the end of the import block
-                    if ")" in line:
-                        break
-                    else:
-                        if dependency in line:
-                            for owner in search_owners(file, owner_file):
-                                slug = owner.casefold().removeprefix("@datadog/")
-                                owner_usage_count[slug] = owner_usage_count.get(slug, 0) + 1
-                            break
-    if dry_run:
-        print(f"Owner usage for {dependency}: {owner_usage_count}")
-        return
-    # Cap reviewers to avoid asking too many teams
-    team_slugs = sorted(owner_usage_count, key=lambda s: -owner_usage_count[s])[:3]
-    pr.create_review_request(team_reviewers=team_slugs)

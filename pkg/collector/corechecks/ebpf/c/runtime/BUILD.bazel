@@ -1,0 +1,66 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+
+exports_files([
+    "oom-kill-kern.c",
+    "tcp-queue-length-kern.c",
+])
+
+_CORECHECK_HDRS = glob(["*.h"])
+
+cc_library(
+    name = "corecheck_ebpf_headers",
+    hdrs = _CORECHECK_HDRS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "corecheck_ebpf_headers_files",
+    srcs = _CORECHECK_HDRS,
+    visibility = ["//visibility:public"],
+)
+
+ebpf_program_suite(
+    name = "oom-kill",
+    src = "oom-kill-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
+
+ebpf_program_suite(
+    name = "tcp-queue-length",
+    src = "tcp-queue-length-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
+
+ebpf_program_suite(
+    name = "ebpf",
+    src = "ebpf-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
+
+ebpf_program_suite(
+    name = "noisy-neighbor",
+    src = "noisy-neighbor-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)

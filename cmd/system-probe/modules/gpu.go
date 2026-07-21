@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -37,7 +39,6 @@ import (
 func init() { registerModule(GPUMonitoring) }
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
@@ -53,14 +54,12 @@ var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.
 
 // GPUMonitoring Factory
 var GPUMonitoring = &module.Factory{
-	Name:             config.GPUMonitoringModule,
-	ConfigNamespaces: gpuMonitoringConfigNamespaces,
+	Name: config.GPUMonitoringModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-		if processEventConsumer == nil {
+		c := gpuconfig.New()
+		if c.EnableEBPFProbes && processEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
 		}
-
-		c := gpuconfig.New()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -68,31 +67,43 @@ var GPUMonitoring = &module.Factory{
 			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
 		}
 
-		probeDeps := gpu.ProbeDependencies{
-			Telemetry:      deps.Telemetry,
-			ProcessMonitor: processEventConsumer,
-			WorkloadMeta:   deps.WMeta,
-		}
-		p, err := gpu.NewProbe(c, probeDeps)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
+		deviceCache := ddnvml.NewDeviceCache()
+		var p *gpu.Probe
+		if c.EnableEBPFProbes {
+			probeDeps := gpu.ProbeDependencies{
+				Telemetry:      deps.Telemetry,
+				ProcessMonitor: processEventConsumer,
+				WorkloadMeta:   deps.WMeta,
+			}
+			var err error
+			p, err = gpu.NewProbe(c, probeDeps)
+			if err != nil {
+				cancel()
+				return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
+			}
+			deviceCache = p.GetDeviceCache()
 		}
 
 		return &GPUMonitoringModule{
-			Probe:         p,
+			Probe: p,
+			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
+				return deviceCache.GetByUUID(uuid)
+			}),
+			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
-		return true
+		return gpuconfig.New().EnableEBPFProbes
 	},
 }
 
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
+	prmHandler    *prm.Handler
+	cfg           *gpuconfig.Config
 	context       context.Context    // Context associated with the module
 	contextCancel context.CancelFunc // Cancel function associated with the context
 }
@@ -101,6 +112,11 @@ type GPUMonitoringModule struct {
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if t.Probe == nil {
+			http.Error(w, "GPU eBPF probes are disabled", http.StatusServiceUnavailable)
+			return
+		}
+
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -110,6 +126,10 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	}))
+
+	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
+		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, t.prmHandler.HandlePRMMetrics))
+	}
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
@@ -123,10 +143,19 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 // GetStats returns the debug stats for the GPU monitoring module
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
+	if t.Probe == nil {
+		return map[string]interface{}{"ebpf_probes_enabled": false}
+	}
+
 	return t.Probe.GetDebugStats()
 }
 
 func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
+	if t.Probe == nil {
+		http.Error(w, "GPU eBPF probes are disabled", http.StatusServiceUnavailable)
+		return
+	}
+
 	count := defaultCollectedDebugEvents
 
 	countStr := r.URL.Query().Get("count")
@@ -169,7 +198,9 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
 	t.contextCancel()
-	t.Probe.Close()
+	if t.Probe != nil {
+		t.Probe.Close()
+	}
 }
 
 // createGPUProcessEventConsumer creates the process event consumer for the GPU module. Should be called from the event monitor module

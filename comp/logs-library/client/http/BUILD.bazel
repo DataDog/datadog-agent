@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "http",
+    srcs = [
+        "destination.go",
+        "sync_destination.go",
+        "test_utils.go",
+        "worker_pool.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/client/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/noop-impl",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/logs-library/client",
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/message",
+        "//pkg/util/backoff",
+        "//pkg/util/hostport",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@org_golang_x_net//http2",
+    ],
+)
+
+dd_agent_go_test(
+    name = "http_test",
+    srcs = [
+        "destination_test.go",
+        "worker_pool_test.go",
+    ],
+    embed = [":http"],
+    deps = [
+        "//comp/core/secrets/noop-impl",
+        "//comp/core/secrets/noop-impl/types",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/logs-library/client",
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/logs/message",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

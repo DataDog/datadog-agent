@@ -84,7 +84,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 }
 
 // getNodeToScheduleCheck returns the node where a new check should be scheduled
-
+//
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
 // checks are rebalanced, they are not updated every time a check is scheduled.

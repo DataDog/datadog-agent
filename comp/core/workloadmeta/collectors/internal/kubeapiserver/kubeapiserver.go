@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -21,10 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,18 +39,26 @@ const (
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config          config.Component
+	AutoscalingGate *autoscalinggate.Gate
 }
 
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
-	metadataAsTags := configutils.GetMetadataAsTags(cfg)
-	hasPodLabelsAsTags := len(metadataAsTags.GetPodLabelsAsTags()) > 0
-	hasPodAnnotationsAsTags := len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
+	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
+}
 
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags
+// podsRequiredAtStartup returns true when some feature needs the pod store to
+// be available from startup. Workload autoscaling does not. It can defer the
+// start via the autoscaling gate.
+func podsRequiredAtStartup(cfg config.Reader) bool {
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
+		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
+		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
 
 func shouldHaveDeploymentStore(cfg config.Reader) bool {
@@ -57,20 +67,6 @@ func shouldHaveDeploymentStore(cfg config.Reader) bool {
 	hasDeploymentsAnnotationsAsTags := len(metadataAsTags.GetResourcesAnnotationsAsTags()["deployments.apps"]) > 0
 
 	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
-}
-
-func storeGenerators(cfg config.Reader) []storeGenerator {
-	var generators []storeGenerator
-
-	if shouldHavePodStore(cfg) {
-		generators = append(generators, newPodStore)
-	}
-
-	if shouldHaveDeploymentStore(cfg) {
-		generators = append(generators, newDeploymentStore)
-	}
-
-	return generators
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
@@ -116,6 +112,13 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	}
 
 	for _, groupResource := range resourcesForAPMConfig(cfg) {
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
+	for _, groupResource := range resourcesForCSIDetection(cfg) {
 		requestedResource := groupResourceToGVRString(groupResource)
 		if requestedResource != "" {
 			res = append(res, requestedResource)
@@ -169,19 +172,38 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 	return []string{"namespaces"}
 }
 
+// resourcesForCSIDetection returns the list of resources to collect metadata
+// from for the APM auto-instrumentation library injection AutoProvider.
+//
+// When CSI auto-detection is enabled, the AutoProvider needs to know whether
+// the Datadog CSI driver is registered in the cluster and has APM SSI
+// capabilities advertised on its annotations, in order to choose between
+// the CSI- and init-container-based library injection providers.
+func resourcesForCSIDetection(cfg config.Reader) []string {
+	if !cfg.GetBool("admission_controller.enabled") ||
+		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") ||
+		!cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		return nil
+	}
+
+	return []string{"csidrivers.storage.k8s.io"}
+}
+
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	config  config.Reader
+	id              string
+	catalog         workloadmeta.AgentType
+	config          config.Reader
+	autoscalingGate *autoscalinggate.Gate
 }
 
 // NewCollector returns a kubeapiserver CollectorProvider that instantiates its colletor
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.ClusterAgent,
-			config:  deps.Config,
+			id:              collectorID,
+			catalog:         workloadmeta.ClusterAgent,
+			config:          deps.Config,
+			autoscalingGate: deps.AutoscalingGate,
 		},
 	}, nil
 }
@@ -218,10 +240,80 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
-	for _, storeBuilder := range storeGenerators(c.config) {
-		reflector, store := storeBuilder(ctx, wlmetaStore, c.config, client)
+	if shouldHavePodStore(c.config) {
+		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
+		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
+
+		if lazyStart {
+			// The store is intentionally not added to objectStores. It would
+			// block the startup readiness check.
+			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
+		} else {
+			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
+			objectStores = append(objectStores, store)
+			go reflector.Run(ctx.Done())
+			if autoscalingEnabled {
+				go c.markPodCollectionSyncedWhenReady(ctx, store)
+			}
+		}
+	}
+
+	if shouldHaveDeploymentStore(c.config) {
+		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
+	}
+
+	if shouldHaveKueueMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue queue resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				queueType, err := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
+				if err != nil {
+					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
+					continue
+				}
+				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				if err != nil {
+					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueResourceFlavorGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueWorkloadGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue Workload resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueWorkloadStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
 	}
 
 	if c.config.GetBool("cluster_checks.crd_collection") {
@@ -239,6 +331,27 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
+}
+
+// startPodStoreOnGate blocks until the autoscaling gate is enabled or the
+// context is cancelled. On gate enable, it starts the pod reflector.
+func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloadmeta.Component, client kubernetes.Interface, newStore storeGenerator) {
+	if !c.autoscalingGate.WaitForEnable(ctx) {
+		return
+	}
+
+	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
+	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
+	go reflector.Run(ctx.Done())
+
+	c.markPodCollectionSyncedWhenReady(ctx, store)
+}
+
+func (c *collector) markPodCollectionSyncedWhenReady(ctx context.Context, store *reflectorStore) {
+	if !cache.WaitForCacheSync(ctx.Done(), store.HasSynced) {
+		return
+	}
+	c.autoscalingGate.MarkPodCollectionSynced()
 }
 
 func (c *collector) Pull(_ context.Context) error {

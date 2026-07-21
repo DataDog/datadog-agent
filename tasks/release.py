@@ -6,13 +6,12 @@ Notes about Agent6:
     the task will be run in the agent6 branch.
 """
 
-import json
 import os
 import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -50,33 +49,25 @@ from tasks.libs.pipeline.notifications import (
     warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
-    create_release_page,
-    get_release_page_info,
     list_not_closed_qa_cards,
-    release_manager,
 )
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
     get_current_milestone,
     load_release_json,
     set_current_milestone,
-    set_new_release_branch,
     update_release_json,
 )
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
-    MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
-    _create_version_from_match,
-    current_version,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -86,24 +77,7 @@ from tasks.notify import post_message
 from tasks.pipeline import run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
-BACKPORT_LABEL_COLOR = "5319e7"
 QUALIFICATION_TAG = "qualification"
-
-
-@task
-def list_major_change(_, milestone):
-    """List all PR labeled "major_changed" for this release."""
-
-    gh = GithubAPI()
-    pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
-    if pull_requests is None:
-        return
-    if len(pull_requests) == 0:
-        print(f"no major change for {milestone}")
-        return
-
-    for pr in pull_requests:
-        print(f"#{pr.number}: {pr.title} ({pr.html_url})")
 
 
 @task
@@ -124,7 +98,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
-            for dependency in module.dependencies:
+            for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
                 if (
                     agent_version.startswith('6')
@@ -284,13 +258,6 @@ def tag_version(
     else:
         with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
             _tag_version()
-
-
-@task
-def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
-        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
-        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
 
 
 @task
@@ -737,231 +704,6 @@ def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, w
     print(release_json)
 
 
-def create_and_update_release_branch(
-    ctx, repo, release_branch, base_branch: str | None = None, base_directory="~/dd", upstream="origin"
-):
-    """Create and push a release branch to `repo`.
-
-    Args:
-        base_branch: Branch from which we create the release branch. Default branch if `None`.
-    """
-
-    def _main():
-        print(color_message(f"Branching out to {release_branch}", "bold"))
-        ctx.run(f"git checkout -b {release_branch}")
-
-        # Step 2 - Push newly created release branch to the remote repository
-
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        set_gitconfig_in_ci(ctx)
-        res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
-                    "red",
-                ),
-                code=1,
-            )
-
-    # Perform branch out in all required repositories
-    print(color_message(f"Working repository: {repo}", "bold"))
-    if repo == 'datadog-agent':
-        _main()
-    else:
-        with ctx.cd(f"{base_directory}/{repo}"):
-            # Step 1 - Create a local branch out from the default branch
-            main_branch = (
-                base_branch
-                or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
-            )
-            ctx.run(f"git checkout {main_branch}")
-            ctx.run("git pull", warn=True)
-
-            _main()
-
-
-@task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_release_branches(
-    ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
-):
-    """Create and push release branches in Agent repositories and update them.
-
-    That includes:
-        - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches
-        - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
-
-    Args:
-        commit: the commit on which the branch should be created (usually the one before the milestone bump)
-        base_directory: Path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
-        use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
-
-    Notes:
-        This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
-        release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
-    """
-
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    with agent_context(ctx, commit=commit):
-        current = current_version(ctx, major_version)
-        current.rc = False
-        current.devel = False
-
-        # Strings with proper branch/tag names
-        release_branch = current.branch()
-
-        # Step 0: checks
-        ctx.run("git fetch")
-
-        if check_state:
-            print(color_message("Checking repository state", "bold"))
-            check_clean_branch_state(ctx, github, release_branch)
-
-        if not yes_no_question(
-            f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
-            color="orange",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
-
-        # Step 1 - Create release branches in all required repositories
-
-        for repo in UNFREEZE_REPOS:
-            base_branch = get_default_branch() if major_version == 6 else DEFAULT_BRANCHES[repo]
-            create_and_update_release_branch(
-                ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
-            )
-
-        # create the backport label in the Agent repo
-        print(color_message("Creating backport label in the Agent repository", Color.BOLD))
-        github.create_label(
-            f'backport/{release_branch}',
-            BACKPORT_LABEL_COLOR,
-            f'Automatically create a backport PR to {release_branch}',
-            exist_ok=True,
-        )
-
-        # Step 2 - Create PRs with new settings in datadog-agent repository
-        # Step 2.0 - Update release.json
-        update_branch = f"{release_branch}-updates"
-
-        ctx.run(f"git checkout {release_branch}")
-        ctx.run(f"git checkout -b {update_branch}")
-
-        set_new_release_branch(release_branch)
-
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
-        with open(".gitlab-ci.yml") as f:
-            content = f.read()
-        with open(".gitlab-ci.yml", "w") as f:
-            updated_content = content.replace(
-                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
-            )
-            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
-            updated_content = updated_content.replace(
-                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
-            )
-            f.write(updated_content)
-
-        # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 1.4 - Push branch and create PR
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
-            release_branch,
-            update_branch,
-            current,
-        )
-
-
-def _update_last_stable(_, version, major_version: int = 7):
-    """
-    Updates the last_release field(s) of release.json and returns the current milestone
-    """
-    release_json = load_release_json()
-    # If the release isn't a RC, update the last stable release field
-    version.major = major_version
-    release_json['last_stable'][str(major_version)] = str(version)
-    _save_release_json(release_json)
-
-    return release_json["current_milestone"]
-
-
-@task
-def cleanup(ctx, release_branch):
-    """Perform the post release cleanup steps
-
-    Currently this:
-      - Updates the scheduled nightly pipeline to target the new stable branch
-      - Updates the release.json last_stable fields
-    """
-
-    # This task will create a PR to update the last_stable field in release.json
-    # It must create the PR against the default branch (6 or 7), so setting the context on it
-    main_branch = get_default_branch()
-    with agent_context(ctx, main_branch):
-        gh = GithubAPI()
-        major_version = get_version_major(release_branch)
-        latest_release = gh.latest_release(major_version)
-        match = VERSION_RE.search(latest_release)
-        if not match:
-            raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-
-        version = _create_version_from_match(match)
-        current_milestone = _update_last_stable(ctx, version, major_version=major_version)
-
-        # create pull request to update last stable version
-        cleanup_branch = f"release/{version}-cleanup"
-        ctx.run(f"git checkout -b {cleanup_branch}")
-        ctx.run("git add release.json")
-
-        commit_message = f"Update last_stable to {version}"
-        set_gitconfig_in_ci(ctx)
-        ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
-            raise Exit(
-                color_message(
-                    f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
-
-
 @task
 def check_omnibus_branches(ctx, release_branch=None, worktree=True):
     def _main():
@@ -996,124 +738,6 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
             return _main()
     else:
         return _main()
-
-
-@task
-def update_build_links(_, new_version, patch_version=False):
-    """Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
-
-    Args:
-        new_version: Should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format. Does not support patch version unless patch_version is set to True.
-        patch_version: If set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
-
-    Notes:
-        Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
-        ATLASSIAN_USERNAME is typically an email address.
-        ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
-    """
-
-    from atlassian import Confluence
-    from atlassian.confluence import ApiError
-
-    BUILD_LINKS_PAGE_ID = 2889876360
-
-    match = RC_VERSION_RE.match(new_version) if patch_version else MINOR_RC_VERSION_RE.match(new_version)
-    if not match:
-        raise Exit(
-            color_message(
-                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.1' if patch_version else '.0'}-rc.1",
-                "red",
-            ),
-            code=1,
-        )
-
-    username = os.getenv("ATLASSIAN_USERNAME")
-    password = os.getenv("ATLASSIAN_PASSWORD")
-
-    if username is None or password is None:
-        raise Exit(
-            color_message(
-                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
-                "red",
-            ),
-            code=1,
-        )
-
-    confluence = Confluence(url="https://datadoghq.atlassian.net/", username=username, password=password)
-
-    content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
-
-    title = content["title"]
-    current_version = title.split()[-1].strip()
-    body = content["body"]["storage"]["value"]
-
-    title = title.replace(current_version, new_version)
-
-    patterns = _create_build_links_patterns(current_version, new_version)
-
-    for key in patterns:
-        body = body.replace(key, patterns[key])
-
-    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
-
-    try:
-        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
-    except ApiError as e:
-        raise Exit(
-            color_message(
-                f"Failed to update confluence page. Reason: {e.reason}",
-                "red",
-            ),
-            code=1,
-        ) from e
-    print(color_message("Build links page updated", "green"))
-
-
-def _create_build_links_patterns(current_version, new_version):
-    patterns = {}
-
-    current_minor_version = current_version[1:]
-    new_minor_version = new_version[1:]
-
-    patterns[current_minor_version] = new_minor_version
-    patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
-    patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
-    patterns[current_minor_version[1:].replace("-rc", "~rc")] = new_minor_version[1:].replace("-rc", "~rc")
-
-    return patterns
-
-
-@task
-def get_active_release_branch(ctx, release_branch):
-    """Determine what is the current active release branch for the Agent within the release worktree.
-
-    If release started and code freeze is in place - main branch is considered active.
-    If release started and code freeze is over - release branch is considered active.
-    """
-
-    with agent_context(ctx, branch=release_branch):
-        gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
-        release_branch = gh.get_branch(next_version.branch())
-        if release_branch:
-            print(f"{release_branch.name}")
-        else:
-            print(get_default_branch())
-
-
-@task
-def get_unreleased_release_branches(_):
-    """
-    Determine what are the current active release branches for the Agent.
-    """
-    gh = GithubAPI()
-    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
-
-
-def get_next_version(gh, latest_release=None):
-    latest_release = latest_release or gh.latest_release()
-    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
-    return current_version.next_version(bump_minor=True)
 
 
 @task
@@ -1155,44 +779,6 @@ def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     print("Code changes")
     print("------------")
     print(code_stats)
-
-
-@task
-def create_schedule(_, version, cutoff_date):
-    """Create confluence pages for the release schedule.
-
-    Args:
-        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
-    """
-
-    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
-    if not all(key in os.environ for key in required_environment_variables):
-        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
-    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
-
-
-@task
-def chase_release_managers(_, version):
-    url, missing_teams = get_release_page_info(version)
-    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = set()
-
-    for team in missing_teams:
-        channel = github_slack_map.get(f"@datadog/{team}")
-        if channel:
-            channels.add(channel)
-        else:
-            print(color_message(f"Missing slack channel for {team}", Color.RED))
-
-    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
-
-    from slack_sdk import WebClient
-
-    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
-    for channel in sorted(channels):
-        print(f"Sending message to {channel}")
-        client.chat_postMessage(channel=channel, text=message)
 
 
 @task
@@ -1247,8 +833,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
-                    emails = release_manager(next_version.clone(), team)
-                    warn_new_commits(emails, team, repo['branch'], next_version)
+                    warn_new_commits(team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
                         message.append(
@@ -1283,9 +868,11 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
+        # Fetch tags in the worktree so deduce_version can find them
+        ctx.run("git fetch origin --tags", hide=True)
+        version = deduce_version(ctx, release_branch, next_version=False)
         for section, filename in sections:
             text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
 
@@ -1322,56 +909,6 @@ def create_github_release(ctx, release_branch, draft=True):
         )
 
         print(f"Link to the release note: {release.html_url}")
-
-
-@task
-def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
-    """
-    Create a PR to bump the current_milestone in the release.json file
-    """
-
-    gh = GithubAPI()
-
-    current = current_version(ctx, major_version)
-    next = current.next_version(bump_minor=True)
-    next.devel = False
-
-    print(f"Creating the {next} milestone...")
-    gh.create_milestone(str(next), exist_ok=True)
-
-    with agent_context(ctx, get_default_branch(major=major_version)):
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        set_current_milestone(str(next))
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against main.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            get_default_branch(),
-            milestone_branch,
-            next,
-        )
 
 
 @task

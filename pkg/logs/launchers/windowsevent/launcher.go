@@ -9,14 +9,16 @@
 package windowsevent
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacachedef "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
@@ -33,11 +35,13 @@ type tailer interface {
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
 	sources                chan *sources.LogSource
+	sourcesDone            chan struct{}
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
 	stop                   chan struct{}
 	publisherMetadataCache publishermetadatacachedef.Component
+	stopOnce               sync.Once
 }
 
 // NewLauncher returns a new Launcher.
@@ -45,6 +49,7 @@ func NewLauncher() *Launcher {
 	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
+		sourcesDone:            make(chan struct{}),
 		stop:                   make(chan struct{}),
 		publisherMetadataCache: cache,
 	}
@@ -53,7 +58,7 @@ func NewLauncher() *Launcher {
 // Start starts the launcher by setting up Windows event log sources and beginning to tail them.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
+	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType, l.sourcesDone)
 	l.registry = registry
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
@@ -88,14 +93,17 @@ func (l *Launcher) run() {
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
-		delete(l.tailers, tailer.Identifier())
-	}
-	stopper.Stop()
-	l.publisherMetadataCache.Flush()
+	l.stopOnce.Do(func() {
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for _, tailer := range l.tailers {
+			stopper.Add(tailer)
+			delete(l.tailers, tailer.Identifier())
+		}
+		stopper.Stop()
+		l.publisherMetadataCache.Flush()
+	})
 }
 
 // sanitizedConfig sets default values for the config

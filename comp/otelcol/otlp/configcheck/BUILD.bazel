@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "configcheck",
+    srcs = [
+        "configcheck.go",
+        "configcheck_common.go",
+        "configcheck_no_otlp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "configcheck_test",
+    srcs = ["configcheck_test.go"],
+    embed = [":configcheck"],
+    flavors = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

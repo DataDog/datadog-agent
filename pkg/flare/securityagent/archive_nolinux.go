@@ -8,10 +8,12 @@
 package securityagent
 
 import (
+	"context"
+
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func addSecurityAgentPlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
+func addSecurityAgentPlatformSpecificEntries(_ context.Context, _ flaretypes.FlareBuilder) {}
 
 // only used in tests when running on linux
 var linuxKernelSymbols = getLinuxKernelSymbols //nolint:unused

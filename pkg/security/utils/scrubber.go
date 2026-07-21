@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	additionals = []string{"*token*"}
+	additionals = []string{"*token*", "*jwt*"}
 )
 
 // Scrubber is a struct that holds the proc scrubber and the regex scrubber

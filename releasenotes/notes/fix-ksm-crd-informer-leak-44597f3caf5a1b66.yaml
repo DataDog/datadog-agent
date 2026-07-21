@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Fixes a memory leak in the Kubernetes State Core check where Kubernetes watch connections and their cached data
+    were not released when the check was unscheduled. In environments with frequent check rescheduling, this caused
+    memory to grow unboundedly over time.

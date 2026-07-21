@@ -197,7 +197,7 @@ func TestFlushManifest(t *testing.T) {
 // getSender returns a mock Sender
 // When calling OrchestratorManifest, it adds the messges to a global var manifestToSend
 func getSender(t *testing.T) *mocksender.MockSender {
-	sender := mocksender.NewMockSender(checkid.ID(rune(1)))
+	sender := mocksender.NewMockSender(t, checkid.ID(rune(1)))
 	sender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
 		arg := args.Get(0).([]model.MessageBody)
 		require.GreaterOrEqual(t, len(arg), 1)
@@ -221,8 +221,8 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
 	// Configure the check properly to get ExtraTags set
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
-	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 
 	// Override the cluster name for the test
 	orchCheck.orchestratorConfig.KubeClusterName = "buffer-cluster"

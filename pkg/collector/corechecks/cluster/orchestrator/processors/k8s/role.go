@@ -9,6 +9,10 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
@@ -24,6 +28,33 @@ import (
 // RoleHandlers implements the Handlers interface for Kubernetes Roles.
 type RoleHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewRoleHandlers creates a new RoleHandlers.
+func NewRoleHandlers(tagger tagger.Component) *RoleHandlers {
+	return &RoleHandlers{tagger: tagger}
+}
+
+// EnrichModel is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *RoleHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*rbacv1.Role)
+	m := resourceModel.(*model.Role)
+
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), r.Namespace, r.Name)),
+	)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for role %s/%s: %s", r.Namespace, r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -83,10 +114,24 @@ func (h *RoleHandlers) ResourceList(ctx processors.ProcessorContext, list interf
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *RoleHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*rbacv1.Role).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *RoleHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*rbacv1.Role).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

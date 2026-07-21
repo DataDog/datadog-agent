@@ -11,6 +11,7 @@ docs_dir: docs/public
 site_dir: site
 theme:
   name: material
+  variant: classic
   language: en
   font:
     text: Roboto
@@ -60,6 +61,19 @@ nav:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
     - End-to-end tests: how-to/test/e2e.md
+    - Manual QA: 
+      - how-to/test/manual-qa/index.md
+      - AWS: 
+        - VM: how-to/test/manual-qa/aws-vm.md 
+        - Docker: how-to/test/manual-qa/aws-docker.md
+        - EKS: how-to/test/manual-qa/aws-eks.md
+        - ECS: how-to/test/manual-qa/aws-ecs.md
+        - Kind: how-to/test/manual-qa/aws-kind.md
+      - Azure: 
+        - VM: how-to/test/manual-qa/azure-vm.md
+      - GCP: 
+        - VM: how-to/test/manual-qa/gcp-vm.md
+      
   - Go:
     - Add nested modules: how-to/go/modules.md
   - Debug agents:
@@ -82,6 +96,7 @@ nav:
   - Documentation: guidelines/docs.md
   - Languages:
     - Go: guidelines/languages/go.md
+    - Rust: guidelines/languages/RUST.md
   - Testing:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
@@ -106,6 +121,12 @@ nav:
   # - Fx overview: components/fx.md
   # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
+- Agent Schema:
+  - Introduction: agent-schema/index.md
+  - Keyword Reference: agent-schema/keywords.md
+  - Examples: agent-schema/examples.md
+  - CLI Commands: agent-schema/cli.md
+  - FAQ: agent-schema/faq.md
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
@@ -119,10 +140,6 @@ nav:
 watch:
 - .go-version
 
-hooks:
-- docs/public/.hooks/plugin_register.py
-- docs/public/.hooks/title_from_content.py
-
 plugins:
   # Enable for bug reports
   # info: {}
@@ -130,17 +147,15 @@ plugins:
   search: {}
   # Extra
   glightbox: {}
-  minify:
-    minify_html: true
-  git-revision-date-localized:
-    type: date
-    strict: false
-  redirects:
-    redirect_maps:
-      setup.md: setup/required.md
 
 markdown_extensions:
 # Built-in
+- zensical.extensions.macros:
+    module_name: docs/public/.hooks/inject_variables
+    on_error_fail: true
+    on_undefined: strict
+    j2_variable_start_string: "<<<"
+    j2_variable_end_string: ">>>"
 - markdown.extensions.abbr:
 - markdown.extensions.attr_list:
 - markdown.extensions.footnotes:
@@ -204,10 +219,10 @@ markdown_extensions:
 - pymdownx.critic:
 - pymdownx.details:
 - pymdownx.emoji:
-    # https://github.com/twitter/twemoji
-    # https://raw.githubusercontent.com/facelessuser/pymdown-extensions/master/pymdownx/twemoji_db.py
-    emoji_index: !!python/name:material.extensions.emoji.twemoji
-    emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    # Zensical's helpers support inlining icons and emoji:
+    # https://zensical.org/docs/setup/extensions/python-markdown-extensions/#emoji
+    emoji_index: !!python/name:zensical.extensions.emoji.twemoji
+    emoji_generator: !!python/name:zensical.extensions.emoji.to_svg
 - pymdownx.highlight:
     anchor_linenums: true
     line_spans: __span

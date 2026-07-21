@@ -8,12 +8,12 @@
 package encoding
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,8 +45,8 @@ func assertConnsEqualHTTP2(t *testing.T, expected, actual *model.Connections) {
 		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
 		// so actual.Conns and expected.Conns can be compared.
 		var expectedHTTP2, actualHTTP2 model.HTTP2Aggregations
-		require.NoError(t, proto.Unmarshal(expectedRawHTTP2, &expectedHTTP2))
-		require.NoError(t, proto.Unmarshal(actualRawHTTP2, &actualHTTP2))
+		require.NoError(t, expectedHTTP2.Unmarshal(expectedRawHTTP2))
+		require.NoError(t, actualHTTP2.Unmarshal(actualRawHTTP2))
 		require.Equalf(t, expectedHTTP2, actualHTTP2, "HTTP2 connection %d was not equal", i)
 		actual.Conns[i].Http2Aggregations = expected.Conns[i].Http2Aggregations
 	}
@@ -95,19 +95,14 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 		},
 	}
 
-	http2Out := &model.HTTP2Aggregations{
-		EndpointAggregations: []*model.HTTPStats{
-			{
-				Path:              "/testpath",
-				Method:            model.HTTPMethod_Post,
-				FullPath:          true,
-				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
-			},
-		},
-	}
-
-	http2OutBlob, err := proto.Marshal(http2Out)
-	require.NoError(t, err)
+	var http2OutBuf bytes.Buffer
+	http2OutBuilder := model.NewHTTP2AggregationsBuilder(&http2OutBuf)
+	http2OutBuilder.AddEndpointAggregations(func(s *model.HTTPStatsBuilder) {
+		s.SetPath("/testpath")
+		s.SetMethod(uint64(model.HTTPMethod_Post))
+		s.SetFullPath(true)
+	})
+	http2OutBlob := http2OutBuf.Bytes()
 
 	out := &model.Connections{
 		Conns: []*model.Connection{
@@ -181,7 +176,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 		}
 
 		http2Out := new(model.HTTP2Aggregations)
-		err = proto.Unmarshal(http2Blob, http2Out)
+		err = http2Out.Unmarshal(http2Blob)
 		require.NoError(t, err)
 		return http2Out
 	}
@@ -257,23 +252,23 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		},
 	}
 
-	kafkaOut := &model.DataStreamsAggregations{
-		KafkaAggregations: []*model.KafkaAggregation{
-			{
-				Header: &model.KafkaRequestHeader{
-					RequestType:    kafka.FetchAPIKey,
-					RequestVersion: apiVersion2,
-				},
-				Topic: topicName,
-				StatsByErrorCode: map[int32]*model.KafkaStats{
-					0: {Count: 10, FirstLatencySample: 5},
-				},
-			},
-		},
-	}
-
-	kafkaOutBlob, err := proto.Marshal(kafkaOut)
-	require.NoError(t, err)
+	var kafkaOutBuf bytes.Buffer
+	kafkaAggBuilder := model.NewDataStreamsAggregationsBuilder(&kafkaOutBuf)
+	kafkaAggBuilder.AddKafkaAggregations(func(agg *model.KafkaAggregationBuilder) {
+		agg.SetHeader(func(h *model.KafkaRequestHeaderBuilder) {
+			h.SetRequest_type(uint32(kafka.FetchAPIKey))
+			h.SetRequest_version(uint32(apiVersion2))
+		})
+		agg.SetTopic(topicName)
+		agg.AddStatsByErrorCode(func(e *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
+			e.SetKey(0)
+			e.SetValue(func(v *model.KafkaStatsBuilder) {
+				v.SetCount(10)
+				v.SetFirstLatencySample(5)
+			})
+		})
+	})
+	kafkaOutBlob := kafkaOutBuf.Bytes()
 
 	out := &model.Connections{
 		Conns: []*model.Connection{

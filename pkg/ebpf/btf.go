@@ -23,7 +23,9 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -86,7 +88,7 @@ func FlushBTF() {
 	if loader != nil {
 		loader.btfLoader.Flush()
 	} else {
-		loadKernelSpec.Flush()
+		ddbtf.Flush()
 	}
 }
 
@@ -130,9 +132,36 @@ type orderedBTFLoader struct {
 	rcclient       rcclient.Component
 	rcTimeout      time.Duration
 	rcDownloadHost string
+
+	platform        btfPlatform
+	platformVersion string
+	kernelVersion   string
+	arch            string
+	fixedtags       []string
+	telemetry       struct {
+		rcSuccess telemetry.Counter
+		rcErrors  telemetry.Counter
+	}
 }
 
-func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
+func platformTag(platform btfPlatform) string {
+	tagPlatform := platform.String()
+	if tagPlatform == "" {
+		tagPlatform, _ = kernel.Platform()
+	}
+	return tagPlatform
+}
+
+func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetry.Component) (*orderedBTFLoader, error) {
+	var err error
+	platform, _ := getBTFPlatform()
+	platformVersion, _ := kernel.PlatformVersion()
+	kernelVersion, _ := kernel.Release()
+	arch, err := kernel.Machine()
+	if err != nil {
+		return nil, err
+	}
+
 	btfLoader := &orderedBTFLoader{
 		userBTFPath:    cfg.BTFPath,
 		embeddedDir:    filepath.Join(cfg.BPFDir, "co-re", "btf"),
@@ -142,10 +171,23 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
 		rcclient:       rcclient,
 		rcTimeout:      cfg.RemoteConfigBTFTimeout,
 		rcDownloadHost: cfg.RemoteConfigBTFDownloadHost,
+
+		platform:        platform,
+		platformVersion: platformVersion,
+		kernelVersion:   kernelVersion,
+		arch:            arch,
+		fixedtags:       []string{platformTag(platform), platformVersion, kernelVersion, arch},
+		telemetry: struct {
+			rcSuccess telemetry.Counter
+			rcErrors  telemetry.Counter
+		}{
+			rcSuccess: telemetrycomp.NewCounter("ebpf", "core_remoteconfig_success", []string{"platform", "platform_version", "kernel", "arch"}, "count of CO-RE remote config BTF successes"),
+			rcErrors:  telemetrycomp.NewCounter("ebpf", "core_remoteconfig_error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
+		},
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, ddbtf.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
-	return btfLoader
+	return btfLoader, nil
 }
 
 type btfLoaderFunc func(context.Context) (*returnBTF, error)
@@ -202,7 +244,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadKernel(_ context.Context) (*returnBTF, error) {
-	spec, err := GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -272,18 +314,20 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
+	if b.platform == "" || b.platformVersion == "" || b.kernelVersion == "" {
+		plat, _ := kernel.Platform()
+		log.Warnf("unsupported BTF platform/version/release: %s/%s/%s", plat, b.platformVersion, b.kernelVersion)
+		return nil, nil
+	}
+
 	btfRelativeEmbeddedFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return nil, fmt.Errorf("kernel release: %s", err)
-	}
 	// <relative_path_in_tarball>/<kernel_version>
-	extractDir := filepath.Join(filepath.Dir(btfRelativeEmbeddedFilename), kernelVersion)
+	extractDir := filepath.Join(filepath.Dir(btfRelativeEmbeddedFilename), b.kernelVersion)
 	absExtractDir := filepath.Join(b.btfOutputDir, extractDir)
-	absExtractFile := filepath.Join(absExtractDir, kernelVersion+".btf")
+	absExtractFile := filepath.Join(absExtractDir, b.kernelVersion+".btf")
 
 	// If we've previously extracted the BTF file in question, we can just load it
 	ret, err := b.checkforBTF(extractDir)
@@ -325,19 +369,7 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
-	platform, err := getBTFPlatform()
-	if err != nil {
-		return "", fmt.Errorf("BTF platform: %s", err)
-	}
-	platformVersion, err := kernel.PlatformVersion()
-	if err != nil {
-		return "", fmt.Errorf("platform version: %s", err)
-	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return "", fmt.Errorf("kernel release: %s", err)
-	}
-	return b.getEmbeddedBTF(platform, platformVersion, kernelVersion)
+	return b.getEmbeddedBTF(b.platform, b.platformVersion, b.kernelVersion)
 }
 
 var kernelVersionPatterns = []struct {
@@ -480,14 +512,6 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
-}
-
-var loadKernelSpec = funcs.CacheWithCallback[btf.Spec](btf.LoadKernelSpec, btf.FlushKernelSpec)
-
-// GetKernelSpec returns a possibly cached version of the running kernel BTF spec
-// it's very important that the caller of this function does not modify the returned value
-func GetKernelSpec() (*btf.Spec, error) {
-	return loadKernelSpec.Do()
 }
 
 // copyFileMkdir copies file path `src` to file path `dst`.

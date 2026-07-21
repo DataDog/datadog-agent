@@ -95,15 +95,6 @@ else
 
   # Dogstatsd
   dependency 'datadog-dogstatsd'
-
-  # this dependency puts few files out of the omnibus install dir and move them
-  # in the final destination. This way such files will be listed in the packages
-  # manifest and owned by the package manager. This is the only point in the build
-  # process where we operate outside the omnibus install dir, thus the need of
-  # the `extra_package_file` directive.
-  # This must be the last dependency in the project.
-
-  dependency 'datadog-dogstatsd-finalize'
 end
 
 
@@ -161,13 +152,10 @@ end
 package :msi do
 
   # For a consistent package management, please NEVER change this code
+  # NOTE: We no longer build for 32 bit windows, so we always use the x64 code.
+  # x86 32 bit upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
   arch = "x64"
-  if windows_arch_i386?
-    upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
-    arch = "x86"
-  else
-    upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
-  end
+  upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
 
@@ -176,6 +164,8 @@ package :msi do
     ]
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true
+    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
+    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
   end
 
   parameters({

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "statsd.go",
+        "statsd_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/statsd/def",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "statsd_mock_test.go",
+        "statsd_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/dogstatsd/statsd/def",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

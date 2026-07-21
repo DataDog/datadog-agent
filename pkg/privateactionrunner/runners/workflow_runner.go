@@ -7,68 +7,72 @@ package runners
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 )
 
 type WorkflowRunner struct {
-	registry     *privatebundles.Registry
-	opmsClient   opms.Client
-	resolver     resolver.PrivateCredentialResolver
-	config       *config.Config
-	keysManager  taskverifier.KeysManager
-	taskVerifier *taskverifier.TaskVerifier
-	taskLoop     *Loop
+	config          *config.Config
+	opmsClient      opms.Client
+	keysManager     taskverifier.KeysManager
+	taskExecutor    *WorkflowTaskExecutor
+	encryptionStore *encryptioncontext.Store
+	sem             chan struct{}
+	shutdownChannel chan struct{}
+	wg              sync.WaitGroup
+	started         bool
 }
 
 func NewWorkflowRunner(
 	configuration *config.Config,
 	keysManager taskverifier.KeysManager,
-	verifier *taskverifier.TaskVerifier,
+	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*WorkflowRunner, error) {
+	encryptionStore := encryptioncontext.NewStore()
+	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore)
+
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
-		opmsClient:   opmsClient,
-		resolver:     resolver.NewPrivateCredentialResolver(),
-		config:       configuration,
-		keysManager:  keysManager,
-		taskVerifier: verifier,
+		config:          configuration,
+		opmsClient:      opmsClient,
+		keysManager:     keysManager,
+		taskExecutor:    taskExecutor,
+		encryptionStore: encryptionStore,
+		sem:             make(chan struct{}, configuration.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
+		shutdownChannel: make(chan struct{}),
 	}, nil
 }
 
 func (n *WorkflowRunner) Start(ctx context.Context) error {
 	log.FromContext(ctx).Info("Starting Workflow runner")
-	if n.taskLoop != nil {
+	if n.started {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
 		return nil
 	}
+	n.started = true
 	startTime := time.Now()
+	go n.encryptionStore.Start()
 	n.keysManager.Start(ctx)
-	n.taskLoop = NewLoop(n)
 	go func() {
 		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
 		n.keysManager.WaitForReady()
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
-		n.taskLoop.Run(ctx)
+		n.run(ctx)
 	}()
 	return nil
 }
@@ -76,61 +80,120 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Workflow runner")
 
-	if n.taskLoop != nil {
-		n.taskLoop.Close(ctx)
+	close(n.shutdownChannel)
+	done := make(chan struct{})
+	go func() {
+		n.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		log.FromContext(ctx).Info("Workflow runner stopped gracefully.")
+	case <-ctx.Done():
+		log.FromContext(ctx).Warn("Workflow runner timeout reached. Forcing shutdown.")
 	}
+
+	n.encryptionStore.Stop()
 	return nil
 }
 
-func (n *WorkflowRunner) RunTask(
-	ctx context.Context,
-	task *types.Task,
-	credential *privateconnection.PrivateCredentials,
-) (interface{}, error) {
-	fqn := task.GetFQN()
-	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := n.registry.GetBundle(bundleName)
-	if bundle == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
-		)
-	}
-	action := bundle.GetAction(actionName)
-	if action == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", actionName),
-		)
-	}
-	if !n.config.IsActionAllowed(bundleName, actionName) {
-		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
-	}
-	if actions.IsHttpBundle(bundleName) {
-		url, ok := task.Data.Attributes.Inputs["url"].(string)
-		if !ok {
-			return nil, util.DefaultActionError(errors.New("missing required field url"))
-		}
-		if !n.config.IsURLInAllowlist(url) {
-			return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
-		}
-	}
+func (n *WorkflowRunner) run(parentCtx context.Context) {
+	// taskCtx is detached from the parent and NOT cancelled when this loop
+	// returns, so in-flight tasks drain gracefully on shutdown (Stop waits via n.wg).
+	taskCtx := context.WithoutCancel(parentCtx)
+	// pollCtx is cancelled on loop exit to abort any in-flight poll/prepare.
+	pollCtx, cancelPoll := context.WithCancel(taskCtx)
+	defer cancelPoll()
+	logger := log.FromContext(pollCtx)
+	n.wg.Add(1)
+	defer n.wg.Done()
 
-	logger := log.FromContext(ctx)
+	logger.Info("Starting loop")
+
+	breaker := util.NewCircuitBreaker(
+		"wf-par-polling",
+		n.config.MinBackoff,
+		n.config.MaxBackoff,
+		n.config.WaitBeforeRetry,
+		n.config.MaxAttempts,
+	)
+
+	for {
+		select {
+		case <-n.shutdownChannel:
+			logger.Info("Stopping loop")
+			return
+		default:
+		}
+
+		var task *types.Task
+		var retryAfterDuration time.Duration
+		breaker.Do(
+			pollCtx,
+			func() error {
+				dequeuedTask, retryAfter, err := n.opmsClient.DequeueTask(pollCtx)
+				if err != nil {
+					logger.Error("failed to dequeue task", log.ErrorField(err))
+					return err
+				}
+
+				task = dequeuedTask
+				retryAfterDuration = retryAfter
+				return nil
+			},
+		)
+
+		if task == nil {
+			sleepDuration := n.config.LoopInterval
+			if retryAfterDuration > 0 {
+				sleepDuration = retryAfterDuration
+			}
+			select {
+			case <-n.shutdownChannel:
+				logger.Info("Stopping loop")
+				return
+			case <-time.After(sleepDuration):
+			}
+			continue
+		}
+
+		preparedTask, failureTask, err := n.taskExecutor.PrepareTask(pollCtx, task)
+		if err != nil {
+			n.publishFailure(taskCtx, failureTask, err)
+			continue
+		}
+
+		n.sem <- struct{}{}
+		n.wg.Add(1)
+		go func() {
+			defer n.wg.Done()
+			defer func() { <-n.sem }()
+			n.handleTask(taskCtx, preparedTask)
+		}()
+	}
+}
+
+func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedWorkflowTask) {
+	task := preparedTask.Task
+	logger := log.FromContext(ctx).With(
+		log.String(observability.TaskIDTagName, task.Data.ID),
+		log.String(observability.ActionFqnTagName, task.GetFQN()),
+	)
+	taskCtx, taskCtxCancel := context.WithCancel(log.ContextWithLogger(ctx, logger))
+	defer taskCtxCancel()
 
 	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
-	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
-	output, err := action.Run(ctx, task, credential)
-	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
+	output, err := n.taskExecutor.RunPrepared(taskCtx, preparedTask)
 
-	if err != nil {
-		return nil, util.DefaultActionError(err)
+	if err == nil {
+		n.publishSuccess(ctx, task, output)
+	} else {
+		logger.Warn("task execution failed", log.ErrorField(err))
+		n.publishFailure(ctx, task, err)
 	}
-
-	return output, nil
 }
 
 func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, logger log.Logger) {
@@ -156,5 +219,47 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, l
 				logger.Info("Heartbeat sent successfully")
 			}
 		}
+	}
+}
+
+func (n *WorkflowRunner) publishFailure(ctx context.Context, task *types.Task, e error) {
+	logger := log.FromContext(ctx)
+	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
+		logger.Error("publish failure error: no job id was provided")
+		return
+	}
+	inputError := util.DefaultPARError(e)
+	err := n.opmsClient.PublishFailure(
+		ctx,
+		task.Data.Attributes.Client,
+		task.Data.ID,
+		task.Data.Attributes.JobId,
+		task.GetFQN(),
+		inputError.ErrorCode,
+		inputError.Message,
+		inputError.ExternalMessage,
+	)
+	if err != nil {
+		logger.Error("publish failure error: unable to publish workflow task failure", log.ErrorField(err))
+	}
+}
+
+func (n *WorkflowRunner) publishSuccess(ctx context.Context, task *types.Task, output interface{}) {
+	logger := log.FromContext(ctx)
+	if task.Data.Attributes.JobId == "" {
+		logger.Error("publish success error: no job id was provided")
+		return
+	}
+	err := n.opmsClient.PublishSuccess(
+		ctx,
+		task.Data.Attributes.Client,
+		task.Data.ID,
+		task.Data.Attributes.JobId,
+		task.GetFQN(),
+		output,
+		"",
+	)
+	if err != nil {
+		logger.Error("publish success error: unable to publish workflow task success", log.ErrorField(err))
 	}
 }

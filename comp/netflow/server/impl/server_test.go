@@ -1,0 +1,138 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
+//go:build test
+
+package serverimpl
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/netsampler/goflow2/utils"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
+
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
+	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+type dummyFlowProcessor struct {
+	receivedMessages chan interface{}
+	stopped          bool
+}
+
+func (d *dummyFlowProcessor) FlowRoutine(_ int, addr string, port int, _ bool) error {
+	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
+		d.receivedMessages <- msg
+		return nil
+	}, 3, addr, port, false, logrus.StandardLogger())
+}
+
+func (d *dummyFlowProcessor) Shutdown() {
+	d.stopped = true
+}
+
+func replaceWithDummyFlowProcessor(srv *Server) *dummyFlowProcessor {
+	// Testing using a dummyFlowProcessor since we can't test using real goflow flow processor
+	// due to this race condition https://github.com/netsampler/goflow2/issues/83
+	flowProcessor := &dummyFlowProcessor{}
+	listener := srv.listeners[0]
+	listener.flowState = &goflowlib.FlowStateWrapper{
+		State:    flowProcessor,
+		Hostname: "abc",
+		Port:     0,
+	}
+	return flowProcessor
+}
+
+// testOptions is an fx collection of common dependencies for all tests
+var testOptions = fx.Options(
+	fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
+	nfconfigmock.MockModule(),
+	forwardermock.MockModule(),
+	demultiplexerimpl.MockModule(),
+	defaultforwardermock.MockModule(),
+	core.MockBundle(),
+	hostnameimpl.MockModule(),
+	rdnsquerierfxmock.MockModule(),
+	fx.Invoke(func(lc fx.Lifecycle, c server.Component) {
+		// Set the internal flush frequency to a small number so tests don't take forever
+		c.(*Server).FlowAgg.FlushConfig.FlushTickFrequency = 1 * time.Second
+		lc.Append(fx.Hook{
+			OnStop: func(_ context.Context) error {
+				// Remove the flow processor to avoid a spurious race detection error
+				replaceWithDummyFlowProcessor(c.(*Server))
+				return nil
+			},
+		})
+	}),
+)
+
+func TestStartServerAndStopServer(t *testing.T) {
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+	var component server.Component
+	app := fxtest.New(t, fx.Options(
+		fxutil.FxAgentBase(),
+		testOptions,
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Replace(
+			&nfconfig.NetflowConfig{
+				Enabled: true,
+				Listeners: []nfconfig.ListenerConfig{{
+					FlowType: "netflow5",
+					BindHost: "127.0.0.1",
+					Port:     port,
+				}},
+			},
+		),
+		fx.Populate(&component),
+	))
+	srv := component.(*Server)
+	assert.NotNil(t, srv)
+	assert.False(t, srv.running)
+	app.RequireStart()
+	assert.True(t, srv.running)
+	app.RequireStop()
+	assert.False(t, srv.running)
+}
+
+// TestNewComponentSkipsAggregatorWhenDisabled verifies that with netflow
+// disabled (the default), NewComponent returns the zero-allocation
+// disabledServer stub rather than building the flow aggregator (10k-cap
+// input channel + accumulator + filter).
+func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
+	var component server.Component
+	fxtest.New(t, fx.Options(
+		fxutil.FxAgentBase(),
+		fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
+		nfconfigmock.MockModule(),
+		forwardermock.MockModule(),
+		demultiplexerimpl.MockModule(),
+		defaultforwardermock.MockModule(),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		rdnsquerierfxmock.MockModule(),
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Populate(&component),
+	))
+	_, ok := component.(*disabledServer)
+	require.Truef(t, ok, "expected *disabledServer when netflow is disabled, got %T", component)
+}

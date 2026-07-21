@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed the network check (v2) ignoring the ``combine_connection_states`` configuration option.
+    When set to ``false``, the check now emits granular per-state TCP metrics
+    (e.g. ``system.net.tcp4.close_wait``, ``system.net.tcp4.syn_sent``) instead of only
+    the combined ones (e.g. ``system.net.tcp4.closing``, ``system.net.tcp4.opening``),
+    restoring parity with the previous Python-based network check.

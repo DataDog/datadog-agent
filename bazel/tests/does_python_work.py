@@ -1,6 +1,6 @@
 """Smoke test to make sure python works."""
 
-import os.path
+import os
 import platform
 import sys
 import unittest
@@ -11,7 +11,7 @@ class TestCase(unittest.TestCase):
     def test_python_comes_from_hermetic_toolchain(self):
         normalized_arch = {"AMD64": "x86_64", "arm64": "aarch64"}.get(platform.machine(), platform.machine())
         self.assertRegex(
-            os.path.realpath(sys.executable),
+            os.readlink(sys.executable),  # sys.executable may be a venv wrapper or a CAS path
             f"rules_python.+{normalized_arch}.+{platform.system().lower()}",
             "python must come from hermetic toolchain instead of host!",
         )

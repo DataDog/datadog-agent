@@ -38,10 +38,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -52,6 +53,14 @@ import (
 )
 
 // team: agent-apm
+
+func TestMain(m *testing.M) {
+	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
+	// Default to true so all tests can fall back to os.Hostname() as expected.
+	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
+	osHostnameUsableFunc = func(_ context.Context) bool { return true }
+	os.Exit(m.Run())
+}
 
 // MockModule defines the fx options for the mock component for use in tests within this package.
 func MockModule() fxutil.Module {
@@ -158,6 +167,8 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 		assert.Nil(t, err)
+		previousLogger := log.Default()
+		t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -272,8 +283,8 @@ var stringCodeBody string
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -315,8 +326,8 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -356,7 +367,7 @@ func TestConfigHostname(t *testing.T) {
 
 	t.Run("serverless", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_default.yaml")
-		coreConfig.SetWithoutSource("serverless.enabled", true)
+		coreConfig.SetInTest("serverless.enabled", true)
 		config := buildComponent(t, false, coreConfig)
 		cfg := config.Object()
 
@@ -443,6 +454,25 @@ func TestConfigHostname(t *testing.T) {
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
+		t.Run("empty+disallowed+containerized", func(t *testing.T) {
+			bin := makeProgram(t, "", 0)
+			defer os.Remove(bin)
+
+			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
+			// then override to false so only acquireHostnameFallback sees it.
+			cfg := buildConfigComponent(t, false).Object()
+			require.NotNil(t, cfg)
+
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+			cfg.DDAgentBin = bin
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			err := acquireHostnameFallback(cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "container UTS namespace")
+		})
+
 		t.Run("fallback1", func(t *testing.T) {
 			bin := makeProgram(t, "", 1)
 			defer os.Remove(bin)
@@ -525,6 +555,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.Equal(t, 28125, cfg.StatsdPort)
+}
+
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
 }
 
 func TestDisableLoggingConfig(t *testing.T) {
@@ -701,6 +746,19 @@ func TestAcquireHostnameFallback(t *testing.T) {
 	assert.Equal(t, host, c.Hostname)
 }
 
+func TestAcquireHostnameFallbackContainerized(t *testing.T) {
+	defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+	osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+	t.Run("binary_fails", func(t *testing.T) {
+		c := traceconfig.New()
+		c.DDAgentBin = "/not/exist"
+		err := acquireHostnameFallback(c)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "Set DD_HOSTNAME")
+	})
+}
+
 func TestNormalizeEnvFromDDEnv(t *testing.T) {
 	for in, out := range map[string]string{
 		"staging":   "staging",
@@ -777,15 +835,15 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(tt.envOld, "1,2,3")
 			t.Setenv(tt.envNew, "4,5,6")
 
-			config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+			config, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 
 			cfg := config.Object()
 
 			assert.NotNil(t, cfg)
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
-				assert.Equal(t, []string{"4", "5", "6"}, pkgconfigsetup.Datadog().GetStringSlice(tt.key))
+				assert.Equal(t, []string{"4", "5", "6"}, coreConfig.GetStringSlice(tt.key))
 			} else {
-				assert.Equal(t, "4,5,6", pkgconfigsetup.Datadog().GetString(tt.key))
+				assert.Equal(t, "4,5,6", coreConfig.GetString(tt.key))
 			}
 		}
 	})
@@ -1214,43 +1272,43 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.profiling_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.debugger_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.debugger_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-key", pkgconfigsetup.Datadog().GetString("apm_config.debugger_api_key"))
+		assert.Equal(t, "my-key", coreConfig.GetString("apm_config.debugger_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1259,7 +1317,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1269,31 +1327,31 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-diagnostics-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-site.com", pkgconfigsetup.Datadog().GetString("apm_config.debugger_diagnostics_dd_url"))
+		assert.Equal(t, "my-diagnostics-site.com", coreConfig.GetString("apm_config.debugger_diagnostics_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-diagnostics-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-key", pkgconfigsetup.Datadog().GetString("apm_config.debugger_diagnostics_api_key"))
+		assert.Equal(t, "my-diagnostics-key", coreConfig.GetString("apm_config.debugger_diagnostics_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"diagnostics-url1": ["diagnostics-key1", "diagnostics-key2"], "diagnostics-url2": ["diagnostics-key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1302,7 +1360,7 @@ func TestLoadEnv(t *testing.T) {
 			"diagnostics-url2": {"diagnostics-key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1312,29 +1370,29 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.symdb_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.symdb_dd_url"))
 	})
 
 	env = "DD_APM_SYMDB_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-key", pkgconfigsetup.Datadog().GetString("apm_config.symdb_api_key"))
+		assert.Equal(t, "my-key", coreConfig.GetString("apm_config.symdb_api_key"))
 	})
 
 	env = "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1343,7 +1401,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1353,12 +1411,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.credit_cards.enabled"))
 		assert.False(t, cfg.Obfuscation.CreditCards.Enabled)
 	})
 
@@ -1366,22 +1424,22 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
 		assert.True(t, cfg.Obfuscation.ES.Enabled)
 	})
 
@@ -1389,12 +1447,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["client_id", "product_id"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"client_id", "product_id"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
 		actualParsed := cfg.Obfuscation.ES.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1404,12 +1462,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.ES.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1419,11 +1477,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.http.remove_query_string"))
 		assert.True(t, cfg.Obfuscation.HTTP.RemoveQueryString)
 	})
 
@@ -1431,11 +1489,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1443,11 +1501,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1455,13 +1513,13 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.keep_command"))
 		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
@@ -1469,11 +1527,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.mongodb.enabled"))
 		assert.True(t, cfg.Obfuscation.Mongo.Enabled)
 	})
 
@@ -1481,12 +1539,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["document_id", "template_id"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"document_id", "template_id"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
 		actualParsed := cfg.Obfuscation.Mongo.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1496,12 +1554,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.Mongo.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1511,11 +1569,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.redis.enabled"))
 		assert.True(t, cfg.Obfuscation.Redis.Enabled)
 	})
 
@@ -1523,11 +1581,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.redis.remove_all_args"))
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
@@ -1535,11 +1593,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.valkey.enabled"))
 		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
 	})
 
@@ -1547,11 +1605,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.valkey.remove_all_args"))
 		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
 	})
 
@@ -1559,11 +1617,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.remove_stack_traces"))
 		assert.True(t, cfg.Obfuscation.RemoveStackTraces)
 	})
 
@@ -1571,11 +1629,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlan.Enabled)
 	})
 
@@ -1583,12 +1641,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1598,12 +1656,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1613,11 +1671,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
 	})
 
@@ -1625,12 +1683,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1640,12 +1698,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1655,11 +1713,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
 	})
 
@@ -1667,11 +1725,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "1234567")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualConfig := coreConfig.GetString("apm_config.obfuscation.cache.max_size")
 		actualParsed := cfg.Obfuscation.Cache.MaxSize
 		assert.Equal(t, "1234567", actualConfig)
 		assert.Equal(t, int64(1234567), actualParsed)
@@ -1681,7 +1739,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1690,7 +1748,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1724,10 +1782,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `install_id_foo_bar`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "install_id_foo_bar", pkgconfigsetup.Datadog().GetString("apm_config.install_id"))
+		assert.Equal(t, "install_id_foo_bar", coreConfig.GetString("apm_config.install_id"))
 		assert.Equal(t, "install_id_foo_bar", cfg.InstallSignature.InstallID)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1736,10 +1794,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `host_injection`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "host_injection", pkgconfigsetup.Datadog().GetString("apm_config.install_type"))
+		assert.Equal(t, "host_injection", coreConfig.GetString("apm_config.install_type"))
 		assert.Equal(t, "host_injection", cfg.InstallSignature.InstallType)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1748,10 +1806,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `1699621675`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, int64(1699621675), pkgconfigsetup.Datadog().GetInt64("apm_config.install_time"))
+		assert.Equal(t, int64(1699621675), coreConfig.GetInt64("apm_config.install_time"))
 		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1760,12 +1818,24 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "30")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 30, cfg.ProfilingProxy.ReceiverTimeout)
-		assert.Equal(t, 30, pkgconfigsetup.Datadog().GetInt("apm_config.profiling_receiver_timeout"))
+		assert.Equal(t, 30, coreConfig.GetInt("apm_config.profiling_receiver_timeout"))
+	})
+
+	env = "DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, traceconfig.ProfilingMainEndpointSkip, cfg.ProfilingProxy.MainEndpointMode)
+		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
 	})
 
 	env = "DD_APM_MODE"
@@ -2019,6 +2089,54 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
+// TestSpanDerivedPrimaryTagsServerlessGate verifies that DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+// is only honored when the agent runs in a serverless context (AAS extension or
+// cmd/serverless-init), and is silently ignored everywhere else.
+func TestSpanDerivedPrimaryTagsServerlessGate(t *testing.T) {
+	t.Run("aas-extension-honored", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("serverless-init-honored", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"serverless.enabled":                   true,
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("regular-agent-ignored", func(t *testing.T) {
+		// Neither AAS env var nor serverless.enabled set: the option must be
+		// silently dropped on the floor.
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("aas-extension-unset-env", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		// Gate is open but no value provided — field should remain empty.
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+	})
+}
+
 func TestComputeStatsBySpanKind(t *testing.T) {
 
 	t.Run("default-enabled", func(t *testing.T) {
@@ -2061,9 +2179,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreConfig.IsSet("apm_config.install_id"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_type"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_time"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_id"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_type"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")
@@ -2211,12 +2329,19 @@ func buildConfigComponentFromYAML(t *testing.T, setHostnameInConfig bool, yamlPa
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
 
+func buildConfigComponentAndCoreFromYAML(t *testing.T, setHostnameInConfig bool, yamlPath string) (Component, configcomp.Component) {
+	t.Helper()
+
+	coreConfig := configcomp.NewMockFromYAMLFile(t, yamlPath)
+	return buildComponent(t, setHostnameInConfig, coreConfig), coreConfig
+}
+
 func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, settings map[string]interface{}) Component {
 	t.Helper()
 
 	coreConfig := configcomp.NewMock(t)
 	for k, v := range settings {
-		coreConfig.SetWithoutSource(k, v)
+		coreConfig.SetInTest(k, v)
 	}
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
@@ -2231,7 +2356,7 @@ func buildComponentWithLoggerComponent(t *testing.T, setHostnameInConfig bool, c
 	// set the hostname in the config to avoid trying to create a connection to the core agent
 	// (This can be slow and flaky in tests that don't need to run this logic)
 	if setHostnameInConfig {
-		coreConfig.SetWithoutSource("hostname", "testhostname")
+		coreConfig.SetInTest("hostname", "testhostname")
 	}
 
 	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
@@ -2358,6 +2483,87 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 	})
 }
 
+// TestRemoteConfigPerProductEnable covers the per-product RC enable flags and
+// the agent_config.enabled inheritance rule: agent_config.enabled inherits
+// apm_sampling.enabled when the user has explicitly set apm_sampling.enabled
+// but not agent_config.enabled, preserving the legacy bundled behavior.
+func TestRemoteConfigPerProductEnable(t *testing.T) {
+	t.Run("defaults: apm_sampling on, agent_config inherits true, semantics off", func(t *testing.T) {
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (true) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config inherits false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (false) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config explicitly true", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+			"remote_configuration.agent_config.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=true should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=true, agent_config explicitly false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": true,
+			"remote_configuration.agent_config.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=false should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_semantics enabled independently", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled":  false,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should NOT be pulled in by apm_semantics")
+		assert.True(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("remote_configuration.enabled=false zeros everything", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.enabled":               false,
+			"remote_configuration.apm_sampling.enabled":  true,
+			"remote_configuration.agent_config.enabled":  true,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled)
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+}
+
 // buildComponentWithBufferLogger builds a component using a logger that writes to a buffer
 func buildComponentWithBufferLogger(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component, logBuffer *bytes.Buffer) Component {
 	// Create a logger component that writes to the buffer instead of t.Log()
@@ -2436,6 +2642,37 @@ func TestNormalizeAPMMode(t *testing.T) {
 			} else {
 				assert.NotContains(t, logOutput, "invalid value for 'DD_APM_MODE'")
 			}
+		})
+	}
+}
+
+func TestDebuggerLogsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "logs_enabled_only",
+			settings: map[string]interface{}{"logs_enabled": true},
+			expected: true,
+		},
+		{
+			name:     "override_when_logs_disabled",
+			settings: map[string]interface{}{"logs_enabled": false, "apm_config.debugger_logs_enabled_override": true},
+			expected: true,
+		},
+		{
+			name:     "logs_disabled_no_override",
+			settings: map[string]interface{}{"logs_enabled": false},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
 }

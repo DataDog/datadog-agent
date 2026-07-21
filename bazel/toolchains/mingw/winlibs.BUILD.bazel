@@ -1,0 +1,80 @@
+"""BUILD template instantiated by winlibs_mingw_repository.
+
+%GCC_VERSION% is substituted at fetch time so the URL pin in MODULE.bazel
+stays the single source of truth for which WinLibs zip we use.
+
+After strip_prefix the layout is `bin/`, `include/`, `lib/`,
+`x86_64-w64-mingw32/` at the repo root.
+"""
+
+load("@//bazel/toolchains/mingw:toolchain.bzl", "mingw_cc_toolchain_config")
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+
+package(default_visibility = ["//visibility:public"])
+
+GCC_VERSION = "%GCC_VERSION%"
+
+filegroup(
+    name = "all",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+)
+
+[
+    filegroup(
+        name = tool_name,
+        srcs = ["bin/" + tool_name + ".exe"],
+    )
+    for tool_name in [
+        "ar",
+        "as",
+        "cpp",
+        "dlltool",
+        "g++",
+        "gcc",
+        "gcov",
+        "ld",
+        "nm",
+        "objdump",
+        "strip",
+        "windmc",
+        "windres",
+    ]
+]
+
+filegroup(
+    name = "make",
+    srcs = ["bin/mingw32-make.exe"],
+)
+
+mingw_cc_toolchain_config(
+    name = "mingw-cc-toolchain-config",
+    gcc_version = GCC_VERSION,
+)
+
+cc_toolchain(
+    name = "mingw_cc_toolchain_definition",
+    all_files = ":all",
+    compiler_files = ":all",
+    dwp_files = ":all",
+    linker_files = ":all",
+    objcopy_files = ":all",
+    strip_files = ":all",
+    toolchain_config = ":mingw-cc-toolchain-config",
+)
+
+toolchain(
+    name = "mingw_cc_toolchain",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":mingw_cc_toolchain_definition",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)

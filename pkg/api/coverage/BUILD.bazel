@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "coverage",
+    srcs = [
+        "coverage.go",
+        "no_coverage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/api/coverage",
+    visibility = ["//visibility:public"],
+)

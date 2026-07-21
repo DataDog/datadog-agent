@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "constants.go",
+        "flow.go",
+        "flowtype.go",
+        "flush.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/common",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_netsampler_goflow2//pb"],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = [
+        "flow_test.go",
+        "flowtype_test.go",
+        "utils_test.go",
+    ],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

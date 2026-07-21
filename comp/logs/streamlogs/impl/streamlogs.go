@@ -7,6 +7,7 @@
 package streamlogsimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -15,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -28,7 +29,7 @@ type Requires struct {
 	LogsAgent   option.Option[logsAgent.Component]
 	Logger      logger.Component
 	Config      config.Component
-	CoreSetting coresetting.Component
+	CoreSetting settings.Component
 }
 
 // Provides defines the output of the streamlogs component
@@ -43,7 +44,7 @@ type streamlogsimpl struct {
 	logsAgent   logsAgent.Component
 	logger      logger.Component
 	config      config.Component
-	coresetting coresetting.Component
+	coresetting settings.Component
 }
 
 // LogParams represents the parameters for streaming logs
@@ -131,7 +132,7 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 }
 
 // exportStreamLogsIfEnabled streams logs to a file if the enable_streamlogs config is set
-func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string, fb flaretypes.FlareBuilder) error {
+func (sl *streamlogsimpl) exportStreamLogsIfEnabled(_ context.Context, logsAgent logsAgent.Component, streamlogsLogFilePath string, fb flaretypes.FlareBuilder) error {
 
 	slDuration := fb.GetFlareArgs().StreamLogsDuration
 	if slDuration <= 0 {
@@ -150,10 +151,10 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 // Currently flare args are only populated (and this function is only enabled) via
 // the RC flare generation flow. The goal is to shift other flare generation flows
 // to utilize this provider over time, which will require additional plumbing.
-func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (sl *streamlogsimpl) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	streamlogsLogFile := sl.config.GetString("logs_config.streaming.streamlogs_log_file")
 
-	if err := sl.exportStreamLogsIfEnabled(sl.logsAgent, streamlogsLogFile, fb); err != nil {
+	if err := sl.exportStreamLogsIfEnabled(ctx, sl.logsAgent, streamlogsLogFile, fb); err != nil {
 		return err
 	}
 

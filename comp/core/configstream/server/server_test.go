@@ -70,6 +70,10 @@ func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
 	return true
 }
 
+func (m *mockRemoteAgentRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error {
+	return nil
+}
+
 func (m *mockRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
 	return nil
 }
@@ -183,6 +187,7 @@ func TestRARAuthorization(t *testing.T) {
 
 	t.Run("rejects request with missing metadata", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)
@@ -198,6 +203,7 @@ func TestRARAuthorization(t *testing.T) {
 
 	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)
@@ -215,6 +221,7 @@ func TestRARAuthorization(t *testing.T) {
 
 	t.Run("rejects request with empty session_id", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)

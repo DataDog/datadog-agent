@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "snmpintegration",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "snmpintegration_test",
+    srcs = ["config_test.go"],
+    embed = [":snmpintegration"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "log",
+    srcs = [
+        "klog_redirect.go",
+        "levels.go",
+        "log.go",
+        "log_limit.go",
+        "log_podman_util.go",
+        "log_test_init.go",
+        "logger.go",
+        "logger_test_utils.go",
+        "observer_tap.go",
+        "wrapper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log",
+    tags = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log/slog",
+        "//pkg/util/log/types",
+        "//pkg/util/scrubber",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "log_test",
+    srcs = [
+        "klog_redirect_test.go",
+        "log_bench_test.go",
+        "log_limit_test.go",
+        "log_podman_util_test.go",
+        "log_test.go",
+        "observer_tap_test.go",
+        "wrapper_test.go",
+    ],
+    embed = [":log"],
+    deps = [
+        "//pkg/util/scrubber",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

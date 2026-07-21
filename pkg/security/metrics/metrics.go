@@ -23,6 +23,21 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
+	// MetricEventServerRetry counts how many times a queued event was scheduled for retry
+	// Tags: -
+	MetricEventServerRetry = newRuntimeMetric(".rules.event_server.retry")
+	// MetricEventServerSkippedRetry counts retries that were skipped because the queue was at capacity
+	// Tags: -
+	MetricEventServerSkippedRetry = newRuntimeMetric(".rules.event_server.skipped_retry")
+	// MetricEventServerMissingTags counts events that were sent with missing container tags
+	// Tags: -
+	MetricEventServerMissingTags = newRuntimeMetric(".rules.event_server.missing_tags")
+	// MetricEventServerQueueSize is the current number of events waiting in the retry queue
+	// Tags: -
+	MetricEventServerQueueSize = newRuntimeMetric(".rules.event_server.queue_size")
+	// MetricEventServerRetriesBeforeSend is a distribution of the number of retries an event required before being sent
+	// Tags: -
+	MetricEventServerRetriesBeforeSend = newRuntimeMetric(".rules.event_server.retries_before_send")
 
 	// Rate limiter metrics
 
@@ -316,6 +331,9 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
+	// MetricCGroupResolverRemainingPids is the name of the metric used to report when a cgroup being delete still has pids
+	// Tags: -
+	MetricCGroupResolverRemainingPids = newRuntimeMetric(".cgroup_resolver.remaining_pids")
 
 	// Security Profile metrics
 
@@ -516,9 +534,9 @@ var (
 
 	// Event Processing metrics
 
-	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
-	// Tags: -
-	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
+	// Tags: profile_image_name, profile_image_tag
+	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
 
@@ -545,6 +563,26 @@ var (
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
+
+	// Sample refresh metrics (cookie-based dedup refresh)
+
+	// MetricSecurityProfileV2SampleRefreshReceived counts HandleSampleRefresh calls
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshReceived = newRuntimeMetric(".security_profile_v2.sample_refresh.received")
+
+	// MetricSecurityProfileV2SampleRefreshHits counts refresh events where the cookie was found in the LRU
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshHits = newRuntimeMetric(".security_profile_v2.sample_refresh.hits")
+
+	// MetricSecurityProfileV2SampleRefreshMisses counts refresh events where the cookie was not found (LRU evicted)
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
+
+	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
 

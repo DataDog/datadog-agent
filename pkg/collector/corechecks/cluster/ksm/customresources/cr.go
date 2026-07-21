@@ -93,6 +93,10 @@ var (
 		Name: "kube_state_metrics_custom_resource_state_add_events_total",
 		Help: "Number of times that the CRD informer triggered the add event.",
 	})
+	crdsUpdateEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_update_events_total",
+		Help: "Number of times that the CRD informer triggered the update event.",
+	})
 	crdsDeleteEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "kube_state_metrics_custom_resource_state_delete_events_total",
 		Help: "Number of times that the CRD informer triggered the remove event.",
@@ -113,9 +117,10 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 }
 
 // StartDiscovery starts the custom resource discovery and returns a discoverer instance
-func StartDiscovery() *discovery.CRDiscoverer {
+func StartDiscovery(ctx context.Context) *discovery.CRDiscoverer {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
+		CRDsUpdateEventsCounter: crdsUpdateEventsCounter,
 		CRDsDeleteEventsCounter: crdsDeleteEventsCounter,
 		CRDsCacheCountGauge:     crdsCacheCountGauge,
 	}
@@ -125,7 +130,7 @@ func StartDiscovery() *discovery.CRDiscoverer {
 		panic(err)
 	}
 
-	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
+	if err := discovererInstance.StartDiscovery(ctx, clientConfig); err != nil {
 		log.Errorf("failed to start custom resource discovery: %v", err)
 	}
 

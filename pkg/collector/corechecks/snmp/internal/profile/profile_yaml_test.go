@@ -30,7 +30,7 @@ func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName stri
 func Test_resolveProfileDefinitionPath(t *testing.T) {
 	mockConfig := configmock.New(t)
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetInTest("confd_path", defaultTestConfdPath)
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -83,7 +83,7 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	SetGlobalProfileConfigMap(nil)
-	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetInTest("confd_path", defaultTestConfdPath)
 
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	assert.Nil(t, err)
@@ -114,7 +114,7 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 	mockConfig := configmock.New(t)
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
@@ -128,7 +128,7 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
@@ -137,6 +137,10 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 	assert.False(t, haveLegacyProfile)
+
+	expVarEntry := profileExpVar.Get("f5-big-ip")
+	require.NotNil(t, expVarEntry, "expected f5-big-ip error in snmpProfileErrors expvar")
+	assert.Contains(t, expVarEntry.String(), "extend does not exist")
 }
 
 func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
@@ -144,7 +148,7 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "does-not-exist.d"))
-	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
@@ -165,7 +169,7 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
-	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
@@ -180,6 +184,10 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 	assert.True(t, haveLegacyProfile)
+
+	expVarEntry := profileExpVar.Get("f5-invalid")
+	require.NotNil(t, expVarEntry, "expected f5-invalid error in snmpProfileErrors expvar")
+	assert.Contains(t, expVarEntry.String(), "parse error")
 }
 
 func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
@@ -187,7 +195,7 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
-	mockConfig.SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	mockConfig.SetInTest("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
@@ -199,7 +207,7 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
-	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	mockConfig.SetInTest("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err = getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
@@ -214,7 +222,7 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
-	mockConfig.SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	mockConfig.SetInTest("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	require.NoError(t, err)
@@ -225,7 +233,7 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
-	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	mockConfig.SetInTest("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err = loadYamlProfiles()
 	require.NoError(t, err)

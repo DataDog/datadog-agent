@@ -217,6 +217,15 @@
           "type": "string",
           "description": "CGroup manager"
         },
+        "source": {
+          "type": "string",
+          "description": "Source of the cgroup entry (event or procfs)"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the creation of the cgroup"
+        },
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
@@ -291,6 +300,10 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the container entry (event or procfs)"
         },
         "created_at": {
           "type": "string",
@@ -389,6 +402,20 @@
         "code": {
           "type": "integer",
           "description": "RCode is the response code present in the response"
+        },
+        "ips": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "IPs is the list of IP addresses resolved by the DNS response"
+        },
+        "cnames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CNames is the list of CNAME targets returned by the DNS response"
         }
       },
       "additionalProperties": false,
@@ -1319,6 +1346,10 @@
           "type": "integer",
           "description": "Parent Process ID"
         },
+        "sid": {
+          "type": "integer",
+          "description": "Session ID"
+        },
         "tid": {
           "type": "integer",
           "description": "Thread ID"
@@ -1470,11 +1501,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Tags from an APM tracer instrumentation"
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation"
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1484,6 +1512,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -1500,6 +1529,10 @@
           "type": "integer",
           "description": "Parent Process ID"
         },
+        "sid": {
+          "type": "integer",
+          "description": "Session ID"
+        },
         "tid": {
           "type": "integer",
           "description": "Thread ID"
@@ -1651,11 +1684,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Tags from an APM tracer instrumentation"
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation"
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1680,6 +1710,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -1944,15 +1975,11 @@
       "properties": {
         "socket_type": {
           "type": "string",
-          "description": "Socket file descriptor"
+          "description": "Socket type"
         },
         "socket_family": {
           "type": "string",
           "description": "Socket family"
-        },
-        "filter_len": {
-          "type": "integer",
-          "description": "Length of the filter"
         },
         "socket_protocol": {
           "type": "string",
@@ -1966,17 +1993,21 @@
           "type": "string",
           "description": "Name of the option being set"
         },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
           "type": "boolean",
-          "description": "Filter truncated"
+          "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
           "type": "string",
-          "description": "Filter instructions"
+          "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
           "type": "string",
-          "description": "Filter hash"
+          "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
       },
       "additionalProperties": false,
@@ -2040,6 +2071,30 @@
         "pid"
       ],
       "description": "SignalEventSerializer serializes a signal event to JSON"
+    },
+    "SocketEvent": {
+      "properties": {
+        "domain": {
+          "type": "string",
+          "description": "Socket domain"
+        },
+        "type": {
+          "type": "string",
+          "description": "Socket type"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Socket protocol"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "domain",
+        "type",
+        "protocol"
+      ],
+      "description": "SocketEventSerializer serializes a socket event to JSON"
     },
     "SpliceEvent": {
       "properties": {
@@ -2226,6 +2281,51 @@
       "additionalProperties": false,
       "type": "object",
       "description": "TLSContextSerializer defines a tls context serializer"
+    },
+    "TracerMetadata": {
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "runtime_id": {
+          "type": "string"
+        },
+        "tracer_language": {
+          "type": "string"
+        },
+        "tracer_version": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string"
+        },
+        "service_env": {
+          "type": "string"
+        },
+        "service_version": {
+          "type": "string"
+        },
+        "process_tags": {
+          "type": "string"
+        },
+        "container_id": {
+          "type": "string"
+        },
+        "logs_collected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "schema_version",
+        "tracer_language",
+        "tracer_version",
+        "hostname"
+      ]
     },
     "UserContext": {
       "properties": {
@@ -2430,6 +2530,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "socket": {
+      "$ref": "#/$defs/SocketEvent"
     }
   },
   "additionalProperties": false,

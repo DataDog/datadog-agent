@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -130,27 +130,88 @@ func DownloadWERDump(host *components.RemoteHost, dump WERDumpFile, outputDir st
 	return outPath, nil
 }
 
-// DownloadAllWERDumps collects WER dumps from a folder on a remote host and saves them to a local folder
+// DownloadedWERDump pairs the source metadata for a WER dump with the local
+// artifact path produced by downloading it. Callers get both the image name
+// (for filtering against an ignore list) and the local path (for logs /
+// artifact pointers) in one record.
+//
+// Source.Path is the *remote* path on the test VM (e.g. C:\dumps\agent.exe.1234.dmp);
+// LocalPath is the path on the test runner (e.g. e2e-output/<host>-agent.exe.1234.dmp).
+type DownloadedWERDump struct {
+	Source    WERDumpFile
+	LocalPath string
+}
+
+// DefaultIgnoredCrashDumpImages is the denylist of process image names whose
+// WER crash dumps are recorded as artifacts but do NOT fail tests that use
+// PartitionDownloadedWERDumps. These are third-party processes whose crashes
+// have routinely been observed to be unrelated to Datadog agent behavior.
+//
+// Add entries here when a new noisy image is observed in CI. Comparison is
+// case-insensitive and tolerates names with or without a ".exe" suffix.
+var DefaultIgnoredCrashDumpImages = []string{
+	"svchost.exe",
+	"WmiPrvSE.exe",
+	"powershell.exe",
+	"TiWorker.exe",
+}
+
+// IsIgnoredCrashDump reports whether the dump's image name appears in ignore
+// (case-insensitive, tolerates names with or without a ".exe" suffix).
+func IsIgnoredCrashDump(dump DownloadedWERDump, ignore []string) bool {
+	name := normalizeImageName(dump.Source.ImageName)
+	for _, ign := range ignore {
+		if normalizeImageName(ign) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// PartitionDownloadedWERDumps splits dumps into (failing, ignored) using the
+// given ignore list. Use it to keep test assertions focused on dumps that
+// represent real agent regressions while still preserving the others as
+// downloaded artifacts.
+func PartitionDownloadedWERDumps(dumps []DownloadedWERDump, ignore []string) (failing, ignored []DownloadedWERDump) {
+	for _, d := range dumps {
+		if IsIgnoredCrashDump(d, ignore) {
+			ignored = append(ignored, d)
+		} else {
+			failing = append(failing, d)
+		}
+	}
+	return failing, ignored
+}
+
+func normalizeImageName(name string) string {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if !strings.HasSuffix(n, ".exe") {
+		n += ".exe"
+	}
+	return n
+}
+
+// DownloadAllWERDumps collects WER dumps from a folder on a remote host and saves them to a local folder.
 //
 // See DownloadWERDump for the naming convention used for the output files.
 //
 // This function continues collecting dumps even if some of them fail to be collected, and returns
 // an error with all the errors encountered.
-func DownloadAllWERDumps(host *components.RemoteHost, dumpFolder string, outputPath string) ([]string, error) {
+func DownloadAllWERDumps(host *components.RemoteHost, dumpFolder string, outputPath string) ([]DownloadedWERDump, error) {
 	return DownloadAllWERDumpsFunc(host, dumpFolder, outputPath,
 		// collect all dumps
 		func(_ WERDumpFile) bool { return true },
 	)
 }
 
-// DownloadAllWERDumpsFunc is like DownloadAllWERDumps, but allows to filter the dumps to collect
-func DownloadAllWERDumpsFunc(host *components.RemoteHost, dumpFolder string, outputPath string, f func(WERDumpFile) bool) ([]string, error) {
+// DownloadAllWERDumpsFunc is like DownloadAllWERDumps, but allows to filter the dumps to collect.
+func DownloadAllWERDumpsFunc(host *components.RemoteHost, dumpFolder string, outputPath string, f func(WERDumpFile) bool) ([]DownloadedWERDump, error) {
 	dumps, err := ListWERDumps(host, dumpFolder)
 	if err != nil {
 		return nil, err
 	}
 
-	collectedDumps := []string{}
+	collected := []DownloadedWERDump{}
 	var retErr error
 	for _, dump := range dumps {
 		if !f(dump) {
@@ -161,10 +222,10 @@ func DownloadAllWERDumpsFunc(host *components.RemoteHost, dumpFolder string, out
 			retErr = errors.Join(retErr, fmt.Errorf("error getting WER dump file %s: %w", dump.Path, err))
 			continue
 		}
-		collectedDumps = append(collectedDumps, outPath)
+		collected = append(collected, DownloadedWERDump{Source: dump, LocalPath: outPath})
 	}
 
-	return collectedDumps, retErr
+	return collected, retErr
 }
 
 // DownloadSystemCrashDump downloads a system crash dump from a remote host.

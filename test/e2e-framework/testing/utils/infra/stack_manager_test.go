@@ -334,6 +334,11 @@ func TestStackManager(t *testing.T) {
 				errMessage:        "waiting for ECS Service (arn:aws:ecs:us-east-1:669783387624:service/fakeintake-ecs/ci-633219896-4670-e2e-dockersuite-80f62edf7bcc6194-aws-fakeintake-dockervm-srv) create: timeout while waiting for state to become 'tfSTABLE' (last state: 'tfPENDING', timeout: 20m0s)",
 				expectedRetryType: ReCreate,
 			},
+			{
+				name:              "azure-aks-route-table-not-found",
+				errMessage:        "Failed to get route table object aks-agentpool-11552782-routetable from resource group MC_dd-agent-qa_ci-1610150873-4670-e2e-ssisuite-3ee33dbd6447d70c-aks-aks_westus2.",
+				expectedRetryType: ReCreate,
+			},
 		}
 
 		for _, te := range testErrors {

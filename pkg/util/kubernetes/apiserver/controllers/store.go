@@ -8,6 +8,7 @@
 package controllers
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/patrickmn/go-cache"
@@ -20,7 +21,7 @@ import (
 // globalMetaBundleStore uses the global cache instance for the Agent.
 var globalMetaBundleStore = &MetaBundleStore{
 	cache:       agentcache.Cache,
-	subscribers: make(map[string]chan struct{}),
+	subscribers: make(map[string][]chan struct{}),
 }
 
 // GetGlobalMetaBundleStore returns the global MetaBundleStore instance.
@@ -39,10 +40,13 @@ type MetaBundleStore struct {
 	// from going missing until the next resync period.
 	cache *cache.Cache
 
-	// subscribers holds a notification channel per node name.
-	// When a bundle is updated or deleted, the subscriber for that node
-	// receives a signal.
-	subscribers map[string]chan struct{}
+	// subscribers holds notification channels per node name. A node can have
+	// multiple subscribers because more than one process (for example, the
+	// running agent plus "agent diagnose", "agent check", etc.) may need to
+	// subscribe.
+	// When a bundle is updated or deleted, the subscribers for that node
+	// receive a signal.
+	subscribers map[string][]chan struct{}
 }
 
 // Get returns the bundle for a given node, or false if not found.
@@ -118,26 +122,37 @@ func (m *MetaBundleStore) Subscribe(nodeName string) <-chan struct{} {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, exists := m.subscribers[nodeName]; exists {
-		log.Warnf("Overwriting existing subscriber for node %s", nodeName)
-	}
-
-	m.subscribers[nodeName] = ch
+	m.subscribers[nodeName] = append(m.subscribers[nodeName], ch)
+	log.Debugf("Subscribed to kube metadata updates for node %s (subscribers=%d)", nodeName, len(m.subscribers[nodeName]))
 	return ch
 }
 
-// Unsubscribe removes a subscriber.
-func (m *MetaBundleStore) Unsubscribe(nodeName string) {
+// Unsubscribe removes the given channel from the subscriber list for the node.
+// It is a no-op if the channel is not registered.
+func (m *MetaBundleStore) Unsubscribe(nodeName string, ch <-chan struct{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.subscribers, nodeName)
+	channels := m.subscribers[nodeName]
+	for i, c := range channels {
+		if c == ch {
+			m.subscribers[nodeName] = slices.Delete(channels, i, i+1)
+			break
+		}
+	}
+
+	remaining := len(m.subscribers[nodeName])
+	if remaining == 0 {
+		delete(m.subscribers, nodeName)
+	}
+
+	log.Debugf("Unsubscribed from kube metadata updates for node %s (subscribers=%d)", nodeName, remaining)
 }
 
-// notifyLocked signals the subscriber for the given node.
+// notifyLocked signals every subscriber for the given node.
 // Must be called with mutex held.
 func (m *MetaBundleStore) notifyLocked(nodeName string) {
-	if ch, ok := m.subscribers[nodeName]; ok {
+	for _, ch := range m.subscribers[nodeName] {
 		// Non-blocking send: if a signal is already pending, we drop it. This
 		// is safe because the consumer re-reads the full state from the store
 		// on each signal.

@@ -88,21 +88,25 @@ func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Opti
 	params := installparams.NewParams(options...)
 	exports := []string{}
 
+	scriptURL := "https://install.datadoghq.com/scripts/install_mac_os.sh"
 	if params.PipelineID != "" {
-		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", params.PipelineID, params.Arch))
+		repoURL := fmt.Sprintf("https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", params.PipelineID, params.Arch)
+		exports = append(exports, "DD_REPO_URL="+repoURL)
+		scriptURL = repoURL + "/install_mac_os.sh"
 	}
 
-	var apikey string
-	if params.APIKey == "" {
+	apikey := params.APIKey
+	if apikey == "" {
 		apikey = "aaaaaaaaaa"
-	} else {
-		apikey = params.APIKey
 	}
-	exports = append(exports, fmt.Sprintf("DD_SYSTEMDAEMON_USER_GROUP=%s:staff", params.Username))
-	exports = append(exports, "DD_SYSTEMDAEMON_INSTALL=true")
+	exports = append(exports, "DD_API_KEY="+apikey)
 	env := strings.Join(exports, " ")
-	// Retry curl few times
-	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, apikey, env)
+	// Download the install script (up to 5 attempts), then run it (up to 3 attempts), with exponential backoff.
+	cmd := fmt.Sprintf(`
+for i in {1..5}; do curl -fsSL %s -o install-script.sh && break || sleep $((2**i)); done
+for i in {1..3}; do %s bash install-script.sh && exit 0 || sleep $((2**i)); done
+exit 1
+`, scriptURL, env)
 
 	t.Run("Installing the agent", func(tt *testing.T) {
 		_, err := client.ExecuteWithRetry(cmd)

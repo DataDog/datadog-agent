@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,6 +24,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
@@ -81,16 +83,21 @@ func TestFromEnv(t *testing.T) {
 				envAppKey:                                     "app_key_123",
 				envPAREnabled:                                 "true",
 				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				envAgentMajorVersion:                          "7",
+				envAgentMinorVersion:                          "79.0~rc.2",
+				envAgentDistChannel:                           "beta",
+				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				Mirror:               "https://mirror.example.com",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				Mirror:                "https://mirror.example.com",
+				RemoteUpdates:         true,
+				ProcessManagerEnabled: true,
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -135,6 +142,10 @@ func TestFromEnv(t *testing.T) {
 				AppKey:              "app_key_123",
 				PAREnabled:          true,
 				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				AgentMajorVersion:   "7",
+				AgentMinorVersion:   "79.0~rc.2",
+				AgentDistChannel:    "beta",
+				AgentPipelineID:     "118008542",
 			},
 		},
 		{
@@ -145,6 +156,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -174,8 +186,9 @@ func TestFromEnv(t *testing.T) {
 				envApmInstrumentationEnabled: "all",
 			},
 			expected: &Env{
-				APIKey: "123456",
-				Site:   "datadoghq.com",
+				APIKey:                "123456",
+				Site:                  "datadoghq.com",
+				ProcessManagerEnabled: true,
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -203,6 +216,7 @@ func TestFromEnv(t *testing.T) {
 				os.Setenv(key, value)
 				defer os.Unsetenv(key)
 			}
+			tt.expected.FIPSMode = pkgfips.BuiltForFIPS()
 			result := FromEnv()
 			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})
@@ -304,6 +318,19 @@ func TestToEnv(t *testing.T) {
 			},
 		},
 		{
+			name: "PAR enabled without app key",
+			env: &Env{
+				APIKey:              "123456",
+				PAREnabled:          true,
+				PARActionsAllowlist: "action1,action2",
+			},
+			expected: []string{
+				"DD_API_KEY=123456",
+				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
+				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
+			},
+		},
+		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
 				APIKey:              "123456",
@@ -323,6 +350,34 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+func TestFromEnvFIPSMode(t *testing.T) {
+	if pkgfips.BuiltForFIPS() {
+		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
+	}
+	tests := []struct {
+		value    string
+		expected bool
+	}{
+		{"true", true},
+		{"True", true},
+		{"TRUE", true},
+		{"false", false},
+		{"", false},
+		{"1", false}, // we explicitly require "true" (case-insensitive)
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", tt.value)
+			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestToEnvFIPSMode(t *testing.T) {
+	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
+	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
 }
 
 func TestAgentUserVars(t *testing.T) {
@@ -374,6 +429,17 @@ func TestAgentUserVars(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "keep rights set",
+			envVars: map[string]string{
+				envAgentUserKeepRights: "1",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserKeepRights: "1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -384,6 +450,7 @@ func TestAgentUserVars(t *testing.T) {
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserKeepRights, result.MsiParams.AgentUserKeepRights)
 		})
 	}
 }

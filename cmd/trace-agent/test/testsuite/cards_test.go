@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"

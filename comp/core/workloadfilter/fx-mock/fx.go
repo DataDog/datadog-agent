@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 // Package fx provides the fx module for the filter component
 package fx
 
@@ -14,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl"
 	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"

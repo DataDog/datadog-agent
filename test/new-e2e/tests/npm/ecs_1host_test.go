@@ -55,8 +55,7 @@ func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 			return err
 		}
 
-		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}

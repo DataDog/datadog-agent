@@ -29,6 +29,7 @@ type Stats struct {
 	SyscallNodes    int64
 	FlowNodes       int64
 	CapabilityNodes int64
+	SizeBytes       int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -79,6 +80,16 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
 	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
 	return total
+}
+
+// HeapSize returns the tree's tracked estimated heap footprint in bytes (strings, slice
+// backings, map buckets, struct headers). Used by V2 callers for max-size checks and
+// the profile_size RAM metric.
+func (stats *Stats) HeapSize() int64 {
+	if stats.SizeBytes == 0 {
+		return stats.ApproximateSize()
+	}
+	return stats.SizeBytes
 }
 
 // SendStats sends metrics to Datadog

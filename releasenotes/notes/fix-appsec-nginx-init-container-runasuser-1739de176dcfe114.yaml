@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fixed the Cluster Agent AppSec ingress-nginx injector so the injected
+    init container starts on clusters that enforce ``runAsNonRoot``. The init
+    container set ``runAsNonRoot: true`` without an explicit ``runAsUser``,
+    and the injection image runs as root, so the kubelet rejected it with
+    "container has runAsNonRoot and image will run as root", leaving the
+    ingress-nginx controller pod stuck in ``CreateContainerConfigError``. The
+    init container now runs with an explicit non-root UID/GID, configurable via
+    ``admission_controller.appsec.nginx.init_run_as_user`` and
+    ``admission_controller.appsec.nginx.init_run_as_group`` (defaults 101/82;
+    set a negative value to honor a custom init image's own user).

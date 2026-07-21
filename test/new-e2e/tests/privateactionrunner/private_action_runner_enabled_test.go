@@ -6,18 +6,11 @@
 package privateactionrunner
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -33,28 +26,7 @@ const (
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
-	t.Helper()
-
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "failed to generate ECDSA key")
-
-	privateJwk := jose.JSONWebKey{
-		Algorithm: "ES256",
-		Key:       privateKey,
-		Use:       "sig",
-	}
-
-	jwkJSON, err := json.Marshal(privateJwk)
-	require.NoError(t, err, "failed to marshal JWK")
-	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(jwkJSON)
-
-	testURN := "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
-
-	return fmt.Sprintf(`private_action_runner:
-  enabled: true
-  private_key: %s
-  urn: %s
-`, encodedPrivateKey, testURN)
+	return GenerateTestPrivateActionRunnerConfig(t)
 }
 
 type linuxPrivateActionRunnerEnabledSuite struct {
@@ -99,14 +71,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 
 	// Verify the log file exists
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logExistsErr := host.Execute("sudo test -f " + privateActionRunnerLogFile)
-		assert.NoError(c, logExistsErr)
+		host.MustExecuteOn(c, "sudo test -f "+privateActionRunnerLogFile)
 	}, 2*time.Minute, 5*time.Second, "private action runner log file should exist")
 
 	// Verify log contains startup message
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logContainsErr := host.Execute(fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
-		assert.NoError(c, logContainsErr)
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 }
 

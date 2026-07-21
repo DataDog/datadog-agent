@@ -22,6 +22,9 @@ const (
 	NotRunning MonitorState = "Not running"
 	// Stopped represents the state of the USM monitor when it is stopped.
 	Stopped MonitorState = "Stopped"
+	// Restricted represents the state of the USM monitor when it is running in
+	// discovery service map mode (HTTP/HTTPS only, not billed).
+	Restricted MonitorState = "Restricted (discovery service map only)"
 )
 
 var (
@@ -40,4 +43,13 @@ func Set(state MonitorState) {
 // Get returns the current state of the USM monitor.
 func Get() MonitorState {
 	return globalState.Load().(MonitorState)
+}
+
+// IsActive reports whether the USM monitor is currently up and processing
+// traffic, in either full or discovery-restricted mode. Use this instead of
+// `Get() == Running` when deciding whether dependent subsystems (e.g. the
+// Linux process exec/exit consumer for TLS uprobe attachment) should run.
+func IsActive() bool {
+	s := Get()
+	return s == Running || s == Restricted
 }

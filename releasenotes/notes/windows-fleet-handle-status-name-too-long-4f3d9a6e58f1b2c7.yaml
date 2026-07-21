@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Windows: Fixed a remote update failure in ``datadog-installer`` when validating Agent domain accounts.
+
+    When querying some domain account names, ``NetQueryServiceAccount`` can return NTSTATUS ``0xC0000106``
+    (``STATUS_NAME_TOO_LONG``) during gMSA detection. This status is now treated like
+    ``STATUS_INVALID_ACCOUNT_NAME`` so the account is handled as a regular domain account instead of
+    incorrectly failing the update.

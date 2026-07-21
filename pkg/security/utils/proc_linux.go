@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -273,6 +274,31 @@ func PidTTY(pid uint32) string {
 	return ""
 }
 
+// PidSID returns the session ID of the given pid from /proc/[pid]/stat
+func PidSID(pid uint32) uint32 {
+	statPath := procPidPath(pid, "stat")
+	content, err := os.ReadFile(statPath)
+	if err != nil {
+		return 0
+	}
+	// The comm field (field 2) can contain spaces and parens, so find the last ')' first
+	s := string(content)
+	idx := strings.LastIndex(s, ")")
+	if idx < 0 || idx+2 >= len(s) {
+		return 0
+	}
+	// Fields after comm: state(3), ppid(4), pgrp(5), session(6)
+	fields := strings.Fields(s[idx+2:])
+	if len(fields) < 4 {
+		return 0
+	}
+	sid, err := strconv.ParseUint(fields[3], 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(sid)
+}
+
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	for i := 0; i < len(data); i++ {
 		if data[i] == '\x00' {
@@ -306,7 +332,7 @@ func matchesOnePrefix(text string, prefixes []string) bool {
 	return false
 }
 
-// EnvVars returns a array with the environment variables of the given pid
+// EnvVars returns an array with the environment variables of the given pid.
 func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]string, bool, error) {
 	filename := procPidPath(pid, "environ")
 
@@ -347,7 +373,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]strin
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
+		if len(envs) >= maxEnvVars {
 			return envs, true, nil
 		}
 
@@ -435,6 +461,76 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 	}
 
 	return output, nil
+}
+
+// ScanKernelModulePaths walks /lib/modules/$(uname -r)/ once and returns a map
+// of module name (normalised to /proc/modules form) to on-disk path. Returns
+// nil when the modules tree cannot be located or read.
+func ScanKernelModulePaths() map[string]string {
+	release, err := kernel.Release()
+	if err != nil {
+		return nil
+	}
+	return scanKernelModulePathsIn(filepath.Join("/lib/modules", release))
+}
+
+// scanKernelModulePathsIn is the testable core of ScanKernelModulePaths.
+func scanKernelModulePathsIn(root string) map[string]string {
+	if _, err := os.Stat(root); err != nil {
+		return nil
+	}
+	// /lib/modules/<release> is itself a symlink on some distros
+	// so resolve it before walking.
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		root = r
+	}
+
+	paths := make(map[string]string)
+	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// keep walking siblings on permission / stat errors
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		// Recognised module file extensions, matching what the kernel build
+		// system produces via MODULES_COMPRESS (xz, zstd, gzip) plus the
+		// uncompressed default. Longest suffixes must come first so that
+		// e.g. ".ko.zst" is matched before ".ko".
+		name := d.Name()
+		var trimmed bool
+		for _, suffix := range []string{".ko.zst", ".ko.xz", ".ko.gz", ".ko"} {
+			if strings.HasSuffix(name, suffix) {
+				name = strings.TrimSuffix(name, suffix)
+				trimmed = true
+				break
+			}
+		}
+		if !trimmed {
+			return nil
+		}
+		// Normalise to the /proc/modules form (underscores). The kernel
+		// transparently accepts both dashes and underscores in module file
+		// names but reports the normalised name through /proc/modules.
+		name = strings.ReplaceAll(name, "-", "_")
+
+		resolved := p
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			resolved = r
+		}
+
+		// First match wins: in the rare case where two file names normalise to
+		// the same key (e.g. nf-nat.ko and nf_nat.ko coexist), we keep the
+		// first hit rather than oscillating with WalkDir's traversal order.
+		if _, exists := paths[name]; !exists {
+			paths[name] = resolved
+		}
+		return nil
+	})
+
+	return paths
 }
 
 // GetProcessPidNamespace returns the PID namespace of the given PID

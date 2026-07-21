@@ -96,6 +96,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		PrCtlEventType.String(),
 		TracerMemfdCreateEventType.String(),
 		TracerMemfdSealEventType.String(),
+		SetSidEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
 
@@ -120,6 +121,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		BindEventType.String(),
 		ConnectEventType.String(),
 		AcceptEventType.String(),
+		SocketEventType.String(),
 		SetSockOptEventType.String(),
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
@@ -157,6 +159,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		StatEventType.String(),
 		FileFsmountEventType.String(),
 		FileMoveMountEventType.String(),
+		PivotRootEventType.String(),
 		FileOpenTreeEventType.String(),
 		// windows
 		CreateNewFileEventType.String(),
@@ -172,7 +175,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// Internal
 	case
-		NopEventType.String():
+		NopEventType.String(),
+		SampleRefreshEventType.String():
 		return InternalCategory
 	}
 

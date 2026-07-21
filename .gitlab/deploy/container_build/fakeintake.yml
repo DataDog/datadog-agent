@@ -16,15 +16,41 @@ docker_build_fakeintake:
     BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
   script:
     - |
+      MIRROR="${BASE_IMAGE_REGISTRY}"
+      FALLBACK="docker.io"
+      MISSING_IMAGES=""
+
       GO_VERSION=$(grep -E '^ARG GO_VERSION=' ${DOCKERFILE} | cut -d= -f2)
-      GOLANG_IMAGE="${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION}"
-      if docker buildx imagetools inspect "${GOLANG_IMAGE}" > /dev/null 2>&1; then
-        echo "Base image ${GOLANG_IMAGE} found in internal registry, building..."
-        docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=${BASE_IMAGE_REGISTRY} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
-        exit 0
+      ALPINE_VERSION=$(grep -E '^FROM \$\{ALPINE_BASE_IMAGE_REGISTRY\}/library/alpine:' ${DOCKERFILE} | sed 's/.*alpine://')
+
+      GO_REGISTRY="${MIRROR}"
+      if ! docker buildx imagetools inspect "${MIRROR}/library/golang:${GO_VERSION}" > /dev/null 2>&1; then
+        echo "WARNING: golang:${GO_VERSION} not found in internal registry"
+        MISSING_IMAGES="${MISSING_IMAGES} golang:${GO_VERSION}"
+        GO_REGISTRY="${FALLBACK}"
+      fi
+
+      ALPINE_REGISTRY="${MIRROR}"
+      if ! docker buildx imagetools inspect "${MIRROR}/library/alpine:${ALPINE_VERSION}" > /dev/null 2>&1; then
+        echo "WARNING: alpine:${ALPINE_VERSION} not found in internal registry"
+        MISSING_IMAGES="${MISSING_IMAGES} alpine:${ALPINE_VERSION}"
+        ALPINE_REGISTRY="${FALLBACK}"
+      fi
+
+      if [ -n "${MISSING_IMAGES}" ]; then
+        if [ "${CI_COMMIT_BRANCH}" != "main" ] && ! echo "${CI_COMMIT_BRANCH}" | grep -qE '^7\.[0-9]+\.x$'; then
+          echo "ERROR: The following images are missing from the internal mirror:${MISSING_IMAGES}"
+          echo "Please add them to the images repo (mirror.yaml) before merging."
+          exit 1
+        fi
+        echo "WARNING: Falling back to docker.io for missing images:${MISSING_IMAGES}"
       fi
     - !reference [.login_to_docker_readonly]
     - |
-      echo "Base image ${GOLANG_IMAGE} not found in internal registry, falling back to docker.io..."
-      docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=docker.io --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+      echo "Building with GO_BASE_IMAGE_REGISTRY=${GO_REGISTRY} ALPINE_BASE_IMAGE_REGISTRY=${ALPINE_REGISTRY}"
+      docker buildx build --push --pull --platform ${PLATFORMS} \
+        --build-arg=CI \
+        --build-arg=GO_BASE_IMAGE_REGISTRY=${GO_REGISTRY} \
+        --build-arg=ALPINE_BASE_IMAGE_REGISTRY=${ALPINE_REGISTRY} \
+        --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2

@@ -17,6 +17,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -24,7 +25,6 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -176,7 +176,7 @@ func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol
 	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},
 		ProcessMonitor: m.processMonitor,
-		Telemetry:      telemetry.GetCompatComponent(),
+		Telemetry:      telemetryimpl.GetCompatComponent(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)

@@ -9,10 +9,12 @@ package api
 
 import (
 	"crypto/tls"
+	"errors"
 	stdLog "log"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -86,7 +88,9 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
-		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		err := errors.New("query was already forwarded from: " + req.RemoteAddr)
+		SetSpanError(rw, err)
+		http.Error(rw, err.Error(), http.StatusLoopDetected)
 		return
 	}
 
@@ -96,7 +100,9 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	lf.proxyLock.RUnlock()
 
 	if currentProxy == nil {
-		http.Error(rw, "", http.StatusServiceUnavailable)
+		err := errors.New("leader proxy is not available")
+		SetSpanError(rw, err)
+		http.Error(rw, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
@@ -116,11 +122,24 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 	lf.proxy = &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL.Scheme = "https"
-			req.URL.Host = leaderIP + ":" + lf.apiPort
+			req.URL.Host = net.JoinHostPort(leaderIP, lf.apiPort)
 			req.Header.Add(forwardHeader, "true")
+			// http.StripPrefix modifies r.URL.Path but not r.RequestURI.
+			// Restore the original path so the leader receives the full
+			// /api/v1/... or /api/v2/... URL it expects.
+			if u, err := url.ParseRequestURI(req.RequestURI); err == nil {
+				req.URL.Path = u.Path
+				req.URL.RawPath = u.RawPath
+				req.URL.RawQuery = u.RawQuery
+			}
 		},
 		Transport: lf.transport,
 		ErrorLog:  lf.logger,
+		ErrorHandler: func(rw http.ResponseWriter, _ *http.Request, err error) {
+			lf.logger.Printf("error forwarding request to leader: %v", err)
+			SetSpanError(rw, err)
+			http.Error(rw, "forwarding to leader failed", http.StatusBadGateway)
+		},
 	}
 }
 

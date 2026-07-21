@@ -8,7 +8,7 @@
 package docker
 
 import (
-	"github.com/docker/docker/api/types/events"
+	"github.com/moby/moby/api/types/events"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

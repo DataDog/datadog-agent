@@ -127,6 +127,28 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
+	// orgPropMarker holds the Org Propagation Marker once the background fetch
+	// succeeds. An empty string means the marker is not yet available.
+	orgPropMarker atomic.String
+
+	// agentState is the Datadog-Agent-State hash served on all endpoints via
+	// the Datadog-Agent-State response header. Initialised from the static /info
+	// payload in makeInfoHandler and updated when orgPropMarker is set.
+	agentState atomic.String
+
+	// computeInfoAndHashMu protects computeInfoAndHash.
+	computeInfoAndHashMu sync.Mutex
+
+	// computeInfoAndHash is set by makeInfoHandler. Given an OPM value (may be
+	// empty), it returns the pre-serialised JSON body for GET /info and its
+	// SHA-256 hex hash (the Datadog-Agent-State header value).
+	computeInfoAndHash func(opm string) (body []byte, hash string)
+
+	// cachedInfoResponse holds the pre-serialised JSON body for GET /info.
+	// Value type: []byte. Initialised by makeInfoHandler and updated by
+	// setOrgPropMarker so the handler never needs to marshal on the hot path.
+	cachedInfoResponse atomic.Value
+
 	statsd   statsd.ClientInterface
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
@@ -156,7 +178,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	containerIDProvider := NewContainerIDProviderFromConfig(conf)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
@@ -208,7 +230,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
-	hash, infoHandler := r.makeInfoHandler()
+	_, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -217,7 +239,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
-		h := replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
+		h := replyWithVersion(r.agentState.Load, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
 		r.Handlers[e.Pattern] = h
 		mux.Handle(e.Pattern, h)
 	}
@@ -228,16 +250,21 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 }
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
-// HTTP headers containing version and state information.
-func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
+// HTTP headers containing version and state information. stateGetter is called on
+// every request so that the Datadog-Agent-State header always reflects the latest
+// agent state (which may change when the Org Propagation Marker is fetched).
+func replyWithVersion(stateGetter func() string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Datadog-Agent-Version", version)
-		w.Header().Set("Datadog-Agent-State", hash)
+		w.Header().Set("Datadog-Agent-State", stateGetter())
 		h.ServeHTTP(w, r)
 	})
 }
 
 func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.ReceiverTimeoutDuration > 0 {
+		return conf.ReceiverTimeoutDuration
+	}
 	timeout := 5 * time.Second
 	if conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
@@ -246,6 +273,9 @@ func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration
 }
 
 func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.EVPProxy.ReceiverTimeoutDuration > 0 {
+		return conf.EVPProxy.ReceiverTimeoutDuration
+	}
 	timeout := 30 * time.Second
 	if conf.EVPProxy.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second
@@ -1279,7 +1309,7 @@ func getContainerTagsList(fn func(string) ([]string, error), containerID string)
 	return list
 }
 
-// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
+// getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty string is returned.
 func getContainerTags(fn func(string) ([]string, error), containerID string) string {
 	ctags := getContainerTagsList(fn, containerID)

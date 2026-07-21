@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Remote Agent Management is now enabled by default on FIPS environments
+    when Remote Configuration is explicitly enabled.

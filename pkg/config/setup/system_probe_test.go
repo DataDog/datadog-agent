@@ -8,6 +8,7 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -40,6 +41,21 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 			key:          "dynamic_instrumentation.circuit_breaker.interrupt_overhead",
 			defaultValue: 2 * time.Microsecond,
 		},
+		// EBPF-1082: defaults added when migrating BindEnv → BindEnvAndSetDefault
+		{key: "system_probe_config.enable_runtime_compiler", defaultValue: false},
+		{key: "system_probe_config.enable_kernel_header_download", defaultValue: false},
+		{key: "system_probe_config.allow_prebuilt_fallback", defaultValue: false},
+		{key: "system_probe_config.allow_precompiled_fallback", defaultValue: false},
+		{key: "system_probe_config.max_closed_connections_buffered", defaultValue: int64(0)},
+		{key: "network_config.max_failed_connections_buffered", defaultValue: int64(0)},
+		{key: "system_probe_config.closed_connection_flush_threshold", defaultValue: 0},
+		{key: "network_config.closed_connection_flush_threshold", defaultValue: 0},
+		{key: "system_probe_config.closed_channel_size", defaultValue: 0},
+		{key: "network_config.closed_channel_size", defaultValue: 500},
+		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
+		{key: "discovery.service_collection_batch_size", defaultValue: 500},
+		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
+		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -49,6 +65,14 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 				assert.Equal(t, expected, actual)
 			case float64:
 				assert.Equal(t, expected, cfg.GetFloat64(tc.key))
+			case bool:
+				assert.Equal(t, expected, cfg.GetBool(tc.key))
+			case int:
+				assert.Equal(t, expected, cfg.GetInt(tc.key))
+			case int64:
+				assert.Equal(t, expected, cfg.GetInt64(tc.key))
+			case string:
+				assert.Equal(t, expected, cfg.GetString(tc.key))
 			default:
 				t.Fatalf("unsupported type %T for key %s", tc.defaultValue, tc.key)
 			}
@@ -57,10 +81,10 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {
-	t.Run("disabled by default", func(t *testing.T) {
+	t.Run("enabled by default on linux", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		assert.False(t, cfg.GetBool("discovery.use_system_probe_lite"))
+		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 
 	t.Run("enabled from env var", func(t *testing.T) {
@@ -80,7 +104,7 @@ func TestDiscoveryUseSystemProbeLite(t *testing.T) {
 	t.Run("enabled from config", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		cfg.SetWithoutSource("discovery.use_system_probe_lite", true)
+		cfg.SetInTest("discovery.use_system_probe_lite", true)
 		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 }

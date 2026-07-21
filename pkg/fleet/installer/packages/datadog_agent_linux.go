@@ -57,22 +57,11 @@ const (
 	installerSymlink = "/usr/bin/datadog-installer"
 )
 
-// getExtensionStoragePath returns the path where extension lists should be stored.
-// On Linux, for OCI packages use RootTmpDir (temporary storage under installer data),
-// otherwise use the package path itself.
-func getExtensionStoragePath(packagePath string) string {
-	if strings.HasPrefix(packagePath, paths.PackagesPath) {
-		return paths.RootTmpDir
-	}
-	return packagePath
-}
-
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
-		{Path: "/etc/datadog-agent/processes.d", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -98,6 +87,18 @@ var (
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
+	}
+
+	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
+	// RestoreCustomIntegrations runs pip as root. pip inherits the installer's root UID so
+	// newly-installed integration files land as root:root; this targeted chown fixes that
+	// without re-walking the entire package tree (which would redundantly re-chown
+	// system-probe binaries back to root).
+	integrationRestorePermissions = file.Permission{
+		Path:      ".",
+		Owner:     "dd-agent",
+		Group:     "dd-agent",
+		Recursive: true,
 	}
 
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
@@ -126,8 +127,8 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgrd.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgrd-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgr.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgr-exp.service"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -141,7 +142,25 @@ var (
 		"datadog-installer-exp.service",
 		"datadog-installer.service",
 	}
+
+	// legacyProcmgrUnitNames are pre-rename systemd units for dd-procmgrd (retired on upgrade).
+	legacyProcmgrUnitNames = []string{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
+	}
+
+	legacyProcmgrUnitPaths = file.Paths{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
+	}
 )
+
+// fixRestoredIntegrationOwnership re-applies dd-agent ownership to the embedded/lib subtree
+// after RestoreCustomIntegrations has installed integration files as root. It is a no-op when
+// the path does not exist.
+func fixRestoredIntegrationOwnership(ctx HookContext) error {
+	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
+}
 
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
@@ -169,6 +188,10 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = agentRunPath.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create run directory: %v", err)
 	}
+	processesDir := file.Directory{Path: filepath.Join(ctx.PackagePath, "processes.d"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
+	if err = processesDir.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create processes.d directory: %v", err)
+	}
 
 	// 3. Create symlinks
 	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
@@ -192,7 +215,41 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
+
+	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
+	if err = retireLegacyProcmgrUnits(ctx); err != nil {
+		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
+	}
 	return nil
+}
+
+// retireLegacyProcmgrUnits stops, disables, and deletes pre-rename procmgr systemd units.
+// A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
+// instances (socket and processes.d conflicts).
+func retireLegacyProcmgrUnits(ctx HookContext) error {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType:
+	default:
+		return nil
+	}
+	running, err := systemd.IsRunning()
+	if err != nil {
+		return err
+	}
+	if running {
+		if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
+		if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
+	}
+	for _, unitsPath := range systemdUnitInstallPaths {
+		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
+			return err
+		}
+	}
+	return systemd.Reload(ctx)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -258,7 +315,10 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
+	}
+	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
+		log.Warnf("failed to fix restored integration file ownership: %s", err)
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
@@ -272,6 +332,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
+	}
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -323,11 +386,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
-		storagePath := ctx.PackagePath
-		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-			storagePath = paths.RootTmpDir
-		}
-		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
+		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -356,7 +415,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {
@@ -375,7 +434,10 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
+	}
+	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
+		log.Warnf("failed to fix restored integration file ownership: %s", err)
 	}
 	experimentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {
@@ -747,6 +809,8 @@ const (
 	debUnitsPath = "/lib/systemd/system"
 	rpmUnitsPath = "/usr/lib/systemd/system"
 )
+
+var systemdUnitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
 
 func removeUnits(ctx HookContext, units ...string) error {
 	var unitsPath string

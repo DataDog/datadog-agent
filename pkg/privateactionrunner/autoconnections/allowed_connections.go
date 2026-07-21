@@ -30,6 +30,14 @@ var supportedConnections = map[string]ConnectionDefinition{
 			},
 		},
 	},
+	"remoteaction": {
+		FQNPrefix:       "com.datadoghq.remoteaction",
+		IntegrationType: "RemoteAction",
+		Credentials: CredentialConfig{
+			Type:             "RemoteAction",
+			AdditionalFields: nil,
+		},
+	},
 }
 
 func actionsAllowlistContainsBundle(actionsAllowlist []string, fqnPrefix string) bool {

@@ -110,8 +110,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		}
 
 		// apply this new blocklist to all the running workers
-		fl.tlmMetricFilterListUpdates.Inc()
-		fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
 		fl.SetMetricFilterList(metricNames, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
@@ -131,8 +129,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.Set("metric_tag_filterlist", tagEntries, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
-		fl.tlmTagFilterListUpdates.Inc()
-		fl.tlmTagFilterListSize.Set(float64(len(tags)))
 		fl.setTagFilterList(tagMatcher{
 			MetricTags: tags,
 		})
@@ -191,10 +187,7 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 				} else {
 					rcAction = include
 				}
-				tags[metric.Name] = hashedMetricTagList{
-					action: rcAction,
-					tags:   hashedTags,
-				}
+				tags[metric.Name] = newHashedMetricTagList(rcAction, hashedTags)
 
 				// Store unhashed entry
 				tagEntries[metric.Name] = MetricTagListEntry{
@@ -220,6 +213,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 	if (currentHashed.action == exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
 		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		slices.Sort(currentHashed.tags)
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
@@ -229,10 +223,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 		hashedTags := hashTags(metric.Tags)
 
 		// Overwrite unhashed entry with exclude
-		hashed := hashedMetricTagList{
-			action: exclude,
-			tags:   hashedTags,
-		}
+		hashed := newHashedMetricTagList(exclude, hashedTags)
 
 		entry := MetricTagListEntry{
 			MetricName: metric.Name,

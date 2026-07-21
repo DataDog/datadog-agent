@@ -21,9 +21,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -70,6 +71,7 @@ type mockTraceWriter struct {
 	payloads   []*writer.SampledChunks
 	payloadsV1 []*writer.SampledChunksV1
 	apiKey     string
+	flushed    int
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -87,7 +89,10 @@ func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
 }
 
 func (m *mockTraceWriter) FlushSync() error {
-	panic("not implemented")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.flushed++
+	return nil
 }
 
 func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
@@ -142,8 +147,8 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
-	cb(m.returnTags, m.returnErr)
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
+	cb(m.returnTags, m.returnErr, nil)
 	return m.pending
 }
 
@@ -1111,6 +1116,32 @@ func TestConcentratorInputV1(t *testing.T) {
 			}(),
 		},
 		{
+			name: "lang propagated from tracer payload",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetLanguageName("python")
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+							Lang:       "python",
+						},
+					},
+				}
+			}(),
+		},
+		{
 			name: "no tracer tags",
 			in: func() *api.PayloadV1 {
 				strings := idx.NewStringTable()
@@ -1223,6 +1254,7 @@ func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats
 		assert.Equal(t, expectedTrace.ClientDroppedP0sWeight, actualTrace.ClientDroppedP0sWeight)
 		assert.Equal(t, expectedTrace.GitCommitSha, actualTrace.GitCommitSha)
 		assert.Equal(t, expectedTrace.ImageTag, actualTrace.ImageTag)
+		assert.Equal(t, expectedTrace.Lang, actualTrace.Lang)
 		assertInternalSpanEqual(t, expectedTrace.Root, actualTrace.Root)
 		assertInternalTraceChunkEqual(t, expectedTrace.TraceChunk, actualTrace.TraceChunk)
 	}
@@ -2987,7 +3019,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		a := &Agent{obfuscatorConf: &obfuscate.Config{}, conf: config.New()}
-		a.obfuscateSpan(span)
+		a.ObfuscateSpan(span)
 		a.Truncate(span)
 	}
 	return t
@@ -3570,10 +3602,6 @@ func TestMergeDuplicates(t *testing.T) {
 }
 
 func TestProcessStatsTimeout(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-		t.Skip("TestProcessStatsTimeout is known to fail on the macOS Gitlab runners.")
-	}
-
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
@@ -3582,7 +3610,7 @@ func TestProcessStatsTimeout(t *testing.T) {
 
 	statsPayload := testutil.StatsPayloadSample()
 
-	t.Run("context_timeout", func(t *testing.T) {
+	syncTestContextTimeout := func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 
@@ -3596,11 +3624,11 @@ func TestProcessStatsTimeout(t *testing.T) {
 		assert.Equal(t, context.DeadlineExceeded, err)
 
 		// Should timeout around 50ms, not hang indefinitely
-		assert.Less(t, elapsed, 100*time.Millisecond, "ProcessStats should respect context timeout")
-		assert.Greater(t, elapsed, 45*time.Millisecond, "ProcessStats should wait for context timeout")
-	})
+		assert.Equal(t, 50*time.Millisecond, elapsed, "ProcessStats should respect context timeout")
+	}
+	t.Run("context_timeout", func(t *testing.T) { synctest.Test(t, syncTestContextTimeout) })
 
-	t.Run("context_cancelled", func(t *testing.T) {
+	syncTestContextCancelled := func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
@@ -3619,9 +3647,9 @@ func TestProcessStatsTimeout(t *testing.T) {
 		assert.Equal(t, context.Canceled, err)
 
 		// Should be cancelled around 30ms
-		assert.Less(t, elapsed, 60*time.Millisecond, "ProcessStats should respect context cancellation")
-		assert.Greater(t, elapsed, 25*time.Millisecond, "ProcessStats should wait for context cancellation")
-	})
+		assert.Equal(t, 30*time.Millisecond, elapsed, "ProcessStats should respect context cancellation")
+	}
+	t.Run("context_cancelled", func(t *testing.T) { synctest.Test(t, syncTestContextCancelled) })
 
 	t.Run("successful_processing", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -4141,7 +4169,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123")
+		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -4177,7 +4205,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "abc", "def456")
+		pt := processedTrace(apiPayload, chunk, root, "abc", "def456", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -4189,6 +4217,55 @@ func TestProcessedTrace(t *testing.T) {
 			ClientDroppedP0sWeight: 1,
 		}
 		assert.Equal(t, expectedPt, pt)
+	})
+
+	t.Run("app version comes from container tag when not set in payload or span", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "img-from-ctag", "sha-from-ctag", "ver-from-ctag")
+		assert.Equal(t, "ver-from-ctag", pt.AppVersion)
+		assert.Equal(t, "sha-from-ctag", pt.GitCommitSha)
+		assert.Equal(t, "img-from-ctag", pt.ImageTag)
+	})
+
+	t.Run("payload app version overrides container tag", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+				AppVersion:  "payload-version",
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "", "", "ctag-version")
+		assert.Equal(t, "payload-version", pt.AppVersion)
 	})
 
 	t.Run("no results from container lookup", func(t *testing.T) {
@@ -4217,7 +4294,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "", "")
+		pt := processedTrace(apiPayload, chunk, root, "", "", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -4524,4 +4601,248 @@ func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestWaitForStopped(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	go agnt.Run()
+
+	// WaitForStopped should not return until we cancel the context.
+	done := make(chan struct{})
+	go func() {
+		agnt.WaitForStopped(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("WaitForStopped returned before context was cancelled")
+	case <-time.After(50 * time.Millisecond):
+		// expected: still blocked
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+		// expected: returned after cancel
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitForStopped did not return after context cancellation")
+	}
+}
+
+func TestShutdownFlushSyncInSyncMode(t *testing.T) {
+	// Verify that in sync mode, stats produced by the concentrator during
+	// shutdown are flushed to the network. This is the bug that was fixed
+	// by adding the FlushSync call in loop() between stopping stats
+	// producers and stopping writers.
+
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case received <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = srv.URL
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+	cfg.SynchronousFlushing = true
+	cfg.StatsWriter = &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20}
+	cfg.BucketInterval = 2 * time.Second
+	cfg.DefaultEnv = "test"
+	cfg.Hostname = "testhost"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Use real Concentrator (backed by real StatsWriter) but mock trace writers.
+	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}
+	agnt.TraceWriterV1 = &mockTraceWriter{apiKey: "test"}
+
+	go agnt.Run()
+
+	// Send a trace payload so the concentrator has stats to flush.
+	now := time.Now()
+	span := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Service:  "test-service",
+		Name:     "test-op",
+		Resource: "/test",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+	payload := &api.Payload{
+		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+	}
+
+	select {
+	case agnt.In <- payload:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout sending payload to agent")
+	}
+
+	// Give the worker time to process the payload and feed the concentrator.
+	time.Sleep(100 * time.Millisecond)
+
+	// Trigger shutdown. The loop() shutdown sequence should:
+	// 1. Drain workers
+	// 2. Stop concentrator (flushes stats to StatsWriter buffer)
+	// 3. FlushSync (sends buffer to our test server)
+	// 4. Stop writers
+	cancel()
+	agnt.WaitForStopped(context.Background())
+
+	select {
+	case <-received:
+		// Stats were flushed to the test server during shutdown.
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stats were not flushed to the server during shutdown")
+	}
+}
+
+func TestWaitForStoppedTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	go agnt.Run()
+
+	// WaitForStopped with a short timeout should return context.DeadlineExceeded
+	// while the agent is still running.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	err := agnt.WaitForStopped(waitCtx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestEnrichTracesWithCtags(t *testing.T) {
+	t.Run("sets_container_debug_when_debug_has_data", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:                "timed out",
+			LatencyMs:            150,
+			WasBuffered:          true,
+			BufferMs:             200,
+			BufferEvictionReason: "timeout",
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "timed out", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, int64(150), p.TracerPayload.ContainerDebug.LatencyMs)
+		assert.True(t, p.TracerPayload.ContainerDebug.WasBuffered)
+		assert.Equal(t, int64(200), p.TracerPayload.ContainerDebug.BufferMs)
+		assert.Equal(t, "timeout", p.TracerPayload.ContainerDebug.BufferEvictionReason)
+		assert.Equal(t, "env:prod", p.TracerPayload.Tags[tagContainersTags])
+	})
+
+	t.Run("no_debug_when_nil", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, nil)
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "env:prod", p.TracerPayload.Tags[tagContainersTags])
+	})
+
+	t.Run("no_debug_when_empty", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, &containertagsbuffer.DebugInfo{})
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("debug_set_even_on_error", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:       "resolution failed",
+			WasBuffered: true,
+		}
+		enrichTracesWithCtags(p, nil, errors.New("resolution failed"), debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "resolution failed", p.TracerPayload.ContainerDebug.Error)
+		// tags should not be set on error
+		assert.Empty(t, p.TracerPayload.Tags)
+	})
+}
+
+func TestEnrichTracesWithCtagsV1(t *testing.T) {
+	t.Run("sets_container_debug_when_debug_has_data", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:                "timed out",
+			LatencyMs:            150,
+			WasBuffered:          true,
+			BufferMs:             200,
+			BufferEvictionReason: "timeout",
+		}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "timed out", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, int64(150), p.TracerPayload.ContainerDebug.LatencyMs)
+		assert.True(t, p.TracerPayload.ContainerDebug.WasBuffered)
+		assert.Equal(t, int64(200), p.TracerPayload.ContainerDebug.BufferMs)
+		assert.Equal(t, "timeout", p.TracerPayload.ContainerDebug.BufferEvictionReason)
+		val, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
+		require.True(t, ok)
+		assert.Equal(t, "env:prod", val)
+	})
+
+	t.Run("no_debug_when_nil", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, nil)
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("no_debug_when_empty", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, &containertagsbuffer.DebugInfo{})
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("debug_set_even_on_error", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:       "resolution failed",
+			WasBuffered: true,
+		}
+		enrichTracesWithCtagsV1(p, nil, errors.New("resolution failed"), debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "resolution failed", p.TracerPayload.ContainerDebug.Error)
+		// tags should not be set on error
+		_, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
+		assert.False(t, ok)
+	})
 }

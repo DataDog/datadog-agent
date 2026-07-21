@@ -23,12 +23,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestNetworkPolicyHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.NetworkPolicy{}
+	resource := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-networkpolicy",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("networking.k8s.io", "networkpolicies")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewNetworkPolicyHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestNetworkPolicyHandlers_ExtractResource(t *testing.T) {
 	handlers := &NetworkPolicyHandlers{}
@@ -93,16 +118,16 @@ func TestNetworkPolicyHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-1", resource1.Name)
-	assert.NotSame(t, networkPolicy1, resource1) // Should be a copy
+	assert.Same(t, networkPolicy1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-2", resource2.Name)
-	assert.NotSame(t, networkPolicy2, resource2) // Should be a copy
+	assert.Same(t, networkPolicy2, resource2) // ResourceList returns raw informer references
 }
 
 func TestNetworkPolicyHandlers_ResourceUID(t *testing.T) {
@@ -303,7 +328,7 @@ func TestNetworkPolicyProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process network policies
-	processor := processors.NewProcessor(&NetworkPolicyHandlers{})
+	processor := processors.NewProcessor(&NetworkPolicyHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*networkingv1.NetworkPolicy{networkPolicy1, networkPolicy2})
 
 	assert.Equal(t, 2, listed)
@@ -401,4 +426,14 @@ func createTestNetworkPolicy(name, namespace string) *networkingv1.NetworkPolicy
 			},
 		},
 	}
+}
+
+func TestNetworkPolicyHandlers_CloneResource(t *testing.T) {
+	handlers := &NetworkPolicyHandlers{}
+	original := createTestNetworkPolicy("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*networkingv1.NetworkPolicy)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

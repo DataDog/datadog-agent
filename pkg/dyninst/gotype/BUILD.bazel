@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gotype",
+    srcs = [
+        "abi.go",
+        "doc.go",
+        "map_detect.go",
+        "name.go",
+        "table.go",
+        "type.go",
+        "uncommon.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/object",
+        "//pkg/util/safeelf",
+    ],
+)
+
+go_test(
+    name = "gotype_test",
+    srcs = [
+        "fuzz_test.go",
+        "snapshot_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":gotype"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/gotype/gotypeprinter",
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/testprogs",
+        "@com_github_stretchr_testify//require",
+    ],
+)

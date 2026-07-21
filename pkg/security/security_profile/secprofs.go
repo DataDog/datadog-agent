@@ -14,6 +14,9 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/sys/unix"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -22,7 +25,6 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/sys/unix"
 )
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
@@ -213,7 +215,7 @@ func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionCon
 		insertMissingProcesses = true
 	}
 
-	newEntry, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
+	newEntry, _, _, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return model.NoProfile
@@ -399,7 +401,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	}
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 		return
 	}
 

@@ -9,8 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestGetContainerAppTags(t *testing.T) {
@@ -78,6 +82,32 @@ func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["aca.resource.id"])
 }
 
+func TestGetContainerAppTagsEmptyDNSSuffix(t *testing.T) {
+	service := NewContainerApp()
+	t.Setenv("CONTAINER_APP_NAME", "test_app")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--replica")
+
+	tags := service.GetTags()
+
+	assert.Equal(t, "unknown", tags["region"])
+	assert.Equal(t, "unknown", tags[acaRegion])
+}
+
+func TestGetContainerAppTagsShortDNSSuffix(t *testing.T) {
+	service := NewContainerApp()
+	t.Setenv("CONTAINER_APP_NAME", "test_app")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "foo.bar")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--replica")
+
+	tags := service.GetTags()
+
+	assert.Equal(t, "unknown", tags["region"])
+	assert.Equal(t, "unknown", tags[acaRegion])
+}
+
 func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	service := NewContainerApp()
 	if os.Getenv("SERVERLESS_TEST") == "true" {
@@ -126,4 +156,32 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
+}
+
+func TestContainerAppShutdownEmitsMetrics(t *testing.T) {
+	skipOnWindows(t)
+	demux := createDemultiplexer(t)
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+
+	service := NewContainerApp()
+	service.Shutdown(agent, true, nil)
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Empty(t, timedMetrics)
+	assert.Len(t, generatedMetrics, 2)
+
+	foundShutdown := false
+	for _, sample := range generatedMetrics {
+		if sample.Name == containerAppShutdownMetricName {
+			foundShutdown = true
+		}
+	}
+	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestContainerAppShutdownNilMetricAgent(t *testing.T) {
+	service := NewContainerApp()
+	require.NotPanics(t, func() {
+		service.Shutdown(nil, true, nil)
+	})
 }

@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autoconnections",
+    srcs = [
+        "allowed_connections.go",
+        "client.go",
+        "connections_creator.go",
+        "constants.go",
+        "tags_provider.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/flavor",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_datadog_jsonapi//:jsonapi",
+    ],
+)
+
+go_test(
+    name = "autoconnections_test",
+    srcs = [
+        "allowed_connections_test.go",
+        "client_test.go",
+        "connections_creator_test.go",
+        "tags_provider_test.go",
+    ],
+    embed = [":autoconnections"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/tagger/fx-mock",
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
+        "@com_github_datadog_jsonapi//:jsonapi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

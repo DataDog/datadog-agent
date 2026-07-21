@@ -25,16 +25,28 @@ func TestAutoMaxProcs(t *testing.T) {
 		expected      int
 	}{
 		{
+			maxProcsValue: "500m",
+			expected:      2,
+		},
+		{
 			maxProcsValue: "1000m",
-			expected:      1,
+			expected:      2,
 		},
 		{
 			maxProcsValue: "1500m",
-			expected:      1,
+			expected:      2,
+		},
+		{
+			maxProcsValue: "1999m",
+			expected:      2,
 		},
 		{
 			maxProcsValue: "2000m",
 			expected:      2,
+		},
+		{
+			maxProcsValue: "3000m",
+			expected:      3,
 		},
 	}
 	for _, test := range tests {

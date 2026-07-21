@@ -79,7 +79,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 
 	managerOptions.RemoveRlimit = true
 
-	if features.SupportsFentry("tcp_recvmsg") {
+	if features.SupportsFentry("tcp_recvmsg") == nil {
 		managerOptions.ExcludedFunctions = append(managerOptions.ExcludedFunctions,
 			"kprobe__tcp_recvmsg",
 			"kretprobe__tcp_recvmsg",

@@ -1,0 +1,15 @@
+optimization_goal: none
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 660 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

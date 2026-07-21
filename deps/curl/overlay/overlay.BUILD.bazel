@@ -1,11 +1,12 @@
 """ Agent specific curl build."""
 
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
     "HDRS",
@@ -14,14 +15,13 @@ load(
     "LIB_CURLU_SRCS_DARWIN",
     "LIB_CURLU_SRCS_LINUX",
     "LIB_CURL_SRCS_ALL",
+    "VERSION",
 )
 
 package(
     default_package_metadata = [":license"],
     default_visibility = ["@@//packages:__subpackages__"],
 )
-
-VERSION = "8.18.0"
 
 SO_VERSION = "4.8.0"
 
@@ -84,7 +84,7 @@ cc_library(
 )
 
 cc_binary(
-    name = "curl_bin",
+    name = "curl",
     srcs = HDRS + PUBLIC_HEADERS + select({
         "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
@@ -94,10 +94,13 @@ cc_binary(
     ],
     defines = LOCAL_DEFINES,
     dynamic_deps = [
-        ":curl",
-        "@nghttp2//:nghttp2_shared",
-        "@openssl//:openssl_shared",
-        "@zlib//:z",
+        # Use :curl_shared directly, not :curl_pkg: curl is an installed_executable
+        # of curl_pkg, so using curl_pkg here would create a dependency cycle.
+        ":curl_shared",
+        "@nghttp2//:nghttp2_pkg",
+        "@openssl//:libssl_shared_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+        "@zlib//:z_pkg",
     ],
     includes = [
         ".",
@@ -156,7 +159,7 @@ cc_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "@nghttp2",
+        "@nghttp2//:libnghttp2",
         "@openssl",
         "@zlib",
     ],
@@ -209,19 +212,24 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":curl_static",
-        "@nghttp2",
+        "@nghttp2//:libnghttp2",
         "@openssl",
         "@zlib",
     ],
 )
 
 cc_shared_library(
-    name = "curl",
+    name = "curl_shared",
     dynamic_deps = [
-        "@nghttp2//:nghttp2_shared",
-        "@openssl//:openssl_shared",
-        "@zlib//:z",
+        "@nghttp2//:nghttp2_pkg",
+        "@openssl//:libssl_shared_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+        "@zlib//:z_pkg",
     ],
+    shared_lib_name = select({
+        "@platforms//os:linux": "libcurl.so",
+        "@platforms//os:macos": "libcurl.dylib",
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":curl_static",
@@ -230,42 +238,49 @@ cc_shared_library(
 )
 
 pkg_files(
-    name = "bin_files",
-    srcs = [
-        ":curl_bin",
-    ],
-    attributes = pkg_attributes(mode = "0755"),
-    prefix = "bin",
-    renames = {
-        "curl_bin": "curl",
-    },
-)
-
-so_symlink(
-    name = "lib_files",
-    src = ":curl",
-    attributes = pkg_attributes(mode = "0755"),
-    libname = "libcurl",
-    version = SO_VERSION,
-)
-
-pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
     prefix = "include/curl",
 )
 
+dd_cc_packaged(
+    name = "curl_pkg",
+    input = ":curl_shared",
+    version = SO_VERSION,
+    installed_executables = {
+        ":curl": "bin",
+    },
+    installed_files = [
+        ":hdr_files",
+    ],
+    libname = "libcurl",
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":bin_files",
         ":hdr_files",
-        ":lib_files",
     ],
+    prefix = "embedded",
+)
+
+dd_collect_dependencies(
+    name = "_installed_libs",
+    srcs = [":curl_pkg"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "installed_libs",
+    srcs = [":_installed_libs"],
     prefix = "embedded",
 )
 
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
+    srcs = [
+        ":all_files",
+        ":installed_libs",
+    ],
 )

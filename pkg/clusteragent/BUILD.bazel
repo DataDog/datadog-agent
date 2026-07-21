@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "clusteragent",
+    srcs = ["servercontext.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/clusteragent/clusterchecks",
+    ],
+)

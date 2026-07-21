@@ -25,27 +25,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 )
 
 // CheckName is the name of the check
 const CheckName = "orchestrator_kubelet_config"
 
 const collectionInterval = 10 * time.Minute
+
+// kubeletVirtualKind / kubeletVirtualAPIVersion are the fallback values used
+// when the kubelet's /configz payload does not advertise its own version meta
 const kubeletVirtualKind = "KubeletConfiguration"
 const kubeletVirtualAPIVersion = "virtual.datadoghq.com/v1"
 
-var getClusterAgentClient = clusteragent.GetClusterAgentClient
+type nodeUIDClient interface {
+	GetNodeUID(nodeName string) (string, error)
+}
+
+var getClusterAgentClient = func() (nodeUIDClient, error) {
+	return clusteragent.GetClusterAgentClient()
+}
 
 var groupID atomic.Int32
 
@@ -95,10 +103,11 @@ func (c *Check) Configure(
 	data integration.Data,
 	initConfig integration.Data,
 	source string,
+	provider string,
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -183,6 +192,8 @@ func (c *Check) Run() error {
 
 	tags := []string{}
 
+	kind, apiVersion := resolveManifestTypeMeta(kubelet.ConfigDocument.KubeletConfig)
+
 	manifest := &model.Manifest{
 		Type:            int32(orchestrator.K8sKubeletConfig),
 		Uid:             uid,
@@ -192,8 +203,8 @@ func (c *Check) Run() error {
 		Version:         "v1",
 		Tags:            tags,
 		IsTerminated:    false,
-		Kind:            kubeletVirtualKind,
-		ApiVersion:      kubeletVirtualAPIVersion,
+		Kind:            kind,
+		ApiVersion:      apiVersion,
 		NodeName:        nodeName,
 	}
 
@@ -217,6 +228,16 @@ func (c *Check) Run() error {
 // Interval returns the scheduling time for the check.
 func (c *Check) Interval() time.Duration {
 	return collectionInterval
+}
+
+// resolveManifestTypeMeta returns the (kind, apiVersion) pair to stamp on the
+// outbound Manifest. Newer kubelets populate these fields in the /configz payload;
+// older ones leave them empty, in which case we fall back to the virtual values
+func resolveManifestTypeMeta(spec workloadmeta.KubeletConfigSpec) (kind string, apiVersion string) {
+	if spec.Kind != "" && spec.APIVersion != "" {
+		return spec.Kind, spec.APIVersion
+	}
+	return kubeletVirtualKind, kubeletVirtualAPIVersion
 }
 
 func getNodeUID(nodeName string) (string, error) {

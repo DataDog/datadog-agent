@@ -17,10 +17,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -33,18 +31,20 @@ var clcListener net.Listener
 // StartCLCRunnerServer creates the router and starts the HTTP server
 func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscovery.Component, ipc ipc.Component) error {
 	// create the root HTTP router
-	r := mux.NewRouter()
+	mux := http.NewServeMux()
 
 	// IPC REST API server
-	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter(), ac)
+	v1Mux := http.NewServeMux()
+	v1.SetupHandlers(v1Mux, ac)
+	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", v1Mux))
 
 	// Register extra hanlders
 	for path, handler := range extraHandlers {
-		r.Handle(path, handler)
+		mux.Handle(path, handler)
 	}
 
 	// Validate token for every request
-	r.Use(validateCLCRunnerToken)
+	r := validateCLCRunnerToken(mux)
 
 	// get the transport we're going to use under HTTP
 	var err error

@@ -48,16 +48,12 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
-	// Determine default disabled namespaces.
-	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
-
-	// Create a map of disabled namespaces for quick lookups.
-	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces)+len(defaultDisabled))
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*TargetMutator, error) {
+	// Create a map of user-configured disabled namespaces for quick lookups.
+	// Default namespaces (kube-system, datadog agent namespace) are excluded at
+	// the webhook layer via namespace selectors and not duplicated here.
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
 	for _, ns := range config.Instrumentation.DisabledNamespaces {
-		disabledNamespacesMap[ns] = true
-	}
-	for _, ns := range defaultDisabled {
 		disabledNamespacesMap[ns] = true
 	}
 
@@ -160,7 +156,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m, imageResolver)
+	core := newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
 	m.core = core
 
 	return m, nil
@@ -185,7 +181,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
-	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// The admission can be re-run for the same pod (e.g. webhook reinvocation triggered by another
+	// mutating webhook, as happens on GKE Autopilot). Fast return if we injected the library
+	// already, otherwise we would mutate the pod a second time and, for instance, append the
+	// injector to LD_PRELOAD twice.
+	//
+	// The instrumentation volume is added by every injection mode (init_container, image_volume and
+	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
+	// so the per-init-container checks below would miss it.
+	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
+		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
+		return false, nil
+	}
 	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -357,6 +364,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -367,6 +375,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -493,11 +502,10 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	return false, found
 }
 
-// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
-// that should be enabled by default
+// getAllLatestDefaultLibraries returns the tracing libraries included in the default/all bundle.
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
-	for _, lang := range supportedLanguages {
+	for _, lang := range defaultInjectedLanguages {
 		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
@@ -522,6 +530,47 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	}
 
 	return false
+}
+
+func containsVolume(pod *corev1.Pod, volumeName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == volumeName {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
+// alongside the locally injected libraries. It is the annotation-based equivalent of a target's
+// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// rather than failing the mutation, mirroring the lenient handling of the other local SDK
+// injection annotations.
+func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
+	value, found := annotation.Get(pod, annotation.TracerConfigs)
+	if !found {
+		return nil
+	}
+
+	var tracerConfigs []TracerConfig
+	if err := json.Unmarshal([]byte(value), &tracerConfigs); err != nil {
+		log.Errorf("could not parse %q annotation for Single Step Instrumentation: %v", annotation.TracerConfigs, err)
+		return nil
+	}
+
+	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
+	for _, tc := range tracerConfigs {
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
+		// so this cannot be used as a generic env var injector.
+		if !strings.HasPrefix(tc.Name, "DD_") {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+			continue
+		}
+		envVars = append(envVars, tc.AsEnvVar())
+	}
+
+	return envVars
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {

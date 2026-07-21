@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "container",
+    srcs = [
+        "launcher.go",
+        "launcher_no_kubelet_and_docker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/logs-library/pipeline",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/launchers",
+        "//pkg/logs/launchers/container/tailerfactory",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/startstop",
+    ],
+)
+
+dd_agent_go_test(
+    name = "container_test",
+    srcs = ["launcher_test.go"],
+    embed = [":container"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
+    deps = [
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/logs-library/pipeline",
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
+        "//pkg/logs/launchers",
+        "//pkg/logs/launchers/container/tailerfactory",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//require",
+    ],
+)

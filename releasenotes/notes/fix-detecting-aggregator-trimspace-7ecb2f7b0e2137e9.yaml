@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a regression introduced in Agent 7.76 where anchored ``log_processing_rules``
+    (using ``^`` and ``$``) stopped matching log lines. This was caused by the new
+    default auto-multiline detection tagging path not trimming trailing whitespace
+    from log content before forwarding it to processing rules.

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -41,17 +41,17 @@ func isWERDumpCollectionEnabled() bool {
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
 // To run the test suites locally, pick a pipeline and define the following environment variables:
-// E2E_PIPELINE_ID: the ID of the pipeline
-// CURRENT_AGENT_VERSION: pull it from one of the jobs that builds the Agent
-// STABLE_AGENT_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/agent-package | sort | tail -n 2 | head -n 1`
-// or pick any other version from that registry.
+// E2E_PIPELINE_ID: the ID of the pipeline (for infra provisioning)
+// CURRENT_AGENT_ASSERT_VERSION: agent display version for assertions
+// CURRENT_AGENT_ASSERT_PACKAGE_VERSION: url-safe package version for assertions
+// CURRENT_AGENT_PIPELINE: pipeline ID for package resolution (or CURRENT_AGENT_SOURCE_VERSION for released versions)
 //
 // For example:
 //
-//	CI_COMMIT_SHA=ac2acaffab7b039f8c2524df8ae82f9f5fd04d5d;
 //	E2E_PIPELINE_ID=40537701;
-//	CURRENT_AGENT_VERSION=7.57.0-devel+git.370.d429ae3;
-//	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
+//	CURRENT_AGENT_ASSERT_VERSION=7.57.0-devel+git.370.d429ae3;
+//	CURRENT_AGENT_ASSERT_PACKAGE_VERSION=7.57.0-devel.git.370.d429ae3.pipeline.40537701-1;
+//	CURRENT_AGENT_PIPELINE=40537701;
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	installer          DatadogInstallerRunner
@@ -159,14 +159,14 @@ func (s *BaseSuite) createCurrentAgent() {
 	currentOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithPipeline(s.Env().Environment.PipelineID()),
-		WithDevEnvOverrides("CURRENT_AGENT"),
+		WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "failed to lookup OCI package for current agent version")
 
 	// Get current version MSI package
 	currentMSI, err := windowsagent.NewPackage(
-		windowsagent.WithURLFromPipeline(s.Env().Environment.PipelineID()),
-		windowsagent.WithDevEnvOverrides("CURRENT_AGENT"),
+		windowsagent.WithPipelineID(s.Env().Environment.PipelineID()),
+		windowsagent.WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for current agent version")
 	s.Require().NotEmpty(currentMSI.URL, "Agent MSI URL is required but not set, set E2E_PIPELINE_ID or CURRENT_AGENT devenv overrides")
@@ -197,16 +197,13 @@ func (s *BaseSuite) createStableAgent() {
 		return
 	}
 	// else, use the defaults (last stable release)
-
-	agentVersion := "7.75.0"
-	agentVersionPackage := "7.75.0-1"
-	agentRegistry := consts.StableS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
-	// Allow override of version and version package via environment variables
-	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+	agentVersion := "7.79.2"
+	agentVersionPackage := "7.79.2-1"
+	// Allow override of assertion values via environment variables
+	if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 		agentVersion = val
 	}
-	if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+	if val := os.Getenv("STABLE_AGENT_ASSERT_PACKAGE_VERSION"); val != "" {
 		agentVersionPackage = val
 	}
 
@@ -214,16 +211,14 @@ func (s *BaseSuite) createStableAgent() {
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithVersion(agentVersionPackage),
-		WithRegistry(agentRegistry),
-		WithDevEnvOverrides("STABLE_AGENT"),
+		WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL(agentMSIURL),
-		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+		windowsagent.WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 
@@ -239,12 +234,12 @@ func (s *BaseSuite) createStableAgent() {
 
 // getAgentVersionVars retrieves the agent version and package version from environment variables
 //
-// example: CURRENT_AGENT_VERSION and CURRENT_AGENT_VERSION_PACKAGE
+// example: CURRENT_AGENT_ASSERT_VERSION and CURRENT_AGENT_ASSERT_PACKAGE_VERSION
 //
 // see doc.go for more information
 func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
-	versionVar := prefix + "_VERSION"
-	versionPackageVar := prefix + "_VERSION_PACKAGE"
+	versionVar := prefix + "_ASSERT_VERSION"
+	versionPackageVar := prefix + "_ASSERT_PACKAGE_VERSION"
 
 	// Agent version
 	version := os.Getenv(versionVar)
@@ -310,12 +305,21 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 			}
 			time.Sleep(1 * time.Second)
 		}
+		// Dumps from processes in DefaultIgnoredCrashDumpImages are still
+		// downloaded as artifacts but do not fail the test.
 		dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 		s.Assert().NoError(err, "should download crash dumps")
-		if !s.Assert().Empty(dumps, "should not have crash dumps") {
-			s.T().Logf("Found crash dumps:")
-			for _, dump := range dumps {
-				s.T().Logf("  %s", dump)
+		failing, ignored := windowscommon.PartitionDownloadedWERDumps(dumps, windowscommon.DefaultIgnoredCrashDumpImages)
+		if len(ignored) > 0 {
+			s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+			for _, dump := range ignored {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+			}
+		}
+		if !s.Assert().Empty(failing, "should not have crash dumps") {
+			s.T().Logf("Found unexpected crash dumps:")
+			for _, dump := range failing {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
 			}
 		}
 	}
@@ -371,6 +375,11 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		// collect agent logs
 		s.collectAgentLogs()
 		s.collectInstallerLogs()
+		// Pick up an xperf .etl that step-scoped collectxperf left on the
+		// remote because the test had not yet failed when the deferred
+		// stop ran (e.g. assertion fails after the xperf-wrapped helper
+		// returns).
+		s.collectOrphanXperf()
 	}
 }
 
@@ -469,6 +478,11 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.startExperimentPreviousVersion()
@@ -493,6 +507,16 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 	)
 }
 
+const (
+	xperfBinPath = "C:/xperf/xperf.exe"
+	// xperfStopOutputPath is the path on the remote host where `xperf -stop -d`
+	// writes the merged kernel trace. Each subsequent stop overwrites it.
+	xperfStopOutputPath = "C:/full_host_profiles.etl"
+	// xperfLocalArtifactName is the basename used when copying the trace into
+	// the test's SessionOutputDir().
+	xperfLocalArtifactName = "full_host_profiles.etl"
+)
+
 func (s *BaseSuite) startxperf() {
 	host := s.Env().RemoteHost
 
@@ -503,27 +527,52 @@ func (s *BaseSuite) startxperf() {
 	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
 	s.Require().NoError(err)
 
-	outputPath := "C:/kernel.etl"
-	xperfPath := "C:/xperf/xperf.exe"
-	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfBinPath, "C:/kernel.etl"))
 	s.Require().NoError(err)
 }
 
 func (s *BaseSuite) collectxperf() {
 	host := s.Env().RemoteHost
 
-	xperfPath := "C:/xperf/xperf.exe"
-	outputPath := "C:/full_host_profiles.etl"
-
-	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfBinPath, xperfStopOutputPath))
 	s.Require().NoError(err)
 
 	// collect xperf if the test failed
 	if s.T().Failed() {
 		outDir := s.SessionOutputDir()
-		err = host.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		err = host.GetFile(xperfStopOutputPath, filepath.Join(outDir, xperfLocalArtifactName))
 		s.Require().NoError(err)
+		// Delete the remote .etl so AfterTest's orphan-collector doesn't
+		// re-upload it (and so a later step's xperf trace can't masquerade
+		// as this one in the artifacts).
+		s.Assert().NoError(host.Remove(xperfStopOutputPath), "should remove xperf .etl from remote after copy")
 	}
+}
+
+// collectOrphanXperf picks up an xperf .etl that was stopped by a step-scoped
+// `defer s.collectxperf()` before any assertion had failed, so the deferred
+// collector skipped the local copy. Intended to be called from AfterTest on
+// test failure.
+//
+// No-op if the remote .etl is absent (e.g. the test never ran an xperf-wrapped
+// helper, or a step-scoped collector already copied and deleted it).
+func (s *BaseSuite) collectOrphanXperf() {
+	host := s.Env().RemoteHost
+
+	exists, err := host.FileExists(xperfStopOutputPath)
+	if !s.Assert().NoError(err, "should check for orphan xperf .etl") {
+		return
+	}
+	if !exists {
+		return
+	}
+
+	s.T().Logf("Collecting orphan xperf trace: %s", xperfStopOutputPath)
+	dst := filepath.Join(s.SessionOutputDir(), xperfLocalArtifactName)
+	if !s.Assert().NoError(host.GetFile(xperfStopOutputPath, dst), "should download orphan xperf .etl") {
+		return
+	}
+	s.Assert().NoError(host.Remove(xperfStopOutputPath), "should remove orphan xperf .etl from remote after copy")
 }
 
 // startProcdump sets up procdump and starts it in the background.
@@ -644,6 +693,11 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
+
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
 
 	// Act
 	s.WaitForDaemonToStop(func() {
@@ -780,9 +834,6 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 
 	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
 	s.Require().NoError(err)
-
-	s.startxperf()
-	defer s.collectxperf()
 
 	f()
 

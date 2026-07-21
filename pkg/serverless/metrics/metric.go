@@ -9,106 +9,75 @@ package metrics
 import (
 	"time"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ServerlessMetricAgent represents the DogStatsD server and the aggregator
+// Tags bundles the three tag sets the ServerlessMetricAgent applies, one per
+// Add*Metric helper. Each slice is in DogStatsD wire format: one
+// `"key:value"` string per dimension. Any field may be nil if the caller
+// doesn't intend to emit that kind of metric.
+type Tags struct {
+	Metric              []string // applied by AddLegacyEnhancedMetric
+	EnhancedMetric      []string // applied by AddEnhancedMetric
+	EnhancedUsageMetric []string // applied by AddEnhancedUsageMetric (includes high-cardinality instance tag)
+}
+
+// ServerlessMetricAgent submits serverless metric samples to the Fx-provided
+// demultiplexer using the tag sets supplied at construction. Lifecycle is
+// owned by Fx.
 type ServerlessMetricAgent struct {
-	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
-	tags            []string
-	Tagger          tagger.Component
-	Demux           aggregator.Demultiplexer
-
-	SketchesBucketOffset time.Duration
+	Demux aggregator.Demultiplexer
+	tags  Tags
 }
 
-// MetricConfig abstacts the config package
-type MetricConfig struct {
+// New constructs a ServerlessMetricAgent.
+func New(demux aggregator.Demultiplexer, tags Tags) *ServerlessMetricAgent {
+	return &ServerlessMetricAgent{Demux: demux, tags: tags}
 }
 
-// MetricDogStatsD abstracts the DogStatsD package
-type MetricDogStatsD struct {
+// AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
+// This method should be removed in a future major serverless-init release.
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, c.tags.Metric, extraTags...)
 }
 
-// MultipleEndpointConfig abstracts the config package
-type MultipleEndpointConfig interface {
-	GetMultipleEndpoints() (utils.EndpointDescriptorSet, error)
+// AddEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, timestamp, c.tags.EnhancedMetric, extraTags...)
 }
 
-// DogStatsDFactory allows create a new DogStatsD server
-type DogStatsDFactory interface {
-	NewServer(demux aggregator.Demultiplexer, extraTags []string) (dogstatsdServer.ServerlessDogstatsd, error)
+// AddEnhancedUsageMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced usage metrics.
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
 }
 
-// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func (m *MetricConfig) GetMultipleEndpoints() (utils.EndpointDescriptorSet, error) {
-	return utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
-}
-
-// NewServer returns a running DogStatsD server
-func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer, extraTags []string) (dogstatsdServer.ServerlessDogstatsd, error) {
-	return dogstatsdServer.NewServerlessServer(demux, extraTags)
-}
-
-// Start starts the DogStatsD agent
-func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, shouldForceFlushAllOnForceFlushToSerializer bool, extraTags []string) {
-	// prevents any UDP packets from being stuck in the buffer and not parsed
-	// by setting this option to 1ms, all packets received will directly be sent to the parser
-	pkgconfigsetup.Datadog().Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond, model.SourceAgentRuntime)
-
-	demux, err := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout, c.Tagger, shouldForceFlushAllOnForceFlushToSerializer)
-	if err != nil {
-		log.Errorf("Unable to start the Demultiplexer: %s", err)
+// sendMetricSample records a distribution metric sample using the agent's extra tags plus any
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricsType metrics.MetricType, timestamp float64, tags []string, extraTags ...string) {
+	if c.Demux == nil {
+		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
+		return
 	}
 
-	if demux != nil {
-		statsd, err := dogstatFactory.NewServer(demux, extraTags)
-		if err != nil {
-			log.Errorf("Unable to start the DogStatsD server: %s", err)
-		} else {
-			c.dogStatsDServer = statsd
-			c.Demux = demux
-			c.tags = extraTags
-		}
+	if timestamp == 0 {
+		timestamp = float64(time.Now().UnixNano()) / float64(time.Second)
 	}
-}
 
-// IsReady indicates whether or not the DogStatsD server is ready
-func (c *ServerlessMetricAgent) IsReady() bool {
-	return c.dogStatsDServer != nil
-}
-
-// Flush triggers a DogStatsD flush
-func (c *ServerlessMetricAgent) Flush() {
-	if c.IsReady() {
-		c.dogStatsDServer.ServerlessFlush(c.SketchesBucketOffset)
+	if len(extraTags) > 0 {
+		tags = append(append([]string{}, tags...), extraTags...)
 	}
-}
-
-// Stop stops the DogStatsD server
-func (c *ServerlessMetricAgent) Stop() {
-	if c.IsReady() {
-		c.dogStatsDServer.Stop()
-	}
-}
-
-// GetExtraTags gets extra tags
-func (c *ServerlessMetricAgent) GetExtraTags() []string {
-	return c.tags
-}
-
-func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (aggregator.Demultiplexer, error) {
-	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
-	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
-	if err != nil {
-		log.Errorf("Misconfiguration of agent endpoints: %s", err)
-		return nil, err
-	}
-	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout, tagger, shouldForceFlushAllOnForceFlushToSerializer)
+	c.Demux.AggregateSample(metrics.MetricSample{
+		Name:       name,
+		Value:      value,
+		Mtype:      metricsType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  timestamp,
+		Source:     metricSource,
+	})
 }

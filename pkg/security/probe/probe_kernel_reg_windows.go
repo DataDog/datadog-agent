@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 )
 

@@ -7,7 +7,6 @@ package setup
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -28,11 +28,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 	}{
 		{
 			key:          "process_config.dd_agent_bin",
-			defaultValue: DefaultDDAgentBin,
+			defaultValue: defaultpaths.GetDefaultDDAgentBin(),
 		},
 		{
 			key:          "process_config.log_file",
-			defaultValue: DefaultProcessAgentLogFile,
+			defaultValue: defaultpaths.GetDefaultProcessAgentLogFile(),
 		},
 		{
 			key:          "process_config.grpc_connection_timeout_secs",
@@ -57,10 +57,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.container_collection.enabled",
 			defaultValue: true,
-		},
-		{
-			key:          "process_config.run_in_core_agent.enabled",
-			defaultValue: runtime.GOOS == "linux",
 		},
 		{
 			key:          "process_config.queue_size",
@@ -162,11 +158,6 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	processRunInAgent := true
-	if runtime.GOOS != "linux" {
-		processRunInAgent = false
-	}
-
 	for _, tc := range []struct {
 		key, env, value string
 		expType         string
@@ -237,12 +228,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
 			value:    "true",
 			expected: true,
-		},
-		{
-			key:      "process_config.run_in_core_agent.enabled",
-			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
-			value:    "true",
-			expected: processRunInAgent,
 		},
 		{
 			key:      "process_config.enabled",
@@ -348,7 +333,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.strip_proc_arguments",
 			env:      "DD_STRIP_PROCESS_ARGS",
 			value:    "false",
-			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expType:  "boolean",
 			expected: false,
 		},
 		{
@@ -505,7 +490,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
 			cfg := newTestConf(t)
-			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
+			cfg.SetInTest("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 
 			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))

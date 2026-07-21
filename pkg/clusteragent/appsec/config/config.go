@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +32,7 @@ const (
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
 	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
+	maxUDSPathLen                    = 100
 )
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
@@ -45,6 +48,9 @@ const (
 
 	// ProxyTypeIstioGateway represents the Istio native Gateway (networking.istio.io/v1) proxy type for appsec injection mode
 	ProxyTypeIstioGateway ProxyType = "istio-gateway"
+
+	// ProxyTypeIngressNginx represents the ingress-nginx proxy type for appsec injection mode
+	ProxyTypeIngressNginx ProxyType = "ingress-nginx"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
@@ -52,6 +58,7 @@ var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
 	ProxyTypeIstioGateway,
+	ProxyTypeIngressNginx,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
@@ -92,6 +99,27 @@ type Sidecar struct {
 
 	// Environment variables
 	BodyParsingSizeLimit string // Default: "10000000" (10MB)
+
+	// UDSPath is the in-pod Unix domain socket path the ext_proc sidecar listens on (UDS sidecar mode for Envoy Gateway).
+	UDSPath string
+	// RunAsUser is the UID/GID for the injected sidecar so it can share the UDS volume with the proxy container (default 65532, the Envoy Gateway proxy UID).
+	RunAsUser int64
+}
+
+// Nginx contains configuration specific to ingress-nginx injection
+type Nginx struct {
+	// InitImage is the container image for the init container that copies the nginx-datadog module
+	// e.g., "datadog/ingress-nginx-injection"
+	InitImage string
+	// ModuleMountPath is where the .so module is mounted in the controller container
+	// Default: "/modules_mount"
+	ModuleMountPath string
+	// InitRunAsUser/InitRunAsGroup set the init container's RunAsUser/RunAsGroup.
+	// The default init image declares no USER (runs as root) and would be rejected
+	// under RunAsNonRoot, so a non-root UID/GID must be supplied. A negative value
+	// leaves the field unset, honoring a custom InitImage's own USER.
+	InitRunAsUser  int64
+	InitRunAsGroup int64
 }
 
 func (p Processor) String() string {
@@ -99,7 +127,7 @@ func (p Processor) String() string {
 	if address == "" {
 		address = p.ServiceName + "." + p.Namespace + ".svc"
 	}
-	return address + ":" + strconv.Itoa(p.Port)
+	return net.JoinHostPort(address, strconv.Itoa(p.Port))
 }
 
 // Product represents the configuration of the AppSec Injection Proxy agent feature
@@ -120,12 +148,15 @@ type Product struct {
 	// Sidecar contains configuration for SIDECAR mode
 	Sidecar Sidecar
 
+	// Nginx contains configuration for ingress-nginx injection
+	Nginx Nginx
+
 	// Processor contains configuration for the EXTERNAL mode
 	Processor Processor
 }
 
-// Injection represent kubernetes specific configuration available for users to customize
-// the resources created for the AppSec Injection Proxy feature
+// Injection represents Kubernetes-specific configuration available for users to customize
+// the resources created for the AppSec Injection Proxy feature.
 type Injection struct {
 	Enabled           bool
 	CommonLabels      map[string]string
@@ -135,12 +166,47 @@ type Injection struct {
 
 	// IstioNamespace is used to determine where we will inject the `EnvoyFilter` object to make it global to the cluster.
 	IstioNamespace string
+
+	// EnvoyGatewayNamespace is the namespace where Envoy Gateway runs its data-plane proxy pods; it scopes
+	// which pods the sidecar webhook injects into (IsNamespaceEligible). Defaults to envoy-gateway-system.
+	EnvoyGatewayNamespace string
+
+	// EnvoyGatewayControllerNamespace is the namespace of the Envoy Gateway control plane, where the
+	// envoy-gateway-config ConfigMap lives; it scopes the Backend extension API check. Defaults to
+	// envoy-gateway-system. It can differ from EnvoyGatewayNamespace when proxies run in Gateway
+	// namespaces (provider.kubernetes.deploy.type=GatewayNamespace).
+	EnvoyGatewayControllerNamespace string
 }
 
 // Config represents the configuration of the AppSec Injection Proxy feature passed down to [InjectionPattern] implementations
 type Config struct {
 	Injection
 	Product
+}
+
+// validateNginxConfig validates that required nginx configuration fields are set
+// and that paths do not contain characters that could lead to nginx directive injection.
+func validateNginxConfig(config Nginx) error {
+	var errs []error
+
+	if config.InitImage == "" {
+		errs = append(errs, errors.New("nginx.init_image is required"))
+	} else if strings.ContainsAny(config.InitImage, ";\n\r\t{}") {
+		errs = append(errs, fmt.Errorf("nginx.init_image contains invalid characters: %q", config.InitImage))
+	}
+
+	if config.ModuleMountPath == "" {
+		errs = append(errs, errors.New("nginx.module_mount_path is required"))
+	} else {
+		if !strings.HasPrefix(config.ModuleMountPath, "/") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path must be an absolute path, got: %q", config.ModuleMountPath))
+		}
+		if strings.ContainsAny(config.ModuleMountPath, ";\n\r \t{}") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path contains invalid characters: %q", config.ModuleMountPath))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // validateSidecarConfig validates that required sidecar configuration fields are set
@@ -163,11 +229,23 @@ func validateSidecarConfig(config Sidecar) error {
 		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	if config.UDSPath != "" {
+		if !strings.HasPrefix(config.UDSPath, "/") {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be an absolute path, got: %q", config.UDSPath))
+		}
+		if path.Dir(config.UDSPath) == "/" {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be inside a non-root directory, got: %q", config.UDSPath))
+		}
+		if len(config.UDSPath) > maxUDSPathLen {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be at most 100 characters to stay under the kernel sun_path limit, got %d", len(config.UDSPath)))
+		}
 	}
 
-	return nil
+	if config.RunAsUser <= 0 {
+		errs = append(errs, fmt.Errorf("sidecar.run_as_user must be greater than 0 (running the sidecar as root is not allowed), got: %d", config.RunAsUser))
+	}
+
+	return errors.Join(errs...)
 }
 
 // FromComponent uses the datadog config.Component and returns a Config using default values when not set
@@ -208,6 +286,15 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		MemoryRequest:        cfg.GetString("admission_controller.appsec.sidecar.resources.requests.memory"),
 		MemoryLimit:          cfg.GetString("admission_controller.appsec.sidecar.resources.limits.memory"),
 		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
+		UDSPath:              cfg.GetString("admission_controller.appsec.sidecar.uds_path"),
+		RunAsUser:            int64(cfg.GetInt("admission_controller.appsec.sidecar.run_as_user")),
+	}
+
+	nginxConfig := Nginx{
+		InitImage:       cfg.GetString("admission_controller.appsec.nginx.init_image"),
+		ModuleMountPath: cfg.GetString("admission_controller.appsec.nginx.module_mount_path"),
+		InitRunAsUser:   int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_user")),
+		InitRunAsGroup:  int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_group")),
 	}
 
 	staticLabels := map[string]string{
@@ -227,9 +314,11 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		fallthrough
 	case InjectionModeSidecar:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
-		// Validate required sidecar configuration
 		if err := validateSidecarConfig(sidecarConfig); err != nil {
 			logger.Errorf("Invalid sidecar configuration: %v", err)
+		}
+		if err := validateNginxConfig(nginxConfig); err != nil {
+			logger.Errorf("Invalid nginx configuration: %v", err)
 		}
 	case InjectionModeExternal:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = processor.String()
@@ -250,6 +339,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			Processor:  processor,
 			Mode:       mode,
 			Sidecar:    sidecarConfig,
+			Nginx:      nginxConfig,
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),
@@ -258,7 +348,9 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			BaseBackoff:       cfg.GetDuration("cluster_agent.appsec.injector.base_backoff"),
 			MaxBackoff:        cfg.GetDuration("cluster_agent.appsec.injector.max_backoff"),
 
-			IstioNamespace: cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			IstioNamespace:                  cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			EnvoyGatewayNamespace:           cfg.GetString("cluster_agent.appsec.injector.envoy_gateway.namespace"),
+			EnvoyGatewayControllerNamespace: cfg.GetString("cluster_agent.appsec.injector.envoy_gateway.controller_namespace"),
 		},
 	}
 }

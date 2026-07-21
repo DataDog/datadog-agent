@@ -84,6 +84,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
+        }
+
+        [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.DecompressPythonDistributions(session);
@@ -237,6 +249,24 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RunPostInstallHook(Session session)
         {
             return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLogger(session);
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLoggerRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.RemoveAutoLogger(session);
         }
     }
 }

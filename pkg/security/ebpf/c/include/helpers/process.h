@@ -4,6 +4,7 @@
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "constants/offsets/process.h"
+#include "cgroup.h"
 #include "maps.h"
 #include "events_definition.h"
 
@@ -41,6 +42,8 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->user_session_id = src->user_session_id;
     dst->ppid = src->ppid;
     dst->fork_timestamp = src->fork_timestamp;
+    dst->fork_flags = src->fork_flags;
+    dst->sid = src->sid;
     dst->credentials = src->credentials;
 }
 
@@ -66,6 +69,20 @@ struct proc_cache_t *__attribute__((always_inline)) get_proc_cache(u32 tgid) {
     return get_proc_from_cookie(pid_entry->cookie);
 }
 
+// update_proc_cache_cgroup refreshes the cached cgroup inode of the current task inline,
+// for hook points that cannot use the tail-call variant because they already chain to a
+// different tail call (e.g. resolve_dentry).
+static __attribute__((always_inline)) void update_proc_cache_cgroup() {
+    u64 cgroup_id = get_current_cgroup_id();
+    if (cgroup_id) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        struct proc_cache_t *entry = get_proc_cache(pid);
+        if (entry) {
+            entry->cgroup.path_key.ino = cgroup_id;
+        }
+    }
+}
+
 static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
     u32 tgid = pid_tgid >> 32;
 
@@ -80,9 +97,7 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     }
 
     u32 pid = data->pid;
-    // consider kworker a pid which is ignored
-    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
-    if (is_ignored) {
+    if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
     }
 
@@ -91,8 +106,9 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
         return NULL;
     }
 
-    // copy user session id
+    // copy user session id and sid
     data->user_session_id = pid_entry->user_session_id;
+    data->sid = pid_entry->sid;
 
     struct proc_cache_t *pc = get_proc_from_cookie(pid_entry->cookie);
     if (pc) {
@@ -164,17 +180,17 @@ bool __attribute__((always_inline)) is_current_kworker_dying() {
 
 static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache_t *entry, struct cgroup_context_t *cgroup) {
     if (entry) {
-        cgroup->cgroup_file = entry->cgroup.cgroup_file;
+        cgroup->path_key = entry->cgroup.path_key;
     } else {
-        cgroup->cgroup_file.mount_id = 0;
-        cgroup->cgroup_file.path_id = 0;
-        cgroup->cgroup_file.ino = 0;
+        cgroup->path_key.mount_id = 0;
+        cgroup->path_key.path_id = 0;
+        cgroup->path_key.ino = 0;
     }
 }
 
 u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
     struct proc_cache_t *entry = get_proc_cache(tgid);
-    return entry ? entry->cgroup.cgroup_file.ino : 0;
+    return entry ? entry->cgroup.path_key.ino : 0;
 }
 
 #endif

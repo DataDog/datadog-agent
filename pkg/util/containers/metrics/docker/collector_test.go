@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -138,9 +138,7 @@ func Test_fillStatsFromSpec(t *testing.T) {
 		{
 			name: "Empty HostConfig",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{},
-				},
+				HostConfig: &container.HostConfig{},
 			},
 			expectedStats: &provider.ContainerStats{
 				Memory: &provider.ContainerMemStats{},
@@ -149,11 +147,9 @@ func Test_fillStatsFromSpec(t *testing.T) {
 		{
 			name: "Memory Limit set",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{
-						Resources: container.Resources{
-							Memory: 500,
-						},
+				HostConfig: &container.HostConfig{
+					Resources: container.Resources{
+						Memory: 500,
 					},
 				},
 			},

@@ -5,9 +5,10 @@
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
-    if (is_discarded_by_pid()) {
+int __attribute__((always_inline)) trace__sys_chown(void *ctx, const char *filename, uid_t user, gid_t group) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHOWN)) {
         return 0;
     }
 
@@ -21,37 +22,36 @@ int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t 
     };
 
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)filename, (void *)&user, (void *)&group);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY3(lchown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(NULL, user, group);
+    return trace__sys_chown(ctx, NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(lchown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown16, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(NULL, user, group);
+    return trace__sys_chown(ctx, NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {

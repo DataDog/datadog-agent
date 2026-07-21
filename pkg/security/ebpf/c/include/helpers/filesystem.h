@@ -11,17 +11,12 @@
 #include "dentry_resolver.h"
 #include "discarders.h"
 
-// the bump revision value is used to increase the mount id part of the path id when the mount is updated
-// this means that two different mount id can be considered as the same if the difference is less than the bump revision value
-// see the userspace equality check in the model_unix.go file
-#define MOUNT_REVISION_BUMP_VALUE 64
-
 static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
     u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
 
     u32 *id = bpf_map_lookup_elem(&path_id_high, &key);
     if (id) {
-        __sync_fetch_and_add(id, MOUNT_REVISION_BUMP_VALUE);
+        __sync_fetch_and_add(id, 1);
     }
 }
 
@@ -94,11 +89,17 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
       file->metadata.nlink = nlink;
     }
 
+    u64 inode_mode_offset;
+    LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
+
+    u64 inode_uid_offset;
+    LOAD_CONSTANT("inode_uid_offset", inode_uid_offset);
+
     u64 inode_gid_offset;
     LOAD_CONSTANT("inode_gid_offset", inode_gid_offset);
 
-    bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), &d_inode->i_mode);
-    bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
+    bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), (void *)d_inode + inode_mode_offset);
+    bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), (void *)d_inode + inode_uid_offset);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), (void *)d_inode + inode_gid_offset);
 
     u64 inode_ctime_sec_offset;

@@ -121,11 +121,14 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	// use the results because they might be huge.
 	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
-	// Use tags to communicate expected issues.
+	// Use tags to communicate expected issues. Issue tags may be
+	// config-specific (e.g. "issue:KIND@arch=X,toolchain=Y") to handle
+	// cases like map index expressions that are unsupported on old Go
+	// versions (hmap vs swisstable).
 	expectedIssues := make(map[string]string)
-	for _, cfg := range probesCfgs {
-		if issue, ok := testprogs.GetIssueTag(cfg); ok {
-			expectedIssues[cfg.GetID()] = issue
+	for _, probeCfg := range probesCfgs {
+		if issue, ok, _ := testprogs.GetIssueTag(probeCfg, cfg); ok {
+			expectedIssues[probeCfg.GetID()] = issue
 		}
 	}
 	computeGotIssues := func(p *ir.Program) map[string]string {
@@ -135,6 +138,9 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 		}
 		return gotIssues
 	}
+	for _, issue := range irWithDefaultLimits.Issues {
+		t.Logf("issue %s: %s: %s", issue.ProbeDefinition.GetID(), issue.Issue.Kind.String(), issue.Issue.Message)
+	}
 	require.Equal(t, expectedIssues, computeGotIssues(irWithDefaultLimits))
 
 	{
@@ -143,7 +149,8 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	}
 
 	// Make sure that the IR eventually gets to the same set of types as
-	// when we don't have a limit.
+	// when we don't have a limit. Skipped under -short since each
+	// iteration runs a full GenerateIR pass.
 	var irWithLimit1 *ir.Program
 	for i := 1; ; i++ {
 		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
@@ -154,6 +161,9 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 
 		if i == 1 {
 			irWithLimit1 = irWithLimit
+			if testing.Short() {
+				break
+			}
 		}
 		typeNames := func(p *ir.Program) []string {
 			var names []string

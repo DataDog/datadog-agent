@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -26,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Loader is responsible for loading the eBPF, making it ready to attach.
@@ -35,6 +38,13 @@ type Loader struct {
 	// Shared ringbuffer for collecting probe output
 	ringbufMap    *ebpf.Map
 	ringbufReader *ringbuf.Reader
+
+	// Side-channel ringbuffer for drop notifications. Carries fixed-size
+	// messages informing userspace that an event couldn't be submitted on
+	// the main ringbuffer, so userspace can salvage or discard the
+	// associated buffered state rather than leak it.
+	dropNotifyMap    *ebpf.Map
+	dropNotifyReader *ringbuf.Reader
 
 	ebpfSpec *ebpf.CollectionSpec
 }
@@ -58,6 +68,16 @@ func WithDebugLevel(level int) Option {
 // WithAdditionalSerializer sets an additional serializer for the ebpf program.
 func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
+}
+
+// WithForceMultiAttach forces the loader to use uprobe_multi attachment,
+// bypassing the kernel-version gate in canUseMultiAttach. Intended for use
+// in tests on kernels that support BPF_LINK_TYPE_UPROBE_MULTI but are
+// excluded by the conservative 6.10 floor (e.g. Ubuntu 24.04's 6.8 kernel).
+// The caller is responsible for ensuring the workload is unaffected by the
+// pre-6.10 multi-uprobe PID-filter bug — see canUseMultiAttach for details.
+func WithForceMultiAttach() Option {
+	return forceMultiAttachOption{}
 }
 
 // NewLoader creates a new Loader.
@@ -86,7 +106,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	defer func() {
 		for k, m := range maps {
-			if k == ringbufMapName {
+			if k == ringbufMapName || k == dropNotifyMapName {
 				continue
 			}
 			_ = m.Close()
@@ -99,9 +119,19 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
+	useMultiAttach := l.config.forceMultiAttach || canUseMultiAttach()
+	if useMultiAttach {
+		progSpec, ok := spec.Programs["probe_run_with_cookie"]
+		if !ok {
+			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
+		}
+		progSpec.AttachType = ebpf.AttachTraceUprobeMulti
+	}
+
 	opts := ebpf.CollectionOptions{}
 	opts.MapReplacements = maps
 	opts.MapReplacements[ringbufMapName] = l.ringbufMap
+	opts.MapReplacements[dropNotifyMapName] = l.dropNotifyMap
 	collection, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -117,11 +147,35 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	maps = nil
 	return &Program{
-		Collection:   collection,
-		BpfProgram:   bpfProgram,
-		Attachpoints: serialized.bpfAttachPoints,
+		Collection:     collection,
+		BpfProgram:     bpfProgram,
+		Attachpoints:   serialized.bpfAttachPoints,
+		UseMultiAttach: useMultiAttach,
 	}, nil
 }
+
+// canUseMultiAttach reports whether the running kernel supports
+// uprobe_multi attachment with a working PID filter.
+//
+// Linux 6.6 introduced BPF_LINK_TYPE_UPROBE_MULTI, but its PID filter
+// was buggy until 6.10: uprobe_prog_run() compared `current` against the
+// per-link task_struct pointer rather than its mm, so probes only fired
+// for the single thread looked up at attach time. Go programs run
+// goroutines across many OS threads, so most events were silently dropped.
+// The fix is upstream commit 46ba0e49b642 ("bpf: fix multi-uprobe PID
+// filtering logic"), present in 6.10+ and backported to 6.9.9, but never
+// to linux-6.8.y — so Ubuntu 24.04's stock 6.8 kernel is permanently
+// affected. Gate on 6.10 to be safe.
+var canUseMultiAttach = sync.OnceValue(func() bool {
+	if features.HaveBPFLinkUprobeMulti() != nil {
+		return false
+	}
+	v, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+	return v >= kernel.VersionCode(6, 10, 0)
+})
 
 // stripRelocations removes the relocation metadata from the instructions.
 // These are not needed for pt_regs as long as we're not trying to build
@@ -155,6 +209,15 @@ func (l *Loader) OutputReader() *ringbuf.Reader {
 	return l.ringbufReader
 }
 
+// DropNotifyReader returns the side-channel ringbuffer reader carrying
+// drop notifications.
+func (l *Loader) DropNotifyReader() *ringbuf.Reader {
+	if l.dropNotifyReader == nil {
+		panic("drop-notify ringbuffer reader not initialized")
+	}
+	return l.dropNotifyReader
+}
+
 // Close releases loader resources.
 func (l *Loader) Close() (err error) {
 	if l.ringbufReader != nil {
@@ -162,6 +225,12 @@ func (l *Loader) Close() (err error) {
 	}
 	if l.ringbufMap != nil {
 		err = errors.Join(err, l.ringbufMap.Close())
+	}
+	if l.dropNotifyReader != nil {
+		err = errors.Join(err, l.dropNotifyReader.Close())
+	}
+	if l.dropNotifyMap != nil {
+		err = errors.Join(err, l.dropNotifyMap.Close())
 	}
 	return err
 }
@@ -171,6 +240,10 @@ type Program struct {
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
+	// UseMultiAttach indicates that the program was loaded with
+	// AttachTraceUprobeMulti and should be attached using
+	// link.Executable.UprobeMulti rather than per-address Uprobe calls.
+	UseMultiAttach bool
 }
 
 // Close releases the program resources.
@@ -180,7 +253,7 @@ func (p *Program) Close() {
 	}
 }
 
-// RuntimeStats are cumulative stats aggregated throughout program lifetime.
+// RuntimeStats are cumulative stats aggregated throughout probe lifetime.
 type RuntimeStats struct {
 	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
 	CPU time.Duration
@@ -188,28 +261,107 @@ type RuntimeStats struct {
 	HitCnt uint64
 	// Number of probe hits that skipped data capture due to throttling.
 	ThrottledCnt uint64
+
+	// runtime.recovery probe counters. Zero on programs where no
+	// FunctionWhere user probe is configured (the recovery probe is
+	// not synthesised; see irgen.maybeAddRuntimeRecoveryProbe).
+	// Recovery counters are written only on the probe-0 entry of the
+	// stats_buf ARRAY (they are process-wide, not per-probe).
+
+	// RecoveryFires is the number of times the runtime.recovery uprobe
+	// fired. Each firing corresponds to one panic+recover that reached
+	// runtime.recovery.
+	RecoveryFires uint64
+	// RecoveryEvictedFrames is the cumulative number of in_progress_calls
+	// slots evicted by recovery firings. A single recovery can evict 0
+	// or more frames depending on how many probed frames sit in the
+	// unwound region.
+	RecoveryEvictedFrames uint64
+	// RecoverySubmitFailures is the number of synthetic-event submits
+	// that failed (out_ringbuf full) and were converted to a
+	// PANIC_UNWOUND_LOST drop notification on the side channel.
+	RecoverySubmitFailures uint64
+	// RecoveryNoOpenCalls counts recoveries on goroutines that had no
+	// probed-frame pairing state in flight. These are common (every
+	// non-probed goroutine that panics+recovers) and very cheap thanks
+	// to an early short-circuit before the panic-chain reads.
+	RecoveryNoOpenCalls uint64
+	// RecoveryFilteredGoexit counts recoveries triggered by a
+	// runtime.Goexit unwind rather than a real panic-recover; these are
+	// out of scope for this revision and are skipped.
+	RecoveryFilteredGoexit uint64
+	// RecoveryInvalidState counts recoveries we couldn't process due
+	// to defensive bail-out conditions (panic_ptr==0, recovered!=1,
+	// stack_hi mismatch, etc.). Should normally stay at 0; a non-zero
+	// value indicates either a runtime.recovery firing pattern this
+	// code doesn't understand or a DWARF/ABI mismatch.
+	RecoveryInvalidState uint64
 }
 
-// RuntimeStats returns the per-core runtime stats for the program.
+// RuntimeStats returns the per-probe runtime stats for the program,
+// indexed by the IR probe_id (the same value used as stats_buf key in
+// eBPF). The returned slice has length equal to the program's probe
+// count.
 func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
 		return nil
 	}
+	n := int(statsMap.MaxEntries())
+	out := make([]RuntimeStats, n)
+	if n == 0 {
+		return out
+	}
+	// stats and RuntimeStats have the same layout — see
+	// TestRuntimeStatsHasSameLayoutAsStats. Read directly into the
+	// output slice as []stats.
+	view := unsafe.Slice(
+		(*stats)(unsafe.Pointer(unsafe.SliceData(out))),
+		n,
+	)
 	entries := statsMap.Iterate()
 	var key uint32
-	var stats []stats
-	_ = entries.Next(&key, &stats)
-	// This is safe because these two structs have the same layout.
-	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
-	return unsafe.Slice(
-		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
-		len(stats),
-	)
+	var value stats
+	for entries.Next(&key, &value) {
+		if int(key) >= n {
+			continue
+		}
+		view[key] = value
+	}
+	return out
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
 const ringbufMapName = "out_ringbuf"
+
+// Side-channel ringbuf. Small (16 KiB ~= 500 notifications); notifications
+// are fixed-size so it very rarely fills under pressure. Kept in sync with
+// DROP_NOTIFY_RINGBUF_CAPACITY in ../ebpf/scratch.h.
+const defaultDropNotifyRingbufSize = 1 << 14
+const dropNotifyMapName = "drop_notify_ringbuf"
+
+// dropNotifyLostAtMapName is a single-slot BPF_MAP_TYPE_ARRAY holding the
+// most recent ktime_ns at which the BPF side failed to publish a drop
+// notification (drop_notify_ringbuf full). Userspace polls it to drive
+// eventbuf eviction. See pkg/dyninst/ebpf/scratch.h.
+const dropNotifyLostAtMapName = "drop_notify_lost_at"
+
+// DropNotifyLostAt returns the kernel-monotonic ktime_ns of the most
+// recent in-BPF attempt to publish a drop notification that failed
+// because the side-channel ringbuf was full. Returns 0 if no failure has
+// ever been recorded for this program (or if the map is unavailable).
+func (p *Program) DropNotifyLostAt() uint64 {
+	m, ok := p.Collection.Maps[dropNotifyLostAtMapName]
+	if !ok {
+		return 0
+	}
+	var key uint32
+	var val uint64
+	if err := m.Lookup(&key, &val); err != nil {
+		return 0
+	}
+	return val
+}
 
 type config struct {
 	ebpfConfig *ddebpf.Config
@@ -218,6 +370,8 @@ type config struct {
 
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
+
+	forceMultiAttach bool
 
 	additionalSerializer compiler.CodeSerializer
 }
@@ -254,6 +408,12 @@ func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
 }
 
+type forceMultiAttachOption struct{}
+
+func (forceMultiAttachOption) apply(c *config) {
+	c.forceMultiAttach = true
+}
+
 func (l *Loader) init(opts ...Option) error {
 	l.config.ringBufSize = defaultRingbufSize
 	for _, opt := range opts {
@@ -275,6 +435,18 @@ func (l *Loader) init(opts ...Option) error {
 	if err != nil {
 		return fmt.Errorf("failed to create ringbuffer reader: %w", err)
 	}
+	l.dropNotifyMap, err = ebpf.NewMap(&ebpf.MapSpec{
+		Name:       dropNotifyMapName,
+		Type:       ebpf.RingBuf,
+		MaxEntries: defaultDropNotifyRingbufSize,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create drop-notify ringbuffer map: %w", err)
+	}
+	l.dropNotifyReader, err = ringbuf.NewReader(l.dropNotifyMap)
+	if err != nil {
+		return fmt.Errorf("failed to create drop-notify ringbuffer reader: %w", err)
+	}
 	obj, err := getBpfObject(&l.config)
 	if err != nil {
 		return fmt.Errorf("failed to get eBPF object: %w", err)
@@ -290,6 +462,9 @@ func (l *Loader) init(opts ...Option) error {
 		return errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
+	if _, ok := l.ebpfSpec.Maps[dropNotifyMapName]; !ok {
+		return errors.New("drop-notify ringbuffer map not found in eBPF spec")
+	}
 	return nil
 }
 
@@ -311,6 +486,7 @@ func (l *Loader) loadData(
 	const throttlerMapName = "throttler_params"
 	const throttlerStateMapName = "throttler_buf"
 	const probeParamsMapName = "probe_params"
+	const statsBufMapName = "stats_buf"
 	const goRuntimeTypeIDsMapName = "go_runtime_type_ids"
 	const goRuntimeTypesMapName = "go_runtime_types"
 
@@ -378,6 +554,7 @@ func (l *Loader) loadData(
 		// be set to zero.
 		grts.goRuntimeTypes = []uint64{0}
 		grts.typeIDs = []uint64{0}
+		grts.directTypeIDs = []uint64{0}
 	}
 	goRuntimeTypeIDsMapSpec, goRuntimeTypeIDsMap, err := makeArrayMap(
 		goRuntimeTypeIDsMapName, grts.typeIDs, allowMultipleMapEntries,
@@ -403,10 +580,28 @@ func (l *Loader) loadData(
 			goRuntimeTypesMap.Close()
 		}
 	}()
+	const goRuntimeTypeDirectIDsMapName = "go_runtime_type_direct_ids"
+	goRuntimeTypeDirectIDsMapSpec, goRuntimeTypeDirectIDsMap, err := makeArrayMap(
+		goRuntimeTypeDirectIDsMapName, grts.directTypeIDs, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypeDirectIDsMapName] = goRuntimeTypeDirectIDsMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_type_direct_ids map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypeDirectIDsMap != nil {
+			goRuntimeTypeDirectIDsMap.Close()
+		}
+	}()
 	if err := setVariable(
 		spec, "num_go_runtime_types", numGoRuntimeTypes,
 	); err != nil {
 		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
+	}
+	if err := setVariable(
+		spec, "trace_context_type_id", uint32(serialized.traceContextTypeID),
+	); err != nil {
+		return nil, fmt.Errorf("failed to set trace_context_type_id: %w", err)
 	}
 	// Allow a program to avoid setting common constants if it doesn't have
 	// any. This is something of a hack to allow for the rcscrape program to
@@ -418,6 +613,15 @@ func (l *Loader) loadData(
 	if serialized.commonTypes != (ir.CommonTypes{}) {
 		if err := setCommonConstants(spec, serialized); err != nil {
 			return nil, fmt.Errorf("failed to set common constants: %w", err)
+		}
+	}
+
+	if err := setMapHashConstants(spec, serialized); err != nil {
+		return nil, fmt.Errorf("failed to set map hash constants: %w", err)
+	}
+	if serialized.isARM64 {
+		if err := setVariable(spec, "is_arm64", uint32(1)); err != nil {
+			return nil, fmt.Errorf("failed to set is_arm64: %w", err)
 		}
 	}
 
@@ -462,6 +666,19 @@ func (l *Loader) loadData(
 		return nil, fmt.Errorf("failed to set num_probe_params: %w", err)
 	}
 
+	// Size stats_buf to one entry per IR probe. BPF_MAP_TYPE_ARRAY
+	// requires max_entries >= 1, so clamp degenerate zero-probe
+	// programs (the verifier still requires the map to exist).
+	statsBufSize := serialized.numProbes
+	if statsBufSize == 0 {
+		statsBufSize = 1
+	}
+	statsBufMapSpec, ok := spec.Maps[statsBufMapName]
+	if !ok {
+		return nil, errors.New("stats_buf map not found in eBPF spec")
+	}
+	statsBufMapSpec.MaxEntries = statsBufSize
+
 	if l.config.dyninstDebugEnabled {
 		err = setVariable(spec, "debug_level", uint32(l.config.dyninstDebugLevel))
 		if err != nil {
@@ -470,13 +687,14 @@ func (l *Loader) loadData(
 	}
 
 	m := map[string]*ebpf.Map{
-		codeMapName:             codeMap,
-		typeIDsMapName:          typeIDsMap,
-		typeInfoMapName:         typeInfoMap,
-		throttlerMapName:        throttlerMap,
-		probeParamsMapName:      probeParamsMap,
-		goRuntimeTypeIDsMapName: goRuntimeTypeIDsMap,
-		goRuntimeTypesMapName:   goRuntimeTypesMap,
+		codeMapName:                   codeMap,
+		typeIDsMapName:                typeIDsMap,
+		typeInfoMapName:               typeInfoMap,
+		throttlerMapName:              throttlerMap,
+		probeParamsMapName:            probeParamsMap,
+		goRuntimeTypeIDsMapName:       goRuntimeTypeIDsMap,
+		goRuntimeTypesMapName:         goRuntimeTypesMap,
+		goRuntimeTypeDirectIDsMapName: goRuntimeTypeDirectIDsMap,
 	}
 	codeMap = nil
 	typeIDsMap = nil
@@ -485,6 +703,7 @@ func (l *Loader) loadData(
 	probeParamsMap = nil
 	goRuntimeTypeIDsMap = nil
 	goRuntimeTypesMap = nil
+	goRuntimeTypeDirectIDsMap = nil
 	return m, nil
 }
 
@@ -540,6 +759,79 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 				"failed to set %s for %s in %s: %w",
 				f.variableName, f.fieldName, f.s.Name, err,
 			)
+		}
+	}
+
+	// runtime._panic offsets. Optional: if the binary's DWARF lacks the
+	// type or a field, leave the corresponding OFFSET_ at 0 — the
+	// recovery probe attach path treats a missing g._panic offset as a
+	// signal to skip the probe and the rest of dyninst continues working.
+	panicStruct := serialized.commonTypes.Panic
+	if panicStruct == nil {
+		log.Warnf(
+			"dyninst: runtime._panic not present in target DWARF; " +
+				"recovery probe will no-op and panic-recover leaks will " +
+				"not be cleaned up for this binary",
+		)
+		return nil
+	}
+	gPanicOff, err := g.FieldOffsetByName("_panic")
+	if err != nil {
+		log.Warnf(
+			"dyninst: runtime.g has no _panic field (%v); recovery "+
+				"probe will no-op", err,
+		)
+		return nil
+	}
+	if err := setVariable(spec, "OFFSET_runtime_dot_g___panic", gPanicOff); err != nil {
+		return fmt.Errorf("failed to set OFFSET_runtime_dot_g___panic: %w", err)
+	}
+	var missing []string
+	for _, f := range []struct {
+		fieldName    string
+		variableName string
+	}{
+		{"arg", "OFFSET_runtime_dot__panic__arg"},
+		{"startSP", "OFFSET_runtime_dot__panic__startSP"},
+		{"sp", "OFFSET_runtime_dot__panic__sp"},
+		{"recovered", "OFFSET_runtime_dot__panic__recovered"},
+		{"goexit", "OFFSET_runtime_dot__panic__goexit"},
+	} {
+		off, err := panicStruct.FieldOffsetByName(f.fieldName)
+		if err != nil {
+			missing = append(missing, f.fieldName)
+			continue
+		}
+		if err := setVariable(spec, f.variableName, off); err != nil {
+			return fmt.Errorf(
+				"failed to set %s for %s in runtime._panic: %w",
+				f.variableName, f.fieldName, err,
+			)
+		}
+	}
+	if len(missing) > 0 {
+		log.Warnf(
+			"dyninst: runtime._panic missing fields %v; recovery probe "+
+				"may behave incorrectly (panic-unwound frames could leak)",
+			missing,
+		)
+	}
+	return nil
+}
+
+func setMapHashConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram) error {
+	info := serialized.goMapHashInfo
+	// These are optional — only set if the addresses were found in DWARF.
+	// If not found (zero), the BPF code will not be able to compute hashes
+	// and map index expressions will fail gracefully at runtime.
+	if info.UseAeshashAddr != 0 {
+		if err := setVariable(spec, "VARIABLE_runtime_dot_useAeshash", info.UseAeshashAddr); err != nil {
+			return err
+		}
+	}
+	if info.AeskeyschedAddr != 0 {
+		if err := setVariable(spec, "VARIABLE_runtime_dot_aeskeysched", info.AeskeyschedAddr); err != nil {
+			return err
 		}
 	}
 	return nil
