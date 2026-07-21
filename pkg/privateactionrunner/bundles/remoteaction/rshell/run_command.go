@@ -21,6 +21,7 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
+	"github.com/DataDog/rshell/privilegedhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -43,6 +44,8 @@ var statFn = os.Stat
 type RunCommandHandlerConfig struct {
 	OperatorAllowedPaths    []string
 	OperatorAllowedCommands []string
+	PrivilegedEnabled       bool
+	PrivilegedSocket        string
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -69,6 +72,8 @@ type RunCommandHandler struct {
 	operatorAllowedPaths    []string
 	operatorAllowedCommands []string
 	mode                    interp.Mode
+	privilegedEnabled       bool
+	privilegedSocket        string
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -77,27 +82,29 @@ type RunCommandHandler struct {
 //  1. Paths are normalized, reduced to the broadest entries per access group,
 //     and deduplicated so same-path read-write entries replace read-only ones.
 //  2. Commands are deduplicated.
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
+func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
-	commands := slices.Clone(operatorAllowedCommands)
+	commands := slices.Clone(cfg.OperatorAllowedCommands)
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
 	return &RunCommandHandler{
-		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
+		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
 		operatorAllowedCommands: commands,
 		mode:                    mode,
+		privilegedEnabled:       cfg.PrivilegedEnabled,
+		privilegedSocket:        cfg.PrivilegedSocket,
 	}
 }
 
 func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly)
+	return newRunCommandHandler(cfg, interp.ModeReadOnly)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
 func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation)
+	return newRunCommandHandler(cfg, interp.ModeRemediation)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
@@ -127,9 +134,11 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 // legacy allowedCommands/allowedPaths input fields are still accepted as a
 // compatibility fallback for tasks signed by older servers.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command              string              `json:"command"`
+	AllowedCommands      []string            `json:"allowedCommands"`
+	AllowedPaths         map[string][]string `json:"allowedPaths"`
+	EffectivePermissions string              `json:"effectivePermissions"`
+	ElevatableCommands   []string            `json:"elevatableCommands"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -159,6 +168,16 @@ func (h *RunCommandHandler) Run(
 	}
 	if inputs.Command == "" {
 		return nil, errors.New("command is required")
+	}
+	if inputs.EffectivePermissions != "" {
+		switch inputs.EffectivePermissions {
+		case privilegedhelper.EscalationAllowed:
+			return h.runPrivileged(ctx, task)
+		case "Root":
+			return nil, errors.New("whole-script root execution is not supported")
+		default:
+			return nil, fmt.Errorf("unsupported effective permissions %q", inputs.EffectivePermissions)
+		}
 	}
 
 	backendCommands, backendPaths := backendAllowlistsFromTask(task, inputs)
@@ -213,6 +232,43 @@ func (h *RunCommandHandler) Run(
 		Stderr:          stderr.String(),
 		SandboxWarnings: runner.Warnings(),
 	}, nil
+}
+
+func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
+	if h.mode != interp.ModeRemediation {
+		return nil, errors.New("privileged execution is available only for remediation actions")
+	}
+	if !h.privilegedEnabled {
+		return nil, errors.New("privileged rshell execution is disabled by local configuration")
+	}
+	if h.privilegedSocket == "" {
+		return nil, errors.New("privileged rshell socket is not configured")
+	}
+	envelope := task.Data.Attributes.SignedEnvelope
+	if envelope == nil {
+		return nil, errors.New("verified signed envelope is required for privileged execution")
+	}
+	signatures := make([]privilegedhelper.Signature, 0, len(envelope.Signatures))
+	for _, signature := range envelope.Signatures {
+		var keyType privilegedhelper.KeyType
+		switch signature.KeyType.String() {
+		case "X509_RSA":
+			keyType = privilegedhelper.KeyTypeX509RSA
+		case "ED25519":
+			keyType = privilegedhelper.KeyTypeED25519
+		default:
+			return nil, fmt.Errorf("unsupported signature key type %s", signature.KeyType)
+		}
+		signatures = append(signatures, privilegedhelper.Signature{KeyType: keyType, KeyID: signature.KeyId, Signature: signature.Signature})
+	}
+	request := privilegedhelper.ExecuteRequest{Version: privilegedhelper.ProtocolVersion, Envelope: privilegedhelper.SignedEnvelope{
+		Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
+	}}
+	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("privileged rshell helper: %w", err)
+	}
+	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
 }
 
 func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string) {

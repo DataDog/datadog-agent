@@ -187,6 +187,11 @@ build do
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
+
+    if linux_target?
+      command "dda inv -- -e rshell.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      copy 'bin/rshell/rshell', "#{install_dir}/embedded/bin"
+    end
   end
 
   # System-probe

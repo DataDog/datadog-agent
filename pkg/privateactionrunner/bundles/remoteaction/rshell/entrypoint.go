@@ -23,6 +23,8 @@ func NewRshellBundle(cfg *config.Config) types.Bundle {
 	commandHandlerConfig := RunCommandHandlerConfig{
 		OperatorAllowedPaths:    cfg.RShellAllowedPaths,
 		OperatorAllowedCommands: cfg.RShellAllowedCommands,
+		PrivilegedEnabled:       cfg.RShellPrivilegedEnabled,
+		PrivilegedSocket:        cfg.RShellPrivilegedSocket,
 	}
 	return &RshellBundle{
 		actions: map[string]types.Action{

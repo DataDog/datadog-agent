@@ -31,13 +31,16 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
-	RShellCommandNamespacePrefix       = "rshell:"
-	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
-	RShellPathAllowAll                 = "/"
-	RShellPathAllowMapContainerizedKey = "containerized"
-	RShellPathAllowMapDefaultKey       = "default"
+	PARRestrictedShellAllowedPaths      = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands   = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellPrivilegedEnabled = "private_action_runner.restricted_shell.privileged.enabled"
+	PARRestrictedShellPrivilegedSocket  = "private_action_runner.restricted_shell.privileged.socket"
+	RShellCommandNamespacePrefix        = "rshell:"
+	RShellCommandAllowAllWildcard       = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                  = "/"
+	RShellPathAllowMapContainerizedKey  = "containerized"
+	RShellPathAllowMapDefaultKey        = "default"
+	RShellPrivilegedSocketDefault       = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

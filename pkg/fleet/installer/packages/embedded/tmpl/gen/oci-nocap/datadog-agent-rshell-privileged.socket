@@ -1,0 +1,18 @@
+[Unit]
+Description=Datadog rshell privileged helper socket
+After=datadog-agent.service datadog-agent-action.service
+BindsTo=datadog-agent.service datadog-agent-action.service
+Conflicts=datadog-agent-rshell-privileged-exp.socket
+ConditionPathExists=/etc/datadog-agent/rshell-privileged-helper.json
+
+[Socket]
+ListenStream=/run/datadog/rshell-privileged.sock
+Service=datadog-agent-rshell-privileged.service
+SocketUser=dd-agent
+SocketGroup=dd-agent
+SocketMode=0600
+DirectoryMode=0750
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

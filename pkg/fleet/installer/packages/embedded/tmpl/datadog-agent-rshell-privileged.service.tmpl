@@ -1,0 +1,28 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog rshell privileged helper
+After=datadog-agent.service datadog-agent-action.service
+BindsTo=datadog-agent.service datadog-agent-action.service
+Conflicts=datadog-agent-rshell-privileged-exp.service
+ConditionPathExists={{.EtcDir}}/rshell-privileged-helper.json
+{{- else}}
+Description=Datadog rshell privileged helper experiment
+After=datadog-agent-exp.service datadog-agent-action-exp.service
+BindsTo=datadog-agent-exp.service datadog-agent-action-exp.service
+Conflicts=datadog-agent-rshell-privileged.service
+ConditionPathExists={{.EtcDir}}/rshell-privileged-helper.json
+{{- end}}
+
+[Service]
+Type=simple
+Group=dd-agent
+UMask=0077
+LoadCredential=rshell-verification.json:{{.EtcDir}}/rshell-privileged-helper.json
+ExecStart={{.InstallDir}}/embedded/bin/rshell privileged-helper --credential=%d/rshell-verification.json --idle-timeout=30s
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+RestrictRealtime=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

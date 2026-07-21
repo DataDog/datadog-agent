@@ -1,0 +1,31 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog rshell privileged helper socket
+After=datadog-agent.service datadog-agent-action.service
+BindsTo=datadog-agent.service datadog-agent-action.service
+Conflicts=datadog-agent-rshell-privileged-exp.socket
+ConditionPathExists={{.EtcDir}}/rshell-privileged-helper.json
+{{- else}}
+Description=Datadog rshell privileged helper experiment socket
+After=datadog-agent-exp.service datadog-agent-action-exp.service
+BindsTo=datadog-agent-exp.service datadog-agent-action-exp.service
+Conflicts=datadog-agent-rshell-privileged.socket
+ConditionPathExists={{.EtcDir}}/rshell-privileged-helper.json
+{{- end}}
+
+[Socket]
+{{- if .Stable}}
+ListenStream=/run/datadog/rshell-privileged.sock
+Service=datadog-agent-rshell-privileged.service
+{{- else}}
+ListenStream=/run/datadog/rshell-privileged-exp.sock
+Service=datadog-agent-rshell-privileged-exp.service
+{{- end}}
+SocketUser=dd-agent
+SocketGroup=dd-agent
+SocketMode=0600
+DirectoryMode=0750
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

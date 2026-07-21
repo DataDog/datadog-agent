@@ -487,6 +487,12 @@ prebuilt_file(
 )
 
 prebuilt_file(
+    name = "rshell_binary",
+    target_label = "@@//:bin/rshell/rshell",
+    target_name = "rshell",
+)
+
+prebuilt_file(
     name = "process_agent_binary",
     target_label = "@@//:bin/process-agent/process-agent",
     target_name = "process_agent",

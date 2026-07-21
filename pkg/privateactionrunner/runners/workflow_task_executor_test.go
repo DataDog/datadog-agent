@@ -50,6 +50,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	dequeuedTask := newWorkflowTask("wrapper-task", "wrapper-bundle", "wrapper-action", "job-id")
 	dequeuedTask.Data.Attributes.TraceId = 123
 	dequeuedTask.Data.Attributes.SpanId = 456
+	envelope := &privateactionspb.RemoteConfigSignatureEnvelope{Data: []byte("signed")}
+	dequeuedTask.Data.Attributes.SignedEnvelope = envelope
 
 	connectionInfo := &privateactionspb.ConnectionInfo{RunnerId: "runner-id"}
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
@@ -79,6 +81,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), got.Task.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), got.Task.Data.Attributes.SpanId)
+	assert.Same(t, envelope, got.Task.Data.Attributes.SignedEnvelope)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails(t *testing.T) {

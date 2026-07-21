@@ -138,6 +138,18 @@ properties:
         - /
         items:
           type: string
+      privileged:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          socket:
+            node_type: setting
+            type: string
+            default: /run/datadog/rshell-privileged.sock
   skip_connection_creation:
     node_type: setting
     type: boolean
