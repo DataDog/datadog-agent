@@ -4,7 +4,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use dd_sds::{RootRuleConfig, RuleConfig, RuleMatch, Scanner as SdsScanner, ScannerBuilder};
+use dd_sds::{
+    Path, PathSegment, RootRuleConfig, RuleConfig, RuleMatch, Scanner as SdsScanner, ScannerBuilder,
+};
 use serde_json::Value;
 
 use crate::payload::Match;
@@ -54,19 +56,20 @@ impl Scanner {
 /// Groups hits into `(column, rule)` pairs and counts matched rows. Sorted for
 /// deterministic output.
 fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Vec<Match> {
-    let mut rows: HashMap<(String, String), HashSet<String>> = HashMap::new();
+    let mut rows: HashMap<(&str, usize), HashSet<&Path>> = HashMap::new();
+    // Bucket each hit by (column, rule), collecting its distinct row paths.
     for hit in hits {
-        let path = hit.path.to_string();
-        let column = column_name_from_path(&path);
-        let rule_id = rule_ids.get(hit.rule_index).cloned().unwrap_or_default();
-        rows.entry((column, rule_id)).or_default().insert(path);
+        rows.entry((column_name_from_path(&hit.path), hit.rule_index))
+            .or_default()
+            .insert(&hit.path);
     }
 
+    // Convert to matches.
     let mut matches: Vec<Match> = rows
         .into_iter()
-        .map(|((column, rule_id), paths)| Match {
-            rule_id,
-            column_name: column,
+        .map(|((column, rule_index), paths)| Match {
+            rule_id: rule_ids.get(rule_index).cloned().unwrap_or_default(),
+            column_name: column.to_string(),
             count_matched_rows: paths.len() as i64,
         })
         .collect();
@@ -79,10 +82,12 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Vec<Match> {
     matches
 }
 
-/// `foo[0]` -> `foo`.
-fn column_name_from_path(path: &str) -> String {
-    match path.find('[') {
-        Some(i) => path[..i].to_string(),
-        None => path.to_string(),
+/// Column name = the path's leading field segment.
+/// - `[Field("email"), Index(3)]` -> `"email"`
+/// - `[Field("foo[bar]"), Index(0)]` -> `"foo[bar]"`
+fn column_name_from_path<'p>(path: &'p Path<'_>) -> &'p str {
+    match path.segments.first() {
+        Some(PathSegment::Field(field)) => field.as_ref(),
+        _ => "",
     }
 }

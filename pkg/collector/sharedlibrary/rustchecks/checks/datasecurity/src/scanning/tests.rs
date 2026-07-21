@@ -270,3 +270,45 @@ fn no_matches_produce_empty() {
     let data = json!({ "name": ["alice", "bob"] });
     assert_eq!(scan_json(&scanner, &data), json!([]));
 }
+
+#[test]
+fn column_name_with_brackets_is_preserved() {
+    let scanner = scanner(
+        r#"
+- id: email
+  name: Email
+  pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+"#,
+    );
+
+    // A quoted DB column can itself contain brackets, so the scanner path is
+    // `foo[bar][0]`; only the trailing row subscript should be stripped.
+    let data = json!({ "foo[bar]": ["alice@corp.io"] });
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "email", "column_name": "foo[bar]", "count_matched_rows": 1 }
+        ])
+    );
+}
+
+#[test]
+fn column_name_with_dots_is_preserved() {
+    let scanner = scanner(
+        r#"
+- id: email
+  name: Email
+  pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+"#,
+    );
+
+    // A quoted DB column can contain dots. The column is the leading path field,
+    // so it survives verbatim even though `.` is the Path segment separator.
+    let data = json!({ "first.last": ["alice@corp.io", "bob@corp.io"] });
+    assert_eq!(
+        scan_json(&scanner, &data),
+        json!([
+            { "rule_id": "email", "column_name": "first.last", "count_matched_rows": 2 }
+        ])
+    );
+}
