@@ -10,6 +10,7 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Bump the embedded Python from 3.13.12 to 3.13.14, matching the version used by the Linux omnibus/bazel build
 - Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
 
 
