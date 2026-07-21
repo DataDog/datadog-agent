@@ -70,6 +70,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
+	// The empty map below is only the typed default registered with the config
+	// system; defaults do not make IsConfigured return true. The PAR config
+	// adapter converts an unconfigured value to nil, which means no operator-side
+	// restriction and lets the backend grants pass through. An explicitly
+	// configured empty map remains non-nil and denies every system service.
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 
