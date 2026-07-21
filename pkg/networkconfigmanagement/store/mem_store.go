@@ -72,6 +72,9 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 	defer m.lock.Unlock()
 
 	if existingID := m.findLatestMatch(deviceID, configType, rawHash); existingID != "" {
+		existing := m.metadata[existingID]
+		existing.LastAccessedAt = now
+		m.metadata[existingID] = existing
 		return existingID, rawHash, false, nil
 	}
 
@@ -116,10 +119,11 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.Config
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
 }
 
-// GetConfig retrieves all data for a config by UUID.
+// GetConfig retrieves all data for a config by UUID, and refreshes its LastAccessedAt
+// so actively-retrieved configs aren't treated as stale by LRU eviction.
 func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
@@ -127,6 +131,8 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 	}
 
 	meta := m.metadata[configUUID]
+	meta.LastAccessedAt = m.clock.Now().Unix()
+	m.metadata[configUUID] = meta
 
 	return rawConfig, &meta, nil
 }
