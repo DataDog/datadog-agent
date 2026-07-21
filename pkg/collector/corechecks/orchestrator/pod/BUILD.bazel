@@ -65,7 +65,6 @@ dd_agent_go_test(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
-        "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_fx//:fx",

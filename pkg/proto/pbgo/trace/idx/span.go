@@ -1010,29 +1010,33 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		return
 	}
 	if cap(c.Spans) >= int(numSpans) {
-		c.Spans = c.Spans[:numSpans]
+		c.Spans = c.Spans[:0]
 	} else {
-		c.Spans = make([]*InternalSpan, numSpans)
+		c.Spans = make([]*InternalSpan, 0, numSpans)
 	}
 	convertedFields := NewSpanConvertedFields()
 	var rootSampling RootSamplingMergeState
-	for i := range c.Spans {
+	for i := 0; i < int(numSpans); i++ {
+		// Drop nil span entries rather than storing them: every downstream V1
+		// path (normalizeTraceChunkV1, GetRootV1, ProcessV1) dereferences each
+		// span and would panic on a nil. The nil element is still read to
+		// advance the buffer.
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
 			if err != nil {
 				return
 			}
-			c.Spans[i] = nil
-		} else {
-			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
-			c.Spans[i].SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
-			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
-			if err != nil {
-				err = msgp.WrapError(err, i)
-				return
-			}
-			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, c.Spans[i].ParentID())
+			continue
 		}
+		span := NewInternalSpan(c.Strings, &Span{})
+		span.SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
+		bts, err = span.UnmarshalMsgConverted(bts, convertedFields)
+		if err != nil {
+			err = msgp.WrapError(err, i)
+			return
+		}
+		rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, span.ParentID())
+		c.Spans = append(c.Spans, span)
 	}
 	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
@@ -1307,27 +1311,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Links) >= int(numSpanLinks) {
-				s.span.Links = (s.span.Links)[:numSpanLinks]
+				s.span.Links = (s.span.Links)[:0]
 			} else {
-				s.span.Links = make([]*SpanLink, numSpanLinks)
+				s.span.Links = make([]*SpanLink, 0, numSpanLinks)
 			}
-			for i := range s.span.Links {
+			for i := 0; i < int(numSpanLinks); i++ {
+				// Drop nil link entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each link and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Links[i] = nil
-				} else {
-					if s.span.Links[i] == nil {
-						s.span.Links[i] = new(SpanLink)
-					}
-					bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanLinks", i)
-						return
-					}
+					continue
 				}
+				link := new(SpanLink)
+				bts, err = link.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanLinks", i)
+					return
+				}
+				s.span.Links = append(s.span.Links, link)
 			}
 		case "span_events":
 			var numEvents uint32
@@ -1337,27 +1343,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Events) >= int(numEvents) {
-				s.span.Events = (s.span.Events)[:numEvents]
+				s.span.Events = (s.span.Events)[:0]
 			} else {
-				s.span.Events = make([]*SpanEvent, numEvents)
+				s.span.Events = make([]*SpanEvent, 0, numEvents)
 			}
-			for i := range s.span.Events {
+			for i := 0; i < int(numEvents); i++ {
+				// Drop nil event entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each event and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Events[i] = nil
-				} else {
-					if s.span.Events[i] == nil {
-						s.span.Events[i] = new(SpanEvent)
-					}
-					bts, err = s.span.Events[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanEvents", i)
-						return
-					}
+					continue
 				}
+				event := new(SpanEvent)
+				bts, err = event.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanEvents", i)
+					return
+				}
+				s.span.Events = append(s.span.Events, event)
 			}
 		default:
 			bts, err = msgp.Skip(bts)

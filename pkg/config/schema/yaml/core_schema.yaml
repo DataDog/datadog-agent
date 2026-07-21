@@ -9384,10 +9384,6 @@ properties:
       type: string
     tags:
     - full-agent-only:true
-    comment: |-
-      Delegated authentication (global)
-      Cloud provider and region are auto-detected if not specified
-      Enabled automatically when org_uuid is specified
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean

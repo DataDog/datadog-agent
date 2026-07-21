@@ -12,6 +12,7 @@ import (
 
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func fixupContainerSyspath(config pkgconfigmodel.Config) {
@@ -89,11 +90,19 @@ func fixupLogsAgent(config pkgconfigmodel.Config) {
 	}
 }
 
+func fixupLinuxSockets(config pkgconfigmodel.Config) {
+	if runtime.GOOS == "linux" || runtime.GOOS == "aix" {
+		config.Set("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket(), pkgconfigmodel.SourceDefault)
+		config.Set("apm_config.receiver_socket", defaultpaths.GetDefaultReceiverSocket(), pkgconfigmodel.SourceDefault)
+	}
+}
+
 // always called, for both full-agent and serverless-init, after declaring settings
 func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 	fixupContainerSyspath(config)
 	fixupLogsAgent(config)
+	fixupLinuxSockets(config)
 	pkgconfigmodel.AddOverrideFunc(applyKubernetesContainerDefaults)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
