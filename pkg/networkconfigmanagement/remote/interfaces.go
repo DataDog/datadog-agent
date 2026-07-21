@@ -28,15 +28,15 @@ type Connector interface {
 type PushResult struct {
 	// CopyConfig holds the CommandResults of copying the configuration to the
 	// device (generally via SCP)
-	CopyConfig ResultList
+	CopyConfig ResultList `json:"copy_config"`
 	// SetRunning holds the results of attempting to set the device's running
 	// config to the copied configuration.
-	SetRunning ResultList
+	SetRunning ResultList `json:"set_running"`
 	// SetStartup holds the results of attempting to set the device's startup
 	// config to the copied configuration. In most profiles this is done by
 	// copying the running config to the startup config, so this will be empty
 	// if SetRunning contains errors
-	SetStartup ResultList
+	SetStartup ResultList `json:"set_startup"`
 }
 
 // Connection is an active connection that can fetch data from a device
