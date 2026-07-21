@@ -761,6 +761,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
+	config.BindEnvAndSetDefault("container_lifecycle.extended_set", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	config.BindEnvAndSetDefault("container_image.enabled", true)

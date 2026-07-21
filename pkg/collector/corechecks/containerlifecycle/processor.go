@@ -30,14 +30,20 @@ type processor struct {
 	tasksQueue      *queue
 }
 
-func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, extendedSet bool) *processor {
+	handlers := []Handler{
+		NewContainerTerminationHandler(store),
+		&PodTerminationHandler{},
+		&TaskTerminationHandler{},
+	}
+
+	if extendedSet {
+		handlers = append(handlers, NewPodCreationHandler(), NewContainerCreationHandler(store))
+	}
+
 	return &processor{
-		sender: sender,
-		handlers: []Handler{
-			NewContainerTerminationHandler(store),
-			&PodTerminationHandler{},
-			&TaskTerminationHandler{},
-		},
+		sender:          sender,
+		handlers:        handlers,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
 		tasksQueue:      newQueue(chunkSize),
