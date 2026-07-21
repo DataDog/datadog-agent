@@ -6,6 +6,7 @@ load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
+    "@platforms//os:macos": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
 
@@ -16,6 +17,8 @@ cc_library(
     name = "cpp_stdlib",
     linkopts = select({
         "@platforms//os:windows": [],
+        # macOS has no libstdc++; the toolchain already links libc++ by default.
+        "@platforms//os:macos": [],
         "//conditions:default": ["-lstdc++"],
     }),
 )
@@ -72,6 +75,7 @@ rust_binary(
         ":par-control-lib",
         "@crates//:anyhow",
         "@crates//:clap",
+        "@crates//:log",
         "@crates//:tokio",
     ],
 )
