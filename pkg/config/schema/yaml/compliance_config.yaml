@@ -16,7 +16,6 @@ properties:
     description: Set to true to enable Cloud Security Posture Management (CSPM).
     tags:
     - full-agent-only:true
-    comment: Datadog security agent (compliance)
   dir:
     node_type: setting
     type: string
