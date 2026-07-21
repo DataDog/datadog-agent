@@ -113,8 +113,6 @@ github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.156.0 h1:ZEw9DbPpK7r6iAL65Dj3IUCWdXF4FM8ZbGBPJa+f9GE=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.156.0/go.mod h1:pue+2b5alMlZ0IT1cRyCU8K6JljqtnrIyQH5EU/6eU8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.156.0 h1:TaVowoyPtdhUwoQ1Q8BfKNfLR/o/uzQbqw1yXDDh+qU=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.156.0/go.mod h1:ctcl2y2QGid6re21XtVXie2vfndDeFBawU7xNLHj/nA=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.156.0 h1:K+3RiL9FC4/4xmZwgCY1Wg5fr4Wrf9OnYDf4F2tR5qY=

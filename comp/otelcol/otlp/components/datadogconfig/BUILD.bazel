@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "datadogconfig",
+    srcs = [
+        "config.go",
+        "config_warnings.go",
+        "host.go",
+        "logs.go",
+        "metrics.go",
+        "orchestrator_explorer.go",
+        "traces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/metrics",
+        "//pkg/util/hostname/validate",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_config_confignet//:confignet",
+        "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
+        "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
+        "@io_opentelemetry_go_collector_config_configretry//:configretry",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datadogconfig_test",
+    srcs = [
+        "config_test.go",
+        "config_warnings_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":datadogconfig"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_config_configauth//:configauth",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_config_confignet//:confignet",
+        "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
+        "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
+        "@io_opentelemetry_go_collector_config_configretry//:configretry",
+        "@io_opentelemetry_go_collector_config_configtls//:configtls",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap//confmaptest",
+        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+        "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
+    ],
+)
