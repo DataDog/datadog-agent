@@ -253,11 +253,20 @@ else
     $PIP uninstall -y maturin 2>/dev/null || true
 
     # Cache the built wheel for subsequent builds.
-    # Keep the original filename (with the full AIX platform tag from this system)
-    # so that pip can match it by tag on cache restore.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
+        # maturin computes its own AIX platform tag (e.g. aix_3_00F9D80F4C00,
+        # apparently hostid-derived) which does not match the tag pip itself
+        # considers installable (e.g. aix_7302_2419_64, oslevel-derived) — even
+        # on the very same machine. Installing a wheel cached under maturin's
+        # tag later fails with "is not a supported wheel on this platform", so
+        # rename to pip's own primary supported tag before caching.
+        PIP_TAG=$("$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -c \
+            "from pip._internal.utils.compatibility_tags import get_supported as g; print(next(iter(g())).platform)" 2>/dev/null)
+        if [ -n "$PIP_TAG" ]; then
+            CACHE_NAME=$(printf '%s' "$CACHE_NAME" | sed -E "s/-aix_[^-]+\\.whl\$/-${PIP_TAG}.whl/")
+        fi
         cp "$BUILT_WHEEL" "$CRYPTO_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $CRYPTO_CACHE_DIR/$CACHE_NAME"
     else
