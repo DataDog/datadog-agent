@@ -54,7 +54,7 @@ func convertMemoryStats(memStats *container.MemoryStats) *provider.ContainerMemS
 	}
 
 	inactiveFile := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
-	if inactiveFile != nil {
+	if inactiveFile != nil && *inactiveFile < *containerMemStats.UsageTotal {
 		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactiveFile)
 	}
 

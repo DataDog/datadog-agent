@@ -1,0 +1,89 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
+copy_file(
+    name = "gazelle_extension_src",
+    src = "_gazelle_extension.go",
+    out = "gazelle_extension.go",
+)
+
+copy_file(
+    name = "dd_linux_bpf_src",
+    src = "_dd_linux_bpf.go",
+    out = "dd_linux_bpf.go",
+)
+
+py_binary(
+    name = "gen_tags_go",
+    srcs = ["gen_tags_go.py"],
+    visibility = ["//visibility:private"],
+)
+
+# Generate tags.go (the FlavorUnitTestTags map) from tasks/build_tags.bzl, the
+# single source of truth, so the Go extension and the flavor_gotags() macro
+# share one tag definition.
+run_binary(
+    name = "gen_tags_go_src",
+    srcs = ["//tasks:build_tags.bzl"],
+    outs = ["tags.go"],
+    args = [
+        "$(location //tasks:build_tags.bzl)",
+        "$(location tags.go)",
+    ],
+    tool = ":gen_tags_go",
+)
+
+copy_file(
+    name = "gazelle_extension_test_src",
+    src = "_gazelle_extension_test.go",
+    out = "gazelle_extension_test.go",
+    visibility = ["//visibility:private"],
+)
+
+copy_file(
+    name = "dd_linux_bpf_test_src",
+    src = "_dd_linux_bpf_test.go",
+    out = "dd_linux_bpf_test.go",
+    visibility = ["//visibility:private"],
+)
+
+# prevent `bazel run //:gazelle` from removing @gazelle deps (reentrancy guard)
+# gazelle:ignore
+go_library(
+    name = "gazelle_extension",
+    srcs = [
+        "tags.go",
+        ":dd_linux_bpf_src",
+        ":gazelle_extension_src",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/go",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@gazelle//config",
+        "@gazelle//label",
+        "@gazelle//language",
+        "@gazelle//language/go",
+        "@gazelle//repo",
+        "@gazelle//resolve",
+        "@gazelle//rule",
+    ],
+)
+
+go_test(
+    name = "gazelle_extension_test",
+    srcs = [
+        ":dd_linux_bpf_test_src",
+        ":gazelle_extension_test_src",
+    ],
+    embed = [":gazelle_extension"],
+    deps = [
+        "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build",
+        "@gazelle//config",
+        "@gazelle//language",
+        "@gazelle//merger",
+        "@gazelle//rule",
+    ],
+)

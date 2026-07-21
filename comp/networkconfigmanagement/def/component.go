@@ -9,14 +9,30 @@ package networkconfigmanagement
 // team: ndm-integrations
 
 import (
+	"context"
+	"net/http"
 	"time"
 
-	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 )
 
 // Component is the component type.
 type Component interface {
-	GetConfigStore() ncmstore.ConfigStore
-	MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
-	MarkInventoryReportSent(now time.Time)
+	// RegisterDevice tells the component how to connect to a device.
+	RegisterDevice(config *config.DeviceInstance) error
+	// ReportConfig runs the NCM check - it fetches the running and startup
+	// config and communicates them to the DD backend, along with an inventory
+	// report if necessary.
+	ReportConfig(ctx context.Context, deviceID string, sender sender.Sender) error
+	// RollbackConfig rolls back a device to a previous configuration that's
+	// saved locally on this agent.
+	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error
+	// SetMaxReportInterval sets a maximum time to wait between sending
+	// inventory reports.
+	SetMaxReportInterval(interval time.Duration)
+	// GetConfigEndpointHandler returns an HTTP handler for getting configuration
+	GetConfigEndpointHandler() http.HandlerFunc
+	// RollbackEndpointHandler returns an HTTP handler for getting configuration
+	RollbackEndpointHandler() http.HandlerFunc
 }

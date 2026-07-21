@@ -28,13 +28,13 @@ var (
 	processRuntimeColor      = "#edf3ff"
 	processSnapshotColor     = "white"
 	processShape             = "record"
-	//nolint:deadcode,unused
+	//nolint:unused
 	processClusterColor = "#c7ddff"
 
 	processCategoryColor = "#c7c7c7"
-	//nolint:deadcode,unused
+	//nolint:unused
 	processCategoryProfileDriftColor = "#e0e0e0"
-	//nolint:deadcode,unused
+	//nolint:unused
 	processCategoryRuntimeColor  = "#f5f5f5"
 	processCategorySnapshotColor = "white"
 	processCategoryShape         = "record"

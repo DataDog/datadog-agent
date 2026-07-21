@@ -46,6 +46,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -100,7 +101,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
-				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
+				LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultHostProfilerLogFile()),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
 			fx.Invoke(func(l log.Component) {

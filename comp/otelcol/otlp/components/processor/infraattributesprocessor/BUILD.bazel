@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "infraattributesprocessor",
@@ -29,6 +30,8 @@ go_library(
         "//comp/core/telemetry/fx",
         "//comp/core/telemetry/fx-noop",
         "//pkg/config/setup",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@io_opentelemetry_go_collector_component//:component",
@@ -52,7 +55,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "infraattributesprocessor_test",
     srcs = [
         "config_test.go",
@@ -60,14 +63,15 @@ go_test(
         "logs_test.go",
         "metrics_test.go",
         "profiles_test.go",
+        "promotion_test.go",
         "traces_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":infraattributesprocessor"],
-    gotags = ["test"],
     deps = [
         "//comp/core/tagger/types",
         "//comp/otelcol/otlp/testutil",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component//:component",

@@ -273,6 +273,11 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
         : 0;
 }
 
+char *discover_config(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *service_json)
+{
+    return AS_TYPE(RtLoader, rtloader)->discoverConfig(AS_TYPE(RtLoaderPyObject, py_class), service_json);
+}
+
 char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
@@ -346,7 +351,7 @@ void signalHandler(int sig, siginfo_t *info, void *context)
         std::cerr << "Error getting backtrace symbols" << std::endl;
     } else {
         std::cerr << "C-LAND STACKTRACE: " << std::endl;
-        for (int i = 0; i < nptrs; i++) {
+        for (size_t i = 0; i < nptrs; i++) {
             std::cerr << symbols[i] << std::endl;
         }
 
@@ -557,11 +562,6 @@ char *get_integration_list(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
 }
 
-char *get_interpreter_memory_usage(rtloader_t *rtloader)
-{
-    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
-}
-
 void set_write_persistent_cache_cb(rtloader_t *rtloader, cb_write_persistent_cache_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setWritePersistentCacheCb(cb);
@@ -595,6 +595,16 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
 void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
+void set_report_issue_cb(rtloader_t *rtloader, cb_report_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReportIssueCb(cb);
+}
+
+void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
 }
 
 /*

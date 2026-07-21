@@ -56,8 +56,8 @@ func newConverter(set confmap.ConverterSettings) confmap.Converter {
 	}
 }
 
-// NewConverterForAgent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConverterForAgent(reqs Requires) (converter.Component, error) {
+// NewComponent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+func NewComponent(reqs Requires) (converter.Component, error) {
 	return &ddConverter{
 		coreConfig: reqs.Conf,
 		hostname:   reqs.Hostname,

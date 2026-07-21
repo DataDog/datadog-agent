@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/config",
+        "//comp/core/configfilesdiscovery/def",
+        "//comp/core/configfilesdiscovery/impl",
+        "//comp/core/configfilesdiscovery/impl/collectors",
+        "//comp/core/hostname",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

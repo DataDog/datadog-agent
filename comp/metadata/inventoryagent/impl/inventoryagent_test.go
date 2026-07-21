@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -379,12 +379,12 @@ func TestFetchSecurityAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for security-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -420,12 +420,12 @@ func TestFetchProcessAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for process-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -467,12 +467,12 @@ func TestFetchTraceAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for trace-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -510,12 +510,12 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsConfigured("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for system-probe fetcher",
 		)
 		assert.False(
 			t,
-			config.IsSet("hostname"),
+			config.IsConfigured("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 

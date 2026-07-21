@@ -19,8 +19,6 @@ properties:
     - DD_APM_ENABLED
     visibility: public
     description: Set to true to enable the APM Agent.
-    tags:
-    - template_section:TraceAgent
   env:
     node_type: setting
     type: string
@@ -33,8 +31,6 @@ properties:
       If not set the value will be inherited, in order, from the top level
       "env" config option if set and then from the 'env:' tag if present in the
       'tags' top level config option.
-    tags:
-    - template_section:TraceAgent
   receiver_port:
     node_type: setting
     type: integer
@@ -46,8 +42,6 @@ properties:
     description: |-
       The port that the trace receiver should listen on.
       Set to 0 to disable the HTTP receiver.
-    tags:
-    - template_section:TraceAgent
   receiver_socket:
     node_type: setting
     type: string
@@ -60,10 +54,9 @@ properties:
 
       Please note that UDS receiver is not available in Windows.
       Enabling this setting may result in unexpected behavior.
-    tags:
-    - template_section:TraceAgent
     platform_default:
       linux: /var/run/datadog/apm.socket
+      aix: /var/run/datadog/apm.socket
       other: ''
   apm_non_local_traffic:
     node_type: setting
@@ -75,8 +68,6 @@ properties:
     description: |-
       Set to true so the Trace Agent listens for non local traffic,
       i.e if Traces are being sent to this Agent from another host/container
-    tags:
-    - template_section:TraceAgent
   apm_dd_url:
     node_type: setting
     type: string
@@ -88,8 +79,6 @@ properties:
       Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
       therefore the proxy must be able to handle TCP connections.
     example: <ENDPOINT>:<PORT>
-    tags:
-    - template_section:TraceAgent
   max_traces_per_second:
     node_type: setting
     type: number
@@ -108,7 +97,6 @@ properties:
       value sufficiently high for your traffic pattern.
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
     comment: deprecated
   target_traces_per_second:
     node_type: setting
@@ -125,7 +113,6 @@ properties:
       value sufficiently high for your traffic pattern.
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
   errors_per_second:
     node_type: setting
     type: number
@@ -139,7 +126,6 @@ properties:
       Set to 0 to disable the errors sampler.
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
   max_events_per_second:
     node_type: setting
     type: number
@@ -155,7 +141,6 @@ properties:
       Maximum number of APM events per second to sample.
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
   max_memory:
     node_type: setting
     type: number
@@ -171,7 +156,6 @@ properties:
     example: '500000000.0'
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
   max_cpu_percent:
     node_type: setting
     type: number
@@ -185,7 +169,6 @@ properties:
       Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
     tags:
     - golang_type:float64
-    - template_section:TraceAgent
   obfuscation:
     node_type: section
     type: object
@@ -213,8 +196,6 @@ properties:
             - DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED
             visibility: public
             description: Enables obfuscation rules for credit cards. Enabled by default.
-            tags:
-            - template_section:TraceAgent
           luhn:
             node_type: setting
             type: boolean
@@ -224,8 +205,6 @@ properties:
             visibility: public
             description: Enables a Luhn checksum check in order to eliminate false
               negatives. Disabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -239,8 +218,6 @@ properties:
             example: |2-
 
                 - client_id
-            tags:
-            - template_section:TraceAgent
             env_parser: json_list_or_space_separated
       elasticsearch:
         node_type: section
@@ -259,8 +236,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "elasticsearch".
               Enabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -274,8 +249,6 @@ properties:
             example: |2-
 
                 - client_id
-            tags:
-            - template_section:TraceAgent
           obfuscate_sql_values:
             node_type: setting
             type: array
@@ -290,8 +263,6 @@ properties:
             example: |2-
 
                 - val1
-            tags:
-            - template_section:TraceAgent
       opensearch:
         node_type: section
         type: object
@@ -309,8 +280,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "opensearch".
               Enabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -324,8 +293,6 @@ properties:
             example: |2-
 
                 - client_id
-            tags:
-            - template_section:TraceAgent
           obfuscate_sql_values:
             node_type: setting
             type: array
@@ -340,8 +307,6 @@ properties:
             example: |2-
 
                 - val1
-            tags:
-            - template_section:TraceAgent
       http:
         node_type: section
         type: object
@@ -358,8 +323,6 @@ properties:
             - DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING
             visibility: public
             description: Enables obfuscation of query strings in URLs
-            tags:
-            - template_section:TraceAgent
           remove_paths_with_digits:
             node_type: setting
             type: boolean
@@ -369,8 +332,6 @@ properties:
             visibility: public
             description: If enabled, path segments in URLs containing digits are replaced
               by "?"
-            tags:
-            - template_section:TraceAgent
       memcached:
         node_type: section
         type: object
@@ -388,8 +349,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "memcached".
               Enabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_command:
             node_type: setting
             type: boolean
@@ -401,8 +360,6 @@ properties:
               If enabled, the full command for the query will be kept, including any lookup
               keys that could be present. The value for storage commands will still be
               redacted if Memcached obfuscation is enabled.
-            tags:
-            - template_section:TraceAgent
       mongodb:
         node_type: section
         type: object
@@ -420,8 +377,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "mongodb". Enabled
               by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -435,8 +390,6 @@ properties:
             example: |2-
 
                 - document_id
-            tags:
-            - template_section:TraceAgent
           obfuscate_sql_values:
             node_type: setting
             type: array
@@ -451,8 +404,6 @@ properties:
             example: |2-
 
                 - val1
-            tags:
-            - template_section:TraceAgent
       redis:
         node_type: section
         type: object
@@ -470,8 +421,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "redis". Enabled
               by default.
-            tags:
-            - template_section:TraceAgent
           remove_all_args:
             node_type: setting
             type: boolean
@@ -481,8 +430,6 @@ properties:
             visibility: public
             description: When true, replaces all arguments of a redis command with
               a single "?". Disabled by default.
-            tags:
-            - template_section:TraceAgent
       valkey:
         node_type: section
         type: object
@@ -500,8 +447,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for spans of type "valkey". Enabled
               by default.
-            tags:
-            - template_section:TraceAgent
           remove_all_args:
             node_type: setting
             type: boolean
@@ -511,8 +456,6 @@ properties:
             visibility: public
             description: When true, replaces all arguments of a valkey command with
               a single "?". Disabled by default.
-            tags:
-            - template_section:TraceAgent
       remove_stack_traces:
         node_type: setting
         type: boolean
@@ -522,8 +465,6 @@ properties:
         visibility: public
         description: Enables removing stack traces to replace them with "?". Disabled
           by default.
-        tags:
-        - template_section:TraceAgent
       sql_exec_plan:
         node_type: section
         type: object
@@ -542,8 +483,6 @@ properties:
             visibility: public
             description: Enables obfuscation rules for JSON query execution plans.
               Disabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -557,8 +496,6 @@ properties:
             example: |2-
 
                 - id1
-            tags:
-            - template_section:TraceAgent
           obfuscate_sql_values:
             node_type: setting
             type: array
@@ -573,8 +510,6 @@ properties:
             example: |2-
 
                 - val1
-            tags:
-            - template_section:TraceAgent
       sql_exec_plan_normalize:
         node_type: section
         type: object
@@ -595,8 +530,6 @@ properties:
             description: |-
               Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
               Produces a normalized execution plan. Disabled by default.
-            tags:
-            - template_section:TraceAgent
           keep_values:
             node_type: setting
             type: array
@@ -610,8 +543,6 @@ properties:
             example: |2-
 
                 - id1
-            tags:
-            - template_section:TraceAgent
           obfuscate_sql_values:
             node_type: setting
             type: array
@@ -626,8 +557,6 @@ properties:
             example: |2-
 
                 - val1
-            tags:
-            - template_section:TraceAgent
       cache:
         node_type: section
         type: object
@@ -646,8 +575,6 @@ properties:
             description: |-
               Enables caching obfuscated statements. Currently supported for SQL and MongoDB queries.
               Enabled by default.
-            tags:
-            - template_section:TraceAgent
           max_size:
             node_type: setting
             type: integer
@@ -658,8 +585,6 @@ properties:
             description: |-
               The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
               Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
-            tags:
-            - template_section:TraceAgent
   sql_obfuscation_mode:
     node_type: setting
     type: string
@@ -673,8 +598,6 @@ properties:
       Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
       Set to "normalize_only" to normalize the query with the new `sqllexer` obfuscator.
       If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
-    tags:
-    - template_section:TraceAgent
   filter_tags:
     node_type: section
     type: object
@@ -710,8 +633,6 @@ properties:
         description: A list of key or key/value strings - traces must have those tags
           in order to be sent to Datadog
         example: '[<LIST_OF_KEY_VALUE_TAGS>]'
-        tags:
-        - template_section:TraceAgent
         env_parser: json_list_or_space_separated
       reject:
         node_type: setting
@@ -725,8 +646,6 @@ properties:
         description: A list of key or key/value strings - traces with these tags are
           dropped by the Agent
         example: '[<LIST_OF_KEY_VALUE_TAGS>]'
-        tags:
-        - template_section:TraceAgent
         env_parser: json_list_or_space_separated
   filter_tags_regex:
     node_type: section
@@ -756,8 +675,6 @@ properties:
         description: A list of key or key/value regex pattern strings - traces must
           have those tags in order to be sent to Datadog
         example: '[<LIST_OF_KEY_VALUE_REGEX_TAGS>]    # e.g. ["<key>:<regex>"]'
-        tags:
-        - template_section:TraceAgent
         env_parser: json_list_or_space_separated
       reject:
         node_type: setting
@@ -771,8 +688,6 @@ properties:
         description: A list of key or key/value regex pattern strings - traces with
           these tags are dropped by the Agent
         example: '[<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]'
-        tags:
-        - template_section:TraceAgent
         env_parser: json_list_or_space_separated
   replace_tags:
     node_type: setting
@@ -800,8 +715,6 @@ properties:
         - name: "<TAG_NAME>"
           pattern: "<REGEX_PATTERN>"
           repl: "<PATTERN_TO_INLINE>"
-    tags:
-    - template_section:TraceAgent
   ignore_resources:
     node_type: setting
     type: array
@@ -816,8 +729,6 @@ properties:
       An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
       all entries must be surrounded by double quotes and separated by commas.
     example: '["(GET|POST) /healthcheck"]'
-    tags:
-    - template_section:TraceAgent
     env_parser: csv_comma_separated
   log_file:
     node_type: setting
@@ -828,8 +739,6 @@ properties:
     visibility: public
     description: The full path to the file where APM-agent logs are written.
     example: <APM_LOG_FILE_PATH>
-    tags:
-    - template_section:TraceAgent
   connection_limit:
     node_type: setting
     type: integer
@@ -841,8 +750,6 @@ properties:
     description: |-
       The APM connection limit for the Agent.
       See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
-    tags:
-    - template_section:TraceAgent
   compute_stats_by_span_kind:
     node_type: setting
     type: boolean
@@ -856,8 +763,6 @@ properties:
       NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
       If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
       If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
-    tags:
-    - template_section:TraceAgent
   peer_service_aggregation:
     node_type: setting
     type: boolean
@@ -866,8 +771,6 @@ properties:
     - DD_APM_PEER_SERVICE_AGGREGATION
     visibility: public
     description: DEPRECATED - please use `peer_tags_aggregation` instead.
-    tags:
-    - template_section:TraceAgent
   peer_tags_aggregation:
     node_type: setting
     type: boolean
@@ -885,8 +788,6 @@ properties:
       A high cardinality of peer tags or APM resources can also contribute to higher CPU and memory consumption.
       You can check for the cardinality of these fields by making trace search queries in the Datadog UI.
       The default list of peer tags can be found in pkg/trace/stats/concentrator.go.
-    tags:
-    - template_section:TraceAgent
   peer_tags:
     node_type: setting
     type: array
@@ -900,8 +801,6 @@ properties:
     description: |-
       Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
       and will drop ones that are unapproved.
-    tags:
-    - template_section:TraceAgent
   features:
     node_type: setting
     type: array
@@ -917,8 +816,6 @@ properties:
       a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
     example: '["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2",
       "disable_operation_and_resource_name_logic_v2"]'
-    tags:
-    - template_section:TraceAgent
     env_parser: comma_then_space_separated
   additional_endpoints:
     node_type: setting
@@ -941,8 +838,6 @@ properties:
           - apikey3
         "https://trace.agent.datadoghq.eu":
           - apikey4
-    tags:
-    - template_section:TraceAgent
   debug:
     node_type: section
     type: object
@@ -960,8 +855,6 @@ properties:
         visibility: public
         description: Port for the debug endpoints for the trace Agent. Set it to 0
           to disable the server.
-        tags:
-        - template_section:TraceAgent
   instrumentation:
     node_type: section
     type: object
@@ -978,8 +871,6 @@ properties:
         - DD_APM_INSTRUMENTATION_ENABLED
         visibility: public
         description: Enables Single Step Instrumentation in the cluster (in beta)
-        tags:
-        - template_section:TraceAgent
       enabled_namespaces:
         node_type: setting
         type: array
@@ -997,8 +888,6 @@ properties:
 
             - ns1
             - apps
-        tags:
-        - template_section:TraceAgent
       disabled_namespaces:
         node_type: setting
         type: array
@@ -1016,15 +905,12 @@ properties:
 
             - ns2
             - system-ns
-        tags:
-        - template_section:TraceAgent
       csi_driver_detection_enabled:
         node_type: setting
         type: boolean
         default: false
         env_vars:
         - DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
-        tags: []
         comment: |-
           Temporary feature flag controlling whether the auto-instrumentation
           library injection auto provider switches to the CSI provider when the
@@ -1040,14 +926,12 @@ properties:
         default: auto
         env_vars:
         - DD_APM_INSTRUMENTATION_INJECTION_MODE
-        tags: []
       injector_image_tag:
         node_type: setting
         type: string
         default: '0'
         env_vars:
         - DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG
-        tags: []
         comment: |-
           Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
           We pin to a major version by default.
@@ -1060,7 +944,6 @@ properties:
         env_parser: json
         additionalProperties:
           type: string
-        tags: []
       targets:
         node_type: setting
         type: array
@@ -1068,7 +951,6 @@ properties:
         env_vars:
         - DD_APM_INSTRUMENTATION_TARGETS
         env_parser: json
-        tags: []
   trace_buffer:
     node_type: setting
     type: integer
@@ -1086,8 +968,6 @@ properties:
       Specifies the number of trace payloads to buffer after decoding.
       Traces can be buffered when receiving traces faster than the
       processor can process them.
-    tags:
-    - template_section:TraceAgent
   probabilistic_sampler:
     node_type: section
     type: object
@@ -1106,8 +986,6 @@ properties:
         - DD_APM_PROBABILISTIC_SAMPLER_ENABLED
         visibility: public
         description: Enables or disables the probabilistic sampler
-        tags:
-        - template_section:TraceAgent
       sampling_percentage:
         node_type: setting
         type: number
@@ -1118,7 +996,6 @@ properties:
         description: Samples this percentage (0-100) of traffic
         tags:
         - golang_type:float64
-        - template_section:TraceAgent
       hash_seed:
         node_type: setting
         type: integer
@@ -1129,8 +1006,6 @@ properties:
         description: |-
           hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
                      collectors using the probabilistic sampler to ensure consistent sampling.
-        tags:
-        - template_section:TraceAgent
   error_tracking_standalone:
     node_type: section
     type: object
@@ -1147,8 +1022,6 @@ properties:
         - DD_APM_ERROR_TRACKING_STANDALONE_ENABLED
         visibility: public
         description: Enables or disables Error Tracking Standalone
-        tags:
-        - template_section:TraceAgent
   profiling_receiver_timeout:
     node_type: setting
     type: integer
@@ -1160,8 +1033,6 @@ properties:
       The timeout in seconds for receiving profile upload requests from client applications.
       This timeout applies to the HTTP request timeout for profile uploads to the agent.
       Increase this value if you experience timeouts with large profile uploads.
-    tags:
-    - template_section:TraceAgent
   additional_profile_tags:
     node_type: setting
     type: object
@@ -1186,8 +1057,6 @@ properties:
 
       Example using environment variables:
       DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
-    tags:
-    - template_section:TraceAgent
   analyzed_rate_by_service:
     node_type: setting
     type: object
@@ -1215,14 +1084,12 @@ properties:
     default: 1
     env_vars:
     - DD_APM_CLIENT_STATS_FLUSH_INTERVAL
-    tags: []
   connection_reset_interval:
     node_type: setting
     type: integer
     default: 0
     env_vars:
     - DD_APM_CONNECTION_RESET_INTERVAL
-    tags: []
   dd_agent_bin:
     node_type: setting
     type: string
@@ -1233,7 +1100,6 @@ properties:
     default: false
     env_vars:
     - DD_APM_DEBUG_V1_PAYLOADS
-    tags: []
   debugger_additional_endpoints:
     node_type: setting
     type: object
@@ -1244,21 +1110,18 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   debugger_api_key:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_DEBUGGER_API_KEY
-    tags: []
   debugger_dd_url:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_DEBUGGER_DD_URL
-    tags: []
   debugger_diagnostics_additional_endpoints:
     node_type: setting
     type: object
@@ -1269,49 +1132,42 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   debugger_diagnostics_api_key:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY
-    tags: []
   debugger_diagnostics_dd_url:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL
-    tags: []
   debugger_logs_enabled_override:
     node_type: setting
     type: boolean
     default: false
     env_vars:
     - DD_APM_DEBUGGER_LOGS_ENABLED_OVERRIDE
-    tags: []
   decoder_timeout:
     node_type: setting
     type: integer
     default: 1000
     env_vars:
     - DD_APM_DECODER_TIMEOUT
-    tags: []
   decoders:
     node_type: setting
     type: integer
     default: 0
     env_vars:
     - DD_APM_DECODERS
-    tags: []
   disable_rare_sampler:
     node_type: setting
     type: boolean
     default: false
     env_vars:
     - DD_APM_DISABLE_RARE_SAMPLER
-    tags: []
     comment: Deprecated
   enable_container_tags_buffer:
     node_type: setting
@@ -1319,14 +1175,12 @@ properties:
     default: true
     env_vars:
     - DD_APM_ENABLE_CONTAINER_TAGS_BUFFER
-    tags: []
   enable_rare_sampler:
     node_type: setting
     type: boolean
     default: false
     env_vars:
     - DD_APM_ENABLE_RARE_SAMPLER
-    tags: []
   extra_sample_rate:
     node_type: setting
     type: number
@@ -1339,21 +1193,18 @@ properties:
     default: ''
     env_vars:
     - DD_INSTRUMENTATION_INSTALL_ID
-    tags: []
   install_time:
     node_type: setting
     type: integer
     default: 0
     env_vars:
     - DD_INSTRUMENTATION_INSTALL_TIME
-    tags: []
   install_type:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_INSTRUMENTATION_INSTALL_TYPE
-    tags: []
   internal_profiling:
     node_type: section
     type: object
@@ -1364,7 +1215,6 @@ properties:
         default: false
         env_vars:
         - DD_APM_INTERNAL_PROFILING_ENABLED
-        tags: []
   max_catalog_entries:
     node_type: setting
     type: integer
@@ -1375,14 +1225,12 @@ properties:
     default: 0
     env_vars:
     - DD_APM_MAX_CATALOG_SERVICES
-    tags: []
   max_connections:
     node_type: setting
     type: integer
     default: 1000
     env_vars:
     - DD_APM_MAX_CONNECTIONS
-    tags: []
   max_payload_size:
     node_type: setting
     type: integer
@@ -1405,14 +1253,12 @@ properties:
     default: 4
     env_vars:
     - DD_APM_MAX_SENDER_RETRIES
-    tags: []
   mode:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_MODE
-    tags: []
   profiling_additional_endpoints:
     node_type: setting
     type: object
@@ -1423,49 +1269,42 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   profiling_dd_url:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_PROFILING_DD_URL
-    tags: []
   profiling_max_request_bytes:
     node_type: setting
     type: integer
     default: 52428800
     env_vars:
     - DD_APM_PROFILING_MAX_REQUEST_BYTES
-    tags: []
   profiling_send_to_main_endpoint:
     node_type: setting
     type: boolean
     default: true
     env_vars:
     - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
-    tags: []
   receiver_enabled:
     node_type: setting
     type: boolean
     default: true
     env_vars:
     - DD_APM_RECEIVER_ENABLED
-    tags: []
   receiver_timeout:
     node_type: setting
     type: integer
     default: 0
     env_vars:
     - DD_APM_RECEIVER_TIMEOUT
-    tags: []
   send_all_internal_stats:
     node_type: setting
     type: boolean
     default: false
     env_vars:
     - DD_APM_SEND_ALL_INTERNAL_STATS
-    tags: []
   socket_activation:
     node_type: section
     type: object
@@ -1476,14 +1315,12 @@ properties:
         default: true
         env_vars:
         - DD_APM_SOCKET_ACTIVATION_ENABLED
-        tags: []
       handle_tcp_probe:
         node_type: setting
         type: boolean
         default: true
         env_vars:
         - DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE
-        tags: []
   span_derived_primary_tags:
     node_type: setting
     type: array
@@ -1493,7 +1330,6 @@ properties:
     env_parser: json
     items:
       type: string
-    tags: []
     comment: "Deprecated/Experimental: DD_APM_SPAN_DERIVED_PRIMARY_TAGS is only honored\
       \ when\nthe agent runs in a serverless context (the Datadog Azure App Services\n\
       extension, or serverless-init for Cloud Run / Container Apps / Cloud Run\nFunctions).\
@@ -1521,28 +1357,24 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   symdb_api_key:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_SYMDB_API_KEY
-    tags: []
   symdb_dd_url:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_SYMDB_DD_URL
-    tags: []
   sync_flushing:
     node_type: setting
     type: boolean
     default: false
     env_vars:
     - DD_APM_SYNC_FLUSHING
-    tags: []
   telemetry:
     node_type: section
     type: object
@@ -1557,21 +1389,18 @@ properties:
           items:
             type: string
           type: array
-        tags: []
       dd_url:
         node_type: setting
         type: string
         default: ''
         env_vars:
         - DD_APM_TELEMETRY_DD_URL
-        tags: []
       enabled:
         node_type: setting
         type: boolean
         default: true
         env_vars:
         - DD_APM_TELEMETRY_ENABLED
-        tags: []
   trace_writer:
     node_type: section
     type: object
@@ -1594,25 +1423,21 @@ properties:
     default: 1000000
     env_vars:
     - DD_APM_WINDOWS_PIPE_BUFFER_SIZE
-    tags: []
   windows_pipe_name:
     node_type: setting
     type: string
     default: ''
     env_vars:
     - DD_APM_WINDOWS_PIPE_NAME
-    tags: []
   windows_pipe_security_descriptor:
     node_type: setting
     type: string
     default: D:AI(A;;GA;;;WD)
     env_vars:
     - DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR
-    tags: []
   workload_selection:
     node_type: setting
     type: boolean
     default: true
     env_vars:
     - DD_APM_WORKLOAD_SELECTION
-    tags: []

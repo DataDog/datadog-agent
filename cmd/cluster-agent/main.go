@@ -5,8 +5,6 @@
 
 //go:build !windows && kubeapiserver
 
-//go:generate go run ../../pkg/config/render_config/render_config.go dca ../../pkg/config/config_template.yaml ../../Dockerfiles/cluster-agent/datadog-cluster.yaml
-
 package main
 
 import (

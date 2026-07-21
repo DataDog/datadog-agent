@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/eventplatformreceiver/def",
-        "//pkg/logs/diagnostic",
+        "//comp/logs-library/diagnostic",
         "//pkg/logs/message",
         "//pkg/util/fxutil",
     ],

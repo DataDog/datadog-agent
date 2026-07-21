@@ -1,4 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "INSTALLER_TAGS")
 
 go_library(
     name = "installer_lib",
@@ -15,9 +17,21 @@ go_library(
     ],
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "installer",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
+    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
     embed = [":installer_lib"],
+    gotags = sorted(COMMON_TAGS | INSTALLER_TAGS),
     visibility = ["//visibility:public"],
 )
 

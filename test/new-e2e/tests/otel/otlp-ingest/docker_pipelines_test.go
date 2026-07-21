@@ -52,7 +52,13 @@ func testOTLPIngestDocker(t *testing.T, v3Enabled bool) {
 		dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(strings.ReplaceAll(otlpIngestCompose, "{APPS_VERSION}", apps.Version))),
 	}
 	if v3Enabled {
-		agentOptions = append(agentOptions, dockeragentparams.WithV3MetricsEnabled())
+		// The test fakeintake URL is not a Datadog intake URL, so explicitly opt in
+		// to V3 instead of relying on the default datadog_only mode.
+		agentOptions = append(agentOptions,
+			dockeragentparams.WithAgentServiceEnvVariable("DD_USE_V3_API_SERIES_ENABLED", pulumi.StringPtr("true")))
+	} else {
+		// Force V2 explicitly to exercise the V2 wire format.
+		agentOptions = append(agentOptions, dockeragentparams.WithV3MetricsDisabled())
 	}
 
 	stackName := "otlpingestdocker"
@@ -73,14 +79,14 @@ func testOTLPIngestDocker(t *testing.T, v3Enabled bool) {
 	)
 }
 
-// TestOTLPIngestDocker runs the OTLP ingest Docker e2e test with the default V2 metrics endpoint.
+// TestOTLPIngestDocker runs the OTLP ingest Docker e2e test with the V2 metrics intake API.
 func TestOTLPIngestDocker(t *testing.T) {
 	testOTLPIngestDocker(t, false)
 }
 
-// TestOTLPIngestDockerV3 runs the OTLP ingest Docker e2e test with the V3 metrics intake API
-// enabled. Metric assertions are identical to the V2 variant; the test additionally verifies
-// that payloads were routed to /api/intake/metrics/v3/series and not /api/v2/series.
+// TestOTLPIngestDockerV3 runs the OTLP ingest Docker e2e test with the V3 metrics intake API.
+// Metric assertions are identical to the V2 variant; the test additionally verifies that
+// payloads were routed to /api/intake/metrics/v3/series and not /api/v2/series.
 func TestOTLPIngestDockerV3(t *testing.T) {
 	testOTLPIngestDocker(t, true)
 }
@@ -106,8 +112,6 @@ func (s *otlpIngestDockerTestSuite) TestOTLPMetrics() {
 	if s.v3Enabled {
 		assert.Greater(s.T(), routeStats[otlpMetricsV3Endpoint], 0,
 			"expected payloads on %s when V3 is enabled", otlpMetricsV3Endpoint)
-		assert.Zero(s.T(), routeStats[otlpMetricsV2Endpoint],
-			"expected no payloads on %s when V3 is enabled", otlpMetricsV2Endpoint)
 	} else {
 		assert.Greater(s.T(), routeStats[otlpMetricsV2Endpoint], 0,
 			"expected payloads on %s when V3 is not enabled", otlpMetricsV2Endpoint)

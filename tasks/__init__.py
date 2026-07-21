@@ -10,14 +10,17 @@ from invoke import Collection, Task
 from tasks import (
     agent,
     agent_ci_api,
+    ai_sandbox,
     ami,
     anomalydetection,
     auth,
+    bazel,
     bench,
     buildimages,
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    code_review,
     collector,
     components,
     coverage,
@@ -72,6 +75,7 @@ from tasks import (
     release,
     renovate,
     rtloader,
+    rust_shared_checks,
     sbomgen,
     schema,
     secret_generic_connector,
@@ -199,11 +203,14 @@ ns.add_task(lint_go)
 # add namespaced tasks to the root
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
+ns.add_collection(bazel)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
+ns.add_collection(ai_sandbox)
 ns.add_collection(buildimages)
 ns.add_collection(claude)
+ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -246,6 +253,7 @@ ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
 ns.add_collection(rtloader)
+ns.add_collection(rust_shared_checks)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)

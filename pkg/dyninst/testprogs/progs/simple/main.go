@@ -397,7 +397,7 @@ func main() {
 	// 4097 entries with all values == 1 and no match for ==42. The any
 	// loop walks every slot and trips CollectionTooLarge; all(>0)
 	// short-circuits never and also trips the cap.
-	anyAllIntMap(makeIntMapFilled(4097, 1, "", 0), "toolarge")
+	anyAllIntMapMassive(makeIntMapFilled(4097, 1, "", 0), "toolarge")
 	// 100 entries (comfortably under the cap), with one match keyed
 	// "match"=42 and one miss keyed "miss"=-1. any(==42) and all(>0)
 	// both terminate well before the cap regardless of iteration order
@@ -1301,6 +1301,19 @@ func anyAllIntArray(xs [5]int, tag string) {
 //go:noinline
 func anyAllIntMap(m map[string]int, tag string) {
 	fmt.Println("anyAllIntMap", len(m), tag)
+}
+
+// anyAllIntMapMassive carries the same payload as anyAllIntMap but lives
+// in its own function so probes that need to fire on a too-large map can
+// target it independently. The parameter is named `redactMyEntries` so
+// the test JSON redactor (defaultRedactors in json_redaction_test.go)
+// replaces the captured entries with a placeholder — necessary because
+// chased_slices truncation makes the captured key set non-deterministic
+// across Go toolchains for maps with > MAX_CHASED_SLICES entries.
+//
+//go:noinline
+func anyAllIntMapMassive(redactMyEntries map[string]int, tag string) {
+	fmt.Println("anyAllIntMapMassive", len(redactMyEntries), tag)
 }
 
 // anyAllPtrMap is the target for `any` / `all` over a map[string]*condFields,

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/dogstatsd/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/dogstatsd/subcommands/start",
+        "//pkg/cli/subcommands/version",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

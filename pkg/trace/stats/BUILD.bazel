@@ -20,6 +20,7 @@ go_library(
         "//pkg/trace/log",
         "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
         "//pkg/trace/version",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -29,6 +30,7 @@ go_library(
         "@com_github_datadog_sketches_go//ddsketch/store",
         "@org_golang_google_genproto_googleapis_rpc//code",
         "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 

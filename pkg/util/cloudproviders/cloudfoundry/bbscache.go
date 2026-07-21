@@ -18,7 +18,7 @@ import (
 
 	"code.cloudfoundry.org/bbs"
 	"code.cloudfoundry.org/bbs/models"
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -235,7 +235,7 @@ func (bc *BBSCache) readData() {
 func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*ActualLRP, error) {
 	actualLRPsByProcessGUID := map[string][]*ActualLRP{}
 	actualLRPsByCellID := map[string][]*ActualLRP{}
-	actualLRPsBBS, err := bc.config.BBSClient.ActualLRPs(bc.bbsAPIClientLogger, models.ActualLRPFilter{})
+	actualLRPsBBS, err := bc.config.BBSClient.ActualLRPs(bc.bbsAPIClientLogger, "", models.ActualLRPFilter{})
 	if err != nil {
 		return actualLRPsByProcessGUID, actualLRPsByCellID, err
 	}
@@ -249,7 +249,7 @@ func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*Act
 }
 
 func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
-	desiredLRPsBBS, err := bc.config.BBSClient.DesiredLRPs(bc.bbsAPIClientLogger, models.DesiredLRPFilter{})
+	desiredLRPsBBS, err := bc.config.BBSClient.DesiredLRPs(bc.bbsAPIClientLogger, "", models.DesiredLRPFilter{})
 	if err != nil {
 		return map[string]*DesiredLRP{}, err
 	}

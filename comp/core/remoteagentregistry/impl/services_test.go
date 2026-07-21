@@ -10,6 +10,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -61,6 +62,41 @@ func TestFlareProvider(t *testing.T) {
 
 	fb.AssertFileExists(flareFilePath)
 	fb.AssertFileContent("test_content", flareFilePath)
+}
+
+// TestFillFlareWritesUnreachableOnGRPCError verifies that when ADP is enabled
+// but the gRPC call to GetFlareFiles fails, fillFlare writes an UNREACHABLE.txt
+// file instead of silently dropping the failure.
+func TestFillFlareWritesUnreachableOnGRPCError(t *testing.T) {
+	provides, _, cfg, _, ipcComp := buildComponent(t)
+	// Use a short timeout so the test doesn't wait 3 s for the default.
+	cfg.SetInTest("remote_agent.registry.query_timeout", 500*time.Millisecond)
+
+	component := provides.Comp
+	flareProvider := provides.FlareProvider
+
+	// Register an agent with a flare provider, then immediately stop its gRPC server
+	// so that the subsequent GetFlareFiles RPC fails.
+	agent := buildAndRegisterRemoteAgent(t, ipcComp, component, "adp", "Agent Data Plane", "42",
+		WithFlareProvider(map[string][]byte{
+			"runtime_config_dump.yaml": []byte("config: true"),
+		}),
+	)
+	agent.Stop() // bring down the gRPC server before the flare is collected
+
+	fb := helpers.NewFlareBuilderMock(t, false)
+
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
+	require.NoError(t, err)
+
+	// The nominal artifact must NOT be written because the server is down.
+	fb.AssertNoFileExists("agent-data-plane/runtime_config_dump.yaml")
+
+	// UNREACHABLE.txt must be present under the agent's sanitized display name.
+	fb.AssertFileExists("agent-data-plane/UNREACHABLE.txt")
+	// The file should contain a non-empty error message.
+	unreachablePath := "agent-data-plane/UNREACHABLE.txt"
+	fb.AssertFileContentMatch("could not be reached:", unreachablePath)
 }
 
 func TestGetTelemetry(t *testing.T) {
@@ -443,16 +479,16 @@ my_shared_histogram_count 300
 		defer lc.Stop(context.Background())
 		component := provides.Comp
 
-		// This histogram tries to use the same labels ("name", "action") as the internal metric
+		// This histogram tries to use the same labels ("remote_agent_name", "action") as the internal metric
 		// but the emitter label will still be injected, making them distinct
 		promText := `
 # HELP remote_agent_registry_action_duration_seconds Histogram trying to match internal labels
 # TYPE remote_agent_registry_action_duration_seconds histogram
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="0.5"} 10
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="2.0"} 25
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="+Inf"} 30
-remote_agent_registry_action_duration_seconds_sum{name="fake-agent",action="query"} 12.5
-remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="query"} 30
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="0.5"} 10
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="2.0"} 25
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="+Inf"} 30
+remote_agent_registry_action_duration_seconds_sum{remote_agent_name="fake-agent",action="query"} 12.5
+remote_agent_registry_action_duration_seconds_count{remote_agent_name="fake-agent",action="query"} 30
 `
 
 		_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "sneaky-agent", "Sneaky Agent", "999",
@@ -476,7 +512,7 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 							if label.GetValue() == "sneaky-agent" {
 								hasEmitterLabel = true
 							}
-						case "name":
+						case "remote_agent_name":
 							if label.GetValue() == "fake-agent" {
 								hasNameLabel = true
 							}
@@ -488,7 +524,7 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 					}
 					if hasEmitterLabel && hasNameLabel && hasActionLabel {
 						foundSneakyHistogram = true
-						// Verify all 3 labels are present: emitter, name, action
+						// Verify all 3 labels are present: emitter, remote_agent_name, action
 						require.Len(t, labels, 3, "Should have exactly 3 labels")
 					}
 				}
