@@ -6,9 +6,7 @@ _LINUX = ["@platforms//os:linux"]
 
 # Rust checks are disabled by default; add a check name -> cdylib target entry
 # here to ship it.
-ENABLED_CHECKS = {
-    "example": "//pkg/collector/sharedlibrary/rustchecks/checks/example:example",
-}
+ENABLED_CHECKS = {}
 
 # Stage every enabled cdylib into checks.d with the loader naming convention
 # (libdatadog-agent-<check_name>.so) and owner-only perms.
