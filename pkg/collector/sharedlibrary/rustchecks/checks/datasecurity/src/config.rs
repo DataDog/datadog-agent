@@ -28,9 +28,7 @@ impl CheckConfig {
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckConfig {
     pub task_id: String,
-    #[serde(default)]
     pub scanning_rules: Vec<ScanningRule>,
-    #[serde(default)]
     pub scan_data: Vec<SubTask>,
 }
 
