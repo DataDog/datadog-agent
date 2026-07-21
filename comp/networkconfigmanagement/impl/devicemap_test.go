@@ -41,14 +41,14 @@ func TestDeviceMap_Get_Unknown(t *testing.T) {
 	dm := NewDeviceMap(time.Millisecond)
 
 	_, err := dm.Get("nonexistent")
-	assert.ErrorIs(t, err, &UnknownDeviceError{})
+	assert.ErrorAs(t, err, &UnknownDeviceError{})
 }
 
 func TestDeviceMap_GetAndLock_Unknown(t *testing.T) {
 	dm := NewDeviceMap(time.Millisecond)
 
 	_, err := dm.GetAndLock(t.Context(), "nonexistent")
-	assert.ErrorIs(t, err, &UnknownDeviceError{})
+	assert.ErrorAs(t, err, &UnknownDeviceError{})
 }
 
 func TestDeviceMap_GetAndLock_LocksDevice(t *testing.T) {
