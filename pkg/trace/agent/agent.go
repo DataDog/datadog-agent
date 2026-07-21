@@ -237,7 +237,6 @@ func (a *Agent) Run() {
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.ContainerTagsBuffer,
-		a.Receiver,
 		a.Concentrator,
 		a.ClientStatsAggregator,
 		a.SamplerMetrics,
@@ -247,6 +246,11 @@ func (a *Agent) Run() {
 		a.DebugServer,
 	} {
 		starter.Start()
+	}
+	a.Receiver.Start()
+	if err := a.Receiver.StartErr(); err != nil {
+		log.Errorf("HTTP receiver failed to start: %v", err)
+		return
 	}
 
 	go a.StatsWriter.Run()

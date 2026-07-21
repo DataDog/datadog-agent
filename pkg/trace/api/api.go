@@ -153,7 +153,11 @@ type HTTPReceiver struct {
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+	startErr error
 }
+
+// StartErr returns the error recorded by Start, if any. Safe to call after Start returns.
+func (r *HTTPReceiver) StartErr() error { return r.startErr }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(
@@ -354,7 +358,9 @@ func (r *HTTPReceiver) Start() {
 
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
-			killProcess("Error creating tcp listener: %v", err)
+			log.Criticalf("Error creating tcp listener: %v", err)
+			r.startErr = err
+			return
 		}
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
@@ -415,7 +421,9 @@ func (r *HTTPReceiver) Start() {
 		ln, err := listenPipe(pipepath, secdec, bufferSize, r.conf.MaxConnections, r.statsd)
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
-			killProcess("Error creating %q named pipe: %v", pipepath, err)
+			log.Criticalf("Error creating %q named pipe: %v", pipepath, err)
+			r.startErr = err
+			return
 		}
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
