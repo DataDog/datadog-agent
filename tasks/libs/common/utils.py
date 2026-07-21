@@ -416,14 +416,13 @@ def get_build_flags(
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["GOARCH"] = arch.go_arch
 
-        prefix = arch.gcc_prefix(platform=target_platform)
-        cc = f"{prefix}-gcc"
-        cxx = f"{prefix}-g++"
+        cc = arch.compiler_name("gcc", platform=target_platform)
+        cxx = arch.compiler_name("g++", platform=target_platform)
 
         # Fall back to clang/clang++ (e.g. osxcross provides clang, not gcc)
         if not shutil.which(cc):
-            cc_clang = f"{prefix}-clang"
-            cxx_clang = f"{prefix}-clang++"
+            cc_clang = arch.compiler_name(compiler="clang", platform=target_platform)
+            cxx_clang = arch.compiler_name(compiler="clang++", platform=target_platform)
             if shutil.which(cc_clang):
                 cc = cc_clang
                 cxx = cxx_clang
@@ -438,7 +437,7 @@ def get_build_flags(
                     instr = "the appropriate cross-compilation toolchain"
                 print(
                     color_message(
-                        f"Error: Cross-compiler '{prefix}-gcc' (or '{prefix}-clang') not found. "
+                        f"Error: Cross-compiler '{cc}' (or '{cc_clang}') not found. "
                         f"Cross-linting for {target_platform} requires {instr}.",
                         "red",
                     )

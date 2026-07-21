@@ -50,8 +50,8 @@ class Arch:
         """Check whether this architecture is different from one this code is running on."""
         return self != Arch.local()
 
-    def gcc_prefix(self, platform: str = sys.platform) -> str:
-        """Return the GCC prefix to use for this architecture, takes into account
+    def compiler_prefix(self, platform: str = sys.platform) -> str:
+        """Return the compiler prefix to use for this architecture, takes into account
         the platform we are running on (linux/darwin/windows).
 
         Raises ValueError if the platform is not recognized.
@@ -70,21 +70,13 @@ class Arch:
         else:
             raise ValueError(f"Unknown platform: {platform}")
 
-    def gcc_compiler(self, platform: str = sys.platform) -> str:
+    def compiler_name(self, compiler: str, platform: str = sys.platform) -> str:
         """Return the GCC compiler to use for this architecture, takes into account
         the platform we are running on (linux/darwin/windows).
 
         Raises ValueError if the platform is not recognized.
         """
-        return f"{self.gcc_prefix(platform)}-gcc"
-
-    def gpp_compiler(self, platform: str = sys.platform) -> str:
-        """Return the G++ compiler to use for this architecture, takes into account
-        the platform we are running on (linux/darwin/windows).
-
-        Raises ValueError if the platform is not recognized.
-        """
-        return f"{self.gcc_prefix(platform)}-g++"
+        return f"{self.compiler_prefix(platform)}-{compiler}"
 
     @property
     def kmt_arch(self) -> KMTArchName:
