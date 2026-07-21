@@ -28,10 +28,6 @@ func Module() fxutil.Module {
 			agenttelemetryimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[agenttelemetry.Component](),
-		// errortracking submitter wire — atel owns buffer/flush/recursion.
-		// Folded into Module() (rather than left to each cmd/* call-site) so
-		// every binary that wires in agenttelemetry gets error-log forwarding
-		// for free, instead of duplicating installErrortrackingHandler per binary.
 		fx.Invoke(installErrortrackingHandler),
 	)
 }
@@ -39,9 +35,6 @@ func Module() fxutil.Module {
 // installErrortrackingHandler is a no-op when the feature is disabled
 // (agent_telemetry.errortracking.enabled or the parent agent_telemetry
 // gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs synchronously inside atel.stop()
-// (deliberately not as a separate OnStop hook here) so it precedes the
-// final flush-goroutine drain.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
