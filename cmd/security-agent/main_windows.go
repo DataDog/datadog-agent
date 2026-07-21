@@ -26,6 +26,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -33,6 +35,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -49,8 +52,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -65,10 +66,10 @@ type service struct {
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 	}
-	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 )
 
 // Name returns the service name
@@ -89,32 +90,12 @@ type cliParams struct {
 func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
-	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
-			settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
-			defer start.StopAgent(log)
-
-			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
-			if err != nil {
-				if errors.Is(err, start.ErrAllComponentsDisabled) {
-					// If all components are disabled, we should exit cleanly
-					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
-				}
-				return err
-			}
-
-			// Wait for stop signal
-			<-svcctx.Done()
-			log.Info("Received stop from service manager, shutting down...")
-
-			return nil
-		},
+	opts := []fx.Option{
 		fx.Supply(params),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
@@ -163,15 +144,40 @@ func (s *service) Run(svcctx context.Context) error {
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-				},
-				Config: c,
+				Settings: start.RuntimeSettings(),
+				Config:   c,
 			}
 		}),
 		settingsfx.Module(),
 		logscompressionfx.Module(),
 		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", defaultSecurityAgentConfigFilePaths[0])),
+		configstreamconsumerfx.Module(),
+	}
+
+	err := fxutil.OneShot(
+		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
+			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
+			settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
+			defer start.StopAgent(log)
+
+			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
+			if err != nil {
+				if errors.Is(err, start.ErrAllComponentsDisabled) {
+					// If all components are disabled, we should exit cleanly
+					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+				}
+				return err
+			}
+
+			// Wait for stop signal
+			<-svcctx.Done()
+			log.Info("Received stop from service manager, shutting down...")
+
+			return nil
+		},
+		opts...,
 	)
 
 	return err

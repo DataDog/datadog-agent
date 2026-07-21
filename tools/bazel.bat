@@ -40,7 +40,7 @@ if defined XDG_CACHE_HOME (
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
@@ -62,6 +62,17 @@ if not exist "!more_than_260_chars!" (
     >&2 echo - or https://andrewlock.net/fixing-max_path-issues-in-gitlab/#window-s-maximum-path-length-limitation-
     exit /b 2
   )
+)
+
+:: Check 8.3 short names are enabled, or fail with instructions
+:: TODO(agent-build): remove once https://github.com/bazelbuild/bazel/pull/29921 (or equivalent) is in effect
+set "more_than_8dot3_chars=%TEMP%\123456789.1234"
+2>nul del /f /q "!more_than_8dot3_chars!"
+>"!more_than_8dot3_chars!" type nul
+for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
+  >&2 echo 🔴 For `bazel` to work properly, please enable 8.3 short names on %%~di:
+  >&2 echo     fsutil 8dot3name set %%~di 0
+  exit /b 2
 )
 
 set "args=%*"

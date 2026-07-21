@@ -5572,3 +5572,168 @@ probes:
         json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 1]}] }
   sampling:
     snapshotsPerSecond: 10
+
+# Capture: filter() over a slice with an equality predicate.
+- id: captureFilterIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(xs, {@it == 42})"
+        json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: filter() over a slice with a > predicate that selects most elements
+# but not all (so the output is bounded and reasonable to snapshot).
+- id: captureFilterIntSlice_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "gt41"
+      expr:
+        dsl: "filter(xs, {@it > 41})"
+        json: { filter: [{ref: "xs"}, {gt: [{ref: "@it"}, 41]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: filter() over a swiss map with a @value predicate. hmap support is
+# rejected by irgen with IssueKindUnsupportedFeature; the go1.23 toolchains
+# carry the unsupported tag because they still use hmap.
+- id: captureFilterIntMap_valueEq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntMap
+  tags:
+    - "issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11"
+    - "issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11"
+  captureExpressions:
+    - name: "valueIs42"
+      expr:
+        dsl: "filter(m, {@value == 42})"
+        json: { filter: [{ref: "m"}, {eq: [{ref: "@value"}, 42]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: len() composed with filter() is unsupported (filter is leaf-only)
+# and surfaces as IssueKindUnsupportedFeature.
+- id: captureFilter_len_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  tags:
+    - "issue:UnsupportedFeature"
+  captureExpressions:
+    - name: "lenOfFilter"
+      expr:
+        dsl: "len(filter(xs, {@it == 42}))"
+        json: { len: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] } }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition: filter() in probe condition position is unsupported and surfaces
+# as IssueKindUnsupportedFeature.
+- id: captureFilter_condition_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "filter(xs, {@it == 42})"
+    json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+  template: "should_never_render"
+  segments:
+    - str: "should_never_render"
+  tags:
+    - "issue:UnsupportedFeature"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ---------------------------------------------------------------------------
+# filter() over collections with element types that need nested pointer
+# chasing. These exercise the sm->offset handoff between
+# EmitFilterSliceElementOp / EmitFilterMapElementOp and the subsequent
+# CallOp for the element's type handler.
+# ---------------------------------------------------------------------------
+
+# filter() over []string — string elements need data-pointer chasing.
+# Uses @it == "match" (not !isEmpty) so the ExprReadString op advances
+# sm->offset past cur_loop_it_start + 16, breaking the coincidental
+# alignment with the 16-byte data-item header that masked the sm->offset
+# bug with the !isEmpty predicate.
+- id: captureFilterStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  capture:
+    maxReferenceDepth: 20
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: 'filter(xs, {@it == "alpha"})'
+        json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, "alpha"]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# filter() over []condFields — condFields contains a string field (S),
+# so the element type handler needs to chase the string data pointer.
+# maxReferenceDepth: 5 ensures the chase actually runs (default depth
+# causes notCapturedReason:depth which masks the sm->offset bug).
+- id: captureFilterStructSlice_I32gt0
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  capture:
+    maxReferenceDepth: 20
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(xs, {@it.I32 > 0})"
+        json: { filter: [{ref: "xs"}, {gt: [{getmember: [{ref: "@it"}, "I32"]}, 0]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# filter() over map[string]int — map with string keys needs key chasing.
+# hmap (go1.23) is unsupported for filter.
+- id: captureFilterIntMap_valueGt0
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntMap
+  capture:
+    maxReferenceDepth: 20
+  tags:
+    - "issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11"
+    - "issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11"
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(m, {@value > 0})"
+        json: { filter: [{ref: "m"}, {gt: [{ref: "@value"}, 0]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10

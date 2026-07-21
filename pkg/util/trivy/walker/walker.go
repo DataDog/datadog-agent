@@ -52,7 +52,21 @@ func cleanSkipPaths(root string, skipPaths []string) []string {
 }
 
 // Walk walks the filesystem rooted at root, calling fn for each unfiltered file.
+// Trivy's static-paths mechanism can invoke Walk with a regular file rather
+// than a directory; in that case the single file is analyzed directly.
 func (w *FSWalker) Walk(ctx context.Context, rootPath string, opt walker.Option, fn walker.WalkFunc) error {
+	info, err := os.Stat(rootPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to stat root %s: %w", rootPath, err)
+	}
+
+	if !info.IsDir() {
+		return w.walkFile(ctx, rootPath, info, opt, fn)
+	}
+
 	opt.SkipDirs = append(opt.SkipDirs, defaultSkipDirs...)
 
 	opt.SkipDirs = cleanSkipPaths(rootPath, opt.SkipDirs)
@@ -73,6 +87,30 @@ func (w *FSWalker) Walk(ctx context.Context, rootPath string, opt walker.Option,
 		return fmt.Errorf("walk dir error: %w", err)
 	}
 
+	return nil
+}
+
+func (w *FSWalker) walkFile(ctx context.Context, path string, info os.FileInfo, opt walker.Option, fn walker.WalkFunc) error {
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+
+	// Match upstream Trivy semantics: for a single-file root, filepath.Rel(root, root)
+	// returns "." and that is what gets passed through to the analyzer.
+	const relPath = "."
+
+	opener := func() (xio.ReadSeekCloserAt, error) {
+		return os.Open(path)
+	}
+
+	if err := fn(ctx, relPath, info, opener); err != nil {
+		if opt.ErrorCallback != nil {
+			if cberr := opt.ErrorCallback(relPath, err); cberr == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("failed to analyze file: %w", err)
+	}
 	return nil
 }
 

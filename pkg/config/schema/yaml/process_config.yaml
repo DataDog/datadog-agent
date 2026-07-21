@@ -28,8 +28,6 @@ properties:
         - DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED
         visibility: public
         description: Enables collection of information about running processes.
-        tags:
-        - template_section:CoreAgent
   container_collection:
     node_type: section
     type: object
@@ -47,8 +45,6 @@ properties:
         - DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED
         visibility: public
         description: Enables collection of information about running containers.
-        tags:
-        - template_section:CoreAgent
   expvar_port:
     node_type: setting
     type: integer
@@ -58,8 +54,6 @@ properties:
     - DD_PROCESS_AGENT_EXPVAR_PORT
     visibility: public
     description: Port for the debug endpoints for the process Agent.
-    tags:
-    - template_section:CoreAgent
   cmd_port:
     node_type: setting
     type: integer
@@ -69,8 +63,6 @@ properties:
     - DD_PROCESS_AGENT_CMD_PORT
     visibility: public
     description: Port for configuring runtime settings for the process Agent.
-    tags:
-    - template_section:CoreAgent
   log_file:
     node_type: setting
     type: string
@@ -80,8 +72,6 @@ properties:
     - DD_PROCESS_AGENT_LOG_FILE
     visibility: public
     description: The full path to the file where process Agent logs are written.
-    tags:
-    - template_section:CoreAgent
   intervals:
     node_type: section
     type: object
@@ -101,8 +91,6 @@ properties:
         - DD_PROCESS_AGENT_INTERVALS_CONTAINER
         visibility: public
         description: The interval in seconds at which the container check runs.
-        tags:
-        - template_section:CoreAgent
       container_realtime:
         node_type: setting
         type: integer
@@ -113,8 +101,6 @@ properties:
         visibility: public
         description: The interval in seconds at which the real-time container check
           runs.
-        tags:
-        - template_section:CoreAgent
       process:
         node_type: setting
         type: integer
@@ -124,8 +110,6 @@ properties:
         - DD_PROCESS_AGENT_INTERVALS_PROCESS
         visibility: public
         description: The interval in seconds at which the process check runs.
-        tags:
-        - template_section:CoreAgent
         comment: |-
           The interval, in seconds, at which we will run each check. If you want consistent
           behavior between real-time you may set the Container/ProcessRT intervals to 10.
@@ -140,8 +124,6 @@ properties:
         visibility: public
         description: The interval in seconds at which the real-time process check
           runs.
-        tags:
-        - template_section:CoreAgent
       connections:
         node_type: setting
         type: integer
@@ -149,7 +131,6 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS
         - DD_PROCESS_AGENT_INTERVALS_CONNECTIONS
-        tags: []
   process_discovery:
     node_type: section
     type: object
@@ -170,11 +151,12 @@ properties:
         visibility: public
         description: Toggles the `process_discovery` check. If enabled, this check
           gathers information about running integrations.
-        tags:
-        - template_section:CoreAgent
+        comment: |-
+          Process Discovery Check
+          We also bind old environment variables for this setting
       interval:
         node_type: setting
-        type: number
+        type: string
         default: 4h0m0s
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL
@@ -186,10 +168,6 @@ properties:
         example: 4h
         tags:
         - golang_type:duration
-        - template_section:CoreAgent
-        comment: |-
-          Process Discovery Check
-          Also bind old environment variables
       hint_frequency:
         node_type: setting
         type: integer
@@ -197,7 +175,6 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_HINT_FREQUENCY
         - DD_PROCESS_AGENT_PROCESS_DISCOVERY_HINT_FREQUENCY
-        tags: []
   blacklist_patterns:
     node_type: setting
     type: array
@@ -212,8 +189,6 @@ properties:
     example: |2-
 
         - <REGEX>
-    tags:
-    - template_section:CoreAgent
   queue_size:
     node_type: setting
     type: integer
@@ -223,8 +198,6 @@ properties:
     - DD_PROCESS_AGENT_QUEUE_SIZE
     visibility: public
     description: The number of check results to buffer in memory when a POST fails.
-    tags:
-    - template_section:CoreAgent
   process_queue_bytes:
     node_type: setting
     type: integer
@@ -234,8 +207,6 @@ properties:
     - DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES
     visibility: public
     description: The amount of data (in bytes) to buffer in memory when a POST fails.
-    tags:
-    - template_section:CoreAgent
   rt_queue_size:
     node_type: setting
     type: integer
@@ -246,8 +217,6 @@ properties:
     visibility: public
     description: The number of realtime check results to buffer in memory when a POST
       fails.
-    tags:
-    - template_section:CoreAgent
   max_per_message:
     node_type: setting
     type: integer
@@ -257,8 +226,6 @@ properties:
     - DD_PROCESS_AGENT_MAX_PER_MESSAGE
     visibility: public
     description: The maximum number of processes or containers per message.
-    tags:
-    - template_section:CoreAgent
   dd_agent_bin:
     node_type: setting
     type: string
@@ -270,11 +237,10 @@ properties:
       Overrides the path to the Agent bin used for getting the hostname. Defaults are:
         * Windows: <AGENT_DIRECTORY>\\embedded\\agent.exe
         * Unix: /opt/datadog-agent/bin/agent/agent
-    tags:
-    - template_section:CoreAgent
     platform_default:
       linux: ${install_path}/bin/agent/agent
       darwin: ${install_path}/bin/agent/agent
+      aix: ${install_path}/bin/agent/agent
       windows: ${install_path}/bin/agent.exe
   dd_agent_env:
     node_type: setting
@@ -285,8 +251,6 @@ properties:
     - DD_PROCESS_AGENT_DD_AGENT_ENV
     visibility: public
     description: Overrides of the environment we pass to fetch the hostname.
-    tags:
-    - template_section:CoreAgent
   scrub_args:
     node_type: setting
     type: boolean
@@ -297,8 +261,6 @@ properties:
     - DD_PROCESS_AGENT_SCRUB_ARGS
     visibility: public
     description: Hide sensitive data on the Live Processes page.
-    tags:
-    - template_section:CoreAgent
   custom_sensitive_words:
     node_type: setting
     type: array
@@ -320,8 +282,6 @@ properties:
         - '*token'
         - 'sql*'
         - '*pass*d*'
-    tags:
-    - template_section:CoreAgent
     env_parser: json_list_or_comma_separated
   disable_realtime_checks:
     node_type: setting
@@ -332,8 +292,6 @@ properties:
     - DD_PROCESS_AGENT_DISABLE_REALTIME_CHECKS
     visibility: public
     description: Disable realtime process and container checks
-    tags:
-    - template_section:CoreAgent
   additional_endpoints:
     node_type: setting
     type: object
@@ -346,7 +304,6 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   cache_lookupid:
     node_type: setting
     type: boolean
@@ -354,7 +311,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_CACHE_LOOKUPID
     - DD_PROCESS_AGENT_CACHE_LOOKUPID
-    tags: []
   drop_check_payloads:
     node_type: setting
     type: array
@@ -364,7 +320,6 @@ properties:
     - DD_PROCESS_AGENT_DROP_CHECK_PAYLOADS
     items:
       type: string
-    tags: []
   enabled:
     node_type: setting
     type: string
@@ -372,7 +327,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_ENABLED
     - DD_PROCESS_AGENT_ENABLED
-    tags: []
     comment: |-
       "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
       or container_collection.enabled and process_collection.enabled.
@@ -385,7 +339,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS
     - DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS
-    tags: []
   ignore_zombie_processes:
     node_type: setting
     type: boolean
@@ -393,7 +346,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES
     - DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES
-    tags: []
   internal_profiling:
     node_type: section
     type: object
@@ -405,7 +357,6 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED
         - DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED
-        tags: []
   language_detection:
     node_type: section
     type: object
@@ -417,7 +368,6 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_LANGUAGE_DETECTION_GRPC_PORT
         - DD_PROCESS_AGENT_LANGUAGE_DETECTION_GRPC_PORT
-        tags: []
   max_message_bytes:
     node_type: setting
     type: integer
@@ -425,7 +375,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES
     - DD_PROCESS_AGENT_MAX_MESSAGE_BYTES
-    tags: []
   orchestrator_additional_endpoints:
     node_type: setting
     type: object
@@ -446,11 +395,8 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL
     - DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL
-    tags: []
-    comment: |-
-      Service discovery configuration
-      Orchestrator Explorer - process agent
-      DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+    comment: DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting.
+      If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
   process_dd_url:
     node_type: setting
     type: string
@@ -460,7 +406,6 @@ properties:
     - DD_PROCESS_AGENT_PROCESS_DD_URL
     - DD_PROCESS_AGENT_URL
     - DD_PROCESS_CONFIG_URL
-    tags: []
   strip_proc_arguments:
     node_type: setting
     type: boolean
@@ -469,7 +414,6 @@ properties:
     - DD_STRIP_PROCESS_ARGS
     - DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS
     - DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS
-    tags: []
   windows:
     node_type: section
     type: object
@@ -481,6 +425,5 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS
         - DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS
-        tags: []
         comment: Use PDH API to collect performance counter data for process check
           on Windows

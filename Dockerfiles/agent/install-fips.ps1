@@ -15,8 +15,9 @@ $maven_sha512 = '03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8
 $maven_version = '3.9.11'
 
 if ("$env:WITH_JMX" -ne "false") {
+    . ./install-utils.ps1
     cd \fips-build
-    Invoke-WebRequest -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
+    Invoke-WebRequestWithRetry -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
     if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
         Write-Host "Maven checksum match"
     } else {

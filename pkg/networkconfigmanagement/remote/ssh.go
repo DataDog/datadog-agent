@@ -53,7 +53,7 @@ type SSHConnection struct {
 var _ Connection = (*SSHConnection)(nil)
 
 // NewSSHConnector creates a new SSH connector for the given device configuration
-func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
+func NewSSHConnector(device *ncmconfig.DeviceInstance) (Connector, error) {
 	if device.Auth.SSH != nil {
 		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
@@ -64,6 +64,14 @@ func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
 	return &SSHConnector{
 		device: device,
 	}, nil
+}
+
+func ConnectOverSSH(device *ncmconfig.DeviceInstance) (Connection, error) {
+	c, err := NewSSHConnector(device)
+	if err != nil {
+		return nil, err
+	}
+	return c.Connect()
 }
 
 func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, error) {
@@ -104,7 +112,18 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	}
 
 	if auth.Password != "" {
-		methods = append(methods, ssh.Password(auth.Password))
+		methods = append(methods, ssh.Password(auth.Password), ssh.KeyboardInteractive(func(_, _ string, _ []string, echos []bool) ([]string, error) {
+			var answers []string
+			for _, echo := range echos {
+				// simple heuristic: if a prompt has echo=false, then it's probably a password.
+				if echo {
+					answers = append(answers, "")
+				} else {
+					answers = append(answers, auth.Password)
+				}
+			}
+			return answers, nil
+		}))
 	}
 
 	if len(methods) == 0 {
@@ -184,6 +203,19 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error 
 		}
 	}
 	return nil
+}
+
+// Verify validates that the profile works as we expect it to
+func (c *SSHConnection) Verify(ctx context.Context) error {
+	if c.prof == nil {
+		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+	}
+	cmd := c.prof.Commands.Verify
+	if cmd == nil {
+		return fmt.Errorf("no verify command for profile %q", c.prof.Name)
+	}
+	_, err := c.execute(ctx, cmd)
+	return err
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH

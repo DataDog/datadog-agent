@@ -41,11 +41,11 @@
 #
 #   health_port: 0
 
-## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
-## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+## @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 ## The full path to the file where system-probe logs are written.
 #
-# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+# log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 
 ########################################
 ## System Probe Network Configuration ##
@@ -66,7 +66,7 @@
 #   enabled: false
 
 #   # @param dns_monitoring_ports - list of integers - optional - default: [53]
-#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - space-separated list of integers - optional - default: "53"
+#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - JSON array of numbers or space-separated list of integers - optional - default: "53"
 #   # A list of ports that should be monitored for DNS traffic.
 #
 #   dns_monitoring_ports:

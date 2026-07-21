@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.155.1"
+	HelmVersion = "3.225.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -76,6 +76,8 @@ type HelmInstallationArgs struct {
 	// HelmChartVersion overrides the default HelmVersion for this installation.
 	// When empty, HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type HelmComponent struct {
@@ -116,9 +118,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	helmComponent.ClusterAgentToken = randomClusterAgentToken.Result
 
-	// Create namespace if necessary
-	ns, err := corev1.NewNamespace(e.Ctx(), args.Namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), args.Namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(args.Namespace),
 		},
 	}, opts...)
@@ -126,6 +129,32 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		return nil, err
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	if args.OpenShiftControlPlaneMonitoring {
+		etcdMetricClientSecret, err := corev1.GetSecret(
+			e.Ctx(),
+			"openshift-etcd-metric-client-source",
+			pulumi.ID("openshift-etcd-operator/etcd-metric-client"),
+			nil,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		copiedSecret, err := corev1.NewSecret(e.Ctx(), "openshift-etcd-metric-client", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Namespace: ns.Metadata.Name(),
+				Name:      pulumi.String("etcd-metric-client"),
+			},
+			Data: etcdMetricClientSecret.Data,
+			Type: etcdMetricClientSecret.Type,
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, utils.PulumiDependsOn(copiedSecret))
+	}
 
 	// Create secret if necessary
 	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
@@ -251,13 +280,17 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		windowsValuesYAML = append(windowsValuesYAML, args.ValuesYAML...)
 
 		windowsInstallName := baseName + "-windows"
+		// Windows depends on Linux completing first: the Linux release owns
+		// the cluster agent and the CRDs; Windows must join an already-running
+		// cluster agent to function correctly.
+		windowsOpts := append(opts, pulumi.DependsOn([]pulumi.Resource{linux}))
 		windows, err := helm.NewInstallation(e, helm.InstallArgs{
 			RepoURL:     args.RepoURL,
 			ChartName:   args.ChartPath,
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
-		}, opts...)
+		}, windowsOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -725,8 +758,11 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"tlsVerify": pulumi.Bool(false),
 			},
 			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			// socketEnabled must be false to prevent the admission controller from injecting
+			// a UDS socket volume that conflicts with OpenShift SCCs.
 			"apm": pulumi.Map{
-				"portEnabled": pulumi.Bool(true),
+				"portEnabled":   pulumi.Bool(true),
+				"socketEnabled": pulumi.Bool(false),
 			},
 			"sbom": pulumi.Map{
 				"containerImage": pulumi.Map{
@@ -824,6 +860,12 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"checksCardinality":    pulumi.String("high"),
+			// The operator subchart is not needed for Windows node agents
+			// and would otherwise try to create CRDs already owned by the
+			// Linux release (datadogAgents, datadogAgentInternals, etc.).
+			"operator": pulumi.Map{
+				"enabled": pulumi.Bool(false),
+			},
 			"logs": pulumi.Map{
 				"enabled":             pulumi.Bool(true),
 				"containerCollectAll": pulumi.Bool(true),
@@ -865,6 +907,20 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		},
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
+		},
+		// CRDs are owned by the Linux release. Disable the four CRDs that
+		// datadog/datadog enables by default in its datadog-crds dependency
+		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
+		// datadog-crds subchart renders CRDs via templates/ with Helm
+		// ownership annotations, so if the Windows release tries to create
+		// them it fails with a "meta.helm.sh/release-name" ownership error.
+		"datadog-crds": pulumi.Map{
+			"crds": pulumi.Map{
+				"datadogMetrics":                      pulumi.Bool(false),
+				"datadogPodAutoscalers":               pulumi.Bool(false),
+				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
+				"datadogInstrumentations":             pulumi.Bool(false),
+			},
 		},
 	}
 }

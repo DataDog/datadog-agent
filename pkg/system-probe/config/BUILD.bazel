@@ -23,6 +23,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/system-probe/config/types",
+        "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/kernel",
         "//pkg/util/log",

@@ -7,6 +7,8 @@
 # This file is sourced, never executed directly. Callers control set -e/set -u.
 # No validation of required variables is done here; each script validates its
 # own inputs after sourcing this file.
+# AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
+# any variable before sourcing this file.
 
 # ── Python version ────────────────────────────────────────────────────────────
 PYTHON_VERSION="3.13.12"
@@ -24,6 +26,23 @@ export RUST_VERSION
 BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
+# ── Agent source tree ─────────────────────────────────────────────────────────
+# AGENT_SRC is resolved by walking up from the calling script's directory to
+# the nearest .git ancestor. $0 in a sourced file still refers to the calling
+# script's path, so no caller-provided variable is needed.
+_dir=$(cd "$(dirname "$0")" && pwd)
+while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
+    _dir=$(dirname "$_dir")
+done
+if [ ! -e "$_dir/.git" ]; then
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$(dirname "$0")" >&2
+    printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
+    exit 1
+fi
+AGENT_SRC=$_dir
+unset _dir
+export AGENT_SRC
+
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time
 #                  (sys.prefix, _sysconfigdata, XCOFF loader sections)
@@ -37,27 +56,35 @@ EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
+SALUKI_SRC=$BUILD_DIR/saluki
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache
 
 # Number of available CPUs — nproc does not exist on AIX; lsdev is in /usr/sbin
 NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 
-export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
+export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE SALUKI_SRC WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
-# AGENT_BRANCH, AGENT_VERSION, and AGENT_BUILD are required inputs.
-# They must be set in the caller's environment before sourcing this file.
-# AGENT_VRMF is derived here; it is the four-component installp version string.
+# AGENT_VERSION: auto-detected from the source tree if not already set.
+# AGENT_BUILD: required input — must be set by the caller (cannot be derived).
+# AGENT_VRMF: four-component installp version string, derived here once both
+#             AGENT_VERSION and AGENT_BUILD are known.
 
-# Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u before the caller
-# validates AGENT_VERSION/AGENT_BUILD. The individual stage scripts call
-#   : "${AGENT_VERSION:?AGENT_VERSION must be set}"
-# after sourcing this file; that is where the empty-variable error is reported.
-# VRMF must be four pure integers (X.Y.Z.N) — strip any .gSHA suffix from AGENT_BUILD.
-AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "${AGENT_BUILD:-}" | sed 's/\..*//')
+if [ -z "${AGENT_VERSION:-}" ]; then
+    AGENT_VERSION=$(cd "$AGENT_SRC" && \
+        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
+    if [ -z "$AGENT_VERSION" ]; then
+        printf 'ERROR: env.sh: invoke agent.version returned empty output from %s\n' "$AGENT_SRC" >&2
+        exit 1
+    fi
+fi
 
-export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
+if [ -n "${AGENT_BUILD:-}" ]; then
+    AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+fi
+
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
@@ -137,9 +164,14 @@ unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
-mkdir -p "$GOCACHE"
+# Give the build its own temp dir instead of the shared /tmp, so it is not
+# affected by a full /tmp or by unrelated files other processes leave there
+# (which can, for example, confuse cargo's workspace-root lookup during
+# wheel builds).
+TMPDIR=/opt/dd-build/buildtmp
+mkdir -p "$GOCACHE" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

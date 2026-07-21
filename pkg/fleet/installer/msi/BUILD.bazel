@@ -17,7 +17,7 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/winutil",
-            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_text//encoding/unicode",
@@ -51,7 +51,7 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",

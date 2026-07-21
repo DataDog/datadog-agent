@@ -1724,3 +1724,37 @@ func compareEventAttributes(t *testing.T, event1, event2 *idx.InternalSpanEvent,
 
 	assert.Equal(t, keys1, keys2, "chunk %d span %d event %d: attributes should match", chunkIdx, spanIdx, eventIdx)
 }
+
+// TestConvertArrayValue_NilAndNilElement ensures converting an array attribute
+// tolerates both a nil array and a nil element inside the array (both are valid
+// msgpack decode results) without panicking, and that nil elements are dropped
+// rather than stored as unusable nil AnyValue entries (which several V1 paths
+// dereference).
+func TestConvertArrayValue_NilAndNilElement(t *testing.T) {
+	st := idx.NewStringTable()
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(nil, st)
+		assert.NotNil(t, got)
+		assert.Empty(t, got.Values)
+	})
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(&pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+			nil,
+			{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "keep"},
+			nil,
+		}}, st)
+		// Nil elements are dropped; only the convertible entry survives.
+		require.Len(t, got.Values, 1)
+		require.NotNil(t, got.Values[0])
+		assert.Equal(t, "keep", got.Values[0].AsString(st))
+
+		// Downstream V1 paths iterate every element and must not panic.
+		av := &idx.AnyValue{Value: &idx.AnyValue_ArrayValue{ArrayValue: got}}
+		assert.NotPanics(t, func() {
+			_ = av.AsString(st)
+			_ = av.Msgsize()
+		})
+	})
+}

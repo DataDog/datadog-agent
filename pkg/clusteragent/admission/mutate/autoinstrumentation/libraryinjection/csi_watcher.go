@@ -30,9 +30,12 @@ const (
 // admission controller hot path.
 //
 // Implementations must be safe to call from multiple goroutines without
-// additional synchronisation: the admission webhook calls IsAPMEnabled once
+// additional synchronisation: the admission webhook calls these methods once
 // per pod mutation, so the read path must be lock-free.
 type CSIDriverWatcher interface {
+	// IsRegistered returns true when the Datadog CSI driver object exists in
+	// the cluster, regardless of whether APM SSI support is advertised.
+	IsRegistered() bool
 	// IsAPMEnabled returns true when the Datadog CSI driver is registered
 	// in the cluster and has explicitly advertised support for APM SSI
 	// volumes via the csi.datadoghq.com/apm-enabled="true" annotation.
@@ -77,6 +80,11 @@ func NewCSIDriverWatcher(ctx context.Context, wmeta workloadmeta.Component) CSID
 
 	go w.run(ctx, wmeta)
 	return w
+}
+
+// IsRegistered implements CSIDriverWatcher.
+func (w *csiDriverWatcher) IsRegistered() bool {
+	return w.state.Load().registered
 }
 
 // IsAPMEnabled implements CSIDriverWatcher.

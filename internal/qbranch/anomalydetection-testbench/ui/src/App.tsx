@@ -4,11 +4,12 @@ import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
+import { ScorerView } from './components/ScorerView';
 import { BenchmarkView } from './components/BenchmarkView';
 import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
-type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
+type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'scorer' | 'benchmark';
 
 function LogsOnlyChip() {
   return (
@@ -363,21 +364,26 @@ function App() {
 
   // Phase markers derived from episode info — dotted lines on all charts
   const phaseMarkers = useMemo<PhaseMarker[]>(() => {
-    if (!episodeInfo) return [];
-    const defs = [
-      { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
-      { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
-      { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
-      { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
-    ];
     const markers: PhaseMarker[] = [];
-    for (const { key, label, phase, color } of defs) {
-      if (!phase?.start) continue;
-      const ts = new Date(phase.start).getTime() / 1000;
-      if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
+    if (episodeInfo) {
+      const defs = [
+        { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
+        { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
+        { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
+        { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
+      ];
+      for (const { key, label, phase, color } of defs) {
+        if (!phase?.start) continue;
+        const ts = new Date(phase.start).getTime() / 1000;
+        if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
+      }
+    }
+    const windowEndSec = state.status?.baseline?.windowEndSec;
+    if (windowEndSec) {
+      markers.push({ key: 'baseline-mute', label: 'Baseline analysis end', timestamp: windowEndSec, color: '#6b7280' });
     }
     return markers;
-  }, [episodeInfo]);
+  }, [episodeInfo, state.status?.baseline?.windowEndSec]);
 
   // When the active scenario changes, reset zoom (episode range effect will re-apply it)
   const prevScenarioRef = useRef<string | null | undefined>(undefined);
@@ -438,15 +444,15 @@ function App() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="text-lg font-semibold text-white shrink-0">Observer Test Bench</h1>
+      <header className="bg-slate-800 border-b border-slate-700 px-4 py-2">
+        <div className="flex flex-wrap justify-between items-center gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 min-w-0">
+            <div className="flex items-center gap-3 shrink-0">
+              <h1 className="text-lg font-semibold text-white">Observer Test Bench</h1>
               {state.status?.serverConfig?.logsOnly ? <LogsOnlyChip /> : null}
             </div>
-            {/* Tab bar */}
-            <div className="flex gap-1">
+            {/* Tab bar — wraps below title on narrow screens */}
+            <div className="flex flex-wrap gap-1">
               <button
                 onClick={() => setActiveTab('timeseries')}
                 className={`px-3 py-1.5 rounded text-sm transition-colors ${
@@ -488,6 +494,16 @@ function App() {
                 Reports
               </button>
               <button
+                onClick={() => setActiveTab('scorer')}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  activeTab === 'scorer'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Scorer
+              </button>
+              <button
                 onClick={() => setActiveTab('benchmark')}
                 className={`px-3 py-1.5 rounded text-sm transition-colors ${
                   activeTab === 'benchmark'
@@ -499,7 +515,7 @@ function App() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 ml-auto">
             {/* History navigation arrows — always visible when there's history */}
             {(canGoBack || canGoForward) && (
               <div className="flex items-center gap-1">
@@ -531,7 +547,10 @@ function App() {
             )}
             {/* Global time span control (available in all tabs) */}
             {activeTimeRange && (
-              <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
+              <div
+                className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5"
+                title="middle-drag or cmd+drag to pan"
+              >
                 <span className="text-xs text-slate-400">Time Span:</span>
                 <EditableTimestamp
                   value={activeTimeRange.start}
@@ -542,9 +561,6 @@ function App() {
                   value={activeTimeRange.end}
                   onChange={end => commitTimeRange({ start: activeTimeRange.start, end })}
                 />
-                <span className="text-xs text-slate-500 ml-1">
-                  (middle-drag or cmd+drag to pan)
-                </span>
                 {/* Two reset buttons: scenario range vs all data */}
                 {episodeTimeRange && (
                   <button
@@ -565,8 +581,8 @@ function App() {
               </div>
             )}
             {!activeTimeRange && state.connectionState === 'ready' && (
-              <span className="text-xs text-slate-500">
-                Drag a chart to set time span · middle-drag or cmd+drag to pan
+              <span className="text-xs text-slate-500" title="middle-drag or cmd+drag to pan">
+                Drag a chart to zoom
               </span>
             )}
 
@@ -694,6 +710,16 @@ function App() {
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             phaseMarkers={phaseMarkers}
+          />
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'scorer' ? 'hidden' : ''}`}>
+          <ScorerView
+            state={state}
+            actions={actions}
+            sidebarWidth={sidebarWidth}
+            phaseMarkers={phaseMarkers}
+            timeRange={activeTimeRange}
+            onTimeRangeChange={commitTimeRange}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'benchmark' ? 'hidden' : ''}`}>

@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -643,6 +644,107 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		ports = append(ports, 5353)
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", ports)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - single port 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - single port non-53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - multiple ports including 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - multiple ports excluding 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "8053 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - http ports should be removed", func(t *testing.T) {
+		// HTTP ports would capture an enormous amount of traffic and cause issues.
+		// network config prevents the user from accidentally enabling these ports
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 443 5353 80")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - invalid ports should be removed", func(t *testing.T) {
+		// Ports outside 1-65535 are soft-dropped at config load.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 0 -1 65536 99999 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - all-invalid list falls back to default", func(t *testing.T) {
+		// Every entry is removed by sanitization. The result must not be empty:
+		// an empty list would zero every BPF port slot and disable the filter.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "0 80 443 99999")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - duplicates deduplicated", func(t *testing.T) {
+		// Repeat entries are deduplicated.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353 53 53 5353 53")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - more than DNSPortsMax distinct ports truncates", func(t *testing.T) {
+		// 9 distinct ports exceeds DNSPortsMax = 8. After sort-ascending,
+		// the highest port (1008) is dropped.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 1001 1002 1003 1004 1005 1006 1007 1008")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - dedup applies before truncation cap", func(t *testing.T) {
+		// 33 raw entries but only 2 distinct (32×53 + 5353).
+		ports := strings.Repeat("53 ", 32) + "5353"
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", ports)
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - JSON array form", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "[53,5353]")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - empty string falls back to default", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - a malformed token is dropped, valid ports kept", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 not-a-port 5353")
+		mock.NewSystemProbe(t)
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})

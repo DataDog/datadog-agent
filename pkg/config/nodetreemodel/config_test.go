@@ -275,29 +275,29 @@ func TestSetUnkownKey(t *testing.T) {
 
 func TestAllSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
+	cfg.SetDefault("a", 0)                         // "a"   @ file
+	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
+	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var (defined)
+	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var (undefined, falls back to default)
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
 	cfg.Set("b.c", 123, model.SourceAgentRuntime)
 
-	// AllSettings does not include 'known' nor 'bindenv (undefined)'
+	// AllSettings does not include 'known' keys
 	expected := map[string]interface{}{
 		"a": 987, // file
 		"b": map[string]interface{}{
 			"c": 123, // agent-runtime
 			"d": 0,   // default
-			// b.e is not included
+			"e": 0,   // default
 		},
 		"f": map[string]interface{}{
-			"g": "456", // env-var defined
-			// f.h is not included
+			"g": 456, // env-var defined
+			"h": 0,   // default (env-var undefined)
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettings())
@@ -305,13 +305,10 @@ func TestAllSettings(t *testing.T) {
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (undefined)
-	t.Setenv("TEST_F_G", "456")
+	cfg.SetDefault("a", 0)             // "a"   @ file
+	cfg.SetDefault("b.c", 0)           // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)           // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0) // "b.e" @ default
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -321,9 +318,6 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 		"a": 987,
 		"b": map[string]interface{}{
 			"c": 123,
-		},
-		"f": map[string]interface{}{
-			"g": "456",
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsWithoutDefault())
@@ -416,33 +410,12 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestIsSet(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c") //nolint:forbidigo // testing behavior
-	cfg.BuildSchema()
-
-	cfg.Set("b", 123, model.SourceAgentRuntime)
-
-	assert.True(t, cfg.IsSet("a"))
-	assert.True(t, cfg.IsSet("b"))
-	assert.False(t, cfg.IsSet("c"))
-
-	assert.True(t, cfg.IsKnown("a"))
-	assert.True(t, cfg.IsKnown("b"))
-	assert.True(t, cfg.IsKnown("c"))
-
-	assert.False(t, cfg.IsSet("unknown"))
-	assert.False(t, cfg.IsKnown("unknown"))
-}
-
 func TestIsConfigured(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c") //nolint:forbidigo // testing behavior
-	cfg.BindEnv("d")  //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("c", 0)
+	cfg.BindEnvAndSetDefault("d", 0)
 
 	t.Setenv("TEST_D", "123")
 
@@ -460,11 +433,9 @@ func TestIsConfigured(t *testing.T) {
 
 func TestEnvVarMultipleSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)
-	cfg.SetDefault("b", 0)
 	cfg.SetDefault("c", 0)
-	cfg.BindEnv("a", "TEST_MY_ENVVAR") //nolint:forbidigo // testing behavior
-	cfg.BindEnv("b", "TEST_MY_ENVVAR") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", 0, "TEST_MY_ENVVAR")
+	cfg.BindEnvAndSetDefault("b", 0, "TEST_MY_ENVVAR")
 
 	t.Setenv("TEST_MY_ENVVAR", "123")
 
@@ -477,8 +448,7 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 
 func TestEmptyEnvVarSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", -1)
-	cfg.BindEnv("a") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", -1)
 
 	// This empty string is ignored, so the default value of -1 will be returned by GetInt
 	t.Setenv("TEST_A", "")
@@ -492,12 +462,12 @@ func TestEmptyEnvVarSettings(t *testing.T) {
 
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)         // "a"   @ file
-	cfg.SetDefault("b.c", 0)       // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0)       // "b.d" @ default
-	cfg.SetKnown("b.e")            //nolint:forbidigo // "b.e" @ known
-	cfg.BindEnv("f.g", "TEST_F_G") //nolint:forbidigo // "f.g" @ env-var (not defined)
-	cfg.BindEnv("f.h", "TEST_F_H") //nolint:forbidigo // "f.h" @ env-var (env var defined)
+	cfg.SetDefault("a", 0)                         // "a"   @ file
+	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
+	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var
+	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var
 	t.Setenv("TEST_F_G", "456")
 	cfg.BuildSchema()
 
@@ -523,7 +493,6 @@ logs_config:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -1405,7 +1374,9 @@ user:
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("api_key") //nolint:forbidigo // testing behavior
+	// Enable the dynamic schema so api_key can be Set even though it has no default value,
+	// which is required to exercise the "unset with no previous value" behavior below.
+	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)
@@ -1584,12 +1555,6 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 	assert.Equal(t, 1, cfg.Get("a"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 
-	assert.PanicsWithValue(t, "cannot SetKnown() once the config has been marked as ready for use", func() {
-		cfg.SetKnown("a") //nolint:forbidigo // testing behavior
-	})
-	assert.PanicsWithValue(t, "cannot BindEnv() once the config has been marked as ready for use", func() {
-		cfg.BindEnv("a") //nolint:forbidigo // testing behavior
-	})
 	assert.PanicsWithValue(t, "cannot SetEnvKeyReplacer() once the config has been marked as ready for use", func() {
 		cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	})
@@ -1654,8 +1619,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 1: DD_DD_URL set before DD_URL
 	t.Run("DD_DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
@@ -1667,8 +1632,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 2: DD_URL set before DD_DD_URL
 	t.Run("DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		config.BuildSchema()
@@ -1680,8 +1645,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
 	t.Run("Only DD_URL is set", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // testing behavior
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // testing behavior
+		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
+		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
 
@@ -1692,7 +1657,7 @@ func TestEnvVarOrdering(t *testing.T) {
 
 func TestWarningLogged(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("bad_key", "DD_BAD_KEY") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("bad_key", "", "DD_BAD_KEY")
 	t.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
 	splitKeyFunc = func(_ string) []string {
@@ -1848,19 +1813,15 @@ fruit:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	// default wins over invalid file
 	cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
-	// file only (missing default)
-	cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
-	// env wins over file
-	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	//// env wins over file
+	cfg.BindEnvAndSetDefault("fruit.cherry.seed.num", "abc")
 	// env var is defined
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
 	// default setting will be overridden by invalid file data
 	cfg.BindEnvAndSetDefault("fruit.egg.yoke", "yellow")
 	cfg.BuildSchema()
-
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
-
 	// invalid file data is preserved in merged tree
 	// maintains compatibility with viper
 	actualEgg := cfg.Get("fruit.egg")
@@ -1870,7 +1831,6 @@ fruit:
 		},
 	}
 	assert.Equal(t, expectEgg, actualEgg)
-
 	// In the merged tree, the following appears:
 	// fruit.apple.core.seeds from default
 	// fruit.banana           from file (empty section)
@@ -1908,30 +1868,36 @@ tree(#ptr<000011>) source=default
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-  > egg
+  > cherry
     inner(#ptr<000013>)
+    > seed
+      inner(#ptr<000014>)
+      > num
+          leaf(#ptr<000015>), val:"abc", source:default
+  > egg
+    inner(#ptr<000016>)
     > yoke
-        leaf(#ptr<000014>), val:"yellow", source:default
-tree(#ptr<000015>) source=file
+        leaf(#ptr<000017>), val:"yellow", source:default
+tree(#ptr<000018>) source=file
 > fruit
-  inner(#ptr<000016>)
+  inner(#ptr<000019>)
   > apple
-      leaf(#ptr<000017>), val:<nil>, source:file
+      leaf(#ptr<000020>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000018>), val:<nil>, source:file
+      leaf(#ptr<000021>), val:<nil>, source:file
   > donut
       leaf(#ptr<000009>), val:12, source:file
   > egg
       leaf(#ptr<000010>), val:[map[foo:bar]], source:file
-tree(#ptr<000019>) source=environment-variable
+tree(#ptr<000022>) source=environment-variable
 > fruit
-  inner(#ptr<000020>)
+  inner(#ptr<000023>)
   > cherry
-    inner(#ptr<000006>)
+    inner(#ptr<000024>)
     > seed
-      inner(#ptr<000007>)
+      inner(#ptr<000025>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable`
 	assert.Equal(t, expect, txt)
@@ -2044,4 +2010,46 @@ func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
 
 	// If we reach here without a fatal "concurrent map writes" crash, the test passed
 	assert.True(t, cfg.GetBool("known_key"))
+}
+
+func TestClearEnvVars(t *testing.T) {
+	t.Setenv("TEST_A", "from-env")
+	t.Setenv("TEST_B", "from-env")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", "default-a")
+	cfg.SetDefault("b", "default-b")
+	cfg.(*ntmConfig).bindEnv("a", []string{"TEST_A"}) //nolint:forbidigo // testing behavior
+	cfg.(*ntmConfig).bindEnv("b", []string{"TEST_B"}) //nolint:forbidigo // testing behavior
+	cfg.BuildSchema()
+
+	assert.Equal(t, "from-env", cfg.GetString("a"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("a"))
+
+	cfg.(*ntmConfig).ClearEnvVars()
+
+	assert.Equal(t, "default-a", cfg.GetString("a"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+
+	cfg.Set("a", "from-stream", model.SourceFile)
+	assert.Equal(t, "from-stream", cfg.GetString("a"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("a"))
+
+	// rebuild must not repopulate the env layer once skipped
+	t.Setenv("TEST_B", "leaked-via-rebuild")
+	cfg.(*ntmConfig).buildEnvVars()
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+}
+
+func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.SetDefault("key", "value")
+	cfg.BuildSchema()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.Get("key")
+	}
 }

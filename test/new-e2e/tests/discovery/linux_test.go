@@ -546,7 +546,7 @@ func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
 		// In system-probe-lite mode, system-probe execs into system-probe-lite during startup.
 		// Retry because the exec happens after fx initialization completes.
 		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-			ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+			ps := s.Env().RemoteHost.MustExecuteOn(c, "ps aux | grep 'system-probe' | grep -v grep")
 			s.T().Logf("Process list:\n%s", ps)
 			assert.Contains(c, ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
 		}, 1*time.Minute, 5*time.Second)

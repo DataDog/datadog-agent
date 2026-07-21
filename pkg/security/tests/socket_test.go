@@ -9,13 +9,17 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"syscall"
 	"testing"
 
+	iouring "github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -140,6 +144,59 @@ func TestSocketEvent(t *testing.T) {
 
 			test.validateSocketSchema(t, event)
 		}, "test_socket_af_inet_raw_icmp")
+	})
+
+	t.Run("socket-af-inet-tcp-io-uring", func(t *testing.T) {
+		// io_uring is unsupported under ebpfless; the exact exclude entry in
+		// main_linux.go only takes effect if this subtest calls SkipIfNotAvailable.
+		SkipIfNotAvailable(t)
+
+		checkKernelCompatibility(t, "io_uring socket needs Linux 5.19", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel5_19
+		})
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest := ioUringPrepSocket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignalFromRule(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			fd, err := ioUringResult(result)
+			if err != nil {
+				return fmt.Errorf("io_uring error: %w", err)
+			}
+
+			if fd < 0 {
+				// On a supported kernel a negative result is a real failure, not a skip:
+				// a malformed SQE would also return a negative errno and hide the gap.
+				return fmt.Errorf("failed to create socket with io_uring: %d", fd)
+			}
+
+			return unix.Close(fd)
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_socket_af_inet_tcp")
+			assert.Equal(t, "socket", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET), event.Socket.Domain, "wrong socket domain")
+			assert.Equal(t, uint16(unix.SOCK_STREAM), event.Socket.Type, "wrong socket type")
+			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Socket.Protocol, "wrong socket protocol")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, true, value.(bool), "io_uring socket event should be async")
+
+			test.validateSocketSchema(t, event)
+		}, "test_socket_af_inet_tcp")
 	})
 
 	test.RunMultiMode(t, "socket-af-inet-tcp-syscall-tester", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {

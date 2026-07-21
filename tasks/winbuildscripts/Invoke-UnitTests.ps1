@@ -24,12 +24,12 @@ Specifies whether to check the Go version. If not provided, it defaults to the v
 .PARAMETER UploadCoverage
 Specifies whether to upload coverage reports to Codecov. Default is $false.
 
-Requires the CODECOV_TOKEN environment variable to be set.
+Requires the CODECOV environment variable to be set.
 
 .PARAMETER UploadTestResults
 Specifies whether to upload test results to Datadog CI. Default is $false.
 
-Requires the API_KEY_ORG2 environment variable to be set.
+Requires the AGENT_API_KEY_ORG2 environment variable to be set.
 
 Requires JUNIT_TAR environment variable to be set.
 
@@ -64,14 +64,14 @@ Invoke-BuildScript `
             exit 1
         }
         if ($UploadCoverage) {
-            if ([string]::IsNullOrEmpty($Env:CODECOV_TOKEN)) {
-                Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for uploading coverage reports to Codecov"
+            if ([string]::IsNullOrEmpty($Env:CODECOV)) {
+                Write-Host -ForegroundColor Red "CODECOV environment variable is required for uploading coverage reports to Codecov"
                 exit 1
             }
         }
         if ($UploadTestResults) {
-            if ([string]::IsNullOrEmpty($Env:API_KEY_ORG2)) {
-                Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
+            if ([string]::IsNullOrEmpty($Env:AGENT_API_KEY_ORG2)) {
+                Write-Host -ForegroundColor Red "AGENT_API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
             if ([string]::IsNullOrEmpty($Env:JUNIT_TAR)) {
@@ -133,7 +133,21 @@ Invoke-BuildScript `
     }
 
     # Go unit tests
+    # Compute a pipeline-specific filename to avoid leaving test_output.json inside C:\mnt
+    # while Go tests run — a held-open file there blocks the next job's Git cleanup.
     $test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
+    $test_output_basename = [System.IO.Path]::GetFileNameWithoutExtension($test_output_file)
+    $test_output_ext = [System.IO.Path]::GetExtension($test_output_file)
+    if ([string]::IsNullOrEmpty($test_output_ext)) {
+        $test_output_ext = ".json"
+    }
+    $pipeline_suffix = if ($Env:CI_PIPELINE_ID) { $Env:CI_PIPELINE_ID } else { "local" }
+    $pipeline_test_output_file = "${test_output_basename}_${pipeline_suffix}${test_output_ext}"
+    # When building out-of-source, write JSON to C:\buildroot so it is not held open inside C:\mnt
+    # during test execution; otherwise write directly to C:\mnt.
+    $mounted_result_json = "C:\mnt\$pipeline_test_output_file"
+    $internal_result_json = if ($BuildOutOfSource) { "C:\buildroot\$pipeline_test_output_file" } else { $mounted_result_json }
+
     $TEST_WASHER_FLAG=""
     if ($Env:TEST_WASHER) {
         $TEST_WASHER_FLAG="--test-washer"
@@ -142,7 +156,7 @@ Invoke-BuildScript `
     & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
         --race --profile --rerun-fails=2 --coverage --cpus 8 `
         --python-home-3=$Env:Python3_ROOT_DIR `
-        --result-json C:\mnt\$test_output_file `
+        --result-json $internal_result_json `
         --build-stdlib `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
@@ -150,7 +164,7 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         try {
-            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN" -ErrorAction Stop
+            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV" -parameterField token -ErrorAction Stop
             & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
             if ($LASTEXITCODE -ne 0) {
                 throw "coverage upload failed with exit code $LASTEXITCODE"
@@ -162,7 +176,7 @@ Invoke-BuildScript `
         }
         # Upload coverage to Datadog Code Coverage (side-by-side with Codecov)
         try {
-            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
+            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
             & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
             if ($LASTEXITCODE -ne 0) {
                 throw "Datadog coverage upload failed with exit code $LASTEXITCODE"
@@ -178,8 +192,8 @@ Invoke-BuildScript `
             Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination C:\mnt
             }
-            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
-            & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
+            & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json $internal_result_json
             if($LASTEXITCODE -ne 0){
                 throw "junit upload failed with exit code $LASTEXITCODE"
             }
@@ -187,6 +201,19 @@ Invoke-BuildScript `
         catch {
             # Non-fatal: print but do not fail the script
             Write-Host -ForegroundColor Red "junit upload failed (non-fatal): $($_.Exception.Message)"
+        }
+    }
+
+    if ($BuildOutOfSource) {
+        # Copy the result JSON (and any unified variant produced by test-washer/junit-upload) back
+        # into C:\mnt so GitLab can collect it as a pipeline artifact.
+        if (Test-Path $internal_result_json) {
+            Copy-Item -Force $internal_result_json $mounted_result_json
+        }
+        $internal_unified_json = "C:\buildroot\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
+        $mounted_unified_json = "C:\mnt\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
+        if (Test-Path $internal_unified_json) {
+            Copy-Item -Force $internal_unified_json $mounted_unified_json
         }
     }
 

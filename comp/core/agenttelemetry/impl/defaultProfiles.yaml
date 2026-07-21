@@ -8,6 +8,10 @@ profiles:
         preserve_tags:
           - check_name
           - check_loader
+      - name: checks.first_execution_time
+        preserve_tags:
+          - check_name
+          - check_loader
       - name: checks.delay
         preserve_tags:
           - check_name
@@ -73,23 +77,56 @@ profiles:
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
       - name: point.sent
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
+          - emitter
       - name: point.dropped
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
+          - emitter
       - name: transactions.input_count
-      - name: transactions.input_bytes
-        aggregate_tags:
+        preserve_tags:
+          - domain
           - endpoint
+          - emitter
+      - name: transactions.input_bytes
+        preserve_tags:
+          - domain
+          - endpoint
+          - emitter
       - name: transactions.requeued
       - name: transactions.retries
       - name: transactions.http_errors
         preserve_tags:
           - code
           - endpoint
+          - emitter
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: agent-performance
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: agent_performance.container_restarts
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.container_terminated
+        preserve_tags:
+          - kind
+          - pod_name
+          - reason
+      - name: agent_performance.memory_usage
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
   schedule:
     start_after: 30
     iterations: 0
@@ -164,6 +201,48 @@ profiles:
     start_after: 600
     iterations: 0
     period: 14400
+- name: csi-driver
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: datadog_csi_driver.node_publish_volume_attempts
+        preserve_tags:
+          - status
+          - type
+      - name: datadog_csi_driver.node_unpublish_volume_attempts
+        preserve_tags:
+          - status
+      - name: datadog_csi_driver.library_resolutions
+        preserve_tags:
+          - library
+          - result
+      - name: datadog_csi_driver.library_download_duration_seconds_count
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_download_duration_seconds_sum
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_cleanup
+        preserve_tags:
+          - library
+          - status
+          - strategy
+      - name: datadog_csi_driver.libraries_cached
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.libraries_cached_bytes
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.library_volume_links
+        preserve_tags:
+          - library
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900
 - name: ondemand
   events:
     - name: agentbsod
@@ -262,6 +341,30 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: procmgr
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.procmgr_daemon_reachable
+      - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_process_running
+        preserve_tags:
+          - process
+      - name: runtime.agent_service_installed
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_procmgr_configured
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_management_mode
+        preserve_tags:
+          - service
+          - mode
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: trace-agent
   metric:
     exclude:
@@ -343,6 +446,16 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: appsec_injector.watched_changes
+        preserve_tags:
+          - proxy_type
+          - operation
+          - success
+      - name: appsec_injector.sidecar_mutations
+        preserve_tags:
+          - proxy_type
+          - outcome
+          - reason
   schedule:
     start_after: 30
     iterations: 0
@@ -369,7 +482,68 @@ profiles:
       - name: injector.pe_memory_allocation_failures
       - name: injector.pe_injection_context_allocated
       - name: injector.pe_injection_context_cleanedup
+      - name: injector.crashes_during_injection
+      - name: injector.crashes_post_injection
+      - name: injector.boot_recovery_crash_boots_detected
+      - name: injector.boot_recovery_driver_self_disabled
+      - name: injector.boot_recovery_stability_timer_fired
   schedule:
     start_after: 30
     iterations: 0
+    period: 900
+- name: autodiscovery-discovery-probe
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: autodiscovery.discovery_queue_depth
+        preserve_tags:
+          - integration_name
+          - entity_kind
+      - name: autodiscovery.discovery_results
+        preserve_tags:
+          - integration_name
+          - result
+          - entity_kind
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: ebpf
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: ebpf.core_load_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - btf_type
+      - name: ebpf.core_load_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - error_type
+      - name: ebpf.core_remoteconfig_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+      - name: ebpf.core_remoteconfig_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - error_type
+  schedule:
+    start_after: 300 # 5 minutes
+    iterations: 1
     period: 900

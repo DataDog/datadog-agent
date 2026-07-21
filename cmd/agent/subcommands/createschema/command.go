@@ -9,6 +9,7 @@ package createschema
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -78,11 +79,44 @@ func run(cliParams *cliParams) error {
 		return errors.New("cannot use createschema without SchemaBuilder")
 	}
 
-	data, err := yaml.Marshal(builder.GetSchema())
+	// Sort every maps by alphabetical order so the schema is constant across rebuild.
+	var root yaml.Node
+	if err := root.Encode(builder.GetSchema()); err != nil {
+		fmt.Printf("error: %s", err.Error())
+		return err
+	}
+	sortYAMLNodeKeys(&root)
+
+	data, err := yaml.Marshal(&root)
 	if err != nil {
 		fmt.Printf("error: %s", err.Error())
 		return err
 	}
 	fmt.Print(string(data))
 	return nil
+}
+
+// sortYAMLNodeKeys recursively sorts the keys of every mapping node in the tree
+// in strict alphabetical order.
+func sortYAMLNodeKeys(node *yaml.Node) {
+	switch node.Kind {
+	case yaml.MappingNode:
+		// Mapping content is a flat list of [key0, value0, key1, value1, ...].
+		pairs := make([][2]*yaml.Node, 0, len(node.Content)/2)
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			pairs = append(pairs, [2]*yaml.Node{node.Content[i], node.Content[i+1]})
+		}
+		sort.SliceStable(pairs, func(i, j int) bool {
+			return pairs[i][0].Value < pairs[j][0].Value
+		})
+		node.Content = node.Content[:0]
+		for _, pair := range pairs {
+			sortYAMLNodeKeys(pair[1])
+			node.Content = append(node.Content, pair[0], pair[1])
+		}
+	case yaml.DocumentNode, yaml.SequenceNode:
+		for _, child := range node.Content {
+			sortYAMLNodeKeys(child)
+		}
+	}
 }

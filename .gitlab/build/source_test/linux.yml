@@ -7,10 +7,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e rtloader.format --raise-if-changed
-    - dda inv -- -e rtloader.test
+    - bazel test //rtloader/...
 
 .linux_tests:
   stage: source_test
@@ -22,8 +19,8 @@
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
@@ -63,23 +60,31 @@ tests_linux-x64-py3:
   variables:
     CONDA_ENV: ddpy3
 
-tests_nodetreemodel:
+tests_linux-x64-py3_hybrid:
   extends:
+    - .bazel:runner:linux-arm64
     - .linux_tests
     - .linux_x64
   after_script:
+    # In the hybrid test, bazel gets run, and that leaves a symlink to junit-out-base.xml. The uploader chokes on symlinks.
+    - find $(bazel info execution_root) -type l -name 'junit-*.xml' -delete
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-    - !reference [.upload_coverage_datadog]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
+    # skip coverage upload for several reasons
+    # 1. It would conflate with coverate from the regular job
+    # 2. the bazel tests are not doing coverage yet
+    # 3. when bazel starts it makes the symlink .cache/bazel/…/execroot/_main/junit-out-AgentFlavor.base.xml
+    #    pointing to <top>/junit-out-AgentFlavor.base.xml. Then the coverage uploader fails on the symlink.
+    #    A possible fix for that is to change `datadog-ci coverage upload` so that it can gracefully
+    #    skip symlinks rather than choking. Or, we move XDG_CACHE out of the CI root.
   variables:
     CONDA_ENV: ddpy3
-    # This env var enables the NTM config implementation
-    DD_CONF_NODETREEMODEL: enable
+    EXPERIMENTAL_USE_BAZEL_TESTS: "1"
+  allow_failure: true  # This is for measurement during migration. It is not the actual test job.
+  retry: 0  # allowed to fail, ~35 min exec time
+  rules:
+    - !reference [.except_mergequeue]  # allowed to fail, not a gate at this stage
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
 
 tests_flavor_iot_linux-x64:
   extends:

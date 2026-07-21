@@ -196,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -281,7 +281,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.35.1@sha256:05d7bcdefbda08b4e038f644c4df690cdac3fba8b06f8289f30e10026720a1ab"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -299,8 +299,8 @@ new-e2e-containers-eks-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -320,7 +320,6 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
@@ -328,7 +327,6 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
-    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -346,16 +344,15 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # Same as new-e2e-containers-eks-init.
+    KUBERNETES_MEMORY_REQUEST: 20Gi
+    KUBERNETES_MEMORY_LIMIT: 20Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
-    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -432,15 +429,30 @@ new-e2e-agent-health:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
-    TEAM: agent-health
+    TEAM: fleet-remediation
+
+new-e2e-agent-telemetry:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-telemetry
+    TEAM: agent-runtimes
 
 new-e2e-privateactionrunner:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
+    - job: publish_fakeintake
+      optional: true
     - qa_agent_linux
+    - qa_dca
   rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes_with_image_override]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -670,6 +682,10 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:
   extends: .new_e2e_template
@@ -984,6 +1000,11 @@ new-e2e-anomalydetection:
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.new_e2e_template_needs_deb_x64, needs]
+    # netpath dynamic-tests run the agent as a Docker container, pulling the
+    # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
+    - qa_agent_linux
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
@@ -1042,6 +1063,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent_full
     - qa_ot_agent_standalone
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
@@ -1139,6 +1161,27 @@ new-e2e-ssi-gke:
     E2E_PRE_INITIALIZED: "true"
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-ssi-gke-autopilot-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+
+new-e2e-ssi-gke-autopilot:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-autopilot-init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+  allow_failure: true
 
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1166,6 +1209,7 @@ new-e2e-ssi-openshift:
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution
@@ -1174,7 +1218,7 @@ new-e2e-ssi-aks:
     E2E_STACK_NAME_SUFFIX: aks
     # Image volume is not supported on AKS in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
-    
+
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
@@ -1235,10 +1279,26 @@ new-e2e-cspm:
     - qa_agent_linux
     - qa_dca
     - agent_deb-x64-a7
+    - agent_rpm-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
     ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestCSPM
+      - EXTRA_PARAMS: --run TestDockerHostCSPM
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL8
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestHostBenchmarksAlmaLinux9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
   timeout: 35m
 
 new-e2e-gpu:
@@ -1248,7 +1308,7 @@ new-e2e-gpu:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
-    TEAM: ebpf-platform
+    TEAM: gpu-monitoring-agent
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.

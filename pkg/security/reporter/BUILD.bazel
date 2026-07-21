@@ -8,12 +8,12 @@ go_library(
     deps = [
         "//comp/core/secrets/def",
         "//comp/logs-library/client",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/def",
         "//pkg/config/setup",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/security/common",

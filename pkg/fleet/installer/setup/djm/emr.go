@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -20,15 +21,17 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.64.0-1"
-	emrJavaTracerVersion = "1.63.0-1"
-	emrAgentVersion      = "7.79.2-1"
-	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
+	emrInjectorVersion    = "0.67.2-1"
+	emrJavaTracerVersion  = "1.63.0-1"
+	emrAgentVersion       = "7.79.2-1"
+	emrOpenLineageVersion = "1.49.0"
+	hadoopDriverFolder    = "/mnt/var/log/hadoop/steps/"
 )
 
 var (
-	emrInfoPath     = "/mnt/var/lib/info"
-	tracerConfigEmr = config.APMConfigurationDefault{
+	emrInfoPath       = "/mnt/var/lib/info"
+	openLineageJARDir = "/usr/lib/spark/jars"
+	tracerConfigEmr   = config.APMConfigurationDefault{
 		DataJobsEnabled:               config.BoolToPtr(true),
 		IntegrationsEnabled:           config.BoolToPtr(false),
 		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
@@ -80,6 +83,7 @@ func SetupEmr(s *common.Setup) error {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigEmr.TraceDebug = config.BoolToPtr(true)
 	}
+	setupOpenLineage(s)
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigEmr,
 	}
@@ -204,6 +208,70 @@ func setEmrClusterNameSpanTags(span *telemetry.Span, source, reason, errorMessag
 	if errorMessage != "" {
 		span.SetTag("cluster_name_resolution_error_message", errorMessage)
 	}
+}
+
+func setupOpenLineage(s *common.Setup) {
+	if os.Getenv("DD_OPENLINEAGE_ENABLED") != "true" {
+		return
+	}
+	s.Out.WriteString("Enabling OpenLineage integration\n")
+	tracerConfigEmr.DataJobsOpenLineageEnabled = config.BoolToPtr(true)
+	s.Span.SetTag("host_tag_set.openlineage_enabled", "true")
+
+	// Check if an OpenLineage JAR is already on the classpath
+	matches, err := filepath.Glob(filepath.Join(openLineageJARDir, "openlineage-spark*.jar"))
+	if err == nil && len(matches) > 0 {
+		s.Out.WriteString(fmt.Sprintf("OpenLineage JAR already present (%s), skipping download\n", matches[0]))
+		return
+	}
+
+	variant := detectScalaVariant(s)
+	jarName := fmt.Sprintf("openlineage-spark%s-%s.jar", variant, emrOpenLineageVersion)
+	jarDest := filepath.Join(openLineageJARDir, jarName)
+
+	// Allow pre-staged JAR via DD_OPENLINEAGE_JAR_PATH for VPCs without internet
+	if jarPath := os.Getenv("DD_OPENLINEAGE_JAR_PATH"); jarPath != "" {
+		s.Out.WriteString(fmt.Sprintf("Copying OpenLineage JAR from %s\n", jarPath))
+		if _, err := common.ExecuteCommandWithTimeout(s, "cp", jarPath, jarDest); err != nil {
+			log.Warnf("failed to copy OpenLineage JAR from %s: %v", jarPath, err)
+		}
+		return
+	}
+
+	jarURL := fmt.Sprintf(
+		"https://repo1.maven.org/maven2/io/openlineage/openlineage-spark%s/%s/%s",
+		variant, emrOpenLineageVersion, jarName,
+	)
+	s.Out.WriteString(fmt.Sprintf("Downloading OpenLineage JAR v%s\n", emrOpenLineageVersion))
+	if _, err := common.ExecuteCommandWithTimeout(s, "curl", "-sSfL", "-o", jarDest, jarURL); err != nil {
+		log.Warnf("failed to download OpenLineage JAR: %v", err)
+	}
+}
+
+// detectScalaVariant returns the Scala binary version suffix (e.g. "_2.12") to use when
+// downloading the OpenLineage JAR. It checks, in order:
+//  1. DD_OPENLINEAGE_SPARK_VARIANT env var — for clusters where auto-detection is unavailable
+//  2. scala-library-*.jar in Spark's jars directory — reliable on most EMR releases
+//  3. Falls back to "_2.12" with a warning (covers EMR 6.x/7.x; EMR 8.x uses 2.13)
+func detectScalaVariant(s *common.Setup) string {
+	if v := os.Getenv("DD_OPENLINEAGE_SPARK_VARIANT"); v != "" {
+		return v
+	}
+	matches, _ := filepath.Glob(filepath.Join(openLineageJARDir, "scala-library-*.jar"))
+	if len(matches) == 0 {
+		log.Warn("Could not detect Scala variant from Spark jars directory — no scala-library-*.jar found. Falling back to Scala 2.12 for OpenLineage JAR download; set DD_OPENLINEAGE_SPARK_VARIANT to override.")
+		s.Out.WriteString("WARNING: Could not detect Scala variant, falling back to Scala 2.12 for OpenLineage JAR\n")
+		return "_2.12"
+	}
+	// e.g. "scala-library-2.12.18.jar" → "_2.12"
+	base := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(matches[0]), "scala-library-"), ".jar")
+	parts := strings.SplitN(base, ".", 3)
+	if len(parts) < 2 {
+		log.Warnf("Could not parse Scala version from JAR name %q. Falling back to Scala 2.12 for OpenLineage JAR download; set DD_OPENLINEAGE_SPARK_VARIANT to override.", filepath.Base(matches[0]))
+		s.Out.WriteString("WARNING: Could not parse Scala variant from JAR name, falling back to Scala 2.12 for OpenLineage JAR\n")
+		return "_2.12"
+	}
+	return "_" + parts[0] + "." + parts[1]
 }
 
 func enableEmrLogs(s *common.Setup) {

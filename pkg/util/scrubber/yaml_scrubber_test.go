@@ -86,6 +86,106 @@ func TestScrubDataObj(t *testing.T) {
 	}
 }
 
+// Scrubs an api_key embedded in an additional_endpoints JSON-string value via the value-content pass.
+func TestScrubDataObj_AdditionalEndpoints(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"additional_endpoints": `{"https://metrics.agent.datadoghq.com":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}`,
+		"api_key":              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"hostname":             "test-host",
+		"site":                 "datadoghq.com",
+	})
+	ScrubDataObj(&layer)
+
+	out := layer.(map[string]interface{})
+	assert.Equal(t, "****************************bbbb", out["api_key"])
+	assert.Equal(t,
+		`{"https://metrics.agent.datadoghq.com":["****************************aaaa"]}`,
+		out["additional_endpoints"])
+	assert.Equal(t, "test-host", out["hostname"])
+	assert.Equal(t, "datadoghq.com", out["site"])
+}
+
+// Scrubs api_keys held as scalar string elements in a list (structured YAML
+// shape for additional_endpoints).
+func TestScrubDataObj_StringElementsInList(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"additional_endpoints": map[string]interface{}{
+			"https://metrics.agent.datadoghq.com": []interface{}{
+				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			},
+		},
+	})
+	ScrubDataObj(&layer)
+
+	endpoints := layer.(map[string]interface{})["additional_endpoints"].(map[string]interface{})
+	list := endpoints["https://metrics.agent.datadoghq.com"].([]interface{})
+	assert.Equal(t, "********", list[0])
+	assert.Equal(t, "********", list[1])
+}
+
+// Single-line replacers must apply per-line so regexes like Bearer's [^*]+
+// can't consume the following lines of a multi-line string leaf.
+func TestScrubDataObj_MultiLineStringDoesNotBleed(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"some_field": "prefix line\nBearer abc\nsuffix line",
+	})
+	ScrubDataObj(&layer)
+	assert.Equal(t,
+		"prefix line\nBearer ********\nsuffix line",
+		layer.(map[string]interface{})["some_field"])
+}
+
+// Scrubs a scalar string root via the value-content pass.
+func TestScrubDataObj_StringRoot(t *testing.T) {
+	root := interface{}("api_key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	ScrubDataObj(&root)
+	assert.Equal(t, "api_key=****************************aaaa", root)
+}
+
+func TestScrubDataObj_TwoPassAlignment(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    interface{}
+		expected interface{}
+	}{
+		{
+			name: "ENC[] value is left alone",
+			input: map[string]interface{}{
+				"some_field": "ENC[supersecret]",
+			},
+			expected: map[string]interface{}{
+				"some_field": "ENC[supersecret]",
+			},
+		},
+		{
+			name: "non-secret string is not mutated",
+			input: map[string]interface{}{
+				"description": "this is a perfectly normal description value",
+			},
+			expected: map[string]interface{}{
+				"description": "this is a perfectly normal description value",
+			},
+		},
+		{
+			name: "key-name pass still wins when both could match",
+			input: map[string]interface{}{
+				"password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
+			expected: map[string]interface{}{
+				"password": "********",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ScrubDataObj(&tc.input)
+			assert.Equal(t, tc.expected, tc.input)
+		})
+	}
+}
+
 func TestConfigScrubbedValidYaml(t *testing.T) {
 	wd, _ := os.Getwd()
 

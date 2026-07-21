@@ -208,6 +208,47 @@ func TestBuildEntryFromReceipt_KeepsNonAppPackage(t *testing.T) {
 	assert.Equal(t, softwareTypePkg, entry.Source)
 }
 
+func TestBuildEntryFromReceipt_SetsInstallPathFromPrefix(t *testing.T) {
+	receipt := pkgReceiptInfo{
+		packageID:   "com.example.tool",
+		version:     "2.0",
+		installDate: "2026-01-01",
+		prefixPath:  "/opt/example",
+		bomPath:     "/var/db/receipts/com.example.tool.bom",
+	}
+	summary := pkgSummary{
+		HasApplicationsApp: false,
+		HasNonAppPayload:   true,
+		TopLevelPaths:      []string{"/opt/example"},
+	}
+
+	entry := buildEntryFromReceipt(receipt, summary, true)
+	assert.NotNil(t, entry)
+	assert.Equal(t, "/opt/example", entry.InstallPath)
+}
+
+func TestBuildEntryFromReceipt_NormalizesNAInstallPathToEmpty(t *testing.T) {
+	// No meaningful prefix ("/") and no top-level paths yields the internal "N/A"
+	// sentinel, which must be normalized to empty.
+	receipt := pkgReceiptInfo{
+		packageID:   "com.example.tool",
+		version:     "2.0",
+		installDate: "2026-01-01",
+		prefixPath:  "/",
+		bomPath:     "/var/db/receipts/com.example.tool.bom",
+	}
+	summary := pkgSummary{
+		HasApplicationsApp: false,
+		HasNonAppPayload:   true,
+		TopLevelPaths:      nil,
+	}
+
+	entry := buildEntryFromReceipt(receipt, summary, true)
+	assert.NotNil(t, entry)
+	assert.Equal(t, "", entry.InstallPath, "the \"N/A\" sentinel must be normalized to empty")
+	assert.Empty(t, entry.InstallPaths)
+}
+
 func TestFilterGenericSystemPaths(t *testing.T) {
 	paths := []string{
 		"/etc",

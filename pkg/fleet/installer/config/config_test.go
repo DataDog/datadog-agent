@@ -7,6 +7,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -649,6 +650,101 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+// otelConfigSeed is a minimal but realistic DDOT collector config (a subset of
+// cmd/otel-agent/dist/otel-config.yaml) used to exercise config experiments against the deeply
+// nested /otel-config.yaml file.
+const otelConfigSeed = `receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+exporters:
+  debug:
+    verbosity: detailed
+processors:
+  infraattributes:
+    cardinality: 2
+service:
+  pipelines:
+    traces:
+      receivers:
+      - otlp
+      processors:
+      - infraattributes
+      exporters:
+      - debug
+`
+
+func TestConfig_OTelConfigStartPromote(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
+
+	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
+
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "otel-exp-001",
+		FileOperations: []FileOperation{
+			// Deep-merge a nested collector value without clobbering sibling keys.
+			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
+			// jq transform on the same nested config.
+			{FileOperationType: FileOperationJQ, FilePath: "/otel-config.yaml", Transform: `.exporters.debug.verbosity = "normal"`},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// After promote the stable config reflects the merge-patch + jq transform with sibling keys preserved.
+	// (Asserted on the stable dir so the test is OS-agnostic: nix applies the ops in the experiment
+	// dir and swaps on promote, Windows applies them in place to the stable dir.)
+	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+	assertOTelExperimentConfig(t, string(stableContent))
+}
+
+func TestConfig_OTelConfigStartStop(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
+	original, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+
+	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
+
+	err = dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "otel-exp-002",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Rolling back restores the stable config to its original content (OS-agnostic).
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+
+	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(original), string(stableContent))
+}
+
+// assertOTelExperimentConfig checks that both the merge-patch (cardinality 2 -> 1) and the jq
+// transform (verbosity detailed -> normal) were applied while the untouched sibling sections
+// (receivers, service pipelines) survived the deep merge.
+func assertOTelExperimentConfig(t *testing.T, content string) {
+	t.Helper()
+	assert.Contains(t, content, "cardinality: 1")
+	assert.NotContains(t, content, "cardinality: 2")
+	assert.Contains(t, content, "verbosity: normal")
+	assert.NotContains(t, content, "verbosity: detailed")
+	assert.Contains(t, content, "otlp:")
+	assert.Contains(t, content, "pipelines:")
+}
+
 func TestOperationApply_MultipleAPIKeysWithDuplicateKeys(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -828,4 +924,468 @@ func TestReplaceSecrets(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "secrets are not fully replaced")
 	})
+
+	t.Run("replace secrets in jq arguments", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.api_key = $api_key`,
+					Arguments:         json.RawMessage(`{"api_key": "SEC[apikey]"}`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+		})
+
+		assert.NoError(t, err)
+		// The transform text is untouched; only the argument value is substituted.
+		assert.Equal(t, `.api_key = $api_key`, ops.FileOperations[0].Transform)
+		assert.JSONEq(t, `{"api_key": "my-api-key"}`, string(ops.FileOperations[0].Arguments))
+	})
+
+	t.Run("replace secrets nested in jq arguments", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.auth = $auth`,
+					// Placeholder nested inside an object argument.
+					Arguments: json.RawMessage(`{"auth": {"api_key": "SEC[apikey]", "tokens": ["SEC[apikey]"]}}`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+		})
+
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{"auth": {"api_key": "my-api-key", "tokens": ["my-api-key"]}}`, string(ops.FileOperations[0].Arguments))
+	})
+
+	t.Run("unreplaced secret in jq arguments returns error", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.api_key = $api_key`,
+					Arguments:         json.RawMessage(`{"api_key": "SEC[apikey]"}`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"wrong-key": "some-value",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "secrets are not fully replaced")
+	})
+
+	t.Run("secret embedded directly in transform is not substituted and errors", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.api_key = "SEC[apikey]"`,
+				},
+			},
+		}
+
+		// Even though the secret is provided, secrets are only substituted into arguments,
+		// so a SEC[...] left in the transform text is rejected.
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "secrets are not fully replaced")
+	})
+}
+
+func TestOperationApply_JQ(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"foo": "bar"}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// JQ: set foo to baz
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+	}
+}
+
+func TestOperationApply_JQWithArguments(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"tags": []any{"team:fleet"}}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// The transform is a static program; the values come from arguments as $vars.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.api_key = $api_key | .tags += [$env_tag]`,
+		Arguments:         json.RawMessage(`{"api_key": "abcd1234", "env_tag": "env:prod"}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "abcd1234", updatedMap["api_key"])
+	assert.Equal(t, []any{"team:fleet", "env:prod"}, updatedMap["tags"])
+}
+
+func TestOperationApply_JQWithTypedArguments(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Arguments are typed JSON values, not just strings: a number, a bool, and an object.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.workers = $workers | .logs_enabled = $enabled | .apm_config = $apm`,
+		Arguments:         json.RawMessage(`{"workers": 4, "enabled": true, "apm": {"enabled": false}}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, updatedMap["workers"])
+	assert.Equal(t, true, updatedMap["logs_enabled"])
+	assert.Equal(t, map[any]any{"enabled": false}, updatedMap["apm_config"])
+}
+
+func TestOperationApply_JQUndeclaredVariable(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// $missing is referenced but not provided as an argument: compile error.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = $missing`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
+}
+
+func TestOperationApply_JQConditionalTransform(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{
+		"logs_enabled": true,
+		"tags":         []any{"env:prod", "team:fleet"},
+	}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Conditional restructuring that JSON patch/merge-patch cannot express:
+	// uppercase every tag, and add a flag derived from another field.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.tags |= map(ascii_upcase) | .logs_config = {"enabled": .logs_enabled}`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, []any{"ENV:PROD", "TEAM:FLEET"}, updatedMap["tags"])
+	assert.Equal(t, map[any]any{"enabled": true}, updatedMap["logs_config"])
+}
+
+func TestOperationApply_JQMultipleOutputs(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"items": []any{"a", "b"}}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// A transform yielding more than one output is written as a multi-document YAML stream.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.items[] | {value: .}`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	decoder := yaml.NewDecoder(strings.NewReader(string(updated)))
+	var docs []map[string]any
+	for {
+		var doc map[string]any
+		if err := decoder.Decode(&doc); err != nil {
+			break
+		}
+		docs = append(docs, doc)
+	}
+	assert.Equal(t, []map[string]any{{"value": "a"}, {"value": "b"}}, docs)
+}
+
+func TestOperationApply_JQWithTimestamp(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	// yaml.v2 decodes this value into a time.Time, which gojq cannot process unless normalized.
+	err := os.WriteFile(filePath, []byte("created_at: 2021-01-02T15:04:05Z\nfoo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+	assert.Equal(t, "2021-01-02T15:04:05Z", updatedMap["created_at"]) // no sub-seconds: RFC3339 and RFC3339Nano are identical
+}
+
+func TestOperationApply_JQWithSubSecondTimestamp(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	// yaml.v2 parses this to a time.Time with nanosecond precision.
+	err := os.WriteFile(filePath, []byte("created_at: 2021-01-02T15:04:05.123456789Z\nfoo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+	// Sub-second precision must be preserved (RFC3339Nano, not RFC3339).
+	assert.Equal(t, "2021-01-02T15:04:05.123456789Z", updatedMap["created_at"])
+}
+
+func TestOperationApply_JQInvalidTransform(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo |`, // syntax error
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
+}
+
+func TestOperationApply_JQRuntimeError(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// .foo is a string, indexing it like an object is a runtime error.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo.bar`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
+}
+
+// applyJQToTags writes a realistic datadog.yaml whose `tags` field is set to the
+// given tags, applies the jq transform, and returns the resulting tags slice. It also
+// asserts that the other (unrelated) config fields are left untouched.
+func applyJQToTags(t *testing.T, tags []any, transform string) []any {
+	t.Helper()
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+
+	orig := map[string]any{
+		"api_key":      "0123456789abcdef0123456789abcdef",
+		"site":         "datadoghq.com",
+		"hostname":     "my-host",
+		"log_level":    "info",
+		"tags":         tags,
+		"logs_enabled": true,
+		"logs_config": map[string]any{
+			"container_collect_all": true,
+		},
+		"apm_config": map[string]any{
+			"enabled": true,
+		},
+	}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         transform,
+	}
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+
+	// Every field other than `tags` must be preserved exactly.
+	assert.Equal(t, "0123456789abcdef0123456789abcdef", updatedMap["api_key"])
+	assert.Equal(t, "datadoghq.com", updatedMap["site"])
+	assert.Equal(t, "my-host", updatedMap["hostname"])
+	assert.Equal(t, "info", updatedMap["log_level"])
+	assert.Equal(t, true, updatedMap["logs_enabled"])
+	assert.Equal(t, map[any]any{"container_collect_all": true}, updatedMap["logs_config"])
+	assert.Equal(t, map[any]any{"enabled": true}, updatedMap["apm_config"])
+
+	got, _ := updatedMap["tags"].([]any)
+	return got
+}
+
+func TestOperationApply_JQAddTagIfMissing(t *testing.T) {
+	// Idempotent add: only append the tag when it is not already present.
+	const transform = `if (.tags | index("env:prod")) == null then .tags += ["env:prod"] else . end`
+
+	t.Run("tag missing is added", func(t *testing.T) {
+		got := applyJQToTags(t, []any{"team:fleet"}, transform)
+		assert.Equal(t, []any{"team:fleet", "env:prod"}, got)
+	})
+
+	t.Run("tag already present is not duplicated", func(t *testing.T) {
+		got := applyJQToTags(t, []any{"env:prod", "team:fleet"}, transform)
+		assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
+	})
+}
+
+func TestOperationApply_JQReplaceTag(t *testing.T) {
+	const transform = `.tags |= map(if . == "env:staging" then "env:prod" else . end)`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
+	assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
+}
+
+func TestOperationApply_JQDeleteTag(t *testing.T) {
+	const transform = `.tags -= ["env:staging"]`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
+	assert.Equal(t, []any{"team:fleet"}, got)
 }

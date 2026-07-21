@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -121,7 +121,7 @@ func TestActionKill(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("kill_action_usr2")
 			if msg == nil {
 				return errors.New("not found")
@@ -138,7 +138,7 @@ func TestActionKill(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 
@@ -176,7 +176,7 @@ func TestActionKill(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("kill_action_kill")
 			if msg == nil {
 				return errors.New("not found")
@@ -196,7 +196,7 @@ func TestActionKill(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 }
@@ -329,7 +329,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("kill_action_kill")
 		if msg == nil {
 			return errors.New("not found")
@@ -349,10 +349,10 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 	assert.NoError(t, err)
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("kill_action_no_kill")
 		if msg == nil {
 			return errors.New("not found")
@@ -366,7 +366,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 	assert.NoError(t, err)
 }
 
@@ -400,7 +400,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			t.Error(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg(ruleID)
 			if msg == nil {
 				return errors.New("not found")
@@ -420,7 +420,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	}
 
@@ -436,7 +436,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			t.Error(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg(ruleID)
 			if msg == nil {
 				return errors.New("not found")
@@ -453,7 +453,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	}
 
@@ -672,7 +672,7 @@ func TestActionHash(t *testing.T) {
 			assertTriggeredRule(t, rule, "hash_action_open")
 		}, "hash_action_open")
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
@@ -692,7 +692,7 @@ func TestActionHash(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 
 		<-done
@@ -720,7 +720,7 @@ func TestActionHash(t *testing.T) {
 			assertTriggeredRule(t, rule, "hash_action_open")
 		}, "hash_action_open")
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
@@ -740,7 +740,7 @@ func TestActionHash(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 
 		<-done
@@ -758,7 +758,7 @@ func TestActionHash(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_exec")
 		}, "hash_action_exec")
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("hash_action_exec")
 			if msg == nil {
 				return errors.New("not found")
@@ -778,7 +778,7 @@ func TestActionHash(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 
@@ -829,7 +829,7 @@ func TestActionHash(t *testing.T) {
 			assertTriggeredRule(t, rule, "hash_action_open_no_path")
 		}, "hash_action_open_no_path")
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("hash_action_open_no_path")
 			if msg == nil {
 				return errors.New("not found")
@@ -849,7 +849,7 @@ func TestActionHash(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 
 		<-done
@@ -1156,7 +1156,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	}
 
 	// Verify that the container was killed by checking if it's still running
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
 		output, err := cmd.Output()
 		if err != nil {
@@ -1167,7 +1167,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			return errors.New("container still running")
 		}
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(5))
 	if err != nil {
 		t.Fatal("container should have been killed but is still running")
 	}
@@ -1205,7 +1205,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	}, "test_container_exec_trigger")
 
 	// Verify that the second container is still running (not killed due to different signature)
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance2.containerID)
 		output, err := cmd.Output()
 		if err != nil {
@@ -1215,7 +1215,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			return errors.New("container not running")
 		}
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(5))
 	if err != nil {
 		t.Fatal("second container should still be running (different signature)")
 	}
@@ -1363,7 +1363,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	}
 
 	// Verify that the container was killed by checking if it's still running
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
 		output, err := cmd.Output()
 		if err != nil {
@@ -1374,7 +1374,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 			return errors.New("container still running")
 		}
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(5))
 	if err != nil {
 		t.Fatal("container should have been killed but is still running")
 	}
@@ -1510,7 +1510,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 		}
 
 		// Poll until a remediation_status message is received, then validate its fields.
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg == nil {
 				return errors.New("not found")
@@ -1575,7 +1575,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 	t.Run("kill-no-tags", func(t *testing.T) {
@@ -1606,7 +1606,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 		}
 
 		// Ensure remediation_status is sent even when rule has no remediation_rule/agent_event_id tags.
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg == nil {
 				return errors.New("not found")
@@ -1662,7 +1662,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 
@@ -1694,7 +1694,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 		}
 
 		// Poll for remediation_status and assert action is network_isolation and status is performed.
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg == nil {
 				return errors.New("not found")
@@ -1736,7 +1736,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 
@@ -1811,7 +1811,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 		test.msgSender.flush()
 		// After reload, the engine evaluates remediation rules and sends not_triggered for rules that did not fire.
 		test.reloadPolicies()
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg == nil {
 				return errors.New("remediation_status message not found")
@@ -1857,7 +1857,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 			})
 
 			return validationErr
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NoError(t, err)
 	})
 	t.Run("not-triggered-no-event", func(t *testing.T) {
@@ -1871,7 +1871,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 		// Reload and repeatedly check that no remediation_status message appears (only remediation rules send it).
 
 		test.reloadPolicies()
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
@@ -1879,7 +1879,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 				return nil
 			}
 			return errors.New("retry")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10))
 		assert.NotNil(t, err, "expected all retry attempts to complete without finding remediation_status")
 	})
 }
@@ -1998,7 +1998,7 @@ func TestCustomEventContainer(t *testing.T) {
 	time.Sleep(2500 * time.Millisecond)
 
 	// Poll until a remediation_status message is received, then validate its fields (scope container).
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("remediation_status")
 		if msg == nil {
 			return errors.New("not found")
@@ -2034,13 +2034,13 @@ func TestCustomEventContainer(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Verify that the container was killed by checking if it's still running
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
 		output, err := cmd.Output()
 		if err != nil {
@@ -2051,7 +2051,7 @@ func TestCustomEventContainer(t *testing.T) {
 			return errors.New("container still running")
 		}
 		return nil
-	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(5))
 	if err != nil {
 		t.Fatal("container should have been killed but is still running")
 	}

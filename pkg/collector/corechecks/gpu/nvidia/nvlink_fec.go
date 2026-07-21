@@ -8,10 +8,9 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"math"
-
-	"errors"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -19,7 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-const nvlinkFECHistoryMetricName = "nvlink.errors.fec"
+const (
+	nvlinkFECHistoryMetricName          = "nvlink.errors.fec"
+	nvlinkFECNoErrorsMetricName         = "nvlink.errors.fec.none"
+	nvlinkFECLightErrorsMetricName      = "nvlink.errors.fec.light"
+	nvlinkFECHeavyErrorsMetricName      = "nvlink.errors.fec.heavy"
+	nvlinkFECLightErrorThresholdConfig  = "gpu.nvlink.fec_light_error_threshold"
+	defaultNVLinkFECLightErrorThreshold = 3
+)
 
 var nvlinkFECHistoryFieldIDs = []uint32{
 	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0,
@@ -41,13 +47,22 @@ var nvlinkFECHistoryFieldIDs = []uint32{
 }
 
 type nvlinkFECCollector struct {
-	device ddnvml.Device
-	ports  []int
+	device                    ddnvml.Device
+	ports                     []int
+	lightErrorBucketThreshold int
 }
 
-func newNVLinkFECCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+func newNVLinkFECCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	lightErrorBucketThreshold := defaultNVLinkFECLightErrorThreshold
+	if deps != nil && deps.Config != nil && deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig) > 0 {
+		if v := deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig); v > 0 {
+			lightErrorBucketThreshold = v
+		}
+	}
+
 	c := &nvlinkFECCollector{
-		device: device,
+		device:                    device,
+		lightErrorBucketThreshold: lightErrorBucketThreshold,
 	}
 
 	ports, err := getSupportedNvlinkPorts(device, c.getPortMetrics)
@@ -102,6 +117,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 
 	var fecMetrics []*Metric
 	var multiErr []error
+	fecSeverityCounts := make([]float64, 3)
 	for bucket, fieldValue := range fields {
 		if fieldValue.NvmlReturn != uint32(nvml.SUCCESS) {
 			multiErr = append(multiErr, ddnvml.NewNvmlAPIErrorOrNil(fmt.Sprintf("GetFieldValues(field=%d, scope=%d)", fieldValue.FieldId, scopeID), nvml.Return(fieldValue.NvmlReturn)))
@@ -118,7 +134,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 			continue
 		}
 
-		histBounds := [2]float64{float64(bucket), float64(bucket + 1)}
+		histBounds := [2]float64{float64(bucket), float64(bucket)}
 		metric := &Metric{
 			Name:     nvlinkFECHistoryMetricName,
 			Type:     metrics.HistogramType,
@@ -132,7 +148,39 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 
 		fecMetrics = append(fecMetrics, metric)
+		switch {
+		case bucket == 0:
+			fecSeverityCounts[0] += float64(count)
+		case bucket <= c.lightErrorBucketThreshold:
+			fecSeverityCounts[1] += float64(count)
+		default:
+			fecSeverityCounts[2] += float64(count)
+		}
+	}
+
+	// If we have partial errors we can't emit the grouped metrics as they're not complete.
+	if len(multiErr) == 0 {
+		fecMetrics = append(fecMetrics, c.fecSeverityMetrics(port, fecSeverityCounts)...)
 	}
 
 	return fecMetrics, errors.Join(multiErr...)
+}
+
+func (c *nvlinkFECCollector) fecSeverityMetrics(port int, counts []float64) []*Metric {
+	return []*Metric{
+		c.fecSeverityMetric(nvlinkFECNoErrorsMetricName, port, counts[0]),
+		c.fecSeverityMetric(nvlinkFECLightErrorsMetricName, port, counts[1]),
+		c.fecSeverityMetric(nvlinkFECHeavyErrorsMetricName, port, counts[2]),
+	}
+}
+
+func (c *nvlinkFECCollector) fecSeverityMetric(name string, port int, count float64) *Metric {
+	return &Metric{
+		Name:                name,
+		Type:                metrics.GaugeType,
+		Value:               count,
+		Priority:            Medium,
+		Tags:                []string{nvlinkPortTag(port)},
+		RateCalculationMode: PerSecondRateCalculation,
+	}
 }

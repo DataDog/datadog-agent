@@ -148,7 +148,7 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 
 			// Match layers with their history entries, including empty layers
 			historyIndex := 0
-			for layerIndex, layerDigest := range parsed.ImageSpec.RootFS.DiffIDs {
+			for layerIndex, diffID := range parsed.ImageSpec.RootFS.DiffIDs {
 				// Append all empty layers encountered before this layer
 				for historyIndex < len(parsed.ImageSpec.History) {
 					history := parsed.ImageSpec.History[historyIndex]
@@ -187,7 +187,7 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 
 				// Create and append the layer with the matched history
 				layer := workloadmeta.ContainerImageLayer{
-					DiffID:  layerDigest,
+					DiffID:  diffID,
 					History: historyEntry,
 				}
 

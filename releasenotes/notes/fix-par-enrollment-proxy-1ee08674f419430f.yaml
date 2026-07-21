@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix Private Action Runner self-enrollment failing silently on hosts with no
+    direct internet access when a proxy is configured in ``datadog.yaml``.
+    Enrollment requests now respect the agent proxy settings
+    (``proxy.https``, ``proxy.http``, and ``no_proxy``).

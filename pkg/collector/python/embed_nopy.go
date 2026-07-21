@@ -9,3 +9,6 @@ package python
 
 // InitPython is a no-op when the build tag is not set
 func InitPython(_ ...string) {}
+
+// SetHealthPlatform is a no-op when the build tag is not set
+func SetHealthPlatform(_ any) {}

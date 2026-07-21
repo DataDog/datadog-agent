@@ -27,6 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
+from tasks.libs.common.get_payload_version import get_payload_version
 from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
@@ -163,19 +164,42 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
         if not base_path:
             continue
 
-        for libdir in ["lib", "lib64", "build/rtloader"]:
-            if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
-                rtloader_lib.append(os.path.join(base_path, libdir))
+        rtloader_lib_found = False
+        for candidate_path in [base_path, os.path.join(base_path, "embedded")]:
+            # Keep only the first libdir that holds the lib for a given base_path, but still
+            # look for headers under every candidate: a legacy lib install can be paired with
+            # headers that only exist under the embedded directory.
+            if not rtloader_lib_found:
+                for libdir in ["lib", "lib64", "build/rtloader"]:
+                    if os.path.exists(os.path.join(candidate_path, libdir, RTLOADER_LIB_NAME)):
+                        rtloader_lib.append(os.path.join(candidate_path, libdir))
+                        rtloader_lib_found = True
+                        break
 
-        header_path = os.path.join(base_path, "include")
-        if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
-            rtloader_headers = header_path
+            if not rtloader_headers:
+                header_path = os.path.join(candidate_path, "include")
+                if os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
+                    rtloader_headers = header_path
 
-        common_path = os.path.join(base_path, "common")
-        if not rtloader_common_headers and os.path.exists(common_path):
-            rtloader_common_headers = common_path
+            if not rtloader_common_headers:
+                common_path = os.path.join(candidate_path, "common")
+                if os.path.exists(common_path):
+                    rtloader_common_headers = common_path
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
+
+
+def get_bazel_python_home(rtloader_lib):
+    # The first entry is the rtloader that actually gets linked (it takes -L / rpath
+    # precedence), so only infer the Python home from it.
+    if not rtloader_lib:
+        return None
+
+    embedded_dir = Path(os.path.abspath(rtloader_lib[0])).parent
+    if embedded_dir.name == "embedded":
+        return str(embedded_dir)
+
+    return None
 
 
 def get_embedded_path(ctx):
@@ -231,6 +255,7 @@ def get_build_flags(
     python_home_3=None,
     headless_mode=False,
     arch: Arch | None = None,
+    include_python: bool = False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -259,13 +284,16 @@ def get_build_flags(
             raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
+    if not python_home_3:
+        python_home_3 = get_bazel_python_home(rtloader_lib)
+
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
     # setting the run path
     if sys.platform.startswith('linux') and run_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
 
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
@@ -273,17 +301,15 @@ def get_build_flags(
         extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
-    if python_home_3:
+    if include_python and python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
     # adding rtloader libs and headers to the env
-    if rtloader_lib:
+    if include_python and rtloader_lib:
         if not headless_mode:
             print(
                 f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
             )
-        env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
-        env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         if sys.platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
@@ -294,7 +320,7 @@ def get_build_flags(
     # Python is installed alongside rtloader under the same embedded prefix.
     # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
     # os.environ, so placing this before it would cause the python flag to be dropped.
-    if sys.platform == 'aix':
+    if include_python and sys.platform == 'aix':
         aix_python_lib_path = python_home_3 or embedded_path
         if aix_python_lib_path:
             env['CGO_LDFLAGS'] = (
@@ -305,9 +331,9 @@ def get_build_flags(
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
-    if rtloader_headers:
+    if include_python and rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
-    if rtloader_common_headers:
+    if include_python and rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
@@ -319,8 +345,10 @@ def get_build_flags(
     if static:
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
-    elif rtloader_lib:
-        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+    elif include_python and rtloader_lib:
+        if sys.platform == "darwin":
+            extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
+        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
@@ -381,34 +409,6 @@ def get_common_test_args(build_tags, failfast):
     }
 
 
-def get_payload_version():
-    """
-    Return the Agent payload version (`x.y.z`) found in the go.mod file.
-    """
-    with open('go.mod') as f:
-        for rawline in f:
-            line = rawline.strip()
-            whitespace_split = line.split(" ")
-            if len(whitespace_split) < 2:
-                continue
-            pkgname = whitespace_split[0]
-            if pkgname == "github.com/DataDog/agent-payload/v5":
-                # Example of line
-                # github.com/DataDog/agent-payload/v5 v5.0.2
-                # github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f
-                version_split = re.split(r'[ +]', line)
-                if len(version_split) < 2:
-                    raise Exception(
-                        "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
-                    )
-                version = version_split[1].split("-")[0].strip()
-                if not re.search(r"^v\d+(\.\d+){2}$", version):
-                    raise Exception(f"Version of agent-payload in go.mod is invalid: '{version}'")
-                return version
-
-    raise Exception("Could not find valid version for agent-payload in go.mod file")
-
-
 def get_version_ldflags(ctx, install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
@@ -417,11 +417,13 @@ def get_version_ldflags(ctx, install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
+    full_commit = get_commit_sha(ctx, short=False)
     version = get_version(ctx, include_git=True)
     version_url_safe = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.FullCommit={full_commit} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
