@@ -35,6 +35,7 @@ test/fakeintake/
 | `/api/v1/collector` | ProcessAggregator | `GetProcesses()` |
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
+| `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |
@@ -200,6 +201,56 @@ When the agent starts sending a new type of data to a new endpoint:
      `/fakeintake/payloads`
 
 5. **Add tests** for the new aggregator and client methods
+
+## Image version pinning
+
+The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
+
+- `version/VERSION` holds the pinned tag (e.g. `v1`), embedded by
+  `version/version.go` and exposed as `version.Tag` (this package only holds the
+  tag — it has no knowledge of overrides).
+- The e2e-framework helper `components/datadog/fakeintake.ImageURL(image)` (used
+  by every fakeintake default) returns the `FakeintakeImageOverride` runner
+  parameter (`E2E_FAKEINTAKE_IMAGE_OVERRIDE`) if set, else `<image>:<version.Tag>`.
+  It reads the override through the runner parameter store like every other
+  `E2E_*` value — never `os.Getenv` directly.
+- **Only server changes rebuild the image.** The image is
+  `go build cmd/server/main.go`, whose in-module deps are `server/`,
+  `aggregator/` and `api/`. So a bump/rebuild/publish is required only for
+  changes under those (plus `go.mod`/`go.sum`/`Dockerfile`) — see
+  `.fakeintake_server_paths` in `.gitlab-ci.yml` and `_is_server_file()` in
+  `tasks/fakeintake.py`. Changes to `client/`, `cmd/client/` or `docs/` do **not**
+  change the image and need no bump.
+- **When you change server-side fakeintake code**, **bump `version/VERSION` in
+  the same PR** — a strictly greater integer than the base branch's value (e.g.
+  `v1` → `v2`). CI (`fakeintake_check_version_bump`, using
+  `dda inv fakeintake.check-version-bump`) enforces this, including in the
+  merge queue, so two PRs bumping to the same value can never collide.
+- **On your PR**, e2e suites don't need the bump to see a server change: CI sets
+  `E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
+  changes, and every suite honors that override globally. A client/CLI change
+  runs e2e against the pinned image (no override, no rebuild) so it is still
+  exercised.
+- **On merge to main**, `publish_fakeintake_pinned` publishes the image under
+  the tag in `VERSION`. The pinned tag is a release artifact — it is published
+  authoritatively from `main` only, never from feature branches. Other branches
+  keep using their own pinned tag until they rebase onto a main that bumped it —
+  no branch is affected by a fakeintake change until it explicitly picks up the
+  new pin. On the main pipeline, e2e waits for `publish_fakeintake_pinned` (via
+  the optional need in `.needs_fakeintake_publish`) so it never runs against a
+  not-yet-published tag.
+- **Known limitation — cross-pipeline publish window.** Because the pinned tag
+  is published only after the bump merges to main, there is a window (the main
+  pipeline's fakeintake build + publish, up to ~10-20 min) during which the new
+  `vN` does not yet exist. A *different* PR that rebases onto the just-bumped
+  main during this window resolves to `vN` and its e2e will fail to pull the
+  image until the publish completes. This is rare (fakeintake changes are
+  infrequent) and self-healing: re-run the affected e2e once main has finished
+  publishing. Eliminating it entirely would require publishing at the
+  merge-queue gate; that trade-off was intentionally declined in favor of a
+  simpler main-only publish.
+- `:latest` is still published (`publish_fakeintake_latest`) for external/manual
+  consumers, but no test references it anymore.
 
 ## Key files
 

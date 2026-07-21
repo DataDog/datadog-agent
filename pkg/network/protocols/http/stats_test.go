@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 func TestAddRequest(t *testing.T) {
@@ -66,6 +68,90 @@ func TestCombineWith(t *testing.T) {
 		verifyQuantile(t, s.Latencies, 0.5, 15.0) // median
 		verifyQuantile(t, s.Latencies, 1.0, 20.0) // max item
 		assert.Equal(t, uint64(1|2|4), s.StaticTags)
+	}
+}
+
+func TestCombineWithDiscovery(t *testing.T) {
+	// Discovery buckets have no DDSketch and track LatencySum, even for Count>1.
+	dst := NewRequestStats()
+	src := NewRequestStats()
+	for i := 0; i < 3; i++ {
+		dst.AddDiscoveryRequest(200, 10.0, 1, nil)
+	}
+	for i := 0; i < 2; i++ {
+		src.AddDiscoveryRequest(200, 20.0, 2, nil)
+	}
+
+	assert.NotPanics(t, func() { dst.CombineWith(src) })
+
+	s := dst.Data[200]
+	if assert.NotNil(t, s) {
+		assert.Nil(t, s.Latencies, "discovery merge must not build a DDSketch")
+		assert.Equal(t, 5, s.Count)
+		assert.Equal(t, 10.0*3+20.0*2, s.LatencySum)
+		assert.Equal(t, uint64(1|2), s.StaticTags)
+	}
+}
+
+func TestCombineWithDiscoveryIntoEmpty(t *testing.T) {
+	// Merging into a status the receiver has no bucket for creates it.
+	dst := NewRequestStats()
+	src := NewRequestStats()
+	src.AddDiscoveryRequest(200, 10.0, 0, nil)
+	src.AddDiscoveryRequest(200, 30.0, 0, nil)
+
+	dst.CombineWith(src)
+
+	s := dst.Data[200]
+	if assert.NotNil(t, s) {
+		assert.Nil(t, s.Latencies)
+		assert.Equal(t, 2, s.Count)
+		assert.Equal(t, 40.0, s.LatencySum)
+	}
+}
+
+func TestCombineWithDiscoverySingleSample(t *testing.T) {
+	// A single-sample discovery bucket carries LatencySum (FirstLatencySample==0);
+	// the merge must keep LatencySum rather than routing through AddRequest.
+	dst := NewRequestStats()
+	src := NewRequestStats()
+	src.AddDiscoveryRequest(200, 42.0, 0, nil)
+
+	dst.CombineWith(src)
+
+	s := dst.Data[200]
+	if assert.NotNil(t, s) {
+		assert.Equal(t, 1, s.Count)
+		assert.Equal(t, 42.0, s.LatencySum)
+		assert.Zero(t, s.FirstLatencySample)
+		assert.Nil(t, s.Latencies)
+	}
+}
+
+func TestCombineWithDiscoveryStatusClassesAndTags(t *testing.T) {
+	// Both collapsed classes merge independently, with static/dynamic tags.
+	dst := NewRequestStats()
+	src := NewRequestStats()
+	src.AddDiscoveryRequest(200, 10.0, 1, common.NewStringSet("svc:a"))
+	src.AddDiscoveryRequest(500, 20.0, 2, common.NewStringSet("svc:b")) // collapses to 400
+
+	dst.CombineWith(src)
+
+	assert.Len(t, dst.Data, 2)
+
+	if ok := dst.Data[200]; assert.NotNil(t, ok) {
+		assert.Equal(t, 1, ok.Count)
+		assert.Equal(t, 10.0, ok.LatencySum)
+		assert.Equal(t, uint64(1), ok.StaticTags)
+		_, has := ok.DynamicTags["svc:a"]
+		assert.True(t, has)
+	}
+	if errBucket := dst.Data[400]; assert.NotNil(t, errBucket) {
+		assert.Equal(t, 1, errBucket.Count)
+		assert.Equal(t, 20.0, errBucket.LatencySum)
+		assert.Equal(t, uint64(2), errBucket.StaticTags)
+		_, has := errBucket.DynamicTags["svc:b"]
+		assert.True(t, has)
 	}
 }
 

@@ -75,6 +75,7 @@ dd_agent_go_test(
         "cyclic_map_test.go",
         "incomplete_stats_test.go",
         "model_test.go",
+        "statkeeper_discovery_test.go",
         "telemetry_test.go",
         "types_linux_test.go",
     ],

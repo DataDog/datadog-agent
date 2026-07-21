@@ -147,9 +147,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: |-
-      Cluster check Autodiscovery
-      TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
+    comment: TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is
+      fully deprecated
   unscheduled_check_threshold:
     node_type: setting
     type: integer

@@ -48,6 +48,7 @@ const (
 	macosGUIPort             = 5002
 	macosAuthTokenPath       = "/opt/datadog-agent/etc/auth_token"
 	macosConfDefaultConfPath = "/opt/datadog-agent/etc"
+	macosSysprobeSocketPath  = "/opt/datadog-agent/run/sysprobe.sock"
 )
 
 // Markers delimit each test's appended config block for removal during cleanup.
@@ -272,6 +273,8 @@ func (m *macosInstallSuite) enableSysprobeForRestartTest(macosTestClient *common
 
 	m.EventuallyWithT(func(c *assert.CollectT) {
 		macosLaunchdPID(c, macosTestClient, "system/com.datadoghq.sysprobe")
+		// Wait for the sysprobe socket to be available, since testAgentRestart dials it directly.
+		macosTestClient.MustExecuteOn(c, "sudo test -S "+macosSysprobeSocketPath)
 	}, 20*time.Second, 1*time.Second)
 }
 

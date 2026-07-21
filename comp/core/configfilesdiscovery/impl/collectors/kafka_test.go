@@ -169,9 +169,10 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
 	require.Len(t, files, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
-		Path:      "/etc/kafka/server.properties",
-		Content:   []byte("broker.id=1\n"),
-		Truncated: true,
+		Path:          "/etc/kafka/server.properties",
+		Content:       []byte("broker.id=1\n"),
+		Truncated:     true,
+		PayloadFormat: kafkaConfigPayloadFormat,
 	}, files[0])
 }
 

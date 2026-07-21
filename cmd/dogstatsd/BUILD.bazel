@@ -1,1 +1,152 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "DARWIN_EXCLUDED_TAGS", "DOGSTATSD_TAGS", "FIPS_TAGS", "LINUX_ONLY_TAGS", "WINDOWS_EXCLUDED_TAGS")
+
 # gazelle:dd_agent_go_test on
+
+go_library(
+    name = "dogstatsd_lib",
+    srcs = [
+        "main_nix.go",
+        "main_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/dogstatsd",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/dogstatsd/command",
+            "//cmd/dogstatsd/subcommands/start",
+            "//comp/aggregator/demultiplexer/def",
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/dogstatsd/server/def",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/messagestrings",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_binary(
+    name = "dogstatsd",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/dogstatsd/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
+    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
+    embed = [":dogstatsd_lib"],
+    # TODO: Platform filtering seems like something we should move into dd_agent_go_binary.
+    # Maybe we should 'or' in COMMON_TAGS there too.
+    # Or perhaps we need the equivalent of build_tags.py functions as starlark in build_tags.bzl.
+    # Then we can select on platform and have the value be something like get_build_flags("dogstatsd", "linux")
+    # We would like to put fips tags in the sort with the others, but the select() semantics aren't that
+    # sophisticated. What we really need is to fix rules_go/go_binary so that tags are deduped and sourced.
+    gotags = select({
+        "@platforms//os:macos": sorted((COMMON_TAGS | DOGSTATSD_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+        "@platforms//os:windows": sorted((COMMON_TAGS | DOGSTATSD_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+        "//conditions:default": sorted(COMMON_TAGS | DOGSTATSD_TAGS),
+    }) + select({
+        "//packages/agent:fips_flavor": sorted(FIPS_TAGS),
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)

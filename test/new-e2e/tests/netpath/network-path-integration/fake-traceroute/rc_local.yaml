@@ -1,0 +1,13 @@
+init_config:
+    min_collection_interval: 10
+instances:
+  - hostname: 198.51.100.2
+    protocol: TCP
+    port: 80
+    traceroute_queries: 1
+    e2e_queries: 1
+  - hostname: 198.51.100.2
+    protocol: TCP
+    port: 8080
+    traceroute_queries: 1
+    e2e_queries: 1

@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 
 file_header = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -7,6 +8,11 @@ file_header = """// Unless explicitly stated otherwise all files in this reposit
 // Copyright 2016-present Datadog, Inc.
 
 package setup
+"""
+
+constant_header = """//
+// The following code is generated from the schema and should never be manually edited
+//
 """
 
 
@@ -42,10 +48,10 @@ class CodeGeneratorTarget:
             return
         self.buffer[path] = BufferedSetting(path, sourcecode)
 
-    def flush_buffer(self):
-        # Without the --keep-orig-order flag, output everything in 1 function
+    def flush_buffer(self, filename_filter):
+        # Without the --keep-orig-order flag, output everything at once
         if self.buffer is None:
-            self.result_as_single_func()
+            self.output_result_for_all_settings(filename_filter)
             return
 
         # Otherwise, we output multiple source files
@@ -58,35 +64,33 @@ class CodeGeneratorTarget:
             if not h:
                 print(f"[WARN] not found: {funcname}")
                 continue
+            (filename, settings) = h['filename'], h['settings']
+            if filename_filter and not filename_filter(filename):
+                continue
 
             # Get filename to write to, add header if its empty
-            need_import_statements = False
-            (
-                filename,
-                settings,
-            ) = h['filename'], h['settings']
             if filename not in self.filesystem:
-                self.filesystem[filename] = self.header_text.split('\n')
-                need_import_statements = True
-
-            # Determine if the target file needs to import pkgconfighelper
-            need_pkgconfighelper = False
-            for row in settings:
-                keyname = row[0]
-                setting = self.buffer[keyname]
-                for line in setting.sourcecode:
-                    if 'pkgconfighelper.' in line:
-                        need_pkgconfighelper = True
-
-            # Imports section
-            if need_import_statements:
-                self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
+                self._add_file_header(filename, settings)
 
             # Create the function, declare all settings in it
             sourcecode = self.filesystem[filename]
             output_func_header(funcname, sourcecode)
             for row in settings:
+                # pattern
+                if row[1].startswith('pattern_'):
+                    suffix_list = get_suffixes_for_pattern(row[1])
+                    for suffix in suffix_list:
+                        keyname = join_key(row[0], suffix)
+                        if keyname not in self.buffer:
+                            continue
+                        setting = self.buffer[keyname]
+                        self.buffer[keyname].done = True
+                        sourcecode = sourcecode + setting.sourcecode
+                    continue
+                # single setting
                 keyname = row[0]
+                if keyname not in self.buffer:
+                    continue
                 setting = self.buffer[keyname]
                 self.buffer[keyname].done = True
                 sourcecode = sourcecode + setting.sourcecode
@@ -94,7 +98,9 @@ class CodeGeneratorTarget:
             self.filesystem[filename] = sourcecode
 
         # Afterwards: run over buffer to get everything else
-        sourcecode = []
+        other_filename = 'other_settings.go'
+        self._add_file_header(other_filename, [])
+        sourcecode = self.filesystem[other_filename]
         output_func_header("otherSettings", sourcecode)
         for keyname in self.buffer:
             if self.buffer[keyname].done:
@@ -102,7 +108,20 @@ class CodeGeneratorTarget:
             self.buffer[keyname].done = True
             sourcecode = sourcecode + self.buffer[keyname].sourcecode
         output_func_footer("otherSettings", sourcecode)
-        self.filesystem['other_settings.go'] = sourcecode
+        self.filesystem[other_filename] = sourcecode
+
+    def _add_file_header(self, filename, settings):
+        self.filesystem[filename] = self.header_text.split('\n')
+        # Determine if the target file needs to import pkgconfighelper
+        need_pkgconfighelper = False
+        for row in settings:
+            keyname = row[0]
+            setting = self.buffer.get(keyname)
+            if setting:
+                for line in setting.sourcecode:
+                    if 'pkgconfighelper.' in line:
+                        need_pkgconfighelper = True
+        self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
 
     def _add_imports(self, need_pkgconfighelper):
         sourcecode = ['import (']
@@ -112,7 +131,20 @@ class CodeGeneratorTarget:
         sourcecode += [')', '']
         return sourcecode
 
-    def result_as_single_func(self):
+    def output_result_for_all_settings(self, filename_filter):
+        if filename_filter("system_probe_settings.go"):
+            return self.output_result_for_sysprobe_settings()
+        return self.output_result_for_core_agent_settings()
+
+    def output_result_for_sysprobe_settings(self):
+        res = self.header_text.split('\n')
+        res += self._add_imports(False)
+        res += ['func initSystemProbeConfig(config pkgconfigmodel.Setup) {']
+        res += self.output_everything
+        res += ['}']
+        self.filesystem = {'system_probe_settings.go': res}
+
+    def output_result_for_core_agent_settings(self):
         res = self.header_text.split('\n')
         res += self._add_imports(False)
         res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
@@ -123,17 +155,23 @@ class CodeGeneratorTarget:
         res += ['}']
         self.filesystem = {'all_settings.go': res}
 
-    def write_to_directory(self, out_dir):
+    def write_to_directory(self, out_dir, filename_filter):
         for filename in self.filesystem:
+            if filename_filter and not filename_filter(filename):
+                print('Skipping %s' % filename)
+                continue
+            print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
             with open(out_filename, "w") as f:
                 f.write('\n'.join(self.filesystem[filename]))
 
 
-def join_key(path, field):
-    if path == '':
+def join_key(prefix, field):
+    if prefix == '':
         return field
-    return f"{path}.{field}"
+    if prefix.endswith('.'):
+        return f"{prefix}{field}"
+    return f"{prefix}.{field}"
 
 
 def _is_node_leaf(node):
@@ -166,6 +204,12 @@ def retrieve_hint(hints_obj, keyname):
         for row in perFilenameFuncSettings['settings']:
             if row[0] == keyname:
                 return {'kind': row[1], 'internal_comment': row[2]}
+            elif row[1].startswith('pattern_') and keyname.startswith(row[0]):
+                # When multiple settings are created for a prefix, only add the
+                # comment to the first such setting.
+                internal_comment = row[2]
+                row[2] = ''
+                return {'kind': row[1], 'internal_comment': internal_comment}
     return None
 
 
@@ -228,9 +272,10 @@ def get_golang_type_tag(curr):
     if not tags:
         return None
     for t in tags:
-        (k, v) = t.split(':')
-        if k == 'golang_type':
-            return v
+        if ':' in t:
+            (k, v) = t.split(':')
+            if k == 'golang_type':
+                return v
     return None
 
 
@@ -359,6 +404,43 @@ def retrieve_method_to_declare(keypath, schema):
     return 'BindEnvAndSetDefault'
 
 
+def get_suffixes_for_pattern(pattern):
+    if pattern == 'pattern_logs_config':
+        return [
+            'logs_dd_url',
+            'dd_url',
+            'additional_endpoints',
+            'use_compression',
+            'compression_kind',
+            'zstd_compression_level',
+            'compression_level',
+            'batch_wait',
+            'connection_reset_interval',
+            'logs_no_ssl',
+            'batch_max_concurrent_send',
+            'batch_max_content_size',
+            'batch_max_size',
+            'input_chan_size',
+            'sender_backoff_factor',
+            'sender_backoff_base',
+            'sender_backoff_max',
+            'sender_recovery_interval',
+            'sender_recovery_reset',
+            'use_v2_api',
+            'dev_mode_no_ssl',
+        ]
+    elif pattern == 'pattern_delegate_auth':
+        return [
+            'delegated_auth.org_uuid',
+            'delegated_auth.refresh_interval_mins',
+            'delegated_auth.provider',
+            'delegated_auth.aws.region',
+            'api_key',
+        ]
+    else:
+        raise RuntimeError(f"unknown pattern: {pattern}")
+
+
 def env_parser_to_func_call(name, env_parser, get_vartype):
     parser_func = None
     is_method_key_vartype = False
@@ -411,16 +493,8 @@ def output_single_setting(name, kind, internal_comment, schema, target):
         envvars = ['"%s"' % ev for ev in envvars]
         envsuffix = ', ' + ', '.join(envvars)
 
-    # env parser function
+    # get env parser function, don't output yet
     env_parser = retrieve_env_parser(name.split('.'), schema)
-    if env_parser:
-
-        def get_vartype():
-            node = get_node(name.split('.'), schema)
-            return to_vartype(node, '{}')
-
-        line = env_parser_to_func_call(name, env_parser, get_vartype)
-        sourcecode.append(line)
 
     # internal-only comments for the setting
     if internal_comment:
@@ -438,6 +512,17 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
     # the line of code that defines the setting
     sourcecode.append(line)
+
+    # only after the setting is defined should the env parser appear
+    if env_parser:
+
+        def get_vartype():
+            node = get_node(name.split('.'), schema)
+            return to_vartype(node, '{}')
+
+        line = env_parser_to_func_call(name, env_parser, get_vartype)
+        sourcecode.append(line)
+
     # write to our target
     target.add(name, schema, sourcecode)
 
@@ -467,19 +552,132 @@ config_setup_func_names = [
     'podman',
     'setupAPM',
     'setupMultiRegionFailover',
+    'remoteflags',
     'OTLP',
     'setupProcesses',
+    'anomalyDetection',
+    'initMainSystemProbeConfig',
     'initCWSSystemProbeConfig',
     'initUSMSystemProbeConfig',
-    'InitSystemProbeConfig',
 ]
 
 
-def run_codegen(schema, hints, keep_orig_order, outsource_dir):
+def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_probe_out):
+    """
+    Constant generator: appends the delegated auth map to the relevant buffers.
+
+    core_schema         - loaded core schema object
+    system_probe_schema - loaded system-probe schema object
+    core_out            - Go source lines for the core constant file
+    system_probe_out    - Go source lines for the system-probe constant file
+    """
+
+    def collect_delegated_auth_keys(schema):
+        keys = []
+
+        # Visitor for each setting
+        def visit(curr_path, node):
+            if node.get("node_type") == "setting":
+                return
+
+            for name, child in node["properties"].items():
+                if name == "delegated_auth":
+                    keys.append(curr_path)
+                else:
+                    path = curr_path + "." + name if curr_path else name
+                    visit(path, child)
+
+        visit("", schema)
+        return keys
+
+    def emit(out, keys):
+        out.append("""
+            type delegatedAuthConfig struct {
+              apiKeyPath        string
+              delegatedAuthPath string
+              description       string
+            }
+
+            // delegatedAuthKeys list all the \"delegated_auth\" configuration section.
+            // This list is used to fully initialize authentication through cloud provider instead of API key
+            var delegatedAuthKeys = []delegatedAuthConfig{""")
+
+        for key in keys:
+            parent_section_name = key.rsplit(".")[0]
+            parent_section = key.rsplit(".")[0]
+
+            if parent_section != "":
+                parent_section += "."
+            if parent_section_name == "":
+                parent_section_name = "global"
+
+            out.append(f"""
+                {{
+                  apiKeyPath: "{parent_section}api_key",
+                  delegatedAuthPath : "{parent_section}delegated_auth",
+                  description: "{parent_section_name}",
+                }},""")
+        out.append("}")
+        out.append("")
+
+    emit(core_out, collect_delegated_auth_keys(core_schema))
+
+
+# Ordered list of generator functions used to produce the constant files.
+# Each is called with (core_schema, system_probe_schema, core_out, system_probe_out)
+# and may append Go code to either output buffer.
+constant_generators = [
+    gen_delegated_auth_map,
+]
+
+
+def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
+    """
+    Generate the core and system-probe constant files by running each generator
+    in `constant_generators` in order. Each generator receives both schemas and
+    both output buffers, so it can append Go code to either file.
+
+    core_schema         - loaded core schema object
+    system_probe_schema - loaded system-probe schema object
+    outsource_dir       - the directory to output source code to
+    """
+    header = file_header.split('\n') + constant_header.split('\n')
+    core_out = list(header)
+    system_probe_out = list(header)
+
+    for generator in constant_generators:
+        generator(core_schema, system_probe_schema, core_out, system_probe_out)
+
+    for filename, sourcecode in (
+        ("generated.go", core_out),
+        # For now we don't have any content for system_probe.
+        # ("system_probe_generated.go", system_probe_out),
+    ):
+        print('Output %s' % filename)
+        out_filename = os.path.join(outsource_dir, filename)
+        with open(out_filename, "w") as f:
+            f.write(gofmt('\n'.join(sourcecode)))
+
+
+def gofmt(source):
+    """
+    Format Go source code with gofmt and return the result.
+    """
+    return subprocess.run(
+        ["gofmt"],
+        input=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
     """
     Entry point for code generation.
-    schema          - a loaded schema object, a dict with schema['properities']
-    hints           - hints object
+    schema          - loaded schema object (dict with schema['properities'])
+    filename_filter - optional function to filter output filenames (or None)
+    hints           - hints object, used for func order (if keep_orig_order) and comments (always)
     keep_orig_order - bool, whether to use order from the hints object
     outsource_dir   - the directory to output source code to
     """
@@ -500,7 +698,6 @@ def run_codegen(schema, hints, keep_orig_order, outsource_dir):
 
     # walk the schema to generate code
     walk_schema(schema, '', process_single_setting)
-    target.flush_buffer()
+    target.flush_buffer(filename_filter)
 
-    target.write_to_directory(outsource_dir)
-    print(f"Wrote to {outsource_dir}")
+    target.write_to_directory(outsource_dir, filename_filter)
