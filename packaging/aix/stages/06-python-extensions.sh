@@ -225,9 +225,7 @@ export CARGO_HOME=/opt/cargo
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
 mkdir -p "$CRYPTO_CACHE_DIR"
-# Match only full-AIX-tag wheels (e.g. aix_7302_2419_64) not legacy aix_ppc64 renames.
-# aix_*_* requires at least one underscore within the AIX portion, which aix_ppc64 lacks.
-CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_*_*.whl" 2>/dev/null | head -1)
+CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
 
 if [ -n "$CACHED_CRYPTO" ]; then
     log "Found cached cryptography wheel: $CACHED_CRYPTO"
@@ -259,21 +257,11 @@ else
     # Remove maturin (build-time tool; not needed at runtime)
     $PIP uninstall -y maturin 2>/dev/null || true
 
-    # Cache the built wheel for subsequent builds.
+    # Cache the built wheel for subsequent builds. maturin (with $EMBEDDED_DESTDIR/bin
+    # ahead of PATH above) tags it correctly for this host, so no renaming is needed.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
-        # maturin computes its own AIX platform tag (e.g. aix_3_00F9D80F4C00,
-        # apparently hostid-derived) which does not match the tag pip itself
-        # considers installable (e.g. aix_7302_2419_64, oslevel-derived) — even
-        # on the very same machine. Installing a wheel cached under maturin's
-        # tag later fails with "is not a supported wheel on this platform", so
-        # rename to pip's own primary supported tag before caching.
-        PIP_TAG=$("$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -c \
-            "from pip._internal.utils.compatibility_tags import get_supported as g; print(next(iter(g())).platform)" 2>/dev/null)
-        if [ -n "$PIP_TAG" ]; then
-            CACHE_NAME=$(printf '%s' "$CACHE_NAME" | sed -E "s/-aix_[^-]+\\.whl\$/-${PIP_TAG}.whl/")
-        fi
         cp "$BUILT_WHEEL" "$CRYPTO_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $CRYPTO_CACHE_DIR/$CACHE_NAME"
     else

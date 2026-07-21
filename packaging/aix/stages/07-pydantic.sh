@@ -135,17 +135,7 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo "cargo not found �
 WHEEL_CACHE_DIR="$WHEEL_CACHE/pydantic-$PYDANTIC_VERSION"
 mkdir -p "$WHEEL_CACHE_DIR"
 
-# Derive the pip-compatible platform tag from sysconfig (e.g. aix_7302_2419_64).
-# maturin produces a hardware-model tag (e.g. aix_3_00F9D80F4C00) that pip rejects;
-# we rename the cached wheel to the sysconfig tag so pip can match it on the next run.
-# The tag is machine-specific (AIX version/builddate/bitness) but that is correct:
-# the wheel is a native binary that is only valid for this exact build host.
-_pip_platform=$("$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -c \
-    "import sysconfig; print(sysconfig.get_platform().replace('-','_').replace('.','_'))")
-log "pip platform tag: $_pip_platform"
-
-CACHED_WHEEL=$(find "$WHEEL_CACHE_DIR" \
-    -name "pydantic_core-*-cp313-cp313-${_pip_platform}.whl" 2>/dev/null | head -1)
+CACHED_WHEEL=$(find "$WHEEL_CACHE_DIR" -name "pydantic_core-*-cp313-cp313-*.whl" 2>/dev/null | head -1)
 
 if [ -n "$CACHED_WHEEL" ]; then
     log "Found cached pydantic-core wheel: $CACHED_WHEEL"
@@ -171,14 +161,14 @@ else
 
     log "pydantic-core build complete"
 
-    # Cache the built wheel for next time. Rename from maturin's hardware-model
-    # tag (e.g. aix_3_00F9D80F4C00) to the sysconfig tag that pip recognises
-    # (e.g. aix_7302_2419_64). The cache is per-build-host — the wheel is a
-    # native binary specific to this AIX version — but that is acceptable.
+    # Cache the built wheel for next time. maturin>=1.14.1 (pulled in by
+    # pydantic-core's own build-system.requires: maturin>=1.9.4,<2) tags it
+    # correctly for this host, so no renaming is needed. The cache is
+    # per-build-host — the wheel is a native binary specific to this AIX
+    # version — but that is acceptable.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
-        CACHE_NAME=$(basename "$BUILT_WHEEL" | \
-            sed "s/-cp313-aix_[^.]*\\.whl\$/-cp313-${_pip_platform}.whl/")
+        CACHE_NAME=$(basename "$BUILT_WHEEL")
         cp "$BUILT_WHEEL" "$WHEEL_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $WHEEL_CACHE_DIR/$CACHE_NAME"
     else
