@@ -31,6 +31,7 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -111,8 +112,8 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) (*ncmremote.PushResult, error) {
-	return nil, errors.New("not implemented")
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*ncmremote.PushResult, types.RollbackError) {
+	return nil, types.InternalError(errors.New("not implemented"))
 }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
