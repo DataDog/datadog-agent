@@ -8,11 +8,19 @@ package diagnose
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
 	"sync"
 
 	"github.com/fatih/color"
 )
+
+// DiagnoseHTTPHandler is an optional interface implemented by diagnose components
+// that can expose a raw HTTP handler. Servers that manage their own mux (e.g. the
+// cluster-agent) use this instead of NewAgentEndpointProvider.
+type DiagnoseHTTPHandler interface {
+	GetDiagnose() func(http.ResponseWriter, *http.Request)
+}
 
 // team: agent-configuration
 

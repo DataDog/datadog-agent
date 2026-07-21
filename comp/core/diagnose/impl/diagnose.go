@@ -104,6 +104,11 @@ func (d *diagnoseRegistry) RunLocalSuite(suites diagnose.Suites, config diagnose
 	return getDiagnoses(config, internalSuites)
 }
 
+// GetDiagnose implements diagnose.DiagnoseHTTPHandler for servers that manage their own mux (e.g. cluster-agent).
+func (d *diagnoseRegistry) GetDiagnose() func(http.ResponseWriter, *http.Request) {
+	return d.getDiagnose
+}
+
 func (d *diagnoseRegistry) getDiagnose(w http.ResponseWriter, r *http.Request) {
 	diagCfg := diagnose.Config{
 		Verbose: true,

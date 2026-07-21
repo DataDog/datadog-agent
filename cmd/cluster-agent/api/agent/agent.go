@@ -65,6 +65,9 @@ func SetupHandlers(r *http.ServeMux, wmeta workloadmeta.Component, ac autodiscov
 	})
 	r.HandleFunc("GET /metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON)
 	r.HandleFunc("GET /metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON)
+	if hp, ok := diagnoseComponent.(diagnose.DiagnoseHTTPHandler); ok {
+		r.HandleFunc("POST /diagnose", hp.GetDiagnose())
+	}
 
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
