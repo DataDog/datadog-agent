@@ -92,15 +92,9 @@ log "Extraction complete."
 
 # ─── Step 3: Apply AIX patches ───────────────────────────────────────────────
 #
-# NOTE: These patches were originally identified from datadog-unix-agent's AIX
-# patches for Python 3.8 (omnibus/config/patches/python3/). We use sed-based
-# substitutions rather than patch(1) files to avoid offset sensitivity. If a
-# patch no longer applies (pattern not found), we log a warning rather than
-# failing — it may mean the upstream fixed the issue.
-#
-# Validated end-to-end on AIX 7.2 TL2 (POWER8): this stage builds
-# $PYTHON_VERSION successfully, and the resulting embedded interpreter runs
-# checks (rtloader + psutil + cpu/disk checks) correctly under the full agent.
+# NOTE: We use sed-based substitutions rather than patch(1) files to avoid offset
+# sensitivity. If a patch no longer applies (pattern not found), we log a warning
+# rather than failing — it may mean the upstream fixed the issue.
 
 log "Applying AIX-specific patches to Python ${PYTHON_VERSION} source"
 
