@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
@@ -93,6 +94,27 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	assert.NotPanics(t, func() {
 		metricAgent.AddEnhancedMetric("enhanced.metric", 1.0, pkgmetrics.MetricSourceServerless, 0)
 		metricAgent.AddLegacyEnhancedMetric("legacy.metric", 1.0, pkgmetrics.MetricSourceServerless)
+	})
+}
+
+// TestRegistryRunPathDefault covers the Step 7 AAS regression risk check:
+// registryRunPathDefault must land the file-tailer registry on the same
+// persistent volume as the logs on every platform serverless-init tails
+// files on, or a restart re-ships the whole file under tailingMode
+// "beginning" (cmd/serverless-init/log/log.go).
+func TestRegistryRunPathDefault(t *testing.T) {
+	t.Run("cloud run / container apps: derives from DD_SERVERLESS_LOG_PATH", func(t *testing.T) {
+		t.Setenv("DD_SERVERLESS_LOG_PATH", "/shared-volume/logs/app.log")
+		assert.Equal(t, "/shared-volume/logs", registryRunPathDefault())
+	})
+
+	t.Run("azure app service: WEBSITE_STACK alone, no DD_SERVERLESS_LOG_PATH", func(t *testing.T) {
+		t.Setenv(cloudservice.WebsiteStack, "windows")
+		assert.Equal(t, serverlessInitLog.AASPersistentLogDir, registryRunPathDefault())
+	})
+
+	t.Run("neither signal present: no override", func(t *testing.T) {
+		assert.Equal(t, "", registryRunPathDefault())
 	})
 }
 

@@ -13,9 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	kubehealthimpl "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/impl"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
+	auditorimpl "github.com/DataDog/datadog-agent/comp/logs/auditor/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -26,12 +27,27 @@ import (
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
 func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) agent.ServerlessLogsAgent {
 
+	log := logComponent.NewTemporaryLoggerWithoutInit()
+
+	// Registry auditor (was a NullAuditor): persists tailer offsets to
+	// registry.json under logs_config.run_path so a cold-start instance (no
+	// registry yet) reads from the beginning and captures the app's startup
+	// line, while a restart within the same instance resumes from the
+	// persisted offset instead of re-reading it. See
+	// cmd/serverless-init/log/log.go for the tailingMode this pairs with, and
+	// cmd/serverless-init/main.go's preloadEarly for the run_path default.
+	auditor := auditorimpl.NewComponent(auditorimpl.Dependencies{
+		Log:        log,
+		Config:     pkgconfigsetup.Datadog(),
+		KubeHealth: kubehealthimpl.NewComponent().Comp,
+	}).Comp
+
 	logsAgent := &logAgent{
-		log:     logComponent.NewTemporaryLoggerWithoutInit(),
+		log:     log,
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
-		auditor:         auditornoop.NewAuditor(),
+		auditor:         auditor,
 		sources:         sources.NewLogSources(),
 		services:        service.NewServices(),
 		tracker:         tailers.NewTailerTracker(),

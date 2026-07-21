@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -210,6 +211,48 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
+
+	// The non-atomic registry writer MkdirAll's logs_config.run_path, so the
+	// file-tailer registry directory doesn't need to pre-exist. Unlike the
+	// overrides above this one is meant to remain user-overridable (see
+	// registryRunPathDefault), so it can't use setOverride's fixed
+	// SourceAgentRuntime.
+	setOverride("logs_config.atomic_registry_write", false)
+	if runPath := registryRunPathDefault(); runPath != "" {
+		cfg := pkgconfigsetup.Datadog()
+		// Only replace the built-in default: a user-configured run_path
+		// (DD_LOGS_CONFIG_RUN_PATH, or logs_config.run_path in datadog.yaml,
+		// loaded after preloadEarly) must still win. Setting our value at
+		// SourceDefault - rather than setOverride's SourceAgentRuntime -
+		// keeps it below both of those priorities.
+		if cfg.GetSource("logs_config.run_path") == model.SourceDefault {
+			cfg.Set("logs_config.run_path", runPath, model.SourceDefault)
+		}
+	}
+}
+
+// registryRunPathDefault returns the directory the file-tailer registry
+// should persist into, so its offsets survive a restart within the same
+// instance and "beginning" tailing (cmd/serverless-init/log/log.go) doesn't
+// re-ship the whole file. Cloud Run, Cloud Run Jobs and Container Apps tail
+// the path in DD_SERVERLESS_LOG_PATH, which sits on the same volume the
+// customer app writes to - so the registry goes into that path's directory.
+// Azure App Service doesn't use that env var (its log source is
+// origin=="appservice" && DD_AAS_INSTANCE_LOGGING_ENABLED, resolved later via
+// cloudservice.GetCloudServiceType, too late for preloadEarly); it's detected
+// here directly via the same WEBSITE_STACK env var cloudservice/appservice.go
+// uses, and pointed at serverlessInitLog.AASPersistentLogDir - the directory
+// AAS persists across instance restarts - so "beginning" is safe there too.
+// Returns "" when neither signal is present, leaving logs_config.run_path at
+// its built-in default.
+func registryRunPathDefault() string {
+	if logPath := os.Getenv("DD_SERVERLESS_LOG_PATH"); logPath != "" {
+		return filepath.Dir(logPath)
+	}
+	if _, isAppService := os.LookupEnv(cloudservice.WebsiteStack); isAppService {
+		return serverlessInitLog.AASPersistentLogDir
+	}
+	return ""
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a

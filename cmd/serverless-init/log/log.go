@@ -11,6 +11,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -33,10 +34,27 @@ const (
 	aasLoggingDescriptor  = "DD_AAS_INSTANCE_LOG_FILE_DESCRIPTOR"
 	sourceEnvVar          = "DD_SOURCE"
 	sourceName            = "Datadog Agent"
-	// Log files are persisted between instance restarts in AAS, so we want to start tailing logs from the end to prevent duplicates.
-	// For ephemeral environments (Cloud Run, Azure Container Apps, etc.), we also want "end".
-	tailingMode = "end"
+	// The registry auditor persists each tailed file's offset to
+	// registry.json under logs_config.run_path (see cmd/serverless-init/main.go
+	// preloadEarly), and a persisted offset always wins over tailingMode
+	// (pkg/logs/launchers/file/position.go). So "beginning" only takes effect
+	// when there is no registry entry yet: a fresh Cloud Run/Container Apps
+	// instance, or the first AAS start on a given log file. That's exactly the
+	// cold-start case we want to capture the app's startup line for. A restart
+	// within the same instance resumes from the persisted offset instead of
+	// re-reading, so this is also safe for AAS's persistent log files -
+	// provided run_path persists alongside the logs, which preloadEarly
+	// guarantees.
+	tailingMode = "beginning"
 )
+
+// AASPersistentLogDir is the directory portion of defaultTailingPath: Azure
+// App Service persists /home across instance restarts and scale events (an
+// Azure Files-backed share), so cmd/serverless-init/main.go's preloadEarly
+// defaults logs_config.run_path here on AAS - putting the file-tailer
+// registry on the same persistent volume as the logs it tracks, which
+// tailingMode "beginning" requires to be safe on AAS.
+var AASPersistentLogDir = path.Dir(defaultTailingPath)
 
 // Config holds the log configuration
 type Config struct {
