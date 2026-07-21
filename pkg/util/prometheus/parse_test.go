@@ -51,7 +51,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`}, "")
 		require.NoError(t, err)
 
-		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
+		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds")
 		require.NotNil(t, cpuFamily)
 		assert.Len(t, cpuFamily.Samples, 2, "should have 2 samples after filtering out pod_name=\"\"")
 	})
@@ -69,7 +69,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`, `pod=""`}, "")
 		require.NoError(t, err)
 
-		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
+		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds")
 		require.NotNil(t, cpuFamily)
 		assert.Len(t, cpuFamily.Samples, 2)
 
@@ -82,7 +82,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 		metrics, err := ParseMetricsWithFilter([]byte(testData), nil, "")
 		require.NoError(t, err)
 
-		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
+		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds")
 		require.NotNil(t, cpuFamily)
 		assert.Len(t, cpuFamily.Samples, 3, "should have all 3 samples with no filter")
 	})
@@ -257,7 +257,7 @@ temperature 23.5`
 	require.NoError(t, err)
 
 	require.Len(t, families, 2)
-	assert.Equal(t, "http_requests_total", families[0].Name)
+	assert.Equal(t, "http_requests", families[0].Name)
 	assert.Equal(t, "COUNTER", families[0].Type)
 	require.Len(t, families[0].Samples, 2)
 	assert.Equal(t, 1234.0, families[0].Samples[0].Value)
@@ -318,21 +318,21 @@ request_latency_count 35
 
 func TestOpenMetricsContentTypeSelection(t *testing.T) {
 	// Same counter data, but with Prometheus content type should use PromParser.
-	// In Prometheus format, the TYPE line already includes _total in the name.
+	// The _total suffix is stripped from counter family names to match prometheus_client behavior.
 	promData := `# TYPE http_requests_total counter
 http_requests_total{method="GET"} 100
 `
 	metrics, err := ParseMetricsWithFilter([]byte(promData), nil, "text/plain")
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
-	assert.Equal(t, "http_requests_total", metrics[0].Name)
+	assert.Equal(t, "http_requests", metrics[0].Name)
 	assert.Equal(t, "COUNTER", metrics[0].Type)
 
 	// Empty content type should default to Prometheus parser
 	metrics2, err := ParseMetricsWithFilter([]byte(promData), nil, "")
 	require.NoError(t, err)
 	require.Len(t, metrics2, 1)
-	assert.Equal(t, "http_requests_total", metrics2[0].Name)
+	assert.Equal(t, "http_requests", metrics2[0].Name)
 }
 
 func TestParseMetricsToJSONOpenMetrics(t *testing.T) {
