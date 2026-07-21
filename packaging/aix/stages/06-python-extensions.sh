@@ -305,9 +305,13 @@ if [ ! -f "$PYMQI_CMQC" ]; then
     log "ERROR: pymqi CMQC.py not found at expected path: $PYMQI_CMQC"
     exit 1
 fi
-patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+if grep -q 'MQENC_NATIVE = 0x00000111' "$PYMQI_CMQC" 2>/dev/null; then
+    log "pymqi CMQC.py already patched — skipping (pip left the previous install in place)"
+else
+    patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+    log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
+fi
 find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
-log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
 
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #
