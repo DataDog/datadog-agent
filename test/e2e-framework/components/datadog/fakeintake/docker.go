@@ -20,7 +20,7 @@ func NewLocalDockerFakeintake(e config.Env, resourceName string) (*Fakeintake, e
 	return components.NewComponent(e, resourceName, func(comp *Fakeintake) error {
 
 		_, err := docker.NewContainer(e.Ctx(), e.CommonNamer().ResourceName("local-docker-container"), &docker.ContainerArgs{
-			Image: pulumi.String("public.ecr.aws/datadog/fakeintake:latest"),
+			Image: pulumi.String(ImageURL("public.ecr.aws/datadog/fakeintake")),
 			Command: pulumi.ToStringArray([]string{"--rc-key-data=" + DefaultRCSigningKeySeed}),
 			Ports: docker.ContainerPortArray{
 				&docker.ContainerPortArgs{
