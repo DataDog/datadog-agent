@@ -62,7 +62,6 @@ When writing a new test, ALWAYS check to see if the provisioning logic is alread
 > - etc.
 
 In other words: avoid using custom provisioners if at all possible.
-When in doubt, feel free to ask #agent-devx-help. If your usecase is truly uncovered, we can consider adding it to the framework so others can also profit !
 
 ## Structuring tests
 If your test suite makes use of parent and child tests, you need to make sure every child is TRULY INDEPENDENT.
