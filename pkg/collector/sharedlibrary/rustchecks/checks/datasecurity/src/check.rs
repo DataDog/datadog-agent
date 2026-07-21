@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use core::*;
 use serde_json::Value;
 
@@ -6,8 +6,16 @@ use crate::config::{CheckConfig, SubTask};
 use crate::payload::ScanEventPayload;
 use crate::scanning::Scanner;
 
-/// Check implementation (scaffolding).
+/// Check entrypoint.
+///
+/// Flattens the full error chain into one message (`{e:#}`) so the reason is
+/// shown before leaving the check.
 pub fn check(check: &AgentCheck) -> Result<()> {
+    run(check).map_err(|e| anyhow!("{e:#}"))
+}
+
+/// Check implementation.
+fn run(check: &AgentCheck) -> Result<()> {
     let config = CheckConfig::from_instance(check)?;
     println!(
         "datasecurity: check started (task_id={}, {} rule(s), {} sub task(s))",
