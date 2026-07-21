@@ -70,6 +70,12 @@ if [ -f /etc/datadog-agent/datadog.yaml ]; then
     startsrc -s datadog-agent-data-plane 2>/dev/null || true
 fi
 
+# Convenience symlink so operators can run `datadog-agent` without the full
+# path, matching the Linux packages' /usr/bin/datadog-agent symlink. Not part
+# of the package file manifest (see unconfig for removal) since /usr/bin is
+# owned by the base AIX filesets, not this package.
+ln -sf /opt/datadog-agent/bin/agent/agent /usr/bin/datadog-agent 2>/dev/null || true
+
 # Compile Python bytecode.
 # LIBPATH must include the embedded Python libs; the installp shell context does not
 # set LIBPATH, so we set it explicitly here.
