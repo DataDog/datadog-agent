@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = [
+        "fx_kubeapiserver.go",
+        "fx_noapiserver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/kubeactions/helmactions/def",
+        "//comp/kubeactions/helmactions/impl",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/apiserver",
+        "@org_uber_go_fx//:fx",
+    ],
+)

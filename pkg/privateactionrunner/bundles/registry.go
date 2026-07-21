@@ -10,6 +10,7 @@ package privatebundles
 import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
@@ -32,6 +33,7 @@ import (
 	com_datadoghq_gitlab_repository_files "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/repositoryfiles"
 	com_datadoghq_gitlab_tags "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/tags"
 	com_datadoghq_gitlab_users "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/users"
+	com_datadoghq_helm "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/helm"
 	com_datadoghq_http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http"
 	com_datadoghq_jenkins "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
@@ -56,7 +58,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
@@ -79,6 +81,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.gitlab.repositoryfiles":               com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
 			"com.datadoghq.gitlab.tags":                          com_datadoghq_gitlab_tags.NewGitlabTags(),
 			"com.datadoghq.gitlab.users":                         com_datadoghq_gitlab_users.NewGitlabUsers(),
+			"com.datadoghq.helm":                                 com_datadoghq_helm.NewKubernetesHelmActions(helmactions),
 			"com.datadoghq.http":                                 com_datadoghq_http.NewHttpBundle(configuration),
 			"com.datadoghq.jenkins":                              com_datadoghq_jenkins.NewJenkins(configuration),
 			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
