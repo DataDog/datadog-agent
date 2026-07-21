@@ -1,4 +1,5 @@
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -7,6 +8,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 SELECT_SH = REPO_ROOT / "bazel" / "tools" / "remote-cache-select.sh"
+BASH = shutil.which("bash") or "/bin/bash"
+_COREUTILS = ("id", "mkdir", "chmod", "stat", "date", "cat")
 
 
 def _make_stub(directory: Path, name: str, exit_code: int) -> None:
@@ -16,12 +19,22 @@ def _make_stub(directory: Path, name: str, exit_code: int) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-class RemoteCacheSelectTest(unittest.TestCase):
+def _link_coreutils(bin_dir: Path, skip: tuple[str, ...] = ()) -> None:
+    """Symlink the coreutils the script needs into bin_dir (except `skip`)."""
+    for name in _COREUTILS:
+        if name in skip:
+            continue
+        real = shutil.which(name)
+        if real:
+            (bin_dir / name).symlink_to(real)
+
+
+class TestRemoteCacheSelect(unittest.TestCase):
     """Exercise bazel/tools/remote-cache-select.sh with stubbed curl/vault.
 
     We source the script in a subshell and print _remote_cache_config's output,
     controlling reachability (stub curl) and token source (stub vault) via a
-    scratch PATH and env. Container branches are not covered here since
+    fully isolated PATH. Container branches are not covered here since
     /.dockerenv cannot be faked in the test host.
     """
 
@@ -33,6 +46,7 @@ class RemoteCacheSelectTest(unittest.TestCase):
             tmp = Path(tmp)
             bin_dir = tmp / "bin"
             bin_dir.mkdir()
+            _link_coreutils(bin_dir)
             _make_stub(bin_dir, "curl", curl)
             if vault:
                 _make_stub(bin_dir, "vault", 0)
@@ -44,11 +58,10 @@ class RemoteCacheSelectTest(unittest.TestCase):
                 probe.parent.mkdir(parents=True)
                 probe.write_text(probe_seed)
 
-            # Stub dir first so our curl/vault win; then minimal system paths for
-            # bash + coreutils. Homebrew paths are excluded so a host-installed
-            # vault does not leak into the "no token source" cases.
+            # PATH holds only our stubs + symlinked coreutils, so `command -v
+            # vault` reflects the test intent rather than the host toolchain.
             env = {
-                "PATH": f"{bin_dir}:/usr/bin:/bin",
+                "PATH": str(bin_dir),
                 "HOME": str(tmp),
                 "TMPDIR": str(tmpdir),  # isolate the probe cache
             }
@@ -59,7 +72,7 @@ class RemoteCacheSelectTest(unittest.TestCase):
 
             script = f'. "{SELECT_SH}"; _remote_cache_config {args}'
             res = subprocess.run(
-                ["bash", "-c", script],
+                [BASH, "-c", script],
                 capture_output=True,
                 text=True,
                 env=env,
@@ -126,12 +139,11 @@ class RemoteCacheSelectTest(unittest.TestCase):
             tmp = Path(tmp)
             bin_dir = tmp / "bin"
             bin_dir.mkdir()
+            _link_coreutils(bin_dir, skip=("stat",))
             _make_stub(bin_dir, "curl", 0)
             _make_stub(bin_dir, "vault", 0)
             (bin_dir / "stat").write_text(
-                '#!/bin/sh\n'
-                'if [ "$1" = "-c" ]; then echo 1700000000; exit 0; fi\n'
-                'echo "  File: \\"x\\""; exit 0\n'
+                '#!/bin/sh\nif [ "$1" = "-c" ]; then echo 1700000000; exit 0; fi\necho "  File: \\"x\\""; exit 0\n'
             )
             (bin_dir / "stat").chmod(0o755)
 
@@ -141,13 +153,13 @@ class RemoteCacheSelectTest(unittest.TestCase):
             probe.write_text("no")
 
             env = {
-                "PATH": f"{bin_dir}:/usr/bin:/bin",
+                "PATH": str(bin_dir),
                 "HOME": str(tmp),
                 "TMPDIR": str(tmpdir),
                 "DD_BAZEL_REMOTE_CACHE": "auto",
             }
             res = subprocess.run(
-                ["bash", "-c", f'set -euo pipefail; . "{SELECT_SH}"; _remote_cache_config'],
+                [BASH, "-c", f'set -euo pipefail; . "{SELECT_SH}"; _remote_cache_config'],
                 capture_output=True,
                 text=True,
                 env=env,
