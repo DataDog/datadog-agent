@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "COMMON_TAGS", "INSTALLER_TAGS")
+load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
+
+# gazelle:dd_agent_go_test off
 
 go_library(
     name = "installer_lib",
@@ -31,7 +33,7 @@ dd_agent_go_binary(
         "//conditions:default": False,
     }),
     embed = [":installer_lib"],
-    gotags = sorted(COMMON_TAGS | INSTALLER_TAGS),
+    gotags = INSTALLER_TAGS,
     visibility = ["//visibility:public"],
 )
 

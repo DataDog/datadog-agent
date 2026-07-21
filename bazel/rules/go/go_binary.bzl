@@ -30,6 +30,7 @@ load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("@rules_go//go:def.bzl", "go_binary")
 load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "DARWIN_EXCLUDED_TAGS", "FIPS_TAGS", "LINUX_ONLY_TAGS", "WINDOWS_EXCLUDED_TAGS")
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
@@ -66,7 +67,7 @@ def _make_agent_version_url_safe():
         return env_vars.PACKAGE_VERSION
     return release_json.get("current_milestone") + "-localbuild"
 
-def dd_agent_go_binary(name, **kwargs):
+def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
@@ -75,34 +76,27 @@ def dd_agent_go_binary(name, **kwargs):
 
     Defaults applied automatically (override by passing the attribute explicitly):
       cgo: True on Windows (required to link .syso resource files), False elsewhere.
-      gc_linkopts: -s -w (strip symbol table and DWARF) on release builds.
 
     Args:
       name: target name
+      gc_linkopts: Base set of link opts. rpath and stripping options are
+                   automatically added to these.
+                   On linux: add RPATH
+                   On release builds: add -s -w (strip symbol table and DWARF)
+      gotags: Base set of gotags for this binary. COMMON tags are added, and
+              per-platform adjustments are made.
+      exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
       **kwargs: arguments to be forwarded to go_binary
     """
-    agent_version_url_safe = _make_agent_version_url_safe()
-
     # TODO: When --stamp support is in place, also inject:
     #   _VERSION_PKG + ".Commit": "{STABLE_GIT_COMMIT}",
     # The value must come from a stamp file produced by a git_info repository
     # rule (planned: bazel/repo/git_info.bzl).
 
-    existing_x_defs = kwargs.pop("x_defs", {})
-    existing_linkopts = kwargs.pop("gc_linkopts", [])
-
-    # cgo must be enabled on Windows to link the .syso resource file produced
-    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
-    # should pass an explicit cgo = select({...}) which replaces this default.
-    if "cgo" not in kwargs:
-        kwargs["cgo"] = select({
-            "@platforms//os:windows": True,
-            "//conditions:default": False,
-        })
-
     # Build two complete x_defs dicts — one per //:is_release branch.
     # string_dict attributes do not support per-value select(); the select()
     # must wrap the whole dict.
+    agent_version_url_safe = _make_agent_version_url_safe()
     release_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
         _VERSION_PKG + ".AgentVersion": _url_safe_to_standard(agent_version_url_safe),
@@ -115,8 +109,18 @@ def dd_agent_go_binary(name, **kwargs):
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
     }
+    existing_x_defs = kwargs.pop("x_defs", {})
     release_x_defs.update(existing_x_defs)
     dev_x_defs.update(existing_x_defs)
+
+    # cgo must be enabled on Windows to link the .syso resource file produced
+    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
+    # should pass an explicit cgo = select({...}) which replaces this default.
+    if "cgo" not in kwargs:
+        kwargs["cgo"] = select({
+            "@platforms//os:windows": True,
+            "//conditions:default": False,
+        })
 
     # "-r <path>" embeds the ELF RPATH so shared libraries under the run path
     # are found at runtime.  This flag is Linux-specific; non-Linux targets get
@@ -137,9 +141,22 @@ def dd_agent_go_binary(name, **kwargs):
         "//conditions:default": [],
     })
 
+    if exact_gotags:
+        kwargs["gotags"] = exact_gotags
+    else:
+        gotags = gotags or set()
+        kwargs["gotags"] = select({
+            "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
+            "//packages/agent:macos_default": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+            "//packages/agent:macos_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+            "//packages/agent:windows_default": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:windows_fips": sorted((COMMON_TAGS | gotags or set() | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//conditions:default": sorted(COMMON_TAGS | gotags or set()),
+        })
+
     go_binary(
         name = name,
-        gc_linkopts = existing_linkopts + run_path_linkopts + strip_linkopts,
+        gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
         x_defs = select({
             "//:is_release": release_x_defs,
             "//conditions:default": dev_x_defs,

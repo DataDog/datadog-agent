@@ -24,21 +24,25 @@ alias(
 
 config_setting(
     name = "base_flavor",
+    # buildifier: disable=canonical-repository
     flag_values = {"@@//packages/agent:flavor": "base"},
 )
 
 config_setting(
     name = "fips_flavor",
+    # buildifier: disable=canonical-repository
     flag_values = {"@@//packages/agent:flavor": "fips"},
 )
 
 config_setting(
     name = "heroku_flavor",
+    # buildifier: disable=canonical-repository
     flag_values = {"@@//packages/agent:flavor": "heroku"},
 )
 
 config_setting(
     name = "iot_flavor",
+    # buildifier: disable=canonical-repository
     flag_values = {"@@//packages/agent:flavor": "iot"},
 )
 
@@ -71,5 +75,37 @@ selects.config_setting_group(
     match_all = [
         ":iot_flavor",
         "@platforms//os:linux",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_default",
+    match_all = [
+        ":base_flavor",
+        "@platforms//os:macos",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_fips",
+    match_all = [
+        ":fips_flavor",
+        "@platforms//os:macos",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_default",
+    match_all = [
+        ":base_flavor",
+        "@platforms//os:windows",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_fips",
+    match_all = [
+        ":fips_flavor",
+        "@platforms//os:windows",
     ],
 )
