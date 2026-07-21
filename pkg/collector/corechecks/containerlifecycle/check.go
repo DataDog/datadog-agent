@@ -49,6 +49,7 @@ type Check struct {
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
+	extendedSet       bool
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check
@@ -82,7 +83,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.instance.PollInterval = defaultPollInterval
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore)
+	c.extendedSet = pkgconfigsetup.Datadog().GetBool("container_lifecycle.extended_set")
+
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.extendedSet)
 
 	return nil
 }
@@ -92,28 +95,34 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	filter := workloadmeta.NewFilterBuilder().
-		SetSource(workloadmeta.SourceRuntime).
-		SetEventType(workloadmeta.EventTypeUnset).
-		AddKind(workloadmeta.KindContainer).
-		Build()
+	contSource := workloadmeta.SourceRuntime
+	if c.extendedSet {
+		contSource = workloadmeta.SourceAll
+	}
+	contFilterBuilder := workloadmeta.NewFilterBuilder().
+		SetSource(contSource).
+		AddKind(workloadmeta.KindContainer)
+	if !c.extendedSet {
+		contFilterBuilder = contFilterBuilder.SetEventType(workloadmeta.EventTypeUnset)
+	}
 
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-cont",
 		workloadmeta.NormalPriority,
-		filter,
+		contFilterBuilder.Build(),
 	)
 
-	podFilter := workloadmeta.NewFilterBuilder().
+	podFilterBuilder := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
-		SetEventType(workloadmeta.EventTypeUnset).
-		AddKind(workloadmeta.KindKubernetesPod).
-		Build()
+		AddKind(workloadmeta.KindKubernetesPod)
+	if !c.extendedSet {
+		podFilterBuilder = podFilterBuilder.SetEventType(workloadmeta.EventTypeUnset)
+	}
 
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-pod",
 		workloadmeta.NormalPriority,
-		podFilter,
+		podFilterBuilder.Build(),
 	)
 
 	var taskEventsCh chan workloadmeta.EventBundle
