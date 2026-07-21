@@ -7,7 +7,6 @@
 package fx
 
 import (
-	"context"
 	"time"
 
 	"go.uber.org/fx"
@@ -28,21 +27,14 @@ func Module() fxutil.Module {
 			agenttelemetryimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[agenttelemetry.Component](),
-		// errortracking submitter wire — atel owns buffer/flush/recursion.
-		// Folded into Module() (rather than left to each cmd/* call-site) so
-		// every binary that wires in agenttelemetry gets error-log forwarding
-		// for free, instead of duplicating installErrortrackingHandler per binary.
 		fx.Invoke(installErrortrackingHandler),
 	)
 }
 
-// installErrortrackingHandler is a no-op when the feature is disabled
-// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs synchronously inside atel.stop()
-// (deliberately not as a separate OnStop hook here) so it precedes the
-// final flush-goroutine drain.
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
+// installErrortrackingHandler is a no-op when errortracking is disabled.
+// Registers synchronously (not via OnStart) so construction-time errors
+// (e.g. npcollector's) logged before app.Start() aren't dropped.
+func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
 	}
@@ -54,11 +46,6 @@ func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agent
 	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
 	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
 
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
-			return nil
-		},
-	})
+	pkglogsetup.RegisterErrortrackingSubmitter(submitter)
+	pkglogsetup.RegisterErrortrackingBouncer(bouncer)
 }
