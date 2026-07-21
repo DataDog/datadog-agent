@@ -74,7 +74,8 @@ type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
 	wg                 sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out                chan<- *Payload     // the outgoing payload channel
+	out                chan<- *Payload     // the outgoing legacy (pb) payload channel, used when convert-traces is disabled
+	outV1              chan<- *PayloadV1   // the outgoing idx (V1) payload channel, used when convert-traces is enabled (default)
 	conf               *config.AgentConfig // receiver config
 	cidProvider        IDProvider          // container ID provider
 	statsd             statsd.ClientInterface
@@ -85,7 +86,9 @@ type OTLPReceiver struct {
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+// When the convert-traces feature is enabled (the default), converted payloads are sent down outV1
+// instead; the disable-convert-traces feature flag routes them down out in the legacy pb format.
+func NewOTLPReceiver(out chan<- *Payload, outV1 chan<- *PayloadV1, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
 	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
@@ -124,7 +127,20 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, outV1: outV1, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+}
+
+// send routes a decoded payload to the trace-agent. When the convert-traces
+// feature is enabled (the default), the pb payload is converted to the idx (V1)
+// format and sent down the V1 channel; the disable-convert-traces feature flag
+// sends the pb payload down the legacy channel unchanged. This mirrors the HTTP
+// receiver, so OTLP exercises the same conversion path as native tracer traffic.
+func (o *OTLPReceiver) send(p *Payload) {
+	if o.conf.HasFeature("disable-convert-traces") {
+		o.out <- p
+		return
+	}
+	o.outV1 <- p.ToV1("otlp")
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -406,7 +422,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		}
 	}
 
-	o.out <- &p
+	o.send(&p)
 	return src
 }
 
@@ -539,7 +555,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		}
 	}
 
-	o.out <- &p
+	o.send(&p)
 	return src
 }
 

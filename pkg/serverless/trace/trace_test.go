@@ -213,6 +213,40 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 	}
 }
 
+func TestServerlessTraceAgentConvertTraces(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		wantConvert bool
+	}{
+		{
+			name:        "convert enabled by default",
+			path:        "./testdata/valid.yml",
+			wantConvert: true,
+		},
+		{
+			name:        "convert disabled via disable-convert-traces feature",
+			path:        "./testdata/disable_convert.yml",
+			wantConvert: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:    true,
+				LoadConfig: &LoadConfig{Path: tt.path},
+			})
+			defer agent.Stop()
+
+			require.IsType(t, &serverlessTraceAgent{}, agent)
+			assert.Equal(t, tt.wantConvert, agent.(*serverlessTraceAgent).convertTraces)
+		})
+	}
+}
+
 func TestServerlessTraceAgentDisableTraceStats(t *testing.T) {
 	tests := []struct {
 		name       string

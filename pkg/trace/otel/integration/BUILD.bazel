@@ -10,6 +10,7 @@ go_test(
         "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
         "//comp/otelcol/otlp/testutil",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/api",
         "//pkg/trace/config",
         "//pkg/trace/timing",
