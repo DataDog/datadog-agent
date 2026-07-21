@@ -8,7 +8,7 @@ proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
 event_monitor_regex = r'^eventMonitorBindEnvAndSetDefault\(\w+, (.*)\)'
 
 bind_env_logs = r'bindEnvAndSetLogsConfigKeys\(\w+, "([\w_\.]+)"'
-bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]+)"'
+bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]*)"'
 
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
