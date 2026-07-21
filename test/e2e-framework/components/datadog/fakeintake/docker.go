@@ -6,6 +6,7 @@
 package fakeintake
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -16,12 +17,70 @@ import (
 
 const hostPort = 30080
 
-func NewLocalDockerFakeintake(e config.Env, resourceName string) (*Fakeintake, error) {
+// DefaultImageURL is the fakeintake image used when no DockerOption overrides it.
+const DefaultImageURL = "public.ecr.aws/datadog/fakeintake:latest"
+
+// dockerParams configures the local Docker-based fakeintake container. It mirrors the
+// subset of scenarios/aws/fakeintake.Params that's meaningful for a single local
+// container (LoadBalancer/CPU don't apply here); it's defined locally rather than
+// reusing that package's type to avoid an import cycle (scenarios/aws/fakeintake
+// imports this package).
+type dockerParams struct {
+	imageURL        string
+	memory          int
+	dddevForwarding bool
+	retentionPeriod string
+}
+
+// DockerOption configures NewLocalDockerFakeintake.
+type DockerOption func(*dockerParams)
+
+// WithDockerImageURL overrides the fakeintake container image.
+func WithDockerImageURL(imageURL string) DockerOption {
+	return func(p *dockerParams) { p.imageURL = imageURL }
+}
+
+// WithDockerMemory sets the container's GOMEMLIMIT, in MiB.
+func WithDockerMemory(memoryMiB int) DockerOption {
+	return func(p *dockerParams) { p.memory = memoryMiB }
+}
+
+// WithDockerDDDevForwarding enables forwarding payloads to the dddev org account.
+func WithDockerDDDevForwarding() DockerOption {
+	return func(p *dockerParams) { p.dddevForwarding = true }
+}
+
+// WithDockerRetentionPeriod sets how long the fakeintake retains received payloads.
+func WithDockerRetentionPeriod(retentionPeriod string) DockerOption {
+	return func(p *dockerParams) { p.retentionPeriod = retentionPeriod }
+}
+
+// NewLocalDockerFakeintake deploys a fakeintake container to the local Docker daemon.
+func NewLocalDockerFakeintake(e config.Env, resourceName string, opts ...DockerOption) (*Fakeintake, error) {
+	params := dockerParams{imageURL: DefaultImageURL}
+	for _, opt := range opts {
+		opt(&params)
+	}
+
 	return components.NewComponent(e, resourceName, func(comp *Fakeintake) error {
+		command := []string{}
+		if params.dddevForwarding {
+			command = append(command, "--dddev-forward")
+		}
+		if params.retentionPeriod != "" {
+			command = append(command, "-retention-period="+params.retentionPeriod)
+		}
+		command = append(command, "--rc-key-data="+DefaultRCSigningKeySeed)
+
+		envs := []string{"STORAGE_DRIVER=memory"}
+		if params.memory > 0 {
+			envs = append(envs, fmt.Sprintf("GOMEMLIMIT=%dMiB", params.memory))
+		}
 
 		_, err := docker.NewContainer(e.Ctx(), e.CommonNamer().ResourceName("local-docker-container"), &docker.ContainerArgs{
-			Image: pulumi.String("public.ecr.aws/datadog/fakeintake:latest"),
-			Command: pulumi.ToStringArray([]string{"--rc-key-data=" + DefaultRCSigningKeySeed}),
+			Image:   pulumi.String(params.imageURL),
+			Command: pulumi.ToStringArray(command),
+			Envs:    pulumi.ToStringArray(envs),
 			Ports: docker.ContainerPortArray{
 				&docker.ContainerPortArgs{
 					Internal: pulumi.Int(80),

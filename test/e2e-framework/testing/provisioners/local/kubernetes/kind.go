@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -17,9 +18,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -47,6 +59,9 @@ type ProvisionerParams struct {
 	standaloneAgentFunc StandaloneAgentDeployFunc
 	workerNodes         []kubeComp.KindWorkerNode
 	imagesToLoad        []string
+	deployDogstatsd     bool
+	deployTestWorkload  bool
+	deployArgoRollout   bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -100,6 +115,14 @@ func WithPreAgentHook(hook PreAgentHook) ProvisionerOption {
 func WithoutFakeIntake() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fakeintakeOptions = nil
+		return nil
+	}
+}
+
+// WithFakeintakeOptions sets the options for the fake intake
+func WithFakeintakeOptions(opts ...fakeintake.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = opts
 		return nil
 	}
 }
@@ -165,6 +188,33 @@ func WithKindLoadImage(image string) ProvisionerOption {
 	}
 }
 
+// WithDeployDogstatsd deploys a dogstatsd-standalone DaemonSet alongside the agent.
+func WithDeployDogstatsd() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployDogstatsd = true
+		return nil
+	}
+}
+
+// WithDeployTestWorkload deploys the standard set of test workloads (dogstatsd clients,
+// tracegen, prometheus, mutated-by-admission-controller, etcd, and, when the agent is
+// installed, nginx/redis/cpustress).
+func WithDeployTestWorkload() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployTestWorkload = true
+		return nil
+	}
+}
+
+// WithDeployArgoRollout installs argo-rollouts and, when WithDeployTestWorkload is also
+// set, an nginx Rollout workload.
+func WithDeployArgoRollout() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployArgoRollout = true
+		return nil
+	}
+}
+
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -181,6 +231,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
+	provisioner.SetDiagnoseFunc(DiagnoseFunc)
 	return provisioner
 }
 
@@ -253,10 +304,49 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		imageLoadOptions = append(imageLoadOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(imageLoadDeps...)))
 	}
 
+	vpaCrd, err := vpa.DeployCRD(&localEnv, kubeProvider)
+	if err != nil {
+		return err
+	}
+	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
+
+	var dependsOnArgoRollout pulumi.ResourceOption
+	if params.deployArgoRollout {
+		var argoOpts []argorollouts.Option
+		// argo-rollouts chart >= 2.40.8 uses x-kubernetes-validations in CRDs,
+		// which requires K8s >= 1.25. Pin to last compatible version for older clusters.
+		kubeVer, err := semver.NewVersion(utils.ParseKubernetesVersion(localEnv.KubernetesVersion()))
+		if err == nil && kubeVer.LessThan(semver.MustParse("1.25.0")) {
+			argoOpts = append(argoOpts, argorollouts.WithVersion("2.40.7"))
+		}
+		argoParams, err := argorollouts.NewParams(argoOpts...)
+		if err != nil {
+			return err
+		}
+		argoHelm, err := argorollouts.NewHelmInstallation(&localEnv, argoParams, kubeProvider)
+		if err != nil {
+			return err
+		}
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		fiParams, err := fakeintake.NewParams(params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		dockerOpts := []fakeintakeComp.DockerOption{
+			fakeintakeComp.WithDockerImageURL(fiParams.ImageURL),
+			fakeintakeComp.WithDockerMemory(fiParams.Memory),
+			fakeintakeComp.WithDockerRetentionPeriod(fiParams.RetentionPeriod),
+		}
+		if fiParams.DDDevForwarding {
+			dockerOpts = append(dockerOpts, fakeintakeComp.WithDockerDDDevForwarding())
+		}
+
+		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake", dockerOpts...)
 		if err != nil {
 			return err
 		}
@@ -273,6 +363,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
+	var dependsOnDDAgent pulumi.ResourceOption
 	if params.standaloneAgentFunc != nil {
 		standaloneAgent, err := params.standaloneAgentFunc(&localEnv, kubeProvider, fakeIntake)
 		if err != nil {
@@ -303,7 +394,7 @@ agents:
 		if err != nil {
 			return err
 		}
-		dependsOnDDAgent := utils.PulumiDependsOn(agent)
+		dependsOnDDAgent = utils.PulumiDependsOn(agent)
 		for _, appFunc := range params.depWorkloadAppFuncs {
 			_, err := appFunc(&localEnv, kubeProvider, dependsOnDDAgent)
 			if err != nil {
@@ -312,6 +403,64 @@ agents:
 		}
 	} else {
 		env.Agent = nil
+	}
+
+	if params.deployDogstatsd {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&localEnv, kubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", fakeIntake, false, ctx.Stack()); err != nil {
+			return err
+		}
+	}
+
+	// Deploy testing workload
+	if params.deployTestWorkload {
+		// dogstatsd clients that report to the Agent
+		if _, err := dogstatsd.K8sAppDefinition(&localEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if params.deployDogstatsd {
+			// dogstatsd clients that report to the dogstatsd standalone deployment
+			if _, err := dogstatsd.K8sAppDefinition(&localEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
+		}
+
+		if _, err := tracegen.K8sAppDefinition(&localEnv, kubeProvider, "workload-tracegen"); err != nil {
+			return err
+		}
+
+		if _, err := prometheus.K8sAppDefinition(&localEnv, kubeProvider, "workload-prometheus"); err != nil {
+			return err
+		}
+
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&localEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if _, err := etcd.K8sAppDefinition(&localEnv, kubeProvider); err != nil {
+			return err
+		}
+
+		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
+		if params.agentOptions != nil {
+			if _, err := nginx.K8sAppDefinition(&localEnv, kubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+
+			if _, err := redis.K8sAppDefinition(&localEnv, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+
+			if _, err := cpustress.K8sAppDefinition(&localEnv, kubeProvider, "workload-cpustress"); err != nil {
+				return err
+			}
+		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&localEnv, kubeProvider, "workload-argo-rollout-nginx", 80, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+				return err
+			}
+		}
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {
