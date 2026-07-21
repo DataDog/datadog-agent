@@ -108,7 +108,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		default:
-			o, err = msgp.Skip(o)
+			o, err = harvestUnknownFieldStrings(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to skip unknown tracer payload field")
 				return
@@ -335,7 +335,7 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		default:
-			o, err = msgp.Skip(o)
+			o, err = harvestUnknownFieldStrings(o, tc.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to skip unknown trace chunk field")
 				return
