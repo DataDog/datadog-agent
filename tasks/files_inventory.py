@@ -162,40 +162,53 @@ def _filter_files(path: str) -> bool:
     ]
 
 
+# Each entry maps {reports_folder}/{package_prefix}*.deb to a
+# static_quality_gate_{gate_prefix}_deb_{arch} gate (see test/static/static_quality_gates.yml).
+_PRODUCTS = [
+    {'package_prefix': 'datadog-agent', 'gate_prefix': 'agent'},
+    # armhf isn't cross-compiled by Bazel yet, so it's skipped below.
+    {'package_prefix': 'datadog-iot-agent', 'gate_prefix': 'iot_agent'},
+]
+
+
 @task
 def check(ctx, branch_name, reports_folder):
     parent_sha = get_ancestor(ctx, branch_name)
     pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
 
-    for artifact in glob.glob(f'{reports_folder}/datadog-agent*.deb'):
-        # deb pattern is $packagename_$version
-        if '-dbg-' in artifact or '-dbg_' in artifact:
-            continue
-        pr_comment += f'### Results for {os.path.basename(artifact)}:\n'
-        arch = "amd64"
-        if 'aarch64' in artifact or 'arm64' in artifact:
-            arch = "arm64"
-        gate_short_name = f'agent_deb_{arch}'
-        report_filename = f'{gate_short_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
-        _measure_package_local(
-            ctx=ctx,
-            package_path=artifact,
-            gate_name=f'static_quality_gate_{gate_short_name}',
-            output_path=report_filename,
-            build_job_name=os.environ['CI_JOB_NAME'],
-            debug=True,
-            filter=_filter_files,
-        )
-        # Upload the report to S3
-        bucket_base_path = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/"
-        ctx.run(
-            f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {report_filename} {bucket_base_path}/{report_filename}'
-        )
+    for product in _PRODUCTS:
+        for artifact in glob.glob(f'{reports_folder}/{product["package_prefix"]}*.deb'):
+            # deb pattern is $packagename_$version
+            if '-dbg-' in artifact or '-dbg_' in artifact:
+                continue
+            # armhf cross-compilation isn't wired up for these checks yet.
+            if 'armhf' in artifact:
+                continue
+            pr_comment += f'### Results for {os.path.basename(artifact)}:\n'
+            arch = "amd64"
+            if 'aarch64' in artifact or 'arm64' in artifact:
+                arch = "arm64"
+            gate_short_name = f'{product["gate_prefix"]}_deb_{arch}'
+            report_filename = f'{gate_short_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
+            _measure_package_local(
+                ctx=ctx,
+                package_path=artifact,
+                gate_name=f'static_quality_gate_{gate_short_name}',
+                output_path=report_filename,
+                build_job_name=os.environ['CI_JOB_NAME'],
+                debug=True,
+                filter=_filter_files,
+            )
+            # Upload the report to S3
+            bucket_base_path = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/"
+            ctx.run(
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {report_filename} {bucket_base_path}/{report_filename}'
+            )
 
-        parent_report_file = tempfile.NamedTemporaryFile()
-        _get_parent_report(ctx, parent_sha, gate_short_name, parent_report_file.file.name)
-        body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
-        pr_comment += body
+            parent_report_file = tempfile.NamedTemporaryFile()
+            _get_parent_report(ctx, parent_sha, gate_short_name, parent_report_file.file.name)
+            body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
+            pr_comment += body
 
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
