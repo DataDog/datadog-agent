@@ -5336,6 +5336,20 @@ api_key:
 #
 #   default_actions_enabled: true
 
+#   # @param restricted_shell - custom object - optional
+#   # Local restrictions for remote rshell actions. Privileged execution has
+#   # an additional opt-in and requires the systemd socket plus a root-owned
+#   # rshell-privileged-helper.json verification credential.
+#
+#   restricted_shell:
+#     allowed_commands:
+#       - rshell:*
+#     allowed_paths:
+#       - /
+#     privileged:
+#       enabled: false
+#       socket: /run/datadog/rshell-privileged.sock
+
 #   # @param http_timeout_seconds - integer - optional - default: 30
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30
 #   # Maximum time in seconds for HTTP actions before timing out. Must be > 1.

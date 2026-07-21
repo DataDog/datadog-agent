@@ -54,6 +54,7 @@ pkg_filegroup(
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
         "//packages/agent:linux_default": [
+            ":dda_built_rshell_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -154,6 +155,15 @@ pkg_files(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
         "@privateactionrunner_binary//:privateactionrunner",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "dda_built_rshell_binary",
+    srcs = [
+        "@rshell_binary//:rshell",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",

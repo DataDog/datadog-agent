@@ -60,5 +60,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
 	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedCommands, config)
 
+	// Privileged execution is a separate, explicit opt-in. Keeping transport
+	// configuration under restricted_shell avoids enabling it with PAR alone.
+	config.BindEnvAndSetDefault(PARRestrictedShellPrivilegedEnabled, false)
+	config.BindEnvAndSetDefault(PARRestrictedShellPrivilegedSocket, RShellPrivilegedSocketDefault)
+
 	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
 }

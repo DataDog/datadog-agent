@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog rshell privileged helper
+After=datadog-agent.service datadog-agent-action.service
+BindsTo=datadog-agent.service datadog-agent-action.service
+Conflicts=datadog-agent-rshell-privileged-exp.service
+ConditionPathExists=/etc/datadog-agent/rshell-privileged-helper.json
+
+[Service]
+Type=simple
+Group=dd-agent
+UMask=0077
+LoadCredential=rshell-verification.json:/etc/datadog-agent/rshell-privileged-helper.json
+ExecStart=/opt/datadog-agent/embedded/bin/rshell privileged-helper --credential=%d/rshell-verification.json --idle-timeout=30s
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+RestrictRealtime=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

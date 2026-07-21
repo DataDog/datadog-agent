@@ -97,6 +97,8 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		RShellAllowedPaths:        rshellAllowedPaths(config),
 		RShellAllowedCommands:     rshellAllowedCommands(config),
+		RShellPrivilegedEnabled:   config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:    config.GetString(setup.PARRestrictedShellPrivilegedSocket),
 		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
 		DDHost:                    ddHost,
 		DDApiHost:                 "api." + ddSite,
