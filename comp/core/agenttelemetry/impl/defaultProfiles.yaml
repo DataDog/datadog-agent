@@ -75,7 +75,11 @@ profiles:
         aggregate_tags:
           - endpoint
       - name: transactions.requeued
+        preserve_tags:
+          - emitter
       - name: transactions.retries
+        preserve_tags:
+          - emitter
       - name: transactions.http_errors
         preserve_tags:
           - code
