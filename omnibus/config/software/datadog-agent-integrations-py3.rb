@@ -39,13 +39,6 @@ build do
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
 
-  unless windows_target?
-    block "Remove .exe files" do
-      # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
-    end
-  end
-
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder
   # to control FIPS initialization; this has surfaced as problems with `cryptography` specifically, and

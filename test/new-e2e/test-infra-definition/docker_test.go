@@ -7,13 +7,11 @@ package testinfradefinition
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -27,14 +25,7 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	var fakeintakeOpts []fakeintake.Option
-
-	// When we modify the fakeintake, this test will run with the new version of the fakeintake
-	if fakeintakeImage, ok := os.LookupEnv("FAKEINTAKE_IMAGE_OVERRIDE"); ok {
-		t.Logf("Running with fakeintake image %s", fakeintakeImage)
-		fakeintakeOpts = append(fakeintakeOpts, fakeintake.WithImageURL(fakeintakeImage))
-	}
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(ec2docker.WithFakeIntakeOptions(fakeintakeOpts...)))), e2e.WithSkipCoverage())
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(ec2docker.WithFakeIntakeOptions()))), e2e.WithSkipCoverage())
 }
 
 func (v *dockerSuite) TestExecuteCommand() {

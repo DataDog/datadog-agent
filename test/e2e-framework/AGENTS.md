@@ -182,6 +182,28 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
 
+## Fakeintake image version
+
+Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
+`components/datadog/fakeintake/docker.go`) resolves through
+`components/datadog/fakeintake.ImageURL(...)`: it uses the
+`FakeintakeImageOverride` runner parameter (`E2E_FAKEINTAKE_IMAGE_OVERRIDE`) when
+set — read through the runner parameter store like any other `E2E_*` value, not
+`os.Getenv` — otherwise the pinned tag from `test/fakeintake/version.Tag`.
+`WithImageURL(...)` on any fakeintake provisioner still wins over both.
+
+CI wiring (`.gitlab-ci.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
+by every e2e job through its team rule (`.on_<team>_or_e2e_changes`) — sets
+`E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the PR-built `v<sha>` image on a fakeintake
+*server* change (`.fakeintake_server_paths`). So such a PR runs the **whole**
+e2e suite against the PR's image (including mixed PRs), and no e2e job can miss
+the override. `.needs_new_e2e_template` gains optional needs on `publish_fakeintake`
+(PR `v<sha>`) and `publish_fakeintake_pinned` (main pinned tag) so e2e waits for
+the image to exist. Plain `.on_fakeintake_changes` is for non-consuming
+build/publish/version-check jobs only. See `test/fakeintake/AGENTS.md`
+§ "Image version pinning" for the full workflow (bumping VERSION, the
+strictly-increasing CI check, publish jobs).
+
 ## Key files
 
 - `testing/e2e/suite.go` — `BaseSuite` and `Run()` (test entry point)

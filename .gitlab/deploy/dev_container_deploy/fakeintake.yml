@@ -28,3 +28,29 @@ publish_fakeintake_latest:
     IMG_DESTINATIONS: fakeintake:latest
     IMG_REGISTRIES: public
     IMG_SIGNING: "false"
+
+# Publishes the pinned tag (fakeintake:<VERSION>) from main only, when the VERSION
+# file changes. Gating on VERSION means a bump always targets a brand-new tag;
+# strict monotonicity (fakeintake_check_version_bump) prevents clobbering a released
+# tag, since dd-pkg publish-image has no fail-on-overwrite flag.
+publish_fakeintake_pinned:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    # if_main_branch inlined: YAML anchors are file-local (only !reference is cross-file).
+    # No compare_to: it defaults to main, so on main it would be a main-vs-main diff that
+    # never matches; the default diff vs the previous commit detects the merge's VERSION bump.
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        paths:
+          - test/fakeintake/version/VERSION
+  needs:
+    - job: docker_build_fakeintake
+      optional: false
+  before_script:
+    - export IMG_DESTINATIONS="fakeintake:$(cat test/fakeintake/version/VERSION)"
+  variables:
+    IMG_SOURCES: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_REGISTRIES: public
+    IMG_SIGNING: "false"

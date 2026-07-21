@@ -1606,7 +1606,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 		"other": "",
 	}))
 
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)

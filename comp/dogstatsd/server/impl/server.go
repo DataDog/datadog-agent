@@ -418,7 +418,6 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketStreamPath) > 0 {
-		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
 		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
