@@ -891,3 +891,30 @@ func TestSetStringAttribute_NilAttributesMap(t *testing.T) {
 		assert.Equal(t, "chunk.value", val)
 	})
 }
+
+// TestLegacyTraceIDShortIsZeroPadded verifies that a TraceID shorter than 16
+// bytes does not panic in LegacyTraceID. Missing high-order bytes are treated
+// as zero (the short big-endian value is right-aligned into a 16-byte buffer),
+// and the low 8 bytes are returned.
+func TestLegacyTraceIDShortIsZeroPadded(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want uint64
+	}{
+		{"empty", []byte{}, 0},
+		{"4 bytes", []byte{1, 2, 3, 4}, 0x01020304},
+		{"8 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8}, 0x0102030405060708},
+		{"15 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 0x08090a0b0c0d0e0f},
+		// Full 16-byte trace ID: low 8 bytes only.
+		{"16 bytes", []byte{99, 99, 99, 99, 99, 99, 99, 99, 1, 2, 3, 4, 5, 6, 7, 8}, 0x0102030405060708},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &InternalTraceChunk{TraceID: tc.tid}
+			assert.NotPanics(t, func() {
+				assert.Equal(t, tc.want, c.LegacyTraceID())
+			})
+		})
+	}
+}

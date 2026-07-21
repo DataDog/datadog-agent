@@ -24,10 +24,12 @@ const datadogCSIDriverName = "k8s.csi.datadoghq.com"
 // used in unit tests so we can drive the AutoProvider decision tree without
 // spinning up a workloadmeta subscription.
 type fakeCSIDriverWatcher struct {
+	registered bool
 	apmEnabled bool
 }
 
-func (f fakeCSIDriverWatcher) IsAPMEnabled() bool { return f.apmEnabled }
+func (f fakeCSIDriverWatcher) IsRegistered() bool { return f.registered }
+func (f fakeCSIDriverWatcher) IsAPMEnabled() bool { return f.registered && f.apmEnabled }
 
 func newPod() *corev1.Pod {
 	return &corev1.Pod{
@@ -61,7 +63,7 @@ func TestAutoProvider_PicksCSIWhenWatcherReportsAPMEnabled(t *testing.T) {
 	pod := newPod()
 
 	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
-		CSIDriverWatcher: fakeCSIDriverWatcher{apmEnabled: true},
+		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
 	})
 
 	result := provider.InjectInjector(pod, injectorConfig())
@@ -83,7 +85,7 @@ func TestAutoProvider_FallsBackToInitContainerWhenWatcherReportsAPMDisabled(t *t
 	pod := newPod()
 
 	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
-		CSIDriverWatcher: fakeCSIDriverWatcher{apmEnabled: false},
+		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: false},
 	})
 
 	result := provider.InjectInjector(pod, injectorConfig())

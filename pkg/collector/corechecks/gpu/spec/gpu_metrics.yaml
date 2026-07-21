@@ -741,6 +741,25 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.needs_recovery:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU requires a recovery action (e.g. reset or reboot) as
+        reported by NVML's GPU recovery action field. 0 means no action is
+        needed, 1 means a recovery action is required. The recovery_action tag
+        indicates the specific action.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - recovery_action
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.count.active:
     metadata:
       metric_type: gauge
@@ -1236,6 +1255,57 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 5
+  nvlink.errors.fec.heavy:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Per-link rate of NVLink messages with heavy FEC errors for the NVLink
+        port. The heavy threshold is configurable and defaults to 4 or more FEC
+        errors.
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
+  nvlink.errors.fec.light:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Per-link rate of NVLink messages with light FEC errors for the NVLink
+        port. The light threshold is configurable and defaults to 1 through 3
+        FEC errors.
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
+  nvlink.errors.fec.none:
+    metadata:
+      metric_type: gauge
+      description: Per-link rate of NVLink messages with no FEC errors for the NVLink port
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.speed:
     metadata:
       metric_type: gauge
@@ -1639,6 +1709,62 @@ metrics:
       range:
         min: 0
         max: 500000000000 # 500 GB/s (bytes/second)
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.speed.degraded:
+    metadata:
+      metric_type: gauge
+      description: Whether the current PCI link speed is lower than the max PCI link speed
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.current:
+    metadata:
+      metric_type: gauge
+      description: Current lane width for the PCI link
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 32
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.max:
+    metadata:
+      metric_type: gauge
+      description: Max lane width for the PCI link
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 32
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.degraded:
+    metadata:
+      metric_type: gauge
+      description: Whether the current PCI link width is lower than the max PCI link width
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
     support:
       device_modes:
         mig: false

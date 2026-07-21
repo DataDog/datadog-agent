@@ -4,7 +4,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
-sqlite_ver = ("3", "53", "00")
+sqlite_ver = ("3", "53", "02")
 
 sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
@@ -14,7 +14,7 @@ http_archive(
         "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
         "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
     },
-    sha256 = "bf3733d7c71b3ab0f6fd8a9ea0052ad87fa037d94333e14ce09878ba3492c3b0",
+    sha256 = "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2026/{}.zip".format(sqlite_amalgamation),
 )
@@ -23,7 +23,7 @@ http_file(
     name = "sqlite3_license",
     downloaded_file_path = "LICENSE.md",
     sha256 = "ee6af51062b30d532991face5164136ae6f84e265ecf8abe89dc69dac45ca1e7",
-    urls = [url.format(".".join([v.replace("00", "0") for v in sqlite_ver])) for url in (
+    urls = [url.format(".".join([str(int(v)) for v in sqlite_ver])) for url in (
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
@@ -76,9 +76,8 @@ http_archive(
 # - bazel-contrib/rules_foreign_cc#1493: load CcSharedLibraryInfo from rules_cc (Bazel 9)
 # - bazel-contrib/rules_foreign_cc#1492: bump bazel_skylib_gazelle_plugin to 1.9.0 (Bazel 9)
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-git_override(
+archive_override(
     module_name = "rules_foreign_cc",
-    commit = "7e486222f4899ea22f6f7b689534fc8b9e54b575",
     patch_strip = 1,
     patches = [
         # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
@@ -90,7 +89,9 @@ git_override(
         # finding a general solution that could be properly upstreamed
         "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
     ],
-    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
+    sha256 = "7bdc037346ba96222f53907893329efc0586aaf46703f87e6084e1770a967f41",
+    strip_prefix = "rules_foreign_cc-7e486222f4899ea22f6f7b689534fc8b9e54b575",
+    urls = ["https://github.com/bazel-contrib/rules_foreign_cc/archive/7e486222f4899ea22f6f7b689534fc8b9e54b575.tar.gz"],
 )
 
 register_toolchains(
@@ -110,13 +111,12 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
-        "//deps/openssl:0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch",
     ],
-    sha256 = "deae7c80cba99c4b4f940ecadb3c3338b13cb77418409238e57d7f31f2a3b736",
-    strip_prefix = "openssl-3.5.6",
+    sha256 = "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
+    strip_prefix = "openssl-3.5.7",
     urls = [
-        "https://github.com/openssl/openssl/releases/download/openssl-3.5.6/openssl-3.5.6.tar.gz",
-        "https://www.openssl.org/source/openssl-3.5.6.tar.gz",
+        "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.7.tar.gz",
     ],
 )
 
@@ -279,10 +279,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
     },
-    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
-    strip_prefix = "libgcrypt-1.11.2",
+    sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e",
+    strip_prefix = "libgcrypt-1.12.2",
     urls = [
-        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2",
     ],
 )
 

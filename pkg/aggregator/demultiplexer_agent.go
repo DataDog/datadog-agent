@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -85,7 +86,10 @@ type AgentDemultiplexer struct {
 type AgentDemultiplexerOptions struct {
 	FlushInterval time.Duration
 
-	EnableNoAggregationPipeline bool
+	NoAggregationPipelineWorkersCount int
+
+	DogStatsDLookback        DogStatsDLookback
+	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
@@ -98,7 +102,7 @@ func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
 		FlushInterval: DefaultFlushInterval,
 		// the different agents/binaries enable it on a per-need basis
-		EnableNoAggregationPipeline: false,
+		NoAggregationPipelineWorkersCount: 0,
 	}
 }
 
@@ -112,9 +116,10 @@ type statsd struct {
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
-	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
-	// be aggregated/sampled.
-	noAggStreamWorker *noAggregationStreamWorker
+	// noAggStreamWorkers deal with metrics that don't need to be aggregated/sampled.
+	// They all pull from a shared noAggSamplesChan.
+	noAggStreamWorkers []*noAggregationStreamWorker
+	noAggSamplesChan   chan metrics.MetricSampleBatch
 }
 
 type forwarders struct {
@@ -124,7 +129,7 @@ type forwarders struct {
 type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
-	noAggSerializer  serializer.MetricSerializer
+	noAggSerializers []serializer.MetricSerializer
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
@@ -167,6 +172,9 @@ func initAgentDemultiplexer(log log.Component,
 	// ----------------------
 
 	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
+		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
+	}
 
 	// prepare the embedded aggregator
 	// --
@@ -188,6 +196,7 @@ func initAgentDemultiplexer(log log.Component,
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -196,17 +205,25 @@ func initAgentDemultiplexer(log log.Component,
 			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
-	var noAggWorker *noAggregationStreamWorker
-	var noAggSerializer serializer.MetricSerializer
-	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
-		noAggWorker = newNoAggregationStreamWorker(
-			pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
-			metricSamplePool,
-			noAggSerializer,
-			agg.flushAndSerializeInParallel,
-			tagger,
-		)
+	var noAggWorkers []*noAggregationStreamWorker
+	var noAggSerializers []serializer.MetricSerializer
+	var noAggSamplesChan chan metrics.MetricSampleBatch
+	if workersCount := options.NoAggregationPipelineWorkersCount; workersCount > 0 {
+		noAggWorkers = make([]*noAggregationStreamWorker, workersCount)
+		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
+		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
+		for i := 0; i < workersCount; i++ {
+			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+			noAggWorkers[i] = newNoAggregationStreamWorker(
+				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+				metricSamplePool,
+				noAggSamplesChan,
+				noAggSerializers[i],
+				agg.flushAndSerializeInParallel,
+				tagger,
+				options.DogStatsDLookback,
+			)
+		}
 	}
 
 	// --
@@ -224,7 +241,7 @@ func initAgentDemultiplexer(log log.Component,
 			forwarders: forwarders{},
 
 			sharedSerializer: sharedSerializer,
-			noAggSerializer:  noAggSerializer,
+			noAggSerializers: noAggSerializers,
 		},
 
 		hostTagProvider: hosttags.NewHostTagProvider(),
@@ -234,10 +251,11 @@ func initAgentDemultiplexer(log log.Component,
 
 		// statsd time samplers
 		statsd: statsd{
-			pipelinesCount:    statsdPipelinesCount,
-			workers:           statsdWorkers,
-			metricSamplePool:  metricSamplePool,
-			noAggStreamWorker: noAggWorker,
+			pipelinesCount:     statsdPipelinesCount,
+			workers:            statsdWorkers,
+			metricSamplePool:   metricSamplePool,
+			noAggStreamWorkers: noAggWorkers,
+			noAggSamplesChan:   noAggSamplesChan,
 		},
 	}
 
@@ -252,7 +270,8 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 // SetObserver wires an observer component into the DogStatsD metric pipeline
 // and the BufferedAggregator → CheckSampler path (Go core checks).
 //
-// Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
+// Requires the observer pipeline to be effectively required and
+// anomaly_detection.metrics.enabled to be true.
 // Every raw metric sample passing through the time-sampler workers, the
 // no-aggregation pipeline, and every CheckSampler will be forwarded to the
 // provided observer handle before aggregation. The call is a no-op when
@@ -262,8 +281,8 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 	cfg := pkgconfigsetup.Datadog()
-	if !cfg.GetBool("anomaly_detection.enabled") {
-		d.log.Debug("Observer disabled (anomaly_detection.enabled=false)")
+	if !anomalydetectionconfig.ObserverRequired(cfg) {
+		d.log.Debug("Observer disabled (no active anomaly detection gate)")
 		return
 	}
 	if !cfg.GetBool("anomaly_detection.metrics.enabled") {
@@ -271,18 +290,18 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 
-	metricsHandle := obs.GetHandle("all-metrics")
+	dogstatsdHandle := obs.GetHandle("dogstatsd")
 
 	// DogStatsD paths
 	for _, worker := range d.statsd.workers {
-		worker.sampler.observerHandle = metricsHandle
+		worker.sampler.observerHandle = dogstatsdHandle
 	}
-	if d.statsd.noAggStreamWorker != nil {
-		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
+	for _, worker := range d.statsd.noAggStreamWorkers {
+		worker.observerHandle = dogstatsdHandle
 	}
 
 	// Go core check path (BufferedAggregator → CheckSampler)
-	d.aggregator.SetObserverHandle(metricsHandle)
+	d.aggregator.SetObserverHandle(obs.GetHandle("check"))
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
@@ -374,8 +393,8 @@ func (d *AgentDemultiplexer) run() {
 
 	go d.aggregator.run()
 
-	if d.noAggStreamWorker != nil {
-		go d.noAggStreamWorker.run()
+	for _, w := range d.noAggStreamWorkers {
+		go w.run()
 	}
 
 	// It is important to register callbacks after the statsd workers have been started
@@ -427,8 +446,21 @@ func (d *AgentDemultiplexer) Stop() {
 	timeout := pkgconfigsetup.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
 
-	if d.noAggStreamWorker != nil {
-		d.noAggStreamWorker.stop()
+	for _, worker := range d.noAggStreamWorkers {
+		worker.stop()
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// If we are flushing incomplete bucket, drain in-flight samples.
+	if forceFlushAll {
+		for _, worker := range d.statsd.workers {
+			worker.shutdown(stopCtx)
+		}
+		for _, worker := range d.statsd.workers {
+			worker.waitForShutdown(stopCtx)
+		}
 	}
 
 	// do a manual complete flush then stop all automatic flush & the mainloop
@@ -438,17 +470,15 @@ func (d *AgentDemultiplexer) Stop() {
 		waitForSerializer: true,
 		forceFlushAll:     forceFlushAll,
 	}
-	timeoutStart := time.Now()
 
 	select {
-	case <-time.After(timeout):
+	case <-stopCtx.Done():
 		d.log.Errorf("triggering flushing data on Stop() timed out")
 
 	case d.stopChan <- &trigger:
-		timeout = timeout - time.Since(timeoutStart)
 		select {
 		case <-trigger.blockChan:
-		case <-time.After(timeout):
+		case <-stopCtx.Done():
 			d.log.Errorf("completing flushing data on Stop() timed out")
 		}
 	}
@@ -464,6 +494,9 @@ func (d *AgentDemultiplexer) Stop() {
 		d.aggregator.Stop()
 	}
 	d.aggregator = nil
+	if stopper, ok := d.options.DogStatsDLookback.(DogStatsDLookbackStopper); ok {
+		stopper.Stop()
+	}
 
 	// forwarders
 
@@ -631,13 +664,16 @@ func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.Metri
 	// safe-guard: if for some reasons we are receiving some metrics here despite
 	// having the no-aggregation pipeline disabled, they are redirected to the first
 	// time sampler.
-	if !d.options.EnableNoAggregationPipeline {
+	if d.options.NoAggregationPipelineWorkersCount <= 0 || d.statsd.noAggSamplesChan == nil {
 		d.AggregateSamples(TimeSamplerID(0), samples)
 		return
 	}
 
 	tlmProcessed.Add(float64(len(samples)), "", "late_metrics")
-	d.statsd.noAggStreamWorker.addSamples(samples)
+	if len(samples) == 0 {
+		return
+	}
+	d.statsd.noAggSamplesChan <- samples
 }
 
 // AggregateSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
@@ -648,19 +684,17 @@ func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metri
 	// its buffering + the fact that it is another goroutine processing the samples,
 	// it should get back to the caller as fast as possible once the samples are
 	// in the channel.
-	d.statsd.workers[shard].samplesChan <- samples
+	d.statsd.workers[shard].addSamples(samples)
 }
 
 // AggregateSample adds a MetricSample in the first DogStatsD time sampler.
 func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
-	d.statsd.workers[0].samplesChan <- batch[:1]
+	d.statsd.workers[0].addSamples(batch[:1])
 }
 
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *AgentDemultiplexer) AggregateCheckSample(_ metrics.MetricSample) {
 	panic("not implemented yet.")
 }

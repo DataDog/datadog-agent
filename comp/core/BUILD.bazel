@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "core",
@@ -32,11 +35,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "core_test",
     srcs = ["bundle_test.go"],
     embed = [":core"],
-    gotags = ["test"],
     deps = [
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",

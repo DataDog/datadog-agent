@@ -8,6 +8,7 @@ package helper
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -17,13 +18,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -51,7 +52,7 @@ type UnimplementedRemoteAgentServer struct {
 
 	// communication components
 	ipcComp         ipc.Component
-	agentClient     pbcore.AgentSecureClient
+	agentClient     pbcore.RemoteAgentClient
 	sessionID       string
 	sessionIDMutex  sync.RWMutex
 	agentIpcAddress string
@@ -82,7 +83,7 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, err
 	}
 
-	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress, config, log)
+	agentClient, err := newRemoteAgentClient(ipcComp, agentIpcAddress, config, log)
 	if err != nil {
 		log.Errorf("failed to create agent client: %v", err)
 		if ral.cleanupSocketPath != "" {
@@ -345,13 +346,32 @@ func removeStaleSocket(socketPath string) error {
 	return nil
 }
 
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
+func newRemoteAgentClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.RemoteAgentClient, error) {
+	conn, err := dialCoreAgent(agentIpcAddress, ipcComp.GetAuthToken(), ipcComp.GetTLSClientConfig(), cfg.GetString("vsock_addr"), log)
+	if err != nil {
+		return nil, err
+	}
+	return pbcore.NewRemoteAgentClient(conn), nil
+}
+
+// NewAgentSecureClient dials the core agent for pre-FX consumers that don't yet
+// have an ipc.Component / config.Component. The returned ClientConn is owned by
+// the caller. vsockAddr non-empty switches to vsock.
+func NewAgentSecureClient(agentIpcAddress, authToken string, tlsConfig *tls.Config, vsockAddr string, log log.Component) (pbcore.AgentSecureClient, *grpc.ClientConn, error) {
+	conn, err := dialCoreAgent(agentIpcAddress, authToken, tlsConfig, vsockAddr, log)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pbcore.NewAgentSecureClient(conn), conn, nil
+}
+
+func dialCoreAgent(agentIpcAddress, authToken string, tlsConfig *tls.Config, vsockAddr string, log log.Component) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(authToken)),
 	}
 
-	if vsockAddr := cfg.GetString("vsock_addr"); vsockAddr != "" {
+	if vsockAddr != "" {
 		cid, err := socket.ParseVSockAddress(vsockAddr)
 		if err != nil {
 			return nil, err
@@ -377,12 +397,42 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 		}))
 	}
 
-	conn, err := grpc.NewClient(agentIpcAddress, opts...)
+	return grpc.NewClient(agentIpcAddress, opts...)
+}
+
+// RegistrationRequest is the input for RegisterRemoteAgent.
+type RegistrationRequest struct {
+	Flavor         string
+	DisplayName    string
+	APIEndpointURI string
+	Services       []string
+}
+
+// RegisterRemoteAgent calls RegisterRemoteAgent on the core agent. If the
+// core's recommended refresh interval is 0, defaultRefreshInterval is used.
+func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, req RegistrationRequest, queryTimeout, defaultRefreshInterval time.Duration, log log.Component) (string, time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
+		Flavor:         req.Flavor,
+		DisplayName:    req.DisplayName,
+		ApiEndpointUri: req.APIEndpointURI,
+		Services:       req.Services,
+	})
 	if err != nil {
-		return nil, err
+		log.Debugf("failed to register remote agent: %v", err)
+		return "", 0, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	log.Infof("Registered with Remote Agent Registry (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
+
+	refreshInterval := time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
+	if resp.RecommendedRefreshIntervalSecs == 0 {
+		log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %s", defaultRefreshInterval)
+		refreshInterval = defaultRefreshInterval
+	}
+	return resp.SessionId, refreshInterval, nil
 }
 
 // registerWithAgent handles the registration logic with the Core Agent

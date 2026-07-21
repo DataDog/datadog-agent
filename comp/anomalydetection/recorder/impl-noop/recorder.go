@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package noopimpl provides a no-op recorder implementation.
-// The full implementation (parquet writer) ships with the testbench in a later PR.
+// Package noopimpl provides a no-op recorder implementation wired in the
+// production agent. The full parquet implementation is planned for recorder/impl.
 package noopimpl
 
 import (
@@ -12,8 +12,8 @@ import (
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
-// NewNoopComponent returns a recorder Component that does nothing.
-func NewNoopComponent() recorder.Component {
+// NewComponent returns a recorder Component that does nothing.
+func NewComponent() recorder.Component {
 	return &noopRecorder{}
 }
 

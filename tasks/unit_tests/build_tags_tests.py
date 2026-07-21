@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from tasks import build_tags
 from tasks.build_tags import (
@@ -9,6 +10,7 @@ from tasks.build_tags import (
     GAZELLE_OMIT_TAGS,
     UNIT_TEST_TAGS,
 )
+from tasks.flavor import AgentFlavor
 
 
 def _payload():
@@ -79,6 +81,37 @@ class TestCodegenPayloadData(unittest.TestCase):
 
     def test_common_tags_payload_matches_constant(self):
         self.assertEqual(_payload()["common_tags"], sorted(COMMON_TAGS))
+
+
+def _bzl_flavor_unit_test_tags():
+    """Exec build_tags.bzl (valid Python) and return its FLAVOR_UNIT_TEST_TAGS."""
+    path = Path(build_tags.__file__).with_name("build_tags.bzl")
+    namespace = {}
+    exec(path.read_text(), namespace)  # noqa: S102 - trusted in-repo data file
+    return namespace["FLAVOR_UNIT_TEST_TAGS"]
+
+
+class TestFlavorUnitTestTags(unittest.TestCase):
+    """FLAVOR_UNIT_TEST_TAGS lives in build_tags.bzl (the single source consumed
+    by the dd_agent_go_test macro and its generated tags.go) but duplicates the
+    flavor->set composition expressed by the build_tags[...]["unit-tests"] dict
+    here. These assert the two cannot drift apart."""
+
+    def setUp(self):
+        self.bzl = _bzl_flavor_unit_test_tags()
+        self.expected = {
+            flavor.name: sorted(build_tags.build_tags[flavor]["unit-tests"] | COMMON_TAGS)
+            for flavor in AgentFlavor
+            if "unit-tests" in build_tags.build_tags.get(flavor, {})
+        }
+
+    def test_flavor_keys_match(self):
+        self.assertEqual(set(self.bzl), set(self.expected))
+
+    def test_flavor_tag_sets_match_build_tags(self):
+        for flavor, expected_tags in self.expected.items():
+            with self.subTest(flavor=flavor):
+                self.assertEqual(self.bzl[flavor], expected_tags)
 
 
 if __name__ == "__main__":

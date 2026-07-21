@@ -173,6 +173,8 @@ go_library(
     srcs = [
         "btf.go",
         "co_re.go",
+        "co_re_load.go",
+        "co_re_load_testutil.go",
         "co_re_telemetry.go",
         "co_re_unsupported.go",
         "common.go",
@@ -205,9 +207,11 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
         "//comp/remote-config/rcclient/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/ebpf/btf",
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",
@@ -281,6 +285,7 @@ go_test(
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
+        "//comp/core/telemetry/impl/noops",
         "//pkg/config/remote/data",
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/ebpftest",  # keep

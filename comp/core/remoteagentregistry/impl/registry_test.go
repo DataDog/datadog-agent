@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -69,6 +69,23 @@ func TestRegistration(t *testing.T) {
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
 	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
+}
+
+func TestReportRemoteAgentEvent(t *testing.T) {
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+
+	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "1234")
+
+	events := []remoteagent.RemoteAgentEvent{
+		{Message: "invalid API key detected", Details: &remoteagent.InvalidAPIKey{}},
+	}
+
+	// A known session accepts the reported events.
+	require.NoError(t, component.ReportRemoteAgentEvent(remoteAgent.registeredSessionID, events))
+
+	// An unknown session returns an error.
+	require.Error(t, component.ReportRemoteAgentEvent("does-not-exist", events))
 }
 
 func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {

@@ -319,6 +319,12 @@ func buildEntryFromReceipt(receipt pkgReceiptInfo, summary pkgSummary, is64Bit b
 		}
 	}
 
+	// Normalize the internal "N/A" sentinel to empty so it doesn't leak into
+	// GetID() or get mirrored into InstallPaths.
+	if installPath == "N/A" {
+		installPath = ""
+	}
+
 	return &Entry{
 		DisplayName:  receipt.packageID,
 		Version:      receipt.version,

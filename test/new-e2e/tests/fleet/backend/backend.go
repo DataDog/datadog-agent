@@ -21,7 +21,7 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/require"
@@ -65,6 +65,8 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationJQ transforms the config at the given path by running a jq transform over it.
+	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
 )
@@ -80,6 +82,8 @@ type FileOperation struct {
 	FileOperationType FileOperationType `json:"file_op"`
 	FilePath          string            `json:"file_path"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
+	Transform         string            `json:"transform,omitempty"`
+	Arguments         json.RawMessage   `json:"arguments,omitempty"`
 }
 
 // getSecretsPubKey gets the public key for the secrets.
@@ -308,11 +312,11 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 
 	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		var err error
 		prodTags, err = getImagesTags("install.datadoghq.com/agent-package")
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return nil, err
 	}
@@ -321,11 +325,11 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	}
 	for _, url := range urls {
 		var version string
-		err := retry.Do(func() error {
+		err := b.retry(func() error {
 			var err error
 			version, err = getImageVersion(url)
 			return err
-		}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 		if err != nil {
 			return nil, err
 		}
@@ -354,13 +358,22 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	return cachedCatalog, nil
 }
 
+// retry retries fn until it succeeds or opts exhaust it.
+func (b *Backend) retry(fn func() error, opts ...backoff.RetryOption) error {
+	b.t().Helper()
+	_, err := backoff.Retry(b.t().Context(), func() (struct{}, error) {
+		return struct{}{}, fn()
+	}, opts...)
+	return err
+}
+
 func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
 	var originalPID int
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		var err error
 		originalPID, err = b.getDaemonPID()
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return "", err
 	}
@@ -368,7 +381,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 	if err != nil {
 		return "", err
 	}
-	err = retry.Do(func() error {
+	err = b.retry(func() error {
 		newPID, err := b.getDaemonPID()
 		if err != nil {
 			return err
@@ -377,7 +390,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(30), retry.Delay(15*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(30), backoff.WithBackOff(backoff.NewConstantBackOff(15*time.Second)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -386,10 +399,20 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
 	var baseCommand string
-	var sanitizeCharacter string
+	// quoteArg wraps an argument so the remote shell passes it through to the
+	// daemon executable byte-for-byte. The JSON payloads we send contain
+	// characters that are significant to the shell: double quotes (both bare,
+	// from json.Marshal's structure, and backslash-escaped, from quoted string
+	// values such as a jq transform), spaces, and jq variables like $new_env.
+	var quoteArg func(string) string
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		sanitizeCharacter = `\"`
+		// POSIX shells treat everything inside single quotes literally, so the
+		// argument reaches the daemon unchanged. An embedded single quote is
+		// emitted as '\''.
+		quoteArg = func(arg string) string {
+			return `'` + strings.ReplaceAll(arg, `'`, `'\''`) + `'`
+		}
 		baseCommand = "sudo datadog-installer daemon"
 		_, err := b.host.RemoteHost.Execute(baseCommand + " --help")
 		if err != nil {
@@ -399,26 +422,75 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 			baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
 		}
 	case e2eos.WindowsFamily:
-		sanitizeCharacter = "\\`\""
+		// On Windows the command passes through two parsers: PowerShell (which
+		// runs the command) and the Microsoft C runtime (which the native
+		// installer.exe uses to split its command line). windowsCRTEscape produces
+		// a fully-quoted argument for the C runtime; we then wrap that in a
+		// PowerShell single-quoted string so PowerShell performs no interpolation
+		// — in particular leaving jq's $variables intact — and passes the
+		// C-runtime-quoted content through verbatim. An embedded single quote in a
+		// PowerShell literal is escaped by doubling it.
+		quoteArg = func(arg string) string {
+			return `'` + strings.ReplaceAll(windowsCRTEscape(arg), `'`, `''`) + `'`
+		}
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
 	default:
 		return "", fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
 	}
 
-	err := retry.Do(func() error {
+	err := b.retry(func() error {
 		_, err := b.host.RemoteHost.Execute(baseCommand + " rc-status")
 		return err
-	})
+	}, backoff.WithMaxTries(10))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to be ready: %w", err)
 	}
 
 	var sanitizedArgs []string
 	for _, arg := range args {
-		arg = `"` + strings.ReplaceAll(arg, `"`, sanitizeCharacter) + `"`
-		sanitizedArgs = append(sanitizedArgs, arg)
+		sanitizedArgs = append(sanitizedArgs, quoteArg(arg))
 	}
 	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
+}
+
+// windowsCRTEscape escapes a string into a fully-quoted argument for the
+// Microsoft C runtime command-line parser (the rules CommandLineToArgvW
+// implements), so it can be embedded in a command line handed to a native
+// executable and decoded back to its original bytes. This mirrors Go's
+// syscall.EscapeArg (which is only built on Windows, hence the reimplementation
+// here): the argument is wrapped in double quotes, each inner double quote is
+// escaped as \", and runs of backslashes that precede a quote — or the closing
+// quote — are doubled. Backslashes elsewhere (e.g. json.Marshal's \n or \uXXXX
+// escapes) are passed through as-is.
+//
+// We always add the surrounding quotes ourselves rather than letting PowerShell
+// add them: PowerShell does not quote an argument that already contains double
+// quotes (which our JSON payloads always do), so any spaces in the payload would
+// otherwise split it into multiple arguments. PowerShell passes our quoted form
+// through verbatim, and the C runtime then decodes it into a single argument.
+func windowsCRTEscape(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	backslashes := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			backslashes++
+		case '"':
+			// Double the preceding backslashes, then add one more to escape the quote.
+			b.WriteString(strings.Repeat(`\`, backslashes*2+1))
+			b.WriteByte('"')
+			backslashes = 0
+		default:
+			b.WriteString(strings.Repeat(`\`, backslashes))
+			b.WriteByte(s[i])
+			backslashes = 0
+		}
+	}
+	// Double trailing backslashes so they don't escape the closing quote.
+	b.WriteString(strings.Repeat(`\`, backslashes*2))
+	b.WriteByte('"')
+	return b.String()
 }
 
 func (b *Backend) getDaemonPID() (int, error) {

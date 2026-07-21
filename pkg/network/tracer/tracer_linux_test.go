@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -1884,7 +1885,7 @@ func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
 	if ebpftest.GetBuildMode() != ebpftest.CORE {
 		return
 	}
-	spec, err := ddebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		t.Skipf("BTF not available: %v", err)
 	}
@@ -2514,9 +2515,6 @@ func testConfig() *config.Config {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		cfg.ProtocolClassificationEnabled = false
-	}
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		cfg.ProtocolClassificationEnabled = false
 	}
@@ -2659,6 +2657,7 @@ LOOP:
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 	ebpftest.CORE:            {},
+	ebpftest.Fentry:          {},
 	ebpftest.RuntimeCompiled: {},
 	ebpftest.SK:              {},
 }
@@ -2995,9 +2994,6 @@ func (s *TracerSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() {
 				tr.RemoveClient(clientID)
 				_ = tr.Pause()
@@ -3209,10 +3205,6 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	tr := setupTracer(t, cfg)
 
-	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("failed connections not (yet) supported on fentry")
-	}
-
 	// create a linux socket which will reserve a port for us
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 	require.NoError(t, err)
@@ -3289,9 +3281,6 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 	}
 
 	tr := setupTracer(t, cfg)
-	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("tls certs not (yet) supported on fentry")
-	}
 
 	serverAddr := "127.0.0.1:8002"
 

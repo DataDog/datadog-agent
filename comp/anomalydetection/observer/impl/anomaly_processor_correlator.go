@@ -72,6 +72,7 @@ type CrossSignalCorrelator struct {
 	buffer             []timestampedAnomaly
 	activeCorrelations map[string]*observer.ActiveCorrelation
 	currentDataTime    int64 // latest data timestamp seen
+	emitter            correlationEmitter
 }
 
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
@@ -82,9 +83,8 @@ func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
 	}
 	return &CrossSignalCorrelator{
 		config:             config,
-		buffer:             nil,
 		activeCorrelations: make(map[string]*observer.ActiveCorrelation),
-		currentDataTime:    0,
+		emitter:            newCorrelationEmitter("cross_signal_correlator"),
 	}
 }
 
@@ -93,7 +93,7 @@ func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
 
-// Process implements Correlator. It adds an anomaly to the buffer
+// ProcessAnomaly implements Correlator. It adds an anomaly to the buffer
 // using its data timestamp and evicts old entries.
 func (c *CrossSignalCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	dataTime := anomaly.Timestamp
@@ -179,6 +179,8 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 			delete(c.activeCorrelations, name)
 		}
 	}
+
+	c.emitter.observe(c.ActiveCorrelations(), dataTime)
 }
 
 // Reset clears all internal state for reanalysis.
@@ -186,6 +188,7 @@ func (c *CrossSignalCorrelator) Reset() {
 	c.buffer = nil
 	c.activeCorrelations = make(map[string]*observer.ActiveCorrelation)
 	c.currentDataTime = 0
+	c.emitter.reset()
 }
 
 // patternMatches checks if all required sources for a pattern are present.
@@ -229,6 +232,11 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 // getBuffer returns the current buffer (for testing).
 func (c *CrossSignalCorrelator) getBuffer() []timestampedAnomaly {
 	return c.buffer
+}
+
+// PendingEvents drains CorrelationDetected events accumulated during the last Advance.
+func (c *CrossSignalCorrelator) PendingEvents() []observer.CorrelatorEvent {
+	return c.emitter.drain()
 }
 
 // ActiveCorrelations returns a copy of the currently active correlation patterns.

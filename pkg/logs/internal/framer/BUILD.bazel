@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "framer",
@@ -24,12 +25,14 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/logs-library/metrics",
         "//pkg/logs/message",
+        "//pkg/logs/status/utils",
         "@org_uber_go_atomic//:atomic",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "framer_test",
     srcs = [
         "docker_stream_test.go",
@@ -38,9 +41,9 @@ go_test(
         "syslog_test.go",
     ],
     embed = [":framer"],
-    gotags = ["test"],
     deps = [
         "//pkg/logs/message",
+        "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

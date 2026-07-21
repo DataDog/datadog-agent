@@ -44,11 +44,15 @@ func (ns RunnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	Configs map[string]*ConfigStatus
-	Runners map[string]*RunnerStatus
+	Configs              map[string]*ConfigStatus
+	Runners              map[string]*RunnerStatus
+	stickinessEnabled    bool
+	stickinessFactor     float64
+	stickinessUpperLimit float64
+	stickinessLowerLimit float64
 }
 
-func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution {
+func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessUpperLimit float64, stickinessLowerLimit float64) configsDistribution {
 	runners := map[string]*RunnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
 		runners[runnerName] = &RunnerStatus{
@@ -59,8 +63,12 @@ func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution
 	}
 
 	return configsDistribution{
-		Configs: map[string]*ConfigStatus{},
-		Runners: runners,
+		Configs:              map[string]*ConfigStatus{},
+		Runners:              runners,
+		stickinessEnabled:    stickinessEnabled,
+		stickinessFactor:     stickinessFactor,
+		stickinessUpperLimit: stickinessUpperLimit,
+		stickinessLowerLimit: stickinessLowerLimit,
 	}
 }
 
@@ -69,7 +77,7 @@ func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution
 // is not among the runners with the lowest utilization, it gives precedence to
 // the runner with the lowest number of configs deployed. excludeRunner can be
 // set to avoid assigning a config to a specific runner.
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string) string {
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
@@ -81,6 +89,11 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
+
+		if distribution.stickinessEnabled && runnerName == preferredRunner {
+			bias := max(min(workersNeeded*distribution.stickinessFactor, distribution.stickinessUpperLimit), distribution.stickinessLowerLimit)
+			runnerUtilization -= bias
+		}
 
 		selectRunner := (leastBusyRunner == "") ||
 			(runnerUtilization < minUtilization) ||
@@ -98,7 +111,7 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 }
 
 func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
+	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
 	if leastBusy == "" {
 		return
 	}

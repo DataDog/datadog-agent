@@ -271,9 +271,9 @@ newSyscallLoop:
 	return hasNewSyscalls
 }
 
-// InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
-// added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) bool {
+// InsertFileEvent inserts the provided file event in the current node. Returns whether a new entry was
+// added and the NodeBase of the leaf FileNode reached or created.
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -287,7 +287,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 	parent, nextParentIndex := ExtractFirstParent(filePath)
 	if nextParentIndex == 0 {
-		return false
+		return false, nil
 	}
 
 	child, ok := pn.Files[parent]
@@ -296,7 +296,6 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	}
 
 	if !dryRun {
-		// create new child
 		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
 			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
@@ -304,17 +303,16 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			stats.FileNodes++
 			stats.SizeBytes += node.size()
 			pn.Files[parent] = node
-		} else {
-			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
-			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
-			newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
-			stats.FileNodes++
-			stats.SizeBytes += newChild.size()
-			pn.Files[parent] = newChild
+			return true, &node.NodeBase
 		}
+		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
+		_, leafNodeBase := newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		stats.FileNodes++
+		stats.SizeBytes += newChild.size()
+		pn.Files[parent] = newChild
+		return true, leafNodeBase
 	}
-	return true
+	return true, nil
 }
 
 func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType uint16) bool {
@@ -408,15 +406,15 @@ func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagI
 	return true
 }
 
-// InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+// InsertBindEvent inserts a bind event in a process node. Returns whether a new entry was
+// added and the NodeBase of the matched or newly created BindNode.
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	if evt.Bind.SyscallEvent.Retval != 0 {
-		return false
+		return false, nil
 	}
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
 
-	// check if a socket of this type already exists
 	var sock *SocketNode
 	for _, s := range pn.Sockets {
 		if s.Family == evtFamily {
@@ -433,12 +431,12 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 		newNode = true
 	}
 
-	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, stats, dryRun) {
+	bindNew, bindNodeBase := sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, stats, dryRun)
+	if bindNew {
 		newNode = true
 	}
 
-	return newNode
+	return newNode, bindNodeBase
 }
 
 // InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node

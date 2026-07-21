@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/containerd/protobuf/proto"
+	"github.com/containerd/containerd/v2/pkg/protobuf/proto"
 )
 
 // DumpDiscarders handles discarder dump requests

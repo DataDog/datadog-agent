@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "subscription",
@@ -18,15 +19,14 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "subscription_test",
     srcs = [
         "helpers_test.go",
         "subscription_test.go",
     ],
     embed = [":subscription"],
-    gotags = ["test"],
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/log",

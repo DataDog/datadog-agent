@@ -158,6 +158,45 @@ func (e entriesSorter) replace(v jsontext.Value) jsontext.Value {
 	return sorted
 }
 
+// redactContextSpanID replaces the value of the span_id entry inside a
+// context.Context entries map. dd-trace-go generates the server span id per
+// request, so it is non-deterministic across runs, whereas trace_id and
+// parent_id are fixed by the test's traceparent and are left intact. It is safe
+// to apply to any entries map: only a "span_id" key is touched, which appears
+// only in the context map.
+func redactContextSpanID(v jsontext.Value) jsontext.Value {
+	var entries [][2]jsontext.Value
+	if err := json.Unmarshal(v, &entries); err != nil {
+		return v
+	}
+	for i := range entries {
+		var key struct {
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(entries[i][0], &key); err != nil || key.Value != "span_id" {
+			continue
+		}
+		var value struct {
+			Type  string `json:"type"`
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(entries[i][1], &value); err != nil {
+			continue
+		}
+		value.Value = "[span_id]"
+		marshaled, err := json.Marshal(value)
+		if err != nil {
+			continue
+		}
+		entries[i][1] = marshaled
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return v
+	}
+	return out
+}
+
 type stackFrame struct {
 	Function   string `json:"function"`
 	FileName   string `json:"fileName"`

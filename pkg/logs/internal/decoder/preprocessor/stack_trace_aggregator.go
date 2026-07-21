@@ -59,23 +59,27 @@ type stackTraceAggregator struct {
 	buffer         *bytes.Buffer
 	rawDataLen     int
 	maxContentSize int
+	tagMultiLine   bool
 	collected      []*message.Message
 }
 
 // NewStackTraceAggregator creates a new StackTraceAggregator using the given
-// parser for language-specific pattern recognition.
-func NewStackTraceAggregator(parser StackTraceParser, maxContentSize int) StackTraceAggregator {
+// parser for language-specific pattern recognition. When tagMultiLine is true,
+// combined traces are tagged with their multiline source, matching the
+// behavior of the other aggregators gated on logs_config.tag_multi_line_logs.
+func NewStackTraceAggregator(parser StackTraceParser, maxContentSize int, tagMultiLine bool) StackTraceAggregator {
 	return &stackTraceAggregator{
 		parser:         parser,
 		buffer:         bytes.NewBuffer(nil),
 		maxContentSize: maxContentSize,
+		tagMultiLine:   tagMultiLine,
 	}
 }
 
 // NewStackTraceAggregatorFromNames builds a StackTraceAggregator from a list
 // of parser names (e.g. ["go", "java"]). Unknown names are silently skipped.
 // Returns a NoopStackTraceAggregator if no valid parsers are resolved.
-func NewStackTraceAggregatorFromNames(names []string, maxContentSize int) StackTraceAggregator {
+func NewStackTraceAggregatorFromNames(names []string, maxContentSize int, tagMultiLine bool) StackTraceAggregator {
 	var parsers []StackTraceParser
 	for _, name := range names {
 		if ctor, ok := stackTraceParserRegistry[name]; ok {
@@ -88,9 +92,9 @@ func NewStackTraceAggregatorFromNames(names []string, maxContentSize int) StackT
 		return NewNoopStackTraceAggregator()
 	}
 	if len(parsers) == 1 {
-		return NewStackTraceAggregator(parsers[0], maxContentSize)
+		return NewStackTraceAggregator(parsers[0], maxContentSize, tagMultiLine)
 	}
-	return NewStackTraceAggregator(NewCompositeStackTraceParser(parsers), maxContentSize)
+	return NewStackTraceAggregator(NewCompositeStackTraceParser(parsers), maxContentSize, tagMultiLine)
 }
 
 // Process handles one incoming message.
@@ -202,7 +206,16 @@ func (s *stackTraceAggregator) combine() {
 	out.SetContent(combined)
 	out.RawDataLen = s.rawDataLen
 	out.ParsingExtra.IsMultiLine = true
-	out.ParsingExtra.Tags = append(out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+	if s.tagMultiLine {
+		out.ParsingExtra.Tags = append(out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+	}
+	// Carry the LAST combined line's parser timestamp so downstream offset
+	// trackers (the container/Docker tailer's lastSince, in particular) advance
+	// past every line folded into the trace. Without this, a reader restart
+	// resumes from the panic header's timestamp and replays lines 2..N of the
+	// trace as duplicates. messageBuf has already had any uncommitted tail
+	// stripped in resolve(), so the last entry is the final committed line.
+	out.ParsingExtra.Timestamp = s.messageBuf[len(s.messageBuf)-1].ParsingExtra.Timestamp
 
 	s.collected = append(s.collected, out)
 	s.resetBuffer()

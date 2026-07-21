@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "discoverer",
+    srcs = [
+        "discovery_json.go",
+        "python_bridge.go",  # //go:build python
+        "python_bridge_nopython.go",  # //go:build !python
+        "types.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
+    tags = ["manual"],  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
+        "//comp/core/workloadmeta/def",
+        "//pkg/collector/python",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/util/wait",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+dd_agent_go_test(
+    name = "discoverer_test",
+    srcs = [
+        "discovery_json_test.go",
+        "fake_service_test.go",
+        "worker_test.go",
+    ],
+    embed = [":discoverer"],
+    tags = ["manual"],  # keep
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

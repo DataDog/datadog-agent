@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Parses and collects ``kubernetes.pod.cpu.request``, ``kubernetes.pod.memory.request``,
-    ``kubernetes.pod.cpu.limit``, and ``kubernetes.pod.memory.limit``.
+    Parses and collects ``kubernetes.pod.cpu.requests``, ``kubernetes.pod.memory.requests``,
+    ``kubernetes.pod.cpu.limits``, and ``kubernetes.pod.memory.limits``.

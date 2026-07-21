@@ -116,6 +116,12 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/configfilesdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery)
+
+*Datadog Team*: agent-discovery
+
+Package configfilesdiscovery defines the config files discovery component.
+
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
 *Datadog Team*: agent-configuration
@@ -328,7 +334,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform) (Component Bundle)
 
-*Datadog Team*: agent-health
+*Datadog Team*: fleet-remediation
 
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
@@ -405,6 +411,12 @@ send logs.
 ### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
+
+### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
+
+*Datadog Team*: agent-log-pipelines q-branch
+
+Package severityprovider defines the severity provider component.
 
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
@@ -806,8 +818,8 @@ Package updater is the updater component.
 
 *Datadog Team*: q-branch
 
-Package logssource provides a component that feeds container logs into the
-observer without requiring the logs agent to be enabled.
+Package logssource provides a component that feeds container and kubelet
+journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 
@@ -884,6 +896,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: windows-products
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
+
+### [comp/metriclookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metriclookback)
+
+*Datadog Team*: q-branch
+
+Package metriclookback defines the metric lookback component.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

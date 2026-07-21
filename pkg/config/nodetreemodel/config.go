@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,7 +67,7 @@ type ntmConfig struct {
 	allowDynamicSchema *atomic.Bool
 	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
 	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
-	lastEnvVarState string
+	lastRawEnv []string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -120,8 +121,10 @@ type ntmConfig struct {
 	// any given configuration key. Multiple env vars can be associated with one key
 	configEnvVars map[string][]string
 
+	// when true, buildEnvVars produces an empty env layer instead of reading os.LookupEnv
+	envVarsCleared atomic.Bool
+
 	// known keys are the set of valid keys to get either leaf or inner node values
-	// they are defined by one of (1) SetDefault (2) BindEnv (3) SetKnown
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
@@ -457,20 +460,6 @@ func (c *ntmConfig) addToKnownKeys(key string) {
 	}
 }
 
-// SetKnown adds a key to the set of known valid config keys.
-//
-// Important: this doesn't add the key to the default layer. The "known keys" are a legacy feature we inherited from our Viper
-// wrapper. Once all settings have a default we'll be able to remove this concept entirely.
-func (c *ntmConfig) SetKnown(key string) {
-	c.Lock()
-	defer c.Unlock()
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot SetKnown() once the config has been marked as ready for use")
-	}
-	key = strings.ToLower(key)
-	c.addToKnownKeys(key)
-}
-
 // IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.maybeRebuild()
@@ -499,18 +488,31 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Avoid taking the write lock and sorting in the common case where the raw
+		// environment snapshot is identical to the previous one.
+		rawEnv := os.Environ()
+		c.RLock()
+		unchanged := slices.Equal(c.lastRawEnv, rawEnv)
+		c.RUnlock()
+		if unchanged {
+			return
+		}
+
+		sortedEnv := slices.Clone(rawEnv)
+		slices.Sort(sortedEnv)
+
 		// Write-lock because the root will be written to in order to rebuild the state
 		c.Lock()
 		defer c.Unlock()
 
-		// Only need to rebuild if env vars have different state than last rebuild
-		envs := os.Environ()
-		sort.Strings(envs)
-		envVarState := strings.Join(envs, "$")
-		if c.lastEnvVarState == envVarState {
+		// Avoid an expensive rebuild if only the environment order changed while the
+		// environment content stayed the same.
+		slices.Sort(c.lastRawEnv)
+		unchanged = slices.Equal(c.lastRawEnv, sortedEnv)
+		c.lastRawEnv = rawEnv
+		if unchanged {
 			return
 		}
-		c.lastEnvVarState = envVarState
 
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
@@ -590,6 +592,17 @@ func (c *ntmConfig) BuildSchema() {
 }
 
 func (c *ntmConfig) buildSchema() {
+	// First resolve all relative path in the defaults (ie: path like '${conf_path}/datadog.yaml'
+	err := c.resolveRelativePath(
+		defaultpaths.GetDefaultConfPath(),
+		defaultpaths.GetInstallPath(),
+		defaultpaths.GetDefaultRunPath(),
+		defaultpaths.GetDefaultLogPath(),
+	)
+	if err != nil {
+		log.Errorf("error resolving default relative path: %s", err)
+	}
+
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
@@ -614,6 +627,11 @@ func (c *ntmConfig) isReady() bool {
 }
 
 func (c *ntmConfig) buildEnvVars() {
+	if c.envVarsCleared.Load() {
+		c.envs = newInnerNode(nil)
+		return
+	}
+
 	root := newInnerNode(nil)
 	envWarnings := []error{}
 
@@ -631,6 +649,20 @@ func (c *ntmConfig) buildEnvVars() {
 	}
 	c.envs = root
 	c.warnings = append(c.warnings, envWarnings...)
+}
+
+// ClearEnvVars empties the env layer and re-merges. The envVarsCleared flag guards against
+// repopulation if a test rebuilds the schema (production never rebuilds — see allowDynamicSchema).
+func (c *ntmConfig) ClearEnvVars() {
+	c.Lock()
+	defer c.Unlock()
+	c.envVarsCleared.Store(true)
+	c.envs = newInnerNode(nil)
+	if c.isReady() {
+		if err := c.mergeAllLayers(); err != nil {
+			c.warnings = append(c.warnings, err)
+		}
+	}
 }
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
@@ -711,30 +743,6 @@ func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
 		}
 		return reflect.ValueOf(res).Elem().Interface()
 	}
-}
-
-// IsSet checks if a key is set in the config
-func (c *ntmConfig) IsSet(key string) bool {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return false
-	}
-
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return false
-		}
-		curr = next
-	}
-	return true
 }
 
 func hasNonDefaultLeaf(node *nodeImpl) bool {
@@ -837,8 +845,7 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 	return slices.Collect(maps.Keys(allKeys))
 }
 
-// AllKeysLowercased returns all keys, including unknown keys and those without default values
-// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
+// AllKeysLowercased returns all keys, including unknown keys
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.maybeRebuild()
 
@@ -898,20 +905,6 @@ func (c *ntmConfig) SetEnvPrefix(in string) {
 // mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-}
-
-// BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot BindEnv() once the config has been marked as ready for use")
-	}
-
-	key = strings.ToLower(key)
-	c.bindEnv(key, envvars)
-	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) bindEnv(key string, envvars []string) {
@@ -1181,18 +1174,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-// GetSubfields returns the names of child fields of this setting
-func (c *ntmConfig) GetSubfields(key string) []string {
-	n, err := c.GetNode(key)
-	if err != nil {
-		return nil
-	}
-	if n.IsInnerNode() {
-		return n.ChildrenKeys()
-	}
-	return nil
-}
-
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides
 // If no env vars are declared, one will be derived from the key name
 // This is the preferred method to declare a setting
@@ -1256,9 +1237,6 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 
 	return &config
 }
-
-// GetLibType return "nodetreemodel"
-func (c *ntmConfig) GetLibType() string { return "nodetreemodel" }
 
 // ExtraConfigFilesUsed returns the additional config files used
 func (c *ntmConfig) ExtraConfigFilesUsed() []string {

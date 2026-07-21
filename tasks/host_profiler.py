@@ -18,7 +18,7 @@ from tasks.libs.releasing.version import query_version
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.153.0"
+PPROFILE_MAX_VERSION = "v0.156.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -146,12 +146,12 @@ def _get_agent_module_version(ctx: Context, module: str) -> str:
 
 
 def _parse_semver(version: str) -> tuple[int, ...]:
-    """Parse a release semver string (e.g. 'v0.150.0') into a tuple of ints.
+    """Parse a semver string (e.g. 'v0.150.0' or pseudo-versions) into a tuple of ints.
 
-    Only handles clean major.minor.patch tags — pseudo-versions or pre-release
-    suffixes will raise Exit with a clear message.
+    Strips any pre-release suffix (everything from the first '-' onward) before
+    parsing, so pseudo-versions like 'v0.155.1-0.20260625...' are handled correctly.
     """
-    v = version.lstrip("v")
+    v = version.lstrip("v").split("-")[0]
     parts = v.split(".")
     try:
         return tuple(int(p) for p in parts)
