@@ -28,13 +28,16 @@ If your test requires a package unavailable on a bare VM, in order of preference
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
 
+#### Language package installs (pip, npm, gem, cargo, ...)
+These pull from their own public registries and are subject to the same rate limiting and drift risks as system package installs. The same alternatives apply.
+
 #### Other dependencies / Internet accesses
 Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test).
 
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 
 ### Pin your dependencies
-When depending on something external, pin the version to avoid hard-to-track behavior changes, and verify a sha256sum where possible.
+When depending on something external, pin both the version and a sha256sum to avoid hard-to-track behavior changes which can cause unexpected breakages.
 
 Unpinned dependencies sneak in from unexpected places. `apt install <package>` and similar commands install the latest version of a package.
 > Worse, upstream mirrors often don't keep all past versions of all packages.
