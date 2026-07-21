@@ -26,5 +26,9 @@ go_test(
     srcs = ["installer_exec_test.go"],
     embed = [":exec"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/fleet/installer/errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
