@@ -53,8 +53,10 @@ fn default_timeout_seconds() -> u64 {
 }
 
 /// Database connection parameters for a sub task.
+// TODO(dsec-156): add SSL/TLS support; only unencrypted connections for now.
 #[derive(Debug, Default, Deserialize)]
 pub struct Connection {
+    /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
     #[serde(default)]
     pub host: String,
     #[serde(default = "default_port")]
@@ -65,8 +67,14 @@ pub struct Connection {
     pub username: String,
     #[serde(default)]
     pub password: String,
+    #[serde(default = "default_application_name")]
+    pub application_name: String,
 }
 
 fn default_port() -> u16 {
     5432
+}
+
+fn default_application_name() -> String {
+    "datadog-agent".to_string()
 }

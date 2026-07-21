@@ -9,7 +9,9 @@ rust-version.workspace = true
 default = ["engine-postgres"]
 # Each backend engine is gated behind its own feature so the set of compiled
 # engines is explicit. Add new engines as `engine-<name>` here.
-engine-postgres = ["dep:postgres"]
+engine-postgres = [
+    "dep:postgres",
+]
 
 [dependencies]
 anyhow.workspace = true
@@ -18,9 +20,14 @@ core = { path = "../../core" }
 # the necessary dependencies and avoid shipping the third-party checkers.
 dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260715-fcd8f9716b61", default-features = false, features = ["dd-sds"] }
 libc.workspace = true
-postgres = { version = "0.19", optional = true }
 serde.workspace = true
 serde_json.workspace = true
+
+# postgres engine (gated behind the `engine-postgres` feature)
+postgres = { version = "0.19", optional = true }
+
+[dev-dependencies]
+serde_yaml = "0.9.34"
 
 [lib]
 crate-type = ["cdylib"]

@@ -3,7 +3,6 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use postgres::config::SslMode;
 use postgres::{Config, NoTls, Row};
 use serde_json::{Map, Value};
 
@@ -28,18 +27,24 @@ impl ScanEngine for PostgresEngine {
 
         let mut config = Config::new();
         config
-            .host(&conn.host)
             .port(conn.port)
             .dbname(&conn.dbname)
             .user(&conn.username)
             .password(&conn.password)
-            .ssl_mode(SslMode::Disable)
+            .application_name(&conn.application_name)
             // `0` means no statement timeout in postgres.
             .options(&format!("-c statement_timeout={}", timeout * 1000));
+        // A host starting with `/` is a Unix socket directory, otherwise a TCP host.
+        if conn.host.starts_with('/') {
+            config.host_path(&conn.host);
+        } else if !conn.host.is_empty() {
+            config.host(&conn.host);
+        }
         if timeout > 0 {
             config.connect_timeout(Duration::from_secs(timeout));
         }
 
+        // TODO(dsec-156): add TLS support; connections are unencrypted for now.
         let mut client = config.connect(NoTls).context("connecting to postgres")?;
 
         let rows = client
