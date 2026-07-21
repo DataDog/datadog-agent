@@ -124,9 +124,7 @@ func (s *errorTrackingClusterAgentSuite) TestPayloadShape() {
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for cluster-agent error logs")
 
 	for _, l := range logs {
-		assertCommonLogShape(s.T(), l)
-		assert.Contains(s.T(), l.Tags, "agent.flavor:"+flavor.ClusterAgent,
-			"tags must identify the cluster-agent as the emitting binary; got: %q", l.Tags)
+		assertCommonLogShape(s.T(), l, flavor.ClusterAgent)
 	}
 }
 
