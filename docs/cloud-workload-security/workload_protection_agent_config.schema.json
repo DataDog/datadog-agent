@@ -111,19 +111,10 @@
   ],
   "warning_settings": [
     {
-      "name": "EBPFLessEnabled",
-      "config_key": "runtime_security_config.ebpfless.enabled",
-      "env_var": "DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED",
-      "description": "EBPFLessEnabled enables the ebpfless probe",
-      "type": "bool",
-      "default_value": "false",
-      "visibility": "warning"
-    },
-    {
       "name": "CaptureAllSyscallErrorsEnabled",
       "config_key": "runtime_security_config.syscalls.capture_all_errors.enabled",
       "env_var": "DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED",
-      "description": "CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled.",
+      "description": "CaptureAllSyscallErrorsEnabled defines if the agent should capture all syscall errors",
       "type": "bool",
       "default_value": "false",
       "visibility": "warning"

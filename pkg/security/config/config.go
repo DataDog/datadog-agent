@@ -694,13 +694,13 @@ type RuntimeSecurityConfig struct {
 	// default_value: true
 	SSHUserSessionsEnabled bool
 
-	// description: CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled.
+	// description: CaptureAllSyscallErrorsEnabled defines if the agent should capture all syscall errors
 	// visibility: warning
 	// default_value: false
 	CaptureAllSyscallErrorsEnabled bool
 
 	// description: EBPFLessEnabled enables the ebpfless probe
-	// visibility: warning
+	// visibility: private
 	// default_value: false
 	EBPFLessEnabled bool
 
