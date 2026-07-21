@@ -36,6 +36,7 @@ import (
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
@@ -705,6 +706,9 @@ func startAgent(
 		rcclient.SubscribeAgentTask()
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
+
+		dataSecurityController := datasecurity.NewController(ac, rcclient)
+		ac.AddConfigProvider(dataSecurityController, false, 0)
 
 		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
