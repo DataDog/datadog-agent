@@ -1,4 +1,5 @@
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -9,7 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.parent
 SELECT_SH = REPO_ROOT / "bazel" / "tools" / "remote-cache-select.sh"
 BASH = shutil.which("bash") or "/bin/bash"
-_COREUTILS = ("id", "mkdir", "chmod", "stat", "date", "cat")
+_COREUTILS = ("id", "mkdir", "chmod", "stat", "date", "cat", "grep")
 
 
 def _make_stub(directory: Path, name: str, exit_code: int) -> None:
@@ -34,14 +35,26 @@ class TestRemoteCacheSelect(unittest.TestCase):
 
     We source the script in a subshell and print _remote_cache_config's output,
     controlling reachability (stub curl) and token source (stub vault) via a
-    fully isolated PATH. Container branches are not covered here since
-    /.dockerenv cannot be faked in the test host.
+    fully isolated PATH. After sourcing we override _in_container and _repo_root
+    so container detection and rc-file lookup are deterministic on any host.
     """
 
     def _probe_path(self, tmpdir: Path) -> Path:
         return tmpdir / f"datadog-agent-{os.getuid()}" / "remote-cache-probe"
 
-    def _run(self, policy=None, args="", *, curl=0, vault=True, probe_seed=None, extra_env=None):
+    def _run(
+        self,
+        policy=None,
+        args="",
+        *,
+        curl=0,
+        vault=True,
+        probe_seed=None,
+        extra_env=None,
+        container=False,
+        user_bazelrc=None,
+        home_bazelrc=None,
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             bin_dir = tmp / "bin"
@@ -57,9 +70,14 @@ class TestRemoteCacheSelect(unittest.TestCase):
                 probe = self._probe_path(tmpdir)
                 probe.parent.mkdir(parents=True)
                 probe.write_text(probe_seed)
+            if user_bazelrc is not None:
+                (tmp / "user.bazelrc").write_text(user_bazelrc)
+            if home_bazelrc is not None:
+                (tmp / ".bazelrc").write_text(home_bazelrc)
 
             # PATH holds only our stubs + symlinked coreutils, so `command -v
             # vault` reflects the test intent rather than the host toolchain.
+            # HOME==_repo_root==tmp so both rc-file lookups stay in the sandbox.
             env = {
                 "PATH": str(bin_dir),
                 "HOME": str(tmp),
@@ -70,7 +88,8 @@ class TestRemoteCacheSelect(unittest.TestCase):
             if extra_env:
                 env.update(extra_env)
 
-            script = f'. "{SELECT_SH}"; _remote_cache_config {args}'
+            override = f"_in_container() {{ return {0 if container else 1}; }}; _repo_root={shlex.quote(str(tmp))}"
+            script = f'. "{SELECT_SH}"; {override}; _remote_cache_config {args}'
             res = subprocess.run(
                 [BASH, "-c", script],
                 capture_output=True,
@@ -106,6 +125,44 @@ class TestRemoteCacheSelect(unittest.TestCase):
 
     def test_default_policy_is_auto(self):
         self.assertEqual(self._run(policy=None, curl=0, vault=True), "--config=cache")
+
+    def test_container_without_token_skips(self):
+        # In a container there is no interactive Vault login; without a token the
+        # build is ineligible regardless of a reachable frontend.
+        self.assertEqual(self._run(policy="auto", curl=0, vault=True, container=True), "")
+
+    def test_container_with_token_enables(self):
+        self.assertEqual(
+            self._run(
+                policy="auto",
+                curl=0,
+                vault=False,
+                container=True,
+                extra_env={"BUILDBARN_ID_TOKEN": "deadbeef"},
+            ),
+            "--config=cache",
+        )
+
+    def test_user_bazelrc_optout_wins(self):
+        # An rc opt-out must suppress injection (cmdline --config=cache would
+        # otherwise beat the rc-level --config=no-remote-cache).
+        self.assertEqual(
+            self._run(policy="auto", curl=0, vault=True, user_bazelrc="common --config=no-remote-cache\n"),
+            "",
+        )
+
+    def test_home_bazelrc_optout_wins(self):
+        self.assertEqual(
+            self._run(policy="auto", curl=0, vault=True, home_bazelrc="common --config=no-remote-cache\n"),
+            "",
+        )
+
+    def test_commented_optout_ignored(self):
+        # A commented-out opt-out must not disable the cache.
+        self.assertEqual(
+            self._run(policy="auto", curl=0, vault=True, user_bazelrc="# common --config=no-remote-cache\n"),
+            "--config=cache",
+        )
 
     def test_explicit_config_cache_wins(self):
         self.assertEqual(self._run(policy="on", args="--config=cache:frontend"), "")
@@ -158,8 +215,9 @@ class TestRemoteCacheSelect(unittest.TestCase):
                 "TMPDIR": str(tmpdir),
                 "DD_BAZEL_REMOTE_CACHE": "auto",
             }
+            override = f"_in_container() {{ return 1; }}; _repo_root={shlex.quote(str(tmp))}"
             res = subprocess.run(
-                [BASH, "-c", f'set -euo pipefail; . "{SELECT_SH}"; _remote_cache_config'],
+                [BASH, "-c", f'set -euo pipefail; . "{SELECT_SH}"; {override}; _remote_cache_config'],
                 capture_output=True,
                 text=True,
                 env=env,

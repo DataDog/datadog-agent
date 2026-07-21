@@ -106,8 +106,9 @@ exit /b
 :: Buildbarn remote cache auto-selection. Policy via DD_BAZEL_REMOTE_CACHE:
 :: auto (default) | on | off. Appends --config=cache to extra_args when enabled.
 :remote_cache_select
-:: An explicit cache config on the command line always wins.
+:: An explicit cache config on the command line, or an rc-file opt-out, wins.
 echo %* | findstr /C:"--config=cache" /C:"--config=no-remote-cache" >nul && goto :eof
+call :rc_opts_out && goto :eof
 if not defined DD_BAZEL_REMOTE_CACHE set "DD_BAZEL_REMOTE_CACHE=auto"
 if /i "%DD_BAZEL_REMOTE_CACHE%"=="off" goto :eof
 if /i "%DD_BAZEL_REMOTE_CACHE%"=="on" (
@@ -121,6 +122,15 @@ if /i not "%DD_BAZEL_REMOTE_CACHE%"=="auto" (
 call :remote_cache_eligible || goto :eof
 if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
 goto :eof
+
+:: True (exit 0) when a user rc file opts out of the remote cache. The wrapper
+:: injects --config=cache on the command line, which would otherwise beat an
+:: rc-level --config=no-remote-cache (command-line options win over rc ones).
+:rc_opts_out
+for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
+  if exist "%%~R" findstr /R /C:"^[^#]*config=no-remote-cache" "%%~R" >nul 2>&1 && exit /b 0
+)
+exit /b 1
 
 :remote_cache_eligible
 set "_have_token="

@@ -23,8 +23,10 @@ echo 'common --config=cache' >> user.bazelrc
 
 Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
 `tools/bazel`; `tools/bazel.bat` mirrors it inline). `auto` enables the cache
-only when the frontend is reachable and a token source exists; explicit
-`--config=cache` / `--config=no-remote-cache` always wins. In containers there
+only when the frontend is reachable and a token source exists; a command-line
+`--config=cache` / `--config=no-remote-cache`, or an rc-level
+`common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
+In containers there
 is no interactive Vault login, so a token must be injected via the
 `BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 

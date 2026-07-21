@@ -59,8 +59,11 @@ builds. Behavior is controlled by `DD_BAZEL_REMOTE_CACHE`:
 - `off`: never enable (disk cache stays active). Equivalent to passing
   `--config=no-remote-cache`.
 
-An explicit `--config=cache` / `--config=no-remote-cache` on the command line,
-or in `user.bazelrc`, always wins over auto-selection.
+To opt out persistently, either set `DD_BAZEL_REMOTE_CACHE=off` or add
+`common --config=no-remote-cache` to `user.bazelrc` (workspace root) or your
+`~/.bazelrc`: the wrapper detects an rc-level opt-out and skips injecting the
+cache config. An explicit `--config=cache` / `--config=no-remote-cache` on the
+command line always wins over auto-selection.
 
 #### Remote cache in containers
 

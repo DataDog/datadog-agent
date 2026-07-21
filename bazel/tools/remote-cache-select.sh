@@ -13,6 +13,26 @@
 # CI selects its own endpoint in tools/bazel and never sources this logic.
 
 _buildbarn_host=buildbarn-frontend-datadog-agent.us1.ddbuild.io
+# Repo root: this file lives at <root>/bazel/tools/remote-cache-select.sh.
+_repo_root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd) || _repo_root=""
+
+# Container detection, factored out so tests can override it deterministically.
+_in_container() {
+  [ -e /.dockerenv ] || [ -e /run/.containerenv ]
+}
+
+# True when an rc file opts out of the remote cache. The wrapper injects
+# --config=cache on the command line, which would otherwise beat an rc-level
+# --config=no-remote-cache (Bazel applies command-line options after rc ones).
+_rc_opts_out() {
+  local rc
+  for rc in "${_repo_root:+$_repo_root/user.bazelrc}" "${HOME:+$HOME/.bazelrc}"; do
+    [ -n "$rc" ] && [ -f "$rc" ] || continue
+    # First non-blank char must not be '#' (skip comments), then an opt-out token.
+    grep -Eq '^[[:space:]]*[^#[:space:]].*(--config=no-remote-cache|--remote_cache=[[:space:]]*$)' "$rc" && return 0
+  done
+  return 1
+}
 
 _file_age_secs() {
   local f="${1-}" mtime now
@@ -61,7 +81,7 @@ _remote_cache_eligible() {
   local have_token=false
   [ -n "${BUILDBARN_ID_TOKEN-}" ] && have_token=true
 
-  if [ -e /.dockerenv ] || [ -e /run/.containerenv ]; then
+  if _in_container; then
     # No interactive Vault login inside containers: require a pre-provided token.
     if [ "$have_token" != true ]; then
       >&2 echo "💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:"
@@ -77,10 +97,11 @@ _remote_cache_eligible() {
 }
 
 _remote_cache_config() {
-  # An explicit cache config on the command line always wins.
+  # An explicit cache config on the command line, or an rc-file opt-out, wins.
   case " $* " in
     *" --config=cache "* | *" --config=cache:"* | *" --config=no-remote-cache "*) return ;;
   esac
+  _rc_opts_out && return
   case "${DD_BAZEL_REMOTE_CACHE:-auto}" in
     off) ;;
     on) echo --config=cache ;;
