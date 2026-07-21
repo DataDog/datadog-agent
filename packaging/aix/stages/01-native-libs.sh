@@ -15,10 +15,6 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# No stage-level sentinel: every library below has its own lib_done/lib_mark
-# sentinel (see below), so a hot rerun already skips everything in well under
-# a second without one.
-
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
 : "${STAGING:?STAGING must be set}"

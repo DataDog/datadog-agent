@@ -15,10 +15,6 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# No stage-level sentinel: the [deps] extra packages below are version-pinned
-# (pip no-ops if satisfied), and re-installing datadog-checks-base itself from
-# its local source directory is cheap (pure Python, no compilation).
-
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
 : "${EMBEDDED_DESTDIR:?EMBEDDED_DESTDIR must be set}"

@@ -15,12 +15,6 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# No stage-level sentinel: pydantic/typing_extensions are installed via
-# version-pinned `pip install pkg==X` (a no-op if already satisfied), and
-# pydantic-core's Rust build has its own wheel cache keyed on version (see
-# below) that skips the ~52-minute rebuild independently of this stage
-# running at all.
-
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
 : "${EMBEDDED_DESTDIR:?EMBEDDED_DESTDIR must be set}"

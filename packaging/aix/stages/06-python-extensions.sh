@@ -15,12 +15,6 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# No stage-level sentinel: every package here is installed via a version-pinned
-# `pip install pkg==X`, which pip already treats as a no-op ("Requirement
-# already satisfied") when the exact version is present, and cryptography's
-# Rust build has its own wheel cache keyed on version (see below) that skips
-# the expensive rebuild independently of this stage running at all.
-
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
 : "${STAGING:?STAGING must be set}"
