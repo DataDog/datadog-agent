@@ -217,6 +217,41 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 	})
 }
 
+// TestUnmarshalTracerPayloadUnknownField verifies InternalTracerPayload.UnmarshalMsg
+// skips an unknown field number interleaved between known fields (forward compatibility).
+func TestUnmarshalTracerPayloadUnknownField(t *testing.T) {
+	bts := []byte{0x83, 0x02} // map header 3 elements, field 2 (container ID)
+	bts = msgp.AppendString(bts, "cidcid")
+	bts = append(bts, []byte{0x63, 0xA7}...) // field 99 (unknown), fixstr length 7
+	bts = append(bts, []byte("ignored")...)
+	bts = append(bts, []byte{0x03}...) // field 3 (language name)
+	bts = msgp.AppendString(bts, "go")
+
+	tp := &InternalTracerPayload{Strings: NewStringTable()}
+	o, err := tp.UnmarshalMsg(bts)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Equal(t, "cidcid", tp.Strings.Get(tp.containerIDRef))
+	assert.Equal(t, "go", tp.Strings.Get(tp.languageNameRef))
+}
+
+// TestUnmarshalTraceChunkUnknownField verifies InternalTraceChunk.UnmarshalMsg
+// skips an unknown field number interleaved between known fields.
+func TestUnmarshalTraceChunkUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	bts := []byte{0x83, 0x01, 0x02}          // map header 3 elements, field 1 (priority), fixint 2
+	bts = append(bts, []byte{0x63, 0xA7}...) // field 99 (unknown), fixstr length 7
+	bts = append(bts, []byte("ignored")...)
+	bts = append(bts, []byte{0x05, mtrue}...) // field 5 (droppedTrace), bool true
+
+	tc := &InternalTraceChunk{Strings: strings}
+	o, err := tc.UnmarshalMsg(bts)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Equal(t, int32(2), tc.Priority)
+	assert.True(t, tc.DroppedTrace)
+}
+
 // FuzzUnmarshalTracerPayloadErrorHandling verifies that any error returned from
 // UnmarshalMsg does not panic when Error() is called on it. This makes sure we don't ever return a wrapped error with an internal nil error.
 func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {

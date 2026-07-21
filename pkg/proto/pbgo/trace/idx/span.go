@@ -189,6 +189,11 @@ func (s *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			s.span.Kind = SpanKind(kind)
 		default:
+			o, err = msgp.Skip(o)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span field")
+				return
+			}
 		}
 	}
 	return
@@ -256,6 +261,11 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 			}
 			spanEvent.Attributes = kvl
 		default:
+			o, err = msgp.Skip(o)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span event field")
+				return
+			}
 		}
 	}
 	return
@@ -558,6 +568,11 @@ func (sl *SpanLink) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				return
 			}
 		default:
+			o, err = msgp.Skip(o)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span link field")
+				return
+			}
 		}
 	}
 	return

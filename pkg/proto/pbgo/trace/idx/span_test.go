@@ -363,3 +363,61 @@ func TestSpanEventUnmarshalMsgConvertedDropsNilEntries(t *testing.T) {
 		_ = arrAV.AsString(strings)
 	})
 }
+
+// TestUnmarshalSpanUnknownField verifies InternalSpan.UnmarshalMsg skips an
+// unknown field number interleaved between known fields (forward compatibility).
+func TestUnmarshalSpanUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	bts := []byte{0x84}
+	bts = append(bts, []byte{0x01, 0xAA}...) // field 1 (service), fixstr length 10
+	bts = append(bts, []byte("my-service")...)
+	bts = append(bts, []byte{0x63, 0xA7}...) // field 99 (unknown), fixstr length 7
+	bts = append(bts, []byte("ignored")...)
+	bts = append(bts, []byte{0x02, 0xA9}...) // field 2 (name), fixstr length 9
+	bts = append(bts, []byte("span-name")...)
+	bts = append(bts, []byte{0x04, 0xCE, 0x00, 0xBC, 0x61, 0x4E}...) // field 4 (spanID), uint32 12345678
+	span := &InternalSpan{Strings: strings}
+	o, err := span.UnmarshalMsg(bts)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Equal(t, "my-service", strings.Get(span.span.ServiceRef))
+	assert.Equal(t, "span-name", strings.Get(span.span.NameRef))
+	assert.Equal(t, uint64(0xBC_61_4E), span.span.SpanID)
+}
+
+// TestUnmarshalSpanEventUnknownField verifies SpanEvent.UnmarshalMsg skips an
+// unknown field number interleaved between known fields.
+func TestUnmarshalSpanEventUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	bts := []byte{0x83}
+	bts = append(bts, []byte{0x01, 0x05}...) // field 1 (time), fixint 5
+	bts = append(bts, []byte{0x63, 0xA7}...) // field 99 (unknown), fixstr length 7
+	bts = append(bts, []byte("ignored")...)
+	bts = append(bts, []byte{0x02, 0xA6}...) // field 2 (name), fixstr length 6
+	bts = append(bts, []byte("name12")...)
+	spanEvent := &SpanEvent{}
+	o, err := spanEvent.UnmarshalMsg(bts, strings)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Equal(t, uint64(5), spanEvent.Time)
+	assert.Equal(t, "name12", strings.Get(spanEvent.NameRef))
+}
+
+// TestUnmarshalSpanLinkUnknownField verifies SpanLink.UnmarshalMsg skips an
+// unknown field number interleaved between known fields.
+func TestUnmarshalSpanLinkUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	bts := []byte{0x84}
+	bts = append(bts, []byte{0x01, 0xc4, 0x01, 0xAF}...) // field 1 (traceID), bin length 1, 0xAF
+	bts = append(bts, []byte{0x63, 0xA7}...)             // field 99 (unknown), fixstr length 7
+	bts = append(bts, []byte("ignored")...)
+	bts = append(bts, []byte{0x02, 0x12}...) // field 2 (spanID), fixint 0x12
+	bts = append(bts, []byte{0x05, 0x03}...) // field 5 (flags), fixint 3
+	sl := &SpanLink{}
+	o, err := sl.UnmarshalMsg(bts, strings)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Equal(t, []byte{0xAF}, sl.TraceID)
+	assert.Equal(t, uint64(0x12), sl.SpanID)
+	assert.Equal(t, uint32(3), sl.Flags)
+}
