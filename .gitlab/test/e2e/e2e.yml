@@ -1,6 +1,71 @@
 ---
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
+.new_e2e_template_before_script_pre_acr:
+  - !reference [.retrieve_linux_go_e2e_deps]
+  - !reference [.retrieve_linux_pulumi_plugins]
+  - !reference [.retrieve_linux_go_tools_deps]
+  # Setup AWS Credentials
+  - mkdir -p ~/.aws
+  - |
+    if [ -n "$E2E_USE_AWS_PROFILE" ]; then
+      echo Using agent-qa-ci aws profile
+      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+      # Now all `aws` commands target the agent-qa profile
+      export AWS_PROFILE=agent-qa-ci
+    else
+      # Assume role to fetch only once credentials and avoid rate limits
+      echo Assuming ddbuild-agent-ci role
+      roleoutput="$(aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession)"
+      export AWS_ACCESS_KEY_ID="$(echo "$roleoutput" | jq -r '.Credentials.AccessKeyId')"
+      export AWS_SECRET_ACCESS_KEY="$(echo "$roleoutput" | jq -r '.Credentials.SecretAccessKey')"
+      export AWS_SESSION_TOKEN="$(echo "$roleoutput" | jq -r '.Credentials.SessionToken')"
+    fi
+  # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
+  # SSH Key retrieval for AWS
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
+  - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
+  # SSH Key retrieval for Azure
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AZURE_PUBLIC_KEY_PATH || exit $?
+  - touch $E2E_AZURE_PRIVATE_KEY_PATH && chmod 600 $E2E_AZURE_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AZURE_PRIVATE_KEY_PATH || exit $?
+  # SSH Key retrieval for GCP
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_PUBLIC_KEY_PATH || exit $?
+  - touch $E2E_GCP_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_PRIVATE_KEY_PATH || exit $?
+  # Use S3 backend
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
+  # The app is called `agent-e2e-tests`
+  - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_id) || exit $?; export ARM_CLIENT_ID
+  - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE token) || exit $?; export ARM_CLIENT_SECRET
+  - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE tenant_id) || exit $?; export ARM_TENANT_ID
+  - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE subscription_id) || exit $?; export ARM_SUBSCRIPTION_ID
+  # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
+  # The service account is called `agent-e2e-tests`
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json > ~/gcp-credentials.json || exit $?
+  - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
+
+# Image pull credentials for GCP Artifact Registry (read-only service account key).
+# Split out from .new_e2e_template_before_script_pre_acr/post_acr so that jobs whose
+# runner class doesn't have this Vault field (e.g. docker-in-docker) can skip just this
+# step instead of forking the whole before_script.
+.retrieve_gcp_acr_image_pull_credentials:
+  - |
+    gcp_acr_key=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_acr_readonly) || exit $?
+    export E2E_GCP_IMAGE_PULL_PASSWORD="b64=$(printf '%s' "$gcp_acr_key" | base64 -w 0)"
+
+.new_e2e_template_before_script_post_acr:
+  # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+  - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
+  - export DD_CIVISIBILITY_ENABLED=true
+  - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+  - export DD_CIVISIBILITY_FLAKY_RETRY_ENABLED=false
+  - export DD_TAGS="gitlab.pipeline_source:${CI_PIPELINE_SOURCE}"
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  # set the environment variables for the windows test signing
+  - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
+  - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
+
 .new_e2e_template:
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -8,62 +73,9 @@
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
-    - !reference [.retrieve_linux_go_e2e_deps]
-    - !reference [.retrieve_linux_pulumi_plugins]
-    - !reference [.retrieve_linux_go_tools_deps]
-    # Setup AWS Credentials
-    - mkdir -p ~/.aws
-    - |
-      if [ -n "$E2E_USE_AWS_PROFILE" ]; then
-        echo Using agent-qa-ci aws profile
-        $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
-        # Now all `aws` commands target the agent-qa profile
-        export AWS_PROFILE=agent-qa-ci
-      else
-        # Assume role to fetch only once credentials and avoid rate limits
-        echo Assuming ddbuild-agent-ci role
-        roleoutput="$(aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession)"
-        export AWS_ACCESS_KEY_ID="$(echo "$roleoutput" | jq -r '.Credentials.AccessKeyId')"
-        export AWS_SECRET_ACCESS_KEY="$(echo "$roleoutput" | jq -r '.Credentials.SecretAccessKey')"
-        export AWS_SESSION_TOKEN="$(echo "$roleoutput" | jq -r '.Credentials.SessionToken')"
-      fi
-    # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
-    # SSH Key retrieval for AWS
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
-    # SSH Key retrieval for Azure
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AZURE_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_AZURE_PRIVATE_KEY_PATH && chmod 600 $E2E_AZURE_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AZURE_PRIVATE_KEY_PATH || exit $?
-    # SSH Key retrieval for GCP
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_GCP_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_PRIVATE_KEY_PATH || exit $?
-    # Use S3 backend
-    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
-    # The app is called `agent-e2e-tests`
-    - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_id) || exit $?; export ARM_CLIENT_ID
-    - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE token) || exit $?; export ARM_CLIENT_SECRET
-    - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE tenant_id) || exit $?; export ARM_TENANT_ID
-    - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE subscription_id) || exit $?; export ARM_SUBSCRIPTION_ID
-    # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
-    # The service account is called `agent-e2e-tests`
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json > ~/gcp-credentials.json || exit $?
-    - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
-    # Image pull credentials for GCP Artifact Registry (read-only service account key)
-    - |
-      gcp_acr_key=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_acr_readonly) || exit $?
-      export E2E_GCP_IMAGE_PULL_PASSWORD="b64=$(printf '%s' "$gcp_acr_key" | base64 -w 0)"
-    # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
-    - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    - export DD_CIVISIBILITY_ENABLED=true
-    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
-    - export DD_CIVISIBILITY_FLAKY_RETRY_ENABLED=false
-    - export DD_TAGS="gitlab.pipeline_source:${CI_PIPELINE_SOURCE}"
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    # set the environment variables for the windows test signing
-    - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
-    - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
+    - !reference [.new_e2e_template_before_script_pre_acr]
+    - !reference [.retrieve_gcp_acr_image_pull_credentials]
+    - !reference [.new_e2e_template_before_script_post_acr]
   variables:
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
@@ -287,12 +299,17 @@ new-e2e-containers-k8s-latest:
 # created directly on the runner's own Docker daemon (E2E_PROVISIONER=kind-local) instead of
 # provisioning a dedicated EC2 VM. Required alongside the AWS-VM job above, not a replacement:
 # it validates the local provisioner while still exercising real infra for the default path.
+#
+# Skips .retrieve_gcp_acr_image_pull_credentials: the docker-in-docker runner class's Vault
+# secret bundle doesn't carry the credentials_acr_readonly field, and this job's test images
+# aren't pulled from GCP Artifact Registry, so E2E_GCP_IMAGE_PULL_PASSWORD is left empty.
 new-e2e-containers-kind-local:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   tags: ["docker-in-docker:amd64"]
   before_script:
-    - !reference [.new_e2e_template, before_script]
+    - !reference [.new_e2e_template_before_script_pre_acr]
+    - !reference [.new_e2e_template_before_script_post_acr]
     - curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64" && chmod +x ./kind && mv ./kind /usr/local/bin/kind
   rules:
     - !reference [.on_container_or_e2e_changes]
@@ -301,6 +318,7 @@ new-e2e-containers-kind-local:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     E2E_PROVISIONER: kind-local
+    E2E_GCP_IMAGE_PULL_PASSWORD: ""
     EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
 
 new-e2e-containers-eks-init:
