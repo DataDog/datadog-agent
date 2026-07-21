@@ -4103,10 +4103,10 @@
   
 
 
-<h1 id="how-to-build-agent-distribution-packages">How to build agent distribution packages</h1>
+<h1 id="how-to-build-agent-distribution-packages">How to build agent distribution packages<a class="headerlink" href="#how-to-build-agent-distribution-packages" title="Permanent link">&para;</a></h1>
 <hr />
-<h2 id="intro">Intro</h2>
-<h3 id="what-are-distribution-packages">What are distribution packages ?</h3>
+<h2 id="intro">Intro<a class="headerlink" href="#intro" title="Permanent link">&para;</a></h2>
+<h3 id="what-are-distribution-packages">What are distribution packages ?<a class="headerlink" href="#what-are-distribution-packages" title="Permanent link">&para;</a></h3>
 <p>By "distribution package", we mean an artifact used by end users to install the Agent on their system. The format is OS-specific:</p>
 <table>
 <thead>
@@ -4131,7 +4131,7 @@
 </tbody>
 </table>
 <p>These distribution packages contain <a href="../standalone/">a binary of the Agent</a>, along with any supporting libraries needed for the agent to function properly.</p>
-<h3 id="omnibus">Omnibus</h3>
+<h3 id="omnibus">Omnibus<a class="headerlink" href="#omnibus" title="Permanent link">&para;</a></h3>
 <p>Agent packages for all the supported platforms are built using <a href="https://github.com/chef/omnibus">Omnibus</a>.</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
@@ -4149,8 +4149,8 @@ The main entrypoint is the <code>omnibus.build</code> invoke task, which you can
 <blockquote>
 <p>This will probably not work out of the box though - see instructions below for more information.</p>
 </blockquote>
-<h2 id="building-for-linux-deb">Building for Linux: <code>deb</code></h2>
-<h3 id="using-the-dev-env">Using the <code>dev env</code></h3>
+<h2 id="building-for-linux-deb">Building for Linux: <code>deb</code><a class="headerlink" href="#building-for-linux-deb" title="Permanent link">&para;</a></h2>
+<h3 id="using-the-dev-env">Using the <code>dev env</code><a class="headerlink" href="#using-the-dev-env" title="Permanent link">&para;</a></h3>
 <p>The <a href="../../../reference/images/dev/">developer environments</a> we provide contain all the dependencies required for building Omnibus packages, along with extra tools and features that make local development easier.
 We recommend that you use them for all your development needs.</p>
 <p>To build distribution packages in a developer environment:</p>
@@ -4179,7 +4179,7 @@ We recommend that you use them for all your development needs.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mv<span class="w"> </span>/omnibus/pkg<span class="w"> </span>/root/repos/datadog-agent/bin
 </span></code></pre></div></p>
 </details>
-<h3 id="using-the-build-image">Using the build image</h3>
+<h3 id="using-the-build-image">Using the build image<a class="headerlink" href="#using-the-build-image" title="Permanent link">&para;</a></h3>
 <p>We provide a <a href="../../../reference/images/builders/#linux">Docker image</a> containing all the build dependencies required for building <code>deb</code> packages via Omnibus: <a href="https://hub.docker.com/r/datadog/agent-buildimages-linux"><code>datadog/agent-buildimages-linux</code></a>.This image is the one used by CI, and as such it is quite bare-bones. The developer environments mentioned in <a href="#using-the-dev-env">the section above</a> are based on this image.</p>
 <details class="tip">
 <summary>Building the image locally</summary>
@@ -4213,7 +4213,7 @@ at each Omnibus run:</p>
 </ul>
 </div>
 <p>Once the process completes, the built artifacts will be available on your host under <code>/tmp/omnibus/pkg</code>.</p>
-<h3 id="building-on-the-host-discouraged">Building on the host (discouraged)</h3>
+<h3 id="building-on-the-host-discouraged">Building on the host (discouraged)<a class="headerlink" href="#building-on-the-host-discouraged" title="Permanent link">&para;</a></h3>
 <div class="admonition danger">
 <p class="admonition-title">Danger</p>
 <p>Building on the host is <em>not recommended</em>, and this section of the guide will be maintained on a best-effort basis.</p>
@@ -4282,7 +4282,7 @@ at each Omnibus run:</p>
 <p>On macOS, a <code>dmg</code> artifact will always be generated.</p>
 </blockquote>
 </div>
-<h2 id="building-for-linux-rpm">Building for Linux: <code>rpm</code></h2>
+<h2 id="building-for-linux-rpm">Building for Linux: <code>rpm</code><a class="headerlink" href="#building-for-linux-rpm" title="Permanent link">&para;</a></h2>
 <p>Some extra dependencies are required for building <code>rpm</code> packages that are not yet included in the main <code>datadog/agent-buildimages-linux</code> build image.</p>
 <p>A separate docker image containing these special dependencies is also available. This image, contrary to the main <code>datadog/agent-buildimages-linux</code> image, is not multi-arch - thus there are two flavors depending on the CPU architecture of the host machine:</p>
 <ul>
@@ -4291,10 +4291,10 @@ at each Omnibus run:</p>
 </ul>
 <p>To build using these images, follow the same instructions as <a href="#using-the-build-image">for <code>deb</code> packages</a>, but replace <code>datadog/agent-buildimages-linux</code> with the appropriate flavor of the <code>rpm</code> image for your CPU platform.
 You can also attempt a <a href="#building-on-the-host-discouraged">host-based build</a>, although this is heavily discouraged.</p>
-<h2 id="building-for-macos">Building for MacOS</h2>
+<h2 id="building-for-macos">Building for MacOS<a class="headerlink" href="#building-for-macos" title="Permanent link">&para;</a></h2>
 <p>We do not currently support MacOS development environments or any container build image. You will therefore need to follow the <a href="#building-on-the-host-discouraged">host-based build instructions</a>.</p>
 <p>When running the build command, you might want to skip the signing step by adding the <code>--skip-sign</code> flag.</p>
-<h2 id="building-for-windows">Building for Windows</h2>
+<h2 id="building-for-windows">Building for Windows<a class="headerlink" href="#building-for-windows" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>This can only be done in a containerized environment.
