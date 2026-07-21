@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Fix `/var/log/datadog` permissions: it was left world-readable (default `0755`) after install instead of the restrictive `0750` (owner/group `dd-agent`) used on other platforms
+
 
 ---
 
