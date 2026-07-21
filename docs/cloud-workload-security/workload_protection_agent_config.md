@@ -48,7 +48,6 @@ The following settings can be configured under `runtime_security_config` in the 
 
 | Environment variable | `system-probe.yaml` attribute | Type | Default | Description |
 | -------------------- | ----------------------------- | ---- | ------- | ----------- |
-| `DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED` | `runtime_security_config.ebpfless.enabled` | bool | false | EBPFLessEnabled enables the ebpfless probe |
-| `DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED` | `runtime_security_config.syscalls.capture_all_errors.enabled` | bool | false | CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so IS_UNHANDLED_ERROR treats every negative syscall return as handled. |
+| `DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED` | `runtime_security_config.syscalls.capture_all_errors.enabled` | bool | false | CaptureAllSyscallErrorsEnabled defines if the agent should capture all syscall errors |
 
 [1]: /security/workload_protection/
