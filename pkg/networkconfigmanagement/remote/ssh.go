@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -184,12 +185,13 @@ func (c *SSHConnector) Connect() (Connection, error) {
 }
 
 func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*PushResult, error) {
+
 	if c.prof == nil {
-		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)
 	}
 	pc := c.prof.Commands.PushConfig
 	if !pc.CanPush() {
-		return nil, fmt.Errorf("no push commands for profile %q", c.prof.Name)
+		return nil, types.WrapErrorf(types.ErrPushUnsupported, "no push commands for profile %q", c.prof.Name)
 	}
 	results := &PushResult{}
 	// Copy the raw configuration to the device
@@ -198,7 +200,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*Push
 		results.CopyConfig = append(results.CopyConfig, result)
 	}
 	if err != nil {
-		return results, fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
+		return results, types.WrapErrorf(types.ErrCopyFailed, "unable to copy config to device %q: %w", c.device.IPAddress, err)
 	}
 	// Set the running configuration from the file
 	result, err = ExecuteCommand(ctx, c.client, pc.SetRunning)
@@ -206,7 +208,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*Push
 		results.SetRunning = append(results.SetRunning, result)
 	}
 	if err != nil {
-		return results, fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
+		return results, types.WrapErrorf(types.ErrSetRunningFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
 	}
 	// Set the startup configuration from the running config
 	result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
@@ -214,7 +216,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*Push
 		results.SetStartup = append(results.SetStartup, result)
 	}
 	if err != nil {
-		return results, fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
+		return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
 	}
 	return results, nil
 }
