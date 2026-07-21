@@ -46,7 +46,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 		// The metrics path already recognizes DD-format keys directly via
 		// kubernetesDDTags, so prefixing would only strand data under
 		// `rename`. Always pass "off" here regardless of the configured mode.
-		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, ContainerTagPromotionOff)
+		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, nil)
 	}
 	return md, nil
 }

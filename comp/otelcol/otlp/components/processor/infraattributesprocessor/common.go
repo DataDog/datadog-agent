@@ -73,12 +73,20 @@ func newInfraTagsProcessor(
 // DD / OTel conventions (knownConventionKeys), USM keys, and the
 // `datadog.host.name` host attribute are exempt and always written under their
 // canonical key.
+//
+// If ddtags is non-nil, custom tags (i.e. those NOT covered by the exemptions
+// above) are appended to *ddtags as "key:value" pairs instead of being written
+// to resourceAttributes. This is used by the logs pipeline to turn tagger tags
+// into real Datadog log tags rather than log attributes. Exempted keys are
+// always written to resourceAttributes regardless of ddtags, since the
+// Datadog logs intake already promotes them into tags on its own.
 func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
 	promote ContainerTagPromotionMode,
+	ddtags *[]string,
 ) {
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
@@ -121,7 +129,7 @@ func (p infraTagsProcessor) ProcessTags(
 	for k, v := range tagMap {
 		otelAttrs, ust := unifiedServiceTagMap[k]
 		if !ust {
-			writeTagAttribute(resourceAttributes, k, v, promote)
+			writeTagAttribute(resourceAttributes, k, v, promote, ddtags)
 			continue
 		}
 
@@ -150,13 +158,21 @@ func (p infraTagsProcessor) ProcessTags(
 // `datadog.container.tag.` prefix and keys in knownConventionKeys are always
 // written as-is (idempotency / convention exemption); only truly custom keys
 // are subject to duplication / renaming.
-func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode) {
+//
+// If ddtags is non-nil, a truly custom key is instead appended to *ddtags as
+// "k:v" and NOT written to resourceAttributes (the promote mode is ignored in
+// this case, since it only makes sense for the resource-attribute path).
+func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, ddtags *[]string) {
 	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
 		resourceAttributes.PutStr(k, v)
 		return
 	}
 	if _, isKnown := knownConventionKeys[k]; isKnown {
 		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if ddtags != nil {
+		*ddtags = append(*ddtags, k+":"+v)
 		return
 	}
 	switch promote {
