@@ -49,9 +49,29 @@ bazel mod deps
 
 ### Remote cache (internal to Datadog)
 
-If you are on the Datadog internal network and want to take advantage of the remote cache, simply add the following line
-to a `user.bazelrc` file located at the root of the workspace, or to a `.bazelrc` file located in your home directory:
+The `tools/bazel` wrapper auto-selects the Buildbarn remote cache on local
+builds. Behavior is controlled by `DD_BAZEL_REMOTE_CACHE`:
 
+- `auto` (default): enable only when the frontend is reachable and a token
+  source exists (a Vault CLI to log in, an injected `BUILDBARN_ID_TOKEN`, or a
+  token file). Off-network contributors get a local build with no extra prompts.
+- `on`: always enable; a failing credential helper aborts the build.
+- `off`: never enable (disk cache stays active). Equivalent to passing
+  `--config=no-remote-cache`.
+
+An explicit `--config=cache` / `--config=no-remote-cache` on the command line,
+or in `user.bazelrc`, always wins over auto-selection.
+
+#### Remote cache in containers
+
+Inside a container the credential helper cannot run an interactive Vault login
+(it needs a browser), so auto-selection stays off until a token is injected via
+the `BUILDBARN_ID_TOKEN` environment variable. Mint it on the host and pass it
+in:
+
+```sh
+export BUILDBARN_ID_TOKEN="$(vault read -address=https://vault.us1.ddbuild.io -field=token identity/oidc/token/buildbarn)"
+docker run --env BUILDBARN_ID_TOKEN ...          # or: docker exec -e BUILDBARN_ID_TOKEN -it <container> ...
 ```
-common --config=cache
-```
+
+The OIDC token TTL is ~1h; re-mint it for long-lived shells.

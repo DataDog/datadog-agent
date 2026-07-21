@@ -98,6 +98,11 @@ common:cache:frontend --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us
 common:cache --config=cache:frontend
 common:cache --noremote_upload_local_results
 
+# Explicit local-only config: disable the remote cache while keeping the
+# wrapper-injected --disk_cache. Use `--config=no-remote-cache` (or
+# DD_BAZEL_REMOTE_CACHE=off) to opt out of tools/bazel auto-selection.
+common:no-remote-cache --remote_cache=
+
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=lint
