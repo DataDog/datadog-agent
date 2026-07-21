@@ -13,11 +13,19 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
+)
+
+var (
+	// nanInfRE matches metric lines whose value is NaN, +Inf, or -Inf.
+	nanInfRE = regexp.MustCompile(`[}\w]\s+(?:NaN|\+?Inf|-Inf)(?:\s|$)`)
+	// labelSpaceRE matches spaces after commas before label names in label sets.
+	labelSpaceRE = regexp.MustCompile(`,\s+([a-zA-Z_])`)
 )
 
 // Metric is a set of labels for a sample.
@@ -66,6 +74,8 @@ func trimSummarySuffix(name string) string {
 }
 
 // preprocessData normalizes lines and filters out lines matching any filter string.
+// For metric lines (non-comments) it also drops NaN/Inf values and normalizes
+// label whitespace (spaces after commas), which the strict Go parser rejects.
 func preprocessData(data []byte, filter []string) []byte {
 	lines := bytes.Split(data, []byte{'\n'})
 	filteredLines := make([][]byte, 0, len(lines))
@@ -79,9 +89,19 @@ func preprocessData(data []byte, filter []string) []byte {
 				break
 			}
 		}
-		if !skip {
-			filteredLines = append(filteredLines, line)
+		if skip {
+			continue
 		}
+		// Apply metric-specific normalization to non-comment lines
+		if len(line) > 0 && line[0] != '#' {
+			if nanInfRE.Match(line) {
+				continue
+			}
+			if bytes.IndexByte(line, ',') >= 0 {
+				line = labelSpaceRE.ReplaceAll(line, []byte(",${1}"))
+			}
+		}
+		filteredLines = append(filteredLines, line)
 	}
 	return bytes.Join(filteredLines, []byte{'\n'})
 }
@@ -119,9 +139,14 @@ func ParseMetricsWithFilter(data []byte, filter []string, contentType string) ([
 				result = result[:len(result)-1]
 			}
 			name, typ := parser.Type()
+			familyName := string(name)
+			typUpper := strings.ToUpper(string(typ))
+			if typUpper == "COUNTER" {
+				familyName = trimCounterSuffix(familyName)
+			}
 			result = append(result, MetricFamily{
-				Name:    string(name),
-				Type:    strings.ToUpper(string(typ)),
+				Name:    familyName,
+				Type:    typUpper,
 				Samples: make([]Sample, 0, 8),
 			})
 
