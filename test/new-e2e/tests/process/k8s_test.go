@@ -111,8 +111,8 @@ func (s *K8sSuite) TestProcessCheck() {
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 
-		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollected(c, payloads, []string{"stress-ng"})
 	}, 5*time.Minute, 10*time.Second)
 }
 
@@ -216,9 +216,9 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 
-		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		assertProcessCollectedNew(c, payloads, false, "process-agent")
-		assertContainersCollectedNew(c, payloads, []string{"stress-ng", "process-agent"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertProcessCollected(c, payloads, false, "process-agent")
+		assertContainersCollected(c, payloads, []string{"stress-ng", "process-agent"})
 	}, 5*time.Minute, 10*time.Second)
 }
 

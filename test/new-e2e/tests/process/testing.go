@@ -103,9 +103,9 @@ func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []
 	}
 }
 
-// assertProcessCollectedNew asserts that the given process is collected by the process check
+// assertProcessCollected asserts that the given process is collected by the process check
 // and that it has the expected data populated
-func assertProcessCollectedNew(
+func assertProcessCollected(
 	t require.TestingT, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
 ) {
 	// Find Processes
@@ -156,8 +156,8 @@ func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStat
 	}
 }
 
-// assertContainersCollectedNew asserts that the given containers are collected
-func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
+// assertContainersCollected asserts that the given containers are collected
+func assertContainersCollected(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
 	for _, container := range expectedContainers {
 		var found bool
 		for _, payload := range payloads {
