@@ -119,7 +119,7 @@ func TestFilterEventListAfterResourceVersion(t *testing.T) {
 		assert.Equal(t, "next-page", events.Continue)
 	})
 
-	t.Run("no checkpoint skips the retained snapshot", func(t *testing.T) {
+	t.Run("no checkpoint skips the retained snapshot but preserves pagination", func(t *testing.T) {
 		remaining := int64(50)
 		events := &v1.EventList{
 			ListMeta: metav1.ListMeta{
@@ -136,7 +136,7 @@ func TestFilterEventListAfterResourceVersion(t *testing.T) {
 
 		assert.Nil(t, events.Items)
 		assert.Equal(t, "100", events.ResourceVersion)
-		assert.Empty(t, events.Continue)
-		assert.Nil(t, events.RemainingItemCount)
+		assert.Equal(t, "next-page", events.Continue)
+		assert.Equal(t, &remaining, events.RemainingItemCount)
 	})
 }

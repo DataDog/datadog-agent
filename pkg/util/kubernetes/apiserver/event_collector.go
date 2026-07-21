@@ -141,10 +141,12 @@ func (ec *EventCollector) enqueue(ev *v1.Event) {
 func filterEventListAfterResourceVersion(events *v1.EventList, threshold uint64) {
 	if threshold == 0 {
 		// If the threshold is 0, that usually means it's a fresh deployment of the DCA.
-		// In order to avoid fetching all events from the API server, we clear the list
+		// Drop this page's items to avoid buffering the retained backlog, but leave
+		// Continue/RemainingItemCount untouched so client-go's ListPager still walks
+		// the remaining pages and correctly records whether the server paginated the
+		// list (clearing them here would make the reflector think it wasn't paginated,
+		// disabling pagination on the next relist and reintroducing the memory spike).
 		events.Items = nil
-		events.Continue = ""
-		events.RemainingItemCount = nil
 		return
 	}
 
