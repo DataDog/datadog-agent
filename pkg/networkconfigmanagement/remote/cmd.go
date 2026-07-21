@@ -78,7 +78,7 @@ func executeShellCommand(ctx context.Context, client sshClient, cmd *profile.Pla
 		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 	// Many network devices only offer an interactive shell over a pseudo-terminal.
-	if err := session.RequestPty("xterm", 80, 40, ssh.TerminalModes{ssh.ECHO: 0}); err != nil {
+	if err := session.RequestPty("xterm", 80, 32768, ssh.TerminalModes{ssh.ECHO: 0}); err != nil {
 		return "", fmt.Errorf("failed to request pty: %w", err)
 	}
 	if err := session.Shell(); err != nil {
