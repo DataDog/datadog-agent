@@ -85,6 +85,7 @@ dd_agent_go_test(
         "exporter_bench_test.go",
         "exporter_test.go",
         "factory_test.go",
+        "queuebatch_ordering_test.go",
         "serializer_test.go",
     ],
     data = glob(["testdata/**"]),
