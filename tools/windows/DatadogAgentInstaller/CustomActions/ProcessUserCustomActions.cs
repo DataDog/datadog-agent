@@ -410,6 +410,17 @@ namespace Datadog.CustomActions
                 }
 
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
+
+                // Check this precondition before fetching the password from the LSA secret store.
+                // On Domain Controllers, a username is always required, and FetchAgentPassword's LSA lookup
+                // will otherwise fail and log a misleading "LSA retrieve failed... system cannot find the file
+                // specified" error that obscures the real problem and is the most prominent thing on-call sees.
+                if (_isDomainController && string.IsNullOrEmpty(ddAgentUserName))
+                {
+                    _session.Log("Aborting before LSA secret lookup: no DDAGENTUSER_NAME was provided and a username is required when installing on Domain Controllers.");
+                    throw new InvalidAgentUserConfigurationException("A username was not provided. A username is a required when installing on Domain Controllers.");
+                }
+
                 var ddAgentUserPassword = FetchAgentPassword();
                 var datadogAgentServiceExists = _serviceController.ServiceExists(Constants.AgentServiceName);
 
@@ -430,13 +441,7 @@ namespace Datadog.CustomActions
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
-                    if (_isDomainController)
-                    {
-                        // require user to provide a username on domain controllers so that the customer is explicit
-                        // about the username/password that will be created on their domain if it does not exist.
-                        throw new InvalidAgentUserConfigurationException("A username was not provided. A username is a required when installing on Domain Controllers.");
-                    }
-
+                    // _isDomainController is already handled above, before the LSA secret lookup.
                     // Creds are not in registry and user did not pass a value, use default account name
                     ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
                     _session.Log($"No creds provided, using default {ddAgentUserName}");
