@@ -75,6 +75,7 @@ go_proto_library(
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
+    "@platforms//os:macos": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
 
