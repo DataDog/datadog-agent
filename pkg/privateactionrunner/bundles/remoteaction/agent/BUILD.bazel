@@ -7,6 +7,7 @@ go_library(
         "config.go",
         "diagnose.go",
         "entrypoint.go",
+        "flare.go",
         "remoteconfig.go",
         "status.go",
     ],
