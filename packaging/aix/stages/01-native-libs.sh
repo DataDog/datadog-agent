@@ -70,7 +70,8 @@ LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but 
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
-LIBFFI_VERSION="3.4.4"     # yum install libffi-devel
+LIBFFI_VERSION="3.4.8"     # yum install libffi-devel; nominal label only — the
+                           # AIX Toolbox always wins regardless of this value
 NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.53.2"    # built from source (amalgamation)
