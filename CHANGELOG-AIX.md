@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
+
 
 ---
 
