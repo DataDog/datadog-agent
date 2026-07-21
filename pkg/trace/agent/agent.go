@@ -785,8 +785,6 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
 	if debug.HasData() {
 		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
-			// Error and BufferEvictionReason are interned into the payload's string
-			// table so repeated strings are deduplicated across the payload.
 			ErrorRef:                p.TracerPayload.Strings.Add(debug.Error),
 			LatencyMs:               debug.LatencyMs,
 			WasBuffered:             debug.WasBuffered,
