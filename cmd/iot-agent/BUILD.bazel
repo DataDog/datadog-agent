@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "IOT_AGENT_TAGS")
 
 go_library(
     name = "iot-agent_lib",
@@ -91,6 +92,7 @@ go_library(
 go_binary(
     name = "iot-agent",
     embed = [":iot-agent_lib"],
+    gotags = sorted(IOT_AGENT_TAGS | COMMON_TAGS),  # keep
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
