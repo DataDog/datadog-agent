@@ -195,6 +195,10 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 			imports = append(imports, imp)
 			continue
 		}
+
+		srcs := r.AttrStrings("srcs")
+		fl := applicableFlavors(srcs, pkgDir)
+
 		nr := rule.NewRule("dd_agent_go_test", r.Name())
 		for _, attr := range r.AttrKeys() {
 			copyAttr(r, nr, attr)
@@ -227,8 +231,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 		// run". We do the cross-source analysis at Gazelle time and either
 		// drop the rule entirely (no flavor applies) or restrict the macro
 		// to the applicable subset.
-		if srcs := nr.AttrStrings("srcs"); len(srcs) > 0 {
-			fl := applicableFlavors(srcs, pkgDir)
+		if len(srcs) > 0 {
 			if len(fl) == 0 {
 				if existingDd, ok := findRule(file, "dd_agent_go_test", r.Name()); ok {
 					existingDd.Delete()
@@ -369,14 +372,25 @@ var goReleaseTags = func() map[string]bool {
 	return m
 }()
 
-// applicableFlavors returns the subset of flavor names whose tag set makes at
-// least one src file's //go:build constraint evaluate to true. A src with no
-// //go:build line is universally applicable. Platform/arch identifiers are
-// treated as free variables (existentially quantified, since Bazel resolves
-// them per-configuration at build time); go1.N tokens are resolved against the
+// applicableFlavors returns the subset of flavor names under which at least
+// one src file compiles, i.e. the flavors where this rule's test binary would
+// have any test functions at all. A src with no //go:build line always
+// compiles, so its mere presence keeps every flavor: which OTHER files a
+// flavor happens to exclude doesn't matter once at least one file remains,
+// since a rule's set of runnable tests is fully determined by its own srcs --
+// dropping a flavor here can only be justified by "this flavor's test binary
+// would be entirely empty," never by "some sibling file needs a different
+// flavor," which Go's own build-constraint evaluation already handles per
+// file with no help needed. Platform/arch identifiers are treated as free
+// variables (existentially quantified, since Bazel resolves them
+// per-configuration at build time); go1.N tokens are resolved against the
 // Gazelle binary's release tags.
 func applicableFlavors(srcs []string, pkgDir string) []string {
-	exprs := make([]constraint.Expr, 0, len(srcs))
+	type file struct {
+		expr          constraint.Expr
+		hasConstraint bool
+	}
+	files := make([]file, 0, len(srcs))
 	for _, s := range srcs {
 		path := s
 		if !filepath.IsAbs(path) {
@@ -388,10 +402,7 @@ func applicableFlavors(srcs []string, pkgDir string) []string {
 			// so don't restrict the flavor set on its behalf.
 			return allFlavors()
 		}
-		if !hasConstraint {
-			return allFlavors()
-		}
-		exprs = append(exprs, e)
+		files = append(files, file{e, hasConstraint})
 	}
 
 	var out []string
@@ -400,8 +411,8 @@ func applicableFlavors(srcs []string, pkgDir string) []string {
 		for _, t := range FlavorUnitTestTags[flavor] {
 			tagSet[t] = true
 		}
-		for _, e := range exprs {
-			if canSatisfy(e, tagSet) {
+		for _, f := range files {
+			if !f.hasConstraint || canSatisfy(f.expr, tagSet) {
 				out = append(out, flavor)
 				break
 			}

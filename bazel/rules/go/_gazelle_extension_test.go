@@ -376,6 +376,37 @@ dd_agent_go_test(
 	}
 }
 
+// TestGenerateRules_LinuxBPFDoesNotRescueFlavoredPackage documents that
+// dd_agent_go_test has no linux_bpf awareness: a package with "dd_agent_go_test
+// on" whose test sources are gated entirely behind //go:build linux_bpf (so no
+// flavor applies) has its test rule dropped like any other no-flavor-applies
+// case, even with "dd_linux_bpf on" set alongside it. Keeping such a package's
+// test buildable is done by turning dd_agent_go_test off for it (see
+// TestGenerateRules_OffDirectiveRevertsExistingConversion), not by a rescue
+// branch inside replaceGoTests.
+func TestGenerateRules_LinuxBPFDoesNotRescueFlavoredPackage(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"x_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: true},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir})
+
+	if len(result.Gen) != 0 {
+		t.Fatalf("expected the linux_bpf-only test to be dropped, got %d gen rules: %v", len(result.Gen), result.Gen)
+	}
+}
+
 func TestLoads(t *testing.T) {
 	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
 	if !ok {
@@ -615,12 +646,12 @@ func TestApplicableFlavors(t *testing.T) {
 			want: []string{"base", "fips"},
 		},
 		{
-			name: "mix: one unconstrained file overrides everything",
+			name: "mix: an unconstrained sibling keeps every flavor, even one a differently-gated file excludes",
 			srcs: []string{linuxBpf, noConstraint},
 			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
 		},
 		{
-			name: "mix: any matching src is enough",
+			name: "mix: any compiling src is enough to keep a flavor",
 			srcs: []string{linuxBpf, requireFips},
 			want: []string{"fips"},
 		},
