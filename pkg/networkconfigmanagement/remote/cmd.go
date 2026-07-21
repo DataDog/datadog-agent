@@ -18,9 +18,9 @@ import (
 
 // CommandResult records a command that was run and the resulting output.
 type CommandResult struct {
-	CommandStr string
-	Output     string
-	Error      error
+	CommandStr string `json:"command_str"`
+	Output     string `json:"output"`
+	Error      error  `json:"error"`
 }
 
 // FormattedError returns nil if there was no error, and otherwise wraps
