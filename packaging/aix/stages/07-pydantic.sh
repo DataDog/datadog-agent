@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="07-pydantic"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,11 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No stage-level sentinel: pydantic/typing_extensions are installed via
+# version-pinned `pip install pkg==X` (a no-op if already satisfied), and
+# pydantic-core's Rust build has its own wheel cache keyed on version (see
+# below) that skips the ~52-minute rebuild independently of this stage
+# running at all.
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -60,13 +59,9 @@ if [ ! -f "$PYPROJECT" ]; then
 fi
 
 # --- Cleanup on failure ---
-# pip installs are not easy to roll back; the sentinel not being written is
-# sufficient to trigger a re-run.
 cleanup() {
     if [ $? -ne 0 ]; then
-        log "ERROR: $STAGE_NAME failed."
-        log "       Re-run after fixing the error by deleting the sentinel:"
-        log "       rm $SENTINEL"
+        log "ERROR: $STAGE_NAME failed. Re-run this stage to retry."
         log "       Common causes:"
         log "         - Rust SDK not installed: yum install rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
         log "         - Insufficient disk space (need ~7 GB free in /tmp, ~4 GB in /)"
@@ -196,7 +191,4 @@ log "Installing typing_extensions==$TYPING_EXTENSIONS_VERSION (from integrations
 $PIP install "typing_extensions==$TYPING_EXTENSIONS_VERSION"
 log "typing_extensions installed successfully"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

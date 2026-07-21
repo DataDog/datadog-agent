@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="06-python-extensions"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,11 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No stage-level sentinel: every package here is installed via a version-pinned
+# `pip install pkg==X`, which pip already treats as a no-op ("Requirement
+# already satisfied") when the exact version is present, and cryptography's
+# Rust build has its own wheel cache keyed on version (see below) that skips
+# the expensive rebuild independently of this stage running at all.
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -71,9 +70,7 @@ fi
 # --- Cleanup on failure ---
 cleanup() {
     if [ $? -ne 0 ]; then
-        log "ERROR: $STAGE_NAME failed."
-        log "       Re-run after fixing the error by deleting the sentinel:"
-        log "       rm $SENTINEL"
+        log "ERROR: $STAGE_NAME failed. Re-run this stage to retry."
     fi
 }
 trap cleanup EXIT
@@ -334,7 +331,4 @@ fi
 # matches Linux behaviour — customers install it via the embedded pip after
 # deployment: sudo -Hu dd-agent pip install ibm_db==<version>
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="
