@@ -23,6 +23,9 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
+	constantfetch.OffsetNameTaskStructCred,
+	constantfetch.OffsetNameTaskStructRealCred,
+	constantfetch.OffsetNameTaskStructSignal,
 	constantfetch.OffsetNameDeviceStructNdNet,
 	constantfetch.OffsetNameSockStructSKProtocol,
 }
