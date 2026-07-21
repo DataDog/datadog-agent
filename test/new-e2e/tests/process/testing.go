@@ -144,15 +144,18 @@ func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStat
 	}
 	assert.True(t, hasData, "'%s' process does not have all data populated in: %+v", process, procs)
 
-	// verify IO stats are populated
+	// verify IO stats are populated on a process that also has its data
+	// populated, so the same process satisfies both predicates (a regression
+	// where the data and IO stats come from different matching processes is caught)
 	if withIOStats {
 		var hasIOStats bool
 		for _, proc := range procs {
-			if hasIOStats = processHasIOStats(proc); hasIOStats {
+			if processHasData(proc) && processHasIOStats(proc) {
+				hasIOStats = true
 				break
 			}
 		}
-		assert.True(t, hasIOStats, "'%s' process does not have IO stats populated in %+v", process, procs)
+		assert.True(t, hasIOStats, "no single '%s' process had both data and IO stats populated in: %+v", process, procs)
 	}
 }
 
