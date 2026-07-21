@@ -302,7 +302,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: Installer configuration
   process_manager:
     node_type: section
     type: object
@@ -623,7 +622,6 @@ properties:
       Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
     tags:
     - template_section:Common
-    comment: Forwarder channels buffer size
   forwarder_low_prio_buffer_size:
     node_type: setting
     type: integer
@@ -807,7 +805,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: GCE
   exclude_gce_tags:
     node_type: setting
     type: array
@@ -875,7 +872,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: GPU
   gpu:
     $ref: gpu.yaml
   azure_metadata_timeout:
@@ -904,7 +900,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: Azure
   azure_metadata_api_version:
     node_type: setting
     type: string
@@ -974,7 +969,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: controls the agent configurations
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
@@ -1033,7 +1027,6 @@ properties:
         description: |-
           Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
           The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
-        comment: Auto exit configuration
   remote_configuration:
     $ref: remote_configuration.yaml
   fips:
@@ -1120,7 +1113,6 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
-            comment: metrics options
           url:
             node_type: setting
             type: string
@@ -1152,7 +1144,6 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
-            comment: logs options
           url:
             node_type: setting
             type: string
@@ -1458,7 +1449,6 @@ properties:
     tags:
     - template_section:Agent
     - full-agent-only:true
-    comment: secrets backend
   secret_backend_config:
     node_type: setting
     type: object
@@ -1548,7 +1538,6 @@ properties:
     example: <COMMAND_PATH>
     tags:
     - template_section:Agent
-    comment: secrets backend
   secret_backend_arguments:
     node_type: setting
     type: array
@@ -1687,7 +1676,6 @@ properties:
         description: The full path to the file where Datadog Agent Manager System
           Tray logs are written.
         example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
-        comment: Datadog Agent Manager System Tray
   logs_enabled:
     node_type: setting
     title: Log collection Configuration
@@ -1734,7 +1722,6 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
-            comment: Network Path
       collector:
         node_type: section
         type: object
@@ -2063,7 +2050,6 @@ properties:
             default: false
             visibility: public
             description: '[Preview] Enables Synthetics tests.'
-            comment: Synthetics configuration
           workers:
             node_type: setting
             type: integer
@@ -2216,7 +2202,6 @@ properties:
     example: localhost
     tags:
     - template_section:Dogstatsd
-    comment: statsd
   dogstatsd_socket:
     node_type: setting
     type: string
@@ -2699,7 +2684,6 @@ properties:
     tags:
     - template_section:CoreAgent
     - full-agent-only:true
-    comment: JMXFetch
   jmx_use_cgroup_memory_limit:
     node_type: setting
     type: boolean
@@ -3232,7 +3216,6 @@ properties:
     - golang_type:int64
     - template_section:CoreAgent
     - full-agent-only:true
-    comment: Docker
   ad_config_poll_interval:
     node_type: setting
     type: integer
@@ -3303,7 +3286,6 @@ properties:
         visibility: public
         description: The network on which the garden API is listening. Possible values
           are `unix` or `tcp`
-        comment: Cloud Foundry Garden
       listen_address:
         node_type: setting
         type: string
@@ -3482,9 +3464,7 @@ properties:
     tags:
     - template_section:ECS
     - full-agent-only:true
-    comment: |-
-      ECS
-      Will be autodetected
+    comment: Will be autodetected
   ecs_collect_resource_tags_ec2:
     node_type: setting
     type: boolean
@@ -3757,7 +3737,6 @@ properties:
     tags:
     - template_section:KubeApiServer
     - full-agent-only:true
-    comment: Kube ApiServer
   kubernetes_apiserver_ca_path:
     node_type: setting
     type: string
@@ -4058,7 +4037,6 @@ properties:
         default: https://bbs.service.cf.internal:8889
         visibility: public
         description: URL of the BBS API.
-        comment: Cloud Foundry BBS
       poll_interval:
         node_type: setting
         type: integer
@@ -4126,7 +4104,6 @@ properties:
         default: https://cloud-controller-ng.service.cf.internal:9024
         visibility: public
         description: URL of the CC API.
-        comment: Cloud Foundry CC
       client_id:
         node_type: setting
         type: string
@@ -4831,7 +4808,6 @@ properties:
             default: false
             visibility: public
             description: Set to true to enable collection of NetFlow traffic.
-            comment: NetFlow
           listeners:
             node_type: setting
             type: array
@@ -5244,7 +5220,6 @@ properties:
         visibility: public
         description: The number of concurrent workers used to perform reverse DNS
           lookups.
-        comment: Reverse DNS Enrichment
       chan_size:
         node_type: setting
         type: integer
@@ -5391,7 +5366,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable High Availability Agent feature.
-        comment: HA Agent
       group:
         node_type: setting
         type: string
@@ -6505,7 +6479,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Cluster autoscaling product
           spot:
             node_type: section
             type: object
@@ -6526,7 +6499,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Spot scheduling
               fallback_duration:
                 node_type: setting
                 type: string
@@ -6563,7 +6535,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Workload autoscaling product
           external_recommender:
             node_type: section
             type: object
@@ -6634,7 +6605,6 @@ properties:
     default: []
     tags:
     - full-agent-only:true
-    comment: Agent Workload Filtering config
   cf_os_hostname_aliasing:
     node_type: setting
     type: boolean
@@ -6734,7 +6704,6 @@ properties:
     default: false
     tags:
     - full-agent-only:true
-    comment: Cluster check runner
   clc_runner_host:
     node_type: setting
     type: string
@@ -6817,7 +6786,6 @@ properties:
         node_type: setting
         type: string
         default: /bin/sh
-        comment: Cloud Foundry Container Tagger
     tags:
     - full-agent-only:true
   cluster_trust_chain:
@@ -6856,7 +6824,6 @@ properties:
             default: false
             tags:
             - no-env
-            comment: command line options
   cmd_host:
     node_type: setting
     type: string
@@ -6879,7 +6846,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Config files discovery
       forwarder:
         node_type: section
         type: object
@@ -7059,7 +7025,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: CSI driver
     tags:
     - full-agent-only:true
   data_observability:
@@ -7829,7 +7794,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Data Jobs Monitoring config
     tags:
     - full-agent-only:true
   dogstatsd_capture_depth:
@@ -8066,7 +8030,6 @@ properties:
     default: false
     tags:
     - full-agent-only:true
-    comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
     type: string
@@ -8406,7 +8369,6 @@ properties:
     tags:
     - golang_type:duration
     - full-agent-only:true
-    comment: flare configs
   flare_stripped_keys:
     node_type: setting
     type: array
@@ -8426,7 +8388,7 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Fleet policies
+    comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: integer
@@ -8436,7 +8398,6 @@ properties:
     node_type: setting
     type: integer
     default: 2
-    comment: Forwarder retry settings
   forwarder_connection_reset_interval:
     node_type: setting
     type: integer
@@ -8478,7 +8439,6 @@ properties:
     node_type: setting
     type: string
     default: ${run_path}/transactions_to_retry
-    comment: Forwarder storage on disk
   genresources:
     node_type: section
     type: object
@@ -8691,7 +8651,6 @@ properties:
             node_type: setting
             type: string
             default: ''
-            comment: Host Profiler config
       health_metrics:
         node_type: section
         type: object
@@ -8747,7 +8706,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      IBM cloud
       We use a long timeout here since the metadata and token API can be very slow sometimes.
       value in seconds
   ignore_autoconf:
@@ -8816,7 +8774,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: DatadogInstrumentation controller
     tags:
     - full-agent-only:true
   integration:
@@ -8948,7 +8905,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      Integration security
       When enabled, integrations will ignore configuration parameters that refer to file paths
       Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
   integration_profiling:
@@ -8991,14 +8947,12 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-    comment: controls the checks configurations
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
     default: true
     tags:
     - full-agent-only:true
-    comment: collect collection of `cloud_provider_account_id`
   inventories_diagnostics_enabled:
     node_type: setting
     type: boolean
@@ -9009,7 +8963,6 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-    comment: inventories
   inventories_first_run_delay:
     node_type: setting
     type: integer
@@ -9100,7 +9053,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Kubernetes actions
       forwarder:
         node_type: section
         type: object
@@ -9331,7 +9283,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Language Detection
       reporting:
         node_type: section
         type: object
@@ -9407,7 +9358,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      Metadata endpoints
       Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
       endpoints (all cloudprovider except IBM). IBM cloud ignore this setting as their API return a huge JSON with
       all the metadata for the VM.
@@ -9431,7 +9381,6 @@ properties:
       Delegated authentication (global)
       Cloud provider and region are auto-detected if not specified
       Enabled automatically when org_uuid is specified
-      Filterlist
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
@@ -9469,7 +9418,6 @@ properties:
         node_type: setting
         type: string
         default: ''
-        comment: Network
   network_check:
     node_type: section
     type: object
@@ -9491,7 +9439,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Notable Events (EUDM)
   ol_proxy_config:
     node_type: section
     type: object
@@ -9593,9 +9540,8 @@ properties:
         env_parser: json
         items:
           type: object
-        comment: |-
-          Prometheus HTTP Service Discovery
-          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+        comment: List of HTTP SD endpoints to poll. Each entry must specify url and
+          check_template.
       url:
         node_type: setting
         type: string
@@ -9695,7 +9641,6 @@ properties:
         node_type: setting
         type: integer
         default: 3
-        comment: Remote tagger
     tags:
     - full-agent-only:true
   run_path:
@@ -9722,7 +9667,6 @@ properties:
         node_type: setting
         type: integer
         default: 5010
-        comment: Datadog security agent (common)
       disable_thp:
         node_type: setting
         type: boolean
@@ -10058,7 +10002,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Shared library check
       library_folder_path:
         node_type: setting
         type: string
@@ -10075,7 +10018,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Software Inventory
       forwarder:
         node_type: section
         type: object
@@ -10414,7 +10356,6 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
-    comment: Vsock
   win_skip_com_init:
     node_type: setting
     type: boolean
