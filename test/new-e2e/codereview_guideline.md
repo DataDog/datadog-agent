@@ -30,7 +30,9 @@ If your test requires a package not available not available on a bare VM, either
 This is because running package managers on the VM exposes you to both rate limiting from the upstream package mirrors, and to any _changes_ made on those mirror's packages - they can be removed, renamed, or incompatible versions be pushed. Also see [Pin your dependencies](#pin-your-dependencies)
 
 #### Other dependencies / Internet accesses
-In general, avoid making web requests to external websites (i.e. avoid `ping some-website.com` or `curl some-website.com`). If you need to download a tarball, installer, or package from a website and none of the other previous solutions are acceptable, the best way forward is to vendor in that artifact in our purpose-made S3 bucket - you can use `RemoteHost.HostArtifactClient` for this. See [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for more details.
+In general, avoid making web requests to external websites (i.e. avoid `ping some-website.com` or `curl some-website.com`). If you need to download a tarball, installer, or package from a website and none of the other previous solutions are acceptable, vendor that artifact in our purpose-made S3 bucket - use `RemoteHost.HostArtifactClient` for this. See [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for more details.
+
+Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 
 ### Pin your depencies
 If you must depend on something external, at least make sure you pin down which version you are using (and preferably use a sha256sum verification) to avoid hard-to-track behavior changes.
@@ -38,7 +40,7 @@ If you must depend on something external, at least make sure you pin down which 
 Watch out: unpinned dependencies can sneak in from unexpected places. For example, `apt install <package>` and similar commands almost always install the latest version of a package.
 > This is made even more annoying because upstream package mirrors often don't store all past versions of all packages.
 
-Similarly, not specifying a tag for a Docker image will default to `latest`. Same story for dependencies pulled via a hardcoded `curl ...` - make sure a pinned version appears in the URL fragment
+Similarly, not specifying a tag for a Docker image will default to `latest`. Same story for dependencies pulled via a hardcoded `curl ...` - make sure a pinned version appears in the URL fragment. Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel...) referenced by a branch URL rather than a pinned tag/version are unpinned in the same way.
 
 ### Think about timing
 E2E tests are executed in real-time, on real infra: you are exposed to timing issues in the same way integration tests or things like playwright on frontend are.
