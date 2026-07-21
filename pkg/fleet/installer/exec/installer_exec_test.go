@@ -19,6 +19,7 @@ func TestIsResourceExhaustionCrash(t *testing.T) {
 		output string
 		want   bool
 	}{
+		// --- fatal-error-anchored runtime.throw() signatures ---
 		{
 			name:   "pageAlloc out of memory",
 			output: "fatal error: pageAlloc: out of memory\n",
@@ -30,6 +31,32 @@ func TestIsResourceExhaustionCrash(t *testing.T) {
 			want:   true,
 		},
 		{
+			name:   "heap arena map",
+			output: "fatal error: out of memory allocating heap arena map\n",
+			want:   true,
+		},
+		{
+			name:   "allArenas",
+			output: "fatal error: out of memory allocating allArenas\n",
+			want:   true,
+		},
+		{
+			name:   "generic runtime out of memory (linux/bsd/darwin mmap ENOMEM)",
+			output: "fatal error: runtime: out of memory\n",
+			want:   true,
+		},
+		{
+			name:   "generic windows out of memory (VirtualAlloc ENOMEM/commit-limit)",
+			output: "fatal error: out of memory\n",
+			want:   true,
+		},
+		{
+			name:   "thread exhaustion",
+			output: "runtime: program exceeds 10000-thread limit\nfatal error: thread exhaustion\n",
+			want:   true,
+		},
+		// --- diagnostic / OS-errno-text signatures (no fatal error prefix) ---
+		{
 			name:   "cannot allocate memory",
 			output: "runtime: cannot allocate memory\n",
 			want:   true,
@@ -40,8 +67,23 @@ func TestIsResourceExhaustionCrash(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "VirtualAlloc failure on windows",
+			name:   "thread limit print line alone",
+			output: "runtime: program exceeds 10000-thread limit\n",
+			want:   true,
+		},
+		{
+			name:   "VirtualAlloc failure on windows, errno=1455 (ERROR_COMMITMENT_LIMIT)",
 			output: "runtime: VirtualAlloc of 8192 bytes failed with errno=1455\n",
+			want:   true,
+		},
+		{
+			name:   "VirtualAlloc failure on windows, errno=8 (ERROR_NOT_ENOUGH_MEMORY)",
+			output: "runtime: VirtualAlloc of 8192 bytes failed with errno=8\n",
+			want:   true,
+		},
+		{
+			name:   "too much locked memory (mmap EAGAIN, ulimit -l)",
+			output: "runtime: mmap: too much locked memory (check 'ulimit -l').\n",
 			want:   true,
 		},
 		{
@@ -49,6 +91,7 @@ func TestIsResourceExhaustionCrash(t *testing.T) {
 			output: "The paging file is too small for this operation to complete.\n",
 			want:   true,
 		},
+		// --- negative cases: unrelated errors ---
 		{
 			name:   "unrelated error",
 			output: "exit status 1: package not found",
@@ -59,13 +102,55 @@ func TestIsResourceExhaustionCrash(t *testing.T) {
 			output: "",
 			want:   false,
 		},
+		{
+			name:   "nil output",
+			output: "",
+			want:   false,
+		},
+		// --- negative cases: near-misses that must NOT match ---
+		{
+			name:   "out of memory mentioned without fatal error prefix",
+			output: "warning: process is close to running out of memory, consider increasing limits\n",
+			want:   false,
+		},
+		{
+			name:   "benign mention of memory in an unrelated message",
+			output: "error: failed to read config: field \"memory_limit_mb\" is not a valid integer\n",
+			want:   false,
+		},
+		{
+			name:   "benign mention of thread in an unrelated message",
+			output: "panic: goroutine running on wrong thread for this operation: main.worker\n",
+			want:   false,
+		},
+		{
+			name:   "fatal error with an unrelated message",
+			output: "fatal error: concurrent map writes\n",
+			want:   false,
+		},
+		{
+			name:   "path that happens to contain the word memory",
+			output: "error: could not open /var/lib/datadog-installer/memory-profile.json: permission denied\n",
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, isResourceExhaustionCrash([]byte(tt.output)))
+			var output []byte
+			if tt.output != "" {
+				output = []byte(tt.output)
+			}
+			assert.Equal(t, tt.want, isResourceExhaustionCrash(output))
 		})
 	}
+}
+
+// TestIsResourceExhaustionCrash_NilInput explicitly exercises a nil (as opposed to empty
+// non-nil) byte slice, since callers may pass a bytes.Buffer's Bytes() result before anything
+// was ever written to it.
+func TestIsResourceExhaustionCrash_NilInput(t *testing.T) {
+	assert.False(t, isResourceExhaustionCrash(nil))
 }
 
 func TestErrResourceExhaustedIsWrappedWithMultiErrorf(t *testing.T) {

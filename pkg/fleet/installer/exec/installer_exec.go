@@ -34,26 +34,93 @@ import (
 // "run failed" errors.
 var ErrResourceExhausted = errors.New("installer subprocess crashed due to host resource exhaustion (memory/thread limit)")
 
-// resourceExhaustionSignatures are known Go-runtime crash signatures produced when a process fails
-// to bootstrap because the host is out of memory, threads, or paging capacity.
-var resourceExhaustionSignatures = []string{
+// fatalErrorPrefix is the exact prefix Go's runtime.throw()/runtime.fatal() always emit,
+// immediately followed on the same line by the message passed to throw/fatal (see
+// runtime/panic.go, printindented). We anchor the runtime-internal signatures below on this
+// prefix so we only match genuine Go-runtime crashes, not incidental occurrences of otherwise
+// fairly generic phrases (like "out of memory") elsewhere in a config value, path, or argument
+// that happened to get echoed into the subprocess's combined output.
+const fatalErrorPrefix = "fatal error: "
+
+// resourceExhaustionFatalMessages are exact runtime.throw() message strings that Go's runtime
+// prints as "fatal error: <msg>" when it cannot grow the heap, map new arenas, or spin up more
+// OS threads. Each entry below is cited against the runtime source (Go 1.26, this repo's pinned
+// toolchain) so we don't match on invented wording.
+var resourceExhaustionFatalMessages = []string{
+	// runtime/mpagealloc.go: (*pageAlloc).grow -> throw("pageAlloc: out of memory")
 	"pageAlloc: out of memory",
-	"out of memory allocating heap arena",
-	"cannot allocate memory",
+	// runtime/malloc.go: (*mheap).sysAlloc -> throw("out of memory allocating heap arena metadata")
+	"out of memory allocating heap arena metadata",
+	// runtime/malloc.go: (*mheap).sysAlloc -> throw("out of memory allocating heap arena map")
+	"out of memory allocating heap arena map",
+	// runtime/malloc.go: (*mheap).sysAlloc -> throw("out of memory allocating allArenas")
+	"out of memory allocating allArenas",
+	// runtime/mem_linux.go, mem_bsd.go, mem_darwin.go: sysMapOS/sysUsedOS -> throw("runtime: out of memory")
+	// (mmap returning ENOMEM). More generic than the pageAlloc/heap-arena variants above, and
+	// covers hosts where the crash happens before those more specific call sites are reached.
+	"runtime: out of memory",
+	// runtime/mem_windows.go: sysUsedOS -> throw("out of memory") when VirtualAlloc fails with
+	// ERROR_NOT_ENOUGH_MEMORY (errno=8) or ERROR_COMMITMENT_LIMIT (errno=1455).
+	"out of memory",
+	// runtime/proc.go: checkmcount -> throw("thread exhaustion") once the number of OS threads
+	// the runtime has created exceeds sched.maxmcount (10000 by default).
+	"thread exhaustion",
+}
+
+// resourceExhaustionDiagnosticSignatures are runtime print()-level diagnostic lines, or plain OS
+// errno/formatted-error text, that accompany or stand in for a resource-exhaustion crash but are
+// not themselves preceded by the "fatal error: " prefix (either because they come from a
+// runtime print() call that precedes a separate, less-specific throw(), or because they're a
+// syscall errno string / OS-formatted message rather than a runtime panic at all). These are
+// matched as plain substrings since there's no fixed prefix to anchor on; each is still a
+// fairly specific phrase, unlikely to appear incidentally in unrelated output.
+var resourceExhaustionDiagnosticSignatures = []string{
+	// runtime/os_linux.go, os_windows.go: newosproc ->
+	// print("runtime: failed to create new OS thread (have N already; errno=...)")
+	// followed by throw("newosproc") / throw("runtime.newosproc") (not itself very informative).
 	"failed to create new OS thread",
+	// runtime/proc.go: checkmcount -> print("runtime: program exceeds N-thread limit\n") right
+	// before throw("thread exhaustion"). N (sched.maxmcount) is normally 10000 but can be
+	// overridden via debug.SetMaxThreads, so we match on the fixed suffix rather than the count.
+	"-thread limit",
+	// runtime/mem_windows.go: sysUsedOS ->
+	// print("runtime: VirtualAlloc of N bytes failed with errno=...") for both
+	// ERROR_NOT_ENOUGH_MEMORY (8) and ERROR_COMMITMENT_LIMIT (1455); the errno value itself
+	// doesn't need to be matched since this print always precedes the throw("out of memory") above.
 	"VirtualAlloc",
+	// runtime/mem_linux.go: sysAllocOS ->
+	// print("runtime: mmap: too much locked memory (check 'ulimit -l').\n") followed by exit(2)
+	// (no throw/fatal error at all for this one).
+	"too much locked memory",
+	// syscall/zerrors_*.go: strerror(ENOMEM) == "cannot allocate memory". Surfaces as plain OS
+	// error text (e.g. from a failed fork/exec under memory pressure), not a runtime panic, so it
+	// won't have a "fatal error: " prefix.
+	"cannot allocate memory",
+	// Windows FormatMessage text for ERROR_COMMITMENT_LIMIT (1455): "The paging file is too small
+	// for this operation to complete." Surfaces when something formats the Windows error code to
+	// text rather than just printing errno=1455 numerically.
 	"paging file is too small",
 }
 
-// isResourceExhaustionCrash returns true if the given subprocess output matches a known
-// Go-runtime crash signature for host memory/thread/paging exhaustion, e.g.:
-//   - "fatal error: pageAlloc: out of memory"
-//   - "out of memory allocating heap arena metadata"
-//   - "runtime: failed to create new OS thread (have N already; errno=11)"
-//   - "VirtualAlloc ... errno=1455"
-//   - "paging file is too small"
+// isResourceExhaustionCrash returns true if the given subprocess output (its captured
+// stderr/combined output only — callers must not concatenate unrelated data into the same
+// buffer) matches a known Go-runtime crash signature for host memory/thread/paging exhaustion.
+//
+// Matching is a small, fixed number of substring scans over the buffer (no repeated
+// re-scanning), so cost is linear in the size of output regardless of how large it is. If
+// output was truncated mid-message, a signature landing exactly on the truncation boundary can
+// go undetected; that is an intentional, accepted trade-off rather than a hidden bug, since we
+// have no reliable way to distinguish a genuinely different error from a truncated match.
 func isResourceExhaustionCrash(output []byte) bool {
-	for _, sig := range resourceExhaustionSignatures {
+	if len(output) == 0 {
+		return false
+	}
+	for _, msg := range resourceExhaustionFatalMessages {
+		if bytes.Contains(output, []byte(fatalErrorPrefix+msg)) {
+			return true
+		}
+	}
+	for _, sig := range resourceExhaustionDiagnosticSignatures {
 		if bytes.Contains(output, []byte(sig)) {
 			return true
 		}
