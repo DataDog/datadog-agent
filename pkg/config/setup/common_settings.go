@@ -1678,7 +1678,11 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "")
+	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
+		"linux": "/var/run/datadog/dsd.socket",
+		"aix":   "/var/run/datadog/dsd.socket",
+		"other": "",
+	}))
 
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)

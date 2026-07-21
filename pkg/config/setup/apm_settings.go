@@ -133,7 +133,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.ignore_resources", []string{}, "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
 	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
-	config.BindEnvAndSetDefault("apm_config.receiver_socket", "", "DD_APM_RECEIVER_SOCKET")
+	config.BindEnvAndSetDefault("apm_config.receiver_socket", GetPlatformDefault(map[string]interface{}{
+		"linux": "/var/run/datadog/apm.socket",
+		"aix":   "/var/run/datadog/apm.socket",
+		"other": "",
+	}), "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")
 	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")
