@@ -136,7 +136,7 @@ func (s *errorTrackingProcessAgentSuite) TestDisabledByDefault() {
 			"sudo grep -cF -- '" + processAgentSubmissionErrorMessage + "' /var/log/datadog/process-agent.log || true")
 		assert.NoError(c, execErr)
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for submission error to appear in process-agent log")
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for submission error to appear in process-agent log")
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
 	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would

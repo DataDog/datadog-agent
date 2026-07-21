@@ -9,6 +9,16 @@ process_config:
   additional_endpoints:
     "https://127.0.0.1:1":
       - "00000000000000000000000000000000"
+  process_discovery:
+    # On Linux, process_discovery runs embedded in the core agent by default
+    # (coreagent.ProcessChecksRunInCoreAgent), not in the standalone
+    # process-agent — see ConnectionsCheck.IsEnabled's flavor gate for the
+    # contrast. Left enabled, it submits through this same additional_endpoints
+    # misconfiguration and produces a log with an identical
+    # pkg/process/runner/runner.go stack trace but agent.flavor:agent, which
+    # races with (and can beat) the connections check's own error below.
+    # Disabling it keeps the stack-trace filter exclusive to process-agent.
+    enabled: false
 agent_telemetry:
   enabled: true
   errortracking:
