@@ -202,7 +202,18 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 
 		kindVersionConfig, err := GetKindVersionConfig(kubeVersion)
 		if err != nil {
-			return err
+			log.Printf("[WARN] Could not find version %s in our static map, using default kind version and the provided k8s version as node image", kubeVersion)
+
+			// Validate the kubeVersion format when not in static map
+			if err := validateKubeVersionFormat(kubeVersion); err != nil {
+				return err
+			}
+
+			kindVersionConfig = &KindConfig{
+				KindVersion:            env.KindVersion(),
+				NodeImageVersion:       kubeVersion,
+				UseNewContainerdConfig: true,
+			}
 		}
 
 		flags.NewContainerdRegistryConfig = kindVersionConfig.UseNewContainerdConfig
