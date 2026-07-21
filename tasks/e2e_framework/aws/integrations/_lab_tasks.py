@@ -28,6 +28,15 @@ from tasks.e2e_framework.tool import get_host
 __all__ = ["build_collection", "build_kube_collection"]
 
 DEFAULT_DD_SITE = "ddintdev.datadoghq.com"
+
+
+def _collection_name(name: str) -> str:
+    # Register the invoke collection under a dashed name (aws_neuron -> aws-neuron) so the CLI
+    # command is deterministic and does not depend on invoke's auto_dash_names setting. The
+    # generated report advertises this same dashed name.
+    return name.replace("_", "-")
+
+
 DEFAULT_STATUS_COMMAND = "sudo datadog-agent status"
 SSH_OPTIONS = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 KUBERNETES_NAMESPACE = "datadog"
@@ -61,9 +70,10 @@ def _ssh_base(ctx: Context, scenario_name: str, role: str, stack_name: str | Non
 def _run_remote(ctx: Context, scenario_name: str, role: str, command: str, stack_name: str | None = None):
     if not command:
         raise ValueError("command is required")
-    # No "--" after the destination: ssh sends everything after the destination as the remote
-    # command, so a leading "--" reaches the login shell (`$SHELL -c '-- ...'`) as an invalid
-    # option and breaks status/check/exec/reload-check. Pass the command as one quoted argument.
+    # The command must be the ssh remote command (a single quoted argument after the
+    # destination). Do NOT insert a "--" here: ssh treats everything after the destination as
+    # the remote command, so a leading "--" is sent to the login shell (`$SHELL -c '-- ...'`),
+    # which rejects it as an invalid option and breaks status/check/exec/reload-check.
     return ctx.run(f"{_ssh_base(ctx, scenario_name, role, stack_name)} {shlex.quote(command)}")
 
 
@@ -202,7 +212,7 @@ def build_collection(
             return ctx.run(command, pty=True)
         return None
 
-    collection = Collection(name)
+    collection = Collection(_collection_name(name))
     collection.add_task(create)
     collection.add_task(destroy_lab, name="destroy")
     collection.add_task(status)
@@ -372,7 +382,7 @@ def build_kube_collection(
         _show_connection_message(ctx, stack_name)
         return None
 
-    collection = Collection(name)
+    collection = Collection(_collection_name(name))
     collection.add_task(create)
     collection.add_task(destroy_lab, name="destroy")
     collection.add_task(status)
