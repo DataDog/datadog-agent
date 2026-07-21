@@ -127,9 +127,9 @@ func (s *dockerTestSuite) TestProcessCheckWithIO() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "dd")
+		assertProcessCollectedNew(c, payloads, true, "dd")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *dockerTestSuite) TestProcessChecksWithNPM() {
@@ -155,10 +155,10 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "dd")
-	assertContainersCollected(t, payloads, []string{"fake-process"})
+		assertProcessCollectedNew(c, payloads, false, "dd")
+		assertContainersCollectedNew(c, payloads, []string{"fake-process"})
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *dockerTestSuite) TestManualProcessCheck() {
