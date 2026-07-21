@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="08-checks-base"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,9 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No stage-level sentinel: the [deps] extra packages below are version-pinned
+# (pip no-ops if satisfied), and re-installing datadog-checks-base itself from
+# its local source directory is cheap (pure Python, no compilation).
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -43,13 +40,9 @@ if [ ! -f "$INTEGRATIONS_CORE/datadog_checks_base/pyproject.toml" ]; then
 fi
 
 # --- Cleanup on failure ---
-# pip installs are not easy to roll back; the sentinel not being written is
-# sufficient to trigger a re-run.
 cleanup() {
     if [ $? -ne 0 ]; then
-        log "ERROR: $STAGE_NAME failed."
-        log "       Re-run after fixing the error by deleting the sentinel:"
-        log "       rm $SENTINEL"
+        log "ERROR: $STAGE_NAME failed. Re-run this stage to retry."
         log "       Common causes:"
         log "         - Native deps (pydantic-core, cryptography) not installed: ensure Stages 06 and 07 completed"
         log "         - Network access required for transitive pure-Python deps from PyPI"
@@ -121,7 +114,4 @@ log "Freezing installed packages to $STAGING/constraints.txt"
 $PIP freeze > "$STAGING/constraints.txt"
 log "Constraints written to $STAGING/constraints.txt ($(wc -l < "$STAGING/constraints.txt") packages)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="
