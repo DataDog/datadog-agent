@@ -8,6 +8,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -126,7 +127,7 @@ func buildDocumentedSetting(
 ) (setting, error) {
 	description := meta["description"]
 	if description == "" {
-		description = meta["descritpion"]
+		description = meta["description"]
 	}
 	if description == "" {
 		return setting{}, fmt.Errorf("%s setting %q is missing a description", visibility, fieldName)
@@ -310,7 +311,7 @@ func parseConfigKeys(file *ast.File) (map[string]string, error) {
 	}
 
 	if len(output) == 0 {
-		return nil, fmt.Errorf("couldn't find config keys in NewRuntimeSecurityConfig")
+		return nil, errors.New("couldn't find config keys in NewRuntimeSecurityConfig")
 	}
 
 	return output, nil
@@ -419,4 +420,3 @@ func findConfigKeyInNode(node ast.Node) string {
 
 	return configKey
 }
-
