@@ -209,6 +209,47 @@ smp-experiment-selection-comment:
       aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
       aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
       chmod +x smp
+      # --- Codeowners-based preselection (best effort, POC) ---
+      # Pre-tick a folder when its CODEOWNERS-owning team is a requested reviewer
+      # on this PR (e.g. the logs team is requested -> pre-tick test/regression/logs).
+      # --default-select only affects rows that are NEW in this render, so it acts
+      # as a first-appearance default the developer can still untick; the merge
+      # preserves their choice thereafter. Any failure here degrades to no
+      # preselection (all folders unticked) -- never blocks the comment.
+      #
+      # POC NOTE: resolves owners via `dda inv owners.find-codeowners` (the repo's
+      # sanctioned way to parse CODEOWNERS in CI -- same pattern as lint_codeowners
+      # / junit-upload, and dda is already available on this image). A follow-up
+      # (with agent-devx) should replace the per-folder loop with a single
+      # purpose-built task.
+      DEFAULT_SELECT=""
+      set +e
+      # Requested review teams (pending), normalized to bare lowercase slugs.
+      REQUESTED_TEAMS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/DataDog/datadog-agent/pulls/${PR_NUMBER}/requested_reviewers" \
+        | jq -r '.teams[].slug' | tr '[:upper:]' '[:lower:]' | sort -u)
+      # Selectable folders = the CLI's json groups (quality_gates/ebpf already excluded).
+      GROUPS=$(./smp experiments list --target-config-dir "${ROOT}" --exclude-path quality_gates,ebpf --format json \
+        | jq -r '.[].group | select(. != "")' | sort -u)
+      for g in ${GROUPS}; do
+        # Owning teams for the folder, isolated (grep @datadog/) from any dda banner
+        # output and normalized to bare lowercase slugs, one per line.
+        # </dev/null: dda reads stdin; without it, it would swallow the loop's
+        # remaining input and corrupt iteration.
+        owners=$(dda inv owners.find-codeowners --path "${ROOT}/${g}/" </dev/null 2>/dev/null \
+          | tr ',' '\n' | grep -i '@datadog/' | tr '[:upper:]' '[:lower:]' | sed 's#.*@datadog/##' | tr -d ' ')
+        for o in ${owners}; do
+          if printf '%s\n' "${REQUESTED_TEAMS}" | grep -qx "${o}"; then
+            DEFAULT_SELECT="${DEFAULT_SELECT}${DEFAULT_SELECT:+,}${g}"
+            break
+          fi
+        done
+      done
+      set -e
+      echo "Requested teams: $(printf '%s' "${REQUESTED_TEAMS}" | tr '\n' ' ')"
+      echo "Codeowners-preselected folders: ${DEFAULT_SELECT:-<none>}"
+      DEFAULT_SELECT_ARG=""
+      if [ -n "${DEFAULT_SELECT}" ]; then DEFAULT_SELECT_ARG="--default-select ${DEFAULT_SELECT}"; fi
       # --- Render the comment. The CLI owns discovery, the flat checkbox format,
       # and the state-preserving merge (via --previous-comment). Only pass
       # --previous-comment when a prior comment exists (else it's a fresh render).
@@ -224,6 +265,7 @@ smp-experiment-selection-comment:
         --format github-comment \
         --link-base "https://github.com/DataDog/datadog-agent/tree/${CI_COMMIT_SHA}/test/regression" \
         ${PREV_ARG} \
+        ${DEFAULT_SELECT_ARG} \
         --instructions "$(printf '%s\n\n%s' '✅ **Quality gates always run.**' 'Tick any additional suites below; selecting a folder runs its whole subtree. Re-run the single-machine-performance-regression_detector job to apply.')" \
         > comment_body.md
       cat comment_body.md
