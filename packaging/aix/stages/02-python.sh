@@ -334,6 +334,11 @@ log "AIX patching complete."
 #   headers and libs ARE during the build, not $EMBEDDED which is the final path)
 # --with-dbmliborder=gdbm : use gdbm built in Stage 1
 # --without-ensurepip : we bootstrap pip manually below (step 7)
+# --without-mimalloc : mimalloc keeps a per-thread arena cache using native TLS
+#   (thread_local/__thread), which hits the same AIX local-exec/shared-library
+#   incompatibility that Step 3 above patches around in pystate.c. Rather than
+#   patch mimalloc too, disable it; Python falls back to its default pymalloc
+#   allocator.
 # ac_cv_header_libintl_h=no / ac_cv_lib_intl_textdomain=no : suppress libintl link.
 #   Python's configure tests for libintl.h (ac_cv_header_libintl_h) and then
 #   textdomain() in -lintl (ac_cv_lib_intl_textdomain). If both pass, it adds
