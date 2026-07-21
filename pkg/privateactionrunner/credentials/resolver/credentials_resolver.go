@@ -12,9 +12,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
+	yaml "gopkg.in/yaml.v3"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -23,12 +26,19 @@ import (
 
 const (
 	maxCredentialsFileSize = 1 * 1024 * 1024 // 1 MB
+	// secretOrigin identifies the private action runner as the source of the
+	// configuration passed to the secret backend (used in `agent secret` output).
+	secretOrigin = "private-action-runner"
 )
 
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
+	// secretResolver resolves ENC[...] handles through the Datadog secret backend.
+	// It may be nil when no secrets component is available, in which case handles
+	// are left untouched.
+	secretResolver secrets.Component
 }
 
 type PrivateConnectionConfig struct {
@@ -43,8 +53,8 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver() PrivateCredentialResolver {
-	return &privateCredentialResolver{}
+func NewPrivateCredentialResolver(secretResolver secrets.Component) PrivateCredentialResolver {
+	return &privateCredentialResolver{secretResolver: secretResolver}
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -54,7 +64,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 	switch connInfo.CredentialsType {
 	case privateactionspb.CredentialsType_TOKEN_AUTH:
-		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+		credentialTokens, err := p.resolveTokenAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +74,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_BASIC_AUTH:
-		credentialTokens, err := resolveBasicAuthTokens(ctx, tokens)
+		credentialTokens, err := p.resolveBasicAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -77,14 +87,18 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
+func (p *privateCredentialResolver) resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
 	credentialTokens := make([]privateconnection.PrivateCredentialsToken, 0)
 	for _, token := range tokens {
 		tokenName := connlib.GetName(token)
 		switch t := token.GetTokenValue().(type) {
 		case *privateactionspb.ConnectionToken_PlainText_:
+			value, err := p.resolveSecret(ctx, t.PlainText.GetValue())
+			if err != nil {
+				return nil, err
+			}
 			credentialTokens = append(credentialTokens, privateconnection.PrivateCredentialsToken{
-				Name: tokenName, Value: t.PlainText.GetValue(),
+				Name: tokenName, Value: value,
 			})
 		case *privateactionspb.ConnectionToken_FileSecret_:
 			secret, err := getSecretFromDockerLocation(ctx, t.FileSecret.GetPath(), tokenName)
@@ -119,7 +133,7 @@ func resolveYamlFileToken(ctx context.Context, path string) (string, error) {
 	return string(data), nil
 }
 
-func resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
+func (p *privateCredentialResolver) resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
 	var username string
 	var pwdToken *privateactionspb.ConnectionToken
 	for _, token := range tokens {
@@ -134,7 +148,20 @@ func resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.Conn
 	if pwdToken == nil || username == "" {
 		return []privateconnection.PrivateCredentialsToken{}, errors.New("no credential found")
 	}
-	secret, err := getSecretFromDockerLocation(ctx, pwdToken.GetFileSecret().GetPath(), username)
+
+	username, err := p.resolveSecret(ctx, username)
+	if err != nil {
+		return []privateconnection.PrivateCredentialsToken{}, err
+	}
+
+	var secret string
+	switch pwd := pwdToken.GetTokenValue().(type) {
+	case *privateactionspb.ConnectionToken_PlainText_:
+		// The password is provided inline; it may itself be an ENC[...] secret handle.
+		secret, err = p.resolveSecret(ctx, pwd.PlainText.GetValue())
+	default:
+		secret, err = getSecretFromDockerLocation(ctx, pwdToken.GetFileSecret().GetPath(), username)
+	}
 	if err != nil {
 		return []privateconnection.PrivateCredentialsToken{}, err
 	}
@@ -148,6 +175,45 @@ func resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.Conn
 			Value: secret,
 		},
 	}, nil
+}
+
+// resolveSecret resolves an ENC[...] secret handle through the configured Datadog
+// secret backend. Values that are not secret handles are returned unchanged, as are
+// handles when no secret backend is available.
+//
+// It supports the structured handle format documented at
+// https://docs.datadoghq.com/agent/configuration/secrets-management/#id-for-secrets
+// (e.g. "ENC[aws_secrets;My-Secrets;password]"), which is understood by the secret
+// backend itself.
+func (p *privateCredentialResolver) resolveSecret(ctx context.Context, value string) (string, error) {
+	if p.secretResolver == nil || !isEncrypted(value) {
+		return value, nil
+	}
+
+	// Wrap the handle in a minimal YAML document so the secret backend can walk it
+	// and substitute the resolved value. YAML marshalling keeps the handle intact
+	// regardless of the characters it contains.
+	doc, err := yaml.Marshal(map[string]string{"value": value})
+	if err != nil {
+		return "", fmt.Errorf("could not marshal secret handle: %w", err)
+	}
+	resolved, err := p.secretResolver.Resolve(doc, secretOrigin, "", "", false)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve secret handle: %w", err)
+	}
+	var out struct {
+		Value string `yaml:"value"`
+	}
+	if err := yaml.Unmarshal(resolved, &out); err != nil {
+		return "", fmt.Errorf("could not unmarshal resolved secret: %w", err)
+	}
+	return out.Value, nil
+}
+
+// isEncrypted reports whether s is a Datadog secret backend handle in the ENC[...] format.
+func isEncrypted(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.HasPrefix(s, "ENC[") && strings.HasSuffix(s, "]")
 }
 
 func getSecretFromDockerLocation(

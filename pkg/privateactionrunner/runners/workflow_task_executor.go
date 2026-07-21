@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -46,12 +47,13 @@ func NewWorkflowTaskExecutor(
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
+	secretResolver secrets.Component,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore),
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(secretResolver),
 	}
 }
 
