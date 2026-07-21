@@ -14,7 +14,7 @@ from invoke.context import Context
 
 import tasks
 from tasks.libs.build.bazel import bazel
-from tasks.libs.common.utils import agent_working_directory, _resolve_target_platform
+from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):

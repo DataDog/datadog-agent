@@ -413,7 +413,7 @@ def get_build_flags(
 
     # Cross-OS lint/build setup: configure cross-compilation environment
     if target_platform != sys.platform or arch.is_cross_compiling():
-        env["CGO_ENABLED"] = "1" # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["GOARCH"] = arch.go_arch
 
         prefix = arch.gcc_prefix(platform=target_platform)
