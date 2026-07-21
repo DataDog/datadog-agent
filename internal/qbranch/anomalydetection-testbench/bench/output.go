@@ -64,6 +64,15 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := sv.ScenarioBounds()
+	if tb.hasStreamScenarioBounds {
+		if !hasBounds || tb.streamScenarioStartSec < timelineStart {
+			timelineStart = tb.streamScenarioStartSec
+		}
+		if !hasBounds || tb.streamScenarioEndSec > timelineEnd {
+			timelineEnd = tb.streamScenarioEndSec
+		}
+		hasBounds = true
+	}
 
 	// Collect enabled detector / correlator names from StateView.
 	var detectorNames []string

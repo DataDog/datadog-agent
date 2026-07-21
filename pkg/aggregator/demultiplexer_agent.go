@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -86,6 +87,9 @@ type AgentDemultiplexerOptions struct {
 	FlushInterval time.Duration
 
 	NoAggregationPipelineWorkersCount int
+
+	DogStatsDLookback        DogStatsDLookback
+	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
@@ -168,6 +172,9 @@ func initAgentDemultiplexer(log log.Component,
 	// ----------------------
 
 	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
+		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
+	}
 
 	// prepare the embedded aggregator
 	// --
@@ -189,6 +196,7 @@ func initAgentDemultiplexer(log log.Component,
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -213,6 +221,7 @@ func initAgentDemultiplexer(log log.Component,
 				noAggSerializers[i],
 				agg.flushAndSerializeInParallel,
 				tagger,
+				options.DogStatsDLookback,
 			)
 		}
 	}
@@ -261,7 +270,8 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 // SetObserver wires an observer component into the DogStatsD metric pipeline
 // and the BufferedAggregator → CheckSampler path (Go core checks).
 //
-// Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
+// Requires the observer pipeline to be effectively required and
+// anomaly_detection.metrics.enabled to be true.
 // Every raw metric sample passing through the time-sampler workers, the
 // no-aggregation pipeline, and every CheckSampler will be forwarded to the
 // provided observer handle before aggregation. The call is a no-op when
@@ -271,8 +281,8 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 	cfg := pkgconfigsetup.Datadog()
-	if !cfg.GetBool("anomaly_detection.enabled") {
-		d.log.Debug("Observer disabled (anomaly_detection.enabled=false)")
+	if !anomalydetectionconfig.ObserverRequired(cfg) {
+		d.log.Debug("Observer disabled (no active anomaly detection gate)")
 		return
 	}
 	if !cfg.GetBool("anomaly_detection.metrics.enabled") {
@@ -280,18 +290,18 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 
-	metricsHandle := obs.GetHandle("all-metrics")
+	dogstatsdHandle := obs.GetHandle("dogstatsd")
 
 	// DogStatsD paths
 	for _, worker := range d.statsd.workers {
-		worker.sampler.observerHandle = metricsHandle
+		worker.sampler.observerHandle = dogstatsdHandle
 	}
 	for _, worker := range d.statsd.noAggStreamWorkers {
-		worker.observerHandle = metricsHandle
+		worker.observerHandle = dogstatsdHandle
 	}
 
 	// Go core check path (BufferedAggregator → CheckSampler)
-	d.aggregator.SetObserverHandle(metricsHandle)
+	d.aggregator.SetObserverHandle(obs.GetHandle("check"))
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
@@ -484,6 +494,9 @@ func (d *AgentDemultiplexer) Stop() {
 		d.aggregator.Stop()
 	}
 	d.aggregator = nil
+	if stopper, ok := d.options.DogStatsDLookback.(DogStatsDLookbackStopper); ok {
+		stopper.Stop()
+	}
 
 	// forwarders
 

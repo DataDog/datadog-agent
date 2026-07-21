@@ -4,6 +4,7 @@ go_library(
     name = "exprlang",
     srcs = ["exprlang.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/exprlang",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = ["@com_github_go_json_experiment_json//jsontext"],
 )
@@ -111,7 +112,11 @@ go_test(
         "testdata/any_arity_1.json",
         "testdata/any_arity_3.json",
     ],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@com_github_go_json_experiment_json//:json",
         "@com_github_go_json_experiment_json//jsontext",

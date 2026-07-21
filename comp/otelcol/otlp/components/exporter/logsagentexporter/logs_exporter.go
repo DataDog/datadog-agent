@@ -81,17 +81,25 @@ func NewExporterWithGatewayUsage(
 }
 
 // ConsumeLogs checks the scope of the logs and routes them to the appropriate consumer
-func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
-	scope := getLogsScope(ld)
-	switch scope {
-	case K8sObjectsReceiver:
-		if e.orchestratorExporter.config.Enabled {
-			return e.consumeK8sObjects(ctx, ld)
-		}
-		fallthrough
-	default:
+func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
+	if !e.orchestratorExporter.config.Enabled {
 		return e.consumeRegularLogs(ctx, ld)
 	}
+
+	k8sLogs, regularLogs := splitLogsByScope(ld)
+
+	var errs []error
+	if regularLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeRegularLogs(ctx, regularLogs); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if k8sLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeK8sObjects(ctx, k8sLogs); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
@@ -188,14 +196,62 @@ type ScopeName string
 // K8sObjectsReceiver is the scope name for the k8sobjectsreceiver
 var K8sObjectsReceiver ScopeName = "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
 
-// getLogsScope extracts the scope name from the logs data
-func getLogsScope(ld plog.Logs) ScopeName {
-	for i := 0; i < ld.ResourceLogs().Len(); i++ {
-		resourceLogs := ld.ResourceLogs().At(i)
-		if resourceLogs.ScopeLogs().Len() > 0 {
-			scopeLogs := resourceLogs.ScopeLogs().At(0)
-			return ScopeName(scopeLogs.Scope().Name())
+// splitLogsByScope partitions ld by ScopeLogs into k8sobjects logs and everything else.
+func splitLogsByScope(ld plog.Logs) (plog.Logs, plog.Logs) {
+	hasK8s, hasRegular := false, false
+	for i := 0; i < ld.ResourceLogs().Len() && !(hasK8s && hasRegular); i++ {
+		srcRL := ld.ResourceLogs().At(i)
+		if srcRL.ScopeLogs().Len() == 0 {
+			hasRegular = true
+			continue
+		}
+		for j := 0; j < srcRL.ScopeLogs().Len() && !(hasK8s && hasRegular); j++ {
+			if ScopeName(srcRL.ScopeLogs().At(j).Scope().Name()) == K8sObjectsReceiver {
+				hasK8s = true
+			} else {
+				hasRegular = true
+			}
 		}
 	}
-	return ""
+	if !hasK8s {
+		return plog.NewLogs(), ld
+	}
+	if !hasRegular {
+		return ld, plog.NewLogs()
+	}
+
+	k8sLogs := plog.NewLogs()
+	regularLogs := plog.NewLogs()
+	for i := 0; i < ld.ResourceLogs().Len(); i++ {
+		srcRL := ld.ResourceLogs().At(i)
+		if srcRL.ScopeLogs().Len() == 0 {
+			rl := regularLogs.ResourceLogs().AppendEmpty()
+			srcRL.Resource().CopyTo(rl.Resource())
+			rl.SetSchemaUrl(srcRL.SchemaUrl())
+			continue
+		}
+		var k8sRL, regularRL plog.ResourceLogs
+		var k8sInit, regularInit bool
+		for j := 0; j < srcRL.ScopeLogs().Len(); j++ {
+			sl := srcRL.ScopeLogs().At(j)
+			if ScopeName(sl.Scope().Name()) == K8sObjectsReceiver {
+				if !k8sInit {
+					k8sRL = k8sLogs.ResourceLogs().AppendEmpty()
+					srcRL.Resource().CopyTo(k8sRL.Resource())
+					k8sRL.SetSchemaUrl(srcRL.SchemaUrl())
+					k8sInit = true
+				}
+				sl.CopyTo(k8sRL.ScopeLogs().AppendEmpty())
+			} else {
+				if !regularInit {
+					regularRL = regularLogs.ResourceLogs().AppendEmpty()
+					srcRL.Resource().CopyTo(regularRL.Resource())
+					regularRL.SetSchemaUrl(srcRL.SchemaUrl())
+					regularInit = true
+				}
+				sl.CopyTo(regularRL.ScopeLogs().AppendEmpty())
+			}
+		}
+	}
+	return k8sLogs, regularLogs
 }

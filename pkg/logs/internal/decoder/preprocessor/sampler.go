@@ -112,6 +112,11 @@ type AdaptiveSamplerConfig struct {
 	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
 	// precedence over Include.
 	Exclude []AdaptiveSamplerFilter
+	// IsSourceDisabled is called per-message to check whether the current source
+	// is in the disabled_sources list. When it returns true the sampler passes the
+	// message through without rate-limiting. Using a closure lets the check track
+	// ReplaceableSource swaps and future Remote Config updates.
+	IsSourceDisabled func() bool
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
@@ -217,6 +222,14 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	// tailers skip no-content messages via HasContent() before the processor, don't use
+	// space in the pattern table for them.
+	if !msg.HasContent() {
+		return msg
+	}
+	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
+		return msg
+	}
 	if !s.shouldSample(msg, tokens) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		return msg

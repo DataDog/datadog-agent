@@ -202,10 +202,11 @@ mistakes across sessions.
 ```
 AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
 ├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
+├── tasks/AGENTS.md                ← invoke tasks: categories, libs layout, Bazel migration idioms
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
-└── .claude/skills/*/SKILL.md      ← task-specific: step-by-step procedures
+└── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```
 
 Each level inherits context from its parent via `CLAUDE.md` (`@../../CLAUDE.md`
@@ -218,7 +219,7 @@ repo-wide rules in sub-project files.
 |------|-------------|
 | `AGENTS.md` (root) | Architecture, workflow, build commands, or review guidelines change |
 | Sub-project `AGENTS.md` | APIs, conventions, or extension patterns in that sub-project change |
-| `.claude/skills/*/SKILL.md` | A skill's steps, examples, or recommendations become outdated |
+| `.agents/skills/*/SKILL.md` | A skill's steps, examples, or recommendations become outdated |
 
 Keep rules generalizable. A good guideline covers a class of bugs, not a single
 incident. Think bias/variance: too specific and it only catches one bug; too

@@ -47,11 +47,13 @@ K8S_RC_LATEST_JOB = "new-e2e-containers-k8s-rc-latest"
 # Matches: v1.35.0, v1.35.0-rc.1, etc.
 K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
+
 # ReleaseType is an enum that describes the Kubernetes Version release type
 # We care about stable (release) versions and RC (prerelease) versions.
 class ReleaseType(Enum):
     STABLE = 1
     RC = 2
+
 
 # KubernetesRelease represents a Kubernetes version fetched from GitHub.
 # This class does NOT contain image digest because it does not refer to
@@ -71,7 +73,8 @@ class KubernetesRelease:
             self.release_type = ReleaseType.RC
 
     def as_dict(self):
-        return { 'tag': self.tag, 'rc': self.release_type == ReleaseType.RC }
+        return {'tag': self.tag, 'rc': self.release_type == ReleaseType.RC}
+
 
 # KindKubernetesImage represents a Kubernetes version that has been built and pushed
 # to a registry. Accordingly, it will contain an image digest and possibly a kind_version.
@@ -81,7 +84,9 @@ class KindKubernetesImage(KubernetesRelease):
 
         self.digest: str = digest
         if not self.digest.startswith('sha256:') or len(self.digest) != 71:
-            raise Exit(f"KindKubernetesImage: invalid digest '{digest}' for tag '{self.tag}' (expected sha256:<64 hex chars>)", code=1)
+            raise Exit(
+                f"KindKubernetesImage: invalid digest '{digest}' for tag '{self.tag}' (expected sha256:<64 hex chars>)",
+                code=1)
 
         self.kind_version: str = kind_version
 
@@ -98,18 +103,19 @@ class KindKubernetesImage(KubernetesRelease):
         return cls(tag, digest, kind_version)
 
     def as_dict(self):
-        tmp = {'tag': self.tag, 'digest': self.digest, 'rc': self.release_type == ReleaseType.RC,}
+        tmp = {'tag': self.tag, 'digest': self.digest, 'rc': self.release_type == ReleaseType.RC, }
         if self.kind_version:
             tmp['kind_version'] = self.kind_version
         return tmp
 
+
 # KubernetesVersions is a collection of either KubernetesReleases or KindKubernetesImages.
 class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
     def __init__(self):
-        self.versions:list[T] = []
+        self.versions: list[T] = []
 
     @classmethod
-    def from_dict(cls, data, *, type_: type[T])-> KubernetesVersions[T]:
+    def from_dict(cls, data, *, type_: type[T]) -> KubernetesVersions[T]:
         versions = cls()
         for _, version in data.items():
             kv = type_.from_dict(version)
@@ -136,7 +142,7 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
                 return
         self.versions.append(version)
 
-    def latest(self, release_type:ReleaseType) -> T | None:
+    def latest(self, release_type: ReleaseType) -> T | None:
         filtered = [r for r in self.versions if r.release_type == release_type]
         if filtered:
             return max(filtered, key=lambda x: x.semver)
@@ -144,6 +150,7 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
 
     def contains(self, tag: str) -> bool:
         return any(x.tag == tag for x in self.versions)
+
 
 class JobLocation(NamedTuple):
     """Line indices for the parts of a Kubernetes latest-style job. Any field is None if not found."""
@@ -181,7 +188,9 @@ class E2EJobFile:
 
         parts = match.group(1).split('@')
         if len(parts) != 2:
-            raise Exit(f"kubernetesVersion in job '{job_name}' of {self.file_name} must be in <version>@<digest> format", code=1)
+            raise Exit(
+                f"kubernetesVersion in job '{job_name}' of {self.file_name} must be in <version>@<digest> format",
+                code=1)
         version, digest = parts
 
         return KindKubernetesImage(version, digest)
@@ -416,9 +425,9 @@ def _find_k8s_latest_job(content: list[str], job_name: str) -> JobLocation:
 
 
 def _update_e2e_yaml_file(
-    k8s_jobs: E2EJobFile,
-    job_name: str,
-    desired: KindKubernetesImage,
+        k8s_jobs: E2EJobFile,
+        job_name: str,
+        desired: KindKubernetesImage,
 ) -> tuple[bool, list[str]]:
     """
     Set the kubernetesVersion of `job_name` to `desired` if it differs from the current value.
@@ -589,7 +598,9 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
                 latest_kind_release = _get_latest_kind_release()
             kind_version = latest_kind_release
             if not kind_version:
-                raise Exit(f"Could not determine kind version for {version.tag} (no kind_version in {KIND_VERSIONS_JSON_PATH} or {VERSIONS_FILE}, and fetching the latest kind release from GitHub failed)", code=1)
+                raise Exit(
+                    f"Could not determine kind version for {version.tag} (no kind_version in {KIND_VERSIONS_JSON_PATH} or {VERSIONS_FILE}, and fetching the latest kind release from GitHub failed)",
+                    code=1)
             print(f"Using latest kind release {kind_version} for {minor_key}")
 
         node_image_version = f"{version.tag}@{version.digest}"
@@ -636,7 +647,9 @@ def save_versions(_, versions, versions_file=VERSIONS_FILE):
         try:
             versions = KubernetesVersions.from_dict(json.loads(versions), type_=KindKubernetesImage)
         except json.JSONDecodeError as e:
-            raise Exit(f"save-versions: --versions is not valid JSON ({e}); expected a JSON object mapping tag to version data", code=1) from e
+            raise Exit(
+                f"save-versions: --versions is not valid JSON ({e}); expected a JSON object mapping tag to version data",
+                code=1) from e
 
     # Load existing versions
     existing_versions = _load_existing_versions(versions_file)

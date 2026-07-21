@@ -22,16 +22,91 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//pkg/proto/pbgo/procmgr",
-        "//pkg/util/defaultpaths",
         "//pkg/util/log",
-        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_grpc//status",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/defaultpaths",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+        ],
         "@rules_go//go/platform:windows": [
+            "//pkg/util/defaultpaths",
             "//pkg/util/winutil",
             "@com_github_microsoft_go_winio//:go-winio",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
         ],
         "//conditions:default": [],
     }),
@@ -41,9 +116,18 @@ go_test(
     name = "coat_test",
     srcs = ["collector_test.go"],
     embed = [":coat"],
-    deps = [
-        "//pkg/proto/pbgo/procmgr",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/proto/pbgo/procmgr",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/proto/pbgo/procmgr",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

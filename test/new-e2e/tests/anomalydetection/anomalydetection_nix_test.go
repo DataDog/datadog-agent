@@ -50,7 +50,9 @@ func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: true
   logs:
@@ -62,6 +64,8 @@ anomaly_detection:
       enabled: true
     bocpd:
       enabled: false
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &metricsTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -194,7 +198,9 @@ log_level: debug
 logs_config:
   file_scan_period: 1
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
   metrics:
     enabled: false
   logs:
@@ -206,6 +212,8 @@ anomaly_detection:
   detectors:
     bocpd:
       warmup_points: 20
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &logTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(

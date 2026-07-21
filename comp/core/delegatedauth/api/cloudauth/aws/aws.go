@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
@@ -44,11 +43,6 @@ const (
 	contentTypeHeader = "Content-Type"
 	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
 
-	// Environment variable names
-	awsAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar = "AWS_SECRET_ACCESS_KEY"
-	awsSessionTokenEnvVar    = "AWS_SESSION_TOKEN"
-
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
 	regionalStsHost       = "sts.%s.amazonaws.com"
@@ -75,14 +69,15 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
 // The context parameter allows for cancellation of the proof generation.
-func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
 	// Check for context cancellation early
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 
-	// Get local AWS Credentials
-	credentials := a.getCredentials(ctx)
+	// Get local AWS Credentials. cfg is threaded through so the IRSA web-identity STS call can use
+	// the Agent's configured HTTP transport (proxy / custom CA / TLS settings).
+	credentials := a.getCredentials(ctx, cfg)
 
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
@@ -104,36 +99,18 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader
 	return authProof, nil
 }
 
-// getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
-// It first tries environment variables, then falls back to EC2 instance metadata service.
-//
-// Note: This function fetches credentials on every call rather than caching them.
-// Since GenerateAuthProof is called at the refresh interval (typically 60 minutes),
-// and IMDS credentials are valid for several hours, this is acceptable. Future
-// optimization could add credential caching with expiration handling if needed.
-func (a *AWSAuth) getCredentials(ctx context.Context) *creds.SecurityCredentials {
-	awsCredentials := &creds.SecurityCredentials{}
-
-	// Try to get credentials from environment variables
-	awsCredentials.AccessKeyID = os.Getenv(awsAccessKeyIDEnvVar)
-	awsCredentials.SecretAccessKey = os.Getenv(awsSecretAccessKeyEnvVar)
-	awsCredentials.Token = os.Getenv(awsSessionTokenEnvVar)
-
-	// If we have explicit credentials, return them
-	if awsCredentials.AccessKeyID != "" && awsCredentials.SecretAccessKey != "" {
-		return awsCredentials
+// getCredentials retrieves AWS credentials using the build-tag-selected chain:
+//   - ec2 build: AWS SDK chain limited to env -> web identity -> container -> IMDS (shared config/SSO/profiles disabled)
+//   - non-ec2 build: static env vars only (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
+func (a *AWSAuth) getCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
+	resolved := a.resolveCredentials(ctx, cfg)
+	if resolved == nil {
+		return &creds.SecurityCredentials{}
 	}
-
-	// Fall back to EC2 instance metadata service (same as ec2_tags.go does)
-	log.Debugf("No explicit AWS credentials found in config or environment, trying EC2 instance metadata service")
-	ec2Creds, err := creds.GetSecurityCredentials(ctx)
-	if err != nil {
-		log.Warnf("Failed to get credentials from EC2 instance metadata: %v", err)
-		return awsCredentials
+	if resolved.AccessKeyID == "" || resolved.SecretAccessKey == "" {
+		log.Debugf("AWS credential resolution returned empty credentials")
 	}
-
-	log.Infof("Successfully retrieved AWS credentials from EC2 instance metadata service")
-	return ec2Creds
+	return resolved
 }
 
 func (a *AWSAuth) getConnectionParameters() (string, string, string) {

@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
+# gazelle:dd_agent_go_test off
+
 go_library(
     name = "impl",
     srcs = [
@@ -107,10 +109,6 @@ go_library(
     }),
 )
 
-# config_test fails in CI because it calls a go build.
-# For now we make the test manual, so we can detect backsliding on the
-# the dependencies.  In the future, we'll have to refactor this, but
-# that should involve the trace agent team.
 go_test(
     name = "impl_test",
     srcs = [
@@ -138,6 +136,7 @@ go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/trace/config/def",
         "//pkg/config/env",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/trace/config",
         "//pkg/util/fxutil",

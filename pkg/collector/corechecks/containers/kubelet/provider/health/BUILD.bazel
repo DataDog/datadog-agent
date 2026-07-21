@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "health",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/kubernetes/kubelet",
+    ],
+)
+
+dd_agent_go_test(
+    name = "health_test",
+    srcs = ["provider_test.go"],
+    embed = [":health"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/kubernetes/kubelet/mock",
+    ],
+)

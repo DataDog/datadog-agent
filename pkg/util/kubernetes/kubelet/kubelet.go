@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
 	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -307,20 +306,20 @@ func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) 
 		return nil
 	}
 
-	containerToDevicesMap, err := ku.podResourcesClient.GetContainerToDevicesMap(ctx)
+	containerResourcesMap, err := ku.podResourcesClient.GetContainerResourcesMap(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting container resources data: %w", err)
 	}
 
 	for _, pod := range pods {
-		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.InitContainers)
-		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.Containers)
+		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.InitContainers)
+		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.Containers)
 	}
 
 	return nil
 }
 
-func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *Pod, containers []ContainerStatus) {
+func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[ContainerKey][]ContainerAllocatedResource, pod *Pod, containers []ContainerStatus) {
 	for i := range containers {
 		container := &containers[i] // take the pointer so that we can modify the original
 		key := ContainerKey{
@@ -328,20 +327,12 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 			PodName:       pod.Metadata.Name,
 			ContainerName: container.Name,
 		}
-		devices, ok := containerToDevicesMap[key]
+		allocatedResources, ok := containerResourcesMap[key]
 		if !ok {
 			continue
 		}
 
-		for _, device := range devices {
-			name := device.GetResourceName()
-			for _, id := range device.GetDeviceIds() {
-				container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, ContainerAllocatedResource{
-					Name: name,
-					ID:   id,
-				})
-			}
-		}
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, allocatedResources...)
 	}
 }
 
@@ -472,7 +463,9 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
-// GetConfig returns the kubelet configuration from /configz
+// GetConfig returns the kubelet configuration from /configz. Since
+// kubernetes/kubernetes#136044, the inner kubeletconfig object carries
+// APIVersion and Kind; older kubelets leave them empty.
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {

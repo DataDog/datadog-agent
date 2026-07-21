@@ -1902,6 +1902,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2268,12 +2274,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2804,8 +2817,16 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "exit_itimers_takes_task_struct",
+			Value: getExitItimersTakesTaskStruct(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "do_truncate_has_idmap_arg",
+			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
@@ -2954,6 +2975,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
@@ -3354,6 +3379,41 @@ func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
 	return 0
 }
 
+// getDoTruncateHasIdmapArg reports whether do_truncate takes an idmap/user_namespace first argument,
+// which shifts the filp argument from the 4th to the 5th position. This is do_truncate-specific: the
+// idmapped-mounts series added it in 5.12, independently of when other hooks gained an idmap argument.
+func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
+	// do_truncate is an exported symbol, so prefer its actual BTF prototype: the legacy signature has
+	// 4 arguments (dentry, length, time_attrs, filp) while the idmapped one has 5
+	if count, err := constantfetch.GetBTFFunctionArgCount("do_truncate"); err == nil {
+		if count >= 5 {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_12 {
+		return 1
+	}
+	return 0
+}
+
+func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
+	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
+	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
+	if val, err := constantfetch.GetExitItimersTakesTaskStructWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -3467,12 +3527,22 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
+	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	// since kernel 6.13, override_creds/revert_creds are inlined; we detect credential overrides by
+	// comparing task_struct->cred and task_struct->real_cred in the capabilities hooks
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructCred, "struct task_struct", "cred")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3481,10 +3551,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountParent, "struct mount", "mnt_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMountpoint, "struct mount", "mnt_mp")
 
+	// setsockopt offsets
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketType, "struct socket", "type")
+
 	if kv.Code >= kernel.Kernel3_19 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	}
+
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3564,6 +3640,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
 		constantfetch.OffsetNameFlowI4StructProto,
 		constantfetch.TypeFieldPair{
@@ -3592,6 +3669,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
@@ -3603,6 +3681,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructOpcode, "struct io_kiocb", "opcode")
+	}
+
+	// IORING_OP_SOCKET (struct io_socket) was added in 5.19
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_19) {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructDomain, "struct io_socket", "domain")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructType, "struct io_socket", "type")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructProtocol, "struct io_socket", "protocol")
 	}
 
 	// inode
@@ -3634,11 +3720,19 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		},
 	)
 
+	// module
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+
+	// cgroup
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
+
 	// fs
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
@@ -3647,7 +3741,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions

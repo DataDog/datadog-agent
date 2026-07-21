@@ -97,11 +97,20 @@ def _foreign_cc_runnable_impl(ctx):
     if not is_linux and not is_macos:
         fail("{}: unsupported platform (Linux and macOS only)".format(ctx.label))
 
-    patchelf = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-
     args = ctx.actions.args()
+
+    tools = []
+    if is_linux:
+        patchelf_toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+        patchelf = patchelf_toolchain.label[DefaultInfo].files_to_run
+        args.add("--patchelf", patchelf.executable.path)
+        tools.append(patchelf)
+    else:
+        install_name_tool = ctx.executable._install_name_tool
+        args.add("--install-name-tool", install_name_tool.path)
+        tools.append(install_name_tool)
+
     args.add("linux" if is_linux else "darwin")
-    args.add(patchelf.path)
     args.add(input_tree.path)
     args.add(output_tree.path)
     args.add(manifest.path)
@@ -111,6 +120,7 @@ def _foreign_cc_runnable_impl(ctx):
         executable = ctx.file._script,
         arguments = [args],
         inputs = [input_tree, manifest],
+        tools = tools,
         outputs = [output_tree],
         mnemonic = "ForeignCcRunnable",
         progress_message = "Rewriting rpaths for %{label}",
@@ -160,6 +170,11 @@ foreign_cc_runnable = rule(
             allow_single_file = True,
             cfg = "exec",
             executable = True,
+        ),
+        "_install_name_tool": attr.label(
+            default = "@@//bazel/tools:install_name_tool",
+            executable = True,
+            cfg = "exec",
         ),
         "_linux_constraint": attr.label(
             default = "@platforms//os:linux",

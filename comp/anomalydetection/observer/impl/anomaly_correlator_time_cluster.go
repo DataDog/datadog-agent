@@ -65,6 +65,7 @@ type TimeClusterCorrelator struct {
 	nextClusterID   int
 	currentDataTime int64
 	mu              sync.RWMutex
+	emitter         correlationEmitter
 }
 
 // NewTimeClusterCorrelator creates a new TimeClusterCorrelator with the given config.
@@ -76,8 +77,8 @@ func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 		config.WindowSeconds = DefaultTimeClusterConfig().WindowSeconds
 	}
 	return &TimeClusterCorrelator{
-		config:   config,
-		clusters: nil,
+		config:  config,
+		emitter: newCorrelationEmitter("time_cluster_correlator"),
 	}
 }
 
@@ -201,13 +202,16 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 	return merged
 }
 
-// Advance evicts old clusters past the retention window (reporters pull state via ActiveCorrelations).
+// Advance evicts old clusters past the retention window.
+// The emitter is observed BEFORE eviction so that batch clusters evicted in the
+// same cycle still produce a CorrelationDetected event.
 func (c *TimeClusterCorrelator) Advance(dataTime int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if dataTime > c.currentDataTime {
 		c.currentDataTime = dataTime
 	}
+	c.emitter.observe(c.activeCorrelationsLocked(), dataTime)
 	c.evictOldClustersLocked()
 }
 
@@ -219,6 +223,7 @@ func (c *TimeClusterCorrelator) Reset() {
 	c.clusters = c.clusters[:0]
 	c.nextClusterID = 0
 	c.currentDataTime = 0
+	c.emitter.reset()
 }
 
 // evictOldClustersLocked removes clusters whose latest timestamp is outside the window.
@@ -309,13 +314,15 @@ func (c *TimeClusterCorrelator) GetExtraData() interface{} {
 	return c.GetClusters()
 }
 
-// ActiveCorrelations returns clusters as active correlation patterns.
-func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// PendingEvents drains CorrelationDetected events accumulated during the last Advance.
+func (c *TimeClusterCorrelator) PendingEvents() []observer.CorrelatorEvent {
+	return c.emitter.drain()
+}
 
+// activeCorrelationsLocked builds the active correlations from current clusters.
+// Caller must hold c.mu (at least read lock).
+func (c *TimeClusterCorrelator) activeCorrelationsLocked() []observer.ActiveCorrelation {
 	var result []observer.ActiveCorrelation
-
 	for _, cluster := range c.clusters {
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
@@ -329,14 +336,18 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 			LastUpdated: cluster.maxTimestamp,
 		})
 	}
-
-	// Sort by cluster size (largest first), then by time
 	sort.Slice(result, func(i, j int) bool {
 		if len(result[i].Anomalies) != len(result[j].Anomalies) {
 			return len(result[i].Anomalies) > len(result[j].Anomalies)
 		}
 		return result[i].FirstSeen < result[j].FirstSeen
 	})
-
 	return result
+}
+
+// ActiveCorrelations returns clusters as active correlation patterns.
+func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.activeCorrelationsLocked()
 }

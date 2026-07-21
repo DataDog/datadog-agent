@@ -173,14 +173,14 @@ func (c *Check) Run() error {
 			log.Debugf("Unable to fetch device labels: %s", err)
 		}
 	}
-	err = c.collectPartitionMetrics(sender)
+	allowedIODevices, err := c.collectPartitionMetrics(sender)
 	if err != nil {
 		return err
 	}
 	// IO counter collection is best-effort: on some systems (e.g. Windows Server 2016)
 	// the IOCTL_DISK_PERFORMANCE call may fail with ERROR_INVALID_FUNCTION.
 	// We should not discard partition/usage metrics when this happens.
-	c.collectDiskMetrics(sender)
+	c.collectDiskMetrics(sender, allowedIODevices)
 	sender.Commit()
 
 	return nil
@@ -452,17 +452,21 @@ func (c *Check) configureIncludeMountPoint() error {
 	return nil
 }
 
-func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
+func (c *Check) collectPartitionMetrics(sender sender.Sender) (map[string]struct{}, error) {
 	physicalPartitions, nonPhysicalPartitions, unclassifiedPartitions, err := c.fetchClassifiedPartitions()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rootDevices := c.resolveRootDevices()
+	var allowedIODevices map[string]struct{}
+	if c.deviceFilterActive() {
+		allowedIODevices = make(map[string]struct{})
+	}
 	isPhys, isNonPhys := true, false
-	c.processPartitions(sender, physicalPartitions, rootDevices, &isPhys)
-	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, &isNonPhys)
-	c.processPartitions(sender, unclassifiedPartitions, rootDevices, nil)
-	return nil
+	c.processPartitions(sender, physicalPartitions, rootDevices, &isPhys, allowedIODevices)
+	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, &isNonPhys, allowedIODevices)
+	c.processPartitions(sender, unclassifiedPartitions, rootDevices, nil, allowedIODevices)
+	return allowedIODevices, nil
 }
 
 func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical, unclassified []gopsutil_disk.PartitionStat, err error) {
@@ -545,8 +549,9 @@ func (c *Check) resolveRootDevices() map[string]string {
 	return rootDevices
 }
 
-func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk *bool) {
+func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk *bool, allowedIODevices map[string]struct{}) {
 	for _, partition := range partitions {
+		originalDevice := partition.Device
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
 			partition.Device = rootDev
@@ -557,6 +562,12 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 			continue
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
+			if allowedIODevices != nil {
+				allowedIODevices[baseDeviceName(partition.Device)] = struct{}{}
+				if originalDevice != partition.Device {
+					allowedIODevices[baseDeviceName(originalDevice)] = struct{}{}
+				}
+			}
 			tags := c.getPartitionTags(partition)
 			if c.instanceConfig.TagByPhysicalStorage && isPhysicalDisk != nil {
 				tags = append(tags, fmt.Sprintf("is_physical_storage:%t", *isPhysicalDisk))
@@ -583,7 +594,7 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 	}
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) {
+func (c *Check) collectDiskMetrics(sender sender.Sender, allowedIODevices map[string]struct{}) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
 		if isExpectedIOCounterError(err) {
@@ -595,6 +606,12 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
+		if allowedIODevices != nil {
+			if _, ok := allowedIODevices[baseDeviceName(deviceName)]; !ok {
+				log.Debugf("Excluding iocounters: [device: %s]", deviceName)
+				continue
+			}
+		}
 		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
@@ -767,6 +784,10 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 		return true
 	}
 	return !(c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint))
+}
+
+func (c *Check) deviceFilterActive() bool {
+	return len(c.includedDevices) > 0 || len(c.excludedDevices) > 0
 }
 
 func (c *Check) excludeDevice(device string) bool {

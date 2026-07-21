@@ -39,7 +39,8 @@ type trafficCapture struct {
 	sync.RWMutex
 }
 
-func NewTrafficCapture(deps Requires) replay.Component {
+//nolint:revive // TODO(AML) Fix revive linter
+func NewComponent(deps Requires) replay.Component {
 	tc := &trafficCapture{
 		config: deps.Config,
 		tagger: deps.Tagger,

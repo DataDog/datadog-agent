@@ -42,7 +42,6 @@ properties:
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
     - template_section:Common
-    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -54,13 +53,14 @@ properties:
         - full: default server/host-monitoring behavior (all checks allowed).
         - basic: minimal host-level metrics only.
         - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+        - cloud_cost_only: Cloud Cost Management lightweight tagging.
         - none: disables infrastructure checks.
     tags:
     - template_section:Common
     comment: |-
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
-      The possible values are: full, basic, end_user_device, none.
+      The possible values are: full, basic, end_user_device, cloud_cost_only, none.
   dd_url:
     node_type: setting
     type: string
@@ -99,7 +99,6 @@ properties:
         example: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
         tags:
         - no-env
-        - template_section:Common
       http:
         node_type: setting
         type: string
@@ -111,7 +110,6 @@ properties:
         example: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
         tags:
         - no-env
-        - template_section:Common
       no_proxy:
         node_type: setting
         type: array
@@ -128,7 +126,6 @@ properties:
             - <HOSTNAME-2>
         tags:
         - no-env
-        - template_section:Common
   skip_ssl_validation:
     node_type: setting
     type: boolean
@@ -305,7 +302,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: Installer configuration
   process_manager:
     node_type: section
     type: object
@@ -326,8 +322,6 @@ properties:
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
-        tags:
-        - template_section:Common
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
@@ -372,8 +366,9 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: |-
-      Set defaults for config keys that may be accessed but aren't relevant in serverless environments
-      to avoid "config key is unknown" and "unable to cast nil" warnings
+      The cardinality of tags to send for checks.
+      Choices are: low, orchestrator, high.
+      Changing this setting may impact your custom metrics billing.
   dogstatsd_tag_cardinality:
     node_type: setting
     type: string
@@ -390,6 +385,12 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+    comment: |-
+      The cardinality of tags to send for dogstatsd.
+      Choices are: low, orchestrator, high.
+      WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
+      (one per container instead of one per host).
+      Changing this setting may impact your custom metrics billing.
   histogram_aggregates:
     node_type: setting
     type: array
@@ -494,15 +495,13 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'true'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the non-distribution metrics intake version. Accepted values:
                 - true: v3 for every destination except Observability Pipelines Worker.
                 - datadog_only: v3 only when the destination URL is a Datadog endpoint.
                 - false: v2 everywhere.
-            tags:
-            - template_section:Common
           endpoints:
             node_type: setting
             type: object
@@ -517,8 +516,6 @@ properties:
                 - true: v3 for every destination except Observability Pipelines Worker.
                 - datadog_only: v3 only when the destination URL is a Datadog endpoint.
                 - false: v2 everywhere.
-            tags:
-            - template_section:Common
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
     type: integer
@@ -625,7 +622,6 @@ properties:
       Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
     tags:
     - template_section:Common
-    comment: Forwarder channels buffer size
   forwarder_low_prio_buffer_size:
     node_type: setting
     type: integer
@@ -809,7 +805,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: GCE
   exclude_gce_tags:
     node_type: setting
     type: array
@@ -877,7 +872,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: GPU
   gpu:
     $ref: gpu.yaml
   azure_metadata_timeout:
@@ -906,7 +900,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: Azure
   azure_metadata_api_version:
     node_type: setting
     type: string
@@ -943,8 +936,6 @@ properties:
 
             - "sensitive_key_1"
             - "sensitive_key_2"
-        tags:
-        - template_section:Common
   no_proxy_nonexact_match:
     node_type: setting
     type: boolean
@@ -978,7 +969,6 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
-    comment: controls the agent configurations
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
@@ -1020,8 +1010,6 @@ properties:
             default: false
             visibility: public
             description: Enable the `noprocess` method
-            tags:
-            - template_section:Common
           excluded_processes:
             node_type: setting
             type: array
@@ -1031,8 +1019,6 @@ properties:
             visibility: public
             description: List of regular expressions to exclude extra processes (on
               top of built-in list).
-            tags:
-            - template_section:Common
       validation_period:
         node_type: setting
         type: integer
@@ -1041,9 +1027,6 @@ properties:
         description: |-
           Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
           The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
-        tags:
-        - template_section:Common
-        comment: Auto exit configuration
   remote_configuration:
     $ref: remote_configuration.yaml
   fips:
@@ -1086,17 +1069,12 @@ properties:
 
           The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
           DD_PROXY_HTTP and DD_PROXY_HTTPS).
-        tags:
-        - template_section:Common
-        comment: Fips
       local_address:
         node_type: setting
         type: string
         default: localhost
         visibility: public
         description: The local address that the FIPS proxy will bind ports on.
-        tags:
-        - template_section:Common
       https:
         node_type: setting
         type: boolean
@@ -1135,8 +1113,6 @@ properties:
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
-            tags:
-            - template_section:Common
           url:
             node_type: setting
             type: string
@@ -1145,8 +1121,6 @@ properties:
             description: URL endpoint for the Observability Pipelines Worker to send
               metrics to
             example: '"http://127.0.0.1:8080"'
-            tags:
-            - template_section:Common
           use_v3_api:
             node_type: section
             type: object
@@ -1170,8 +1144,6 @@ properties:
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
-            tags:
-            - template_section:Common
           url:
             node_type: setting
             type: string
@@ -1180,8 +1152,6 @@ properties:
             description: URL endpoint for the Observability Pipelines Worker to send
               logs to
             example: '"http://127.0.0.1:8080"'
-            tags:
-            - template_section:Common
           dual_ship:
             node_type: setting
             type: boolean
@@ -1193,8 +1163,6 @@ properties:
               the primary Datadog intake and the Observability Pipelines Worker, which is
               useful for evaluating OPW without interrupting the existing flow of telemetry
               to Datadog.
-            tags:
-            - template_section:Common
             comment: "dual_ship is logs-only: there is no equivalent dual-shipping\
               \ code path for metrics, so\nthese keys live outside bindVectorOptions\
               \ to avoid registering an unused metrics variant.\n\ndual_ship: when\
@@ -1218,8 +1186,6 @@ properties:
               backpressure to the main pipeline, so an unhealthy OPW cannot stall delivery
               to Datadog. Set to true to make the OPW destination reliable, meaning its
               failures participate in flow control just like the primary Datadog endpoint.
-            tags:
-            - template_section:Common
       traces:
         node_type: section
         type: object
@@ -1235,8 +1201,6 @@ properties:
             visibility: public
             description: Enables forwarding of traces to an Observability Pipelines
               Worker
-            tags:
-            - template_section:Common
             comment: Vector options for traces
           url:
             node_type: setting
@@ -1246,8 +1210,6 @@ properties:
             description: URL endpoint for the Observability Pipelines Worker to send
               traces to
             example: '"http://127.0.0.1:8080"'
-            tags:
-            - template_section:Common
   confd_path:
     node_type: setting
     title: Advanced Configuration
@@ -1300,8 +1262,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
@@ -1486,7 +1449,6 @@ properties:
     tags:
     - template_section:Agent
     - full-agent-only:true
-    comment: secrets backend
   secret_backend_config:
     node_type: setting
     type: object
@@ -1709,13 +1671,11 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: ${conf_path}/logs/ddtray.log
+        default: ${log_path}/ddtray.log
         visibility: public
         description: The full path to the file where Datadog Agent Manager System
           Tray logs are written.
-        tags:
-        - template_section:Agent
-        comment: Datadog Agent Manager System Tray
+        example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
   logs_enabled:
     node_type: setting
     title: Log collection Configuration
@@ -1726,7 +1686,6 @@ properties:
     tags:
     - template_section:LogsAgent
     comment: |-
-      Logs Agent
       External Use: modify those parameters to configure the logs-agent.
       enable the logs-agent:
   logs_config:
@@ -1763,9 +1722,6 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
-            tags:
-            - template_section:CoreAgent
-            comment: Network Path
       collector:
         node_type: section
         type: object
@@ -1783,24 +1739,18 @@ properties:
             visibility: public
             description: The number of concurrent workers available for network path
               execution.
-            tags:
-            - template_section:CoreAgent
           timeout:
             node_type: setting
             type: integer
             default: 1000
             visibility: public
             description: The timeout in milliseconds for a network path test.
-            tags:
-            - template_section:CoreAgent
           max_ttl:
             node_type: setting
             type: integer
             default: 30
             visibility: public
             description: The maximum TTL (Time To Live) for traceroute tests.
-            tags:
-            - template_section:CoreAgent
           pathtest_ttl:
             node_type: setting
             type: string
@@ -1810,8 +1760,6 @@ properties:
               The duration (time-to-live) a connection will be monitored when it's not seen anymore.
               The TTL is reset each time the connection is seen again.
               With 30min interval, 70m will allow running a test 3 times (t0, t30, t60).
-            tags:
-            - template_section:CoreAgent
             comment: with 30min interval, 70m will allow running a test 3 times (t0,
               t30, t60)
           pathtest_interval:
@@ -1820,8 +1768,6 @@ properties:
             default: 30m
             visibility: public
             description: The traceroute run interval for monitored connections.
-            tags:
-            - template_section:CoreAgent
           filters:
             node_type: setting
             type: array
@@ -1866,48 +1812,36 @@ properties:
                 # Include specific domain
                 # - match_domain: 'api.datadoghq.com'
                 #   type: include
-            tags:
-            - template_section:CoreAgent
           traceroute_queries:
             node_type: setting
             type: integer
             default: 3
             visibility: public
             description: The number of traceroute queries for static path tests.
-            tags:
-            - template_section:CoreAgent
           e2e_queries:
             node_type: setting
             type: integer
             default: 50
             visibility: public
             description: The number of end-to-end queries for static path tests.
-            tags:
-            - template_section:CoreAgent
           input_chan_size:
             node_type: setting
             type: integer
             default: 1000
             visibility: public
             description: The size of the input channel buffer.
-            tags:
-            - template_section:CoreAgent
           processing_chan_size:
             node_type: setting
             type: integer
             default: 1000
             visibility: public
             description: The size of the processing channel buffer.
-            tags:
-            - template_section:CoreAgent
           pathtest_contexts_limit:
             node_type: setting
             type: integer
             default: 1000
             visibility: public
             description: The maximum number of pathtest contexts that can be maintained.
-            tags:
-            - template_section:CoreAgent
           dest_excludes:
             node_type: setting
             type: object
@@ -1917,6 +1851,10 @@ properties:
                 type: string
               type: array
           disable_intra_vpc_collection:
+            node_type: setting
+            type: boolean
+            default: false
+          disable_source_public_ip_collection:
             node_type: setting
             type: boolean
             default: false
@@ -2080,6 +2018,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2104,11 +2050,6 @@ properties:
             default: false
             visibility: public
             description: '[Preview] Enables Synthetics tests.'
-            tags:
-            - template_section:CoreAgent
-            comment: |-
-              Generic resources configuration
-              Synthetics configuration
           workers:
             node_type: setting
             type: integer
@@ -2116,8 +2057,6 @@ properties:
             visibility: public
             description: The `workers` refers to the number of concurrent workers
               available for synthetics tests execution.
-            tags:
-            - template_section:CoreAgent
           flush_interval:
             node_type: setting
             type: string
@@ -2125,8 +2064,6 @@ properties:
             visibility: public
             description: The `flush_interval` refers to the synthetics run interval
               for tests execution.
-            tags:
-            - template_section:CoreAgent
       forwarder:
         node_type: section
         type: object
@@ -2240,7 +2177,6 @@ properties:
     description: Set this option to false to disable the Agent DogStatsD server.
     tags:
     - template_section:Dogstatsd
-    comment: Dogstatsd
   dogstatsd_port:
     node_type: setting
     type: integer
@@ -2271,18 +2207,30 @@ properties:
     type: string
     visibility: public
     description: |-
-      Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+      Listen for Dogstatsd metrics on a Unix domain socket (*nix only).
       Set to a valid and existing filesystem path to enable.
       Set to "" to disable this feature.
 
       Please note that UDS receiver is not available in Windows.
-      Enabling this setting may result in unexpected behavior.
     tags:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
-    comment: Only enabled on unix systems
+  dogstatsd_stream_socket:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      Listen for Dogstatsd metrics on a Unix domain socket using stream mode (SOCK_STREAM, *nix only).
+      Set to a valid and existing filesystem path to enable.
+      Set to "" to disable this feature.
+
+      Please note that this is not available in Windows.
+    tags:
+    - template_section:Dogstatsd
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -2516,8 +2464,171 @@ properties:
     description: How many workers are used by the no-aggregation pipeline.
     tags:
     - template_section:Dogstatsd
-    comment: How many workers are used by the no-aggregation pipeline. Default of
-      1 applies when the pipeline is enabled via dogstatsd_no_aggregation_pipeline.
+    comment: How many workers are used by the no-aggregation pipeline.
+  metric_lookback:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the local metric lookback rings. The first supported DogStatsD use
+      case captures selected normal DogStatsD bucketed points/sketches and final
+      no-aggregation points by exact name. An optional monitor can forward retained
+      high-resolution ranges after a watched metric breaches its configured
+      short-window max-minus-min range threshold.
+    tags:
+    - template_section:Dogstatsd
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed
+          by enabled_checks.
+        tags:
+        - full-agent-only:true
+      enabled_checks:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        visibility: public
+        description: |-
+          Optional check-name allowlist for metric lookback shadow checks. When empty, all supported
+          checks are eligible.
+        tags:
+        - full-agent-only:true
+      capacity:
+        node_type: setting
+        type: integer
+        default: 262144
+        visibility: public
+        description: |-
+          Total number of records retained across each lookback ring's shards. Series points and
+          sketches use separate rings.
+      shard_count:
+        node_type: setting
+        type: integer
+        default: 16
+        visibility: public
+        description: Number of independent shards used by each lookback ring.
+      dogstatsd:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure exact-name DogStatsD admission into metric lookback.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          metric_names:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+              auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
+      monitor:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure a metric lookback monitor for egress.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          mode:
+            node_type: setting
+            type: string
+            default: disabled
+            visibility: public
+            description: |-
+              Controls monitor operation. Valid values are:
+                - disabled: do not run the monitor or monitor-driven egress.
+                - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+                - enabled: run the monitor and let monitor decisions control egress.
+          metric_name:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: Exact metric name watched by the monitor.
+          evaluation_interval:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Approximate width of each monitor evaluation window. Shorter windows can detect
+              breaches sooner; longer windows evaluate more retained points together.
+            tags:
+            - golang_type:duration
+          range_epsilon:
+            node_type: setting
+            type: number
+            default: 0
+            visibility: public
+            description: |-
+              Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
+              The monitor computes a window range as the maximum retained point value minus the minimum
+              retained point value in each completed evaluation window, or in each configured tag partition.
+              Egress forwards retained ranges after that window range is greater than this epsilon.
+            tags:
+            - golang_type:float64
+          partition_tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+              monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+              tuple independently and breaches if any partition exceeds range_epsilon.
+      egress:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure monitor-triggered egress ranges.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          pre_trigger_window:
+            node_type: setting
+            type: string
+            default: 0s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward before a breach or unknown monitor window.
+              This captures context before the monitor-triggering window.
+            tags:
+            - golang_type:duration
+          post_recovery_window:
+            node_type: setting
+            type: string
+            default: 30s
+            format: duration
+            visibility: public
+            description: |-
+              Extra retained time to forward after the first healthy monitor window that
+              suppresses egress. The default approximates the previous two-healthy-window behavior.
+            tags:
+            - golang_type:duration
+      collection_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+        - full-agent-only:true
   statsd_forward_host:
     node_type: setting
     type: string
@@ -2585,7 +2696,6 @@ properties:
     tags:
     - template_section:CoreAgent
     - full-agent-only:true
-    comment: JMXFetch
   jmx_use_cgroup_memory_limit:
     node_type: setting
     type: boolean
@@ -2872,9 +2982,7 @@ properties:
     description: Directory containing configuration templates for Autoconfig.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      Autoconfig
-      Where to look for check templates if no custom path is defined
+    comment: Where to look for check templates if no custom path is defined
   autoconf_config_files_poll:
     node_type: setting
     type: boolean
@@ -3024,6 +3132,9 @@ properties:
       and "/sys/fs/cgroup" if not.
     tags:
     - template_section:CoreAgent
+    comment: |-
+      The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+      The value here is a generic place holder used for our configuration examples.
   container_proc_root:
     node_type: setting
     type: string
@@ -3034,6 +3145,9 @@ properties:
       Default if environment variable "DOCKER_DD_AGENT" is set "/host/proc" and "/proc" if not.
     tags:
     - template_section:CoreAgent
+    comment: |-
+      The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+      The value here is a generic place holder used for our configuration examples.
   listeners:
     node_type: setting
     type: array
@@ -3114,7 +3228,6 @@ properties:
     - golang_type:int64
     - template_section:CoreAgent
     - full-agent-only:true
-    comment: Docker
   ad_config_poll_interval:
     node_type: setting
     type: integer
@@ -3185,17 +3298,12 @@ properties:
         visibility: public
         description: The network on which the garden API is listening. Possible values
           are `unix` or `tcp`
-        tags:
-        - template_section:CoreAgent
-        comment: Cloud Foundry Garden
       listen_address:
         node_type: setting
         type: string
         default: /var/vcap/data/garden/garden.sock
         visibility: public
         description: The address on which the garden API is listening.
-        tags:
-        - template_section:CoreAgent
   podman_db_path:
     node_type: setting
     type: string
@@ -3368,9 +3476,7 @@ properties:
     tags:
     - template_section:ECS
     - full-agent-only:true
-    comment: |-
-      ECS
-      Will be autodetected
+    comment: Will be autodetected
   ecs_collect_resource_tags_ec2:
     node_type: setting
     type: boolean
@@ -3450,9 +3556,7 @@ properties:
       If left empty, the CRI and Containerd checks are disabled.
     tags:
     - template_section:CoreAgent
-    comment: |-
-      CRI
-      empty is disabled
+    comment: empty is disabled
   cri_connection_timeout:
     node_type: setting
     type: integer
@@ -3493,7 +3597,6 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
-    comment: Containerd
   containerd_namespaces:
     node_type: setting
     type: array
@@ -3539,7 +3642,6 @@ properties:
     example: <KUBLET_HOST>
     tags:
     - template_section:Kubelet
-    comment: Kubernetes
   kubernetes_http_kubelet_port:
     node_type: setting
     type: integer
@@ -3647,7 +3749,6 @@ properties:
     tags:
     - template_section:KubeApiServer
     - full-agent-only:true
-    comment: Kube ApiServer
   kubernetes_apiserver_ca_path:
     node_type: setting
     type: string
@@ -3903,8 +4004,6 @@ properties:
         default: false
         visibility: public
         description: Enables the prometheus config provider
-        tags:
-        - template_section:CoreAgent
         comment: Enables the prometheus config provider
       service_endpoints:
         node_type: setting
@@ -3912,8 +4011,6 @@ properties:
         default: false
         visibility: public
         description: Enables Service Endpoints checks in the prometheus config provider
-        tags:
-        - template_section:CoreAgent
         comment: Enables Service Endpoints checks in the prometheus config provider
       checks:
         node_type: setting
@@ -3923,8 +4020,6 @@ properties:
         description: Defines any extra prometheus/openmetrics check configurations
           to be handled by the prometheus config provider
         example: '{}'
-        tags:
-        - template_section:CoreAgent
         comment: Defines any extra prometheus/openmetrics check configurations to
           be handled by the prometheus config provider
       version:
@@ -3934,8 +4029,6 @@ properties:
         visibility: public
         description: Version of the openmetrics check to be scheduled by the Prometheus
           auto-discovery
-        tags:
-        - template_section:CoreAgent
         comment: Version of the openmetrics check to be scheduled by the Prometheus
           auto-discovery
   cloud_foundry_bbs:
@@ -3956,9 +4049,6 @@ properties:
         default: https://bbs.service.cf.internal:8889
         visibility: public
         description: URL of the BBS API.
-        tags:
-        - template_section:CloudFoundry
-        comment: Cloud Foundry BBS
       poll_interval:
         node_type: setting
         type: integer
@@ -3967,16 +4057,12 @@ properties:
         description: |-
           Refresh rate of BBS API, in seconds. Values lower than 10 might influence
           performance of other operations in the cluster.
-        tags:
-        - template_section:CloudFoundry
       ca_file:
         node_type: setting
         type: string
         default: ''
         visibility: public
         description: PEM-encoded CA certificate used when connecting to the BBS API.
-        tags:
-        - template_section:CloudFoundry
       cert_file:
         node_type: setting
         type: string
@@ -3984,16 +4070,12 @@ properties:
         visibility: public
         description: PEM-encoded client certificate used when connecting to the BBS
           API.
-        tags:
-        - template_section:CloudFoundry
       key_file:
         node_type: setting
         type: string
         default: ''
         visibility: public
         description: PEM-encoded client key used when connecting to the BBS API.
-        tags:
-        - template_section:CloudFoundry
       env_include:
         node_type: setting
         type: array
@@ -4010,8 +4092,6 @@ properties:
           # List of regular expressions to forbid a set of environment variables to be included as container tags
 
           env_exclude: []
-        tags:
-        - template_section:CloudFoundry
       env_exclude:
         node_type: setting
         type: array
@@ -4036,9 +4116,6 @@ properties:
         default: https://cloud-controller-ng.service.cf.internal:9024
         visibility: public
         description: URL of the CC API.
-        tags:
-        - template_section:CloudFoundry
-        comment: Cloud Foundry CC
       client_id:
         node_type: setting
         type: string
@@ -4047,8 +4124,6 @@ properties:
         description: Client ID for oauth with UAA to get a token to access the CC
           API.
         example: <UAA_CLIENT_ID>
-        tags:
-        - template_section:CloudFoundry
       client_secret:
         node_type: setting
         type: string
@@ -4057,8 +4132,6 @@ properties:
         description: Client secrect for oauth with UAA to get a token to access the
           CC API.
         example: <UAA_CLIENT_SECRET>
-        tags:
-        - template_section:CloudFoundry
       skip_ssl_validation:
         node_type: setting
         type: boolean
@@ -4066,8 +4139,6 @@ properties:
         visibility: public
         description: Whether or not to skip SSL validation when interacting with CC
           API.
-        tags:
-        - template_section:CloudFoundry
       poll_interval:
         node_type: setting
         type: integer
@@ -4076,8 +4147,6 @@ properties:
         description: |-
           Refresh rate of CC API, in seconds. Values lower than 10 might influence
           performance of other operations in the cluster.
-        tags:
-        - template_section:CloudFoundry
       apps_batch_size:
         node_type: setting
         type: integer
@@ -4085,8 +4154,6 @@ properties:
         visibility: public
         description: Number of apps per page to collect when calling the list apps
           endpoint of the CC API. Max 5000.
-        tags:
-        - template_section:CloudFoundry
   network_devices:
     node_type: section
     title: Network Devices Configuration
@@ -4108,9 +4175,6 @@ properties:
           It should contain less than 100 characters and should not contain any of
           `<`, `>`, `\n`, `\t`, `\r` characters.
           This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
-        tags:
-        - template_section:CoreAgent
-        comment: Network Devices Monitoring
       default_scan:
         node_type: section
         type: object
@@ -4130,8 +4194,6 @@ properties:
               Enable automatic scanning of discovered SNMP devices.
               When enabled, devices discovered via autodiscovery or configured
               directly will be scanned to collect OID data.
-            tags:
-            - template_section:CoreAgent
           excluded_ips:
             node_type: setting
             type: array
@@ -4142,8 +4204,6 @@ properties:
             description: |-
               List of IP addresses to exclude from automatic scanning.
               Devices with these IP addresses will be skipped during default scan.
-            tags:
-            - template_section:CoreAgent
       autodiscovery:
         node_type: section
         type: object
@@ -4163,8 +4223,6 @@ properties:
             description: |-
               The number of concurrent tasks used to discover SNMP devices. Increasing this value
               discovers devices faster but at the cost of increased resource consumption.
-            tags:
-            - template_section:CoreAgent
           discovery_interval:
             node_type: setting
             type: integer
@@ -4174,8 +4232,6 @@ properties:
               How often to discover new SNMP devices, in seconds. Decreasing this value
               discovers devices faster (within the limit of the time taken to scan subnets)
               but at the cost of increased resource consumption.
-            tags:
-            - template_section:CoreAgent
             comment: |-
               network_devices.autodiscovery has precedence over snmp_listener config
               snmp_listener config is still here for legacy reasons
@@ -4188,8 +4244,6 @@ properties:
               The number of failed requests to a given SNMP device before removing it from the list of monitored
               devices.
               If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
-            tags:
-            - template_section:CoreAgent
           loader:
             node_type: setting
             type: string
@@ -4199,8 +4253,6 @@ properties:
               Check loader to use. Available loaders:
               - core: (recommended) Uses new corecheck SNMP integration
               - python: Uses legacy python SNMP integration
-            tags:
-            - template_section:CoreAgent
           min_collection_interval:
             node_type: setting
             type: integer
@@ -4211,8 +4263,6 @@ properties:
               from discovered SNMP devices.
               For more information, see:
               https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
-            tags:
-            - template_section:CoreAgent
           use_device_id_as_hostname:
             node_type: setting
             type: boolean
@@ -4224,16 +4274,12 @@ properties:
               `host:device:<DEVICE_ID>` as tag).
               This option is needed for custom tags.
             example: 'true'
-            tags:
-            - template_section:CoreAgent
           collect_topology:
             node_type: setting
             type: boolean
             default: true
             visibility: public
             description: Enable the collection of topology (LLDP/CDP) data
-            tags:
-            - template_section:CoreAgent
           collect_vpn:
             node_type: setting
             type: boolean
@@ -4241,8 +4287,6 @@ properties:
             visibility: public
             description: Enable collection of VPN tunnels and route table data
             example: 'true'
-            tags:
-            - template_section:CoreAgent
           ping:
             node_type: section
             type: object
@@ -4268,24 +4312,18 @@ properties:
                 visibility: public
                 description: Set to true to enable ICMP ping checks for autodiscovered
                   SNMP devices.
-                tags:
-                - template_section:CoreAgent
               timeout:
                 node_type: setting
                 type: integer
                 default: 3000
                 visibility: public
                 description: Timeout in milliseconds
-                tags:
-                - template_section:CoreAgent
               count:
                 node_type: setting
                 type: integer
                 default: 2
                 visibility: public
                 description: Number of ping packets to send per check run
-                tags:
-                - template_section:CoreAgent
               interval:
                 node_type: setting
                 type: integer
@@ -4293,8 +4331,6 @@ properties:
                 visibility: public
                 description: Time between sending pings (up to `count` packets) in
                   milliseconds
-                tags:
-                - template_section:CoreAgent
               linux:
                 node_type: section
                 type: object
@@ -4315,8 +4351,6 @@ properties:
                       If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
                       enable it, see system-probe.yaml.example.
                     example: 'true'
-                    tags:
-                    - template_section:CoreAgent
           use_deduplication:
             node_type: setting
             type: boolean
@@ -4325,8 +4359,6 @@ properties:
             description: |-
               Deduplicate IP addresses corresponding to the same device.
               The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
-            tags:
-            - template_section:CoreAgent
           oid_batch_size:
             node_type: setting
             type: integer
@@ -4336,8 +4368,6 @@ properties:
               The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
               Applies to all configurations if not overridden.
               By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
-            tags:
-            - template_section:CoreAgent
           timeout:
             node_type: setting
             type: integer
@@ -4345,8 +4375,6 @@ properties:
             visibility: public
             description: The number of seconds before timing out. Applies to all configurations
               if not overridden.
-            tags:
-            - template_section:CoreAgent
           retries:
             node_type: setting
             type: integer
@@ -4354,8 +4382,6 @@ properties:
             visibility: public
             description: The number of retries before failure. Applies to all configurations
               if not overridden.
-            tags:
-            - template_section:CoreAgent
           configs:
             node_type: setting
             type: array
@@ -4568,8 +4594,6 @@ properties:
                       - match_field: index
                         match_value: '2'
                         disabled: true
-            tags:
-            - template_section:CoreAgent
           allowed_failures:
             node_type: setting
             type: integer
@@ -4598,8 +4622,6 @@ properties:
             default: false
             visibility: public
             description: Set to true to enable collection of traps.
-            tags:
-            - template_section:CoreAgent
           port:
             node_type: setting
             type: integer
@@ -4610,8 +4632,6 @@ properties:
               Because the Datadog Agent does not run as root, the port cannot be below 1024.
               However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
               the Datadog Agent can listen on ports below 1024.
-            tags:
-            - template_section:CoreAgent
           community_strings:
             node_type: setting
             type: array
@@ -4628,8 +4648,6 @@ properties:
 
                 - '<COMMUNITY_1>'
                 - '<COMMUNITY_2>'
-            tags:
-            - template_section:CoreAgent
           users:
             node_type: setting
             type: array
@@ -4658,8 +4676,6 @@ properties:
                   authProtocol: <AUTHENTICATION_PROTOCOL>
                   privKey: <PRIVACY_KEY>
                   privProtocol: <PRIVACY_PROTOCOL>
-            tags:
-            - template_section:CoreAgent
           bind_host:
             node_type: setting
             type: string
@@ -4668,8 +4684,6 @@ properties:
             description: |-
               The hostname to listen on for incoming trap packets.
               Binds to 0.0.0.0 by default (accepting all packets).
-            tags:
-            - template_section:CoreAgent
           stop_timeout:
             node_type: setting
             type: integer
@@ -4677,8 +4691,6 @@ properties:
             visibility: public
             description: The maximum number of seconds to wait for the trap server
               to stop when the Agent shuts down.
-            tags:
-            - template_section:CoreAgent
             comment: in seconds
           tags:
             node_type: setting
@@ -4694,8 +4706,6 @@ properties:
 
                 - "application:<APPLICATION_ID>"
                 - "team:<TEAM_NAME>"
-            tags:
-            - template_section:CoreAgent
           forwarder:
             node_type: section
             type: object
@@ -4810,9 +4820,6 @@ properties:
             default: false
             visibility: public
             description: Set to true to enable collection of NetFlow traffic.
-            tags:
-            - template_section:CoreAgent
-            comment: NetFlow
           listeners:
             node_type: setting
             type: array
@@ -4859,7 +4866,6 @@ properties:
                   port: 6343
             tags:
             - no-env
-            - template_section:CoreAgent
           stop_timeout:
             node_type: setting
             type: integer
@@ -4867,8 +4873,6 @@ properties:
             visibility: public
             description: The maximum number of seconds to wait for the NetFlow listeners
               to stop when the Agent shuts down.
-            tags:
-            - template_section:CoreAgent
           reverse_dns_enrichment_enabled:
             node_type: setting
             type: boolean
@@ -4876,8 +4880,6 @@ properties:
             visibility: public
             description: Set to true to enable reverse DNS enrichment of private source
               and destination IP addresses in NetFlow records.
-            tags:
-            - template_section:CoreAgent
           aggregator_buffer_size:
             node_type: setting
             type: integer
@@ -5113,7 +5115,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Network Config Management
       metadata:
         node_type: section
         type: object
@@ -5231,11 +5232,6 @@ properties:
         visibility: public
         description: The number of concurrent workers used to perform reverse DNS
           lookups.
-        tags:
-        - template_section:CoreAgent
-        comment: |-
-          Data Observability
-          Reverse DNS Enrichment
       chan_size:
         node_type: setting
         type: integer
@@ -5243,8 +5239,6 @@ properties:
         visibility: public
         description: The size of the channel used to send reverse DNS lookup requests
           to the workers.
-        tags:
-        - template_section:CoreAgent
       cache:
         node_type: section
         type: object
@@ -5260,8 +5254,6 @@ properties:
             default: true
             visibility: public
             description: Set to true to enable reverse DNS enrichment caching.
-            tags:
-            - template_section:CoreAgent
           entry_ttl:
             node_type: setting
             type: string
@@ -5273,7 +5265,6 @@ properties:
             example: 24h
             tags:
             - golang_type:duration
-            - template_section:CoreAgent
           clean_interval:
             node_type: setting
             type: string
@@ -5285,7 +5276,6 @@ properties:
             example: 2h
             tags:
             - golang_type:duration
-            - template_section:CoreAgent
           persist_interval:
             node_type: setting
             type: string
@@ -5297,7 +5287,6 @@ properties:
             example: 2h
             tags:
             - golang_type:duration
-            - template_section:CoreAgent
           max_retries:
             node_type: setting
             type: integer
@@ -5306,8 +5295,6 @@ properties:
             description: The maximum number of retries to perform when a DNS lookup
               operation fails, after which the hostname "" is returned and cached
               for the IP address.
-            tags:
-            - template_section:CoreAgent
           max_size:
             node_type: setting
             type: integer
@@ -5315,8 +5302,6 @@ properties:
             visibility: public
             description: The maximum size in entries of the cache, above which additional
               entries will not be cached.
-            tags:
-            - template_section:CoreAgent
       rate_limiter:
         node_type: section
         type: object
@@ -5332,8 +5317,6 @@ properties:
             default: true
             visibility: public
             description: Set to true to enable the reverse DNS enrichment rate limiter.
-            tags:
-            - template_section:CoreAgent
           limit_per_sec:
             node_type: setting
             type: integer
@@ -5341,8 +5324,6 @@ properties:
             visibility: public
             description: The maximum number of reverse DNS lookups allowed per second
               by the rate limiter.
-            tags:
-            - template_section:CoreAgent
           limit_throttled_per_sec:
             node_type: setting
             type: integer
@@ -5350,8 +5331,6 @@ properties:
             visibility: public
             description: The maximum number of reverse DNS lookups allowed per second
               when the rate limiter is throttled due to errors exceeding the threshold.
-            tags:
-            - template_section:CoreAgent
           throttle_error_threshold:
             node_type: setting
             type: integer
@@ -5359,8 +5338,6 @@ properties:
             visibility: public
             description: The number of consecutive errors that will trigger the rate
               limiter to throttle down to limit_throttled_per_sec.
-            tags:
-            - template_section:CoreAgent
           recovery_intervals:
             node_type: setting
             type: integer
@@ -5369,8 +5346,6 @@ properties:
             description: The number of intervals over which to increase the rate limit
               back to limit_per_sec when lookups are again successful after being
               throttled due to errors.
-            tags:
-            - template_section:CoreAgent
           recovery_interval:
             node_type: setting
             type: string
@@ -5384,7 +5359,6 @@ properties:
               be increased by 200 every 5 seconds until reaching 1000.
             tags:
             - golang_type:duration
-            - template_section:CoreAgent
             comment: |-
               These variables are similarly named, but they serve different purposes:
               - recovery_interval is the time to wait before trying to send data again after hitting the throttle_error_threshold
@@ -5404,9 +5378,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable High Availability Agent feature.
-        tags:
-        - template_section:CoreAgent
-        comment: HA Agent
       group:
         node_type: setting
         type: string
@@ -5467,8 +5438,6 @@ properties:
                     default: localhost:4317
                     visibility: public
                     description: The OTLP/gRPC listener endpoint.
-                    tags:
-                    - template_section:CoreAgent
                     comment: Receiver gRPC settings (defaults from OTel otlpreceiver
                       / configgrpc)
                   transport:
@@ -5479,8 +5448,6 @@ properties:
                     description: |-
                       The OTLP/gRPC listener transport protocol.
                       Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
-                    tags:
-                    - template_section:CoreAgent
                   max_recv_msg_size_mib:
                     node_type: setting
                     type: integer
@@ -5489,8 +5456,6 @@ properties:
                     description: |-
                       The maximum size (in MiB) of messages accepted by the OTLP/gRPC endpoint.
                       When set to 0 (the default), grpc-go applies its built-in 4 MiB limit.
-                    tags:
-                    - template_section:CoreAgent
                   include_metadata:
                     node_type: setting
                     type: boolean
@@ -5535,8 +5500,6 @@ properties:
                     default: localhost:4318
                     visibility: public
                     description: The OTLP/HTTP listener endpoint.
-                    tags:
-                    - template_section:CoreAgent
                     comment: Receiver HTTP settings (defaults from OTel otlpreceiver
                       / confighttp)
                   cors:
@@ -5580,8 +5543,6 @@ properties:
             description: |-
               Set to false to disable metrics support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
-            tags:
-            - template_section:CoreAgent
           resource_attributes_as_tags:
             node_type: setting
             type: boolean
@@ -5591,8 +5552,6 @@ properties:
               Set to true to add resource attributes of a metric to its metric tags. Please note that any of
               the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/
               are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
-            tags:
-            - template_section:CoreAgent
           instrumentation_scope_metadata_as_tags:
             node_type: setting
             type: boolean
@@ -5600,8 +5559,6 @@ properties:
             visibility: public
             description: Set to true to add metadata about the instrumentation scope
               that created a metric.
-            tags:
-            - template_section:CoreAgent
           tag_cardinality:
             node_type: setting
             type: string
@@ -5617,8 +5574,8 @@ properties:
                 * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
               WARNING: sending container tags for checks metrics may create more metrics
               (one per container instead of one per host). This may impact your custom metrics billing.
-            tags:
-            - template_section:CoreAgent
+            comment: This only partially works. The environment variable is also manually
+              checked in comp/otelcol/otlp/config.go
           delta_ttl:
             node_type: setting
             type: integer
@@ -5627,8 +5584,6 @@ properties:
             description: |-
               The amount of time (in seconds) that values are kept in memory for
               calculating deltas for cumulative monotonic metrics.
-            tags:
-            - template_section:CoreAgent
           histograms:
             node_type: section
             type: object
@@ -5650,8 +5605,6 @@ properties:
                   - `distributions` to report metrics as Datadog distributions (recommended).
                   - `nobuckets` to not report bucket metrics,
                   - `counters` to report one metric per histogram bucket.
-                tags:
-                - template_section:CoreAgent
               send_count_sum_metrics:
                 node_type: setting
                 type: boolean
@@ -5661,8 +5614,6 @@ properties:
                   Deprecated - use `send_aggregation_metrics` instead. This flag will override `send_aggregation_metrics` if both are set.
 
                   Whether to report sum, count, min, and max as separate histogram metrics.
-                tags:
-                - template_section:CoreAgent
               send_aggregation_metrics:
                 node_type: setting
                 type: boolean
@@ -5670,8 +5621,6 @@ properties:
                 visibility: public
                 description: Whether to report sum, count, min, and max as separate
                   histogram metrics.
-                tags:
-                - template_section:CoreAgent
           sums:
             node_type: section
             type: object
@@ -5692,8 +5641,6 @@ properties:
 
                   - `to_delta` to calculate delta for sum in the client side and report as Datadog counts.
                   - `raw_value` to report the raw value as a Datadog gauge.
-                tags:
-                - template_section:CoreAgent
               initial_cumulative_monotonic_value:
                 node_type: setting
                 type: string
@@ -5705,8 +5652,6 @@ properties:
                   - `auto` reports the initial value if its start timestamp is set and it happens after the process was started.
                   - `drop` always drops the initial value.
                   - `keep` always reports the initial value.
-                tags:
-                - template_section:CoreAgent
           summaries:
             node_type: section
             type: object
@@ -5727,8 +5672,6 @@ properties:
 
                   - `noquantiles` to not report quantile metrics.
                   - `gauges` to report one gauge metric per quantile.
-                tags:
-                - template_section:CoreAgent
           batch:
             node_type: section
             type: object
@@ -5745,8 +5688,6 @@ properties:
                 default: 8192
                 visibility: public
                 description: The minimum number of metrics to batch before sending.
-                tags:
-                - template_section:CoreAgent
               max_size:
                 node_type: setting
                 type: integer
@@ -5754,21 +5695,16 @@ properties:
                 visibility: public
                 description: The maximum number of metrics to batch before sending.
                   0 means no limit on the maximum number.
-                tags:
-                - template_section:CoreAgent
               flush_timeout:
                 node_type: setting
                 type: string
                 default: 200ms
                 visibility: public
                 description: The timeout for flushing the batch.
-                tags:
-                - template_section:CoreAgent
           tags:
             node_type: setting
             type: string
             default: ''
-            comment: Metrics settings
       traces:
         node_type: section
         type: object
@@ -5786,9 +5722,6 @@ properties:
             description: |-
               Set to false to disable traces support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
-            tags:
-            - template_section:CoreAgent
-            comment: Traces settings
           span_name_as_resource_name:
             node_type: setting
             type: boolean
@@ -5797,8 +5730,6 @@ properties:
             description: |-
               If set to true the OpenTelemetry span name will used in the Datadog resource name.
               If set to false the resource name will be filled with the instrumentation library name + span kind.
-            tags:
-            - template_section:CoreAgent
           span_name_remappings:
             node_type: setting
             type: object
@@ -5816,8 +5747,6 @@ properties:
             example: |2-
 
                 <OLD_NAME>: <NEW_NAME>
-            tags:
-            - template_section:CoreAgent
           probabilistic_sampler:
             node_type: section
             type: object
@@ -5844,7 +5773,6 @@ properties:
                   be overridden.
                 tags:
                 - golang_type:float64
-                - template_section:CoreAgent
           infra_attributes:
             node_type: section
             type: object
@@ -5861,8 +5789,21 @@ properties:
                 visibility: public
                 description: Set to false to disable Infra-Attribute-Processor for
                   traces pipeline in the OTLP ingest endpoint.
-                tags:
-                - template_section:CoreAgent
+              container_tag_promotion:
+                node_type: setting
+                type: string
+                default: 'off'
+                visibility: public
+                description: |-
+                  Controls how the Infra-Attribute-Processor promotes custom container tags into
+                  `_dd.tags.container` (visible in the Infrastructure tab) for the traces pipeline.
+                  This setting only affects traces. Accepted values:
+                    off:       tags are written as-is; only keys recognized by the trace-agent reach `_dd.tags.container` (default).
+                    duplicate: write both the original tag and a `datadog.container.tag.<key>` copy.
+                    rename:    write only the `datadog.container.tag.<key>` form (smaller payload).
+                comment: |-
+                  container_tag_promotion controls how the infraattributes processor promotes custom
+                  container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
           internal_port:
             node_type: setting
             type: integer
@@ -5884,12 +5825,6 @@ properties:
               Set to true to enable logs support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
             example: 'true'
-            tags:
-            - template_section:CoreAgent
-            comment: |-
-              NOTE: This only partially works.
-              The environment variable is also manually checked in comp/otelcol/otlp/config.go
-              Logs
           batch:
             node_type: section
             type: object
@@ -5906,8 +5841,6 @@ properties:
                 default: 8192
                 visibility: public
                 description: The minimum number of metrics to batch before sending.
-                tags:
-                - template_section:CoreAgent
               max_size:
                 node_type: setting
                 type: integer
@@ -5915,16 +5848,12 @@ properties:
                 visibility: public
                 description: The maximum number of logs to batch before sending. 0
                   means no limit on the maximum number.
-                tags:
-                - template_section:CoreAgent
               flush_timeout:
                 node_type: setting
                 type: string
                 default: 200ms
                 visibility: public
                 description: The timeout for flushing the batch.
-                tags:
-                - template_section:CoreAgent
       debug:
         node_type: section
         type: object
@@ -5945,8 +5874,6 @@ properties:
             description: |-
               Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
               Valid values are basic, normal, detailed, none.
-            tags:
-            - template_section:CoreAgent
             comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
@@ -5957,6 +5884,7 @@ properties:
         node_type: setting
         type: integer
         default: 0
+        comment: Legacy port keys (unused; 0 = disabled)
   private_action_runner:
     $ref: private_action_runner.yaml
   GUI_host:
@@ -5976,7 +5904,6 @@ properties:
       items:
         type: string
       type: array
-    comment: Forwarder
   agent_ipc:
     node_type: section
     type: object
@@ -6055,6 +5982,103 @@ properties:
     node_type: section
     type: object
     properties:
+      anomaly_scorer:
+        node_type: section
+        type: object
+        properties:
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
+          dry_run:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          high_threshold:
+            node_type: setting
+            type: number
+            default: 0.4
+            tags:
+            - golang_type:float64
+          low_threshold:
+            node_type: setting
+            type: number
+            default: 0.15
+            tags:
+            - golang_type:float64
+          margin_pct:
+            node_type: setting
+            type: number
+            default: 0.2
+            tags:
+            - golang_type:float64
+          output:
+            node_type: section
+            type: object
+            properties:
+              cooldown:
+                node_type: setting
+                type: string
+                default: 5m0s
+                format: duration
+                tags:
+                - golang_type:duration
+              correlation_event_threshold:
+                node_type: setting
+                type: string
+                default: high
+              correlation_events:
+                node_type: setting
+                type: boolean
+                default: false
+              logs:
+                node_type: setting
+                type: boolean
+                default: false
+              max_anomalies:
+                node_type: setting
+                type: integer
+                default: 50
+          saturation_k:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          window:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            tags:
+            - golang_type:duration
+      baseline_analysis:
+        node_type: section
+        type: object
+        properties:
+          duration:
+            node_type: setting
+            type: string
+            default: 10m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Baseline analysis window.
+          mute_noisy_metrics:
+            node_type: setting
+            type: boolean
+            default: true
+          verbose:
+            node_type: setting
+            type: boolean
+            default: false
       debug:
         node_type: section
         type: object
@@ -6076,64 +6100,6 @@ properties:
         node_type: section
         type: object
         properties:
-          anomaly_scorer:
-            node_type: section
-            type: object
-            properties:
-              alpha:
-                node_type: setting
-                type: number
-                default: 0.014
-                tags:
-                - golang_type:float64
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-              saturation_k:
-                node_type: setting
-                type: number
-                default: 5
-                tags:
-                - golang_type:float64
-              window_secs:
-                node_type: setting
-                type: integer
-                default: 15
-                comment: Sliding deduplication window in seconds. An anomaly series
-                  is counted at most once per window.
-              low_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.040
-              high_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.060
-              margin_pct:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.20
-              cooldown_secs:
-                node_type: setting
-                type: integer
-                default: 300
-                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
-              helper:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-                  report_events:
-                    node_type: setting
-                    type: boolean
-                    default: false
           bocpd:
             node_type: section
             type: object
@@ -6243,12 +6209,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        comment: Master switch. When false the entire anomaly detection subsystem
-          is a no-op.
       logs:
         node_type: section
         type: object
@@ -6362,6 +6322,14 @@ properties:
                 default: warn
                 comment: Kubelet journald log rate limits (enabled flag already set
                   above).
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered log-processing rules applied to anomaly-detection log
+              sources.
       metrics:
         node_type: section
         type: object
@@ -6374,6 +6342,14 @@ properties:
               Metrics ingestion gate. When false, externally-ingested metrics
               (DogStatsD, check samplers) are dropped at the handle factory.
               Log-derived virtual metrics are unaffected.
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered metric-processing rules applied at the observer handle
+              boundary.
       recording:
         node_type: section
         type: object
@@ -6442,10 +6418,13 @@ properties:
             type: integer
             default: 50000
             comment: Storage tuning. See storageConfig in the observer component.
-          point_retention_secs:
+          point_retention:
             node_type: setting
-            type: integer
-            default: 120
+            type: string
+            default: 2m0s
+            format: duration
+            tags:
+            - golang_type:duration
   appsec:
     node_type: section
     type: object
@@ -6512,7 +6491,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Cluster autoscaling product
           spot:
             node_type: section
             type: object
@@ -6533,7 +6511,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Spot scheduling
               fallback_duration:
                 node_type: setting
                 type: string
@@ -6570,11 +6547,15 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Workload autoscaling product
           external_recommender:
             node_type: section
             type: object
             properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Enables the external recommender feature.
               tls:
                 node_type: section
                 type: object
@@ -6636,7 +6617,6 @@ properties:
     default: []
     tags:
     - full-agent-only:true
-    comment: Agent Workload Filtering config
   cf_os_hostname_aliasing:
     node_type: setting
     type: boolean
@@ -6736,7 +6716,6 @@ properties:
     default: false
     tags:
     - full-agent-only:true
-    comment: Cluster check runner
   clc_runner_host:
     node_type: setting
     type: string
@@ -6799,7 +6778,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Cloud Foundry
   cloud_foundry_buildpack:
     node_type: setting
     type: boolean
@@ -6820,7 +6798,6 @@ properties:
         node_type: setting
         type: string
         default: /bin/sh
-        comment: Cloud Foundry Container Tagger
     tags:
     - full-agent-only:true
   cluster_trust_chain:
@@ -6859,7 +6836,6 @@ properties:
             default: false
             tags:
             - no-env
-            comment: command line options
   cmd_host:
     node_type: setting
     type: string
@@ -6870,17 +6846,10 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-  common_root:
-    node_type: setting
-    type: string
-    default: ''
-    env_vars:
-    - DD_COMMON_ROOT
-    tags: []
   conf_path:
     node_type: setting
     type: string
-    default: /etc/datadog-agent
+    default: ${conf_path}
   config_files_discovery:
     node_type: section
     type: object
@@ -6889,7 +6858,106 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Config files discovery
+      forwarder:
+        node_type: section
+        type: object
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+            tags:
+            - golang_type:float64
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+            tags:
+            - golang_type:float64
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+            tags:
+            - golang_type:float64
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   container_exclude:
     node_type: setting
     type: array
@@ -6969,7 +7037,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: CSI driver
     tags:
     - full-agent-only:true
   data_observability:
@@ -7102,11 +7169,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Data Plane
       log_file:
         node_type: setting
         type: string
-        default: /var/log/datadog/agent-data-plane.log
+        default: ${log_path}/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -7174,6 +7240,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      serializer_zstd_compressor_level:
+        node_type: setting
+        type: integer
+        default: 3
+        comment: |-
+          ADP-specific zstd compression level, distinct from the core Agent's serializer_zstd_compressor_level
+          (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
+          more efficient than the Agent. Forwarded to ADP over the config stream.
       stop_timeout:
         node_type: setting
         type: integer
@@ -7732,7 +7806,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Data Jobs Monitoring config
     tags:
     - full-agent-only:true
   dogstatsd_capture_depth:
@@ -7786,7 +7859,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Control dogstatsd shutdown behaviors
   dogstatsd_host_socket_path:
     node_type: setting
     type: string
@@ -7796,7 +7868,7 @@ properties:
   dogstatsd_log_file:
     node_type: setting
     type: string
-    default: /var/log/datadog/dogstatsd_info/dogstatsd-stats.log
+    default: ${log_path}/dogstatsd_info/dogstatsd-stats.log
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
@@ -7905,11 +7977,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  dogstatsd_stream_socket:
-    node_type: setting
-    type: string
-    default: ''
-    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_string_interner_size:
     node_type: setting
     type: integer
@@ -7970,7 +8037,6 @@ properties:
     default: false
     tags:
     - full-agent-only:true
-    comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
     type: string
@@ -8025,7 +8091,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Serializer
   enable_payloads:
     node_type: section
     type: object
@@ -8063,7 +8128,6 @@ properties:
     default: true
     env_vars:
     - DD_ENHANCED_METRICS_ENABLED
-    tags: []
   entity_id:
     node_type: setting
     type: string
@@ -8312,7 +8376,6 @@ properties:
     tags:
     - golang_type:duration
     - full-agent-only:true
-    comment: flare configs
   flare_stripped_keys:
     node_type: setting
     type: array
@@ -8342,7 +8405,6 @@ properties:
     node_type: setting
     type: integer
     default: 2
-    comment: Forwarder retry settings
   forwarder_connection_reset_interval:
     node_type: setting
     type: integer
@@ -8372,11 +8434,18 @@ properties:
     type: integer
     default: 0
     comment: Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+  forwarder_stop_wait_for_inflight:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
+      in-flight HTTP transactions to finish before returning (true) or cancels
+      them immediately (false).
   forwarder_storage_path:
     node_type: setting
     type: string
-    default: /opt/datadog-agent/run/transactions_to_retry
-    comment: Forwarder storage on disk
+    default: ${run_path}/transactions_to_retry
   genresources:
     node_type: section
     type: object
@@ -8508,12 +8577,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: |-
-              health_platform.invalidconfig_check.enabled is off by default because the check calls
-              schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
-              (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
-              This adds ~8 MiB of permanent heap even when the agent config is valid.
-              Enable it deliberately if you need schema validation at startup.
+      invalidsysprobeconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       persist_on_kubernetes:
         node_type: setting
         type: boolean
@@ -8575,6 +8646,10 @@ properties:
             node_type: setting
             type: integer
             default: 0
+          port:
+            node_type: setting
+            type: integer
+            default: 0
       debug:
         node_type: section
         type: object
@@ -8583,7 +8658,6 @@ properties:
             node_type: setting
             type: string
             default: ''
-            comment: Host Profiler config
       health_metrics:
         node_type: section
         type: object
@@ -8639,7 +8713,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      IBM cloud
       We use a long timeout here since the metadata and token API can be very slow sometimes.
       value in seconds
   ignore_autoconf:
@@ -8708,7 +8781,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: DatadogInstrumentation controller
     tags:
     - full-agent-only:true
   integration:
@@ -8767,6 +8839,22 @@ properties:
             - windows_service
             items:
               type: string
+            comment: |-
+              Infrastructure basic mode section [UNDOCUMENTED]
+              Note: All checks starting with "custom_" are always allowed.
+              integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+      cloud_cost_only:
+        node_type: section
+        type: object
+        properties:
+          tagged:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
+              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -8824,7 +8912,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      Integration security
       When enabled, integrations will ignore configuration parameters that refer to file paths
       Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
   integration_profiling:
@@ -8867,14 +8954,12 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-    comment: controls the checks configurations
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
     default: true
     tags:
     - full-agent-only:true
-    comment: collect collection of `cloud_provider_account_id`
   inventories_diagnostics_enabled:
     node_type: setting
     type: boolean
@@ -8885,7 +8970,6 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-    comment: inventories
   inventories_first_run_delay:
     node_type: setting
     type: integer
@@ -8976,7 +9060,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Kubernetes actions
       forwarder:
         node_type: section
         type: object
@@ -9207,7 +9290,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Language Detection
       reporting:
         node_type: section
         type: object
@@ -9275,7 +9357,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration (EUDM)
+        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
@@ -9283,7 +9365,6 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      Metadata endpoints
       Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
       endpoints (all cloudprovider except IBM). IBM cloud ignore this setting as their API return a huge JSON with
       all the metadata for the VM.
@@ -9307,7 +9388,6 @@ properties:
       Delegated authentication (global)
       Cloud provider and region are auto-detected if not specified
       Enabled automatically when org_uuid is specified
-      Filterlist
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
@@ -9345,7 +9425,6 @@ properties:
         node_type: setting
         type: string
         default: ''
-        comment: Network
   network_check:
     node_type: section
     type: object
@@ -9354,8 +9433,9 @@ properties:
         node_type: setting
         type: boolean
         platform_default:
-          darwin: false
-          other: true
+          linux: true
+          windows: true
+          other: false
     tags:
     - full-agent-only:true
   notable_events:
@@ -9366,7 +9446,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Notable Events (EUDM)
   ol_proxy_config:
     node_type: section
     type: object
@@ -9468,9 +9547,8 @@ properties:
         env_parser: json
         items:
           type: object
-        comment: |-
-          Prometheus HTTP Service Discovery
-          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+        comment: List of HTTP SD endpoints to poll. Each entry must specify url and
+          check_template.
       url:
         node_type: setting
         type: string
@@ -9524,7 +9602,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: Remote agents
           idle_timeout:
             node_type: setting
             type: string
@@ -9556,7 +9633,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Remote flags
   remote_policies:
     node_type: setting
     type: boolean
@@ -9572,7 +9648,6 @@ properties:
         node_type: setting
         type: integer
         default: 3
-        comment: Remote tagger
     tags:
     - full-agent-only:true
   run_path:
@@ -9599,7 +9674,6 @@ properties:
         node_type: setting
         type: integer
         default: 5010
-        comment: Datadog security agent (common)
       disable_thp:
         node_type: setting
         type: boolean
@@ -9619,7 +9693,6 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY
             - DD_API_KEY
-            tags: []
           block_profile_rate:
             node_type: setting
             type: integer
@@ -9655,7 +9728,6 @@ properties:
             default: false
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED
-            tags: []
           env:
             node_type: setting
             type: string
@@ -9663,7 +9735,6 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_ENV
             - DD_ENV
-            tags: []
           extra_tags:
             node_type: setting
             type: array
@@ -9690,7 +9761,6 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_DD_URL
             - DD_APM_INTERNAL_PROFILING_DD_URL
-            tags: []
           site:
             node_type: setting
             type: string
@@ -9698,7 +9768,6 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE
             - DD_SITE
-            tags: []
           unix_socket:
             node_type: setting
             type: string
@@ -9806,7 +9875,6 @@ properties:
         default: false
         tags:
         - no-env
-        comment: Serverless Agent
       logs_enabled:
         node_type: setting
         type: boolean
@@ -9817,21 +9885,18 @@ properties:
         default: ''
         env_vars:
         - DD_SERVICE_MAPPING
-        tags: []
       trace_enabled:
         node_type: setting
         type: boolean
         default: true
         env_vars:
         - DD_TRACE_ENABLED
-        tags: []
       trace_managed_services:
         node_type: setting
         type: boolean
         default: true
         env_vars:
         - DD_TRACE_MANAGED_SERVICES
-        tags: []
   service_discovery:
     node_type: section
     type: object
@@ -9944,7 +10009,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Shared library check
       library_folder_path:
         node_type: setting
         type: string
@@ -9961,7 +10025,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Software Inventory
       forwarder:
         node_type: section
         type: object
@@ -10160,7 +10223,6 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Telemetry
           Enable telemetry metrics on the internals of the Agent.
           This create a lot of billable custom metrics.
       offlinereporter:
@@ -10219,8 +10281,9 @@ properties:
     node_type: setting
     type: boolean
     platform_default:
-      darwin: false
-      other: true
+      linux: true
+      windows: true
+      other: false
     tags:
     - full-agent-only:true
     comment: |-
@@ -10300,7 +10363,6 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
-    comment: Vsock
   win_skip_com_init:
     node_type: setting
     type: boolean
@@ -10356,7 +10418,9 @@ properties:
             format: duration
             tags:
             - golang_type:duration
-            comment: Remote process collector
+            comment: |-
+              The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
+              check is disabled.
       remote:
         node_type: section
         type: object

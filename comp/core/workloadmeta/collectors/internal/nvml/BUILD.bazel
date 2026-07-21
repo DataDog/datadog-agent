@@ -94,15 +94,15 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/workloadmeta/def",
-            "@//pkg/gpu/safenvml",
-            "@//pkg/gpu/testutil",
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/workloadmeta/def",
-            "@//pkg/gpu/safenvml",
-            "@//pkg/gpu/testutil",
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
         ],

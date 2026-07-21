@@ -313,7 +313,7 @@ func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlistdef.TagMatch
 	fl.updateTagMtx.Unlock()
 }
 
-func NewFilterListReq(req Requires) Provides {
+func NewComponent(req Requires) Provides {
 	filterList := NewFilterList(req.Log, req.Cfg, req.Telemetry)
 
 	var rcListener rctypes.ListenerProvider

@@ -55,7 +55,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	mockConfig := configmock.New(suite.T())
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -96,7 +96,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
-	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
+	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger, nil)
 }
 
 func TestProviderTestSuite(t *testing.T) {

@@ -50,6 +50,10 @@ type TimeSampler struct {
 	// observerHandle is set when the observer component is wired in.
 	// Nil when the feature is disabled or the observer is not included in the binary.
 	observerHandle observer.Handle
+
+	// dogStatsDLookback is set when metric lookback is wired in. Nil when the
+	// feature is disabled, so default DogStatsD hot-path overhead is zero.
+	dogStatsDLookback DogStatsDLookback
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -101,7 +105,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
-		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
+		if !s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate) {
+			return
+		}
 	default:
 		// If it's a new bucket, initialize it
 		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
@@ -112,8 +118,33 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			return
 		}
 	}
+
+	s.observeDogStatsDLookback(metricSample, timestamp, contextKey)
+}
+
+func (s *TimeSampler) observeDogStatsDLookback(metricSample *metrics.MetricSample, timestamp float64, contextKey ckey.ContextKey) {
+	lookback := s.dogStatsDLookback
+	if lookback == nil || !lookback.WantsDogStatsDMetric(metricSample.Name) {
+		return
+	}
+
+	context, ok := s.contextResolver.get(contextKey)
+	if !ok {
+		log.Errorf("TimeSampler #%d Ignoring metric lookback sample on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, contextKey)
+		return
+	}
+
+	lookback.ObserveDogStatsDSample(metricSample, timestamp, DogStatsDLookbackContext{
+		ContextKey: contextKey,
+		Name:       context.Name,
+		Host:       context.Host,
+		Tags:       context.Tags().UnsafeToReadOnlySliceString(),
+		NoIndex:    context.noIndex,
+		Source:     context.source,
+	})
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
@@ -123,13 +154,15 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	}
 
 	ss := &metrics.SketchSeries{
-		Name:     ctx.Name,
-		Tags:     ctx.Tags(),
-		Host:     ctx.Host,
-		Interval: s.interval,
-		Points:   points,
-		Source:   ctx.source,
-		NoIndex:  ctx.noIndex,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     ctx.Name,
+			Tags:     ctx.Tags(),
+			Host:     ctx.Host,
+			Interval: s.interval,
+			Source:   ctx.source,
+			NoIndex:  ctx.noIndex,
+		},
+		Points: points,
 	}
 
 	return ss
@@ -248,6 +281,9 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 
 	s.flushSeries(cutoffTime, series, filterList, forceFlushAll)
 	s.flushSketches(cutoffTime, sketches, forceFlushAll)
+	if s.dogStatsDLookback != nil {
+		s.dogStatsDLookback.FlushDogStatsDBuckets(timestamp, forceFlushAll)
+	}
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
 	s.lastCutOffTime = cutoffTime

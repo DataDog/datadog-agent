@@ -38,6 +38,7 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - cloud_cost_only: Cloud Cost Management lightweight tagging.
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"
@@ -317,14 +318,14 @@ api_key:
 #
 #   series:
 
-#     # @param enabled - string - optional - default: "true"
-#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "true"
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "datadog_only"
 #     # Global default for the non-distribution metrics intake version. Accepted values:
 #     #   - true: v3 for every destination except Observability Pipelines Worker.
 #     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
 #     #   - false: v2 everywhere.
 #
-#     enabled: "true"
+#     enabled: "datadog_only"
 
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
@@ -885,19 +886,19 @@ api_key:
 ## Advanced Configuration ##
 ############################
 
-## @param confd_path - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
-## @env DD_CONFD_PATH - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+## @param confd_path - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+## @env DD_CONFD_PATH - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
 #
-# confd_path: {{ if (eq .OS "linux") }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
+# confd_path: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/conf.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\conf.d"{{else}}"/opt/datadog-agent/etc/conf.d"{{ end }}
 
-## @param additional_checksd - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
-## @env DD_ADDITIONAL_CHECKSD - string - optional - default: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+## @param additional_checksd - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+## @env DD_ADDITIONAL_CHECKSD - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
 ## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
 ## located in the Agent configuration folder.
 #
-# additional_checksd: {{ if (eq .OS "linux") }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
+# additional_checksd: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/etc/datadog-agent/checks.d"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\checks.d"{{else}}"/opt/datadog-agent/etc/checks.d"{{ end }}
 
 ## @param expvar_port - integer - optional - default: 5000
 ## @env DD_EXPVAR_PORT - integer - optional - default: 5000
@@ -911,15 +912,15 @@ api_key:
 #
 # cmd_port: 5001
 
-## @param GUI_port - integer - optional - default: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
-## @env DD_GUI_PORT - integer - optional - default: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
+## @param GUI_port - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
+## @env DD_GUI_PORT - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 ## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
 #
-# GUI_port: {{ if (eq .OS "linux") }}-1{{ else }}5002{{end}}
+# GUI_port: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 
 ## @param GUI_session_expiration - integer - optional - default: 0
 ## @env DD_GUI_SESSION_EXPIRATION - integer - optional - default: 0
@@ -1266,8 +1267,8 @@ api_key:
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
 
-#   # @param auto_multi_line_detection - boolean - optional - default: false
-#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+#   # @param auto_multi_line_detection - boolean - optional - default: true
+#   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: true
 #   # Enable automatic aggregation of multi-line logs for common log patterns.
 #   # More information can be found in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
@@ -1400,15 +1401,15 @@ api_key:
 #
 #   streaming:
 
-#     # @param streamlogs_log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
-#     # @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     # @param streamlogs_log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     # @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
 #     # Path to the file containing the streamlogs log file.
 #     # Default paths:
 #     #   * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
 #     #   * Darwin: /opt/datadog-agent/logs/streamlogs_info/streamlogs.log
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
-#     streamlogs_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
+#     streamlogs_log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/streamlogs_info/streamlogs.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"{{else}}"/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"{{ end }}
 
 {{- end -}}
 {{- if .TraceAgent }}
@@ -1447,15 +1448,15 @@ api_key:
 #
 #   receiver_port: 8126
 
-#   # @param receiver_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
-#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   # @param receiver_socket - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #   #
 #   # Please note that UDS receiver is not available in Windows.
 #   # Enabling this setting may result in unexpected behavior.
 #
-#   receiver_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   receiver_socket: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -2106,11 +2107,11 @@ api_key:
 #
 #   cmd_port: 6162
 
-#   # @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
-#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 #   # The full path to the file where process Agent logs are written.
 #
-#   log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 
 #   # @param intervals - custom object - optional
 #   # The interval, in seconds, at which the Agent runs each check. If you want consistent
@@ -2230,7 +2231,7 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-{{- if (ne .OS "darwin") }}
+{{- if (or (eq .OS "windows") (eq .OS "linux")) }}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -2489,16 +2490,25 @@ api_key:
 #
 # bind_host: localhost
 
-## @param dogstatsd_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## @param dogstatsd_socket - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+## Listen for Dogstatsd metrics on a Unix domain socket (*nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
 ##
 ## Please note that UDS receiver is not available in Windows.
-## Enabling this setting may result in unexpected behavior.
 #
-# dogstatsd_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+# dogstatsd_socket: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
+
+## @param dogstatsd_stream_socket - string - optional - default: ""
+## @env DD_DOGSTATSD_STREAM_SOCKET - string - optional - default: ""
+## Listen for Dogstatsd metrics on a Unix domain socket using stream mode (SOCK_STREAM, *nix only).
+## Set to a valid and existing filesystem path to enable.
+## Set to "" to disable this feature.
+##
+## Please note that this is not available in Windows.
+#
+# dogstatsd_stream_socket: ""
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2662,6 +2672,117 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_workers_count: 1
 
+## @param metric_lookback - custom object - optional
+## Configure the local metric lookback rings. The first supported DogStatsD use
+## case captures selected normal DogStatsD bucketed points/sketches and final
+## no-aggregation points by exact name. An optional monitor can forward retained
+## high-resolution ranges after a watched metric breaches its configured
+## short-window max-minus-min range threshold.
+#
+# metric_lookback:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_METRIC_LOOKBACK_ENABLED - boolean - optional - default: false
+#   # Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed
+#   # by enabled_checks.
+#
+#   enabled: false
+
+#   # @param enabled_checks - list of strings - optional - default: []
+#   # @env DD_METRIC_LOOKBACK_ENABLED_CHECKS - space-separated list of strings - optional - default: []
+#   # Optional check-name allowlist for metric lookback shadow checks. When empty, all supported
+#   # checks are eligible.
+#
+#   enabled_checks: []
+
+#   # @param capacity - integer - optional - default: 262144
+#   # @env DD_METRIC_LOOKBACK_CAPACITY - integer - optional - default: 262144
+#   # Total number of records retained across each lookback ring's shards. Series points and
+#   # sketches use separate rings.
+#
+#   capacity: 262144
+
+#   # @param shard_count - integer - optional - default: 16
+#   # @env DD_METRIC_LOOKBACK_SHARD_COUNT - integer - optional - default: 16
+#   # Number of independent shards used by each lookback ring.
+#
+#   shard_count: 16
+
+#   # @param dogstatsd - custom object - optional
+#   # Configure exact-name DogStatsD admission into metric lookback.
+#
+#   dogstatsd:
+
+#     # @param metric_names - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_DOGSTATSD_METRIC_NAMES - space-separated list of strings - optional - default: []
+#     # Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+#     # auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
+#
+#     metric_names: []
+
+#   # @param monitor - custom object - optional
+#   # Configure a metric lookback monitor for egress.
+#
+#   monitor:
+
+#     # @param mode - string - optional - default: "disabled"
+#     # @env DD_METRIC_LOOKBACK_MONITOR_MODE - string - optional - default: "disabled"
+#     # Controls monitor operation. Valid values are:
+#     #   - disabled: do not run the monitor or monitor-driven egress.
+#     #   - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
+#     #   - enabled: run the monitor and let monitor decisions control egress.
+#
+#     mode: "disabled"
+
+#     # @param metric_name - string - optional - default: ""
+#     # @env DD_METRIC_LOOKBACK_MONITOR_METRIC_NAME - string - optional - default: ""
+#     # Exact metric name watched by the monitor.
+#
+#     metric_name: ""
+
+#     # @param evaluation_interval - duration - optional - default: "30s"
+#     # @env DD_METRIC_LOOKBACK_MONITOR_EVALUATION_INTERVAL - duration - optional - default: "30s"
+#     # Approximate width of each monitor evaluation window. Shorter windows can detect
+#     # breaches sooner; longer windows evaluate more retained points together.
+#
+#     evaluation_interval: "30s"
+
+#     # @param range_epsilon - float - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
+#     # The monitor computes a window range as the maximum retained point value minus the minimum
+#     # retained point value in each completed evaluation window, or in each configured tag partition.
+#     # Egress forwards retained ranges after that window range is greater than this epsilon.
+#
+#     range_epsilon: 0
+
+#     # @param partition_tags - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS - space-separated list of strings - optional - default: []
+#     # Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+#     # monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+#     # tuple independently and breaches if any partition exceeds range_epsilon.
+#
+#     partition_tags: []
+
+#   # @param egress - custom object - optional
+#   # Configure monitor-triggered egress ranges.
+#
+#   egress:
+
+#     # @param pre_trigger_window - duration - optional - default: "0s"
+#     # @env DD_METRIC_LOOKBACK_EGRESS_PRE_TRIGGER_WINDOW - duration - optional - default: "0s"
+#     # Extra retained time to forward before a breach or unknown monitor window.
+#     # This captures context before the monitor-triggering window.
+#
+#     pre_trigger_window: "0s"
+
+#     # @param post_recovery_window - duration - optional - default: "30s"
+#     # @env DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW - duration - optional - default: "30s"
+#     # Extra retained time to forward after the first healthy monitor window that
+#     # suppresses egress. The default approximates the previous two-healthy-window behavior.
+#
+#     post_recovery_window: "30s"
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
@@ -2741,11 +2862,11 @@ api_key:
 #
 # jmx_max_ram_percentage: 25
 
-## @param jmx_log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
-## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+## @param jmx_log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 ## Path of the log file where JMXFetch logs are written.
 #
-# jmx_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+# jmx_log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
@@ -2829,12 +2950,12 @@ api_key:
 #
 # log_level: "info"
 
-## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
-## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
-# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+# log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 
 ## @param log_format_json - boolean - optional - default: false
 ## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
@@ -5103,6 +5224,17 @@ api_key:
 #
 #       enabled: true
 
+#       # @param container_tag_promotion - string - optional - default: "off"
+#       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION - string - optional - default: "off"
+#       # Controls how the Infra-Attribute-Processor promotes custom container tags into
+#       # `_dd.tags.container` (visible in the Infrastructure tab) for the traces pipeline.
+#       # This setting only affects traces. Accepted values:
+#       #   off:       tags are written as-is; only keys recognized by the trace-agent reach `_dd.tags.container` (default).
+#       #   duplicate: write both the original tag and a `datadog.container.tag.<key>` copy.
+#       #   rename:    write only the `datadog.container.tag.<key>` form (smaller payload).
+#
+#       container_tag_promotion: "off"
+
 #   # @param logs - custom object - optional
 #   # Logs-specific configuration for OTLP ingest in the Datadog Agent.
 #
@@ -5221,7 +5353,7 @@ api_key:
 
 #   # @param http_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
-#   # List of allowed URL patterns for HTTP actions.
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 

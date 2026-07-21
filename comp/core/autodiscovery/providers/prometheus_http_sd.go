@@ -23,6 +23,10 @@ import (
 	"sync"
 	"time"
 
+	"reflect"
+
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/ext"
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -42,6 +46,14 @@ type httpSDTargetGroup struct {
 	Labels  map[string]string `json:"labels,omitempty"`
 }
 
+// httpSDTarget is the CEL variable type exposed to exclude_filter expressions.
+// Fields use json tags so CEL resolves them as lowercase names (host, port, labels).
+type httpSDTarget struct {
+	Host   string            `json:"host"`
+	Port   string            `json:"port"`
+	Labels map[string]string `json:"labels"`
+}
+
 // httpSDCheckTemplate represents the check configuration template
 // applied to each discovered target.
 type httpSDCheckTemplate struct {
@@ -56,6 +68,12 @@ type httpSDEntry struct {
 	url           string
 	client        *http.Client
 	checkTemplate httpSDCheckTemplate
+	filterProgram cel.Program // compiled exclude_filter CEL program; nil if no filter
+	// renameLabels mirrors the check template's openmetrics "rename_labels" map.
+	// It is applied to the SD target labels before they are injected as instance
+	// tags, so the same rename_labels the user configures for scraped metrics also
+	// covers the tags derived from the SD response. nil if the template has none.
+	renameLabels map[string]string
 }
 
 // httpSDConfigEntry mirrors a single entry under prometheus_http_sd.configs in
@@ -63,34 +81,47 @@ type httpSDEntry struct {
 type httpSDConfigEntry struct {
 	URL           string `mapstructure:"url" yaml:"url"`
 	CheckTemplate string `mapstructure:"check_template" yaml:"check_template"`
+	// ExcludeFilter is an optional CEL expression that, when it evaluates to true,
+	// causes the target to be skipped. The expression receives a single variable
+	// named "target" with fields "host" (string), "port" (string), and "labels" (map of string to string).
+	ExcludeFilter string `mapstructure:"exclude_filter" yaml:"exclude_filter"`
 }
 
 // buildEntries validates each raw config entry and produces the corresponding
-// httpSDEntry values that share a single HTTP client.
-func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, error) {
-	if len(rawConfigs) == 0 {
-		return nil, errors.New("prometheus_http_sd provider requires at least one endpoint (set prometheus_http_sd.configs)")
-	}
-
+// httpSDEntry values that share a single HTTP client. Invalid entries are
+// skipped and their errors returned alongside the valid entries so the caller
+// can decide whether to abort (all failed) or continue with the remainder.
+func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, []error) {
 	entries := make([]*httpSDEntry, 0, len(rawConfigs))
+	var errs []error
 	for i, raw := range rawConfigs {
 		if raw.URL == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: url is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: url is required", i))
+			continue
 		}
 		if raw.CheckTemplate == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i))
+			continue
 		}
 		tmpl, err := parseCheckTemplate(raw.CheckTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err))
+			continue
+		}
+		filterProg, err := compileExcludeFilter(raw.ExcludeFilter)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %v", i, err))
+			continue
 		}
 		entries = append(entries, &httpSDEntry{
 			url:           raw.URL,
 			client:        sharedClient,
 			checkTemplate: tmpl,
+			filterProgram: filterProg,
+			renameLabels:  extractRenameLabels(tmpl),
 		})
 	}
-	return entries, nil
+	return entries, errs
 }
 
 // PrometheusHTTPSDConfigProvider polls one or more Prometheus HTTP Service
@@ -125,9 +156,12 @@ func NewPrometheusHTTPSDConfigProvider(
 		return nil, err
 	}
 
-	entries, err := buildEntries(rawConfigs, client)
-	if err != nil {
-		return nil, err
+	entries, entryErrs := buildEntries(rawConfigs, client)
+	for _, err := range entryErrs {
+		log.Warnf("prometheus_http_sd: skipping invalid entry: %v", err)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("prometheus_http_sd: all %d entry(ies) failed to initialize", len(rawConfigs))
 	}
 
 	return &PrometheusHTTPSDConfigProvider{
@@ -241,13 +275,18 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 
 	var configs []integration.Config
 	for _, tg := range targetGroups {
-		tags := labelsToTags(tg.Labels)
+		tags := labelsToTags(tg.Labels, e.renameLabels)
 
 		for _, target := range tg.Targets {
 			host, port, splitErr := net.SplitHostPort(target)
 			if splitErr != nil {
 				host = target
 				port = ""
+			}
+
+			if excluded, filterErr := e.isExcluded(host, port, tg.Labels); filterErr == nil && excluded {
+				log.Debugf("http_sd: target %s excluded by filter", target)
+				continue
 			}
 
 			config, buildErr := e.buildConfig(host, port, tags)
@@ -258,6 +297,7 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 			configs = append(configs, config)
 		}
 	}
+
 	return configs, nil
 }
 
@@ -325,8 +365,13 @@ func (e *httpSDEntry) buildConfig(host, port string, tags []string) (integration
 
 // labelsToTags converts HTTP SD labels to Datadog tags.
 // Internal labels (prefixed with __) except __meta_ are skipped.
+// When renameLabels is non-empty, a tag key matching one of its entries is
+// renamed, mirroring the openmetrics check's rename_labels behavior so the same
+// mapping applies to both scraped labels and SD-derived tags. The lookup uses
+// the effective tag key (after the __meta_ prefix is stripped), which is the
+// name the user sees as a tag.
 // Tags are sorted for stable config digests across polls.
-func labelsToTags(labels map[string]string) []string {
+func labelsToTags(labels, renameLabels map[string]string) []string {
 	var tags []string
 	for k, v := range labels {
 		tagKey := k
@@ -335,10 +380,38 @@ func labelsToTags(labels map[string]string) []string {
 		} else if strings.HasPrefix(k, "__") {
 			continue
 		}
+		if renamed, ok := renameLabels[tagKey]; ok {
+			tagKey = renamed
+		}
 		tags = append(tags, tagKey+":"+v)
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+// extractRenameLabels reads the openmetrics "rename_labels" map from the first
+// instance of the check template, if present. The provider is otherwise
+// check-agnostic; this reaches into the openmetrics schema intentionally so the
+// SD-derived tags honor the same rename_labels the user already configures for
+// scraped metrics. Returns nil when the field is absent or malformed.
+func extractRenameLabels(tmpl httpSDCheckTemplate) map[string]string {
+	if len(tmpl.Instances) == 0 {
+		return nil
+	}
+	raw, ok := tmpl.Instances[0]["rename_labels"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	renameLabels := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			renameLabels[k] = s
+		}
+	}
+	if len(renameLabels) == 0 {
+		return nil
+	}
+	return renameLabels
 }
 
 // substituteTemplateVars replaces %%host%% and %%port%% placeholders in a value.
@@ -351,4 +424,44 @@ func substituteTemplateVars(v interface{}, host, port string) interface{} {
 	s = strings.ReplaceAll(s, "%%host%%", host)
 	s = strings.ReplaceAll(s, "%%port%%", port)
 	return s
+}
+
+// compileExcludeFilter compiles a CEL expression into a reusable program.
+// The expression receives a single "target" variable of type httpSDTarget with
+// fields "host" (string), "port" (string), and "labels" (map<string, string>).
+// Returns nil for an empty expression.
+func compileExcludeFilter(expr string) (cel.Program, error) {
+	if expr == "" {
+		return nil, nil
+	}
+	env, err := cel.NewEnv(
+		ext.NativeTypes(reflect.TypeOf(httpSDTarget{}), ext.ParseStructTag("json")),
+		cel.Variable("target", cel.ObjectType("providers.httpSDTarget")),
+	)
+	if err != nil {
+		return nil, err
+	}
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
+	}
+	if ast.OutputType() != cel.BoolType {
+		return nil, fmt.Errorf("exclude_filter must return bool, got %s", ast.OutputType())
+	}
+	return env.Program(ast)
+}
+
+// isExcluded evaluates the entry's exclude_filter against the given target fields.
+// Returns false (not excluded) when no filter is set or evaluation fails.
+func (e *httpSDEntry) isExcluded(host, port string, labels map[string]string) (bool, error) {
+	if e.filterProgram == nil {
+		return false, nil
+	}
+	out, _, err := e.filterProgram.Eval(map[string]any{
+		"target": httpSDTarget{Host: host, Port: port, Labels: labels},
+	})
+	if err != nil {
+		return false, err
+	}
+	return out.Value().(bool), nil
 }

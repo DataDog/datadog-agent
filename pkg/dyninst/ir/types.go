@@ -690,6 +690,11 @@ type RootExpression struct {
 	// read the resolved runtime type from the corresponding DictEntry
 	// in the EventRootType.
 	DictIndex int
+	// Redacted is true when the expression resolves to a sensitive value:
+	// its source references a redacted variable, member, or string map key.
+	// irgen decides this from the parsed expression (the resolved IR keeps
+	// only offsets and a display name); the decoder drops the value.
+	Redacted bool
 }
 
 // RootExpressionKind is the kind of a root expression.

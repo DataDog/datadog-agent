@@ -52,7 +52,7 @@ type Concentrator struct {
 	// peerTagsCache caches the peer-tag attribute key set keyed by the
 	// semantic registry version it was derived from. Readers call
 	// getPeerTagKeys, which rebuilds the cache (via conf.PeerTagsCache) when
-	// the live registry version no longer matches — this is how the
+	// the live registry content_hash no longer matches — this is how the
 	// Concentrator picks up semantic-core RC updates without explicit
 	// notification from the RC handler. The stored snapshot's Keys slice is
 	// never mutated in place; getPeerTagKeys always Stores a fresh snapshot.
@@ -95,12 +95,12 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 
 // getPeerTagKeys returns the cached peer-tag key set, rebuilding it via
 // AgentConfig.PeerTagsCache when the live semantic registry has been replaced
-// (its Version() differs from the cached snapshot's Version). Two concurrent
-// callers that observe staleness may both rebuild and Store; the result is
-// identical so last-Store-wins is benign.
+// (its ContentHash() differs from the cached snapshot's ContentHash). Two
+// concurrent callers that observe staleness may both rebuild and Store; the
+// result is identical so last-Store-wins is benign.
 func (c *Concentrator) getPeerTagKeys() []string {
 	snap := c.peerTagsCache.Load()
-	if snap == nil || snap.Version != semantics.DefaultRegistry().Version() {
+	if snap == nil || snap.ContentHash != semantics.DefaultRegistry().ContentHash() {
 		snap = c.conf.PeerTagsCache()
 		c.peerTagsCache.Store(snap)
 	}
