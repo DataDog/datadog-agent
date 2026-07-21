@@ -7,6 +7,7 @@ go_library(
         "installer_exec_nix.go",
         "installer_exec_windows.go",
         "path.go",
+        "resource_exhaustion.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec",
     visibility = ["//visibility:public"],
@@ -23,7 +24,10 @@ go_library(
 
 go_test(
     name = "exec_test",
-    srcs = ["installer_exec_test.go"],
+    srcs = [
+        "installer_exec_test.go",
+        "resource_exhaustion_test.go",
+    ],
     embed = [":exec"],
     gotags = ["test"],
     deps = [
