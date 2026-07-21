@@ -1,17 +1,6 @@
 ---
 # Cross-compiles the AIX/ppc64 trace-agent and core-agent from a Linux amd64
 # runner, using the GNU cross-toolchain baked into the linux buildimage
-# (dd/experimental/teams/agent-build/aix/toolchain). See
-# AIX-CROSS-BUILD-NOTES.md at the repo root for the full writeup of what
-# this validates and what's still missing (notably: no python/cgo-python
-# support yet, see tasks/libs/common/utils.py).
-.aix_cross_before_script:
-  - !reference [.retrieve_linux_go_deps]
-  # Workaround for a Go linker bug: cmd/link/internal/ld/lib.go hardcodes
-  # "/lib/crt0_64.o" path instead of resolving it through the compiler
-  # Fix upstream: https://go-review.googlesource.com/c/go/+/800880
-  # Remove this step once we're on a Go version that has it.
-  - ln -sf /opt/aix-cross/sysroot/usr/lib/crt0_64.o /lib/crt0_64.o
 
 .cross_build_aix_ppc64:
   stage: binary_build
@@ -26,7 +15,12 @@
     GOOS: aix
     GOARCH: ppc64
   before_script:
-    - !reference [.aix_cross_before_script]
+    - !reference [.retrieve_linux_go_deps]
+    # Workaround for a Go linker bug: cmd/link/internal/ld/lib.go hardcodes
+    # "/lib/crt0_64.o" path instead of resolving it through the compiler
+    # Fix upstream: https://go-review.googlesource.com/c/go/+/800880
+    # Remove this step once we're on a Go version that has it.
+    - ln -sf /opt/aix-cross/sysroot/usr/lib/crt0_64.o /lib/crt0_64.o
 
 cross_build_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
