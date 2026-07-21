@@ -157,9 +157,10 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			}
 			go ta.Run()
 			return &serverlessTraceAgent{
-				ta:          ta,
-				cancel:      cancel,
-				stopTimeout: stopTimeout,
+				ta:            ta,
+				cancel:        cancel,
+				stopTimeout:   stopTimeout,
+				convertTraces: !tc.HasFeature("disable-convert-traces"),
 			}
 		}
 	} else {
@@ -186,6 +187,10 @@ type serverlessTraceAgent struct {
 	ta          *agent.Agent
 	cancel      context.CancelFunc
 	stopTimeout time.Duration
+	// convertTraces reports whether incoming payloads should be converted to
+	// the idx (V1) format and processed on the V1 path. It is the negation of
+	// the disable-convert-traces feature flag, matching the HTTP receiver.
+	convertTraces bool
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -193,9 +198,16 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
-// Process processes a payload in the trace agent.
+// Process processes a payload in the trace agent. When conversion is enabled
+// (the default), the payload is converted to the idx (V1) format and processed
+// on the V1 path; the disable-convert-traces feature flag reverts to the legacy
+// path.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	t.ta.Process(p)
+	if !t.convertTraces {
+		t.ta.Process(p)
+		return
+	}
+	t.ta.ProcessV1(p.ToV1("serverless"))
 }
 
 type taggable interface {

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -173,8 +174,8 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	stats := &teststatsd.Client{}
 
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, stats, &timing.NoopReporter{})
+	out := make(chan *PayloadV1, 1)
+	rcv := NewOTLPReceiver(nil, out, cfg, stats, &timing.NoopReporter{})
 	req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -237,8 +238,8 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	out := make(chan *PayloadV1, 1)
+	rcv := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -254,7 +255,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	case <-timeout:
 		t.Fatal("timed out")
 	case p := <-out:
-		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name)
+		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name())
 	}
 }
 
@@ -265,8 +266,8 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 // the V2 (transform.OtelSpanToDDSpan) receiver path.
 func TestOTLPSampleRateFromTracestate(t *testing.T) {
 	cfg := NewTestConfig(t)
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	out := make(chan *PayloadV1, 1)
+	rcv := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -283,10 +284,38 @@ func TestOTLPSampleRateFromTracestate(t *testing.T) {
 		t.Fatal("timed out")
 	case p := <-out:
 		span := p.TracerPayload.Chunks[0].Spans[0]
-		assert.Equal(t, "ot=th:8", span.Meta["w3c.tracestate"])
-		rate, ok := span.Metrics["_sample_rate"]
+		tracestate, ok := span.GetAttributeAsString("w3c.tracestate")
+		require.True(t, ok, "w3c.tracestate must be set")
+		assert.Equal(t, "ot=th:8", tracestate)
+		rate, ok := span.GetAttributeAsFloat64("_sample_rate")
 		require.True(t, ok, "_sample_rate must be set from tracestate")
 		assert.InDelta(t, 0.5, rate, 1e-9)
+	}
+}
+
+// TestOTLPDisableConvertTraces verifies that with the disable-convert-traces
+// feature flag set, the OTLP receiver emits a legacy pb payload on the out
+// channel instead of converting to the idx (V1) format on outV1.
+func TestOTLPDisableConvertTraces(t *testing.T) {
+	cfg := NewTestConfig(t)
+	cfg.Features["disable-convert-traces"] = struct{}{}
+	out := make(chan *Payload, 1)
+	// outV1 is deliberately nil: nothing should be sent to it on this path.
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			Attributes: map[string]interface{}{},
+			Spans:      []*testutil.OTLPSpan{{Name: "asd"}},
+		},
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out")
+	case p := <-out:
+		require.NotEmpty(t, p.TracerPayload.Chunks)
+		require.NotEmpty(t, p.TracerPayload.Chunks[0].Spans)
 	}
 }
 
@@ -306,12 +335,12 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	out := make(chan *PayloadV1, 1)
+	rcv := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
-		fn func(*pb.TracerPayload)
+		fn func(*idx.InternalTracerPayload)
 	}{
 		{
 			in: []testutil.OTLPResourceSpan{
@@ -324,8 +353,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					}},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -342,8 +371,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("http.server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("http.server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -360,8 +389,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("http.client.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("http.client.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -378,8 +407,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("mysql.query", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("mysql.query", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -395,8 +424,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -412,8 +441,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -432,8 +461,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -453,8 +482,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("kafka.send", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("kafka.send", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -473,8 +502,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -493,8 +522,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -513,8 +542,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -534,8 +563,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws.s3.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("aws.s3.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -554,8 +583,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("grpc.client.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("grpc.client.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -574,8 +603,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("grpc.server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("grpc.server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -595,8 +624,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("gcp.foo.invoke", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("gcp.foo.invoke", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -615,8 +644,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -635,8 +664,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("timer.invoke", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("timer.invoke", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -654,8 +683,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -673,8 +702,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("graphql.server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("graphql.server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -693,8 +722,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("tcp.server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("tcp.server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 		{
@@ -711,8 +740,8 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("server.request", out.Chunks[0].Spans[0].Name)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("server.request", out.Chunks[0].Spans[0].Name())
 			},
 		},
 	} {
@@ -771,7 +800,7 @@ func TestCreateChunks(t *testing.T) {
 			}
 			cfg.OTLPReceiver.ProbabilisticSampling = 50
 			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			const (
 				traceID1 = 123           // sampled by 50% rate
 				traceID2 = 1237892138897 // not sampled by 50% rate
@@ -828,13 +857,13 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	out := make(chan *PayloadV1, 1)
+	rcv := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		enableReceiveResourceSpansV2 bool
 		in                           []testutil.OTLPResourceSpan
-		fn                           func(*pb.TracerPayload)
+		fn                           func(*idx.InternalTracerPayload)
 	}{
 		{
 			in: []testutil.OTLPResourceSpan{
@@ -844,8 +873,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					Attributes: map[string]interface{}{string(semconv.DeploymentEnvironmentKey): "depenv"},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("depenv", out.Env)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("depenv", out.Env())
 			},
 		},
 		{
@@ -856,8 +885,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					Attributes: map[string]interface{}{"deployment.environment.name": "staging"},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("staging", out.Env)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("staging", out.Env())
 			},
 		},
 		{
@@ -871,9 +900,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
-					require.Equal("spanenv", out.Env)
+					require.Equal("spanenv", out.Env())
 				}
 			},
 		},
@@ -888,9 +917,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
-					require.Equal("spanenv2", out.Env)
+					require.Equal("spanenv2", out.Env())
 				}
 			},
 		},
@@ -902,9 +931,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					Attributes: map[string]interface{}{"_dd.hostname": "dd.host"},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
-					require.Equal("dd.host", out.Hostname)
+					require.Equal("dd.host", out.Hostname())
 				}
 			},
 		},
@@ -916,8 +945,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					Attributes: map[string]interface{}{string(semconv.ContainerIDKey): "1234cid"},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
-				require.Equal("1234cid", out.ContainerID)
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Equal("1234cid", out.ContainerID())
 			},
 		},
 		{
@@ -949,20 +978,21 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					// V1 receiver uses k8s.pod.uid as a fallback for container ID.
-					require.Equal("1234cid", out.ContainerID)
+					require.Equal("1234cid", out.ContainerID())
 				} else {
 					// V2 receiver with container tags v2 (default) does not.
-					require.Empty(out.ContainerID)
+					require.Empty(out.ContainerID())
 				}
+				containerTags, _ := out.GetAttributeAsString(tagContainersTags)
 				require.Equal(map[string]string{
 					"kube_job":   "kubejob",
 					"image_name": "lorem-ipsum",
 					"image_tag":  "v2.0",
 					"team":       "otel",
-				}, unflatten(out.Tags[tagContainersTags]))
+				}, unflatten(containerTags))
 			},
 		},
 		{
@@ -976,11 +1006,11 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
-					require.Equal("123cid", out.ContainerID)
+					require.Equal("123cid", out.ContainerID())
 				} else {
-					require.Empty(out.ContainerID)
+					require.Empty(out.ContainerID())
 				}
 			},
 		},
@@ -995,11 +1025,11 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				if !enableReceiveResourceSpansV2 {
-					require.Equal("23cid", out.ContainerID)
+					require.Equal("23cid", out.ContainerID())
 				} else {
-					require.Empty(out.ContainerID)
+					require.Empty(out.ContainerID())
 				}
 			},
 		},
@@ -1024,14 +1054,14 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				require.Len(out.Chunks, 2)
 				if len(out.Chunks[0].Spans) == 2 {
 					// it seems the chunks ended up in the wrong order; that's fine
 					// switch them to ensure assertions are correct
 					out.Chunks[0], out.Chunks[1] = out.Chunks[1], out.Chunks[0]
 				}
-				require.Equal(uint64(0x90a0b0c0d0e0f10), out.Chunks[0].Spans[0].TraceID)
+				require.Equal(uint64(0x90a0b0c0d0e0f10), out.Chunks[0].LegacyTraceID())
 				require.Len(out.Chunks[1].Spans, 2)
 			},
 		},
@@ -1070,7 +1100,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				require.Len(out.Chunks, 4) // 4 traces total
 				// expected priorities by TraceID
 				traceIDPriority := map[uint64]int32{
@@ -1080,7 +1110,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					0x90a0b0c0d0e0f13: 1,
 				}
 				for i := 0; i < 4; i++ {
-					traceID := out.Chunks[i].Spans[0].TraceID
+					traceID := out.Chunks[i].LegacyTraceID()
 					p, ok := traceIDPriority[traceID]
 					require.True(ok, fmt.Sprintf("%v trace ID not found", traceID))
 					require.Equal(p, out.Chunks[i].Priority)
@@ -1099,7 +1129,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					},
 				},
 			},
-			fn: func(out *pb.TracerPayload) {
+			fn: func(out *idx.InternalTracerPayload) {
 				require.Len(out.Chunks, 1)
 				require.Equal(int32(-1), out.Chunks[0].Priority)
 			},
@@ -1120,7 +1150,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 
 	// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
 	// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
-	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
+	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *PayloadV1)) func(t *testing.T) {
 		return func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
 			rcv.ReceiveResourceSpans(context.Background(), rspans, header, nil)
@@ -1157,17 +1187,17 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			},
 		}
 
-		t.Run("default", testAndExpect(testSpans[0], http.Header{}, func(p *Payload) {
+		t.Run("default", testAndExpect(testSpans[0], http.Header{}, func(p *PayloadV1) {
 			require.False(p.ClientComputedStats)
 		}))
 
 		t.Run("header", testAndExpect(testSpans[0], http.Header{
 			header.ComputedStats: []string{"true"},
-		}, func(p *Payload) {
+		}, func(p *PayloadV1) {
 			require.True(p.ClientComputedStats)
 		}))
 
-		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *Payload) {
+		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *PayloadV1) {
 			require.True(p.ClientComputedStats)
 		}))
 
@@ -1182,13 +1212,13 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.K8SPodUIDKey): "123cid"}}},
 			}}
 
-			t.Run("resource_false_bool_no_header", testAndExpect(falseAttrSpans, http.Header{}, func(p *Payload) {
+			t.Run("resource_false_bool_no_header", testAndExpect(falseAttrSpans, http.Header{}, func(p *PayloadV1) {
 				require.False(p.ClientComputedStats)
 			}))
 
 			t.Run("resource_false_bool_overrides_header", testAndExpect(falseAttrSpans, http.Header{
 				header.ComputedStats: []string{"true"},
-			}, func(p *Payload) {
+			}, func(p *PayloadV1) {
 				require.False(p.ClientComputedStats)
 			}))
 
@@ -1203,7 +1233,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 
 			t.Run("resource_false_string_overrides_header", testAndExpect(falseStringAttrSpans, http.Header{
 				header.ComputedStats: []string{"true"},
-			}, func(p *Payload) {
+			}, func(p *PayloadV1) {
 				require.False(p.ClientComputedStats)
 			}))
 		}
@@ -1217,25 +1247,25 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			Spans:      []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.K8SPodUIDKey): "123cid"}}},
 		}}
 
-		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *PayloadV1) {
 			require.False(p.ClientComputedTopLevel)
 		}))
 
 		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
-		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *PayloadV1) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("header", testAndExpect(testSpans, http.Header{
 			header.ComputedTopLevel: []string{"true"},
-		}, func(p *Payload) {
+		}, func(p *PayloadV1) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("headerWithFeatureFlag", testAndExpect(testSpans, http.Header{
 			header.ComputedTopLevel: []string{"true"},
-		}, func(p *Payload) {
+		}, func(p *PayloadV1) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 	})
@@ -1374,8 +1404,8 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		cfg.Hostname = tt.config
-		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		out := make(chan *PayloadV1, 1)
+		rcv := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -1399,7 +1429,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		case <-timeout:
 			t.Fatal("timed out")
 		case p := <-out:
-			assert.Equal(t, tt.out, p.TracerPayload.Hostname)
+			assert.Equal(t, tt.out, p.TracerPayload.Hostname())
 		}
 	}
 }
@@ -1421,7 +1451,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
+		assert.NotNil(t, NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
@@ -1429,7 +1459,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -1445,7 +1475,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -1457,17 +1487,17 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	})
 
 	t.Run("processRequest", func(t *testing.T) {
-		out := make(chan *Payload, 5)
+		out := make(chan *PayloadV1, 5)
 		cfg := NewTestConfig(t)
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
-		ps := make([]*Payload, 2)
+		ps := make([]*PayloadV1, 2)
 		timeout := time.After(time.Second / 2)
 		for i := 0; i < 2; i++ {
 			select {
@@ -2538,7 +2568,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
@@ -2629,7 +2659,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr              map[string]string
 		libname            string
@@ -3255,7 +3285,7 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -3625,7 +3655,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -4458,7 +4488,7 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 		header.Lang:        {"go"},
 		header.ContainerID: {"containerdID"},
 	})
-	out := make(chan *Payload, 100)
+	out := make(chan *PayloadV1, 100)
 	end := make(chan struct{})
 	go func() {
 		defer close(end)
@@ -4476,7 +4506,7 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -4501,7 +4531,7 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 		header.Lang:        {"go"},
 		header.ContainerID: {"containerdID"},
 	})
-	out := make(chan *Payload, 100)
+	out := make(chan *PayloadV1, 100)
 	end := make(chan struct{})
 	go func() {
 		defer close(end)
@@ -4520,7 +4550,7 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -4575,7 +4605,7 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := NewTestConfig(t)
-			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 			span := ptrace.NewSpan()
 			span.SetName("test-span")
