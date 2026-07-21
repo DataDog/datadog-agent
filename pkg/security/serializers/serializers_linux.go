@@ -1510,32 +1510,36 @@ type TraceSerializer struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
+// newTraceSerializer builds a TraceSerializer from the event's span context,
+// falling back to the first ancestor process that carries tracer data. It
+// returns nil when no span context is available so that the "dd" and "trace"
+// JSON keys (both omitempty pointers) are omitted entirely rather than emitted
+// as empty objects.
 func newTraceSerializer(e *model.Event) *TraceSerializer {
-	s := &TraceSerializer{}
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
-		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
-		s.TraceID = e.SpanContext.TraceID.HexString()
-		s.Attributes = e.SpanContext.Attributes
-		return s
+		return &TraceSerializer{
+			SpanID:     strconv.FormatUint(e.SpanContext.SpanID, 10),
+			TraceID:    e.SpanContext.TraceID.HexString(),
+			Attributes: e.SpanContext.Attributes,
+		}
 	}
 
 	ctx := eval.NewContext(e)
 	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
-	ptr := it.Front(ctx)
 
-	for ptr != nil {
+	for ptr := it.Front(ctx); ptr != nil; ptr = it.Next(ctx) {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
 		if pce.Tracer.Trace.SpanID != 0 && (pce.Tracer.Trace.TraceID.Hi != 0 || pce.Tracer.Trace.TraceID.Lo != 0) {
-			s.SpanID = strconv.FormatUint(pce.Tracer.Trace.SpanID, 10)
-			s.TraceID = pce.Tracer.Trace.TraceID.HexString()
-			s.Attributes = pce.Tracer.Trace.Attributes
-			break
+			return &TraceSerializer{
+				SpanID:     strconv.FormatUint(pce.Tracer.Trace.SpanID, 10),
+				TraceID:    pce.Tracer.Trace.TraceID.HexString(),
+				Attributes: pce.Tracer.Trace.Attributes,
+			}
 		}
-
-		ptr = it.Next(ctx)
 	}
-	return s
+
+	return nil
 }
 
 //nolint:unused
