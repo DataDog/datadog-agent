@@ -41,6 +41,18 @@ bazel:test:linux-amd64:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
+# THROWAWAY: reproduce the edge remote-cache locally-vs-uploaded hit-rate
+# question, from inside the k8s cluster where cache:edge is reachable.
+# Not meant to be merged.
+bazel:edge-cache-repro:
+  extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
+  script:
+    - TARGETS="//pkg/collector/aggregator:aggregator @@gazelle++go_deps+com_github_google_go_containerregistry//pkg/v1/empty:empty @@gazelle++go_deps+com_github_google_go_containerregistry//pkg/v1/mutate:mutate"
+    - echo "=== RUN 1: fresh output base, edge cache, upload enabled by default CI config ==="
+    - bazel --output_base=/tmp/verify_ob1_$CI_JOB_ID build --disk_cache= $TARGETS
+    - echo "=== RUN 2: different fresh output base, edge cache, read-only check ==="
+    - bazel --output_base=/tmp/verify_ob2_$CI_JOB_ID build --disk_cache= $TARGETS
+
 bazel:test:linux-arm64:
   extends: [ .bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test ]
   script:
