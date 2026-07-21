@@ -60,7 +60,7 @@ class Arch:
             return f"{self.gcc_arch}-apple-darwin23"
         elif platform == "linux":
             return f"{self.gcc_arch}-linux-gnu"
-        elif platform == "windows":
+        elif platform in {"windows", "win32"}:
             return f"{self.gcc_arch}-w64-mingw32"
         elif platform == "aix":
             # AIX cross-compiler triplet uses "powerpc" (not "powerpc64"); 64-bit mode
