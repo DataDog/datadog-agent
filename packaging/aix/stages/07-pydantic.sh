@@ -161,11 +161,8 @@ else
 
     log "pydantic-core build complete"
 
-    # Cache the built wheel for next time. maturin>=1.14.1 (pulled in by
-    # pydantic-core's own build-system.requires: maturin>=1.9.4,<2) tags it
-    # correctly for this host, so no renaming is needed. The cache is
-    # per-build-host — the wheel is a native binary specific to this AIX
-    # version — but that is acceptable.
+    # Cache the built wheel for next time. The cache is per-build-host — the wheel
+    # is a native binary specific to this AIX version — but that is acceptable.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
