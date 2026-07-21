@@ -326,6 +326,9 @@ new-e2e-containers-kind-local:
     - !reference [.new_e2e_template_before_script_pre_acr]
     - !reference [.new_e2e_template_before_script_post_acr]
     - curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64" && chmod +x ./kind && mv ./kind /usr/local/bin/kind
+    # The job image doesn't ship the docker CLI; install a static build to talk to the
+    # docker-in-docker runner's daemon (kind shells out to `docker`).
+    - curl --retry 10 -fsSLo /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz" && tar -xzf /tmp/docker.tgz -C /tmp && mv /tmp/docker/docker /usr/local/bin/docker && rm -rf /tmp/docker.tgz /tmp/docker
   script:
     - !reference [.new_e2e_template_script_pre_dynamic_tests]
     - export DYNAMIC_TESTS_BREAKGLASS="false"
