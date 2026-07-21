@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM V1 trace endpoint now safely skips unknown fields.
