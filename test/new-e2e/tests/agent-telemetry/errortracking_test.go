@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -101,7 +102,7 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for both Python-path and Go-core error logs")
 
 	for _, l := range append(pythonLogs, coreLogs...) {
-		assertCommonLogShape(s.T(), l)
+		assertCommonLogShape(s.T(), l, flavor.DefaultAgent)
 	}
 
 	// Python path: log.Error(string) carries no error-typed slog attribute,
@@ -123,8 +124,12 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 }
 
 // assertCommonLogShape checks wire-shape properties that must hold for every
-// agent-logs record regardless of the error's origin.
-func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog) {
+// agent-logs record regardless of the error's origin. expectedFlavor is the
+// pkg/util/flavor value of the binary that emitted the log (e.g.
+// flavor.DefaultAgent, flavor.SecurityAgent) — each binary tags its own logs
+// via agent.flavor, so callers running a non-core-agent binary must pass
+// their own flavor rather than assume the core agent's.
+func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog, expectedFlavor string) {
 	t.Helper()
 	assert.Equal(t, "ERROR", l.Level)
 	assert.False(t, l.IsCrash, "agent error logs are not crash reports")
@@ -142,10 +147,9 @@ func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog) {
 		"tags must carry git.repository_url for Source Code Integration")
 	assert.True(t, commitSHARe.MatchString(l.Tags),
 		"tags must carry a 40-char git.commit.sha; got: %q", l.Tags)
-	// Origin tag: this suite runs the core agent binary, so agent.flavor
-	// must identify it as such — COAT uses this to attribute errors across
-	// the agent, cluster-agent, process-agent, etc.
-	assert.Contains(t, l.Tags, "agent.flavor:agent",
+	// Origin tag: COAT uses agent.flavor to attribute errors across the
+	// agent, cluster-agent, process-agent, etc.
+	assert.Contains(t, l.Tags, "agent.flavor:"+expectedFlavor,
 		"tags must carry agent.flavor identifying the emitting binary; got: %q", l.Tags)
 }
 
