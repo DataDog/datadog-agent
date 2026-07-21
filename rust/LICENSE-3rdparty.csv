@@ -96,7 +96,7 @@ itoa,https://github.com/dtolnay/itoa,MIT OR Apache-2.0,David Tolnay <dtolnay@gma
 js-sys,https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys,MIT OR Apache-2.0,The wasm-bindgen Developers
 jwalk,https://github.com/byron/jwalk,MIT,"Jesse Grosjean <jesse@hogbaysoftware.com>, Sebastian Thiel <byronimo@gmail.com>"
 leb128fmt,https://github.com/bluk/leb128fmt,MIT OR Apache-2.0,Bryant Luk <code@bryantluk.com>
-libc,https://github.com/rust-lang/libc,MIT OR Apache-2.0,The Rust Project Developers
+libc,https://github.com/rust-lang/libc,MIT OR Apache-2.0,The libc Authors
 linux-raw-sys,https://github.com/sunfishcode/linux-raw-sys,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
 litemap,https://github.com/unicode-org/icu4x,Unicode-3.0,The ICU4X Project Developers
 litrs,https://github.com/LukasKalbertodt/litrs,MIT OR Apache-2.0,Lukas Kalbertodt <lukas.kalbertodt@gmail.com>
