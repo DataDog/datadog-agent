@@ -339,7 +339,7 @@ require (
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f
+	github.com/netsampler/goflow2/v2 v2.2.6
 	github.com/oliveagle/jsonpath v0.1.4
 	github.com/open-policy-agent/opa v1.18.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
