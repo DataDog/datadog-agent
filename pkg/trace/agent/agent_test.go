@@ -4804,11 +4804,11 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		}
 		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, debug)
 		require.NotNil(t, p.TracerPayload.ContainerDebug)
-		assert.Equal(t, "timed out", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, "timed out", strings.Get(p.TracerPayload.ContainerDebug.ErrorRef))
 		assert.Equal(t, int64(150), p.TracerPayload.ContainerDebug.LatencyMs)
 		assert.True(t, p.TracerPayload.ContainerDebug.WasBuffered)
 		assert.Equal(t, int64(200), p.TracerPayload.ContainerDebug.BufferMs)
-		assert.Equal(t, "timeout", p.TracerPayload.ContainerDebug.BufferEvictionReason)
+		assert.Equal(t, "timeout", strings.Get(p.TracerPayload.ContainerDebug.BufferEvictionReasonRef))
 		val, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
 		require.True(t, ok)
 		assert.Equal(t, "env:prod", val)
@@ -4840,7 +4840,7 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		}
 		enrichTracesWithCtagsV1(p, nil, errors.New("resolution failed"), debug)
 		require.NotNil(t, p.TracerPayload.ContainerDebug)
-		assert.Equal(t, "resolution failed", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, "resolution failed", strings.Get(p.TracerPayload.ContainerDebug.ErrorRef))
 		// tags should not be set on error
 		_, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
 		assert.False(t, ok)

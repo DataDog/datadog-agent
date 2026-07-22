@@ -81,13 +81,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
-#   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
-# because //pkg/util/kubernetes/kubelet depends on //pkg/util/kubernetes. Go build
-# tags hide this in single-config compiles; Bazel analyzes the full target graph.
-# TODO: break the cycle (e.g. move GetKubeAPIServerHostname to another package, or
-# trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
-# gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config

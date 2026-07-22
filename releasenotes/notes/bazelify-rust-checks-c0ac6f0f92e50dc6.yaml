@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Rust shared-library checks are now built with Bazel, which enables
+    running their unit tests and clippy lint checks in CI as part of the
+    build.

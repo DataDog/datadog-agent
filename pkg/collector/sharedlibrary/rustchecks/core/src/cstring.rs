@@ -3,6 +3,7 @@ use anyhow::{Ok, Result, bail};
 use std::ffi::{CStr, CString, c_char};
 
 /// Convert C-String pointer to Rust String
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
     if ptr.is_null() {
         bail!("pointer to C-String is null, can't convert to Rust String")
