@@ -20,11 +20,41 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// capsForAmbient lists the capabilities the profiler needs in its effective set. They must match
+// securityContext.capabilities.add and the file caps set on the binary.
+var capsForAmbient = []uintptr{
+	unix.CAP_BPF,
+	unix.CAP_PERFMON,
+	unix.CAP_SYS_PTRACE,
+	unix.CAP_SYS_RESOURCE,
+	unix.CAP_DAC_READ_SEARCH,
+	unix.CAP_SYSLOG,
+	unix.CAP_CHECKPOINT_RESTORE,
+	unix.CAP_IPC_LOCK,
+}
+
 func main() {
+	// When running as non-root, file capabilities populate the permitted set at exec time but not the ambient set.
+	// Raise each cap to ambient so that it lands in the effective set for this process. Must happen before
+	// PR_SET_NO_NEW_PRIVS locks ambient raising.
+	for _, cap := range capsForAmbient {
+		if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_RAISE, cap, 0, 0); err != nil {
+			// Running as root or cap not in permitted set — not fatal, skip silently.
+			break
+		}
+	}
+
 	// Prevent this process and all children from gaining new privileges via
 	// setuid binaries or file capabilities. Inherited across fork/exec.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set PR_SET_NO_NEW_PRIVS: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Clear the ambient set so forked children (e.g. objcopy) don't inherit our caps.
+	// PR_SET_NO_NEW_PRIVS does not clear ambient; we must do it explicitly.
+	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to clear ambient capabilities: %v\n", err)
 		os.Exit(1)
 	}
 
