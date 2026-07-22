@@ -405,6 +405,47 @@ collision_key_gauge{emitter="spoofed-two",a="b",c="d:e"} 20
 	require.Equal(t, map[string]string{"a": "b", "c": "d:e", emitterMetricTagName: "registered-agent"}, labelsByValue[20])
 }
 
+func TestGetTelemetryKeepsFirstIncompatibleHistogramCollision(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, lc.Stop(context.Background()))
+	})
+
+	promText := `
+# HELP incompatible_collision_histogram Histogram samples with incompatible layouts
+# TYPE incompatible_collision_histogram histogram
+incompatible_collision_histogram_bucket{emitter="first",source="same",le="0.5"} 100
+incompatible_collision_histogram_bucket{emitter="first",source="same",le="+Inf"} 100
+incompatible_collision_histogram_sum{emitter="first",source="same"} 50
+incompatible_collision_histogram_count{emitter="first",source="same"} 100
+incompatible_collision_histogram_bucket{emitter="second",source="same",le="1"} 1
+incompatible_collision_histogram_bucket{emitter="second",source="same",le="+Inf"} 1
+incompatible_collision_histogram_sum{emitter="second",source="same"} 1
+incompatible_collision_histogram_count{emitter="second",source="same"} 1
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricFamily := metricsToMap(metrics)["incompatible_collision_histogram"]
+	require.NotNil(t, metricFamily)
+	require.Len(t, metricFamily.GetMetric(), 1)
+
+	metric := metricFamily.GetMetric()[0]
+	requireRegisteredEmitter(t, metric, "registered-agent")
+	require.Equal(t, "same", metricLabelValue(metric, "source"))
+	require.Equal(t, uint64(100), metric.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(50), metric.GetHistogram().GetSampleSum())
+	bucketCounts := make(map[float64]uint64)
+	for _, bucket := range metric.GetHistogram().GetBucket() {
+		bucketCounts[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+	}
+	require.Equal(t, map[float64]uint64{0.5: 100, math.Inf(1): 100}, bucketCounts)
+}
+
 func requireRegisteredEmitter(t *testing.T, metric *io_prometheus_client.Metric, expected string) {
 	t.Helper()
 	emitterCount := 0
