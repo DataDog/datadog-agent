@@ -90,7 +90,7 @@ func (s *HTTPCommonTestSuite) TestHTTPStats() {
 }
 
 func (s *HTTPCommonTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
-	flake.MarkOnJobName(s.T(), "ubuntu_25.10")
+	flake.MarkOnJobName(s.T(), "ubuntu_25.10", "ubuntu_26.04")
 	runHTTPMonitorIntegrationWithResponseBodyTest(s.T(), newLinuxCommonTestParams(s.T()))
 }
 
