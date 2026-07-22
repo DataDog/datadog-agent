@@ -8,7 +8,6 @@ go_library(
         "const.go",
         "doc.go",
         "helpers.go",
-        "hostname_stub.go",
         "resource.go",
         "tags.go",
         "time.go",
