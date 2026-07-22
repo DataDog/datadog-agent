@@ -31,6 +31,15 @@ func buildReceivers(conf confMap, agent configManager) []any {
 
 	profiling := make(confMap)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
+	if agent.hostProfilerConfig.HeapProfiling {
+		profiling["heap_profiling"] = true
+	}
+	if agent.hostProfilerConfig.LiveHeapProfiling {
+		profiling["live_heap_profiling"] = true
+	}
+	if agent.hostProfilerConfig.Tracers != "" {
+		profiling["tracers"] = agent.hostProfilerConfig.Tracers
+	}
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {

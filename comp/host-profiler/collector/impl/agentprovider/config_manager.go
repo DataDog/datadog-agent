@@ -36,6 +36,9 @@ type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
 	DDProfiling           ddProfilingConfig
+	HeapProfiling         bool
+	LiveHeapProfiling     bool
+	Tracers               string
 	HealthMetrics         healthMetricsConfig
 	HPFlare               hpFlareConfig
 }
@@ -104,6 +107,9 @@ func newConfigManager(config config.Component) configManager {
 			Period:  config.GetInt("hostprofiler.ddprofiling.period"),
 			Port:    config.GetInt("hostprofiler.ddprofiling.port"),
 		},
+		HeapProfiling:     config.GetBool("hostprofiler.heap_profiling"),
+		LiveHeapProfiling: config.GetBool("hostprofiler.live_heap_profiling"),
+		Tracers:           config.GetString("hostprofiler.tracers"),
 		HealthMetrics: healthMetricsConfig{
 			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
 			Target:  config.GetString("hostprofiler.health_metrics.target"),

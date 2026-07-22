@@ -8658,6 +8658,19 @@ properties:
             node_type: setting
             type: string
             default: ''
+            comment: Host Profiler config
+      heap_profiling:
+        node_type: setting
+        type: boolean
+        default: false
+      live_heap_profiling:
+        node_type: setting
+        type: boolean
+        default: false
+      tracers:
+        node_type: setting
+        type: string
+        default: ''
       health_metrics:
         node_type: section
         type: object

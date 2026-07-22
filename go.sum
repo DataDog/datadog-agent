@@ -2577,8 +2577,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260710090740-d9125b4c5568 h1:/PzYkLJEFtwE0khmy3X0j/LIWoMtNqpa5Urukgwijyo=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260710090740-d9125b4c5568/go.mod h1:7QXgahrL0BuXFVnhw3vQUDftsjwabS02euIaNqPEleY=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260717072302-4a9b869ea846 h1:d7Sk6lDUzX2hGyZHutyaBLX3PsIJ90wL4SXHvf48ut0=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260717072302-4a9b869ea846/go.mod h1:jiY7chAs47yA2cqr7lyVPUwTjfoyh5aTZIkWjD+ZSIE=
 github.com/DataDog/rshell v0.0.23 h1:SswT3UUSHu3wFZIcWiV1sBze3JC8bROUG9B1seB5oYE=
 github.com/DataDog/rshell v0.0.23/go.mod h1:DOG14otU3LPZ7P0L9Kdk4nWEbQMMpgk21C9vEdGI/bg=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -4522,6 +4522,8 @@ github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c h1:vwpFWvAO8D
 github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c/go.mod h1:otzZQXgoO96RTzDB/Hycg0qZcXZsWJGJRSXbmEIJ+4M=
 github.com/pandatix/go-cvss v0.6.2 h1:TFiHlzUkT67s6UkelHmK6s1INKVUG7nlKYiWWDTITGI=
 github.com/pandatix/go-cvss v0.6.2/go.mod h1:jDXYlQBZrc8nvrMUVVvTG8PhmuShOnKrxP53nOFkt8Q=
+github.com/parca-dev/usdt v0.0.2 h1:bpKQycQ++zV8pwkMaJSxZS07XnEXqO3rkHcLYFJDTl4=
+github.com/parca-dev/usdt v0.0.2/go.mod h1:bjh3OTksk+pyP7WsHWlRKWaMSJTUr0gx0piZ/tAv6/w=
 github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0MwY=
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=

@@ -22,7 +22,7 @@ metadata:
     # Enable the Host Profiler sidecar and set the preview Host Profiler image.
     agent.datadoghq.com/host-profiler-enabled: "true"
     experimental.agent.datadoghq.com/image-override-config: |
-      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
+      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:dev-hp-preview-1.0-09ad4bc1-zstd-nydus"}}
 spec:
   override:
     nodeAgent:

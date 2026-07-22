@@ -9,7 +9,7 @@ mode: daemonset
 # Host Profiler preview image. Update the tag when using a newer preview build.
 image:
   repository: registry.datadoghq.com/ddot-ebpf
-  tag: 7.81.0-preview-host-profiler-1.0
+  tag: dev-hp-preview-1.0-09ad4bc1-zstd-nydus
 
 # Environment variables used by helm/collector-config-values.yaml.
 extraEnvs:
