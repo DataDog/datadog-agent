@@ -100,7 +100,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		if isMacOSPoolMember {
 			releaseOpts := []pulumi.ResourceOption{pulumi.Parent(c), pulumi.DependsOn([]pulumi.Resource{instance}), e.WithProviders(config.ProviderCommand)}
 
-			if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, releaseOpts...); err != nil {
+			if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, poolAcquired.ImageID, releaseOpts...); err != nil {
 				return err
 			}
 		}

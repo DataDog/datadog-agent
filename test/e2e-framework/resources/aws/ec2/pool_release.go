@@ -22,10 +22,15 @@ import (
 // provisioner program that created it — cleanup can only happen through a
 // resource's own provider-level Delete, not through Go code run after the fact.
 //
+// imageID is the baseline AMI published by the external provisioning job into
+// instanceID's S3 lease record (AcquireResult.ImageID); it may be empty if that
+// job hasn't published one for this instance yet, in which case the Delete
+// handler skips the root-volume replacement but still releases the lease.
+//
 // leaseToken is passed via Triggers, matching ReplaceRootVolumeToLaunchState's
 // pattern, so a new lease on the same instance always produces a fresh trigger
 // value even though instanceID doesn't change between cycles.
-func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string, leaseToken string, opts ...pulumi.ResourceOption) (*local.Command, error) {
+func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string, leaseToken string, imageID string, opts ...pulumi.ResourceOption) (*local.Command, error) {
 	if instanceID == "" {
 		return nil, fmt.Errorf("instanceID is required to schedule a pool release")
 	}
@@ -35,7 +40,7 @@ func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string,
 
 	return local.NewCommand(e.Ctx(), e.Namer.ResourceName(name), &local.CommandArgs{
 		Create:      pulumi.String("true"),
-		Delete:      pulumi.String(pool.BuildReleaseScript(instanceID, leaseToken)),
+		Delete:      pulumi.String(pool.BuildReleaseScript(instanceID, leaseToken, imageID)),
 		Environment: awsCommandEnvironment(e),
 		Triggers:    pulumi.Array{pulumi.String(leaseToken)},
 	}, opts...)
