@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add ``k8sclusterreceiver``, ``k8sleaderelector``, and ``countconnector`` to the DDOT
+    (Datadog Distribution of OpenTelemetry Collector) default manifest, enabling collection
+    of Kubernetes cluster-level metrics, leader election coordination for Kubernetes receivers,
+    and count-based metric generation via the OpenTelemetry Collector pipeline.

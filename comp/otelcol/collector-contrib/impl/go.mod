@@ -6,11 +6,13 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.156.0
@@ -32,6 +34,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.156.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.156.0
@@ -72,7 +75,6 @@ require (
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.80.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.80.4 // indirect
@@ -329,7 +331,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.32.0 // indirect
 	github.com/onsi/gomega v1.42.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.156.0 // indirect
