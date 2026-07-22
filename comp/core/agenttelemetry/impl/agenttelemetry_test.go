@@ -2391,6 +2391,29 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.events) > 0)
 	assert.True(t, len(atCfg.schedule) > 0)
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
+
+	var logsAndMetricsProfile *Profile
+	for _, profile := range atCfg.Profiles {
+		if profile.Name == "logs-and-metrics" {
+			logsAndMetricsProfile = profile
+			break
+		}
+	}
+	require.NotNil(t, logsAndMetricsProfile)
+	require.NotNil(t, logsAndMetricsProfile.Metric)
+
+	for _, metricName := range []string{"transactions.requeued", "transactions.retries"} {
+		var metricConfig *MetricConfig
+		for i := range logsAndMetricsProfile.Metric.Metrics {
+			metric := &logsAndMetricsProfile.Metric.Metrics[i]
+			if metric.Name == metricName {
+				metricConfig = metric
+				break
+			}
+		}
+		require.NotNilf(t, metricConfig, "default profile metric %q not found", metricName)
+		assert.Equal(t, []string{"emitter"}, metricConfig.PreserveTags)
+	}
 }
 
 func TestAgentTelemetryEventConfiguration(t *testing.T) {
