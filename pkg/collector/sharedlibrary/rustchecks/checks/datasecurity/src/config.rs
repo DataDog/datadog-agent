@@ -16,7 +16,6 @@ impl CheckConfig {
     }
 }
 
-
 /// Instance configuration for the datasecurity check.
 ///
 /// Kept in its own module so the deserialization surface of the check instance

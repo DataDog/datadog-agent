@@ -45,8 +45,7 @@ fn run_sub_task(check: &AgentCheck, config: &CheckConfig, sub_task: &SubTask) ->
     );
 
     // TODO(DSEC-140): send sdsresult rather than an event
-    let payload_json =
-        serde_json::to_string(&payload).context("serializing scan event payload")?;
+    let payload_json = serde_json::to_string(&payload).context("serializing scan event payload")?;
     check.event(
         "datasecurity scan result",
         &payload_json,
