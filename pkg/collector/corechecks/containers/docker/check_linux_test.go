@@ -95,7 +95,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 		return routeForPID[pid], nil
 	}
 
-	mockSender := mocksender.NewMockSender("docker-network-extension")
+	mockSender := mocksender.NewMockSender(t, "docker-network-extension")
 	mockSender.SetupAcceptAll()
 
 	mockCollector := mock.NewCollector("testCollector")

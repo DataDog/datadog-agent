@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -174,11 +175,11 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	var title, direction string
 	switch evt.Kind {
 	case observerdef.CorrelatorEventEpisodeStarted:
-		title = fmt.Sprintf("Anomaly scorer: high severity started (%s → %s)",
+		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
 			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
 		direction = "started"
 	case observerdef.CorrelatorEventEpisodeEnded:
-		title = fmt.Sprintf("Anomaly scorer: high severity ended (%s → %s)",
+		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
 			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
 		direction = "ended"
 	default:
@@ -187,7 +188,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := fmt.Sprintf("Anomaly scorer %q high-severity episode %s at t=%d\nPattern: %s",
+	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
 		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
 
 	var host string
@@ -250,13 +251,13 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 }
 
 // severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(level observerdef.SeverityLevel) string {
+func severityLevelName(level severityeventsdef.SeverityLevel) string {
 	switch level {
-	case observerdef.SeverityLow:
+	case severityeventsdef.SeverityLow:
 		return "low"
-	case observerdef.SeverityMedium:
+	case severityeventsdef.SeverityMedium:
 		return "medium"
-	case observerdef.SeverityHigh:
+	case severityeventsdef.SeverityHigh:
 		return "high"
 	default:
 		return fmt.Sprintf("level(%d)", int(level))

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,6 +51,19 @@ const (
 	// idle stretches.
 	maxRetryAfter = 2 * time.Minute
 )
+
+// ErrJobNotFound means the task no longer exists remotely; callers stop heartbeating.
+var ErrJobNotFound = errors.New("job not found")
+
+// HTTPError carries the HTTP status code of an unexpected response.
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("request failed with status code %d and body %s", e.StatusCode, e.Body)
+}
 
 type DequeueJSONRequest struct {
 	ID                 string `jsonapi:"primary,dequeue"`
@@ -370,6 +384,10 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 	}
 
 	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("%w: %v", ErrJobNotFound, err)
+		}
 		return fmt.Errorf("error sending heartbeat: %w", err)
 	}
 
@@ -449,7 +467,7 @@ func (c *client) makeRequest(
 	}
 
 	if len(expectedStatusCodes) != 0 && !slices.Contains(expectedStatusCodes, res.StatusCode) {
-		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s", res.StatusCode, resBody)
+		return nil, res.Header, &HTTPError{StatusCode: res.StatusCode, Body: string(resBody)}
 	}
 
 	return resBody, res.Header, nil

@@ -31,11 +31,11 @@ func configBoolDefaultTrue(cfg config.Component, key string) bool {
 	return !cfg.IsConfigured(key) || cfg.GetBool(key)
 }
 
-func (s logSourceSettings) shouldStart(observerAvailable, workloadmetaAvailable, analysisEnabled, recordingEnabled bool) bool {
+func (s logSourceSettings) shouldStart(observerAvailable, workloadmetaAvailable, observerRequired, recordingEnabled bool) bool {
 	if !observerAvailable {
 		return false
 	}
-	if !recordingEnabled && (!analysisEnabled || !s.logsEnabled) {
+	if !recordingEnabled && (!observerRequired || !s.logsEnabled) {
 		return false
 	}
 	return s.kubeletSourceEnabled || (s.containerSourcesEnabled && workloadmetaAvailable)

@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "monitor",
+    srcs = ["process_monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/monitor",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/eventmonitor/consumers",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/runtime",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "//pkg/util/log",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/eventmonitor/consumers",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/runtime",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "//pkg/util/log",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "monitor_test",
+    srcs = ["process_monitor_test.go"],
+    embed = [":monitor"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/eventmonitor/consumers/testutil",
+        "//pkg/network/protocols/telemetry",
+        "//pkg/util/kernel/netns",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@com_github_vishvananda_netns//:netns",
+    ],
+)

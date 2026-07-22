@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "runner",
+    srcs = [
+        "runner.go",
+        "runner_nopython.go",
+        "runner_python.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/python",
+        "//pkg/collector/runner/tracker",
+        "//pkg/collector/scheduler",
+        "//pkg/collector/worker",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "runner_test",
+    srcs = ["runner_test.go"],
+    embed = [":runner"],
+    deps = [
+        "//comp/haagent/mock",
+        "//pkg/aggregator",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stub",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/scheduler",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

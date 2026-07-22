@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -11,6 +12,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
+        "//comp/metadata/host/impl/utils",
         "//comp/metadata/internal/util",
         "//comp/metadata/inventoryhost/def",
         "//comp/metadata/packagesigning/utils",
@@ -26,21 +28,20 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/uuid",
         "//pkg/version",
-        "@//comp/metadata/host/impl/utils",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["inventoryhost_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/metadata/host/impl/utils",
         "//comp/metadata/packagesigning/utils",
         "//pkg/gohai/cpu",
         "//pkg/gohai/memory",
@@ -53,7 +54,6 @@ go_test(
         "//pkg/util/dmi",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@//comp/metadata/host/impl/utils",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_fx//:fx",
     ],

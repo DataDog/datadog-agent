@@ -97,6 +97,35 @@ int rethook_dev_new_index(ctx_t *ctx) {
     return 0;
 };
 
+// Since kernel 6.6, dev_new_index was replaced by dev_index_reserve(struct net *net, u32 ifindex),
+// which reserves and returns the ifindex just like dev_new_index did.
+HOOK_ENTRY("dev_index_reserve")
+int hook_dev_index_reserve(ctx_t *ctx) {
+    u64 id = bpf_get_current_pid_tgid();
+
+    struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
+    if (entry != NULL) {
+        struct net *net = (struct net *)CTX_PARM1(ctx);
+        entry->ifindex.netns = get_netns_from_net(net);
+    }
+    return 0;
+};
+
+HOOK_EXIT("dev_index_reserve")
+int rethook_dev_index_reserve(ctx_t *ctx) {
+    u64 id = bpf_get_current_pid_tgid();
+
+    struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
+    if (entry != NULL) {
+        // dev_index_reserve returns the reserved ifindex, or a negative error code on failure
+        int ret = (int)CTX_PARMRET(ctx);
+        if (ret >= 0) {
+            entry->ifindex.ifindex = (u32)ret;
+        }
+    }
+    return 0;
+};
+
 HOOK_ENTRY("__dev_get_by_index")
 int hook___dev_get_by_index(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();

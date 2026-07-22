@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -64,6 +65,15 @@ def omnibus_run_task(
             ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
 
 
+def _clear_agent_install_directory(agent_path):
+    with os.scandir(agent_path) as entries:
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path)
+            else:
+                os.unlink(entry.path)
+
+
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
@@ -105,8 +115,6 @@ def get_omnibus_env(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -223,8 +231,6 @@ def build(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -253,8 +259,6 @@ def build(
         skip_sign=skip_sign,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
@@ -265,8 +269,8 @@ def build(
     if not target_project:
         target_project = "agent"
 
-    if flavor != AgentFlavor.base and target_project not in ["agent", "ddot"]:
-        print("flavors only make sense when building the agent or ddot")
+    if flavor != AgentFlavor.base and target_project not in ["agent", "ddot", "installer"]:
+        print("flavors only make sense when building the agent, ddot or installer")
         raise Exit(code=1)
     if flavor.is_iot():
         target_project = "iot-agent"
@@ -400,8 +404,6 @@ def manifest(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
-    with_dd_procmgrd=False,
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
@@ -414,8 +416,6 @@ def manifest(
         skip_sign=skip_sign,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
     )
@@ -462,9 +462,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ):
             raise Exit("Operation cancelled")
 
-        import shutil
-
-        shutil.rmtree("/opt/datadog-agent")
+        _clear_agent_install_directory(agent_path)
 
     architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
 
@@ -485,6 +483,10 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    base_dir = _resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR")
+    if base_dir:
+        env['OMNIBUS_BASE_DIR'] = base_dir
+
     # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
     if architecture == "amd64":
         env.update(
@@ -509,7 +511,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ctx,
         "build",
         "agent",
-        base_dir=None,
+        base_dir=base_dir,
         env=env,
         log_level=log_level,
         cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),

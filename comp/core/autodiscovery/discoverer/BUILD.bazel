@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
         "//comp/core/workloadmeta/def",
         "//pkg/collector/python",
         "//pkg/util/log",
@@ -34,7 +35,11 @@ dd_agent_go_test(
     tags = ["manual"],  # keep
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

@@ -84,6 +84,12 @@
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["major"],
+        "dependencyDashboardApproval": true
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": [
           "github.com/DataDog/datadog-agent/**",
@@ -167,6 +173,11 @@
         "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["rules_rust", "rules_rust_prost"],
+        "groupName": "rules_rust"
       },
       {
         "matchManagers": ["bundler"],
@@ -298,6 +309,25 @@
         "depNameTemplate": "datadog.dd",
         "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
         "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "npm",
+        "versioningTemplate": "npm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "node",
+        "datasourceTemplate": "node",
+        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {

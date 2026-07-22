@@ -36,13 +36,19 @@ except (OSError, json.JSONDecodeError, KeyError):
     SCENARIOS = []
 
 S3_BUCKET = "qbranch-gensim-recordings"
-AWS_PROFILE = "sso-agent-sandbox-account-admin"
+AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
-# All available detectors and correlators for ablation / combination search.
+# Components included in ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
-# not for Gaussian F1 eval (eval_scenarios / eval_combinations).
-DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
-CORRELATORS = ["cross_signal", "time_cluster"]
+# not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
+# evaluates scorer-produced correlation periods only.
+DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+ABLATION_CORRELATORS = ["anomaly_scorer"]
+SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
+
+# Correlators always represented in generated configs. time_cluster defaults on
+# in the testbench, so scorer-only trials must explicitly disable it.
+CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
 # always enables all of them unless force-disabled.
@@ -55,8 +61,8 @@ EXTRACTORS = [
 # Fixed anchor subsets used by eval_component to anchor the evaluation at known
 # reference configurations regardless of the random seed.
 ANCHOR_COMBOS = [
-    {"detectors": ["bocpd"], "correlators": ["time_cluster"]},
-    {"detectors": ["bocpd", "rrcf"], "correlators": ["cross_signal", "time_cluster"]},
+    {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
+    {"detectors": ["bocpd", "rrcf"], "correlators": ["anomaly_scorer"]},
 ]
 
 
@@ -344,12 +350,13 @@ def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
 # --- Combo helpers ---
 
 
-def _full_stack_combo(force_disable: list | None = None) -> dict:
-    """All detectors and correlators not in force_disable (for eval baseline)."""
+def _full_stack_combo(force_disable: list | None = None, force_enable: list | None = None) -> dict:
+    """All ablation components plus force-enabled supported components."""
     fd = set(force_disable or [])
+    fe_cors = {c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd}
     return {
         "detectors": sorted(d for d in DETECTORS if d not in fd),
-        "correlators": sorted(c for c in CORRELATORS if c not in fd),
+        "correlators": sorted({c for c in ABLATION_CORRELATORS if c not in fd} | fe_cors),
     }
 
 
@@ -357,7 +364,7 @@ def _anchor_combos(force_disable: list | None = None, force_enable: list | None 
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
     fd = set(force_disable or [])
     fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
-    fe_cors = sorted(c for c in (force_enable or []) if c in CORRELATORS and c not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd)
     anchors = []
     seen_keys: set = set()
     for combo in ANCHOR_COMBOS:
@@ -383,15 +390,15 @@ def random_component_combinations(
     """Generate up to n distinct random component combinations.
 
     Each combination is guaranteed to contain at least 1 detector (from DETECTORS)
-    and 1 correlator (from CORRELATORS).
+    and 1 correlator (from ABLATION_CORRELATORS).
     """
     force_enable = set(force_enable or [])
     force_disable = set(force_disable or [])
 
     det_pool = [d for d in DETECTORS if d not in force_disable]
-    cor_pool = [c for c in CORRELATORS if c not in force_disable]
-    forced_dets = sorted(d for d in force_enable if d in DETECTORS)
-    forced_cors = sorted(c for c in force_enable if c in CORRELATORS)
+    cor_pool = [c for c in ABLATION_CORRELATORS if c not in force_disable]
+    forced_dets = sorted(d for d in force_enable if d in DETECTORS and d not in force_disable)
+    forced_cors = sorted(c for c in force_enable if c in SUPPORTED_CORRELATORS and c not in force_disable)
 
     rng = random.Random(seed)
     combos = []
@@ -424,7 +431,7 @@ def random_component_combinations(
             continue
         seen.add(key)
         combos.append({"detectors": dets, "correlators": cors})
-    if attempts >= max_attempts:
+    if n > 0 and attempts >= max_attempts:
         print(
             color_message(
                 f"Warning: Only generated {len(combos)} unique combinations (max attempts={max_attempts})",
@@ -432,6 +439,17 @@ def random_component_combinations(
             )
         )
     return combos
+
+
+def _component_base_config(name: str, enabled: bool) -> dict:
+    """Base JSON config for a component in eval-generated testbench params."""
+    cfg: dict[str, object] = {"enabled": enabled}
+    if enabled and name == "anomaly_scorer":
+        # The scorer only contributes to Gaussian F1 when it emits Medium- or
+        # High-severity episodes as anomaly_periods. Keep cooldown at zero so
+        # those periods end on actual scorer de-escalation, not a delivery delay.
+        cfg.update({"correlation_events": True, "cooldown_secs": 0})
+    return cfg
 
 
 def _combo_to_config(
@@ -446,10 +464,13 @@ def _combo_to_config(
     force_disable_set = set(force_disable or [])
     enabled_set = set(detectors + correlators)
     components = {}
-    for name in DETECTORS + CORRELATORS:
-        components[name] = {"enabled": name in enabled_set}
+    for name in DETECTORS + CONFIGURED_CORRELATORS:
+        components[name] = _component_base_config(name, name in enabled_set)
+    for name in correlators:
+        if name in SUPPORTED_CORRELATORS and name not in components:
+            components[name] = _component_base_config(name, True)
     for name in EXTRACTORS:
-        components[name] = {"enabled": name not in force_disable_set}
+        components[name] = _component_base_config(name, name not in force_disable_set)
     return {"components": components}
 
 
@@ -458,7 +479,60 @@ def _combo_to_config(
 
 def _sample_component_params(trial, component: str) -> dict:
     """Sample Optuna hyperparameters for a named component that supports parseJSON."""
+
+    def sample_anomaly_scorer() -> dict:
+        # A correlation episode begins at the selected Medium or High threshold.
+        # Keep Low below High so the scorer's three-level state machine remains
+        # well-formed while allowing Optuna to choose the emission boundary.
+        low_threshold = trial.suggest_float("anomaly_scorer.low_threshold", 0.01, 0.2, log=True)
+        high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
+        high_threshold = min(0.45, low_threshold + high_threshold_gap)
+        # The scorer applies HighThreshold * MarginPct to both downward
+        # transitions. Keep the effective margin below both the Low boundary
+        # and the Low-to-High gap so every severity transition remains reachable.
+        max_margin = min(low_threshold, high_threshold - low_threshold)
+        hysteresis_fraction = trial.suggest_float("anomaly_scorer.hysteresis_fraction", 0.05, 0.9)
+        margin_pct = hysteresis_fraction * max_margin / high_threshold
+        return {
+            "correlation_events": True,
+            "correlation_event_threshold": trial.suggest_categorical(
+                "anomaly_scorer.correlation_event_threshold", ["medium", "high"]
+            ),
+            "cooldown_secs": 0,
+            "alpha": trial.suggest_float("anomaly_scorer.alpha", 0.005, 0.08, log=True),
+            "saturation_k": trial.suggest_float("anomaly_scorer.saturation_k", 2.0, 12.0),
+            "window_secs": trial.suggest_int("anomaly_scorer.window_secs", 5, 60),
+            "low_threshold": low_threshold,
+            "high_threshold": high_threshold,
+            "margin_pct": margin_pct,
+        }
+
+    def sample_holt_residual() -> dict:
+        alpha = trial.suggest_float("holt_residual.alpha", 0.05, 0.5)
+        beta_ratio = trial.suggest_float("holt_residual.beta_ratio", 0.05, 0.75)
+        return {
+            "alpha": alpha,
+            "beta": alpha * beta_ratio,
+            "residual_window": trial.suggest_int("holt_residual.residual_window", 20, 90),
+            "z_threshold": trial.suggest_float("holt_residual.z_threshold", 2.5, 8.0),
+            "confirm_m": trial.suggest_int("holt_residual.confirm_m", 1, 3),
+            "min_deviation_mad": trial.suggest_float("holt_residual.min_deviation_mad", 1.5, 6.0),
+            "refractory": trial.suggest_int("holt_residual.refractory", 5, 60),
+        }
+
+    def sample_tukey_biweight() -> dict:
+        window_size = trial.suggest_int("tukey_biweight.window_size", 30, 120)
+        return {
+            "window_size": window_size,
+            "min_points": window_size,
+            "biweight_c": trial.suggest_float("tukey_biweight.biweight_c", 3.5, 6.0),
+            "z_threshold": trial.suggest_float("tukey_biweight.z_threshold", 2.5, 10.0),
+            "score_every": trial.suggest_int("tukey_biweight.score_every", 1, 6),
+            "cooldown_points": trial.suggest_int("tukey_biweight.cooldown_points", 5, 60),
+        }
+
     space = {
+        "anomaly_scorer": sample_anomaly_scorer,
         "bocpd": lambda: {
             # "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
             "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
@@ -476,20 +550,14 @@ def _sample_component_params(trial, component: str) -> dict:
             # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
             "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
+        "holt_residual": sample_holt_residual,
         "rrcf": lambda: {
             # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
             # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
             "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
             "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
         },
-        "cross_signal": lambda: {
-            # "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
-        },
-        "time_cluster": lambda: {
-            # "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
-            # "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
-            # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
-        },
+        "tukey_biweight": sample_tukey_biweight,
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
             # "min_cluster_size_before_emit": trial.suggest_int(...),
@@ -514,12 +582,12 @@ def _build_optuna_config(
     active_set = set(components)
     result = {}
 
-    for name in DETECTORS + CORRELATORS + EXTRACTORS:
+    for name in DETECTORS + CONFIGURED_CORRELATORS + EXTRACTORS:
         if name not in active_set:
-            result[name] = {"enabled": False}
+            result[name] = _component_base_config(name, False)
 
     for name in components:
-        params = {"enabled": True}
+        params = _component_base_config(name, True)
         if name not in locked:
             params.update(_sample_component_params(trial, name))
         result[name] = params

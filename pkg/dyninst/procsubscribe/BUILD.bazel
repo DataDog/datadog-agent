@@ -7,6 +7,7 @@ go_library(
         "remote_config_state.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/remote/data",
@@ -29,7 +30,11 @@ go_test(
         "remote_config_test.go",
     ],
     embed = [":procsubscribe"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/config/remote/data",
         "//pkg/discovery/tracermetadata/model",

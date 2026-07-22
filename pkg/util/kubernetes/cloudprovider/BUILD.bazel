@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
@@ -27,5 +28,8 @@ dd_agent_go_test(
     name = "cloudprovider_test",
     srcs = ["cloudprovider_test.go"],
     embed = [":cloudprovider"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/config/env",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

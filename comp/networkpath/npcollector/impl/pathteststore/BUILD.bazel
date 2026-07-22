@@ -24,5 +24,6 @@ dd_agent_go_test(
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -142,6 +142,10 @@ type PipelineConfig struct {
 	LogsEnabled bool
 	// Enable/disable InfraAttributes processor for Traces pipeline
 	TracesInfraAttributesEnabled bool
+	// TracesContainerTagPromotion controls how the InfraAttributes processor promotes
+	// custom container tags into `_dd.tags.container` for the Traces pipeline.
+	// Valid values: "off", "duplicate", "rename" (empty is treated as "off").
+	TracesContainerTagPromotion string
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.
