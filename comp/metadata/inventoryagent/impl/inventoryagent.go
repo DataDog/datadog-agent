@@ -243,6 +243,8 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 	ia.data["feature_remote_updates_enabled"] = ia.conf.GetBool("remote_updates")
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
+	ia.data["feature_network_path_remote_config_enabled"] = ia.conf.GetBool("network_path.remote_config.enabled")
+	ia.data["feature_network_path_connections_monitoring_enabled"] = ia.conf.GetBool("network_path.connections_monitoring.enabled")
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
