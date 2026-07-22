@@ -7,6 +7,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -20,35 +21,43 @@ import (
 type CommandResult struct {
 	CommandStr string `json:"command_str"`
 	Output     string `json:"output"`
-	Error      error  `json:"error"`
+	Error      string `json:"error"`
 }
 
-// FormattedError returns nil if there was no error, and otherwise wraps
-// .AnyError to append any captured output to the error message.
+// FormattedError returns nil if there was no error, and otherwise returns an
+// error containing .Error and, if it was nonempty, .Output.
 func (c *CommandResult) FormattedError() error {
-	if c.Error == nil {
+	if c.Error == "" {
 		return nil
 	}
 	if c.Output != "" {
-		return fmt.Errorf("%w: %q", c.Error, c.Output)
+		return fmt.Errorf("%v: %q", c.Error, c.Output)
 	}
-	return c.Error
+	return errors.New(c.Error)
 }
 
 type ResultList []*CommandResult
 
-func (rl ResultList) AnyError() error {
-	for _, result := range rl {
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-	return nil
-}
-
 // sshClient is a common interface between ssh.Client and RetryingSSHClient
 type sshClient interface {
 	NewSession() (*ssh.Session, error)
+}
+
+// errorStr converts an error to a string. It's just like e.Error() except that
+// nil maps to "" instead of panicking.
+func errorStr(e error) string {
+	if e == nil {
+		return ""
+	}
+	return e.Error()
+}
+
+// ApplyValidator is a no-op if .Error is already set, otherwise it runs vd on .Output and saves the result in .Error
+func (c *CommandResult) ApplyValidator(vd profile.Validator) {
+	if c.Error != "" {
+		return
+	}
+	c.Error = errorStr(vd.Validate(c.Output))
 }
 
 // Execute runs a command and validates the output with its validation rules.
@@ -65,22 +74,13 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		ch <- &CommandResult{
 			CommandStr: cmd.Command,
 			Output:     string(output),
-			Error:      err,
+			Error:      errorStr(err),
 		}
 	}()
 	select {
 	case r := <-ch:
-		if r.Error == nil {
-			r.Error = cmd.Validator.Validate(r.Output)
-		}
-		err := r.FormattedError()
-		if err != nil {
-			if r.Output != "" {
-				return r, fmt.Errorf("%w: %q", err, r.Output)
-			}
-			return r, err
-		}
-		return r, nil
+		r.ApplyValidator(cmd.Validator)
+		return r, r.FormattedError()
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -108,7 +108,7 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 		ch <- &CommandResult{
 			CommandStr: cmdStr,
 			Output:     response,
-			Error:      err,
+			Error:      errorStr(err),
 		}
 	}()
 	var r *CommandResult
@@ -118,17 +118,6 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 	case <-ctx.Done():
 		return nil, fmt.Errorf("scp command %q failed: %w", cmdStr, ctx.Err())
 	}
-
-	if r.Error == nil {
-		r.Error = cmd.Validator.Validate(r.Output)
-	}
-	err = r.FormattedError()
-	if err != nil {
-		if r.Output != "" {
-			return r, fmt.Errorf("%w: %q", err, r.Output)
-		}
-		return r, err
-	}
-
-	return r, nil
+	r.ApplyValidator(cmd.Validator)
+	return r, r.FormattedError()
 }

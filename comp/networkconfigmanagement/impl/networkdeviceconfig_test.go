@@ -56,8 +56,8 @@ func ok(msg string) *result {
 	return &result{Output: msg}
 }
 
-func fail(err error) *result {
-	return &result{Error: err}
+func fail(errMsg string) *result {
+	return &result{Error: errMsg}
 }
 
 func newMockConnection() *MockConnection {
@@ -84,17 +84,15 @@ type MockConnection struct {
 var _ ncmremote.Connection = (*MockConnection)(nil)
 
 func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandResult, error) {
-	r := fail(errors.New("unsupported command"))
+	r := fail("unsupported command")
 	if cmd != nil {
 		var ok bool
 		r, ok = m.OutputMap[cmd.Command]
 		if !ok {
-			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
+			r = fail(fmt.Sprintf("unknown command %q", cmd.Command))
 		}
 		r.CommandStr = cmd.Command
-		if r.Error == nil {
-			r.Error = cmd.Validator.Validate(r.Output)
-		}
+		r.ApplyValidator(cmd.Validator)
 	}
 	return r, r.FormattedError()
 }
@@ -454,7 +452,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("command execution failed")
 	device := createTestDevice()
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)

@@ -31,7 +31,7 @@ func TestCommand(t *testing.T) {
 		name      string
 		cmd       *profile.PlainCommand
 		expected  string
-		expectErr bool
+		expectErr string
 	}{{
 		name: "unchecked_command",
 		cmd: &profile.PlainCommand{
@@ -56,7 +56,7 @@ func TestCommand(t *testing.T) {
 				Require: []*regexp.Regexp{regexp.MustCompile("Realco")},
 			},
 		},
-		expectErr: true,
+		expectErr: "does not match required regex",
 	}, {
 		name: "has_rejection",
 		cmd: &profile.PlainCommand{
@@ -65,7 +65,7 @@ func TestCommand(t *testing.T) {
 				Reject: []*regexp.Regexp{regexp.MustCompile("Fakesco")},
 			},
 		},
-		expectErr: true,
+		expectErr: "matches failure regex",
 	}, {
 		name: "command_fails",
 		cmd: &profile.PlainCommand{
@@ -75,15 +75,16 @@ func TestCommand(t *testing.T) {
 				Reject:  []*regexp.Regexp{regexp.MustCompile("Realco")},
 			},
 		},
-		expectErr: true,
+		expectErr: `Process exited with status 1: "bad command"`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := ExecuteCommand(context.Background(), client, tc.cmd)
-			if tc.expectErr {
+			if tc.expectErr != "" {
 				assert.Error(t, err)
-				assert.Error(t, result.Error)
+				assert.ErrorContains(t, result.FormattedError(), tc.expectErr)
 			} else {
 				require.NoError(t, err)
+				assert.Empty(t, result.Error)
 				assert.Equal(t, tc.expected, result.Output)
 			}
 		})
