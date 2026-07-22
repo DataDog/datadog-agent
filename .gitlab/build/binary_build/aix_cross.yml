@@ -11,7 +11,7 @@
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   variables:
-    PATH: /opt/aix-cross/bin:$PATH
+    PATH: "/opt/aix-cross/bin:${PATH}"
     GOOS: aix
     GOARCH: ppc64
   before_script:
