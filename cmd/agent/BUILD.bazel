@@ -1,4 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "AGENT_TAGS", "COMMON_TAGS")
 
 go_library(
     name = "agent_lib",
@@ -148,8 +150,9 @@ go_library(
     }),
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "agent",
     embed = [":agent_lib"],
+    gotags = sorted(COMMON_TAGS | AGENT_TAGS),
     visibility = ["//visibility:public"],
 )
