@@ -39,6 +39,7 @@ var (
 type Discovery struct {
 	config    *checkconfig.CheckConfig
 	stop      chan struct{}
+	done      chan struct{}
 	discDevMu sync.RWMutex
 
 	// TODO: use a new type for device deviceDigest
@@ -62,7 +63,8 @@ type snmpSubnet struct {
 	startingIP net.IP
 	network    net.IPNet
 
-	cacheKey string
+	cacheKey   string
+	cacheDirty bool
 
 	// discoveredDevices contains devices ip with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
@@ -77,18 +79,24 @@ type snmpSubnet struct {
 type checkDeviceJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
+	wg        *sync.WaitGroup
 }
 
 // Start discovery
 func (d *Discovery) Start() {
 	log.Debugf("subnet %s: Start discovery", d.config.Network)
-	go d.discoverDevices()
+	go func() {
+		d.discoverDevices()
+		close(d.done)
+	}()
 }
 
-// Stop signal discovery to shut down
+// Stop signals discovery to shut down and waits for any in-flight pass,
+// including its trailing cache write, to actually finish before returning.
 func (d *Discovery) Stop() {
 	log.Debugf("subnet %s: Stop discovery", d.config.Network)
 	close(d.stop)
+	<-d.done
 }
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
@@ -118,6 +126,7 @@ func (d *Discovery) runWorker(w int, jobs <-chan checkDeviceJob) {
 			if err != nil {
 				log.Errorf("%s", err.Error())
 			}
+			job.wg.Done()
 		}
 	}
 }
@@ -149,6 +158,11 @@ func (d *Discovery) discoverDevices() {
 
 	d.loadCache(&subnet)
 
+	if d.config.DiscoveryWorkers <= 0 {
+		<-d.stop // without workers to consume them, scheduling devices would block forever on the jobs channel
+		return
+	}
+
 	jobs := make(chan checkDeviceJob)
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
 		go d.runWorker(w, jobs)
@@ -162,6 +176,7 @@ func (d *Discovery) discoverDevices() {
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
+		var wg sync.WaitGroup
 		for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
 			if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
@@ -170,19 +185,26 @@ func (d *Discovery) discoverDevices() {
 
 			jobIP := make(net.IP, len(currentIP))
 			copy(jobIP, currentIP)
+			wg.Add(1)
 			job := checkDeviceJob{
 				subnet:    &subnet,
 				currentIP: jobIP,
+				wg:        &wg,
 			}
-			jobs <- job
 
 			select {
+			case jobs <- job:
 			case <-d.stop:
 				log.Debugf("subnet %s: Stop scheduling devices", d.config.Network)
+				wg.Done() // this job was never picked up by a worker
+				wg.Wait()
+				d.writeCache(&subnet) // persist what the partial pass found
 				return
-			default:
 			}
 		}
+
+		wg.Wait()
+		d.writeCache(&subnet) // persist what the completed pass found
 
 		select {
 		case <-d.stop:
@@ -242,7 +264,7 @@ func (d *Discovery) getDevicesFound() []string {
 	return ipsFound
 }
 
-func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, justProbed bool) {
 	deviceConfig := subnet.config.CopyWithNewIP(deviceIP)
 	connMgr := devicecheck.NewConnectionManager(deviceConfig, d.sessionFactory)
 	deviceCk, err := devicecheck.NewDeviceCheck(deviceConfig, connMgr, d.agentConfig)
@@ -268,8 +290,8 @@ func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 	subnet.devices[deviceDigest] = deviceIP
 	subnet.deviceFailures[deviceDigest] = 0
 
-	if writeCache {
-		d.writeCache(subnet)
+	if justProbed {
+		subnet.cacheDirty = true
 	}
 
 	if d.scanManager == nil {
@@ -300,7 +322,7 @@ func (d *Discovery) deleteDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 			delete(d.discoveredDevices, deviceDigest)
 			delete(subnet.devices, deviceDigest)
 			delete(subnet.deviceFailures, deviceDigest)
-			d.writeCache(subnet)
+			subnet.cacheDirty = true
 		}
 	}
 }
@@ -332,8 +354,17 @@ func (d *Discovery) loadCache(subnet *snmpSubnet) {
 	}
 }
 
+// writeCache writes the subnet's cache to disk if it changed since the last write.
+// Use once per pass, not per device, to avoid serializing the pass behind repeated
+// disk I/O for no correctness benefit.
 func (d *Discovery) writeCache(subnet *snmpSubnet) {
-	// We don't lock the subnet for now, because the discovery ought to be already locked
+	d.discDevMu.Lock()
+	defer d.discDevMu.Unlock()
+	if !subnet.cacheDirty {
+		return
+	}
+	subnet.cacheDirty = false
+
 	devices := make([]string, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
 		devices = append(devices, v)
@@ -355,6 +386,7 @@ func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factor
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
+		done:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,
 		agentConfig:       agentConfig,
