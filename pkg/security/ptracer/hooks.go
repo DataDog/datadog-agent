@@ -67,7 +67,7 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 	})
 }
 
-func (ctx *CWSPtracerCtx) handlePreHooks(nr int, pid int, regs syscall.PtraceRegs, process *Process, handler syscallHandler) {
+func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, process *Process, handler syscallHandler) {
 	syscallMsg := &ebpfless.SyscallMsg{}
 	if nr == ExecveatNr {
 		// special case: sometimes, execveat returns as execve, to handle that, we force
@@ -83,9 +83,6 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, pid int, regs syscall.PtraceReg
 			return
 		}
 	}
-
-	// if available, gather span
-	syscallMsg.SpanContext = fillSpanContext(&ctx.Tracer, process.Tgid, pid, ctx.processCache.GetSpan(process.Tgid))
 
 	/* internal special cases */
 	switch nr {
@@ -132,13 +129,6 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, pid int, regs syscall.PtraceReg
 		if process.Pid != process.Tgid {
 			ctx.processCache.Add(process.Tgid, process)
 		}
-	case IoctlNr:
-		req := handleERPC(&ctx.Tracer, process, regs)
-		if len(req) != 0 {
-			if isTLSRegisterRequest(req) {
-				ctx.processCache.SetSpanTLS(process.Tgid, handleTLSRegister(req))
-			}
-		}
 	}
 }
 
@@ -179,8 +169,6 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 	case ExecveNr, ExecveatNr:
 		// now the pid is the tgid
 		process.Pid = process.Tgid
-		// remove previously registered TLS
-		ctx.processCache.UnsetSpan(process.Tgid)
 	case CloneNr:
 		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, ppid)
 	case Clone3Nr:
@@ -230,7 +218,7 @@ func (ctx *CWSPtracerCtx) handleExit(process *Process, waitStatus *syscall.WaitS
 
 func (ctx *CWSPtracerCtx) handleHooks(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
 	handler, handlerFound := ctx.syscallHandlers[nr]
-	if !handlerFound && !slices.Contains([]int{ExecveNr, ExecveatNr, IoctlNr, CloneNr, Clone3Nr, ForkNr, VforkNr, ExitNr}, nr) {
+	if !handlerFound && !slices.Contains([]int{ExecveNr, ExecveatNr, CloneNr, Clone3Nr, ForkNr, VforkNr, ExitNr}, nr) {
 		return
 	}
 
@@ -242,7 +230,7 @@ func (ctx *CWSPtracerCtx) handleHooks(cbType CallbackType, nr int, pid int, ppid
 
 	switch cbType {
 	case CallbackPreType:
-		ctx.handlePreHooks(nr, pid, regs, process, handler)
+		ctx.handlePreHooks(nr, regs, process, handler)
 
 	case CallbackPostType:
 		ctx.handlePostHooks(nr, ppid, regs, process, handler)
