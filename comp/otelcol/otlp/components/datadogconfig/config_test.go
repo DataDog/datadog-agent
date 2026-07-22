@@ -996,6 +996,7 @@ func TestOverrideEndpoints(t *testing.T) {
 			assert.Equal(t, testInstance.expectedMetricsEndpoint, componentCfg.Metrics.Endpoint)
 			assert.Equal(t, testInstance.expectedTracesEndpoint, componentCfg.Traces.Endpoint)
 			assert.Equal(t, testInstance.expectedLogsEndpoint, componentCfg.Logs.Endpoint)
+			assert.Equal(t, testInstance.expectedOrchestratorExplorerEndpoint, componentCfg.OrchestratorExplorer.Endpoint)
 		})
 	}
 }

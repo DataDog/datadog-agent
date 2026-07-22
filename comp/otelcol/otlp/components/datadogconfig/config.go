@@ -10,7 +10,6 @@ package config // import "github.com/DataDog/datadog-agent/comp/otelcol/otlp/com
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -31,17 +30,13 @@ var (
 	ErrUnsetAPIKey = errors.New("api.key is not set")
 	// ErrNoMetadata is returned when only_metadata is enabled but host metadata is disabled or hostname_source is not first_resource.
 	ErrNoMetadata = errors.New("only_metadata can't be enabled when host_metadata::enabled = false or host_metadata::hostname_source != first_resource")
-	// ErrInvalidHostname is returned when the hostname is invalid.
+	// ErrEmptyEndpoint is returned when an endpoint is explicitly set to empty.
 	ErrEmptyEndpoint = errors.New("endpoint cannot be empty")
-	// NonHexRegex is a regex of characters that are always invalid in a Datadog API key
-	NonHexRegex = regexp.MustCompile(NonHexChars)
 )
 
 const (
 	// DefaultSite is the default site of the Datadog intake to send data to
 	DefaultSite = "datadoghq.com"
-	// NonHexChars is a regex of characters that are always invalid in a Datadog API key
-	NonHexChars = "[^0-9a-fA-F]"
 )
 
 // APIConfig defines the API configuration options
@@ -185,8 +180,8 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// StaticAPIKey Check checks if api::key is either empty or contains invalid (non-hex) characters
-// It does not validate online; this is handled on startup.
+// StaticAPIKeyCheck checks if api::key is empty.
+// It does not validate the key's format or validity online; this is handled at runtime.
 //
 // Deprecated: [v0.136.0] Do not use, will be removed on the next minor version
 func StaticAPIKeyCheck(key string) error {
@@ -332,7 +327,7 @@ func (c *Config) Unmarshal(configMap *confmap.Conf) error {
 	}
 
 	// Return an error if an endpoint is explicitly set to ""
-	if c.Metrics.Endpoint == "" || c.Traces.Endpoint == "" || c.Logs.Endpoint == "" {
+	if c.Metrics.Endpoint == "" || c.Traces.Endpoint == "" || c.Logs.Endpoint == "" || c.OrchestratorExplorer.Endpoint == "" {
 		return ErrEmptyEndpoint
 	}
 
