@@ -84,7 +84,6 @@ type WorkloadMetaCollector struct {
 
 // refreshRequest asks the stream goroutine to recompute static global tags, signaling done once it has.
 type refreshRequest struct {
-	ctx  context.Context
 	done chan struct{}
 }
 
@@ -160,7 +159,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 func (c *WorkloadMetaCollector) RefreshGlobalTags(ctx context.Context) {
 	done := make(chan struct{})
 	select {
-	case c.refreshCh <- refreshRequest{ctx: ctx, done: done}:
+	case c.refreshCh <- refreshRequest{done: done}:
 	case <-ctx.Done():
 		return
 	}
@@ -195,8 +194,10 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 
 			c.processEvents(evBundle)
 
+		// Receives RefreshGlobalTags requests here.
+		// The caller blocks until close(req.done) below.
 		case req := <-c.refreshCh:
-			c.collectStaticGlobalTags(req.ctx, c.cfg)
+			c.collectStaticGlobalTags(ctx, c.cfg)
 			close(req.done)
 
 		case <-health.C:
