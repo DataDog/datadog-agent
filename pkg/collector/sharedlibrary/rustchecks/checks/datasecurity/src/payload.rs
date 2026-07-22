@@ -1,9 +1,8 @@
 use serde::Serialize;
 
-/// JSON event payload emitted by the check, one per sub task. Kept close to the
-/// shape of the real SDS result (see `sds_result.proto`) so it can be grown into
-/// the full payload later. On failure, `status` is `ERROR` and `failure_reason`
-/// carries the cause; on success it holds the scan `matches`.
+/// JSON event payload emitted by the check, one per sub task.
+///
+/// TODO(dsec-140): replace with the SDS result payload (protoc generated code).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ScanEventPayload {
@@ -15,7 +14,7 @@ pub struct ScanEventPayload {
     pub matches: Vec<Match>,
 }
 
-/// Outcome of a sub task scan, mirroring the proto `ScanStatus`.
+/// TODO(dsec-140): replace with the SDS result payload task status (protoc generated code).
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ScanStatus {
