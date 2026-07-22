@@ -104,7 +104,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 
 ### Key Configuration Sections
 
-- **`receivers.profiling`**: eBPF profiling parameters, tracers, symbol upload settings
+- **`receivers.profiling`**: eBPF profiling parameters, interpreter settings, symbol upload settings
 - **`processors.infraattributes`**: Infrastructure metadata enrichment (Agent mode only)
 - **`processors.k8s_attributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlp_http`**: Datadog profiling intake endpoint configuration

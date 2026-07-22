@@ -106,31 +106,6 @@ func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []
 // assertProcessCollected asserts that the given process is collected by the process check
 // and that it has the expected data populated
 func assertProcessCollected(
-	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
-) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Payloads:\n%+v\n", payloads)
-		}
-	}()
-
-	var found, populated bool
-	for _, payload := range payloads {
-		found, populated = findProcess(process, payload.Processes, withIOStats)
-		if found && populated {
-			break
-		}
-	}
-
-	require.True(t, found, "%s process not found", process)
-	assert.True(t, populated, "no %s process had all data populated", process)
-}
-
-// assertProcessCollectedNew asserts that the given process is collected by the process check
-// and that it has the expected data populated
-// This is a new function to replace assertProcessCollected, but we need to verify it actually reduces the flakiness
-// of test runs before we fully switch over.
-func assertProcessCollectedNew(
 	t require.TestingT, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
 ) {
 	// Find Processes
@@ -169,20 +144,23 @@ func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStat
 	}
 	assert.True(t, hasData, "'%s' process does not have all data populated in: %+v", process, procs)
 
-	// verify IO stats are populated
+	// verify IO stats are populated on a process that also has its data
+	// populated, so the same process satisfies both predicates (a regression
+	// where the data and IO stats come from different matching processes is caught)
 	if withIOStats {
 		var hasIOStats bool
 		for _, proc := range procs {
-			if hasIOStats = processHasIOStats(proc); hasIOStats {
+			if processHasData(proc) && processHasIOStats(proc) {
+				hasIOStats = true
 				break
 			}
 		}
-		assert.True(t, hasIOStats, "'%s' process does not have IO stats populated in %+v", process, procs)
+		assert.True(t, hasIOStats, "no single '%s' process had both data and IO stats populated in: %+v", process, procs)
 	}
 }
 
-// assertContainersCollectedNew asserts that the given containers are collected
-func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
+// assertContainersCollected asserts that the given containers are collected
+func assertContainersCollected(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
 	for _, container := range expectedContainers {
 		var found bool
 		for _, payload := range payloads {
@@ -211,29 +189,6 @@ func requireProcessNotCollected(t require.TestingT, payloads []*aggregator.Proce
 	for _, payload := range payloads {
 		require.Empty(t, filterProcesses(process, payload.Processes))
 	}
-}
-
-// findProcess returns whether the process with the given name exists in the given list of
-// processes and whether it has the expected data populated
-func findProcess(
-	name string, processes []*agentmodel.Process, withIOStats bool,
-) (found, populated bool) {
-	for _, process := range processes {
-		if matchProcess(process, name) {
-			found = true
-			populated = processHasData(process)
-
-			if withIOStats {
-				populated = populated && processHasIOStats(process)
-			}
-
-			if populated {
-				break
-			}
-		}
-	}
-
-	return found, populated
 }
 
 // FilterProcessPayloadsByName returns processes which match the given process name
@@ -319,26 +274,6 @@ func findProcessDiscovery(
 // processDiscoveryHasData asserts that the given process discovery has the expected data populated
 func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
 	return disc.Pid != 0 && disc.Command.Ppid != 0 && len(disc.User.Name) > 0
-}
-
-// assertContainersCollected asserts that the given containers are collected
-func assertContainersCollected(t *testing.T, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Payloads:\n%+v\n", payloads)
-		}
-	}()
-
-	for _, container := range expectedContainers {
-		var found bool
-		for _, payload := range payloads {
-			if findContainer(container, payload.Containers) {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "%s container not found", container)
-	}
 }
 
 // assertContainersNotCollected asserts that the given containers are not collected
