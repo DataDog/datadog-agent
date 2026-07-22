@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -72,8 +73,8 @@ func TestContainerTagsV2(t *testing.T) {
 	}
 
 	// Set up pipeline with the Infra Attributes Processor + Trace Agent OTLP Receiver
-	out := make(chan *api.Payload, 1)
-	rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	out := make(chan *api.PayloadV1, 1)
+	rcv := api.NewOTLPReceiver(nil, out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	factory := infraattributesprocessor.NewFactoryForAgent(tagger, func(_ context.Context) (string, error) {
 		return "test-host", nil
 	})
@@ -103,16 +104,26 @@ func TestContainerTagsV2(t *testing.T) {
 		require.Len(t, p.TracerPayload.Chunks, 1)
 		require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
 		span := p.TracerPayload.Chunks[0].Spans[0]
-		containerTags := strings.Split(p.TracerPayload.Tags["_dd.tags.container"], ",")
+		rawContainerTags, _ := p.TracerPayload.GetAttributeAsString("_dd.tags.container")
+		containerTags := strings.Split(rawContainerTags, ",")
 		sort.Strings(containerTags)
 		assert.Equal(t, []string{"container_id:testid", "container_name:testname"}, containerTags, "unexpected container tags")
-		assert.Equal(t, "testval", span.Meta["testresattr"], "non-container resource attribute was not passed through")
-		assert.Equal(t, "testval", span.Meta["testspanattr"], "span attribute was not passed through")
-		assert.Equal(t, "testid", span.Meta["container.id"], "OTel-convention container.id was not passed through")
+		assertSpanAttr(t, span, "testresattr", "testval", "non-container resource attribute was not passed through")
+		assertSpanAttr(t, span, "testspanattr", "testval", "span attribute was not passed through")
+		assertSpanAttr(t, span, "container.id", "testid", "OTel-convention container.id was not passed through")
 		for _, key := range []string{"container_id", "container_name"} {
-			assert.NotContains(t, span.Meta, key, "pre-mapped container tags are duplicated on span")
+			_, ok := span.GetAttributeAsString(key)
+			assert.False(t, ok, "pre-mapped container tags are duplicated on span")
 		}
 	default:
 		t.Fatalf("no payload in output channel")
 	}
+}
+
+// assertSpanAttr asserts that the idx span carries a string attribute key=want.
+func assertSpanAttr(t *testing.T, span *idx.InternalSpan, key, want, msg string) {
+	t.Helper()
+	got, ok := span.GetAttributeAsString(key)
+	require.True(t, ok, msg)
+	assert.Equal(t, want, got, msg)
 }
