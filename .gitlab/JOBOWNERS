@@ -53,6 +53,7 @@ cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 secret_generic_connector-build*      @DataDog/agent-configuration
+secret_generic_connector_fips-build* @DataDog/fleet-automation
 build_windows_container_entrypoint   @DataDog/windows-products
 generate_config_schema-linux         @DataDog/agent-configuration
 generate_config_schema-macos         @DataDog/agent-configuration
