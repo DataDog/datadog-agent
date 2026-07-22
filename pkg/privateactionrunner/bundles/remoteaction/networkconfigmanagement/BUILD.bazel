@@ -10,8 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
+        "//comp/networkconfigmanagement/impl",
         "//pkg/config/helper",
         "//pkg/config/setup",
+        "//pkg/networkconfigmanagement/remote",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "@com_github_benbjohnson_clock//:clock",
