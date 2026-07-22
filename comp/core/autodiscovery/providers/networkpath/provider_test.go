@@ -139,6 +139,58 @@ func TestProviderConvertsTotalTimeoutToPerHop(t *testing.T) {
 	}
 }
 
+func TestCalculatePerHopTimeoutMS(t *testing.T) {
+	tests := []struct {
+		name            string
+		totalTimeoutMS  int64
+		maxTTL          int
+		expectedTimeout int64
+	}{
+		{
+			name:            "reserves ten percent",
+			totalTimeoutMS:  1000,
+			maxTTL:          1,
+			expectedTimeout: 900,
+		},
+		{
+			name:            "divides budget evenly across hops",
+			totalTimeoutMS:  1000,
+			maxTTL:          30,
+			expectedTimeout: 30,
+		},
+		{
+			name:            "rounds fractional milliseconds up",
+			totalTimeoutMS:  1000,
+			maxTTL:          32,
+			expectedTimeout: 29,
+		},
+		{
+			name:            "minimum contract values remain positive",
+			totalTimeoutMS:  1,
+			maxTTL:          1,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "minimum timeout at maximum TTL remains positive",
+			totalTimeoutMS:  1,
+			maxTTL:          255,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "maximum timeout and TTL",
+			totalTimeoutMS:  120000,
+			maxTTL:          255,
+			expectedTimeout: 424,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedTimeout, calculatePerHopTimeoutMS(tt.totalTimeoutMS, tt.maxTTL))
+		})
+	}
+}
+
 func TestProviderTimeoutUsesEffectiveDefaultMaxTTL(t *testing.T) {
 	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com","timeout_ms":1000}`))
 	require.NoError(t, err)
