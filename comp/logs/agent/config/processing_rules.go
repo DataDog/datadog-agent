@@ -24,16 +24,20 @@ const (
 	MultiLine        = "multi_line"
 	ExcludeTruncated = "exclude_truncated"
 	RemapSource      = "remap_source"
-	// ExcludeAtJQMatch drops log lines for which the jq expression produces output.
-	// The pattern must be a valid jq expression (e.g. `select(.level == "debug")`); a
-	// bare boolean expression like `.level == "debug"` always produces output and thus
-	// always "matches" — use `select(...)` for real filtering. Non-JSON content, and
-	// any jq runtime error, is passed through unchanged (fail-open).
-	ExcludeAtJQMatch = "exclude_at_jq_match"
-	// IncludeAtJQMatch keeps only log lines for which the jq expression produces output.
-	// Same matching convention and fail-open behavior as ExcludeAtJQMatch.
-	IncludeAtJQMatch = "include_at_jq_match"
-	// MaskJQTransform mutates the log line's content using a jq program that
+	// ExcludeAtGoJQMatch drops log lines for which the jq expression produces output.
+	// This rule type is backed by github.com/itchyny/gojq (real jqlang.org semantics),
+	// distinct from any DataDog/fastjq-based "jq" rule type — the "GoJQ" naming avoids
+	// symbol/config-key collisions when both engines run side by side in a combined
+	// benchmark. The pattern must be a valid jq expression (e.g.
+	// `select(.level == "debug")`); a bare boolean expression like `.level == "debug"`
+	// always produces output and thus always "matches" — use `select(...)` for real
+	// filtering. Non-JSON content, and any jq runtime error, is passed through
+	// unchanged (fail-open).
+	ExcludeAtGoJQMatch = "exclude_at_gojq_match"
+	// IncludeAtGoJQMatch keeps only log lines for which the jq expression produces output.
+	// Same matching convention and fail-open behavior as ExcludeAtGoJQMatch.
+	IncludeAtGoJQMatch = "include_at_gojq_match"
+	// MaskGoJQTransform mutates the log line's content using a jq program that
 	// transforms the whole parsed JSON document (e.g.
 	// `.message |= gsub("(?<n>[0-9]{4,})"; "[REDACTED-\(.n)]")`), and re-serializes the
 	// result as the new content. Unlike the filter rules above, this rule type is
@@ -41,7 +45,7 @@ const (
 	// output all result in the message being dropped rather than risk leaking
 	// unredacted content. Re-serialization sorts object keys alphabetically, so masked
 	// output may not preserve the original field order.
-	MaskJQTransform = "mask_jq"
+	MaskGoJQTransform = "mask_gojq"
 )
 
 // SourceMatchEntry defines a single attribute-value-to-source match
@@ -62,15 +66,15 @@ type ProcessingRule struct {
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
-	// JQFilter is set for ExcludeAtJQMatch and IncludeAtJQMatch rules after compilation.
-	// It returns (true, nil) when the jq program produces output for the given input,
-	// (false, nil) when it produces no output, and (false, err) on a runtime error
-	// (including non-JSON input, which gojq cannot parse).
-	JQFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
-	// JQTransform is set for MaskJQTransform rules after compilation. It returns the
-	// mutated message content, or an error if the jq program failed to run or produced
-	// no output.
-	JQTransform func(input []byte) ([]byte, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// GoJQFilter is set for ExcludeAtGoJQMatch and IncludeAtGoJQMatch rules after
+	// compilation. It returns (true, nil) when the jq program produces output for the
+	// given input, (false, nil) when it produces no output, and (false, err) on a
+	// runtime error (including non-JSON input, which gojq cannot parse).
+	GoJQFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// GoJQTransform is set for MaskGoJQTransform rules after compilation. It returns
+	// the mutated message content, or an error if the jq program failed to run or
+	// produced no output.
+	GoJQTransform func(input []byte) ([]byte, error) `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -93,7 +97,7 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 			}
-		case ExcludeAtJQMatch, IncludeAtJQMatch, MaskJQTransform:
+		case ExcludeAtGoJQMatch, IncludeAtGoJQMatch, MaskGoJQTransform:
 			if rule.Pattern == "" {
 				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 			}
@@ -132,19 +136,19 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 		switch rule.Type {
 		case ExcludeTruncated, RemapSource:
 			continue
-		case ExcludeAtJQMatch, IncludeAtJQMatch:
+		case ExcludeAtGoJQMatch, IncludeAtGoJQMatch:
 			code, err := jsonquery.Parse(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
-			rule.JQFilter = makeJQFilter(code)
+			rule.GoJQFilter = makeGoJQFilter(code)
 			continue
-		case MaskJQTransform:
+		case MaskGoJQTransform:
 			code, err := jsonquery.Parse(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
-			rule.JQTransform = makeJQTransform(code)
+			rule.GoJQTransform = makeGoJQTransform(code)
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)
@@ -167,9 +171,9 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// runJQ decodes input as JSON and runs the compiled jq program against it,
+// runGoJQ decodes input as JSON and runs the compiled jq program against it,
 // returning the first result. ok is false when the program produced no output.
-func runJQ(code *gojq.Code, input []byte) (result any, ok bool, err error) {
+func runGoJQ(code *gojq.Code, input []byte) (result any, ok bool, err error) {
 	var v any
 	if err := json.Unmarshal(input, &v); err != nil {
 		return nil, false, err
@@ -185,11 +189,11 @@ func runJQ(code *gojq.Code, input []byte) (result any, ok bool, err error) {
 	return res, true, nil
 }
 
-// makeJQFilter builds the boolean-match function for ExcludeAtJQMatch/IncludeAtJQMatch
+// makeGoJQFilter builds the boolean-match function for ExcludeAtGoJQMatch/IncludeAtGoJQMatch
 // rules: any output produced by the jq program counts as a match.
-func makeJQFilter(code *gojq.Code) func(input []byte) (bool, error) {
+func makeGoJQFilter(code *gojq.Code) func(input []byte) (bool, error) {
 	return func(input []byte) (bool, error) {
-		_, ok, err := runJQ(code, input)
+		_, ok, err := runGoJQ(code, input)
 		if err != nil {
 			return false, err
 		}
@@ -197,12 +201,12 @@ func makeJQFilter(code *gojq.Code) func(input []byte) (bool, error) {
 	}
 }
 
-// makeJQTransform builds the content-mutation function for MaskJQTransform rules. The
+// makeGoJQTransform builds the content-mutation function for MaskGoJQTransform rules. The
 // jq program is expected to output a full, transformed JSON document; the result is
 // re-serialized as the new message content.
-func makeJQTransform(code *gojq.Code) func(input []byte) ([]byte, error) {
+func makeGoJQTransform(code *gojq.Code) func(input []byte) ([]byte, error) {
 	return func(input []byte) ([]byte, error) {
-		result, ok, err := runJQ(code, input)
+		result, ok, err := runGoJQ(code, input)
 		if err != nil {
 			return nil, fmt.Errorf("jq mask runtime error: %w", err)
 		}

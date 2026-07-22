@@ -103,73 +103,73 @@ func TestCompileSkipsRemapSource(t *testing.T) {
 	assert.Nil(t, rules[0].Regex)
 }
 
-func TestValidateJQRules(t *testing.T) {
+func TestValidateGoJQRules(t *testing.T) {
 	t.Run("valid exclude", func(t *testing.T) {
-		rules := []*ProcessingRule{{Type: ExcludeAtJQMatch, Name: "jq_test", Pattern: `select(.level == "debug")`}}
+		rules := []*ProcessingRule{{Type: ExcludeAtGoJQMatch, Name: "gojq_test", Pattern: `select(.level == "debug")`}}
 		assert.NoError(t, ValidateProcessingRules(rules))
 	})
 
 	t.Run("valid include", func(t *testing.T) {
-		rules := []*ProcessingRule{{Type: IncludeAtJQMatch, Name: "jq_test", Pattern: `select(.level == "error")`}}
+		rules := []*ProcessingRule{{Type: IncludeAtGoJQMatch, Name: "gojq_test", Pattern: `select(.level == "error")`}}
 		assert.NoError(t, ValidateProcessingRules(rules))
 	})
 
 	t.Run("valid mask", func(t *testing.T) {
-		rules := []*ProcessingRule{{Type: MaskJQTransform, Name: "jq_test", Pattern: `.message |= gsub("[0-9]+"; "X")`}}
+		rules := []*ProcessingRule{{Type: MaskGoJQTransform, Name: "gojq_test", Pattern: `.message |= gsub("[0-9]+"; "X")`}}
 		assert.NoError(t, ValidateProcessingRules(rules))
 	})
 
 	t.Run("empty pattern", func(t *testing.T) {
-		for _, ruleType := range []string{ExcludeAtJQMatch, IncludeAtJQMatch, MaskJQTransform} {
-			rules := []*ProcessingRule{{Type: ruleType, Name: "jq_test"}}
+		for _, ruleType := range []string{ExcludeAtGoJQMatch, IncludeAtGoJQMatch, MaskGoJQTransform} {
+			rules := []*ProcessingRule{{Type: ruleType, Name: "gojq_test"}}
 			assert.ErrorContains(t, ValidateProcessingRules(rules), "no pattern provided")
 		}
 	})
 
 	t.Run("invalid jq syntax", func(t *testing.T) {
-		for _, ruleType := range []string{ExcludeAtJQMatch, IncludeAtJQMatch, MaskJQTransform} {
-			rules := []*ProcessingRule{{Type: ruleType, Name: "jq_test", Pattern: "("}}
+		for _, ruleType := range []string{ExcludeAtGoJQMatch, IncludeAtGoJQMatch, MaskGoJQTransform} {
+			rules := []*ProcessingRule{{Type: ruleType, Name: "gojq_test", Pattern: "("}}
 			assert.ErrorContains(t, ValidateProcessingRules(rules), "invalid jq pattern")
 		}
 	})
 }
 
-func TestCompileJQFilterRules(t *testing.T) {
+func TestCompileGoJQFilterRules(t *testing.T) {
 	rules := []*ProcessingRule{
-		{Type: ExcludeAtJQMatch, Name: "jq_exclude", Pattern: `select(.level == "debug")`},
-		{Type: IncludeAtJQMatch, Name: "jq_include", Pattern: `select(.level == "error")`},
+		{Type: ExcludeAtGoJQMatch, Name: "gojq_exclude", Pattern: `select(.level == "debug")`},
+		{Type: IncludeAtGoJQMatch, Name: "gojq_include", Pattern: `select(.level == "error")`},
 	}
 	require.NoError(t, CompileProcessingRules(rules))
-	require.NotNil(t, rules[0].JQFilter)
-	require.NotNil(t, rules[1].JQFilter)
-	assert.Nil(t, rules[0].JQTransform)
+	require.NotNil(t, rules[0].GoJQFilter)
+	require.NotNil(t, rules[1].GoJQFilter)
+	assert.Nil(t, rules[0].GoJQTransform)
 
-	matched, err := rules[0].JQFilter([]byte(`{"level":"debug"}`))
+	matched, err := rules[0].GoJQFilter([]byte(`{"level":"debug"}`))
 	require.NoError(t, err)
 	assert.True(t, matched)
 
-	matched, err = rules[0].JQFilter([]byte(`{"level":"error"}`))
+	matched, err = rules[0].GoJQFilter([]byte(`{"level":"error"}`))
 	require.NoError(t, err)
 	assert.False(t, matched)
 
-	_, err = rules[0].JQFilter([]byte(`not json`))
+	_, err = rules[0].GoJQFilter([]byte(`not json`))
 	assert.Error(t, err)
 }
 
-func TestCompileJQMaskRule(t *testing.T) {
+func TestCompileGoJQMaskRule(t *testing.T) {
 	rules := []*ProcessingRule{{
-		Type:    MaskJQTransform,
-		Name:    "jq_mask",
+		Type:    MaskGoJQTransform,
+		Name:    "gojq_mask",
 		Pattern: `.message |= gsub("(?<num>[0-9]+)"; "[REDACTED-\(.num)]")`,
 	}}
 	require.NoError(t, CompileProcessingRules(rules))
-	require.NotNil(t, rules[0].JQTransform)
-	assert.Nil(t, rules[0].JQFilter)
+	require.NotNil(t, rules[0].GoJQTransform)
+	assert.Nil(t, rules[0].GoJQFilter)
 
-	out, err := rules[0].JQTransform([]byte(`{"message":"user 123456 logged in"}`))
+	out, err := rules[0].GoJQTransform([]byte(`{"message":"user 123456 logged in"}`))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"message":"user [REDACTED-123456] logged in"}`, string(out))
 
-	_, err = rules[0].JQTransform([]byte(`not json`))
+	_, err = rules[0].GoJQTransform([]byte(`not json`))
 	assert.Error(t, err)
 }

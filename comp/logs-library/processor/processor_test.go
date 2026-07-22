@@ -379,7 +379,7 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	return msg
 }
 
-func newJQSource(ruleType, pattern string) sources.LogSource {
+func newGoJQSource(ruleType, pattern string) sources.LogSource {
 	rule := &config.ProcessingRule{
 		Type:    ruleType,
 		Name:    ruleName,
@@ -391,7 +391,7 @@ func newJQSource(ruleType, pattern string) sources.LogSource {
 	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
 }
 
-func TestJQExclusion(t *testing.T) {
+func TestGoJQExclusion(t *testing.T) {
 	p := &Processor{}
 	tests := []struct {
 		name          string
@@ -420,14 +420,14 @@ func TestJQExclusion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := newJQSource(config.ExcludeAtJQMatch, tt.pattern)
+			src := newGoJQSource(config.ExcludeAtGoJQMatch, tt.pattern)
 			msg := newMessage(tt.input, &src, "")
 			assert.Equal(t, tt.shouldProcess, p.applyRedactingRules(msg))
 		})
 	}
 }
 
-func TestJQInclusion(t *testing.T) {
+func TestGoJQInclusion(t *testing.T) {
 	p := &Processor{}
 	tests := []struct {
 		name          string
@@ -456,31 +456,31 @@ func TestJQInclusion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := newJQSource(config.IncludeAtJQMatch, tt.pattern)
+			src := newGoJQSource(config.IncludeAtGoJQMatch, tt.pattern)
 			msg := newMessage(tt.input, &src, "")
 			assert.Equal(t, tt.shouldProcess, p.applyRedactingRules(msg))
 		})
 	}
 }
 
-func TestJQMask(t *testing.T) {
+func TestGoJQMask(t *testing.T) {
 	p := &Processor{}
 
 	t.Run("masks matching content", func(t *testing.T) {
-		src := newJQSource(config.MaskJQTransform, `.message |= gsub("(?<num>[0-9]+)"; "[REDACTED-\(.num)]")`)
+		src := newGoJQSource(config.MaskGoJQTransform, `.message |= gsub("(?<num>[0-9]+)"; "[REDACTED-\(.num)]")`)
 		msg := newMessage([]byte(`{"message":"user 123456 logged in"}`), &src, "")
 		assert.True(t, p.applyRedactingRules(msg))
 		assert.JSONEq(t, `{"message":"user [REDACTED-123456] logged in"}`, string(msg.GetContent()))
 	})
 
 	t.Run("fails closed and drops the message on non-JSON input", func(t *testing.T) {
-		src := newJQSource(config.MaskJQTransform, `.message |= gsub("[0-9]+"; "X")`)
+		src := newGoJQSource(config.MaskGoJQTransform, `.message |= gsub("[0-9]+"; "X")`)
 		msg := newMessage([]byte("not json"), &src, "")
 		assert.False(t, p.applyRedactingRules(msg))
 	})
 
 	t.Run("fails closed and drops the message when the program produces no output", func(t *testing.T) {
-		src := newJQSource(config.MaskJQTransform, `empty`)
+		src := newGoJQSource(config.MaskGoJQTransform, `empty`)
 		msg := newMessage([]byte(`{"message":"hello"}`), &src, "")
 		assert.False(t, p.applyRedactingRules(msg))
 	})
@@ -488,14 +488,14 @@ func TestJQMask(t *testing.T) {
 	t.Run("mask before exclude sees the masked content", func(t *testing.T) {
 		var seen []byte
 		maskRule := &config.ProcessingRule{
-			Type:        config.MaskJQTransform,
-			Name:        ruleName,
-			JQTransform: func([]byte) ([]byte, error) { return []byte(`{"message":"masked"}`), nil },
+			Type:          config.MaskGoJQTransform,
+			Name:          ruleName,
+			GoJQTransform: func([]byte) ([]byte, error) { return []byte(`{"message":"masked"}`), nil },
 		}
 		excludeRule := &config.ProcessingRule{
-			Type: config.ExcludeAtJQMatch,
+			Type: config.ExcludeAtGoJQMatch,
 			Name: ruleName,
-			JQFilter: func(input []byte) (bool, error) {
+			GoJQFilter: func(input []byte) (bool, error) {
 				seen = input
 				return false, nil
 			},
@@ -507,7 +507,7 @@ func TestJQMask(t *testing.T) {
 	})
 
 	t.Run("masked output sorts object keys alphabetically", func(t *testing.T) {
-		src := newJQSource(config.MaskJQTransform, `.`)
+		src := newGoJQSource(config.MaskGoJQTransform, `.`)
 		msg := newMessage([]byte(`{"z":1,"a":2}`), &src, "")
 		assert.True(t, p.applyRedactingRules(msg))
 		assert.Equal(t, []byte(`{"a":2,"z":1}`), msg.GetContent())
