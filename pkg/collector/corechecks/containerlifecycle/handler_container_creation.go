@@ -45,6 +45,13 @@ func (h *ContainerCreationHandler) Handle(ev workloadmeta.Event) ([]LifecycleEve
 	containerID := ev.Entity.GetID().ID
 
 	if ev.Type == workloadmeta.EventTypeUnset {
+		// We could get an unset event for removal at the runtime source, but 
+		// not yet at the node orchestrator source. If the container still exists,
+		// we don't delete yet.
+		if _, err := h.store.GetContainer(containerID); err == nil {
+			return nil, nil
+		}
+
 		h.mu.Lock()
 		delete(h.seen, containerID)
 		h.mu.Unlock()
