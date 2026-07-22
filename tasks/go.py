@@ -72,7 +72,12 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
+    _, _, env = get_build_flags(
+        ctx,
+        rtloader_root=rtloader_root,
+        headless_mode=headless_mode,
+        include_python="python" in tags,
+    )
 
     # Cross-OS linting setup: configure cross-compilation environment
     if goos:
@@ -119,7 +124,7 @@ def run_golangci_lint(
 
     verbosity = "-v" if verbose else ""
     concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-    tags_arg = " ".join(sorted(set(tags)))
+    tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
     targets_rec = [f"{target}/..." if not target.endswith("/...") else target for target in targets]

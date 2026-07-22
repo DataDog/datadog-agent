@@ -25,7 +25,7 @@ Run one or more of these three validation levels:
 
 1. **Mocked NVML against spec** (`TestMetricsFollowSpec`):
 
-   `dda inv test --targets=./pkg/collector/corechecks/gpu -- -tags "test nvml" -run TestMetricsFollowSpec`
+   `dda inv test --targets=./pkg/collector/corechecks/gpu -- -tags "test,nvml" -run TestMetricsFollowSpec`
 
 2. **Real NVML APIs against spec** (`integrationtests`, requires real GPU + NVML):
 
