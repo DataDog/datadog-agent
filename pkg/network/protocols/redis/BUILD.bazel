@@ -1,5 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")

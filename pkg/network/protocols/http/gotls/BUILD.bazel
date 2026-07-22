@@ -2,6 +2,11 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# Unlike most of pkg/network/protocols/http, this package is plain Go with no
+# linux_bpf-gated sources, so it opts back into flavored tests.
+# gazelle:dd_linux_bpf off
+# gazelle:dd_agent_go_test on
+
 exports_files([
     "go_tls_types_linux.go",
     "go_tls_types_linux_test.go",
