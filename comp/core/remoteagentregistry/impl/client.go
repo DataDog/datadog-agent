@@ -55,6 +55,11 @@ type remoteAgentClient struct {
 }
 
 func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (*remoteAgentClient, error) {
+	sanitizedDisplayName := sanitizeString(registration.AgentDisplayName)
+	if strings.TrimSpace(registration.AgentDisplayName) == "" || sanitizedDisplayName == "" {
+		return nil, errors.New("remote agent display name must not be empty or whitespace-only")
+	}
+
 	target, transportCreds, err := resolveDialTarget(registration.APIEndpointURI, ra.ipc.GetTLSClientConfig())
 	if err != nil {
 		return nil, err
@@ -74,7 +79,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 		RegisteredAgent: remoteagentregistry.RegisteredAgent{
 			Flavor:               registration.AgentFlavor,
 			DisplayName:          registration.AgentDisplayName,
-			SanitizedDisplayName: sanitizeString(registration.AgentDisplayName),
+			SanitizedDisplayName: sanitizedDisplayName,
 			PID:                  registration.AgentPID,
 			LastSeen:             time.Now(),
 			SessionID:            uuid.New().String(),
