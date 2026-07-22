@@ -33,9 +33,9 @@ fn engine_for(platform: &str) -> Result<&'static dyn ScanEngine> {
         .with_context(|| format!("unsupported platform {platform:?}"))
 }
 
-/// Runs the sub task on the engine selected by its platform.
+/// Runs the sub task on the engine selected by its entity platform.
 pub fn fetch_data(sub_task: &SubTask) -> Result<Value> {
-    engine_for(&sub_task.platform)?.fetch_data(sub_task)
+    engine_for(&sub_task.entity.platform)?.fetch_data(sub_task)
 }
 
 #[cfg(all(test, feature = "engine-postgres"))]

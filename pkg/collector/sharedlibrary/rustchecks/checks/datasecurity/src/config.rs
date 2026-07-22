@@ -35,17 +35,25 @@ pub struct CheckConfig {
 #[derive(Debug, Default, Deserialize)]
 pub struct SubTask {
     pub sub_task_id: String,
-    /// Data-source platform, used to select the backend engine (e.g. `postgres`).
-    #[serde(default)]
-    pub platform: String,
     #[serde(default)]
     pub connection: Connection,
+    #[serde(default)]
+    pub entity: Entity,
     /// SQL query whose result columns are scanned.
     #[serde(default)]
     pub query: String,
     /// Connect and query timeout in seconds. `0` disables the timeout.
     #[serde(default = "default_timeout_seconds")]
     pub timeout_seconds: u64,
+}
+
+/// TODO(dsec-140): add the other entity values (scan location) when needed,
+/// e.g. database_cluster_name, database_instance_name, database, schema, table.
+#[derive(Debug, Default, Deserialize)]
+pub struct Entity {
+    /// Data-source platform, used to select the backend engine (e.g. `postgres`).
+    #[serde(default)]
+    pub platform: String,
 }
 
 fn default_timeout_seconds() -> u64 {

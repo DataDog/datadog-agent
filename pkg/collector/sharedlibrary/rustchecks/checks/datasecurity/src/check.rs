@@ -42,7 +42,7 @@ fn run_sub_task(
 ) -> Result<()> {
     println!(
         "datasecurity: running sub task (sub_task_id={}, platform={})",
-        sub_task.sub_task_id, sub_task.platform
+        sub_task.sub_task_id, sub_task.entity.platform
     );
 
     // A sub task failure is reported inside the payload (status=ERROR) rather
