@@ -430,6 +430,12 @@ func TestScrubJSONValue(t *testing.T) {
 			mustOmit:    []string{"abcdef0123456789"},
 		},
 		{
+			name:        "prefixed env-var-style key",
+			in:          `{"DD_API_KEY":"abcdef0123456789"}`,
+			wantChanged: true,
+			mustOmit:    []string{"abcdef0123456789"},
+		},
+		{
 			name:        "name/value pair split across sibling keys",
 			in:          `{"env_var":"password","value":"hunter2"}`,
 			wantChanged: true,

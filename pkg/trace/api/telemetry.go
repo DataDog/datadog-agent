@@ -401,21 +401,15 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 	return out
 }
 
-// sensitiveMetadataKeys mirrors sensitiveArgFlags but matches JSON object
-// keys within the free-form injection-metadata metadata field, since its
-// shape isn't fixed and may carry a raw property value under a descriptive
-// key (e.g. {"env_var": "DD_API_KEY", "value": "..."}) rather than a
-// "flag=value" pair scrubCommandLine's regexes can key off of.
-var sensitiveMetadataKeys = sensitiveArgFlags
-
+// isSensitiveMetadataKey matches JSON object keys within the free-form
+// injection-metadata metadata field against sensitiveArgFlags, since its
+// shape isn't fixed and may carry a raw property value directly under its
+// property/env-var name (e.g. {"DD_API_KEY": "..."}) rather than a
+// "flag=value" pair scrubCommandLine's regexes can key off of. It matches by
+// substring, like isSensitiveWord, so prefixed/suffixed names such as
+// "DD_API_KEY" or "AUTH_TOKEN" are still caught.
 func isSensitiveMetadataKey(key string) bool {
-	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
-	for _, word := range sensitiveMetadataKeys {
-		if normalized == word {
-			return true
-		}
-	}
-	return false
+	return isSensitiveWord(key)
 }
 
 var valueKeyNames = map[string]bool{"value": true, "val": true}
@@ -431,7 +425,7 @@ func isSensitiveWord(s string) bool {
 }
 
 // scrubJSONValue walks an arbitrary JSON value and redacts string leaves: outright, when the enclosing
-// object key names a known-sensitive field (see sensitiveMetadataKeys) or
+// object key names a known-sensitive field (see isSensitiveMetadataKey) or
 // when a sibling key's value names one (see valueKeyNames/isSensitiveWord),
 // and otherwise via s, which redacts embedded "flag=value"/"flag: value"
 // patterns the same way it does for command_line. It reports whether
