@@ -26,25 +26,27 @@ func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
 	return kafkaConfigCollector{}
 }
 
-func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) ([]configfilesdiscoveryimpl.ConfigFile, error) {
+func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
 	commandline, err := reader.ReadCommandline(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read kafka command line: %w", err)
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka command line: %w", err)
 	}
 
 	configPath, ok := kafkaGetConfigPath(commandline)
 	if !ok {
 		log.Debugf("config files discovery skipped kafka config collection: no explicit broker properties file path detected")
-		return nil, nil
+		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
 	file, err := reader.ReadFile(ctx, configPath)
 	if err != nil {
-		return nil, fmt.Errorf("read kafka config file %q: %w", configPath, err)
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka config file %q: %w", configPath, err)
 	}
 	file.PayloadFormat = kafkaConfigPayloadFormat
 
-	return []configfilesdiscoveryimpl.ConfigFile{file}, nil
+	return configfilesdiscoveryimpl.CollectedConfig{
+		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+	}, nil
 }
 
 // kafkaGetConfigPath returns the broker properties file passed to the Kafka

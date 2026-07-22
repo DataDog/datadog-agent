@@ -22,7 +22,7 @@ go_library(
         "//pkg/util/aws/creds",
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 

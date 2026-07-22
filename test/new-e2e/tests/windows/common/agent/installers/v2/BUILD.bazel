@@ -6,5 +6,5 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2",
     tags_independent = True,
     visibility = ["//visibility:public"],
-    deps = ["@com_github_cenkalti_backoff_v6//:backoff"],
+    deps = ["@com_github_cenkalti_backoff_v7//:backoff"],
 )

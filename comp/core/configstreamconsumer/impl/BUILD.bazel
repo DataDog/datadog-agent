@@ -23,7 +23,7 @@ go_library(
         "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/log",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",

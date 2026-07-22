@@ -8,3 +8,9 @@ go_library(
     tags_independent = True,
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//pkg/collector/corechecks/orchestrator:__subpackages__"],
+)

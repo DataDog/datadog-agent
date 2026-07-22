@@ -9,6 +9,7 @@ go_library(
         "command_unsupported.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/ebpf",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/command",
@@ -38,7 +39,12 @@ go_test(
         "command_linux_test.go",
     ],
     embed = [":ebpf"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",

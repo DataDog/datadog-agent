@@ -34,7 +34,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/util/retry",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 

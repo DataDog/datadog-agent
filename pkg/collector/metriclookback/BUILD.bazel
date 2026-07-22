@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "metadata.go",
         "policy.go",
+        "shadow_writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback",
     tags_independent = True,
@@ -13,7 +14,13 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadfilter/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/metriclookback/lookbacksender",
         "//pkg/config/model",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -23,12 +30,18 @@ dd_agent_go_test(
     srcs = [
         "metadata_test.go",
         "policy_test.go",
+        "shadow_writer_test.go",
     ],
     embed = [":metriclookback"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadfilter/def",
+        "//pkg/collector/check/id",
         "//pkg/config/mock",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",

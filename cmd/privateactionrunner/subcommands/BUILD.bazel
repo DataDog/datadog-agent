@@ -10,6 +10,7 @@ go_library(
         "//cmd/privateactionrunner/command",
         "//cmd/privateactionrunner/subcommands/rotateidentity",
         "//cmd/privateactionrunner/subcommands/run",
+        "//cmd/privateactionrunner/subcommands/runexecutor",
         "//cmd/privateactionrunner/subcommands/version",
     ],
 )

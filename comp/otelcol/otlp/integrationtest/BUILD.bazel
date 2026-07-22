@@ -13,6 +13,7 @@ go_library(
 dd_agent_go_test(
     name = "integrationtest_test",
     srcs = ["integration_test.go"],
+    data = glob(["testdata/**"]),
     embed = [":integrationtest"],
     flavors = [
         "base",

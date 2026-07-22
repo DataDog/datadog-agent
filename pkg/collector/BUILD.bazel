@@ -8,6 +8,8 @@ go_library(
     srcs = [
         "infra_mode.go",
         "scheduler.go",
+        "scheduler_metriclookback.go",
+        "scheduler_metriclookback_nopython.go",
         "stats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector",
@@ -26,7 +28,6 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/collector/loaders",
         "//pkg/collector/metriclookback",
-        "//pkg/collector/metriclookback/lookbacksender",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/infratags",
