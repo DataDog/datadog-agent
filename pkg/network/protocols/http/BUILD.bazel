@@ -149,6 +149,7 @@ go_test(
         "//pkg/ebpf",
         "//pkg/network/config",
         "//pkg/network/protocols/events",
+        "//pkg/util/common",
         "@com_github_datadog_sketches_go//ddsketch",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

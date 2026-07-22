@@ -696,7 +696,7 @@ func TestProcessEvents(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				SBOMsSent.Inc()
 			})
@@ -840,7 +840,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 		counter := atomic.NewInt32(0)
-		sender := mocksender.NewMockSender("")
+		sender := mocksender.NewMockSender(t, "")
 		sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 			counter.Inc()
 		})

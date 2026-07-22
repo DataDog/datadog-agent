@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
         "//comp/core/telemetry/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/traceroute/def",
@@ -35,9 +36,17 @@ dd_agent_go_test(
     embed = [":networkpath"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

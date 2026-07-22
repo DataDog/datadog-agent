@@ -17,8 +17,6 @@ properties:
     visibility: public
     description: Enable container log collection for all the containers (see ac_exclude
       to filter out containers)
-    tags:
-    - template_section:LogsAgent
     comment: 'collect all logs from all containers:'
   use_container_timestamp:
     node_type: setting
@@ -29,8 +27,6 @@ properties:
       Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
 
       This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
-    tags:
-    - template_section:LogsAgent
     comment: use the `time` field from container log files instead of ingestion time
   logs_dd_url:
     node_type: setting
@@ -42,8 +38,6 @@ properties:
       As of agent version 7.70.0, proxy paths are supported. To forward logs to a
       specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
     example: <ENDPOINT>:<PORT>
-    tags:
-    - template_section:LogsAgent
   logs_no_ssl:
     node_type: setting
     type: boolean
@@ -53,8 +47,6 @@ properties:
       Disable the SSL encryption. This parameter should only be used when logs are
       forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
       on the proxy side.
-    tags:
-    - template_section:LogsAgent
   processing_rules:
     node_type: setting
     type: array
@@ -69,21 +61,16 @@ properties:
         - type: <RULE_TYPE>
           name: <RULE_NAME>
           pattern: <RULE_PATTERN>
-    tags:
-    - template_section:LogsAgent
     comment: add global processing rules that are applied on all logs
   auto_multi_line_detection:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     visibility: public
     description: |-
       Enable automatic aggregation of multi-line logs for common log patterns.
       More information can be found in Datadog documentation:
       https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
-    example: 'true'
-    tags:
-    - template_section:LogsAgent
     comment: Auto multiline detection settings
   force_use_http:
     node_type: setting
@@ -102,8 +89,6 @@ properties:
       Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
       need unencrypted HTTP instead.
     example: 'true'
-    tags:
-    - template_section:LogsAgent
   http_protocol:
     node_type: setting
     type: string
@@ -111,8 +96,6 @@ properties:
     visibility: public
     description: The transport type to use for sending logs. Possible values are "auto"
       or "http1".
-    tags:
-    - template_section:LogsAgent
     comment: Transport protocol for log payloads
   http_timeout:
     node_type: setting
@@ -120,8 +103,6 @@ properties:
     default: 10
     visibility: public
     description: The HTTP timeout to use for sending logs, in seconds.
-    tags:
-    - template_section:LogsAgent
   force_use_tcp:
     node_type: setting
     type: boolean
@@ -132,8 +113,6 @@ properties:
       to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
       is ignored.
     example: 'true'
-    tags:
-    - template_section:LogsAgent
   use_compression:
     node_type: setting
     type: boolean
@@ -142,8 +121,6 @@ properties:
     description: |-
       This parameter is available when sending logs via HTTP protocol. If enabled, the Agent
       compresses logs before sending them.
-    tags:
-    - template_section:LogsAgent
   compression_level:
     node_type: setting
     type: integer
@@ -153,8 +130,6 @@ properties:
       The compression_level parameter accepts values from 0 (no compression)
       to 9 (maximum compression but higher resource usage). Only takes effect if
       `use_compression` is set to `true`.
-    tags:
-    - template_section:LogsAgent
   batch_wait:
     node_type: setting
     type: number
@@ -164,7 +139,6 @@ properties:
       batch of logs before sending.
     tags:
     - golang_type:float64
-    - template_section:LogsAgent
   close_timeout:
     node_type: setting
     type: integer
@@ -172,8 +146,6 @@ properties:
     visibility: public
     description: The maximum number of seconds the Agent spends reading from a file
       after it has been rotated.
-    tags:
-    - template_section:LogsAgent
     comment: maximum time that the unix tailer will hold a log file open after it
       has been rotated
   open_files_limit:
@@ -184,12 +156,13 @@ properties:
       The maximum number of files that can be tailed in parallel.
       Note: the default for Mac OS is 200. The default for
       all other systems is 500.
-    tags:
-    - template_section:LogsAgent
     platform_default:
       darwin: 200
       other: 500
     comment: |-
+      Increase the number of files that can be tailed in parallel:
+      The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+
       There is no effective limit for windows due to use of CreateFile win32 API
       The OS default for most linux distributions is 1024
   file_wildcard_selection_mode:
@@ -214,8 +187,6 @@ properties:
 
       WARNING: `by_modification_time` is less performant than `by_name` and will trigger
       more disk I/O at the configured wildcard log paths.
-    tags:
-    - template_section:LogsAgent
     comment: |-
       Controls how wildcard file log source are prioritized when there are more files
       that match wildcard log configurations than the `logs_config.open_files_limit`
@@ -237,8 +208,6 @@ properties:
 
       Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
       remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
-    tags:
-    - template_section:LogsAgent
     comment: maximum log message size in bytes
   integrations_logs_files_max_size:
     node_type: setting
@@ -246,8 +215,6 @@ properties:
     default: 100
     visibility: public
     description: The max size in MB that an integration logs file is allowed to use
-    tags:
-    - template_section:LogsAgent
     comment: Max size in MB an integration logs file can use
   integrations_logs_total_usage:
     node_type: setting
@@ -255,8 +222,6 @@ properties:
     default: 100
     visibility: public
     description: The total combined usage all integrations logs files can use
-    tags:
-    - template_section:LogsAgent
     comment: Max disk usage in MB all integrations logs files are allowed to use in
       total
   k8s_container_use_kubelet_api:
@@ -266,8 +231,6 @@ properties:
     visibility: public
     description: Enable container log collection via the kubelet API, typically used
       for EKS Fargate
-    tags:
-    - template_section:LogsAgent
     comment: Tail a container's logs by querying the kubelet's API
   streaming:
     node_type: section
@@ -288,8 +251,6 @@ properties:
             * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
             * Darwin: /opt/datadog-agent/logs/streamlogs_info/streamlogs.log
             * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
-        tags:
-        - template_section:LogsAgent
         comment: Control how the stream-logs log file is managed
   add_logsource_tag:
     node_type: setting
@@ -320,7 +281,9 @@ properties:
   atomic_registry_write:
     node_type: setting
     type: boolean
-    default: true
+    platform_default:
+      fargate: false
+      other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
   auditor_ttl:
@@ -539,7 +502,6 @@ properties:
     tags:
     - golang_type:duration
     comment: |-
-      Delegated authentication for logs
       Duration during which the host tags will be submitted with log events.
       duration-formatted string (parsed by `time.ParseDuration`)
   experimental_adaptive_sampling:
@@ -553,6 +515,15 @@ properties:
         tags:
         - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+          Useful for auto-discovered sources that cannot be configured via integration-level YAML.
       enabled:
         node_type: setting
         type: boolean
@@ -602,6 +573,58 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      smart_severity_profiles:
+        node_type: section
+        type: object
+        properties:
+          cooldown:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          medium:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean
@@ -640,19 +663,32 @@ properties:
         node_type: setting
         type: integer
         default: 0
-        comment: default fingerprint configuration
+        comment: DefaultFingerprintingCount refers to the number of lines or bytes
+          to use for fingerprinting
       count_to_skip:
         node_type: setting
         type: integer
         default: 0
+        comment: |-
+          The default number of lines (or bytes) to skip when reading a file.
+          Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
       fingerprint_strategy:
         node_type: setting
         type: string
         default: disabled
+        comment: |-
+          DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+          Options are:
+          - "line_checksum": compute the fingerprint by lines
+          - "byte_checksum": compute the fingerprint by bytes
+          - "disabled": disable fingerprinting
       max_bytes:
         node_type: setting
         type: integer
         default: 100000
+        comment: |-
+          The maximum number of bytes that will be used to generate a checksum fingerprint;
+          used in cases where the line to hash is too large or if the fingerprinting maxLines=0
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean
@@ -837,3 +873,4 @@ properties:
     node_type: setting
     type: integer
     default: 1
+comment: Delegated authentication for logs

@@ -367,6 +367,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s2
           Offset: 18
           Kind: argument
@@ -380,6 +381,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: i
           Offset: 34
           Kind: argument
@@ -393,6 +395,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 115
       Name: Probe[main.callMe]Return
@@ -426,6 +429,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[0]uint8'

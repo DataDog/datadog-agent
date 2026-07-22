@@ -564,6 +564,20 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
+	// Sample refresh metrics (cookie-based dedup refresh)
+
+	// MetricSecurityProfileV2SampleRefreshReceived counts HandleSampleRefresh calls
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshReceived = newRuntimeMetric(".security_profile_v2.sample_refresh.received")
+
+	// MetricSecurityProfileV2SampleRefreshHits counts refresh events where the cookie was found in the LRU
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshHits = newRuntimeMetric(".security_profile_v2.sample_refresh.hits")
+
+	// MetricSecurityProfileV2SampleRefreshMisses counts refresh events where the cookie was not found (LRU evicted)
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
+
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
 	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
 	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's

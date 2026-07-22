@@ -46,7 +46,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
@@ -151,7 +151,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsfx.Module(),
-		orchestratorForwarderImpl.Module(orchestratordef.NewDisabledParams()),
+		orchestratorForwarderFx.Module(orchestratordef.NewDisabledParams()),
 		eventplatformfx.Module(eventplatform.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),

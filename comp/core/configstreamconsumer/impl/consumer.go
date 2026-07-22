@@ -23,7 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -76,10 +76,9 @@ type consumer struct {
 	stream     pb.AgentSecure_StreamConfigEventsClient
 	streamLock sync.Mutex
 
-	// lastSeqID is accessed only from the single streamLoop goroutine; atomic for clarity.
 	lastSeqID atomic.Int32
 
-	ready     bool
+	ready     atomic.Bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
@@ -94,7 +93,7 @@ type consumer struct {
 	droppedStaleUpdates  telemetry.Counter
 }
 
-func (c *consumer) IsActive() bool { return c.ready }
+func (c *consumer) IsActive() bool { return c.ready.Load() }
 
 // noopConsumer is returned when configstream is disabled.
 type noopConsumer struct{}
@@ -208,10 +207,8 @@ func (c *consumer) registerWithBackoff() error {
 		if c.ctx.Err() != nil {
 			return c.ctx.Err()
 		}
+		// NextBackOff never returns backoff.Stop when MaxElapsedTime is 0 (the default).
 		next := bo.NextBackOff()
-		if next == backoff.Stop || next < 0 {
-			next = bo.MaxInterval
-		}
 		c.log.Warnf("configstreamconsumer[%s]: register attempt %d failed (%v); retrying in %s", c.params.ClientName, attempt, dialErr, next)
 		select {
 		case <-c.ctx.Done():
@@ -308,7 +305,7 @@ func (c *consumer) connectAndStream() error {
 		}
 
 		if err := c.handleConfigEvent(event); err != nil {
-			c.log.Errorf("Failed to handle config event: %v", err)
+			return fmt.Errorf("config event error: %w", err)
 		}
 	}
 }
@@ -342,7 +339,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 
 	c.readyOnce.Do(func() {
 		close(c.readyCh)
-		c.ready = true
+		c.ready.Store(true)
 		duration := time.Since(c.startTime)
 		c.timeToFirstSnapshot.Set(duration.Seconds())
 		c.log.Infof("configstreamconsumer[%s]: first snapshot applied after %v", c.params.ClientName, duration)

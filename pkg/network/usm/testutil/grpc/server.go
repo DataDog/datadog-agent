@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -41,46 +40,11 @@ type Server struct {
 
 	pb.UnimplementedGreeterServer
 	routeguide.UnimplementedRouteGuideServer
-	pbStream.UnimplementedMathServer
 }
 
 // SayHello implements helloworld.GreeterServer.
 func (*Server) SayHello(_ context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
 	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
-}
-
-// Max implements MathServer.
-func (*Server) Max(srv pbStream.Math_MaxServer) error {
-	var max int32
-	for {
-		select {
-		case <-srv.Context().Done():
-			return srv.Context().Err()
-		default:
-		}
-
-		// receive data from stream
-		req, err := srv.Recv()
-		if err == io.EOF {
-			// return will close stream from server side
-			return nil
-		}
-		if err != nil {
-			log.Printf("receive error %v", err)
-			continue
-		}
-
-		if req.Num <= max {
-			continue
-		}
-
-		// update max and send it to stream
-		max = req.Num
-		resp := pbStream.Response{Result: max}
-		if err := srv.Send(&resp); err != nil {
-			log.Printf("send error %v", err)
-		}
-	}
 }
 
 // GetFeature returns the feature at the given point.
@@ -269,8 +233,6 @@ func NewServerWithoutBind(opts ...grpc.ServerOption) *Server {
 	server.loadFeatures()
 	pb.RegisterGreeterServer(server.grpcSrv, server)
 	routeguide.RegisterRouteGuideServer(server.grpcSrv, server)
-	pbStream.RegisterMathServer(server.grpcSrv, server)
-
 	return server
 }
 

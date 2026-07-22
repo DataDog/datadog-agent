@@ -84,7 +84,7 @@ static_quality_gates:
     expire_in: 1 week
   variables:
     GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses git merge-base
     KUBERNETES_CPU_REQUEST: 8
 
 manual_gate_threshold_update:

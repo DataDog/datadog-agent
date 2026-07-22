@@ -10,6 +10,7 @@ package defaultpaths
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
@@ -17,53 +18,53 @@ import (
 // Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
 // These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/etc/datadog-agent"
-	// defaultConfdPath points to the folder containing integration configuration files
-	defaultConfdPath = "/etc/datadog-agent/conf.d"
-	// defaultAdditionalChecksPath points to the folder containing custom python integration files
-	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
+	//defaultLogPath points to the default logs folder
+	defaultLogPath = "/var/log/datadog"
+
 	// defaultPyChecksPath points to the folder containing preinstalled integrations with the agent
 	defaultPyChecksPath = "/opt/datadog-agent/checks.d"
-	// defaultBinPath is the installation folder for agent binaries
-	defaultBinPath = "/opt/datadog-agent/bin/agent"
-	// CheckFlareDirectory a flare friendly location for checks to be written
-	defaultCheckFlareDirectory = "/var/log/datadog/checks/"
-	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
-	defaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 
 	// Log files
 
 	// LogFile points to the log file that will be used if not configured
-	defaultLogFile = "/var/log/datadog/agent.log"
+	defaultLogFile = defaultLogPath + "/agent.log"
 	// DCALogFile points to the log file that will be used if not configured
-	defaultDCALogFile = "/var/log/datadog/cluster-agent.log"
+	defaultDCALogFile = defaultLogPath + "/cluster-agent.log"
 	// defaultJmxLogFile points to the jmx fetch log file that will be used if not configured
-	defaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
+	defaultJmxLogFile = defaultLogPath + "/jmxfetch.log"
 	// defaultDogstatsDServiceLogFile points to the old datadog.conf dogstatsd_log_file location for running dogstatsd in as a standalone service
-	defaultDogstatsDServiceLogFile = "/var/log/datadog/dogstatsd.log"
+	defaultDogstatsDServiceLogFile = defaultLogPath + "/dogstatsd.log"
 	// defaultDogstatsDProtocolLogFile points to the dogstatsd stats log file that will be used if not configured
-	defaultDogstatsDProtocolLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
+	defaultDogstatsDProtocolLogFile = defaultLogPath + "/dogstatsd_info/dogstatsd-stats.log"
 	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
-	defaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
+	defaultStreamlogsLogFile = defaultLogPath + "/streamlogs_info/streamlogs.log"
 	// defaultUpdaterLogFile is the default log file location for updater
-	defaultUpdaterLogFile = "/var/log/datadog/updater.log"
+	defaultUpdaterLogFile = defaultLogPath + "/updater.log"
 	// defaultTraceAgentLogFile is the default log file location for trace agent
-	defaultTraceAgentLogFile = "/var/log/datadog/trace-agent.log"
+	defaultTraceAgentLogFile = defaultLogPath + "/trace-agent.log"
 	// defaultSecurityAgentLogFile is the default log file location for security agent
-	defaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	defaultSecurityAgentLogFile = defaultLogPath + "/security-agent.log"
 	// defaultProcessAgentLogFile is the default log file location for process agent
-	defaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
+	defaultProcessAgentLogFile = defaultLogPath + "/process-agent.log"
 	// defaultSystemProbeLogFile is the default log file location for the system probe
-	defaultSystemProbeLogFile = "/var/log/datadog/system-probe.log"
+	defaultSystemProbeLogFile = defaultLogPath + "/system-probe.log"
 	// defaultOTelAgentLogFile is the default log file location for the otel agent
-	defaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
+	defaultOTelAgentLogFile = defaultLogPath + "/otel-agent.log"
 	// defaultHostProfilerLogFile is the default log file location for the host profiler
-	defaultHostProfilerLogFile = "/var/log/datadog/host-profiler.log"
+	defaultHostProfilerLogFile = defaultLogPath + "/host-profiler.log"
 	// defaultPrivateActionRunnerLogFile is the default log file location for the private action runner
-	defaultPrivateActionRunnerLogFile = "/var/log/datadog/private-action-runner.log"
+	defaultPrivateActionRunnerLogFile = defaultLogPath + "/private-action-runner.log"
 	// defaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	defaultDataPlaneLogFile = "/var/log/datadog/agent-data-plane.log"
+	defaultDataPlaneLogFile = defaultLogPath + "/agent-data-plane.log"
+
+	// CheckFlareDirectory a flare friendly location for checks to be written
+	defaultCheckFlareDirectory = defaultLogPath + "/checks/"
+	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
+	defaultJMXFlareDirectory = defaultLogPath + "/jmxinfo/"
 
 	// Sockets
 
@@ -92,7 +93,7 @@ var (
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
-	return distPath
+	return commonRootOrPath(commonRoot, distPath)
 }
 
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
@@ -106,12 +107,12 @@ func GetDefaultRunPath() string {
 	if runPath != "" {
 		return runPath
 	}
-	return filepath.Join(GetInstallPath(), "run")
+	return commonRootOrPath(commonRoot, filepath.Join(GetInstallPath(), "run"))
 }
 
 // GetDefaultConfPath returns the path to the folder containing datadog.yaml
 func GetDefaultConfPath() string {
-	return defaultConfPath
+	return commonRootOrPath(commonRoot, defaultConfPath)
 }
 
 // GetDefaultConfFile returns the default location of datadog.yaml
@@ -124,120 +125,104 @@ func GetDefaultSysProbeConfFile() string {
 	return filepath.Join(GetDefaultConfPath(), "system-probe.yaml")
 }
 
-// GetDefaultConfdPath returns the path to the conf.d directory
-func GetDefaultConfdPath() string {
-	return defaultConfdPath
-}
-
-// GetDefaultAdditionalChecksPath returns the path to the checks.d directory
-func GetDefaultAdditionalChecksPath() string {
-	return defaultAdditionalChecksPath
-}
-
 // GetDefaultPyChecksPath returns the path to the python checks directory
 func GetDefaultPyChecksPath() string {
-	return defaultPyChecksPath
+	return commonRootOrPath(commonRoot, defaultPyChecksPath)
 }
 
-// GetDefaultPidFilePath returns the path to the agent PID file
-func GetDefaultPidFilePath() string {
-	return filepath.Join(GetDefaultRunPath(), "datadog-agent.pid")
-}
-
-// GetBinPath returns the directory containing the agent executable.
-// This is used by code that needs to find files relative to the executable location.
-func GetBinPath() string {
-	return defaultBinPath
-}
-
-// GetDefaultRunPath returns the path to the run directory
+// GetDefaultStatsdSocket returns the path to the run directory
 func GetDefaultStatsdSocket() string {
-	return defaultStatsdSocket
+	return commonRootOrPath(commonRoot, defaultStatsdSocket)
 }
 
 // GetDefaultReceiverSocket returns the path to the APM receiver Unix socket
 func GetDefaultReceiverSocket() string {
-	return defaultReceiverSocket
+	return commonRootOrPath(commonRoot, defaultReceiverSocket)
 }
 
 // GetDefaultJMXFlareDirectory returns the path to the JMX flare directory
 func GetDefaultJMXFlareDirectory() string {
-	return defaultJMXFlareDirectory
+	return commonRootOrPath(commonRoot, defaultJMXFlareDirectory)
 }
 
 // GetDefaultCheckFlareDirectory returns the path to the check flare directory
 func GetDefaultCheckFlareDirectory() string {
-	return defaultCheckFlareDirectory
+	return commonRootOrPath(commonRoot, defaultCheckFlareDirectory)
 }
 
 // GetDefaultSystemProbeLogFile returns the path to the system-probe log file
 func GetDefaultSystemProbeLogFile() string {
-	return defaultSystemProbeLogFile
+	return commonRootOrPath(commonRoot, defaultSystemProbeLogFile)
 }
 
 // GetDefaultPrivateActionRunnerLogFile returns the path to the private-action-runner log file
 func GetDefaultPrivateActionRunnerLogFile() string {
-	return defaultPrivateActionRunnerLogFile
+	return commonRootOrPath(commonRoot, defaultPrivateActionRunnerLogFile)
 }
 
 // GetDefaultHostProfilerLogFile returns the path to the host-profiler log file
 func GetDefaultHostProfilerLogFile() string {
-	return defaultHostProfilerLogFile
+	return commonRootOrPath(commonRoot, defaultHostProfilerLogFile)
 }
 
 // GetDefaultOTelAgentLogFile returns the path to the otel-agent log file
 func GetDefaultOTelAgentLogFile() string {
-	return defaultOTelAgentLogFile
+	return commonRootOrPath(commonRoot, defaultOTelAgentLogFile)
 }
 
 // GetDefaultProcessAgentLogFile returns the path to the process-agent log file
 func GetDefaultProcessAgentLogFile() string {
-	return defaultProcessAgentLogFile
+	return commonRootOrPath(commonRoot, defaultProcessAgentLogFile)
 }
 
 // GetDefaultSecurityAgentLogFile returns the path to the security-agent log file
 func GetDefaultSecurityAgentLogFile() string {
-	return defaultSecurityAgentLogFile
+	return commonRootOrPath(commonRoot, defaultSecurityAgentLogFile)
 }
 
 // GetDefaultUpdaterLogFile returns the path to the updater log file
 func GetDefaultUpdaterLogFile() string {
-	return defaultUpdaterLogFile
+	return commonRootOrPath(commonRoot, defaultUpdaterLogFile)
 }
 
 // GetDefaultStreamlogsLogFile returns the path to the streamlogs log file
 func GetDefaultStreamlogsLogFile() string {
-	return defaultStreamlogsLogFile
+	return commonRootOrPath(commonRoot, defaultStreamlogsLogFile)
 }
 
 // GetDefaultTraceAgentLogFile returns the path to the trace-agent log file
 func GetDefaultTraceAgentLogFile() string {
-	return defaultTraceAgentLogFile
+	return commonRootOrPath(commonRoot, defaultTraceAgentLogFile)
 }
 
 // GetDefaultDogstatsDServiceLogFile returns the path to the legacy dogstatsd log file location
 func GetDefaultDogstatsDServiceLogFile() string {
-	return defaultDogstatsDServiceLogFile
+	return commonRootOrPath(commonRoot, defaultDogstatsDServiceLogFile)
 }
 
 // GetDefaultDogstatsDProtocolLogFile returns the path to the DogStatsD protocol stats log file
 func GetDefaultDogstatsDProtocolLogFile() string {
-	return defaultDogstatsDProtocolLogFile
+	return commonRootOrPath(commonRoot, defaultDogstatsDProtocolLogFile)
 }
 
 // GetDefaultJmxLogFile returns the path to the jmxfetch log file
 func GetDefaultJmxLogFile() string {
-	return defaultJmxLogFile
+	return commonRootOrPath(commonRoot, defaultJmxLogFile)
 }
 
 // GetDefaultDCALogFile returns the path to the cluster-agent log file
 func GetDefaultDCALogFile() string {
-	return defaultDCALogFile
+	return commonRootOrPath(commonRoot, defaultDCALogFile)
+}
+
+// GetDefaultLogPath returns the path to the agent log directory
+func GetDefaultLogPath() string {
+	return commonRootOrPath(commonRoot, defaultLogPath)
 }
 
 // GetDefaultLogFile returns the path to the agent log file
 func GetDefaultLogFile() string {
-	return defaultLogFile
+	return commonRootOrPath(commonRoot, defaultLogFile)
 }
 
 // getInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
@@ -264,20 +249,57 @@ func getInstallPathFromExecutable(start string) string {
 
 // GetEmbeddedBinPath returns the path of the embedded binary.
 func GetEmbeddedBinPath() string {
-	return filepath.Join(GetInstallPath(), "embedded", "bin")
+	return commonRootOrPath(commonRoot, filepath.Join(GetInstallPath(), "embedded", "bin"))
 }
 
 // GetDefaultSystemProbeAddress returns the default unix socket path to be used for connecting to the system probe
 func GetDefaultSystemProbeAddress() string {
-	return filepath.Join(GetInstallPath(), "run/sysprobe.sock")
+	return commonRootOrPath(commonRoot, filepath.Join(GetInstallPath(), "run/sysprobe.sock"))
 }
 
 // GetDefaultDDAgentBin returns the default path to the core agent binary
 func GetDefaultDDAgentBin() string {
-	return filepath.Join(GetInstallPath(), "bin/agent/agent")
+	return commonRootOrPath(commonRoot, filepath.Join(GetInstallPath(), "bin/agent/agent"))
 }
 
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
-	return defaultDataPlaneLogFile
+	return commonRootOrPath(commonRoot, defaultDataPlaneLogFile)
+}
+
+// commonRootOrPath will optionally transform the path to use the common root path provided
+//
+//	/etc/datadog-agent/** -> {root}/etc/**
+//	/var/log/datadog/**   -> {root}/logs/**
+//	/var/run/datadog/**   -> {root}/run/**
+//	/opt/datadog-agent/** -> {root}/**
+func commonRootOrPath(root, path string) string {
+	if root == "" {
+		return path
+	}
+
+	switch {
+	case strings.HasPrefix(path, "/var/log/datadog/"):
+		rest := strings.TrimPrefix(path, "/var/log/datadog/")
+		return filepath.Join(root, "logs", rest)
+	case path == "/var/log/datadog":
+		return filepath.Join(root, "logs")
+	case strings.HasPrefix(path, "/etc/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/etc/datadog-agent/")
+		return filepath.Join(root, "etc", rest)
+	case path == "/etc/datadog-agent":
+		return filepath.Join(root, "etc")
+	case strings.HasPrefix(path, "/var/run/datadog/"):
+		rest := strings.TrimPrefix(path, "/var/run/datadog/")
+		return filepath.Join(root, "run", rest)
+	case path == "/var/run/datadog":
+		return filepath.Join(root, "run")
+	case strings.HasPrefix(path, "/opt/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/opt/datadog-agent/")
+		return filepath.Join(root, rest)
+	case path == "/opt/datadog-agent":
+		return root
+	default:
+		return path
+	}
 }

@@ -34,3 +34,9 @@ lint_cross_macos-arm64:
   script:
     - export GOOS=darwin GOARCH=arm64
     - !reference [.lint_script]
+
+lint_cross_aix-ppc64:
+  extends: .cross_lint
+  script:
+    - export GOOS=aix GOARCH=ppc64
+    - !reference [.lint_script]

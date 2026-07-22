@@ -7,3 +7,7 @@ properties:
     description: 'Cardinality controls which tag cardinality is enriched onto the signal. Accepted values: 0 = low (host-level, default), 1 = orchestrator (per-pod/task), 2 = high (per-container/request).'
     type: integer
     x-customType: github.com/DataDog/datadog-agent/comp/core/tagger/types.TagCardinality
+  trace_container_tag_promotion:
+    description: 'TraceContainerTagPromotion controls how tags emitted by this processor are surfaced for promotion into Datadog container tags. See the ContainerTagPromotionMode constants for the supported values. An empty value is treated as "off".'
+    type: string
+    x-customType: github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor.ContainerTagPromotionMode

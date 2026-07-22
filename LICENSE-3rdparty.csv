@@ -27,13 +27,15 @@ core,code.cloudfoundry.org/bbs/encryption,Apache-2.0,"Copyright (c) 2016-Present
 core,code.cloudfoundry.org/bbs/events,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/format,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/models,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,code.cloudfoundry.org/bbs/trace,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/cfhttp/v2,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/garden,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/garden/client,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/garden/client/connection,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/garden/routes,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/garden/transport,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
-core,code.cloudfoundry.org/lager,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,code.cloudfoundry.org/lager/v3,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,code.cloudfoundry.org/lager/v3/internal/truncate,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,cyphar.com/go-pathrs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
 core,cyphar.com/go-pathrs/internal/fdutils,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
@@ -42,8 +44,6 @@ core,cyphar.com/go-pathrs/procfs,MPL-2.0,"copyright doctrines of fair use, fair 
 core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,filippo.io/edwards25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,filippo.io/edwards25519/field,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/AdaLogics/go-fuzz-headers,Apache-2.0,AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|AdamKorcz <adam@adalogics.com>|Sebastiaan van Stijn <github@gone.nl>|AdaLogics <48351493+AdaLogics@users.noreply.github.com>|Kazuyoshi Kato <kato.kazuyoshi@gmail.com>
-core,github.com/AdamKorcz/go-118-fuzz-build/testing,Apache-2.0,AdamKorcz <adam@adalogics.com>|AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|John Howard <howardjohn@google.com>|Kazuyoshi Kato <katokazu@amazon.com>|Khaled Yakdan <yakdan@code-intelligence.de>|AdamKorcz <Adam@adalogics.com>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>
 core,github.com/AlekSi/pointer,MIT,Copyright (c) 2015 Alexey Palazhchenko
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
@@ -113,6 +113,7 @@ core,github.com/Code-Hex/go-generics-cache/policy/lru,MIT,Copyright (c) 2021 cod
 core,github.com/Code-Hex/go-generics-cache/policy/mru,MIT,Copyright (c) 2021 codehex
 core,github.com/Code-Hex/go-generics-cache/policy/simple,MIT,Copyright (c) 2021 codehex
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
+core,github.com/DataDog/agent-payload/v5/agentdiscovery,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/autoscaling/kubernetes,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contimage,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
@@ -155,6 +156,7 @@ core,github.com/DataDog/dd-trace-go/v2/ddtrace/ext,Apache-2.0,"Copyright (c) 201
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/tracer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/dyngo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/grpcsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -190,6 +192,7 @@ core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/waf,Apache-2.0,"
 core,github.com/DataDog/dd-trace-go/v2/internal/bazel,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/envconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/config,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -275,6 +278,7 @@ core,github.com/DataDog/gohai/utils,MIT,"Copyright (c) 2014-2015, Datadog <info@
 core,github.com/DataDog/jsonapi,Apache-2.0,"Copyright [2022-Present] Datadog, Inc"
 core,github.com/DataDog/mmh3,MIT,"Copyright (c) 2017 Datadog, Inc."
 core,github.com/DataDog/rshell/allowedpaths,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/allowedpaths/internal/writeopen,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/break,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/cat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -298,9 +302,11 @@ core,github.com/DataDog/rshell/builtins/internal/procnetroute,Apache-2.0,"Copyri
 core,github.com/DataDog/rshell/builtins/internal/procnetsocket,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procpath,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procsyskernel,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/sizeparse,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/winpoll,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/logrotate,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ping,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/printf,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -329,7 +335,6 @@ core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
 core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
@@ -650,7 +655,6 @@ core,github.com/aquasecurity/trivy/rpc/common,Apache-2.0,Copyright 2019-2020 Aqu
 core,github.com/aquasecurity/trivy/rpc/scanner,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/armon/go-metrics,MIT,Copyright (c) 2013 Armon Dadgar
 core,github.com/armon/go-metrics/prometheus,MIT,Copyright (c) 2013 Armon Dadgar
-core,github.com/avast/retry-go/v4,MIT,Copyright (c) 2017 Avast
 core,github.com/awalterschulze/gographviz,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2013 GoGraphviz Authors | Nathan Kitchen <nathan.kitchen@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Ruud Kamphuis <https://github.com/ruudk> | Vastech SA (PTY) LTD | Walter Schulze <awalterschulze@gmail.com> | Xavier Chassin <xavier.chassin@live.fr> | Xuanyi Chew <chewxy@gmail.com>
 core,github.com/awalterschulze/gographviz/ast,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2013 GoGraphviz Authors | Nathan Kitchen <nathan.kitchen@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Ruud Kamphuis <https://github.com/ruudk> | Vastech SA (PTY) LTD | Walter Schulze <awalterschulze@gmail.com> | Xavier Chassin <xavier.chassin@live.fr> | Xuanyi Chew <chewxy@gmail.com>
 core,github.com/awalterschulze/gographviz/internal/errors,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2013 GoGraphviz Authors | Nathan Kitchen <nathan.kitchen@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Ruud Kamphuis <https://github.com/ruudk> | Vastech SA (PTY) LTD | Walter Schulze <awalterschulze@gmail.com> | Xavier Chassin <xavier.chassin@live.fr> | Xuanyi Chew <chewxy@gmail.com>
@@ -688,7 +692,6 @@ core,github.com/aws/aws-sdk-go-v2/internal/context,Apache-2.0,"Copyright 2014-20
 core,github.com/aws/aws-sdk-go-v2/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/endpoints/v2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go-v2/internal/middleware,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/rand,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/sdk,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/sdkio,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -844,7 +847,7 @@ core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 R
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v5,MIT,Copyright (c) 2014 Cenk Altı
-core,github.com/cenkalti/backoff/v6,MIT,Copyright (c) 2014 Cenk Altı
+core,github.com/cenkalti/backoff/v7,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/charlievieth/strcase,MIT,Copyright 2024 Charlie Vieth
 core,github.com/charlievieth/strcase/internal/bytealg,MIT,Copyright 2024 Charlie Vieth
@@ -865,6 +868,7 @@ core,github.com/cilium/ebpf/internal/epoll,MIT,"Copyright (c) 2017 Nathan Sweet 
 core,github.com/cilium/ebpf/internal/kallsyms,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/kconfig,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/linux,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
+core,github.com/cilium/ebpf/internal/mountinfo,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/platform,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sys,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sysenc,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -902,7 +906,6 @@ core,github.com/containerd/cgroups/v3,Apache-2.0,"Copyright 2012-2015 Docker, In
 core,github.com/containerd/cgroups/v3/cgroup1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup2/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/runtime/sandbox/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/containers/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -912,6 +915,7 @@ core,github.com/containerd/containerd/api/services/events/v1,Apache-2.0,"Copyrig
 core,github.com/containerd/containerd/api/services/images/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/introspection/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/leases/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/api/services/mounts/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/namespaces/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/sandbox/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/snapshots/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -923,65 +927,67 @@ core,github.com/containerd/containerd/api/types,Apache-2.0,"Copyright 2012-2015 
 core,github.com/containerd/containerd/api/types/runc/options,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/types/task,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/types/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive/compression,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive/tarheader,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/cio,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/containers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content/local,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/events/exchange,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/identifiers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/images,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/images/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/deprecation,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/epoch,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/randutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf/proto,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/reference,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker/auth,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker/schema1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/errors,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/rootfs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/runtime/linux/runctypes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/runtime/restart,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/sandbox,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services/introspection,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services/warning,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/snapshots,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/snapshots/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/tracing,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/version,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/client,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/containers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/content/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/events/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images/usage,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/introspection,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/introspection/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/mount/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/docker,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/docker/auth,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/errors,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/runtime/restart,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/sandbox,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/snapshots,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/snapshots/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/streaming/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/lazyregexp,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/randutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/userns,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive/compression,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive/tarheader,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/cio,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/epoch,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/identifiers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/kernelversion,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf/proto,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/reference,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/rootfs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/sys,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/tracing,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/plugins,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/plugins/services,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/version,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/devices,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/fs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -993,6 +999,7 @@ core,github.com/containerd/errdefs/pkg/internal/types,Apache-2.0,"Copyright 2012
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/typeurl/v2,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containernetworking/cni/libcni,Apache-2.0,Copyright 2019 CNI authors
@@ -1046,7 +1053,6 @@ core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012
 core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
 core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
@@ -1188,6 +1194,7 @@ core,github.com/go-redis/redis/v8/internal/util,BSD-2-Clause,Copyright (c) 2013 
 core,github.com/go-resty/resty/v2,MIT,"Copyright (c) 2015-2024 Jeevanandam M., https://myjeeva.com <jeeva@myjeeva.com>"
 core,github.com/go-resty/resty/v2/shellescape,MIT,"Copyright (c) 2015-2024 Jeevanandam M., https://myjeeva.com <jeeva@myjeeva.com>"
 core,github.com/go-sql-driver/mysql,MPL-2.0,"Aaron Hopkins <go-sql-driver at die.net> | Achille Roussel <achille.roussel at gmail.com> | Aidan <aidan.liu at pingcap.com> | Alex Snast <alexsn at fb.com> | Alexey Palazhchenko <alexey.palazhchenko at gmail.com> | Andrew Reid <andrew.reid at tixtrack.com> | Animesh Ray <mail.rayanimesh at gmail.com> | Ariel Mashraki <ariel at mashraki.co.il> | Arne Hormann <arnehormann at gmail.com> | Artur Melanchyk <artur.melanchyk@gmail.com> | Asta Xie <xiemengjun at gmail.com> | B Lamarche <blam413 at gmail.com> | Barracuda Networks, Inc. | Bes Dollma <bdollma@thousandeyes.com> | Block, Inc. | Bogdan Constantinescu <bog.con.bc at gmail.com> | Brad Higgins <brad at defined.net> | Brian Hendriks <brian at dolthub.com> | Bulat Gaifullin <gaifullinbf at gmail.com> | Caine Jette <jette at alum.mit.edu> | Carlos Nieto <jose.carlos at menteslibres.net> | Chris Kirkland <chriskirkland at github.com> | Chris Moos <chris at tech9computers.com> | Counting Ltd. | Craig Wilson <craiggwilson at gmail.com> | Daemonxiao <735462752 at qq.com> | Daniel Montoya <dsmontoyam at gmail.com> | Daniel Nichter <nil at codenode.com> | Daniël van Eeden <git at myname.nl> | Dave Protasowski <dprotaso at gmail.com> | Defined Networking Inc. | Demouth <yuya at demouth.net> | Diego Dupin <diego.dupin at gmail.com> | DigitalOcean Inc. | Dirkjan Bussink <d.bussink at gmail.com> | DisposaBoy <disposaboy at dby.me> | Dolthub Inc. | Egor Smolyakov <egorsmkv at gmail.com> | Erwan Martin <hello at erwan.io> | Evan Elias <evan at skeema.net> | Evan Shaw <evan at vendhq.com> | Facebook Inc. | Frederick Mayle <frederickmayle at gmail.com> | GitHub Inc. | Google Inc. | Gustavo Kristic <gkristic at gmail.com> | Gusted <postmaster at gusted.xyz> | Hajime Nakagami <nakagami at gmail.com> | Hanno Braun <mail at hannobraun.com> | Henri Yandell <flamefew at gmail.com> | Hirotaka Yamamoto <ymmt2005 at gmail.com> | Huyiguang <hyg at webterren.com> | ICHINOSE Shogo <shogo82148 at gmail.com> | INADA Naoki <songofacandy at gmail.com> | Ilia Cimpoes <ichimpoesh at gmail.com> | InfoSum Ltd. | Jacek Szwec <szwec.jacek at gmail.com> | Jakub Adamus <kratky at zobak.cz> | James Harr <james.harr at gmail.com> | Janek Vedock <janekvedock at comcast.net> | Jason Ng <oblitorum at gmail.com> | Jean-Yves Pellé <jy at pelle.link> | Jeff Hodges <jeff at somethingsimilar.com> | Jeffrey Charles <jeffreycharles at gmail.com> | Jennifer Purevsuren <jennifer at dolthub.com> | Jerome Meyer <jxmeyer at gmail.com> | Jiabin Zhang <jiabin.z at qq.com> | Jiajia Zhong <zhong2plus at gmail.com> | Jian Zhen <zhenjl at gmail.com> | Joe Mann <contact at joemann.co.uk> | Joshua Prunier <joshua.prunier at gmail.com> | Julien Lefevre <julien.lefevr at gmail.com> | Julien Schmidt <go-sql-driver at julienschmidt.com> | Justin Li <jli at j-li.net> | Justin Nuß <nuss.justin at gmail.com> | Kamil Dziedzic <kamil at klecza.pl> | Kei Kamikawa <x00.x7f.x86 at gmail.com> | Kevin Malachowski <kevin at chowski.com> | Keybase Inc. | Kieron Woodhouse <kieron.woodhouse at infosum.com> | Lance Tian <lance6716 at gmail.com> | Lennart Rudolph <lrudolph at hmc.edu> | Leonardo YongUk Kim <dalinaum at gmail.com> | Linh Tran Tuan <linhduonggnu at gmail.com> | Lion Yang <lion at aosc.xyz> | Luca Looz <luca.looz92 at gmail.com> | Lucas Liu <extrafliu at gmail.com> | Luke Scott <luke at webconnex.com> | Lunny Xiao <xiaolunwen at gmail.com> | Maciej Zimnoch <maciej.zimnoch at codilime.com> | Michael Woolnough <michael.woolnough at gmail.com> | Microsoft Corp. | Minh Quang <minhquang4334 at gmail.com> | Morgan Tocker <tocker at gmail.com> | Multiplay Ltd. | Nao Yokotsuka <yokotukanao at gmail.com> | Nathanial Murphy <nathanial.murphy at gmail.com> | Nicola Peduzzi <thenikso at gmail.com> | Oliver Bone <owbone at github.com> | Olivier Mengué <dolmen at cpan.org> | Paul Bonser <misterpib at gmail.com> | Paulius Lozys <pauliuslozys at gmail.com> | Percona LLC | Peter Schultz <peter.schultz at classmarkets.com> | Phil Porada <philporada at gmail.com> | PingCAP Inc. | Pivotal Inc. | Rebecca Chin <rchin at pivotal.io> | Reed Allman <rdallman10 at gmail.com> | Richard Wilkes <wilkes at me.com> | Robert Russell <robert at rrbrussell.com> | Runrioter Wung <runrioter at gmail.com> | Samantha Frank <hello at entropy.cat> | Santhosh Kumar Tekuri <santhosh.tekuri at gmail.com> | Shattered Silicon Ltd. | Sho Iizuka <sho.i518 at gmail.com> | Sho Ikeda <suicaicoca at gmail.com> | Shuode Li <elemount at qq.com> | Simon J Mudd <sjmudd at pobox.com> | Soroush Pour <me at soroushjp.com> | Stan Putrya <root.vagner at gmail.com> | Stanley Gunawan <gunawan.stanley at gmail.com> | Steven Hartland <steven.hartland at multiplay.co.uk> | Stripe Inc. | Tan Jinhua <312841925 at qq.com> | Tetsuro Aoki <t.aoki1130 at gmail.com> | Thomas Wodarek <wodarekwebpage at gmail.com> | ThousandEyes | Tim Ruffles <timruffles at gmail.com> | Tom Jenkinson <tom at tjenkinson.me> | Vladimir Kovpak <cn007b at gmail.com> | Vladyslav Zhelezniak <zhvladi at gmail.com> | Xiangyu Hu <xiangyu.hu at outlook.com> | Xiaobing Jiang <s7v7nislands at gmail.com> | Xiuming Chen <cc at cxm.cc> | Xuehong Chan <chanxuehong at gmail.com> | Zendesk Inc. | Zhang Xiang <angwerzx at 126.com> | Zhenye Xie <xiezhenye at gmail.com> | Zhixin Wen <john.wenzhixin at gmail.com> | Ziheng Lyu <zihenglv at gmail.com> | copyright doctrines of fair use, fair dealing, or other | dyves labs AG | oscarzhao <oscarzhaosl at gmail.com>"
+core,github.com/go-task/slim-sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
 core,github.com/go-viper/mapstructure/v2,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-viper/mapstructure/v2/internal/errors,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
@@ -1391,9 +1398,8 @@ core,github.com/gorilla/websocket,BSD-2-Clause,Copyright (c) 2013 The Gorilla We
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grafana/regexp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/v2,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
@@ -1407,6 +1413,7 @@ core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/types,MIT,Copyright (c) Tomas Aparicio
 core,github.com/hashicorp/consul/api,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/consul/api/v2,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/cronexpr,Apache-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/errwrap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -1559,7 +1566,6 @@ core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All r
 core,github.com/lxn/win,BSD-3-Clause,Copyright (c) 2010 The win Authors. All rights reserved.
 core,github.com/magefile/mage/mg,Apache-2.0,Copyright 2017 the Mage authors
 core,github.com/magefile/mage/sh,Apache-2.0,Copyright 2017 the Mage authors
-core,github.com/magiconair/properties,BSD-2-Clause,"Copyright (c) 2013-2020, Frank Schroeder"
 core,github.com/mailru/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/buffer,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jlexer,MIT,Copyright (c) 2016 Mail.Ru Group
@@ -1627,7 +1633,6 @@ core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & 
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
-core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2023 Montana Flynn (https://montanaflynn.com)
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mwitkow/go-conntrack,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
@@ -1647,6 +1652,24 @@ core,github.com/nexus-rpc/nexus-proto-annotations/go/nexusannotations/v1,MIT,Cop
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oliveagle/jsonpath,MIT,"Copyright (c) 2021, 2015; DoltHub Authors, oliver"
+core,github.com/onsi/ginkgo/v2/config,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/formatter,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/automaxprocs,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/build,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/command,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/generators,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/internal,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/labels,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/outline,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/run,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/unfocus,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/ginkgo/watch,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/internal/interrupt_handler,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/internal/parallel_support,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/internal/reporters,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/reporters,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
+core,github.com/onsi/ginkgo/v2/types,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1824,7 +1847,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersigna
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/apmstats,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1852,6 +1874,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlexemplar,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlotelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2028,6 +2051,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsam
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/pkg/samplingpolicy,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/logparsingfuncs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/logs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2081,7 +2105,9 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanre
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/apiserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/sharedpromconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2092,6 +2118,7 @@ core,github.com/opencontainers/image-spec/identity,Apache-2.0,Copyright 2016 The
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go/v1,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,Copyright 2015 The Linux Foundation
+core,github.com/opencontainers/runtime-spec/specs-go/features,Apache-2.0,Copyright 2015 The Linux Foundation
 core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
@@ -2101,6 +2128,7 @@ core,github.com/openshift/client-go/quota/applyconfigurations/quota/v1,Apache-2.
 core,github.com/openshift/client-go/quota/clientset/versioned,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/scheme,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/typed/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openzipkin/zipkin-go/idgenerator,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/model,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/proto/zipkin_proto3,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/reporter,Apache-2.0,Copyright 2017 The OpenZipkin Authors
@@ -2110,7 +2138,6 @@ core,github.com/outcaste-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Bri
 core,github.com/outscale/osc-sdk-go/v2,BSD-3-Clause,Copyright (c) Outscale SAS. All rights reserved
 core,github.com/ovh/go-ovh/ovh,BSD-3-Clause,"Copyright (c) 2015-2025, OVH SAS"
 core,github.com/package-url/packageurl-go,MIT,Copyright (c) the purl authors
-core,github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto,MIT,Copyright (c) 2017 Pavel Tetyaev
 core,github.com/pandatix/go-cvss/30,MIT,Copyright (c) 2022 Lucas TESSON - PandatiX <lucastesson@protonmail.com>
 core,github.com/pandatix/go-cvss/31,MIT,Copyright (c) 2022 Lucas TESSON - PandatiX <lucastesson@protonmail.com>
 core,github.com/pandatix/go-cvss/40,MIT,Copyright (c) 2022 Lucas TESSON - PandatiX <lucastesson@protonmail.com>
@@ -2131,7 +2158,6 @@ core,github.com/pb33f/libopenapi/json,MIT,Copyright pb33f - Princess Beef Heavy 
 core,github.com/pb33f/libopenapi/orderedmap,MIT,Copyright pb33f - Princess Beef Heavy Industries
 core,github.com/pb33f/libopenapi/utils,MIT,Copyright pb33f - Princess Beef Heavy Industries
 core,github.com/pb33f/ordered-map/v2,Apache-2.0,Copyright pb33f - Princess Beef Heavy Industries
-core,github.com/pelletier/go-toml,MIT,"Copyright (c) 2013 - 2021 Thomas Pelletier, Eric Anderton"
 core,github.com/petermattis/goid,Apache-2.0,Copyright 2016 Peter Mattis.
 core,github.com/philhofer/fwd,MIT,"Copyright (c) 2014-2015, Philip Hofer"
 core,github.com/pierrec/lz4/v4,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
@@ -2379,7 +2405,6 @@ core,github.com/spf13/afero/internal/common,Apache-2.0,Copyright 2013 tsuru auth
 core,github.com/spf13/afero/mem,Apache-2.0,Copyright 2013 tsuru authors. All rights reserved. | Copyright © 2014 Steve Francia <spf@spf13.com>.
 core,github.com/spf13/cast,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/cobra,Apache-2.0,Copyright © 2013 Steve Francia <spf@spf13.com>.
-core,github.com/spf13/jwalterweatherman,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Copyright (c) 2012 Alex Ogier. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/stackitcloud/stackit-sdk-go/core/auth,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/clients,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
@@ -2499,38 +2524,6 @@ core,go.etcd.io/etcd/client/v3/credentials,Apache-2.0,Copyright 2016 The etcd Au
 core,go.etcd.io/etcd/client/v3/internal/endpoint,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/v3/internal/resolver,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/v3/kubernetes,Apache-2.0,Copyright 2016 The etcd Authors
-core,go.mongodb.org/mongo-driver/bson,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/bson/bsoncodec,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/bson/bsonoptions,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/bson/bsonrw,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/bson/bsontype,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/bson/primitive,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/event,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/aws,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/aws/awserr,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/aws/credentials,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/aws/signer/v4,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/bsonutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/codecutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/credproviders,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/csfle,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/csot,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/driverutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/handshake,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/httputil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/logger,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/ptrutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/rand,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/randutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/internal/uuid,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/address,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/description,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/options,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/readconcern,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/readpref,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/mongo/writeconcern,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/tag,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/bson,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/event,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/aws,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
@@ -2580,21 +2573,6 @@ core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/operation,Apache-2.0,"Copyrig
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/session,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/x/mongo/driver/wiremessage,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/version,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/bsonx/bsoncore,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/auth,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/creds,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/gssapi,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/connstring,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/dns,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt/options,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/ocsp,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/operation,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/session,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/topology,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.opencensus.io,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/internal,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/internal/tagencoding,Apache-2.0,"Copyright 2018, OpenCensus Authors"
@@ -2804,8 +2782,8 @@ core,go.opentelemetry.io/ebpf-profiler/interpreter/apmint,Apache-2.0,Copyright T
 core,go.opentelemetry.io/ebpf-profiler/interpreter/beam,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/dotnet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/go,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/interpreter/golabels,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/hotspot,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/interpreter/interpreterconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/nodev8,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/perl,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/php,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2849,10 +2827,8 @@ core,go.opentelemetry.io/ebpf-profiler/successfailurecounter,Apache-2.0,Copyrigh
 core,go.opentelemetry.io/ebpf-profiler/support,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/times,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/tracer/types,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/traceutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/util,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/vc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2949,6 +2925,7 @@ core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Copyright The OpenTelemetry 
 core,go.opentelemetry.io/otel/sdk/metric/exemplar,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/aggregate,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/metric/internal/attrdedup,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/reservoir,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2959,6 +2936,7 @@ core,go.opentelemetry.io/otel/sdk/trace/internal/env,Apache-2.0,Copyright The Op
 core,go.opentelemetry.io/otel/sdk/trace/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace/tracetest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/internal/metricpool,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2969,11 +2947,15 @@ core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/goconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.38.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.40.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.41.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.41.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.41.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.41.0/rpcconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.42.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.42.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3012,6 +2994,7 @@ core,go.temporal.io/api/internal/protojson/strs,BSD-3-Clause,Copyright (c) 2018 
 core,go.temporal.io/api/internal/strcase,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/namespace/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/nexus/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/nexusservices/workerservice/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/operatorservice/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/protocol/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/protometa/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
@@ -3039,6 +3022,7 @@ core,go.temporal.io/sdk/internal/common/metrics,MIT,"Copyright (c) 2020 Temporal
 core,go.temporal.io/sdk/internal/common/retry,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/serializer,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/util,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/extstore,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/log,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/protocol,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/log,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
@@ -3265,7 +3249,6 @@ core,google.golang.org/genproto/googleapis/cloud/extendedops,Apache-2.0,Copyrigh
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2020 Google LLC
-core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/grpc,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3298,6 +3281,7 @@ core,google.golang.org/grpc/encoding/internal,Apache-2.0,Copyright 2014 gRPC aut
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/route_guide/routeguide,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/experimental/balancer/weight,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/experimental/stats,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/grpclog/internal,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3305,7 +3289,6 @@ core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/backoff,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/balancer/gracefulswitch,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/balancer/weight,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/balancerload,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/binarylog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/buffer,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3332,6 +3315,7 @@ core,google.golang.org/grpc/internal/stats,Apache-2.0,Copyright 2014 gRPC author
 core,google.golang.org/grpc/internal/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/transport/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport/networktype,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport/readyreader,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/xds,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3421,11 +3405,13 @@ core,honnef.co/go/tools/go/ir,BSD-3-Clause,Copyright (c) 2009 The Go Authors. Al
 core,honnef.co/go/tools/go/ir/irutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
 core,honnef.co/go/tools/go/loader,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/go/types/typeutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/analysisinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/passes/buildir,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/renameio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/robustio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sharedcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sync,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/typesinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/knowledge,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd/cache,MIT,Copyright (c) 2016 Dominik Honnef

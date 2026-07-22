@@ -52,7 +52,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -71,10 +71,12 @@ const (
 	intakeEndpoint               = "/intake/"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
+	complianceEndpoint           = "/api/v2/compliance"
 	connectionsEndpoint          = "/api/v1/connections"
 	processesEndpoint            = "/api/v1/collector"
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
+	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
 	containerImageEndpoint       = "/api/v2/contimage"
 	containerLifecycleEndpoint   = "/api/v2/contlcycle"
 	sbomEndpoint                 = "/api/v2/sbom"
@@ -140,6 +142,7 @@ type Client struct {
 	processAggregator              aggregator.ProcessAggregator
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
+	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
 	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
 	sbomAggregator                 aggregator.SBOMAggregator
@@ -154,6 +157,7 @@ type Client struct {
 	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostTagsAggregator
 	agentHealthAggregator          aggregator.AgentHealthAggregator
+	agentTelemetryLogAggregator    aggregator.AgentTelemetryLogAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -175,6 +179,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		processAggregator:              aggregator.NewProcessAggregator(),
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
+		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:                 aggregator.NewSBOMAggregator(),
@@ -189,6 +194,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
+		agentTelemetryLogAggregator:    aggregator.NewAgentTelemetryLogAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -265,6 +271,14 @@ func (c *Client) getProcessDiscoveries() error {
 		return err
 	}
 	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAgentDiscoveryPayloads() error {
+	payloads, err := c.getFakePayloads(agentDiscoveryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getContainerImages() error {
@@ -380,6 +394,14 @@ func (c *Client) getAgentHealth() error {
 	return c.agentHealthAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getAgentTelemetryLogs() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentTelemetryLogAggregator.UnmarshallPayloads(payloads)
+}
+
 // FilterMetrics fetches fakeintake on both `/api/v2/series` and `/api/intake/metrics/v3/series`
 // and returns metrics matching `name` and any [MatchOpt](#MatchOpt) options.
 // Results from both endpoints are merged.
@@ -477,6 +499,54 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 		return nil, err
 	}
 	return response.Payloads, nil
+}
+
+// ComplianceFinding is a compliance check event received at /api/v2/compliance.
+type ComplianceFinding struct {
+	FrameworkID string `json:"agent_framework_id"`
+	RuleID      string `json:"agent_rule_id"`
+	Result      string `json:"result"`
+}
+
+// GetComplianceFindings returns the compliance findings received at the
+// /api/v2/compliance intake. The endpoint has no typed aggregator, so payloads
+// are read from the generic store and decoded here.
+func (c *Client) GetComplianceFindings() ([]*ComplianceFinding, error) {
+	payloads, err := c.getFakePayloads(complianceEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	var findings []*ComplianceFinding
+	for _, p := range payloads {
+		data, err := aggregator.Inflate(p.Data, p.Encoding)
+		if err != nil {
+			return nil, err
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(data, &items); err != nil {
+			continue
+		}
+		for _, item := range items {
+			// Findings travel through the logs pipeline, so each item is a log
+			// entry whose "message" holds the marshalled check event; fall back to
+			// a flat event for robustness.
+			var entry struct {
+				ComplianceFinding
+				Message string `json:"message"`
+			}
+			if json.Unmarshal(item, &entry) != nil {
+				continue
+			}
+			f := entry.ComplianceFinding
+			if f.FrameworkID == "" && entry.Message != "" {
+				_ = json.Unmarshal([]byte(entry.Message), &f)
+			}
+			if f.FrameworkID != "" {
+				findings = append(findings, &f)
+			}
+		}
+	}
+	return findings, nil
 }
 
 // GetServerHealth fetches fakeintake health status and returns an error if
@@ -742,6 +812,8 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
+	c.agentDiscoveryAggregator.Reset()
+	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
 
@@ -865,6 +937,21 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	}
 
 	return discs, nil
+}
+
+// GetAgentDiscoveryPayloads fetches fakeintake on `/api/v2/agentdiscovery` endpoint and returns
+// all received Agent Discovery payloads.
+func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayload, error) {
+	if err := c.getAgentDiscoveryPayloads(); err != nil {
+		return nil, err
+	}
+
+	var payloads []*aggregator.AgentDiscoveryPayload
+	for _, name := range c.agentDiscoveryAggregator.GetNames() {
+		payloads = append(payloads, c.agentDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return payloads, nil
 }
 
 func (c *Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
@@ -1185,6 +1272,21 @@ func (c *Client) GetHosts() ([]string, error) {
 	}
 
 	return c.hostAggregator.GetNames(), nil
+}
+
+// GetAgentTelemetryLogs fetches fakeintake on `/api/v2/apmtelemetry` and returns
+// all agent-logs telemetry records received since the last flush. Each call
+// fetches the server's full accumulated state (UnmarshallPayloads replaces, not
+// appends). Payloads whose request_type is not "agent-logs" are silently skipped.
+func (c *Client) GetAgentTelemetryLogs() ([]*aggregator.AgentTelemetryLog, error) {
+	if err := c.getAgentTelemetryLogs(); err != nil {
+		return nil, err
+	}
+	var logs []*aggregator.AgentTelemetryLog
+	for _, name := range c.agentTelemetryLogAggregator.GetNames() {
+		logs = append(logs, c.agentTelemetryLogAggregator.GetPayloadsByName(name)...)
+	}
+	return logs, nil
 }
 
 // GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns all received agent health payloads

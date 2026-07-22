@@ -74,7 +74,7 @@ type Provides struct {
 	Endpoint      api.AgentEndpointProvider
 }
 
-func NewSystemInfoProvider(deps Requires) Provides {
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	hh := &hostSystemInfo{
 		log:      deps.Log,

@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"

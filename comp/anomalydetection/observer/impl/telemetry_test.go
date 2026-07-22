@@ -20,6 +20,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
 	tel.recordLogIngested("internal", 256)
 	tel.recordDroppedLog("logs", []string{"source:kubelet"})
+	tel.recordFilteredMetric("dogstatsd")
 	tel.incrementLogsInFlight("internal")
 	tel.decrementLogsInFlight("internal")
 	tel.initLogsInFlight()

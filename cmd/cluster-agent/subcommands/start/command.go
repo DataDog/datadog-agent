@@ -42,7 +42,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -67,7 +67,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -88,6 +88,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
@@ -126,6 +127,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
@@ -174,7 +176,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+				orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
@@ -479,7 +481,7 @@ func start(log log.Component,
 		// We explicitly don't add the `ProductActionPlatformRunnerKeys` here as it will be added automatically from the subscribe call.
 		// Adding it here will create a race condition where the notification can be fired before the subscription
 		// preventing the PAR component to finish its startup.
-		var products []string
+		products := []string{state.ProductAgentConfig}
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
@@ -501,6 +503,7 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {
@@ -634,7 +637,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -802,6 +805,7 @@ func startPrivateActionRunner(
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipc ipc.Component,
+	demux demultiplexer.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -810,7 +814,16 @@ func startPrivateActionRunner(
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
 	le.StartLeaderElectionRun()
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc)
+
+	// The Cluster Agent has no local DogStatsD server, so submit PAR metrics
+	// in-process directly to the demultiplexer.
+	metricsClient, err := aggregator.NewStatsdDirect(demux, hostnameGetter)
+	if err != nil {
+		log.Warnf("Private action runner: failed to create in-process metrics client, metrics disabled: %v", err)
+		metricsClient = &ddgostatsd.NoOpClient{}
+	}
+
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient)
 	if err != nil {
 		return nil, err
 	}

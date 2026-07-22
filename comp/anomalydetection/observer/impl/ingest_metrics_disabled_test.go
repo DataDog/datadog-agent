@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +21,13 @@ import (
 // ObserveMetric calls while logs and log-derived virtual metrics still
 // reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 	eng := newEngine(engineConfig{
@@ -30,7 +38,9 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	obs := &observerImpl{
 		engine:               eng,
 		obsCh:                make(chan observation, 16),
+		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: false,
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 
@@ -86,9 +96,14 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	extractorSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
 	require.NotEmpty(t, extractorSeries,
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
+
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "dogstatsd", telComp)
 }
 
 func TestAgentMetricsAreDropped(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	eng := newEngine(engineConfig{storage: storage})
 
@@ -96,6 +111,7 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 		engine:               eng,
 		obsCh:                make(chan observation, 16),
 		ingestMetricsEnabled: true,
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 
@@ -141,9 +157,13 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 }
 
 func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine: newEngine(engineConfig{storage: storage}),
+		engine:       newEngine(engineConfig{storage: storage}),
+		metricFilter: defaultFilter,
 	}
 
 	obs.IngestMetricSync("dogstatsd", &metricObs{

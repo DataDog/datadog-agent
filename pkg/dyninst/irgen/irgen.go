@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -482,7 +483,7 @@ func generateIR(
 	// roots. Must happen before type expansion. Returns one analyzedProbe per
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
-	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog, cfg.redaction)
 	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
 	// Also enable context support if context.Context appears anywhere in
 	// the binary's go runtime types (via the special-additional-types
@@ -644,6 +645,11 @@ func generateIR(
 		}
 	}
 	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport, contextImplIRTypeIDs)
+	// annotateSpecialGoTypes swaps wrapped impls in for their plain
+	// StructureType entries in typesByID. Rebind references so pointees,
+	// fields, and variables point at the wrappers rather than the orphaned
+	// pre-wrap instances.
+	rebindTypeReferences(typeCatalog, materializedSubprograms)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -696,6 +702,7 @@ func generateIR(
 		GoMapHashInfo:    processed.goMapHashInfo,
 		CommonTypes:      commonTypes,
 		IsARM64:          arch == "arm64",
+		Redaction:        cfg.redaction,
 	}, nil
 }
 
@@ -723,6 +730,11 @@ type analyzedExpression struct {
 
 	// For capture expressions, the user-specified name.
 	captureExprName string
+
+	// redacted is true when the parsed expression references a redacted
+	// identifier. Computed during analysis (where the AST is available) and
+	// carried onto ir.RootExpression so the decoder drops the value.
+	redacted bool
 }
 
 // analyzedCondition represents a parsed and resolved condition tree. The
@@ -1276,6 +1288,7 @@ func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
 	tc *typeCatalog,
+	red *redaction.Config,
 ) ([]analyzedProbe, []explorationRoot) {
 	var analyzed []analyzedProbe
 
@@ -1742,6 +1755,16 @@ func analyzeAllProbes(
 					addRoot,
 					budget,
 				)
+				// Reject probes that reference data on the redaction list, to not leak info.
+				if ap.condition != nil {
+					if name, ok := expressionReferencesRedacted(ap.condition.expr, red); ok {
+						ap.condition = nil
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindInvalidProbeDefinition,
+							Message: fmt.Sprintf("condition references redacted identifier %q", name),
+						}
+					}
+				}
 			}
 
 			// Mark unmatched segments as invalid.
@@ -1767,6 +1790,14 @@ func analyzeAllProbes(
 			slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
 				return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
 			})
+			// Flag capture/template expressions that read a redacted value so
+			// the decoder drops them. The resolved IR keeps only offsets and a
+			// display name, so this must be decided from the parsed AST here.
+			for i := range ap.expressions {
+				if _, ok := expressionReferencesRedacted(ap.expressions[i].expr, red); ok {
+					ap.expressions[i].redacted = true
+				}
+			}
 			analyzed = append(analyzed, ap)
 		}
 	}
@@ -2779,7 +2810,18 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 	if err := completeGoTypes(tc, 1, tc.idAlloc.alloc); err != nil {
 		return err
 	}
+	rebindTypeReferences(tc, subprograms)
+	return nil
+}
 
+// rebindTypeReferences points every type reference and subprogram variable at
+// the canonical type instance for its ID in tc.typesByID. It must run after any
+// pass that replaces a typesByID entry with a new object for the same ID (type
+// finalization, and annotateSpecialGoTypes' wrapper substitution); otherwise a
+// PointerType.Pointee or field can dangle at a stale instance, so the compiler
+// keys a type's ProcessType handler off one object while the loader looks it up
+// off another and finds no enqueue_pc.
+func rebindTypeReferences(tc *typeCatalog, subprograms []*ir.Subprogram) {
 	visitTypeReferences(tc, func(t *ir.Type) {
 		if *t == nil {
 			return
@@ -2792,7 +2834,6 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 			v.Type = tc.typesByID[v.Type.GetID()]
 		}
 	}
-	return nil
 }
 
 type processedDwarf struct {
@@ -8103,6 +8144,7 @@ func populateEventExpressions(
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
 			DictIndex:  v.DictIndex,
+			Redacted:   expr.redacted,
 		})
 	}
 	exprStatusArraySize := uint32((ir.ExprStatusBits*len(expressions) + 7) / 8)

@@ -29,7 +29,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: OTel Collector
   extension_timeout:
     node_type: setting
     type: integer

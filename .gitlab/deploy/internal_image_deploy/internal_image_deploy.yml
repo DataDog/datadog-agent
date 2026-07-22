@@ -66,9 +66,6 @@ publish_internal_container_image-jmx:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v24
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v24
@@ -90,9 +87,6 @@ publish_internal_container_image-fips:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v24
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v24
@@ -113,9 +107,6 @@ publish_internal_container_image-ot_standalone:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v7
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v7
@@ -135,9 +126,6 @@ publish_internal_container_image-ot_standalone-fips:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v7
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v7
@@ -158,9 +146,6 @@ publish_internal_container_image-host_profiler_standalone:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v1
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v1
@@ -181,9 +166,6 @@ publish_internal_dca_container_image:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v12
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v12
@@ -202,9 +184,6 @@ publish_internal_dca_container_image-fips:
   extends: .docker_trigger_base
   parallel:
     matrix:
-      - COMPRESSION: "-zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-        IMAGE_VERSION: tmpl-v12
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v12
