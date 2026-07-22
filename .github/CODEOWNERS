@@ -20,7 +20,8 @@
 /.claude/rules/allium.md                         @DataDog/single-machine-performance
 /.claude/rules/bazel.md                          @DataDog/agent-build
 /.claude/rules/msi.md                            @DataDog/windows-products
-/.agents/skills/codereview_guideline.md          @DataDog/agent-devx
+/.agents/*                                       @DataDog/agent-devx
+/.agents/skills/*                                @DataDog/agent-devx
 /.agents/skills/allium/                          @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/   @DataDog/agent-devx
 /.agents/skills/auto-jira/                       @DataDog/agent-devx
@@ -86,6 +87,8 @@
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-build
 /pyproject.toml                         @DataDog/agent-devx
+/agents.toml                            @DataDog/agent-devx
+/mise.toml                              @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
@@ -418,6 +421,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
+/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/q-branch
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/network-device-monitoring-core
@@ -849,6 +853,7 @@
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/files_inventory.py               @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
+/tasks/rust_shared_checks.py            @DataDog/agent-build @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
@@ -896,6 +901,8 @@
 /test/e2e-framework/testing/provisioners/aws/ecs/       @DataDog/ecs-experiences
 /test/e2e-framework/testing/environments/ecs.go         @DataDog/ecs-experiences
 /test/e2e-framework/scenarios/aws/ecs/                  @DataDog/ecs-experiences
+/test/e2e-framework/scenarios/aws/integrations/        @DataDog/agent-integrations
+/tasks/e2e_framework/aws/integrations/                  @DataDog/agent-integrations
 /test/e2e-framework/resources/aws/ecs/                  @DataDog/ecs-experiences
 /test/e2e-framework/components/ecs/                     @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecs.go     @DataDog/ecs-experiences
@@ -983,6 +990,7 @@
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
+/test/regression/cases/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host

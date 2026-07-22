@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
 	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"

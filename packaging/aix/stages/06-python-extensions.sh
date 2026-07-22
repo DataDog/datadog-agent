@@ -211,16 +211,15 @@ log "lxml==$LXML_VERSION installed successfully"
 #                                       -bbigtoc removes this limit for AIX XCOFF.
 
 log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
-log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:..."
-export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
+log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:..."
+# $EMBEDDED_DESTDIR/bin must come before the rest of PATH to ensure we use the maturin binary built below
+export PATH="/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:$PATH"
 export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
 mkdir -p "$CRYPTO_CACHE_DIR"
-# Match only full-AIX-tag wheels (e.g. aix_7302_2419_64) not legacy aix_ppc64 renames.
-# aix_*_* requires at least one underscore within the AIX portion, which aix_ppc64 lacks.
-CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_*_*.whl" 2>/dev/null | head -1)
+CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
 
 if [ -n "$CACHED_CRYPTO" ]; then
     log "Found cached cryptography wheel: $CACHED_CRYPTO"
@@ -252,9 +251,8 @@ else
     # Remove maturin (build-time tool; not needed at runtime)
     $PIP uninstall -y maturin 2>/dev/null || true
 
-    # Cache the built wheel for subsequent builds.
-    # Keep the original filename (with the full AIX platform tag from this system)
-    # so that pip can match it by tag on cache restore.
+    # Cache the built wheel for subsequent builds. maturin (with $EMBEDDED_DESTDIR/bin
+    # ahead of PATH above) tags it correctly for this host, so no renaming is needed.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
@@ -307,9 +305,13 @@ if [ ! -f "$PYMQI_CMQC" ]; then
     log "ERROR: pymqi CMQC.py not found at expected path: $PYMQI_CMQC"
     exit 1
 fi
-patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+if grep -q 'MQENC_NATIVE = 0x00000111' "$PYMQI_CMQC" 2>/dev/null; then
+    log "pymqi CMQC.py already patched — skipping (pip left the previous install in place)"
+else
+    patch "$PYMQI_CMQC" < "$SCRIPT_DIR/../patches/pymqi-CMQC-aix-endian.patch"
+    log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
+fi
 find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
-log "pymqi CMQC.py patched: MQENC_NATIVE 0x222→0x111 (AIX big-endian)"
 
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #
