@@ -318,6 +318,11 @@ new-e2e-containers-k8s-latest:
 # Also skips .retrieve_dynamic_tests_breakglass: the same Vault secret bundle gap applies to
 # the dynamic-tests-breakglass field, so DYNAMIC_TESTS_BREAKGLASS is hardcoded to its default
 # (unset/false) value instead of being fetched.
+#
+# Pins a different node image than new-e2e-containers-k8s-latest (v1.36.1, not v1.36.2): the
+# AWS-VM job's node image is pulled through an ECR mirror that has v1.36.2 cached from before
+# it was retracted from Docker Hub upstream, but this job pulls directly from registry-1.docker.io
+# (no pull-through cache for non-AWS runners), where only v1.36.1 is actually published.
 new-e2e-containers-kind-local:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
@@ -341,7 +346,7 @@ new-e2e-containers-kind-local:
     TEAM: container-integrations
     E2E_PROVISIONER: kind-local
     E2E_GCP_IMAGE_PULL_PASSWORD: ""
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.2@sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
