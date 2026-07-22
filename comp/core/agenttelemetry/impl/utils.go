@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 // select only supported metric types
@@ -87,21 +88,18 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 		*aggm.Gauge.Value += srcm.Gauge.GetValue()
 	case dto.MetricType_HISTOGRAM:
 		if aggm.Histogram == nil {
-			// Histogram is a complex structure and hard to initialize completlty and properly
-			// howwever we are using and interested only in its buckets but in future additional fields
-			// may be used and should be initialized properly
-			aggm.Histogram = &dto.Histogram{}
-			// just copy the buckets from the source metric on first iteration
-			aggm.Histogram.Bucket = append(aggm.Histogram.Bucket, srcm.Histogram.Bucket...)
-			// reset buckets specific Label (just in case - it is not used in the current code or Agent)
-			for _, aggmb := range aggm.Histogram.Bucket {
+			sampleCount := srcm.Histogram.GetSampleCount()
+			aggm.Histogram = &dto.Histogram{
+				SampleCount: &sampleCount,
+				Bucket:      make([]*dto.Bucket, len(srcm.Histogram.Bucket)),
+			}
+			for i, srcb := range srcm.Histogram.Bucket {
+				aggmb := proto.Clone(srcb).(*dto.Bucket)
 				if aggmb.Exemplar != nil {
 					aggmb.Exemplar.Label = nil
 				}
+				aggm.Histogram.Bucket[i] = aggmb
 			}
-
-			// copy the sample count (it is implicit "+Inf" bucket)
-			aggm.Histogram.SampleCount = srcm.Histogram.SampleCount
 		} else {
 			// for the same metric family bucket structure is the same
 			for i, srcb := range srcm.Histogram.Bucket {
