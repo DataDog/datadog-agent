@@ -911,6 +911,7 @@
 /test/e2e-framework/components/datadog/otel-standalone/ @DataDog/opentelemetry-agent
 /test/e2e-framework/components/windows/                @DataDog/windows-products
 /test/fakeintake/                              @DataDog/agent-devx
+/test/fakeintake/version/VERSION               # do not notify anyone
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/network-device-monitoring-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/network-device-monitoring-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
