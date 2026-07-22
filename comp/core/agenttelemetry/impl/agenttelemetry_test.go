@@ -536,7 +536,7 @@ func getPayloadFilteredMetricList(a *atel, metricName string) ([]*MetricPayload,
 	return payloads, true
 }
 
-// If you have multiple metrics with different name (timeseries), meaning no multiple tags use getPayloadMetricMap
+// getPayloadMetricMap returns metrics by name when each name has only one emitted time series.
 func getPayloadMetricMap(a *atel) map[string]*MetricPayload {
 	payload, err := getPayload(a)
 	if err != nil {
@@ -721,7 +721,7 @@ func TestReportMetricBasic(t *testing.T) {
 	assert.True(t, len(c.(*clientMock).body) > 0)
 }
 
-func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
+func TestNoUserLabelSpecifiedAggregationCounter(t *testing.T) {
 	c := `
     agent_telemetry:
       enabled: true
@@ -756,11 +756,11 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Counter.GetValue())
 
-	// Emitter is mandatory system metadata even when no tags are preserved.
+	// Emitter remains mandatory when no user labels are preserved.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
-func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
+func TestNoUserLabelSpecifiedExplicitAggregationGauge(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -795,11 +795,11 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
 
-	// Emitter is mandatory system metadata even when preserve_tags is empty.
+	// An empty preserve_tags list still aggregates by emitter.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
-func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
+func TestNoUserLabelSpecifiedImplicitAggregationGauge(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -833,11 +833,11 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
 
-	// Emitter is mandatory system metadata even when preserve_tags is omitted.
+	// An omitted preserve_tags list still aggregates by emitter.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
-func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
+func TestNoUserLabelSpecifiedAggregationHistogram(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -874,7 +874,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, uint64(3), m.Histogram.GetBucket()[3].GetCumulativeCount())
 
-	// Emitter is mandatory system metadata even when no tags are preserved.
+	// Emitter remains mandatory when no user labels are preserved.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
@@ -1233,11 +1233,107 @@ agent_telemetry:
 	}
 }
 
-// TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
-// aggregate_total counter delta remains correct when the number of timeseries
-// changes between collection cycles. This is a regression test for a bug where
-// the "total" tag value encoded the timeseries count (e.g., total="2" then
-// total="3"), causing unstable delta cache keys and inflated/incorrect totals.
+func TestSerializedAgentMetricPayloadsAlwaysIncludeEmitter(t *testing.T) {
+	metricType := dto.MetricType_COUNTER
+	familyName := "test__wire_emitter"
+	family := &dto.MetricFamily{Name: &familyName, Type: &metricType}
+	metricConfig := &MetricConfig{
+		AggregateTotal:     true,
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"kind": struct{}{}},
+	}
+	sources := []*dto.Metric{
+		newCounterMetric(10, newLabelPair("kind", "one")),
+		newCounterMetric(20, newLabelPair("emitter", ""), newLabelPair("kind", "two")),
+		newCounterMetric(30, newLabelPair("emitter", "system-probe"), newLabelPair("kind", "three")),
+	}
+
+	aggregated := (&atel{localEmitter: "agent"}).aggregateMetricTags(metricConfig, metricType, sources)
+	wireSender := &senderImpl{
+		payloadTemplate:             Payload{APIVersion: "v2"},
+		agentMetricsPayloadTemplate: AgentMetricsPayload{Message: "Agent metrics"},
+	}
+	session := wireSender.startSession(context.Background())
+	wireSender.sendAgentMetricPayloads(session, []*agentmetric{{
+		name:    "test.wire_emitter",
+		metrics: aggregated,
+		family:  family,
+	}})
+
+	payloadJSON, err := json.Marshal(session.flush())
+	require.NoError(t, err)
+	var payload Payload
+	require.NoError(t, json.Unmarshal(payloadJSON, &payload))
+	metricPayloads, ok := payload.Payload.([]Payload)
+	require.True(t, ok)
+	require.Len(t, metricPayloads, 5)
+
+	ordinaryValues := map[string]float64{
+		"agent/one":          10,
+		"agent/two":          20,
+		"system-probe/three": 30,
+	}
+	totalValues := map[string]struct {
+		count string
+		value float64
+	}{
+		"agent":        {count: "2", value: 30},
+		"system-probe": {count: "1", value: 30},
+	}
+	ordinaryCount := 0
+	totalCount := 0
+	for _, metricPayload := range metricPayloads {
+		metrics := metricPayload.Payload.(AgentMetricsPayload).Metrics
+		require.Contains(t, metrics, "agent_metadata")
+		for metricName, rawMetric := range metrics {
+			if metricName == "agent_metadata" {
+				continue
+			}
+
+			require.Equal(t, "test.wire_emitter", metricName)
+			metric, ok := rawMetric.(MetricPayload)
+			require.True(t, ok)
+			require.NotNil(t, metric.Tags)
+			emitterEntries := 0
+			for tagName, tagValue := range metric.Tags {
+				if tagName == "emitter" {
+					emitterEntries++
+					require.NotEmpty(t, tagValue)
+				}
+			}
+			require.Equal(t, 1, emitterEntries)
+
+			emitter := metric.Tags["emitter"].(string)
+			if rawTotal, isTotal := metric.Tags["total"]; isTotal {
+				totalCount++
+				expected, found := totalValues[emitter]
+				require.True(t, found)
+				require.Equal(t, expected.count, rawTotal)
+				require.Equal(t, expected.value, metric.Value)
+				delete(totalValues, emitter)
+				continue
+			}
+
+			ordinaryCount++
+			kind, found := metric.Tags["kind"]
+			require.True(t, found)
+			key := emitter + "/" + kind.(string)
+			expected, found := ordinaryValues[key]
+			require.True(t, found)
+			require.Equal(t, expected, metric.Value)
+			delete(ordinaryValues, key)
+		}
+	}
+
+	require.Equal(t, 3, ordinaryCount)
+	require.Equal(t, 2, totalCount)
+	require.Empty(t, ordinaryValues)
+	require.Empty(t, totalValues)
+}
+
+// TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that aggregate_total
+// counter deltas use stable source-series cache keys even when the "total" label changes with
+// the filtered source-series count between collection cycles.
 func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	var c = `
     agent_telemetry:
@@ -1302,10 +1398,8 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	require.Contains(t, metrics2, "emitter:agent:tag1:a2:")
 	assert.Equal(t, float64(200), metrics2["emitter:agent:tag1:a2:"].Counter.GetValue())
 
-	// total tag value changed from "1" to "2" (timeseries count increased).
-	// The total delta MUST equal the sum of partition deltas: 50 + 200 = 250.
-	// Before the fix, this would be the full cumulative value (350) due to a
-	// cache key miss when the total tag changed from total:"1" to total:"2".
+	// The total label changes from "1" to "2" as the source-series count increases, while the
+	// total delta remains the sum of partition deltas: 50 + 200 = 250.
 	require.Contains(t, metrics2, "emitter:agent:total:2:")
 	assert.Equal(t, []string{"emitter=agent", "total=2"}, metricLabelStrings(metrics2["emitter:agent:total:2:"]))
 	totalValue := metrics2["emitter:agent:total:2:"].Counter.GetValue()
@@ -1704,8 +1798,7 @@ func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	// setup metrics using few family names, metric names and tag- and tag-less counters
-	// to test various scenarios
+	// Set up counters across several family and metric names, with and without source labels.
 	counter1 := tel.NewCounter("foo", "bar", []string{"tag1", "tag2"}, "")
 	counter2 := tel.NewCounter("foo", "cat", []string{"tag"}, "")
 	counter3 := tel.NewCounter("zoo", "bar", []string{"tag1", "tag2"}, "")
@@ -1812,8 +1905,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	// setup metrics using few family names, metric names and tag- and tag-less counters
-	// to test various scenarios
+	// Set up one source-labeled counter with multiple label values.
 	counter := tel.NewCounter("foo", "bar", []string{"tag"}, "")
 
 	// First addition (expected values should be the same as the added values)
@@ -1864,7 +1956,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	assert.Equal(t, m2.Value, 0.0)
 }
 
-func TestAdjustPrometheusCounterValueTagless(t *testing.T) {
+func TestAdjustPrometheusCounterValueWithoutSourceLabels(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -1885,8 +1977,7 @@ func TestAdjustPrometheusCounterValueTagless(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	// setup metrics using few family names, metric names and tag- and tag-less counters
-	// to test various scenarios
+	// Set up counters without source labels; serialized outputs still carry emitter metadata.
 	counter1 := tel.NewCounter("foo", "bar", nil, "")
 	counter2 := tel.NewCounter("foo", "cat", nil, "")
 	counter3 := tel.NewCounter("zoo", "bar", nil, "")
@@ -2689,6 +2780,50 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.events) > 0)
 	assert.True(t, len(atCfg.schedule) > 0)
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
+}
+
+func TestDefaultProfilesTreatEmitterAsImplicitMetadata(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	expectedMetrics := map[string]struct {
+		preserveTags   []string
+		aggregateTotal bool
+	}{
+		"dogstatsd.udp_packets_bytes": {preserveTags: nil},
+		"dogstatsd.uds_packets_bytes": {preserveTags: nil},
+		"logs.bytes_sent":             {preserveTags: nil, aggregateTotal: true},
+		"logs.encoded_bytes_sent":     {preserveTags: []string{"compression_kind"}, aggregateTotal: true},
+		"point.sent":                  {preserveTags: []string{"domain"}},
+		"point.dropped":               {preserveTags: []string{"domain"}},
+		"transactions.input_count":    {preserveTags: []string{"domain", "endpoint"}},
+		"transactions.input_bytes":    {preserveTags: []string{"domain", "endpoint"}},
+		"transactions.http_errors":    {preserveTags: []string{"code", "endpoint"}},
+	}
+	foundMetrics := make(map[string]struct{}, len(expectedMetrics))
+	var aggregateTotalMetrics []string
+	for _, profile := range atCfg.Profiles {
+		if profile.Metric == nil {
+			continue
+		}
+		for _, metric := range profile.Metric.Metrics {
+			require.NotContains(t, metric.PreserveTags, "emitter", metric.Name)
+			if metric.AggregateTotal {
+				aggregateTotalMetrics = append(aggregateTotalMetrics, metric.Name)
+			}
+			expected, ok := expectedMetrics[metric.Name]
+			if !ok {
+				continue
+			}
+			require.Equal(t, expected.preserveTags, metric.PreserveTags, metric.Name)
+			require.Equal(t, expected.aggregateTotal, metric.AggregateTotal, metric.Name)
+			foundMetrics[metric.Name] = struct{}{}
+		}
+	}
+
+	require.Len(t, foundMetrics, len(expectedMetrics))
+	require.ElementsMatch(t, []string{"logs.bytes_sent", "logs.encoded_bytes_sent"}, aggregateTotalMetrics)
 }
 
 func TestAgentTelemetryEventConfiguration(t *testing.T) {

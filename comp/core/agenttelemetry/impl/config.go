@@ -116,13 +116,13 @@ type Event struct {
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of non-emitter tags to preserve when aggregating the metric. Emitter is mandatory
-// system metadata and is always retained, so including it in this list is a compatibility no-op.
-// If no non-emitter tags are configured, metrics are aggregated by emitter and all other tags are
-// dropped. Otherwise, only metrics containing at least one configured non-emitter tag are retained,
-// and only configured tags plus emitter are emitted. Missing or empty emitter values use the local
-// component identity.
-// The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
+// Every COAT metric carries a non-empty emitter label as mandatory system metadata. Emitter does
+// not need to be listed in preserve_tags; listing it is accepted as a compatibility no-op.
+// preserve_tags only allowlists additional user labels. When omitted or empty, metrics are
+// aggregated by emitter and all user labels are dropped. Otherwise, only metrics containing at
+// least one allowlisted user label are retained, and only allowlisted labels plus emitter are
+// emitted. Missing or empty source emitter labels use the local component identity.
+// The primary goal is to prevent accidental privacy leaks by requiring explicit user-label allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
 // ---------------------------------------------------------------------------------
@@ -132,9 +132,9 @@ type Event struct {
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
-// When true, emits one total for each effective emitter. Each total is labeled with its
-// non-empty emitter and a reserved "total" tag containing the raw filtered source-series
-// count for that emitter. Totals are emitted whether preserve_tags is configured or not.
+// When true, emits one total per emitter whether preserve_tags is configured or not. Each total
+// has the mandatory non-empty emitter label and a reserved "total" label containing the raw
+// filtered source-series count for that emitter.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -185,7 +185,8 @@ type Event struct {
 // The value is required and used in the corresponding payload
 
 // Default agent telemetry profiles config if not specified in the agent config file.
-// If preserve_tags is not specified, metrics are aggregated by emitter and all other tags are dropped.
+// Emitter is implicit mandatory metadata for every default-profile metric. If preserve_tags is not
+// specified, metrics are aggregated by emitter and all user labels are dropped.
 //
 //go:embed defaultProfiles.yaml
 var defaultProfiles string

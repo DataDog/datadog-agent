@@ -408,22 +408,18 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 		var keyName string
 		tags := m.GetLabel()
 		if len(tags) == 0 {
-			// For "tagless" MetricFamily, len(metrics) will be 1, with single iteration and m.GetLabel()
-			// will be nil. Accordingly, to form a key for that metric its name alone is sufficient.
+			// A source-label-free MetricFamily has one time series, so its metric name is a stable
+			// previous-value key. The mandatory emitter label is attached during later aggregation.
 			keyName = metricName
 		} else {
-			//If the metric has tags, len(metrics) will be equal to the number of metric's timeseries.
-			// Each timeseries or "m" on each iteration in this code, will contain a set of unique
-			// tagset (as m.GetLabel()). Accordingly, each timeseries should be represented by a unique
-			// and stable (reproducible) key formed by tagset key names and values.
+			// A source-labeled MetricFamily has one metric per time series. Each time series needs a
+			// unique, stable previous-value key formed from its source label names and values.
 			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
 		}
 
 		if mt == dto.MetricType_HISTOGRAM {
-			// On each iteration for metrics without tags (only 1 iteration) or with tags (iteration per
-			// timeseries). If the metric is a HISTOGRAM, each timeseries bucket individually plus
-			// implicit "+Inf" bucket. For example, for 3 timeseries with 4-bucket histogram, we will
-			// track 15 values using 15 keys (3x(4+1)).
+			// For each source time series, track every explicit histogram bucket plus the implicit
+			// "+Inf" bucket. For example, 3 time series with 4 buckets require 15 keys (3x(4+1)).
 			for _, bucket := range m.Histogram.GetBucket() {
 				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
 			}
