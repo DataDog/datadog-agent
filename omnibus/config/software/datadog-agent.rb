@@ -32,7 +32,13 @@ end
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: [
+           "**/.cache/**/*",
+           "**/testdata/**/*",
+           # Git's fsmonitor daemon creates a Unix socket that breaks builds both
+           # on the host and in a container with a bind-mounted repo.
+           "**/.git/fsmonitor--daemon.ipc",
+         ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -102,6 +108,13 @@ build do
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
+  end
+
+  # Stage Rust shared-library checks (Linux only).
+  if linux_target?
+    command "dda inv -- -e rust-shared-checks.build --checks-d-dir=\"#{conf_dir}/checks.d\"",
+      env: env,
+      :live_stream => Omnibus.logger.live_stream(:info)
   end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
@@ -237,7 +250,7 @@ build do
 
   end
 
-  # system-probe-lite (service discovery agent)
+  # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
     command "bazel run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
