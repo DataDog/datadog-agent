@@ -245,11 +245,13 @@ AUTO_JIRA.md
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
-# Codex
-.codex/
+# Codex (commit the shared MCP config; ignore everything else Codex writes)
+.codex/*
+!.codex/config.toml
 
-# Zed config
-.zed
+# Zed config (commit the shared MCP config; ignore everything else)
+.zed/*
+!.zed/settings.json
 
 # Devcontainer
 .devcontainer/

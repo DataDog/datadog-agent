@@ -44,7 +44,7 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
-# TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
 # gazelle:exclude cmd/agent/subcommands/processchecks
 # gazelle:exclude cmd/cluster-agent/*.go
@@ -55,8 +55,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
 # gazelle:exclude cmd/serverless-init/*.go
-# gazelle:exclude comp/metadata/clusteragent/fx
-# gazelle:exclude comp/metadata/clusteragent/impl
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
@@ -75,8 +73,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
-# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
-# gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
 # gazelle:exclude pkg/serverless/otlp
@@ -160,6 +156,7 @@ exports_files(["go.mod"])
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr //pkg/proto/pbgo/procmgr
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
@@ -367,6 +364,7 @@ write_source_files(
         "//pkg/proto/pbgo/mocks/core:api_mockgen",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/executor:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
         "//pkg/proto/pbgo/process:write_pb_go",
         "//pkg/proto/pbgo/procmgr:write_pb_go",
