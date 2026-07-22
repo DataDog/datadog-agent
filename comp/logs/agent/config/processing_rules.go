@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -173,10 +174,22 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 
 // runGoJQ decodes input as JSON and runs the compiled jq program against it,
 // returning the first result. ok is false when the program produced no output.
+//
+// Decoding uses json.Decoder with UseNumber() rather than json.Unmarshal, so JSON
+// numbers are preserved as json.Number (gojq natively supports this type) instead of
+// being lowered to float64. Without this, integers beyond float64's 2^53 precision
+// (common for large IDs/timestamps) would be silently rounded — and since mask_gojq
+// re-serializes the *whole* document, even a mask that only touches .message would
+// corrupt unrelated numeric fields.
 func runGoJQ(code *gojq.Code, input []byte) (result any, ok bool, err error) {
 	var v any
-	if err := json.Unmarshal(input, &v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(input))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
 		return nil, false, err
+	}
+	if dec.More() {
+		return nil, false, errors.New("trailing data after JSON value")
 	}
 	iter := code.Run(v)
 	res, hasResult := iter.Next()

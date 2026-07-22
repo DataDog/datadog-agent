@@ -173,3 +173,29 @@ func TestCompileGoJQMaskRule(t *testing.T) {
 	_, err = rules[0].GoJQTransform([]byte(`not json`))
 	assert.Error(t, err)
 }
+
+func TestCompileGoJQMaskRulePreservesNumberPrecision(t *testing.T) {
+	// Regression test: json.Unmarshal into `any` lowers all JSON numbers to
+	// float64, which loses precision beyond 2^53 (common for large IDs/timestamps).
+	// Since mask_gojq re-serializes the whole document, a mask that only touches
+	// .message must not silently corrupt unrelated large-integer fields.
+	rules := []*ProcessingRule{{
+		Type:    MaskGoJQTransform,
+		Name:    "gojq_mask",
+		Pattern: `.message |= gsub("[0-9]+"; "X")`,
+	}}
+	require.NoError(t, CompileProcessingRules(rules))
+
+	out, err := rules[0].GoJQTransform([]byte(`{"id":123456789012345678,"message":"user 42 logged in"}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":123456789012345678,"message":"user X logged in"}`, string(out))
+	assert.Contains(t, string(out), "123456789012345678")
+}
+
+func TestGoJQFilterRejectsTrailingData(t *testing.T) {
+	rules := []*ProcessingRule{{Type: IncludeAtGoJQMatch, Name: "gojq_test", Pattern: `select(.level == "error")`}}
+	require.NoError(t, CompileProcessingRules(rules))
+
+	_, err := rules[0].GoJQFilter([]byte(`{"level":"error"} garbage`))
+	assert.Error(t, err)
+}

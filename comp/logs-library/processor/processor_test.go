@@ -512,6 +512,14 @@ func TestGoJQMask(t *testing.T) {
 		assert.True(t, p.applyRedactingRules(msg))
 		assert.Equal(t, []byte(`{"a":2,"z":1}`), msg.GetContent())
 	})
+
+	t.Run("preserves large integer precision in untouched fields", func(t *testing.T) {
+		src := newGoJQSource(config.MaskGoJQTransform, `.message |= gsub("[0-9]+"; "X")`)
+		msg := newMessage([]byte(`{"id":123456789012345678,"message":"user 42 logged in"}`), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.JSONEq(t, `{"id":123456789012345678,"message":"user X logged in"}`, string(msg.GetContent()))
+		assert.Contains(t, string(msg.GetContent()), "123456789012345678")
+	})
 }
 
 func BenchmarkMaskSequences(b *testing.B) {
