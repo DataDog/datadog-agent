@@ -129,7 +129,7 @@ func Test_loadProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			mockConfig.SetWithoutSource("confd_path", path)
+			mockConfig.SetInTest("confd_path", path)
 
 			actualProfiles, haveLegacyProfile, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {

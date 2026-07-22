@@ -21,7 +21,8 @@ type scanwelchStateKey struct {
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
 // Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
 type scanwelchSeriesState struct {
-	lastWriteGen int64
+	lastWriteGen       int64
+	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
@@ -146,8 +147,15 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.series[sk] = state
 			}
 
-			// Skip if nothing was written since last Detect.
-			if status.writeGeneration == state.lastWriteGen {
+			// Skip unless at least MinSegment new points are visible since the
+			// last scan. Gating on visible point count (not WriteGeneration
+			// alone) is required for replay: storage may already hold future
+			// points, so WriteGeneration reaches its final value before the
+			// simulated dataTime has advanced far enough to expose them, which
+			// would otherwise suppress every scan. WriteGeneration is still
+			// checked to catch same-bucket merges that leave the count
+			// unchanged but move stored values. Mirrors the BOCPD replay gate.
+			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -163,6 +171,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
+				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
@@ -174,6 +183,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
+			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

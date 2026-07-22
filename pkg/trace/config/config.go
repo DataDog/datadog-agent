@@ -5,6 +5,8 @@
 
 package config
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_remote_client.go -build_constraint test
+
 import (
 	"crypto/tls"
 	"errors"
@@ -266,12 +268,28 @@ const (
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
+// ProfilingMainEndpointMode controls whether the profiling proxy forwards to
+// the implicit main Datadog intake.
+type ProfilingMainEndpointMode int
+
+const (
+	// ProfilingMainEndpointSend forwards profiles to the implicit main intake
+	// in addition to any AdditionalEndpoints. This is the default (zero value).
+	ProfilingMainEndpointSend ProfilingMainEndpointMode = iota
+	// ProfilingMainEndpointSkip skips the implicit main intake; only
+	// AdditionalEndpoints receive profiles.
+	ProfilingMainEndpointSkip
+)
+
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// MainEndpointMode controls forwarding to the implicit main intake.
+	// Defaults to ProfilingMainEndpointSend.
+	MainEndpointMode ProfilingMainEndpointMode
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
 	// MaxRequestBytes is the maximum body size buffered when fanning out to
@@ -287,8 +305,6 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
-	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -539,6 +555,15 @@ type AgentConfig struct {
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
 
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
+
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 	// ContainerTagsWithCompleteness returns the tags for a given container ID
@@ -607,6 +632,10 @@ type AgentConfig struct {
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.
 	SecretsRefreshFn func() (string, error) `json:"-"`
+
+	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
+	// secret handle (and can therefore be changed by a refresh).
+	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -666,11 +695,12 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:                   new(WriterConfig),
-		TraceWriter:                   new(WriterConfig),
-		ConnectionResetInterval:       0, // disabled
-		MaxSenderRetries:              4,
-		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
+		// opt in via secret_refresh_on_api_key_failure_interval (0 = disabled)
+		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
@@ -822,11 +852,10 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary

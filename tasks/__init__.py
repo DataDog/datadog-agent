@@ -10,13 +10,17 @@ from invoke import Collection, Task
 from tasks import (
     agent,
     agent_ci_api,
+    ai_sandbox,
     ami,
+    anomalydetection,
     auth,
+    bazel,
     bench,
     buildimages,
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    code_review,
     collector,
     components,
     coverage,
@@ -71,6 +75,7 @@ from tasks import (
     release,
     renovate,
     rtloader,
+    rust_shared_checks,
     sbomgen,
     schema,
     secret_generic_connector,
@@ -89,7 +94,7 @@ from tasks import (
     windows_dev_env,
     worktree,
 )
-from tasks.build_tags import audit_tag_impact, print_default_build_tags
+from tasks.build_tags import codegen_to_json, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 
@@ -142,7 +147,6 @@ from tasks.licenses import (
     generate_rust_licenses,
     lint_rust_licenses,
 )
-from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
@@ -163,10 +167,9 @@ ns.add_task(generate_rust_licenses)
 ns.add_task(lint_components)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(reset)
-ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
-ns.add_task(audit_tag_impact)
+ns.add_task(codegen_to_json)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
@@ -195,12 +198,16 @@ ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 # add namespaced tasks to the root
+ns.add_collection(anomalydetection)
 ns.add_collection(auth)
+ns.add_collection(bazel)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
+ns.add_collection(ai_sandbox)
 ns.add_collection(buildimages)
 ns.add_collection(claude)
+ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -243,6 +250,7 @@ ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
 ns.add_collection(rtloader)
+ns.add_collection(rust_shared_checks)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)

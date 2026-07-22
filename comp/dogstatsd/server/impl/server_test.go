@@ -84,7 +84,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*dsdServer)
 	cw := deps.Config.(model.Writer)
-	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
+	cw.SetInTest("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
@@ -139,7 +139,6 @@ func TestNewServerExtraTags(t *testing.T) {
 	)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	deps := fulfillDepsWithConfigOverride(t, cfg)

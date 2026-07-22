@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
+
 package modules
 
 import (
@@ -16,7 +18,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
@@ -123,15 +124,16 @@ func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString s
 // with synthetics-worker so the UI shows the same text regardless of the
 // source. Messages may contain a %s placeholder for the destination hostname.
 var userFacingMessages = map[traceroutelib.ErrorCode]string{
-	traceroutelib.ErrCodeDNS:            "Failed to resolve the host name %s.",
-	traceroutelib.ErrCodeTimeout:        "The request timed out.",
-	traceroutelib.ErrCodeConnRefused:    "The connection to %s was refused by the remote host.",
-	traceroutelib.ErrCodeHostUnreach:    "The remote host %s is unreachable.",
-	traceroutelib.ErrCodeNetUnreach:     "The remote network for %s is unreachable.",
-	traceroutelib.ErrCodeDenied:         "Permission denied.",
-	traceroutelib.ErrCodeInvalidRequest: "Invalid request parameters.",
-	traceroutelib.ErrCodeFailedEncoding: "Failed to encode the response.",
-	traceroutelib.ErrCodeUnknown:        "An unknown error occurred.",
+	traceroutelib.ErrCodeDNS:                      "Failed to resolve the host name %s.",
+	traceroutelib.ErrCodeTimeout:                  "The request timed out.",
+	traceroutelib.ErrCodeConnRefused:              "The connection to %s was refused by the remote host.",
+	traceroutelib.ErrCodeHostUnreach:              "The remote host %s is unreachable.",
+	traceroutelib.ErrCodeNetUnreach:               "The remote network for %s is unreachable.",
+	traceroutelib.ErrCodeDenied:                   "Permission denied.",
+	traceroutelib.ErrCodeInvalidRequest:           "Invalid request parameters.",
+	traceroutelib.ErrCodeFailedEncoding:           "Failed to encode the response.",
+	traceroutelib.ErrCodeUnknown:                  "An unknown error occurred.",
+	traceroutelib.ErrorCode("SACK_NOT_SUPPORTED"): "SACK is not supported for this target/source.",
 }
 
 func userFacingMessage(code traceroutelib.ErrorCode, host string, fallback string) string {
@@ -162,8 +164,7 @@ func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
 }
 
 func parseParams(req *http.Request) (tracerouteutil.Config, error) {
-	vars := mux.Vars(req)
-	host := vars["host"]
+	host := req.PathValue("host")
 
 	query := req.URL.Query()
 
@@ -184,6 +185,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
 	disableWindowsDriver := query.Get("disable_windows_driver")
 	reverseDNS := query.Get("reverse_dns")
+	disableSourcePublicIPCollection := query.Get("disable_source_public_ip_collection")
 	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
@@ -194,17 +196,18 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	}
 
 	return tracerouteutil.Config{
-		DestHostname:              host,
-		DestPort:                  uint16(port),
-		MaxTTL:                    uint8(maxTTL),
-		Timeout:                   time.Duration(timeout),
-		Protocol:                  payload.Protocol(protocol),
-		TCPMethod:                 payload.TCPMethod(tcpMethod),
-		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
-		DisableWindowsDriver:      disableWindowsDriver == "true",
-		ReverseDNS:                reverseDNS == "true",
-		TracerouteQueries:         int(tracerouteQueries),
-		E2eQueries:                int(e2eQueries),
+		DestHostname:                    host,
+		DestPort:                        uint16(port),
+		MaxTTL:                          uint8(maxTTL),
+		Timeout:                         time.Duration(timeout),
+		Protocol:                        payload.Protocol(protocol),
+		TCPMethod:                       payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode:       tcpSynParisTracerouteMode == "true",
+		DisableWindowsDriver:            disableWindowsDriver == "true",
+		ReverseDNS:                      reverseDNS == "true",
+		DisableSourcePublicIPCollection: disableSourcePublicIPCollection == "true",
+		TracerouteQueries:               int(tracerouteQueries),
+		E2eQueries:                      int(e2eQueries),
 	}, nil
 }
 

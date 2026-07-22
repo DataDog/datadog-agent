@@ -1,0 +1,876 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/logs_config.yaml.schema.json
+node_type: section
+type: object
+visibility: public
+description: |-
+  Enter specific configurations for your Log collection.
+  Uncomment this parameter and the one below to enable them.
+  See https://docs.datadoghq.com/agent/logs/
+tags:
+- template_section:LogsAgent
+properties:
+  container_collect_all:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Enable container log collection for all the containers (see ac_exclude
+      to filter out containers)
+    comment: 'collect all logs from all containers:'
+  use_container_timestamp:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+
+      This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+    comment: use the `time` field from container log files instead of ingestion time
+  logs_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      Define the endpoint and port to hit when using a proxy for logs.
+      As of agent version 7.70.0, proxy paths are supported. To forward logs to a
+      specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
+    example: <ENDPOINT>:<PORT>
+  logs_no_ssl:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Disable the SSL encryption. This parameter should only be used when logs are
+      forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
+      on the proxy side.
+  processing_rules:
+    node_type: setting
+    type: array
+    default: []
+    visibility: public
+    description: |-
+      Global processing rules that are applied to all logs. The available rules are
+      "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
+      https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
+    example: |2-
+
+        - type: <RULE_TYPE>
+          name: <RULE_NAME>
+          pattern: <RULE_PATTERN>
+    comment: add global processing rules that are applied on all logs
+  auto_multi_line_detection:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Enable automatic aggregation of multi-line logs for common log patterns.
+      More information can be found in Datadog documentation:
+      https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
+    comment: Auto multiline detection settings
+  force_use_http:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set this parameter to `true` to always send logs via HTTP(S) protocol and never fall back to
+      raw TCP forwarding (recommended).
+
+      By default, the Agent sends logs in HTTPS batches if HTTPS connectivity can
+      be established at Agent startup, and falls back to TCP otherwise. This parameter
+      can be used to override this fallback behavior. It is recommended, but not the default, to
+      maintain compatibility with previous Agent versions.
+
+      Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
+      need unencrypted HTTP instead.
+    example: 'true'
+  http_protocol:
+    node_type: setting
+    type: string
+    default: auto
+    visibility: public
+    description: The transport type to use for sending logs. Possible values are "auto"
+      or "http1".
+    comment: Transport protocol for log payloads
+  http_timeout:
+    node_type: setting
+    type: integer
+    default: 10
+    visibility: public
+    description: The HTTP timeout to use for sending logs, in seconds.
+  force_use_tcp:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      By default, logs are sent via HTTP protocol if possible, set this parameter
+      to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
+      is ignored.
+    example: 'true'
+  use_compression:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      This parameter is available when sending logs via HTTP protocol. If enabled, the Agent
+      compresses logs before sending them.
+  compression_level:
+    node_type: setting
+    type: integer
+    default: 6
+    visibility: public
+    description: |-
+      The compression_level parameter accepts values from 0 (no compression)
+      to 9 (maximum compression but higher resource usage). Only takes effect if
+      `use_compression` is set to `true`.
+  batch_wait:
+    node_type: setting
+    type: number
+    default: 5
+    visibility: public
+    description: The maximum time (in seconds) the Datadog Agent waits to fill each
+      batch of logs before sending.
+    tags:
+    - golang_type:float64
+  close_timeout:
+    node_type: setting
+    type: integer
+    default: 60
+    visibility: public
+    description: The maximum number of seconds the Agent spends reading from a file
+      after it has been rotated.
+    comment: maximum time that the unix tailer will hold a log file open after it
+      has been rotated
+  open_files_limit:
+    node_type: setting
+    type: integer
+    visibility: public
+    description: |-
+      The maximum number of files that can be tailed in parallel.
+      Note: the default for Mac OS is 200. The default for
+      all other systems is 500.
+    platform_default:
+      darwin: 200
+      other: 500
+    comment: |-
+      Increase the number of files that can be tailed in parallel:
+      The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+
+      There is no effective limit for windows due to use of CreateFile win32 API
+      The OS default for most linux distributions is 1024
+  file_wildcard_selection_mode:
+    node_type: setting
+    type: string
+    default: by_name
+    visibility: public
+    description: |-
+      The strategy used to prioritize wildcard matches if they exceed the open file limit.
+
+      Choices are `by_name` and `by_modification_time`.
+
+      `by_name` means that each log source is considered and the matching files are ordered
+      in reverse name order. While there are less than `logs_config.open_files_limit` files
+      being tailed, this process repeats, collecting from each configured source.
+
+      `by_modification_time` takes all log sources and first adds any log sources that
+      point to a specific file. Next, it finds matches for all wildcard sources.
+      This resulting list is ordered by which files have been most recently modified
+      and the top `logs_config.open_files_limit` most recently modified files are
+      chosen for tailing.
+
+      WARNING: `by_modification_time` is less performant than `by_name` and will trigger
+      more disk I/O at the configured wildcard log paths.
+    comment: |-
+      Controls how wildcard file log source are prioritized when there are more files
+      that match wildcard log configurations than the `logs_config.open_files_limit`
+
+      Choices are 'by_name' and 'by_modification_time'. See pkg/config/schema/yaml/ for full details.
+
+      WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
+      more disk I/O at the wildcard log paths
+  max_message_size_bytes:
+    node_type: setting
+    type: integer
+    default: 900000
+    visibility: public
+    description: |-
+      The maximum size of single log message in bytes. Lines that are longer
+      than this limit are split into multiple line where each long line that is
+      split has `...TRUNCATED...` added as a suffix and each line that was created
+      from a split of a previous line has `...TRUNCATED...` added as a prefix.
+
+      Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
+      remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
+    comment: maximum log message size in bytes
+  integrations_logs_files_max_size:
+    node_type: setting
+    type: integer
+    default: 100
+    visibility: public
+    description: The max size in MB that an integration logs file is allowed to use
+    comment: Max size in MB an integration logs file can use
+  integrations_logs_total_usage:
+    node_type: setting
+    type: integer
+    default: 100
+    visibility: public
+    description: The total combined usage all integrations logs files can use
+    comment: Max disk usage in MB all integrations logs files are allowed to use in
+      total
+  k8s_container_use_kubelet_api:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Enable container log collection via the kubelet API, typically used
+      for EKS Fargate
+    comment: Tail a container's logs by querying the kubelet's API
+  streaming:
+    node_type: section
+    type: object
+    visibility: public
+    description: This section allows you to configure streaming logs via remote config.
+    tags:
+    - template_section:LogsAgent
+    properties:
+      streamlogs_log_file:
+        node_type: setting
+        type: string
+        default: ${log_path}/streamlogs_info/streamlogs.log
+        visibility: public
+        description: |-
+          Path to the file containing the streamlogs log file.
+          Default paths:
+            * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
+            * Darwin: /opt/datadog-agent/logs/streamlogs_info/streamlogs.log
+            * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
+        comment: Control how the stream-logs log file is managed
+  add_logsource_tag:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Add per-line logsource:{stdout,stderr} tag to container logs (disabled
+      by default)
+  additional_endpoints:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+  aggregation_timeout:
+    node_type: setting
+    type: integer
+    default: 1000
+    comment: |-
+      Timeout in milliseonds used when performing agreggation operations,
+      including multi-line log processing rules and chunked line reaggregation.
+      It may be useful to increase it when logs writing is slowed down, that
+      could happen while serializing large objects on log lines.
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+    comment: specific logs-agent api-key
+  atomic_registry_write:
+    node_type: setting
+    type: boolean
+    platform_default:
+      fargate: false
+      other: true
+    comment: If true, then the registry file will be written atomically. This behavior
+      is not supported on ECS Fargate.
+  auditor_ttl:
+    node_type: setting
+    type: integer
+    default: 23
+    comment: in hours
+  auto_multi_line:
+    node_type: section
+    type: object
+    properties:
+      enable_datetime_detection:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_json_aggregation:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_json_detection:
+        node_type: setting
+        type: boolean
+        default: true
+      pattern_table_match_threshold:
+        node_type: setting
+        type: number
+        default: 0.75
+        tags:
+        - golang_type:float64
+      pattern_table_max_size:
+        node_type: setting
+        type: integer
+        default: 20
+      stack_trace_parsers:
+        node_type: setting
+        type: array
+        default:
+        - go
+        items:
+          type: string
+      tag_aggregated_json:
+        node_type: setting
+        type: boolean
+        default: false
+      timestamp_detector_match_threshold:
+        node_type: setting
+        type: number
+        default: 0.5
+        tags:
+        - golang_type:float64
+      tokenizer_max_input_bytes:
+        node_type: setting
+        type: integer
+        default: 60
+  auto_multi_line_default_match_threshold:
+    node_type: setting
+    type: number
+    default: 0.48
+    tags:
+    - golang_type:float64
+  auto_multi_line_default_match_timeout:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: Seconds
+  auto_multi_line_default_sample_size:
+    node_type: setting
+    type: integer
+    default: 500
+  auto_multi_line_detection_custom_samples:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+  auto_multi_line_detection_tagging:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Tag logs with their auto multiline detection label without aggregating
+      them
+  auto_multi_line_extra_patterns:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    comment: The following auto_multi_line settings are settings for auto multiline
+      detection v1
+  batch_max_concurrent_send:
+    node_type: setting
+    type: integer
+    default: 0
+  batch_max_content_size:
+    node_type: setting
+    type: integer
+    default: 5000000
+  batch_max_size:
+    node_type: setting
+    type: integer
+    default: 1000
+  compression_kind:
+    node_type: setting
+    type: string
+    default: zstd
+  connection_reset_interval:
+    node_type: setting
+    type: integer
+    default: 0
+  container_runtime_waiting_timeout:
+    node_type: setting
+    type: string
+    default: 3s
+    comment: |-
+      Amount of time to wait for the container runtime to respond while determining what to log, containers or pods.
+      If the container runtime doesn't respond after specified timeout, log source marked as failed
+      which is reflected in the Agent status output for the Logs.
+      If this such behavior undesired, set the value to a significantly large number.
+      Timeout is in seconds.
+  dd_port:
+    node_type: setting
+    type: integer
+    default: 10516
+  dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  dd_url_443:
+    node_type: setting
+    type: string
+    default: agent-443-intake.logs.datadoghq.com
+  delegated_auth:
+    node_type: section
+    type: object
+    properties:
+      aws:
+        node_type: section
+        type: object
+        properties:
+          region:
+            node_type: setting
+            type: string
+            default: ''
+      org_uuid:
+        node_type: setting
+        type: string
+        default: ''
+      provider:
+        node_type: setting
+        type: string
+        default: ''
+      refresh_interval_mins:
+        node_type: setting
+        type: integer
+        default: 60
+  dev_mode_no_ssl:
+    node_type: setting
+    type: boolean
+    default: false
+    tags:
+    - no-env
+  dev_mode_use_proto:
+    node_type: setting
+    type: boolean
+    default: true
+  disable_distributed_senders:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: disable distributed senders
+  docker_client_read_timeout:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: |-
+      Configurable docker client timeout while communicating with the docker daemon.
+      It could happen that the docker daemon takes a lot of time gathering timestamps
+      before starting to send any data when it has stored several large log files.
+      This field lets you increase the read timeout to prevent the client from
+      timing out too early in such a situation. Value in seconds.
+  docker_container_force_use_file:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Force tailing from file for all docker container, even the ones with
+      an existing registry entry
+  docker_container_use_file:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      Enable the agent to use files to collect container logs on standalone docker environment, containers
+      with an existing registry offset will continue to be tailed from the docker socket unless
+      logs_config.docker_container_force_use_file is set to true.
+  docker_path_override:
+    node_type: setting
+    type: string
+    default: ''
+    comment: |-
+      If set, the agent will look in this path for docker container log files.  Use this option if
+      docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
+      order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
+      See more documentation here:
+      https://docs.docker.com/engine/reference/commandline/dockerd/.
+  enable_recursive_glob:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Opt-in recursive glob for file log paths (supports **). Default false
+      to preserve current behavior.
+  expected_tags_duration:
+    node_type: setting
+    type: string
+    default: 0s
+    format: duration
+    tags:
+    - golang_type:duration
+    comment: |-
+      Duration during which the host tags will be submitted with log events.
+      duration-formatted string (parsed by `time.ParseDuration`)
+  experimental_adaptive_sampling:
+    node_type: section
+    type: object
+    properties:
+      burst_size:
+        node_type: setting
+        type: number
+        default: 1000
+        tags:
+        - golang_type:float64
+        comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+          Useful for auto-discovered sources that cannot be configured via integration-level YAML.
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Adaptive sampler (experimental) rate-limits repetitive log patterns
+          per source.
+      exclude:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: object
+        comment: Exclude prevents adaptive sampling from applying to logs matching
+          any rule when configured.
+      include:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: object
+        comment: Include limits adaptive sampling to logs matching at least one rule
+          when configured.
+      match_threshold:
+        node_type: setting
+        type: number
+        default: 0.9
+        tags:
+        - golang_type:float64
+        comment: Fraction of tokens that must match for two logs to be treated as
+          the same pattern.
+      max_patterns:
+        node_type: setting
+        type: integer
+        default: 1000
+        comment: Maximum number of distinct patterns the sampler tracks at once.
+      protect_important_logs:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
+          bypass the adaptive sampler and are never dropped.
+      rate_limit:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:float64
+        comment: Steady-state logs per second allowed for each matched pattern.
+      smart_severity_profiles:
+        node_type: section
+        type: object
+        properties:
+          cooldown:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          medium:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              pass_through:
+                node_type: setting
+                type: boolean
+                default: false
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+      tag_pattern_hash:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: When adaptive sampling or noisy log detection is enabled, tag logs
+          with the hash of their structural sampler pattern.
+      tokenizer_max_input_bytes:
+        node_type: setting
+        type: integer
+        default: 2048
+        comment: The sampler needs a larger tokenizer window than the auto-multiline
+          labeler.
+  experimental_auto_multi_line_detection:
+    node_type: setting
+    type: boolean
+    default: false
+  experimental_noisy_log_detection:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
+      without dropping them. Real adaptive sampling takes precedence when enabled.
+  file_scan_period:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+    comment: Time in seconds
+  fingerprint_config:
+    node_type: section
+    type: object
+    properties:
+      count:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: DefaultFingerprintingCount refers to the number of lines or bytes
+          to use for fingerprinting
+      count_to_skip:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: |-
+          The default number of lines (or bytes) to skip when reading a file.
+          Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+      fingerprint_strategy:
+        node_type: setting
+        type: string
+        default: disabled
+        comment: |-
+          DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+          Options are:
+          - "line_checksum": compute the fingerprint by lines
+          - "byte_checksum": compute the fingerprint by bytes
+          - "disabled": disable fingerprinting
+      max_bytes:
+        node_type: setting
+        type: integer
+        default: 100000
+        comment: |-
+          The maximum number of bytes that will be used to generate a checksum fingerprint;
+          used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+  force_auto_multi_line_detection_v1:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Enable the legacy auto multiline detection (v1)
+  frame_size:
+    node_type: setting
+    type: integer
+    default: 9000
+    comment: 'increase the read buffer size of the UDP sockets:'
+  http_connectivity_retry_interval_max:
+    node_type: setting
+    type: string
+    default: 1h
+    comment: |-
+      Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+      When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+      up to this ceiling, then continue checking at this interval. Default: 1 hour
+  input_chan_size:
+    node_type: setting
+    type: integer
+    default: 100
+  integrations_logs_disk_ratio:
+    node_type: setting
+    type: number
+    default: 0.8
+    tags:
+    - golang_type:float64
+    comment: Do not store logs on disk when the disk usage exceeds 80% of the disk
+      capacity.
+  k8s_container_use_file:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: enforce the agent to use files to collect container logs on kubernetes
+      environment
+  kubelet_api_client_read_timeout:
+    node_type: setting
+    type: string
+    default: 30s
+    comment: Configurable API client timeout while communicating with the kubelet
+      to stream logs. Value in seconds.
+  message_channel_size:
+    node_type: setting
+    type: integer
+    default: 100
+  payload_channel_size:
+    node_type: setting
+    type: integer
+    default: 10
+  pipeline_failover:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Pipeline failover configuration
+      router_channel_size:
+        node_type: setting
+        type: integer
+        default: 5
+  pipelines:
+    node_type: setting
+    type: integer
+    default: 4
+    comment: Number of logs pipeline instances. Defaults to number of logical CPU
+      cores as defined by GOMAXPROCS or 4, whichever is lower.
+  process_exclude_agent:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: If true, exclude agent processes from process log collection
+  run_path:
+    node_type: setting
+    type: string
+    default: ${run_path}
+    comment: 'Internal Use Only: avoid modifying those configuration parameters, this
+      could lead to unexpected results.'
+  sender_backoff_base:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+  sender_backoff_factor:
+    node_type: setting
+    type: number
+    default: 2
+    tags:
+    - golang_type:float64
+  sender_backoff_max:
+    node_type: setting
+    type: number
+    default: 120
+    tags:
+    - golang_type:float64
+  sender_recovery_interval:
+    node_type: setting
+    type: integer
+    default: 2
+  sender_recovery_reset:
+    node_type: setting
+    type: boolean
+    default: false
+  socks5_proxy_address:
+    node_type: setting
+    type: string
+    default: ''
+    comment: 'add a socks5 proxy:'
+  stop_grace_period:
+    node_type: setting
+    type: integer
+    default: 30
+  tag_multi_line_logs:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Add a tag to logs that are multiline aggregated
+  tag_truncated_logs:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Add a tag to logs that are truncated by the agent
+  tagger_warmup_duration:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      additional config to ensure initial logs are tagged with kubelet tags
+      wait (seconds) for tagger before start fetching tags of new AD services
+      Disabled by default (0 seconds)
+  use_http:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: DEPRECATED in favor of `logs_config.force_use_http`.
+  use_podman_logs:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      If true, the agent looks for container logs in the location used by podman, rather
+      than docker.  This is a temporary configuration parameter to support podman logs until
+      a more substantial refactor of autodiscovery is made to determine this automatically.
+  use_port_443:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: 'send the logs to the port 443 of the logs-backend via TCP:'
+  use_sourcehost_tag:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: If true, then a source_host tag (IP Address) will be added to TCP/UDP
+      logs.
+  use_tcp:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
+  use_v2_api:
+    node_type: setting
+    type: boolean
+    default: true
+  validate_pod_container_id:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      While parsing Kubernetes pod logs, use /var/log/containers to validate that
+      the pod container ID is matching.
+  windows_open_file_timeout:
+    node_type: setting
+    type: integer
+    default: 5
+    comment: |-
+      maximum time that the windows tailer will hold a log file open, while waiting for
+      the downstream logs pipeline to be ready to accept more data
+  zstd_compression_level:
+    node_type: setting
+    type: integer
+    default: 1
+comment: Delegated authentication for logs

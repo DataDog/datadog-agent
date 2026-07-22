@@ -1,23 +1,133 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_go//go:def.bzl", "go_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("//bazel/rules:zstd.bzl", "zstd_compress")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Top schemas exposed as labels for downstream rules (e.g. the
+# `schema_template_config` rule in :template.bzl).
+exports_files(
+    [
+        "yaml/core_schema.yaml",
+        "yaml/system-probe_schema.yaml",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Per-section sub-files referenced by yaml/core_schema.yaml via $ref.
+# Listed explicitly rather than globbed (per QUESTIONS-2 Q12) so adding
+# or removing a sub-file is a visible diff.
+filegroup(
+    name = "core_schema_subfiles",
+    srcs = [
+        "yaml/admission_controller.yaml",
+        "yaml/agent_telemetry.yaml",
+        "yaml/apm_config.yaml",
+        "yaml/cluster_agent.yaml",
+        "yaml/cluster_checks.yaml",
+        "yaml/compliance_config.yaml",
+        "yaml/container_image.yaml",
+        "yaml/container_lifecycle.yaml",
+        "yaml/external_metrics_provider.yaml",
+        "yaml/gpu.yaml",
+        "yaml/internal_profiling.yaml",
+        "yaml/logs_config.yaml",
+        "yaml/multi_region_failover.yaml",
+        "yaml/orchestrator_explorer.yaml",
+        "yaml/otelcollector.yaml",
+        "yaml/private_action_runner.yaml",
+        "yaml/process_config.yaml",
+        "yaml/remote_configuration.yaml",
+        "yaml/runtime_security_config.yaml",
+        "yaml/sbom.yaml",
+        "yaml/snmp_listener.yaml",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Per-section sub-files referenced by yaml/system-probe_schema.yaml via $ref
+filegroup(
+    name = "system_probe_schema_subfiles",
+    srcs = [
+        "yaml/system-probe-cws.yaml",
+        "yaml/system-probe-usm.yaml",
+        "yaml/system-probe_schema.yaml",
+    ],
+    visibility = ["//visibility:public"],
+)
 
 ZSTD_ARGS = [
     "--no-check",  # match DataDog/zstd Go library behavior: no XXH64 frame checksum
     "-5",  # match DataDog/zstd: DefaultCompression = 5
 ]
 
+# yaml/core_schema.yaml references per-section sub-files (yaml/logs_config.yaml,
+# yaml/apm_config.yaml, ...) via $ref. Merge them into a single file before
+# compression so the embedded Go artifact stays a single self-contained
+# schema and the Go loader doesn't need to handle $ref resolution.
+run_binary(
+    name = "merged_core_schema",
+    srcs = glob(["yaml/*.yaml"]),
+    outs = ["core_schema.merged.yaml"],
+    args = [
+        "$(execpath yaml/core_schema.yaml)",
+        "$@",
+    ],
+    tool = "//tasks/schema:merge_schema",
+)
+
+# yaml/system-probe_schema.yaml uses sub-files in a similar manner as the core_schema
+run_binary(
+    name = "merged_system_probe_schema",
+    srcs = glob(["yaml/*.yaml"]),
+    outs = ["system-probe_schema.merged.yaml"],
+    args = [
+        "$(execpath yaml/system-probe_schema.yaml)",
+        "$@",
+    ],
+    tool = "//tasks/schema:merge_schema",
+)
+
+# Derive the "embedded" schema output from the merged schema: a variant trimmed
+# of build-time-only data (documentation strings, ...) so the compressed,
+# embedded artifact stays small and runtime RSS low. What the "embedded" output
+# strips is decided in tasks/schema/produce_byproduct.py, not here.
+run_binary(
+    name = "embedded_core_schema",
+    srcs = [":merged_core_schema"],
+    outs = ["core_schema.embedded.yaml"],
+    args = [
+        "embedded",
+        "$(execpath :merged_core_schema)",
+        "$@",
+    ],
+    tool = "//tasks/schema:produce_byproduct",
+)
+
+# system-probe "embedded" schema, trimmed of build-time-only data
+run_binary(
+    name = "embedded_system_probe_schema",
+    srcs = [":merged_system_probe_schema"],
+    outs = ["system-probe_schema.embedded.yaml"],
+    args = [
+        "embedded",
+        "$(execpath :merged_system_probe_schema)",
+        "$@",
+    ],
+    tool = "//tasks/schema:produce_byproduct",
+)
+
 zstd_compress(
     name = "compress_core",
-    src = "core_schema.yaml",
+    src = ":embedded_core_schema",
     out = "compressed/core_schema.yaml.zstd",
     args = ZSTD_ARGS,
 )
 
 zstd_compress(
     name = "compress_system_probe",
-    src = "system-probe_schema.yaml",
+    src = ":embedded_system_probe_schema",
     out = "compressed/system-probe_schema.yaml.zstd",
     args = ZSTD_ARGS,
 )
@@ -53,11 +163,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "schema_test",
     srcs = ["schema_test.go"],
     embed = [":schema"],
-    gotags = ["test"],
     deps = [
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",

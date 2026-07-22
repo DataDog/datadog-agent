@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "path",
+    srcs = [
+        "errors.go",
+        "interface.go",
+        "no_op_resolver.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/path",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/resolvers/mount",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/resolvers/mount",
+            "//pkg/security/secl/model",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -64,17 +64,16 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 #
 ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
-OPENSSL_VERSION="3.5.6"
+OPENSSL_VERSION="3.5.7"
 XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
 LIBFFI_VERSION="3.4.4"     # yum install libffi-devel
 NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
-SQLITE_VERSION="3.53.0"    # built from source (amalgamation)
-GDBM_VERSION="1.23"        # yum install gdbm-devel
+SQLITE_VERSION="3.53.2"    # built from source (amalgamation)
 LIBICONV_VERSION="1.17"    # yum install libiconv
 LIBUNWIND_VERSION="1.0"    # derived from /opt/freeware/lib/libgcc_s.a (GCC runtime)
 
@@ -110,7 +109,7 @@ lib_mark() {
 # Cache key: $LIB_CACHE/<name>-<version>.tar.gz
 # Format:    cpio archive (relative to $STAGING), gzip-compressed.
 #
-# Toolbox libraries (libffi, ncurses, readline, sqlite, gdbm, libxslt) are not
+# Toolbox libraries (libffi, ncurses, readline, sqlite, libxslt) are not
 # cached; they are simple file copies taking < 1 second.
 #
 mkdir -p "$LIB_CACHE"
@@ -264,14 +263,24 @@ else
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
-    # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
-    # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
-    patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
+    # Hardening flags match the Linux omnibus/bazel build (deps/openssl.BUILD.bazel
+    # DEFAULT_CONFIG): strip legacy/weak algorithms and the GOST engine.
+    # no-zlib (not zlib-dynamic like Linux, on purpose): shared zlib can't be
+    # dlopen'd on AIX.
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
+        --libdir=lib \
         -Wl,-brtl \
-        shared
+        shared \
+        no-docs \
+        no-idea \
+        no-mdc2 \
+        no-rc5 \
+        no-ssl3 \
+        no-gost \
+        no-filenames \
+        no-zlib
     make -j"$NPROC"
     make install_sw DESTDIR="$STAGING"
     lib_cache_save openssl "$OPENSSL_VERSION" "$_pre"
@@ -436,20 +445,6 @@ else
     log "SQLite ${SQLITE_VERSION} done"
     CURRENT_LIB=
 fi
-
-# ── gdbm (AIX Toolbox: yum install gdbm-devel) ───────────────────────────────
-#
-# gdbm-devel provides libgdbm.a in /opt/freeware/lib (no lib64 variant).
-# The archive contains 64-bit shared objects (verified with ar -X64 -t).
-#
-stage_toolbox_lib gdbm "$GDBM_VERSION" \
-    /opt/freeware/lib/libgdbm.a \
-    /opt/freeware/include/gdbm.h
-# gdbm_compat for Python's dbm.ndbm module
-[ -f /opt/freeware/lib/libgdbm_compat.a ] && \
-    cp /opt/freeware/lib/libgdbm_compat.a "$EMBEDDED_DESTDIR/lib/"
-[ -f /opt/freeware/include/gdbm-ndbm.h ] && \
-    cp /opt/freeware/include/gdbm-ndbm.h "$EMBEDDED_DESTDIR/include/"
 
 # ── libxml2 (build from source) ───────────────────────────────────────────────
 if lib_done libxml2 "$LIBXML2_VERSION"; then

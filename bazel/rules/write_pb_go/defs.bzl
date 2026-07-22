@@ -16,4 +16,4 @@ def write_pb_go(name, srcs):
             file = "{}_{}".format(group, j)
             select_file(name = file, srcs = ":{}".format(group), subpath = out)
             files[out] = file
-    write_source_files(name = name, files = files)
+    write_source_files(name = name, files = files, visibility = ["//visibility:public"])

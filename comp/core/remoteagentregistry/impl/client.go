@@ -7,6 +7,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"slices"
@@ -54,8 +55,13 @@ type remoteAgentClient struct {
 }
 
 func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (*remoteAgentClient, error) {
-	conn, err := grpc.NewClient(registration.APIEndpointURI,
-		grpc.WithTransportCredentials(credentials.NewTLS(ra.ipc.GetTLSClientConfig())),
+	target, transportCreds, err := resolveDialTarget(registration.APIEndpointURI, ra.ipc.GetTLSClientConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(ra.ipc.GetAuthToken())),
 		// Set on the higher side to account for the fact that flare file data could be larger than the default 4MB limit.
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024*1024)),
@@ -83,6 +89,32 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	client.services = registration.Services
 
 	return client, nil
+}
+
+// resolveDialTarget translates a remote agent's advertised api_endpoint_uri into
+// a gRPC dial target plus the transport credentials to use for the connection.
+//
+// Supported schemes (defined in datadog/remoteagent/remoteagent.proto):
+//   - "unix:///path"    — UDS, TLS preserved (filesystem perms gate access, TLS protects on-wire bytes).
+//   - "https://host:port" — TCP with TLS.
+func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, credentials.TransportCredentials, error) {
+	tlsCreds := credentials.NewTLS(tlsConfig)
+
+	scheme, rest, hasScheme := strings.Cut(endpointURI, "://")
+	if !hasScheme {
+		// No scheme: backwards-compat path, treat as host:port over TLS.
+		return endpointURI, tlsCreds, nil
+	}
+
+	switch strings.ToLower(scheme) {
+	case "unix":
+		// gRPC's built-in unix resolver expects the original "unix://" target string.
+		return endpointURI, tlsCreds, nil
+	case "https":
+		return rest, tlsCreds, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported api_endpoint_uri scheme %q (expected one of: unix, https)", scheme)
+	}
 }
 
 // close closes the remote agent client and its connection

@@ -760,6 +760,7 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
+				`^http_status_code:200$`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
 				`^orch_cluster_id:`,
@@ -1476,10 +1477,13 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		env[envVar.Name] = envVar.Value
 	}
 
-	if suite.Contains(env, "DD_DOGSTATSD_URL") {
+	// OpenShift disables the UDS socket, so we skip
+	// checking for socket URLs, hostPath volume, or mount.
+	socketInjection := suite.runtime != "cri-o"
+	if socketInjection && suite.Contains(env, "DD_DOGSTATSD_URL") {
 		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
 	}
-	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
+	if socketInjection && suite.Contains(env, "DD_TRACE_AGENT_URL") {
 		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
 	}
 	suite.Contains(env, "DD_ENTITY_ID")
@@ -1505,7 +1509,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
 	)
 
-	if suite.Contains(hostPathVolumes, "datadog") {
+	if socketInjection && suite.Contains(hostPathVolumes, "datadog") {
 		// trim trailing '/' if exists
 		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
 		suite.Contains("/var/run/datadog", ddHostPath)
@@ -1517,7 +1521,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
-	if suite.Contains(volumeMounts, "datadog") {
+	if socketInjection && suite.Contains(volumeMounts, "datadog") {
 		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 

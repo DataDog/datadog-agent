@@ -8,6 +8,7 @@ package stats
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/stretchr/testify/assert"
@@ -117,7 +119,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Nil(c.peerTagKeys)
+		assert.Nil(c.getPeerTagKeys())
 	})
 	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
@@ -130,8 +132,88 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.getPeerTagKeys())
 	})
+}
+
+func TestNewConcentratorAdditionalMetricTagsValueLengthCapUsesAgentSentinel(t *testing.T) {
+	cfg := config.AgentConfig{
+		BucketInterval: time.Duration(testBucketInterval),
+		AgentVersion:   "0.99.0",
+		DefaultEnv:     "env",
+		Hostname:       "hostname",
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Now(), &statsd.NoOpClient{})
+	span := &pb.Span{
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
+		Type:     "web",
+		Meta: map[string]string{
+			"customer_tier": strings.Repeat("a", additionalMetricTagValueMaxLength+1),
+		},
+	}
+	traceutil.SetMeasured(span, true)
+
+	statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(span, nil, []string{"customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"customer_tier:agent_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
+}
+
+func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t *testing.T) {
+	cfg := config.AgentConfig{
+		BucketInterval: time.Duration(testBucketInterval),
+		AgentVersion:   "0.99.0",
+		DefaultEnv:     "env",
+		Hostname:       "hostname",
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Unix(0, 0), &statsd.NoOpClient{})
+	c.spanConcentrator.cardinalityLimits.AdditionalTags = 1
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+
+	admitted := newAdditionalMetricTagStatSpan("admitted")
+	admitted.start = 1
+	blocked := newAdditionalMetricTagStatSpan("blocked")
+	blocked.start = 2
+
+	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1)
+	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
+
+	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
+}
+
+// TestConcentrator_PeerTagKeysFollowRegistry verifies that getPeerTagKeys
+// rebuilds the cached peer-tag set when the live semantic registry has been
+// swapped (e.g. by an RC update) — driven entirely by the registry's
+// Version() string, with no explicit notification from the RC handler.
+func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	cfg := config.AgentConfig{
+		BucketInterval:      time.Duration(testBucketInterval),
+		AgentVersion:        "0.99.0",
+		DefaultEnv:          "env",
+		Hostname:            "hostname",
+		PeerTagsAggregation: true,
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Now(), &statsd.NoOpClient{})
+	originalKeys := c.getPeerTagKeys()
+	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
+
+	// Install a registry with a different Version() and a remapped peer.service concept.
+	customJSON := `{"version":"test-custom-1","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(custom)
+
+	refreshedKeys := c.getPeerTagKeys()
+	assert.Contains(t, refreshedKeys, "x.custom.peer", "getPeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
+	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the version-keyed cache invalidates")
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
@@ -807,7 +889,12 @@ func TestPeerTags(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
+		// Inject a peer-tag key set directly, keyed by the live registry's
+		// content hash so getPeerTagKeys returns it without rebuilding from conf.
+		c.peerTagsCache.Store(&config.PeerTagsCache{
+			ContentHash: semantics.DefaultRegistry().ContentHash(),
+			Keys:        []string{"db.instance", "db.system", "peer.service"},
+		})
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)

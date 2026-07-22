@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/dogstatsd/statsd/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/privateactionrunner/adapters/actions",
@@ -32,9 +33,12 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
+        "//comp/dogstatsd/statsd/def",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/util/flavor",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/util/sets",

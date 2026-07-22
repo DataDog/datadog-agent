@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agent.go",
+        "statusimpl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/secrets/noop-impl",
+        "//comp/logs-library/client",
+        "//comp/logs-library/client/http",
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/pipeline",
+        "//comp/logs-library/sender",
+        "//comp/logs/agent/config",
+        "//comp/otelcol/logsagentpipeline/def",
+        "//comp/serializer/logscompression/def",
+        "//pkg/config/model",
+        "//pkg/logs/status/statusinterface",
+        "//pkg/util/option",
+        "//pkg/util/startstop",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["agent_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/logs-library/client/http",
+        "//comp/logs-library/client/mock",
+        "//comp/logs-library/client/tcp",
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/fx-mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/util/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

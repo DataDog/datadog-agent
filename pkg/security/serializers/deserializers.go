@@ -54,6 +54,7 @@ func newFileEvent(fs *FileSerializer) model.FileEvent {
 
 func newProcess(ps *ProcessSerializer) model.Process {
 	p := model.Process{
+		PPid:          getPointerValue(ps.PPid),
 		Comm:          ps.Comm,
 		TTYName:       ps.TTY,
 		FileEvent:     newFileEvent(ps.Executable),
@@ -68,7 +69,6 @@ func newProcess(ps *ProcessSerializer) model.Process {
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
-			PPid:      getPointerValue(ps.PPid),
 		},
 	}
 	if ps.ForkTime != nil {

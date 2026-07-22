@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "executor",
+    srcs = [
+        "server.go",
+        "transport_unix.go",
+        "transport_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/proto/pbgo/privateactionrunner/executor",
+        "@org_golang_google_grpc//:grpc",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "executor_test",
+    srcs = [
+        "server_test.go",
+        "testaddr_unix_test.go",
+        "testaddr_windows_test.go",
+    ],
+    embed = [":executor"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/proto/pbgo/privateactionrunner/executor",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

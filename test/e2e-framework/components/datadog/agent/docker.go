@@ -69,7 +69,7 @@ func NewDockerAgent(e config.Env, vm *remoteComp.Host, manager *docker.Manager, 
 		}
 
 		// We can have multiple compose files in compose.
-		composeContents := []docker.ComposeInlineManifest{dockerAgentComposeManifest(fullImagePath, e.AgentAPIKey(), params.AgentServiceEnvironment)}
+		composeContents := []docker.ComposeInlineManifest{dockerAgentComposeManifest(fullImagePath, e.AgentAPIKey(), params.AgentServiceEnvironment, params.ExtraAgentVolumes)}
 		composeContents = append(composeContents, params.ExtraComposeManifests...)
 
 		opts := make([]pulumi.ResourceOption, 0, len(params.PulumiDependsOn)+1)
@@ -89,7 +89,7 @@ func NewDockerAgent(e config.Env, vm *remoteComp.Host, manager *docker.Manager, 
 	})
 }
 
-func dockerAgentComposeManifest(agentImagePath string, apiKey pulumi.StringInput, envVars pulumi.Map) docker.ComposeInlineManifest {
+func dockerAgentComposeManifest(agentImagePath string, apiKey pulumi.StringInput, envVars pulumi.Map, extraVolumes []string) docker.ComposeInlineManifest {
 	runInPrivileged := false
 	for k := range envVars {
 		if strings.HasPrefix(k, "DD_SYSTEM_PROBE_") {
@@ -108,13 +108,13 @@ func dockerAgentComposeManifest(agentImagePath string, apiKey pulumi.StringInput
 					Privileged:    runInPrivileged,
 					Image:         agentImagePath,
 					ContainerName: agentContainerName,
-					Volumes: []string{
+					Volumes: append([]string{
 						"/var/run/docker.sock:/var/run/docker.sock",
 						"/proc/:/host/proc",
 						"/sys/fs/cgroup/:/host/sys/fs/cgroup",
 						"/var/run/datadog:/var/run/datadog",
 						"/sys/kernel/tracing:/sys/kernel/tracing",
-					},
+					}, extraVolumes...),
 					Environment: map[string]any{
 						"DD_API_KEY": apiKeyResolved,
 						// DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED is compatible with Agent 7.35+

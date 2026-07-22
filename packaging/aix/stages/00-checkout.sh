@@ -16,18 +16,25 @@ exec > "$LOG" 2>&1
 log "=== Stage: $STAGE_NAME ==="
 
 # --- Input validation ---
+: "${AGENT_SRC:?AGENT_SRC must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 : "${STAGING:?STAGING must be set}"
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
+: "${SALUKI_SRC:?SALUKI_SRC must be set}"
 
 # --- Cleanup on failure ---
 PARTIAL_INTEGRATIONS_CORE=
+PARTIAL_SALUKI_SRC=
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed."
         if [ -n "$PARTIAL_INTEGRATIONS_CORE" ] && [ -d "$PARTIAL_INTEGRATIONS_CORE" ]; then
             log "Removing partial integrations-core checkout: $PARTIAL_INTEGRATIONS_CORE"
             rm -rf "$PARTIAL_INTEGRATIONS_CORE"
+        fi
+        if [ -n "$PARTIAL_SALUKI_SRC" ] && [ -d "$PARTIAL_SALUKI_SRC" ]; then
+            log "Removing partial saluki checkout: $PARTIAL_SALUKI_SRC"
+            rm -rf "$PARTIAL_SALUKI_SRC"
         fi
     fi
 }
@@ -36,30 +43,29 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# /opt/datadog-agent, transferred from the build machine by the caller.
-# (The local clone contains AIX-specific changes not yet merged to main.)
+# $AGENT_SRC (resolved by env.sh from the script directory's .git ancestor), transferred from the build machine
+# by the caller. (The local clone contains AIX-specific changes not yet merged
+# to main.)
 #
 # Expected transfer method:
 #   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ... .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
-#   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'
-
-AGENT_SRC=/opt/datadog-agent
+#   ssh aix-host 'mkdir -p <agent-repo> && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C <agent-repo>'
 
 if [ ! -f "$AGENT_SRC/go.mod" ]; then
     log "ERROR: agent source not found at $AGENT_SRC/go.mod"
     log "       Transfer the source tree to the AIX host first:"
     log "         On build machine: tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ."
     log "         scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/"
-    log "         On AIX host:      mkdir -p /opt/datadog-agent"
-    log "                           gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent"
+    log "         On AIX host:      mkdir -p $AGENT_SRC"
+    log "                           gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C $AGENT_SRC"
     exit 1
 fi
 
 log "Agent source found at $AGENT_SRC"
-log "  go.mod: $(head -1 $AGENT_SRC/go.mod)"
+log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
-# ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.json ─────────────────
+# ─── Step 2: Read dependency versions from release.json ───────────────────────
 
 RELEASE_JSON="$AGENT_SRC/release.json"
 if [ ! -f "$RELEASE_JSON" ]; then
@@ -77,6 +83,16 @@ if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
 fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
+
+if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    AGENT_DATA_PLANE_VERSION=$(python3.12 -c \
+        "import json; print(json.load(open('$RELEASE_JSON'))['dependencies']['AGENT_DATA_PLANE_VERSION'])")
+fi
+if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
+    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $RELEASE_JSON"
+    exit 1
+fi
+log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"
 
 # ─── Step 3: Clone or fetch integrations-core ─────────────────────────────────
 
@@ -103,5 +119,26 @@ fi
 
 git -C "$INTEGRATIONS_CORE" checkout --quiet "$INTEGRATIONS_CORE_VERSION"
 log "Checked out integrations-core at $(git -C "$INTEGRATIONS_CORE" rev-parse HEAD)"
+
+# ─── Step 4: Clone or fetch saluki ────────────────────────────────────────────
+
+log "Checking out DataDog/saluki at $AGENT_DATA_PLANE_VERSION into $SALUKI_SRC"
+
+mkdir -p "$(dirname "$SALUKI_SRC")"
+
+if [ -d "$SALUKI_SRC/.git" ]; then
+    log "saluki repository already exists — fetching $AGENT_DATA_PLANE_VERSION"
+    git -C "$SALUKI_SRC" fetch --quiet --depth=1 origin \
+        "refs/tags/$AGENT_DATA_PLANE_VERSION:refs/tags/$AGENT_DATA_PLANE_VERSION"
+else
+    log "Cloning https://github.com/DataDog/saluki.git at tag $AGENT_DATA_PLANE_VERSION (shallow --depth=1)"
+    PARTIAL_SALUKI_SRC="$SALUKI_SRC"
+    git clone --depth=1 --branch "$AGENT_DATA_PLANE_VERSION" --quiet \
+        https://github.com/DataDog/saluki.git "$SALUKI_SRC"
+    PARTIAL_SALUKI_SRC=
+fi
+
+git -C "$SALUKI_SRC" checkout --quiet "$AGENT_DATA_PLANE_VERSION"
+log "Checked out saluki at $(git -C "$SALUKI_SRC" rev-parse HEAD)"
 
 log "=== $STAGE_NAME complete ==="

@@ -40,6 +40,7 @@ void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src,
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;
+    dst->ppid = src->ppid;
     dst->fork_timestamp = src->fork_timestamp;
     dst->fork_flags = src->fork_flags;
     dst->sid = src->sid;
@@ -82,21 +83,6 @@ static __attribute__((always_inline)) void update_proc_cache_cgroup() {
     }
 }
 
-static u32 __attribute__((always_inline)) get_current_ppid(void) {
-    u32 ppid = 0;
-    u64 real_parent_offset = get_task_struct_real_parent_offset();
-    u64 tgid_offset = get_task_struct_tgid_offset();
-    if (real_parent_offset > 0 && tgid_offset > 0) {
-        struct task_struct *cur_task = (struct task_struct *)bpf_get_current_task();
-        struct task_struct *parent = NULL;
-        bpf_probe_read_kernel(&parent, sizeof(parent), (void *)cur_task + real_parent_offset);
-        if (parent) {
-            bpf_probe_read_kernel(&ppid, sizeof(ppid), (void *)parent + tgid_offset);
-        }
-    }
-    return ppid;
-}
-
 static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
     u32 tgid = pid_tgid >> 32;
 
@@ -113,12 +99,6 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     u32 pid = data->pid;
     if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
-    }
-
-    // Read the live ppid from real_parent->tgid. Only valid when called
-    // from the actual task context (not for stored pid_tgid from io_uring).
-    if (pid_tgid == bpf_get_current_pid_tgid()) {
-        data->ppid = get_current_ppid();
     }
 
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);

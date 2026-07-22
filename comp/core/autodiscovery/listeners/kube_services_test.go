@@ -630,8 +630,8 @@ func TestHasFilterKubeServices(t *testing.T) {
 
 func TestKubeServiceFiltering(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
-	mockConfig.SetWithoutSource("container_exclude", []string{"name:global-excluded"})
+	mockConfig.SetInTest("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
+	mockConfig.SetInTest("container_exclude", []string{"name:global-excluded"})
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	// Create test services with different scenarios

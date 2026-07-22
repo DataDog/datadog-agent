@@ -12,6 +12,19 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+func parseAggregateConfig(names []string) []observer.Aggregate {
+	if len(names) == 0 {
+		return nil
+	}
+	aggregations := make([]observer.Aggregate, 0, len(names))
+	for _, name := range names {
+		if agg, ok := parseAggregateSuffix(name); ok {
+			aggregations = append(aggregations, agg)
+		}
+	}
+	return aggregations
+}
+
 // seriesStatus holds point count and write generation for a single series.
 // Used by bulkSeriesStatus and scan-based detectors.
 type seriesStatus struct {
@@ -95,7 +108,8 @@ func detectorMedian(vals []float64) float64 {
 // When scaleToSigma is true, the result is scaled by 1.4826 to estimate the
 // standard deviation for normally distributed data. Use scaleToSigma=true when
 // comparing against sigma-based thresholds (e.g. Mann-Whitney's deviation check),
-// and false when using raw MAD as a denominator for relative change scores (e.g. TopK).
+// and false when using raw MAD as a denominator for relative change scores
+// (e.g. ScanMW/ScanWelch preMAD checks).
 func detectorMAD(vals []float64, median float64, scaleToSigma bool) float64 {
 	if len(vals) == 0 {
 		return 0
@@ -132,6 +146,21 @@ func medianPointInterval(points []observer.Point) int64 {
 	intervals := make([]int64, len(points)-1)
 	for i := 1; i < len(points); i++ {
 		intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
+	return intervals[len(intervals)/2]
+}
+
+// medianTimestampInterval computes the median gap between consecutive
+// timestamps. It is the timestamp-array equivalent of medianPointInterval for
+// detectors that keep a compact timestamp ring instead of retaining Points.
+func medianTimestampInterval(timestamps []int64) int64 {
+	if len(timestamps) < 2 {
+		return 0
+	}
+	intervals := make([]int64, len(timestamps)-1)
+	for i := 1; i < len(timestamps); i++ {
+		intervals[i-1] = timestamps[i] - timestamps[i-1]
 	}
 	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
 	return intervals[len(intervals)/2]

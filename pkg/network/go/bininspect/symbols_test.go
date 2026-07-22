@@ -62,6 +62,7 @@ func TestAllMissing(t *testing.T) {
 
 	_, err := GetAllSymbolsInSetByName(elfFile, symbolSet)
 	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSymbolsNotFound)
 	msg := err.Error()
 	assert.Contains(t, msg, "SSL_connect_not")
 	assert.Contains(t, msg, "foo")
@@ -78,6 +79,7 @@ func TestSomeMissing(t *testing.T) {
 
 	_, err := GetAllSymbolsInSetByName(elfFile, symbolSet)
 	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSymbolsNotFound)
 	msg := err.Error()
 	assert.Contains(t, msg, "SSL_invalid")
 	assert.Contains(t, msg, "SSL_notthere")

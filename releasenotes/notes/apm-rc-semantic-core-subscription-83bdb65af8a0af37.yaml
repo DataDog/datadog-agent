@@ -1,0 +1,19 @@
+---
+features:
+  - |
+    APM: The trace-agent can now receive span tag equivalence and peer tag
+    mapping updates over Remote Configuration and apply them at runtime,
+    without an agent restart. The feature is opt-in via the new
+    ``remote_configuration.apm_semantics.enabled`` setting (default ``false``).
+    Stats aggregation picks up the updated peer-tag keys on the next span
+    processed. If the backend removes or untargets a previously-applied
+    payload, the trace-agent reverts to the mappings it ships with. Existing
+    deployments see no behavior change with default settings.
+  - |
+    APM: ``remote_configuration.agent_config.enabled`` is now a settable
+    configuration entry that controls the trace-agent's Remote Configuration
+    subscription for agent-config updates (such as runtime log-level
+    overrides) independently from ``remote_configuration.apm_sampling.enabled``.
+    When the user has explicitly set ``apm_sampling.enabled`` but not
+    ``agent_config.enabled``, the trace-agent mirrors the former into the
+    latter so existing configurations continue to behave exactly as before.

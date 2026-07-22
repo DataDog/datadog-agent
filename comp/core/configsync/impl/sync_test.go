@@ -101,3 +101,43 @@ func TestUpdater(t *testing.T) {
 	assert.Equal(t, "cli_value", cfg.Get("key1"))
 	assert.Equal(t, 2, callbackCalled)
 }
+
+// TestCoerceJSONToSchemaTypes verifies that JSON-decoded float64 values are cast to the declared int type, including inside nested maps.
+func TestCoerceJSONToSchemaTypes(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetDefault("network_path.collector.input_chan_size", 0)
+	cfg.SetDefault("network_path.collector.workers", 0)
+	cfg.BuildSchema()
+
+	coerced := coerceJSONToSchemaTypes(cfg, "network_path.collector", map[string]interface{}{
+		"input_chan_size": float64(65432),
+		"workers":         float64(16),
+	})
+
+	m, ok := coerced.(map[string]interface{})
+	require.True(t, ok, "expected map result, got %T", coerced)
+	assert.IsType(t, int(0), m["input_chan_size"])
+	assert.IsType(t, int(0), m["workers"])
+	assert.Equal(t, 65432, m["input_chan_size"])
+	assert.Equal(t, 16, m["workers"])
+}
+
+// TestCoerceJSONToSchemaTypesMapLeaf verifies that a leaf map setting (e.g. additional_endpoints) is cast to its declared map type.
+func TestCoerceJSONToSchemaTypesMapLeaf(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetDefault("additional_endpoints", map[string][]string{})
+	cfg.BuildSchema()
+
+	coerced := coerceJSONToSchemaTypes(cfg, "additional_endpoints", map[string]interface{}{
+		"https://url1.com": []interface{}{"ep1", "ep2"},
+		"https://url2.com": []interface{}{"ep3"},
+	})
+
+	assert.Equal(t,
+		map[string][]string{
+			"https://url1.com": {"ep1", "ep2"},
+			"https://url2.com": {"ep3"},
+		},
+		coerced,
+	)
+}

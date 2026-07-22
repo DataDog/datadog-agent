@@ -329,7 +329,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no CCA config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, logsTpl, noLogsTpl))
@@ -337,7 +337,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, ccaTpl))
@@ -345,7 +345,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, []integration.Config{ccaTpl},
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
@@ -353,7 +353,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config, CCA disabled", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", false)
+		mockConfig.SetInTest("logs_config.container_collect_all", false)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))

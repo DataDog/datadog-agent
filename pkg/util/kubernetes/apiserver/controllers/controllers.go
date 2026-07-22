@@ -10,7 +10,6 @@
 package controllers
 
 import (
-	"context"
 	"errors"
 	"sync"
 
@@ -192,29 +191,6 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	go autoscalersController.runHPA(ctx.StopCh)
 
 	autoscalersController.runControllerLoop(ctx.StopCh)
-}
-
-// startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
-func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
-	controller, err := instrumentation.NewController(
-		ctx.DynamicUpdateClient,
-		ctx.DynamicInformerFactory,
-		ctx.InstrumentationHandlers,
-		ctx.IsLeaderFunc,
-	)
-	if err != nil {
-		c <- err
-		return
-	}
-
-	controllerCtx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-ctx.StopCh
-		cancel()
-	}()
-
-	go controller.Run(controllerCtx)
-	ctx.DynamicInformerFactory.Start(ctx.StopCh)
 }
 
 // registerServicesInformer registers the services informer.

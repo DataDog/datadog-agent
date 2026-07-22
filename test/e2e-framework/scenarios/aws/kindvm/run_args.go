@@ -83,7 +83,7 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	}
 
 	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults

@@ -1,0 +1,429 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/process_config.yaml.schema.json
+node_type: section
+title: Process Collection Configuration
+type: object
+visibility: public
+description: |-
+  Enter specific configurations for your Process data collection.
+  Uncomment this parameter and the one below to enable them.
+  See https://docs.datadoghq.com/graphing/infrastructure/process/
+tags:
+- template_section:CoreAgent
+properties:
+  process_collection:
+    node_type: section
+    type: object
+    visibility: public
+    description: Specifies settings for collecting processes.
+    tags:
+    - template_section:CoreAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
+        - DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED
+        visibility: public
+        description: Enables collection of information about running processes.
+  container_collection:
+    node_type: section
+    type: object
+    visibility: public
+    description: Specifies settings for collecting containers.
+    tags:
+    - template_section:CoreAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED
+        - DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED
+        visibility: public
+        description: Enables collection of information about running containers.
+  expvar_port:
+    node_type: setting
+    type: integer
+    default: 6062
+    env_vars:
+    - DD_PROCESS_CONFIG_EXPVAR_PORT
+    - DD_PROCESS_AGENT_EXPVAR_PORT
+    visibility: public
+    description: Port for the debug endpoints for the process Agent.
+  cmd_port:
+    node_type: setting
+    type: integer
+    default: 6162
+    env_vars:
+    - DD_PROCESS_CONFIG_CMD_PORT
+    - DD_PROCESS_AGENT_CMD_PORT
+    visibility: public
+    description: Port for configuring runtime settings for the process Agent.
+  log_file:
+    node_type: setting
+    type: string
+    default: ${log_path}/process-agent.log
+    env_vars:
+    - DD_PROCESS_CONFIG_LOG_FILE
+    - DD_PROCESS_AGENT_LOG_FILE
+    visibility: public
+    description: The full path to the file where process Agent logs are written.
+  intervals:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      The interval, in seconds, at which the Agent runs each check. If you want consistent
+      behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
+    tags:
+    - template_section:CoreAgent
+    properties:
+      container:
+        node_type: setting
+        type: integer
+        default: 10
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERVALS_CONTAINER
+        - DD_PROCESS_AGENT_INTERVALS_CONTAINER
+        visibility: public
+        description: The interval in seconds at which the container check runs.
+      container_realtime:
+        node_type: setting
+        type: integer
+        default: 2
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME
+        - DD_PROCESS_AGENT_INTERVALS_CONTAINER_REALTIME
+        visibility: public
+        description: The interval in seconds at which the real-time container check
+          runs.
+      process:
+        node_type: setting
+        type: integer
+        default: 10
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERVALS_PROCESS
+        - DD_PROCESS_AGENT_INTERVALS_PROCESS
+        visibility: public
+        description: The interval in seconds at which the process check runs.
+        comment: |-
+          The interval, in seconds, at which we will run each check. If you want consistent
+          behavior between real-time you may set the Container/ProcessRT intervals to 10.
+          Defaults to 10s for normal checks and 2s for others.
+      process_realtime:
+        node_type: setting
+        type: integer
+        default: 2
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME
+        - DD_PROCESS_AGENT_INTERVALS_PROCESS_REALTIME
+        visibility: public
+        description: The interval in seconds at which the real-time process check
+          runs.
+      connections:
+        node_type: setting
+        type: integer
+        default: 30
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS
+        - DD_PROCESS_AGENT_INTERVALS_CONNECTIONS
+  process_discovery:
+    node_type: section
+    type: object
+    visibility: public
+    description: Specifies custom settings for the `process_discovery` object.
+    tags:
+    - template_section:CoreAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED
+        - DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED
+        - DD_PROCESS_CONFIG_DISCOVERY_ENABLED
+        - DD_PROCESS_AGENT_DISCOVERY_ENABLED
+        visibility: public
+        description: Toggles the `process_discovery` check. If enabled, this check
+          gathers information about running integrations.
+        comment: |-
+          Process Discovery Check
+          We also bind old environment variables for this setting
+      interval:
+        node_type: setting
+        type: string
+        default: 4h0m0s
+        env_vars:
+        - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL
+        - DD_PROCESS_AGENT_PROCESS_DISCOVERY_INTERVAL
+        format: duration
+        visibility: public
+        description: An interval in hours that specifies how often the process discovery
+          check should run (minimum is 10min).
+        example: 4h
+        tags:
+        - golang_type:duration
+      hint_frequency:
+        node_type: setting
+        type: integer
+        default: 60
+        env_vars:
+        - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_HINT_FREQUENCY
+        - DD_PROCESS_AGENT_PROCESS_DISCOVERY_HINT_FREQUENCY
+  blacklist_patterns:
+    node_type: setting
+    type: array
+    default: []
+    env_vars:
+    - DD_PROCESS_CONFIG_BLACKLIST_PATTERNS
+    - DD_PROCESS_AGENT_BLACKLIST_PATTERNS
+    items:
+      type: string
+    visibility: public
+    description: A list of regex patterns that exclude processes if matched.
+    example: |2-
+
+        - <REGEX>
+  queue_size:
+    node_type: setting
+    type: integer
+    default: 256
+    env_vars:
+    - DD_PROCESS_CONFIG_QUEUE_SIZE
+    - DD_PROCESS_AGENT_QUEUE_SIZE
+    visibility: public
+    description: The number of check results to buffer in memory when a POST fails.
+  process_queue_bytes:
+    node_type: setting
+    type: integer
+    default: 60000000
+    env_vars:
+    - DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES
+    - DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES
+    visibility: public
+    description: The amount of data (in bytes) to buffer in memory when a POST fails.
+  rt_queue_size:
+    node_type: setting
+    type: integer
+    default: 5
+    env_vars:
+    - DD_PROCESS_CONFIG_RT_QUEUE_SIZE
+    - DD_PROCESS_AGENT_RT_QUEUE_SIZE
+    visibility: public
+    description: The number of realtime check results to buffer in memory when a POST
+      fails.
+  max_per_message:
+    node_type: setting
+    type: integer
+    default: 100
+    env_vars:
+    - DD_PROCESS_CONFIG_MAX_PER_MESSAGE
+    - DD_PROCESS_AGENT_MAX_PER_MESSAGE
+    visibility: public
+    description: The maximum number of processes or containers per message.
+  dd_agent_bin:
+    node_type: setting
+    type: string
+    env_vars:
+    - DD_PROCESS_CONFIG_DD_AGENT_BIN
+    - DD_PROCESS_AGENT_DD_AGENT_BIN
+    visibility: public
+    description: |-
+      Overrides the path to the Agent bin used for getting the hostname. Defaults are:
+        * Windows: <AGENT_DIRECTORY>\\embedded\\agent.exe
+        * Unix: /opt/datadog-agent/bin/agent/agent
+    platform_default:
+      linux: ${install_path}/bin/agent/agent
+      darwin: ${install_path}/bin/agent/agent
+      aix: ${install_path}/bin/agent/agent
+      windows: ${install_path}/bin/agent.exe
+  dd_agent_env:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_PROCESS_CONFIG_DD_AGENT_ENV
+    - DD_PROCESS_AGENT_DD_AGENT_ENV
+    visibility: public
+    description: Overrides of the environment we pass to fetch the hostname.
+  scrub_args:
+    node_type: setting
+    type: boolean
+    default: true
+    env_vars:
+    - DD_SCRUB_ARGS
+    - DD_PROCESS_CONFIG_SCRUB_ARGS
+    - DD_PROCESS_AGENT_SCRUB_ARGS
+    visibility: public
+    description: Hide sensitive data on the Live Processes page.
+  custom_sensitive_words:
+    node_type: setting
+    type: array
+    default: []
+    env_vars:
+    - DD_CUSTOM_SENSITIVE_WORDS
+    - DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS
+    - DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Define your own list of sensitive data to be merged with the default one.
+      Read more on Datadog documentation:
+      https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+    example: |2-
+
+        - 'personal_key'
+        - '*token'
+        - 'sql*'
+        - '*pass*d*'
+    env_parser: json_list_or_comma_separated
+  disable_realtime_checks:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS
+    - DD_PROCESS_AGENT_DISABLE_REALTIME_CHECKS
+    visibility: public
+    description: Disable realtime process and container checks
+  additional_endpoints:
+    node_type: setting
+    type: object
+    default: {}
+    env_vars:
+    - DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS
+    - DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS
+    - DD_PROCESS_ADDITIONAL_ENDPOINTS
+    additionalProperties:
+      items:
+        type: string
+      type: array
+  cache_lookupid:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_PROCESS_CONFIG_CACHE_LOOKUPID
+    - DD_PROCESS_AGENT_CACHE_LOOKUPID
+  drop_check_payloads:
+    node_type: setting
+    type: array
+    default: []
+    env_vars:
+    - DD_PROCESS_CONFIG_DROP_CHECK_PAYLOADS
+    - DD_PROCESS_AGENT_DROP_CHECK_PAYLOADS
+    items:
+      type: string
+  enabled:
+    node_type: setting
+    type: string
+    default: 'false'
+    env_vars:
+    - DD_PROCESS_CONFIG_ENABLED
+    - DD_PROCESS_AGENT_ENABLED
+    comment: |-
+      "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
+      or container_collection.enabled and process_collection.enabled.
+
+      It's a string as the possible values are "disabled", "false", "true"...
+  grpc_connection_timeout_secs:
+    node_type: setting
+    type: integer
+    default: 60
+    env_vars:
+    - DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS
+    - DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS
+  ignore_zombie_processes:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES
+    - DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES
+  internal_profiling:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED
+        - DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED
+  language_detection:
+    node_type: section
+    type: object
+    properties:
+      grpc_port:
+        node_type: setting
+        type: integer
+        default: 6262
+        env_vars:
+        - DD_PROCESS_CONFIG_LANGUAGE_DETECTION_GRPC_PORT
+        - DD_PROCESS_AGENT_LANGUAGE_DETECTION_GRPC_PORT
+  max_message_bytes:
+    node_type: setting
+    type: integer
+    default: 1000000
+    env_vars:
+    - DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES
+    - DD_PROCESS_AGENT_MAX_MESSAGE_BYTES
+  orchestrator_additional_endpoints:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      items:
+        type: string
+      type: array
+    tags:
+    - no-env
+    comment: DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints`
+      setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints`
+      will take precedence.
+  orchestrator_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL
+    - DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL
+    comment: DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting.
+      If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+  process_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_PROCESS_CONFIG_PROCESS_DD_URL
+    - DD_PROCESS_AGENT_PROCESS_DD_URL
+    - DD_PROCESS_AGENT_URL
+    - DD_PROCESS_CONFIG_URL
+  strip_proc_arguments:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_STRIP_PROCESS_ARGS
+    - DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS
+    - DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS
+  windows:
+    node_type: section
+    type: object
+    properties:
+      use_perf_counters:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS
+        - DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS
+        comment: Use PDH API to collect performance counter data for process check
+          on Windows

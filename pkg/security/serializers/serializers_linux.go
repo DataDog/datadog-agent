@@ -619,24 +619,23 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
-	// Socket file descriptor
+	// Socket type
 	SocketType string `json:"socket_type"`
 	// Socket family
 	SocketFamily string `json:"socket_family"`
-	// Length of the filter
-	FilterLen uint16 `json:"filter_len,omitempty"`
 	// Socket protocol
 	SocketProtocol string `json:"socket_protocol"`
-
 	// Level at which the option is defined
 	Level string `json:"level"`
 	// Name of the option being set
 	OptName string `json:"optname"`
-	// Filter truncated
+	// Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)
+	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Filter truncation flag (available when OptName == SO_ATTACH_FILTER)
 	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
-	// Filter instructions
+	// Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)
 	FilterInstructions string `json:"filter,omitempty"`
-	//Filter hash
+	// Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
@@ -1014,7 +1013,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
-		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e)
+		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e, ps)
 		if len(awsSecurityCredentials) > 0 {
 			for _, creds := range awsSecurityCredentials {
 				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
@@ -1490,7 +1489,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	return s
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
 		Device:           newNetworkDeviceSerializer(&networkCtx.Device, e),

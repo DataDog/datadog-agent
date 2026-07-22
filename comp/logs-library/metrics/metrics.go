@@ -85,15 +85,15 @@ var (
 	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
 	TlmAutoMultilineJSONAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
-	// TlmUtilizationRatio is the utilization ratio of a component.
-	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
-	// This metric is internally sampled and exposed as an ewma in order to produce a useable value.
-	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
-	// TlmUtilizationItems is the capacity of a component by number of elements
-	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
-	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
-	// TlmUtilizationBytes is the capacity of a component by number of bytes
-	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers")
+	// TlmAutoMultilineStackTraceAggregatorFlush counts Go stack trace aggregation outcomes.
+	TlmAutoMultilineStackTraceAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_go_stack_trace_aggregator_flush", []string{"result"}, "Count of Go stack traces flushed from the stack trace aggregator")
+
+	// TlmUtilizationRatio is the N=15 EWMA utilization ratio of a component (~15s window).
+	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=15 EWMA, ~15s window)")
+	// TlmUtilizationItems is the EWMA item count held in a component and its buffers.
+	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers (N=15 EWMA, ~15s window)")
+	// TlmUtilizationBytes is the EWMA byte count held in a component and its buffers.
+	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers (N=15 EWMA, ~15s window)")
 	// TlmDestNumWorkers is the number of destination workers in use.
 	TlmDestNumWorkers = telemetryimpl.GetCompatComponent().NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
 	// TlmDestVirtualLatency is a moving average of the destination's latency.
@@ -108,6 +108,17 @@ var (
 	// TlmLogLineSizes is a distribution of post-framer log line sizes
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+
+	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
+	// framer (bytes that do not form a valid RFC 6587 frame).
+	TlmSyslogMalformedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_malformed_bytes",
+		nil, "Total number of malformed bytes seen by the syslog framer")
+
+	// TlmSyslogOversizedFrames counts syslog frames split because they exceeded the
+	// content length limit. Syslog lines are conventionally far below the limit, so a
+	// non-zero value signals a severe upstream framing error.
+	TlmSyslogOversizedFrames = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_oversized_frames",
+		nil, "Count of syslog frames split because they exceeded the content length limit")
 
 	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
 	TlmRotationsNix = telemetryimpl.GetCompatComponent().NewCounter("logs", "rotations_nix",
@@ -133,6 +144,11 @@ var (
 	// Tags: status (success/failure)
 	TlmHTTPConnectivityCheck = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_check",
 		[]string{"status"}, "Count of HTTP connectivity checks with status")
+
+	// TlmHTTPConnectivityFailure tracks HTTP connectivity check failures broken down by root cause.
+	// Tags: failure_cause — use the FailureCause* constants defined below.
+	TlmHTTPConnectivityFailure = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_failure",
+		[]string{"failure_cause"}, "Count of HTTP connectivity check failures broken down by root cause")
 
 	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
 	// Tags: status (success/failure)
@@ -168,6 +184,18 @@ var (
 	// Tags: listener_type (tcp, udp)
 	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
+)
+
+// FailureCause* are the stable tag values for the logs.http_connectivity_failure
+// counter's failure_cause tag. Dashboards and monitors filter on these literal strings,
+// so they must not change across agent versions.
+const (
+	FailureCauseDNS        = "dns"
+	FailureCauseTLS        = "tls"
+	FailureCauseTimeout    = "timeout"
+	FailureCauseConnection = "connection"
+	FailureCauseHTTPStatus = "http_status"
+	FailureCauseOther      = "other"
 )
 
 func init() {

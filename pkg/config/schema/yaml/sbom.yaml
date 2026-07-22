@@ -1,0 +1,285 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/sbom.yaml.schema.json
+node_type: section
+type: object
+visibility: public
+description: Enter specific configuration for the Cloud Security Management Vulnerability
+  Management feature
+tags:
+- template_section:CoreAgent
+- full-agent-only:true
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: set to true to enable Cloud Security Management Vulnerability Management
+  host:
+    node_type: section
+    type: object
+    visibility: public
+    description: Configuration for scanning the host filesystem for software vulnerabilities.
+    tags:
+    - template_section:CoreAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: set to true to enable Infrastructure Vulnerabiltilies
+      additional_directories:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      analyzers:
+        node_type: setting
+        type: array
+        default:
+        - os
+        items:
+          type: string
+  container_image:
+    node_type: section
+    type: object
+    visibility: public
+    description: Configuration for scanning container images for software vulnerabilities.
+    tags:
+    - platform_only:linux
+    - template_section:CoreAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Set to true to enable container image vulnerability scanning.
+      additional_directories:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      allow_missing_repodigest:
+        node_type: setting
+        type: boolean
+        default: false
+      analyzers:
+        node_type: setting
+        type: array
+        default:
+        - os
+        items:
+          type: string
+      check_disk_usage:
+        node_type: setting
+        type: boolean
+        default: true
+      container_exclude:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      container_include:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      exclude_pause_container:
+        node_type: setting
+        type: boolean
+        default: true
+      min_available_disk:
+        node_type: setting
+        type: string
+        default: 10Mb
+      overlayfs_direct_scan:
+        node_type: setting
+        type: boolean
+        default: false
+      overlayfs_disable_cache:
+        node_type: setting
+        type: boolean
+        default: true
+      scan_interval:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: Integer seconds
+      scan_timeout:
+        node_type: setting
+        type: integer
+        default: 600
+        comment: Integer seconds
+      use_mount:
+        node_type: setting
+        type: boolean
+        default: false
+      use_spread_refresher:
+        node_type: setting
+        type: boolean
+        default: false
+  additional_endpoints:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+  batch_max_concurrent_send:
+    node_type: setting
+    type: integer
+    default: 0
+  batch_max_content_size:
+    node_type: setting
+    type: integer
+    default: 5000000
+  batch_max_size:
+    node_type: setting
+    type: integer
+    default: 1000
+  batch_wait:
+    node_type: setting
+    type: number
+    default: 5
+    tags:
+    - golang_type:float64
+  cache:
+    node_type: section
+    type: object
+    properties:
+      clean_interval:
+        node_type: setting
+        type: string
+        default: 1h
+        comment: used by custom cache.
+      max_disk_size:
+        node_type: setting
+        type: integer
+        default: 100000000
+        comment: 'used by custom cache: max disk space used by cached objects. Not
+          equal to max disk usage'
+  cache_directory:
+    node_type: setting
+    type: string
+    default: ${run_path}/sbom-agent
+  clear_cache_on_exit:
+    node_type: setting
+    type: boolean
+    default: false
+  compression_kind:
+    node_type: setting
+    type: string
+    default: zstd
+  compression_level:
+    node_type: setting
+    type: integer
+    default: 6
+  compute_dependencies:
+    node_type: setting
+    type: boolean
+    default: true
+  connection_reset_interval:
+    node_type: setting
+    type: integer
+    default: 0
+  container:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  dev_mode_no_ssl:
+    node_type: setting
+    type: boolean
+    default: false
+    tags:
+    - no-env
+  enrichment:
+    node_type: section
+    type: object
+    properties:
+      usage:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+  input_chan_size:
+    node_type: setting
+    type: integer
+    default: 100
+  logs_dd_url:
+    node_type: setting
+    type: string
+    default: ''
+  logs_no_ssl:
+    node_type: setting
+    type: boolean
+    default: false
+  scan_queue:
+    node_type: section
+    type: object
+    properties:
+      base_backoff:
+        node_type: setting
+        type: string
+        default: 5m
+      max_backoff:
+        node_type: setting
+        type: string
+        default: 1h
+  sender_backoff_base:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+  sender_backoff_factor:
+    node_type: setting
+    type: number
+    default: 2
+    tags:
+    - golang_type:float64
+  sender_backoff_max:
+    node_type: setting
+    type: number
+    default: 120
+    tags:
+    - golang_type:float64
+  sender_recovery_interval:
+    node_type: setting
+    type: integer
+    default: 2
+  sender_recovery_reset:
+    node_type: setting
+    type: boolean
+    default: false
+  simplify_bom_refs:
+    node_type: setting
+    type: boolean
+    default: true
+  use_compression:
+    node_type: setting
+    type: boolean
+    default: true
+  use_v2_api:
+    node_type: setting
+    type: boolean
+    default: true
+  zstd_compression_level:
+    node_type: setting
+    type: integer
+    default: 1

@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"testing"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v2"
 )
@@ -112,12 +113,11 @@ func TestMergeAdditionalTags(t *testing.T) {
 
 	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
 
-	rawConfig := RawMap{}
-	err := yaml.Unmarshal(config.Instances[0], &rawConfig)
+	parsedConfig := CommonInstanceConfig{}
+	err := yaml.Unmarshal(config.Instances[0], &parsedConfig)
 	assert.Nil(t, err)
-	assert.Contains(t, rawConfig["tags"], "foo")
-	assert.Contains(t, rawConfig["tags"], "bar")
-	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	expectedTags := []string{"bar", "foo", "foo:bar"} // Should be sorted so digest stays stable for identical configs
+	assert.Equal(t, expectedTags, parsedConfig.Tags)
 
 	config.Name = "foo"
 	config.InitConfig = Data("fooBarBaz")
@@ -125,11 +125,11 @@ func TestMergeAdditionalTags(t *testing.T) {
 
 	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
 
-	rawConfig = RawMap{}
-	err = yaml.Unmarshal(config.Instances[0], &rawConfig)
+	parsedConfig = CommonInstanceConfig{}
+	err = yaml.Unmarshal(config.Instances[0], &parsedConfig)
 	assert.Nil(t, err)
-	assert.Contains(t, rawConfig["tags"], "foo")
-	assert.Contains(t, rawConfig["tags"], "bar")
+	expectedTags = []string{"bar", "foo"} // Should be sorted so digest stays stable for identical configs
+	assert.Equal(t, expectedTags, parsedConfig.Tags)
 }
 
 func TestSetField(t *testing.T) {
@@ -268,6 +268,25 @@ func TestDigestIncludesDiscovery(t *testing.T) {
 		"Discovery field must change the config digest so a discovery template and its non-discovery counterpart are distinct")
 	assert.NotEqual(t, withoutDiscovery.FastDigest(), withDiscovery.FastDigest(),
 		"Discovery field must change FastDigest as well")
+}
+
+func TestDigestIncludesCELSelector(t *testing.T) {
+	withoutSelector := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+	}
+	withSelector := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		CELSelector: workloadfilter.Rules{
+			Containers: []string{`container.name == "app"`},
+		},
+	}
+
+	assert.NotEqual(t, withoutSelector.Digest(), withSelector.Digest(),
+		"CELSelector must change the config digest so different cel configs are distinct")
+	assert.NotEqual(t, withoutSelector.FastDigest(), withSelector.FastDigest(),
+		"CELSelector must change FastDigest")
 }
 
 func TestGetNameForInstance(t *testing.T) {

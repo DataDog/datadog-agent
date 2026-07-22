@@ -8,7 +8,7 @@
   extends: .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    FLAVORS: '--flavor base'
+    FLAVORS: "--flavor base"
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
@@ -33,4 +33,10 @@ lint_cross_macos-arm64:
   extends: .cross_lint
   script:
     - export GOOS=darwin GOARCH=arm64
+    - !reference [.lint_script]
+
+lint_cross_aix-ppc64:
+  extends: .cross_lint
+  script:
+    - export GOOS=aix GOARCH=ppc64
     - !reference [.lint_script]

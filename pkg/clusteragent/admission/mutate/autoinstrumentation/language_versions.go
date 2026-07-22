@@ -19,6 +19,7 @@ const (
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
 	php    language = "php"
+	c      language = "c"
 )
 
 // language is lang-library we might be injecting.
@@ -71,11 +72,22 @@ var supportedLanguages = []language{
 	dotnet,
 	ruby,
 	php, // PHP only works with injection v2, no environment variables are set in any case
+	c,
 }
 
-func defaultSupportedLanguagesMap() map[language]bool {
+// defaultInjectedLanguages defines the languages included in the default/all bundle.
+var defaultInjectedLanguages = []language{
+	java,
+	js,
+	python,
+	dotnet,
+	ruby,
+	php,
+}
+
+func defaultInjectedLanguagesMap() map[language]bool {
 	m := map[language]bool{}
-	for _, l := range supportedLanguages {
+	for _, l := range defaultInjectedLanguages {
 		m[l] = true
 	}
 
@@ -99,8 +111,9 @@ var languageVersions = map[language]string{
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: "v4", // https://datadoghq.atlassian.net/browse/INPLAT-852
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
+	js:     "v6",
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
+	c:      "v0",
 }
 
 func (l language) defaultLibVersion() string {

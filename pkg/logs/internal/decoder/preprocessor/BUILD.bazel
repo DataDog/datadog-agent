@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "preprocessor",
@@ -6,6 +7,7 @@ go_library(
         "aggregator.go",
         "combining_aggregator.go",
         "detecting_aggregator.go",
+        "go_stack_trace_parser.go",
         "incremental_json_validator.go",
         "json_aggregator.go",
         "json_detector.go",
@@ -15,6 +17,7 @@ go_library(
         "preprocessor.go",
         "regex_aggregator.go",
         "sampler.go",
+        "stack_trace_aggregator.go",
         "timestamp_detector.go",
         "token_graph.go",
         "tokenizer.go",
@@ -46,10 +49,11 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "preprocessor_test",
     srcs = [
         "aggregator_test.go",
+        "go_stack_trace_parser_test.go",
         "incremental_json_validator_test.go",
         "json_aggregator_benchmark_test.go",
         "json_aggregator_test.go",
@@ -60,6 +64,7 @@ go_test(
         "preprocessor_test.go",
         "sampler_benchmark_test.go",
         "sampler_test.go",
+        "stack_trace_aggregator_test.go",
         "timestamp_detector_test.go",
         "token_graph_test.go",
         "tokenizer_benchmark_test.go",
@@ -67,7 +72,6 @@ go_test(
         "user_samples_test.go",
     ],
     embed = [":preprocessor"],
-    gotags = ["test"],
     deps = [
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",

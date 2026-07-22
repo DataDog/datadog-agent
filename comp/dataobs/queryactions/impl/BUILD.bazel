@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -10,7 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
@@ -20,20 +21,20 @@ go_library(
         "//comp/remote-config/rcclient/def",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
+        "@com_github_robfig_cron_v3//:cron",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "handler_test.go",
         "queryactions_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
         "//comp/core/log/mock",

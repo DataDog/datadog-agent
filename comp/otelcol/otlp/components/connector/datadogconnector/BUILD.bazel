@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "datadogconnector",
+    srcs = [
+        "connector.go",
+        "factory.go",
+        "traces_connector.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/otelcol/otlp/components/metricsclient",
+        "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/metrics",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/otel/stats",
+        "//pkg/trace/stats",
+        "//pkg/util/option",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_connector//:connector",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel_metric//noop",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datadogconnector_test",
+    srcs = [
+        "connector_test.go",
+        "factory_test.go",
+    ],
+    embed = [":datadogconnector"],
+    deps = [
+        "//comp/otelcol/otlp/testutil",
+        "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/metrics",
+        "//pkg/proto/pbgo/trace",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_connector_connectortest//:connectortest",
+        "@io_opentelemetry_go_collector_consumer_consumertest//:consumertest",
+        "@io_opentelemetry_go_collector_featuregate//:featuregate",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//testing/protocmp",
+        "@org_uber_go_zap//:zap",
+    ],
+)

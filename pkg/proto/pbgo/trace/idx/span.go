@@ -296,6 +296,13 @@ func UnmarshalKeyValueMap(bts []byte, strings *StringTable) (kvl map[uint32]*Any
 
 // UnmarshalKeyValueList unmarshals a list of key-value pairs from the byte stream, updating the StringTable with new strings
 func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o []byte, err error) {
+	return unmarshalKeyValueList(bts, strings, 0)
+}
+
+func unmarshalKeyValueList(bts []byte, strings *StringTable, depth int) (kvl []*KeyValue, o []byte, err error) {
+	if depth > maxAnyValueDepth {
+		return nil, bts, fmt.Errorf("AnyValue nesting depth exceeds maximum of %d", maxAnyValueDepth)
+	}
 	var numAttributes uint32
 	numAttributes, o, err = limitedReadArrayHeaderBytes(bts)
 	if err != nil {
@@ -316,7 +323,7 @@ func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o
 			return
 		}
 		var value *AnyValue
-		value, o, err = UnmarshalAnyValue(o, strings)
+		value, o, err = unmarshalAnyValue(o, strings, depth+1)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read attribute value")
 			return
@@ -327,8 +334,20 @@ func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o
 	return
 }
 
+// maxAnyValueDepth bounds how deeply nested AnyValue arrays / key-value lists may be.
+// Without a bound, a deeply nested payload drives the decoder into unbounded recursion,
+// which overflows the goroutine stack and crashes the process with an unrecoverable fatal error.
+const maxAnyValueDepth = 200
+
 // UnmarshalAnyValue unmarshals an AnyValue from a byte stream, updating the strings slice with new strings
 func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []byte, err error) {
+	return unmarshalAnyValue(bts, strings, 0)
+}
+
+func unmarshalAnyValue(bts []byte, strings *StringTable, depth int) (value *AnyValue, o []byte, err error) {
+	if depth > maxAnyValueDepth {
+		return nil, bts, fmt.Errorf("AnyValue nesting depth exceeds maximum of %d", maxAnyValueDepth)
+	}
 	value = &AnyValue{}
 	var valueType uint32
 	valueType, o, err = msgp.ReadUint32Bytes(bts)
@@ -392,7 +411,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		var i uint32
 		for i < numElements {
 			var elemValue *AnyValue
-			elemValue, o, err = UnmarshalAnyValue(o, strings)
+			elemValue, o, err = unmarshalAnyValue(o, strings, depth+1)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read array element")
 				return
@@ -403,7 +422,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		value.Value = &AnyValue_ArrayValue{ArrayValue: &ArrayValue{Values: arrayValue}}
 	case 7: // keyValueList
 		var kvl []*KeyValue
-		kvl, o, err = UnmarshalKeyValueList(o, strings)
+		kvl, o, err = unmarshalKeyValueList(o, strings, depth+1)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read keyValueList")
 			return
@@ -991,29 +1010,33 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		return
 	}
 	if cap(c.Spans) >= int(numSpans) {
-		c.Spans = c.Spans[:numSpans]
+		c.Spans = c.Spans[:0]
 	} else {
-		c.Spans = make([]*InternalSpan, numSpans)
+		c.Spans = make([]*InternalSpan, 0, numSpans)
 	}
 	convertedFields := NewSpanConvertedFields()
 	var rootSampling RootSamplingMergeState
-	for i := range c.Spans {
+	for i := 0; i < int(numSpans); i++ {
+		// Drop nil span entries rather than storing them: every downstream V1
+		// path (normalizeTraceChunkV1, GetRootV1, ProcessV1) dereferences each
+		// span and would panic on a nil. The nil element is still read to
+		// advance the buffer.
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
 			if err != nil {
 				return
 			}
-			c.Spans[i] = nil
-		} else {
-			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
-			c.Spans[i].SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
-			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
-			if err != nil {
-				err = msgp.WrapError(err, i)
-				return
-			}
-			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, c.Spans[i].ParentID())
+			continue
 		}
+		span := NewInternalSpan(c.Strings, &Span{})
+		span.SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
+		bts, err = span.UnmarshalMsgConverted(bts, convertedFields)
+		if err != nil {
+			err = msgp.WrapError(err, i)
+			return
+		}
+		rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, span.ParentID())
+		c.Spans = append(c.Spans, span)
 	}
 	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
@@ -1161,25 +1184,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
 			}
-			for numMetaFields > 0 {
-				var metaVal uint32
-				numMetaFields--
-				var metaKey uint32
-				metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaFields > 0 {
+				if err = checkSlabCount(numMetaFields, bts); err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
 				}
-				metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Meta", metaKey)
-					return
-				}
-				s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
-				s.span.Attributes[metaKey] = &AnyValue{
-					Value: &AnyValue_StringValueRef{
-						StringValueRef: metaVal,
-					},
+				// Slab-allocate the AnyValue containers and their string-ref oneof
+				// wrappers for every meta entry in two allocations, rather than two per
+				// entry. The map holds pointers into these backing arrays.
+				values := make([]AnyValue, numMetaFields)
+				refs := make([]AnyValue_StringValueRef, numMetaFields)
+				for i := uint32(0); i < numMetaFields; i++ {
+					var metaKey, metaVal uint32
+					metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta")
+						return
+					}
+					metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta", metaKey)
+						return
+					}
+					s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
+					refs[i].StringValueRef = metaVal
+					values[i].Value = &refs[i]
+					s.span.Attributes[metaKey] = &values[i]
 				}
 			}
 		case "metrics":
@@ -1196,25 +1226,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetricsFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
 			}
-			for numMetricsFields > 0 {
-				var value float64
-				numMetricsFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetricsFields > 0 {
+				if err = checkSlabCount(numMetricsFields, bts); err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
 				}
-				value, bts, err = parseFloat64Bytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Metrics", key)
-					return
-				}
-				s.handlePromotedMetricsFields(key, value, convertedFields)
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_DoubleValue{
-						DoubleValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their double oneof wrappers
+				// for every metric in two allocations, rather than two per metric.
+				values := make([]AnyValue, numMetricsFields)
+				doubles := make([]AnyValue_DoubleValue, numMetricsFields)
+				for i := uint32(0); i < numMetricsFields; i++ {
+					var value float64
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics")
+						return
+					}
+					value, bts, err = parseFloat64Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics", key)
+						return
+					}
+					s.handlePromotedMetricsFields(key, value, convertedFields)
+					doubles[i].DoubleValue = value
+					values[i].Value = &doubles[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "type":
@@ -1238,24 +1275,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaStructFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
 			}
-			for numMetaStructFields > 0 {
-				var value []byte
-				numMetaStructFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaStructFields > 0 {
+				if err = checkSlabCount(numMetaStructFields, bts); err != nil {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
 				}
-				value, bts, err = msgp.ReadBytesBytes(bts, value)
-				if err != nil {
-					err = msgp.WrapError(err, "MetaStruct", key)
-					return
-				}
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_BytesValue{
-						BytesValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their bytes oneof wrappers
+				// for every meta_struct entry in two allocations, rather than two per
+				// entry.
+				values := make([]AnyValue, numMetaStructFields)
+				byteVals := make([]AnyValue_BytesValue, numMetaStructFields)
+				for i := uint32(0); i < numMetaStructFields; i++ {
+					var value []byte
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct")
+						return
+					}
+					value, bts, err = msgp.ReadBytesBytes(bts, value)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct", key)
+						return
+					}
+					byteVals[i].BytesValue = value
+					values[i].Value = &byteVals[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "span_links":
@@ -1266,27 +1311,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Links) >= int(numSpanLinks) {
-				s.span.Links = (s.span.Links)[:numSpanLinks]
+				s.span.Links = (s.span.Links)[:0]
 			} else {
-				s.span.Links = make([]*SpanLink, numSpanLinks)
+				s.span.Links = make([]*SpanLink, 0, numSpanLinks)
 			}
-			for i := range s.span.Links {
+			for i := 0; i < int(numSpanLinks); i++ {
+				// Drop nil link entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each link and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Links[i] = nil
-				} else {
-					if s.span.Links[i] == nil {
-						s.span.Links[i] = new(SpanLink)
-					}
-					bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanLinks", i)
-						return
-					}
+					continue
 				}
+				link := new(SpanLink)
+				bts, err = link.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanLinks", i)
+					return
+				}
+				s.span.Links = append(s.span.Links, link)
 			}
 		case "span_events":
 			var numEvents uint32
@@ -1296,27 +1343,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Events) >= int(numEvents) {
-				s.span.Events = (s.span.Events)[:numEvents]
+				s.span.Events = (s.span.Events)[:0]
 			} else {
-				s.span.Events = make([]*SpanEvent, numEvents)
+				s.span.Events = make([]*SpanEvent, 0, numEvents)
 			}
-			for i := range s.span.Events {
+			for i := 0; i < int(numEvents); i++ {
+				// Drop nil event entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each event and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Events[i] = nil
-				} else {
-					if s.span.Events[i] == nil {
-						s.span.Events[i] = new(SpanEvent)
-					}
-					bts, err = s.span.Events[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanEvents", i)
-						return
-					}
+					continue
 				}
+				event := new(SpanEvent)
+				bts, err = event.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanEvents", i)
+					return
+				}
+				s.span.Events = append(s.span.Events, event)
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -1376,7 +1425,6 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 				spanEvent.Attributes = make(map[uint32]*AnyValue, numAttributes)
 			}
 			for numAttributes > 0 {
-				var value *AnyValue
 				numAttributes--
 				var keyRef uint32
 				keyRef, bts, err = parseStringBytesRef(strings, bts)
@@ -1385,18 +1433,20 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 					return
 				}
 				if msgp.IsNil(bts) {
+					// Drop the key rather than storing a nil AnyValue: consumers
+					// (getAttributeAsString, SpanEvent.Msgsize/MarshalMsg) dereference
+					// every attribute value.
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					value = nil
-				} else {
-					value = new(AnyValue)
-					bts, err = value.UnmarshalMsgConverted(strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Attributes", keyRef)
-						return
-					}
+					continue
+				}
+				value := new(AnyValue)
+				bts, err = value.UnmarshalMsgConverted(strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Attributes", keyRef)
+					return
 				}
 				spanEvent.Attributes[keyRef] = value
 			}
@@ -1414,6 +1464,13 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 
 // UnmarshalMsgConverted unmarshals a v4 any value directly into an idx.AnyValue for efficiency
 func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) {
+	return av.unmarshalMsgConverted(strings, bts, 0)
+}
+
+func (av *AnyValue) unmarshalMsgConverted(strings *StringTable, bts []byte, depth int) (o []byte, err error) {
+	if depth > maxAnyValueDepth {
+		return bts, fmt.Errorf("AnyValue nesting depth exceeds maximum of %d", maxAnyValueDepth)
+	}
 	var field []byte
 	_ = field
 	var numFields uint32
@@ -1497,28 +1554,29 @@ func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 							err = msgp.WrapError(err, "ArrayValue", "Values")
 							return
 						}
+						// Reuse the backing array but build with append: nil elements are
+						// dropped rather than stored as unusable nil AnyValue entries, which
+						// several consumers (AnyValue.AsString/Msgsize/MarshalMsg) dereference.
 						if cap(arrayValue) >= int(numArrayElems) {
-							arrayValue = (arrayValue)[:numArrayElems]
+							arrayValue = (arrayValue)[:0]
 						} else {
-							arrayValue = make([]*AnyValue, numArrayElems)
+							arrayValue = make([]*AnyValue, 0, numArrayElems)
 						}
-						for i := range arrayValue {
+						for i := uint32(0); i < numArrayElems; i++ {
 							if msgp.IsNil(bts) {
 								bts, err = msgp.ReadNilBytes(bts)
 								if err != nil {
 									return
 								}
-								arrayValue[i] = nil
-							} else {
-								if arrayValue[i] == nil {
-									arrayValue[i] = new(AnyValue)
-								}
-								bts, err = arrayValue[i].UnmarshalMsgConverted(strings, bts)
-								if err != nil {
-									err = msgp.WrapError(err, "ArrayValue", "Values", i)
-									return
-								}
+								continue
 							}
+							elem := new(AnyValue)
+							bts, err = elem.unmarshalMsgConverted(strings, bts, depth+1)
+							if err != nil {
+								err = msgp.WrapError(err, "ArrayValue", "Values", i)
+								return
+							}
+							arrayValue = append(arrayValue, elem)
 						}
 					default:
 						bts, err = msgp.Skip(bts)

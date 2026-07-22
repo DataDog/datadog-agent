@@ -276,3 +276,21 @@ WHERE
 	AND sess.sid(+) = s.session_id AND sess.serial#(+) = s.session_serial#
 	AND s.sample_id > :last_sample_id
 ORDER BY s.sample_time`
+
+// activityQueryBlockerFromLock is a fallback query used when the blocking_session field is not populated
+// by Oracle for sessions waiting on an enqueue lock (enq: wait events). It fetches the blocker's
+// instance id and sid from v$lock (waiter, local instance) joined to gv$lock (holder, any RAC instance).
+// Requires GRANT SELECT ON v$lock and gv$lock to the agent database user.
+const activityQueryBlockerFromLock = `SELECT /* DD_ACTIVITY_SAMPLING */
+	h.inst_id AS blocker_inst_id,
+	h.sid     AS blocker_sid
+FROM v$lock w, gv$lock h
+WHERE w.sid     = :blocked_sid
+AND   w.request > 0
+AND   h.id1     = w.id1
+AND   h.id2     = w.id2
+AND   h.type    = w.type
+AND   h.con_id  = w.con_id
+AND   h.lmode   > 0
+AND   NOT (h.inst_id = SYS_CONTEXT('USERENV', 'INSTANCE') AND h.sid = w.sid)
+AND   ROWNUM    = 1`

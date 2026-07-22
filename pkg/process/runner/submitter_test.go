@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -468,7 +468,7 @@ type submitterDeps struct {
 func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysprobeconfigOverrides map[string]interface{}) submitterDeps {
 	sysprobeConf := sysprobeconfigmock.NewMock(t)
 	for k, v := range sysprobeconfigOverrides {
-		sysprobeConf.SetWithoutSource(k, v)
+		sysprobeConf.SetInTest(k, v)
 	}
 	return fxutil.Test[submitterDeps](t, fx.Options(
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),

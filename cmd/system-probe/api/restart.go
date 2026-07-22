@@ -8,8 +8,6 @@ package api
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -17,8 +15,7 @@ import (
 )
 
 func restartModuleHandler(w http.ResponseWriter, r *http.Request, deps module.FactoryDependencies) {
-	vars := mux.Vars(r)
-	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
+	moduleName := sysconfigtypes.ModuleName(r.PathValue("module_name"))
 
 	if moduleName == config.EventMonitorModule {
 		w.WriteHeader(http.StatusOK)

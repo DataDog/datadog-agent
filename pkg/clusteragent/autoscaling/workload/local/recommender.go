@@ -14,6 +14,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -21,18 +22,18 @@ import (
 )
 
 const (
-	pollingInterval                         = 30 * time.Second
-	localRecommenderID autoscaling.SenderID = "lr"
+	pollingInterval                              = 30 * time.Second
+	localRecommenderID autoscalingstore.SenderID = "lr"
 )
 
 // Recommender is the interface used to generate local recommendations
 type Recommender struct {
 	replicaCalculator replicaCalculator
-	store             *autoscaling.Store[model.PodAutoscalerInternal]
+	store             *autoscalingstore.Store[model.PodAutoscalerInternal]
 }
 
 // NewRecommender creates a new Recommender to start generating local recommendations
-func NewRecommender(clock clock.Clock, podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
+func NewRecommender(clock clock.Clock, podWatcher workload.PodWatcher, store *autoscalingstore.Store[model.PodAutoscalerInternal]) *Recommender {
 	replicaCalculator := newReplicaCalculator(clock, podWatcher)
 
 	return &Recommender{
@@ -76,7 +77,7 @@ func (r *Recommender) process(ctx context.Context) {
 		}
 		return true
 	}
-	podAutoscalers := r.store.GetFiltered(localFallbackFilter)
+	podAutoscalers := r.store.List(localFallbackFilter)
 
 	// Sync targets to loadstore - only store metrics for workloads we're autoscaling
 	targets := make([]loadstore.Target, 0, len(podAutoscalers))
@@ -112,12 +113,13 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		recommendation.Horizontal = horizontalRecommendation
 	}
 
-	podAutoscalerInternal, found, unlock := r.store.LockRead(key, true)
+	item, found := r.store.Get(key)
+	defer item.Release()
 	if !found { // In case the object is deleted in between when we start calculating
 		log.Debugf("Object %s not found in store; local recommendation values not updated", key)
-		unlock()
 		return
 	}
+	podAutoscalerInternal := item.Value()
 	podAutoscalerInternal.UpdateFromLocalValues(recommendation)
-	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, localRecommenderID)
+	item.Upsert(podAutoscalerInternal, localRecommenderID)
 }

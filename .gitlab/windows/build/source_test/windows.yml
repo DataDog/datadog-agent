@@ -11,6 +11,7 @@
     - .bazel:defs:cache:windows
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
     - !reference [.docker_pull_winbuildimage_instrumented]
@@ -19,7 +20,6 @@
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
-      --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
@@ -40,14 +40,15 @@
       -e GOMODCACHE="c:\modcache"
       -e GOPROXY
       -e GONOSUMDB
+      -e GOMEMLIMIT=2560MiB
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME_SLUG}.tgz"
       -e PIP_INDEX_URL
       -e TEST_OUTPUT_FILE="${TEST_OUTPUT_FILE}.json"
       -e EXTRA_OPTS="${FAST_TESTS_FLAG}"
       -e TEST_WASHER=true
       -e GO_TEST_SKIP_FLAKE
-      -e API_KEY_ORG2
-      -e CODECOV_TOKEN
+      -e AGENT_API_KEY_ORG2
+      -e CODECOV
       -e S3_PERMANENT_ARTIFACTS_URI
       -e COVERAGE_CACHE_FLAG
       -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
@@ -61,8 +62,8 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - ${TEST_OUTPUT_FILE}.json
-      - ${TEST_OUTPUT_FILE}_unified.json
+      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}.json
+      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}_unified.json
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
@@ -80,11 +81,13 @@ tests_windows-x64:
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
@@ -108,11 +111,13 @@ tests_windows-x64:
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true

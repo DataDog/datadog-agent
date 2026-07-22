@@ -53,10 +53,6 @@
           {
             "expr": "x.I32 == 300 && @duration > 0.0",
             "message": "nil pointer dereference"
-          },
-          {
-            "expr": "x.I32 == 300 && @duration > 0.0",
-            "message": "nil pointer dereference"
           }
         ]
       },

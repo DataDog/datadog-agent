@@ -60,6 +60,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			apiKey:           endpoint.APIKey,
 			refreshFn:        cfg.SecretsRefreshFn,
 			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
+			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
@@ -123,9 +124,11 @@ func (t eventType) String() string { return eventTypeStrings[t] }
 type eventData struct {
 	// host specifies the host which the sender is sending to.
 	host string
-	// bytes represents the number of bytes affected by this event.
+	// bytes represents the number of compressed bytes affected by this event.
 	bytes int
-	// count specfies the number of payloads that this events refers to.
+	// uncompressedBytes represents the number of uncompressed bytes affected by this event.
+	uncompressedBytes int
+	// count specifies the number of payloads that this event refers to.
 	count int
 	// duration specifies the time it took to complete this event. It
 	// is set for eventType{Sent,Retry,Rejected}.
@@ -175,6 +178,9 @@ type apiKeyManager struct {
 	// refreshFn triggers blocking API key refresh from the secrets backend
 	refreshFn func() (string, error)
 
+	// isFromSecret reports whether the current key is secret-backed (nil = unknown, treated as yes)
+	isFromSecret func(apiKey string) bool
+
 	// throttleInterval specifies minimum time between refresh calls
 	throttleInterval time.Duration
 
@@ -194,16 +200,23 @@ func (m *apiKeyManager) Update(newKey string) {
 	m.apiKey = newKey
 }
 
-func (m *apiKeyManager) refresh() {
+// refresh triggers a throttled API key refresh and reports whether the refresh
+// mechanism is available (false = disabled, so a 403 must not be retried).
+func (m *apiKeyManager) refresh() bool {
 	if m.refreshFn == nil || m.throttleInterval == 0 {
-		return
+		return false
+	}
+	// A refresh can only change a secret-backed key; a static/plaintext key
+	// won't change, so don't retry the 403.
+	if m.isFromSecret != nil && !m.isFromSecret(m.Get()) {
+		return false
 	}
 
 	m.Lock()
 	if time.Since(m.lastRefresh) < m.throttleInterval {
 		m.Unlock()
 		log.Debugf("API Key refresh throttled, last refresh was %v ago", time.Since(m.lastRefresh))
-		return
+		return true
 	}
 
 	// Update the last refresh time before calling refresh to prevent concurrent calls
@@ -215,6 +228,7 @@ func (m *apiKeyManager) refresh() {
 	} else if result != "" {
 		log.Infof("API Key refresh completed: %s", result)
 	}
+	return true
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -333,10 +347,11 @@ func (s *sender) sendOnce(p *payload) bool {
 	start := time.Now()
 	err = s.do(req)
 	stats := &eventData{
-		bytes:    p.body.Len(),
-		count:    1,
-		duration: time.Since(start),
-		err:      err,
+		bytes:             p.body.Len(),
+		uncompressedBytes: p.uncompressedSize,
+		count:             1,
+		duration:          time.Since(start),
+		err:               err,
 	}
 	if err != nil {
 		log.Tracef("Error submitting payload: %v\n", err)
@@ -462,8 +477,16 @@ func (s *sender) do(req *http.Request) error {
 	resp.Body.Close()
 
 	if resp.StatusCode == http.StatusForbidden {
-		log.Debugf("API Key invalid (403), triggering secret refresh")
-		s.apiKeyManager.refresh()
+		// Retry a 403 only if a key refresh is available; otherwise the key can't
+		// change, so drop immediately instead of retrying against the same bad key.
+		if s.apiKeyManager.refresh() {
+			log.Debugf("API Key invalid (403), triggered secret refresh; retrying payload")
+			return &retriableError{
+				fmt.Errorf("server responded with %q", resp.Status),
+			}
+		}
+		log.Debugf("API Key invalid (403) and secret refresh is unavailable; dropping payload")
+		return errors.New(resp.Status)
 	}
 
 	if isRetriable(resp.StatusCode) {
@@ -479,10 +502,10 @@ func (s *sender) do(req *http.Request) error {
 	return nil
 }
 
-// isRetriable reports whether the give HTTP status code should be retried.
+// isRetriable reports whether an HTTP status code is inherently retriable.
+// 403 is excluded on purpose: it is only retried when refresh is available
 func isRetriable(code int) bool {
-	// TODO: Double check what response codes are expected from the backend when API Key is invalid
-	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code == http.StatusForbidden {
+	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
 		return true
 	}
 	// 5xx errors can be retried
@@ -491,9 +514,10 @@ func isRetriable(code int) bool {
 
 // payloads specifies a payload to be sent by the sender.
 type payload struct {
-	body    *bytes.Buffer     // request body
-	headers map[string]string // request headers
-	retries *atomic.Int32     // number of retries sending this payload
+	body             *bytes.Buffer     // request body (compressed)
+	headers          map[string]string // request headers
+	retries          *atomic.Int32     // number of retries sending this payload
+	uncompressedSize int               // size of the payload before compression
 }
 
 // ppool is a pool of payloads.
@@ -514,6 +538,7 @@ func newPayload(headers map[string]string) *payload {
 	p.body.Reset()
 	p.headers = headers
 	p.retries.Store(0)
+	p.uncompressedSize = 0
 	return p
 }
 
@@ -524,6 +549,7 @@ func (p *payload) clone() *payload {
 	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
 		log.Errorf("Error cloning writer payload: %v", err)
 	}
+	clone.uncompressedSize = p.uncompressedSize
 	return clone
 }
 

@@ -52,8 +52,8 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	clusterName := parseClusterName(task.ClusterName)
 	clusterARN := BuildClusterARN(clusterName, awsAccountID, region)
 	serviceARN := BuildServiceARN(clusterName, task.ServiceName, awsAccountID, region)
-	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version)
 	daemonName := parseDaemonNameFromGroup(task.Group)
+	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version, daemonName != "")
 	daemonARN := BuildDaemonARN(clusterName, daemonName, awsAccountID, region)
 
 	entity := &workloadmeta.ECSTask{
@@ -329,12 +329,18 @@ func parseDaemonNameFromGroup(group string) string {
 	return ""
 }
 
-// BuildTaskDefinitionARN builds the task definition ARN from the AWS account ID, family, region, and version
-func BuildTaskDefinitionARN(awsAccountID, family, region, version string) string {
+// BuildTaskDefinitionARN builds the task definition ARN from the AWS account ID, family, region, and version.
+// When isDaemon is true it builds a daemon task definition ARN (daemon-task-definition/) instead of the regular
+// task definition ARN (task-definition/), matching the ARN form AWS uses for daemon-scheduled tasks.
+func BuildTaskDefinitionARN(awsAccountID, family, region, version string, isDaemon bool) string {
 	if awsAccountID == "" || family == "" || region == "" || version == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:ecs:%s:%s:task-definition/%s:%s", region, awsAccountID, family, version)
+	resourceType := "task-definition"
+	if isDaemon {
+		resourceType = "daemon-task-definition"
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:%s/%s:%s", region, awsAccountID, resourceType, family, version)
 }
 
 // ecsAgentRegexp is a regular expression to match ECS agent versions

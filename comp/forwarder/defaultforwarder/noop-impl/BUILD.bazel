@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "noop-impl",
+    srcs = ["noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/util/fxutil",
+    ],
+)

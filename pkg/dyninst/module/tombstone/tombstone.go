@@ -16,8 +16,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/statedir"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -50,7 +52,10 @@ func WriteTombstoneFile(filePath string, errorNumber int) error {
 		return err
 	}
 
-	return os.WriteFile(filePath, data, 0644)
+	if err := statedir.EnsureSecure(filepath.Dir(filePath)); err != nil {
+		return err
+	}
+	return statedir.WriteFile(filePath, data)
 }
 
 // ReadTombstoneFile reads and unmarshals the tombstone file at the specified path.

@@ -15,9 +15,11 @@ Package: main
 		Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 27, available: [31-32])
 		Var: ctx: context.Context (declared at line 27, available: [31-32])
 		Var: .autotmp_8: context.backgroundCtx (declared at line 216, available: [26-33])
-	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
+	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
 		Arg: cfg: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.StartSpanConfig (declared at line 1359, available: [1359-1361])
 		Var: id: uint64 (declared at line 1360, available: [1360-1361])
+	Function: executeContextImplFuncs (main.executeContextImplFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [61:67] injectible: [61-62], [65-67]
+		Var: c: *main.contextImpl (declared at line 62, available: [61-67])
 	Function: executeContinuationFuncs (main.executeContinuationFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [113:187] injectible: [113-113], [115-184], [186-187]
 		Var: m: main.manyPointers (declared at line 114, available: [113-187])
 	Function: executeContinuationStringFuncs (main.executeContinuationStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go [36:50] injectible: [36-36], [39-40], [42-42], [44-45], [47-47], [49-50]
@@ -283,7 +285,7 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [986:989] injectible: [986-989]
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
 	Type: main.aStruct
@@ -310,6 +312,26 @@ Package: main
 	Type: main.celsius
 	Type: main.circularReferenceType
 		Field: t: *main.circularReferenceType
+	Type: main.contextImpl
+		Field: logger: fmt.Stringer
+		Field: responder: io.Writer
+		Field: decoder: io.Reader
+		Field: params: error
+		Field: secrets: fmt.Stringer
+		Function: Deadline (main.(*contextImpl).Deadline) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [37:37] injectible: [37-37]
+			Arg: c: *main.contextImpl (declared at line 37, available: [37-37])
+			Arg: ~r0: time.Time (declared at line 37, available: )
+			Arg: ~r1: bool (declared at line 37, available: )
+		Function: Done (main.(*contextImpl).Done) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [38:38] injectible: [38-38]
+			Arg: c: *main.contextImpl (declared at line 38, available: [38-38])
+			Arg: ~r0: <-chan struct {} (declared at line 38, available: )
+		Function: Err (main.(*contextImpl).Err) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [39:39] injectible: [39-39]
+			Arg: c: *main.contextImpl (declared at line 39, available: [39-39])
+			Arg: ~r0: error (declared at line 39, available: )
+		Function: Value (main.(*contextImpl).Value) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [40:40] injectible: [40-40]
+			Arg: c: *main.contextImpl (declared at line 40, available: [40-40])
+			Arg: ~p1: interface {} (declared at line 40, available: )
+			Arg: ~r0: interface {} (declared at line 40, available: )
 	Type: main.deepMap1
 		Field: a: map[int]*main.deepMap2
 	Type: main.deepMap2
@@ -713,6 +735,8 @@ Package: main
 	Function: nestedGeneric[...] (main.nestedGeneric[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [203:203] injectible: [203-203]
 		Arg: box: <T> (declared at line 202, available: [203-203])
 		Arg: ~r0: <T> (declared at line 202, available: )
+	Function: newContextImpl (main.newContextImpl) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [50:56] injectible: [50-56]
+		Arg: ~r0: *main.contextImpl (declared at line 50, available: )
 	Function: outerFilter[...] (main.outerFilter[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [183:184] injectible: [183-184]
 		Arg: items: <T> (declared at line 183, available: [183-184])
 		Arg: pred: <T> (declared at line 183, available: [183-184])
@@ -721,9 +745,9 @@ Package: main
 		Arg: ~r0: uint64 (declared at line 40, available: )
 		Var: n: uint64 (declared at line 45, available: [44-46])
 		Var: b: []uint8 (declared at line 41, available: [44-45])
-	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:86] injectible: [52-65], [67-68], [70-72], [74-76], [79-86]
-		Var: it: main.iterExample (declared at line 69, available: [52-86])
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 66, available: [52-86])
+	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:87] injectible: [52-65], [67-68], [70-72], [74-76], [79-87]
+		Var: it: main.iterExample (declared at line 69, available: [52-87])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 66, available: [52-87])
 	Function: sprintSlice (main.sprintSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [16:17] injectible: [16-17]
 		Arg: x: []int (declared at line 16, available: [16-17])
 		Arg: ~r0: string (declared at line 16, available: )
@@ -785,6 +809,8 @@ Package: main
 		Arg: a: int (declared at line 125, available: [125-125])
 		Arg: x: []uint8 (declared at line 125, available: [125-125])
 		Arg: b: string (declared at line 125, available: [125-125])
+	Function: testCaptureContextImpl (main.testCaptureContextImpl) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [44:44] injectible: [44-44]
+		Arg: c: *main.contextImpl (declared at line 44, available: [44-44])
 	Function: testChannel (main.testChannel) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [30:30] injectible: [30-30]
 		Arg: c: chan bool (declared at line 30, available: [30-30])
 	Function: testCircularType (main.testCircularType) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [90:90] injectible: [90-90]
@@ -1421,6 +1447,9 @@ Package: main
 		Arg: b: int (declared at line 385, available: [385-388])
 		Arg: ~r0: int (declared at line 385, available: )
 		Arg: ~r1: [0]int (declared at line 385, available: )
+	Function: useAsContext (main.useAsContext) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go [48:48] injectible: [48-48]
+		Arg: ctx: context.Context (declared at line 48, available: [48-48])
+		Arg: ~r0: error (declared at line 48, available: )
 	Function: useCrossPackageGenerics (main.useCrossPackageGenerics) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [358:368] injectible: [358-363], [365-365], [367-368]
 		Var: set: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.ImmutableSet[string] (declared at line 359, available: [360-368])
 		Scope: 360-365

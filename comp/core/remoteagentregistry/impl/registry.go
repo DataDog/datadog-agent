@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,7 +77,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			go registry.start()
+			registry.start()
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -115,35 +116,35 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 		remoteAgentRegistered: telemetryComp.NewGaugeWithOpts(
 			internalTelemetryNamespace,
 			"registered",
-			[]string{"name"},
+			[]string{"remote_agent_name"},
 			"Number of remote agents registered in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentRegisteredError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"registered_error",
-			[]string{"name"},
+			[]string{"remote_agent_name"},
 			"Number of remote agents that failed to register in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdated: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"updated",
-			[]string{"name"},
+			[]string{"remote_agent_name"},
 			"Number of remote agents updated in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdatedError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"updated_error",
-			[]string{"name"},
+			[]string{"remote_agent_name"},
 			"Number of remote agents that failed to update in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionDuration: telemetryComp.NewHistogramWithOpts(
 			internalTelemetryNamespace,
 			"action_duration_seconds",
-			[]string{"name", "action"},
+			[]string{"remote_agent_name", "action"},
 			"Duration of actions performed on the remote agent registry.",
 			// The default prometheus buckets are adapted to measure response time of network services
 			prometheus.DefBuckets,
@@ -152,7 +153,7 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 		remoteAgentActionError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"action_error",
-			[]string{"name", "action", "error"},
+			[]string{"remote_agent_name", "action", "error"},
 			"Number of errors encountered while performing actions on the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
@@ -218,6 +219,32 @@ func (ra *remoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
 	}
 	agentClient.RegisteredAgent.LastSeen = time.Now()
 	return ok
+}
+
+// ReportRemoteAgentEvent records one or more events reported by a remote agent.
+//
+// It returns an error if no remote agent is registered with the given session ID.
+//
+// NOTE: This is currently a stub that only logs the reported events. Routing them to telemetry/alerting is future work.
+func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events []remoteagentregistry.RemoteAgentEvent) error {
+	ra.agentMapMu.Lock()
+	agentClient, ok := ra.agentMap[sessionID]
+	ra.agentMapMu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("no remote agent found with session ID %q", sessionID)
+	}
+
+	displayName := agentClient.RegisteredAgent.DisplayName
+	for _, event := range events {
+		eventType := "unknown"
+		if event.Details != nil {
+			eventType = event.Details.EventType()
+		}
+		log.Debugf("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
+	}
+
+	return nil
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.

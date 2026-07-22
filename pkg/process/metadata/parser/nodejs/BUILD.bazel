@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+filegroup(
+    name = "nodejs_testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "nodejs",
+    srcs = ["nodejs.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "nodejs_test",
+    srcs = ["nodejs_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":nodejs"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

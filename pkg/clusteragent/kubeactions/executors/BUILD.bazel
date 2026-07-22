@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "executors",
@@ -13,19 +14,22 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//kubeactions",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/equality",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",
-        "@io_k8s_sigs_yaml//:yaml",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "executors_test",
     srcs = [
         "get_resource_test.go",
@@ -33,7 +37,10 @@ go_test(
         "rollback_deployment_test.go",
     ],
     embed = [":executors"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "@com_github_datadog_agent_payload_v5//kubeactions",
         "@com_github_stretchr_testify//assert",
@@ -41,8 +48,11 @@ go_test(
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//kubernetes/fake",
         "@io_k8s_client_go//testing",

@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/utils",
-        "//pkg/logs/diagnostic",
+        "//comp/logs-library/diagnostic",
         "//pkg/util/log",
     ],
 )

@@ -1,4 +1,4 @@
-- offset: "0x0010e160"
+- offset: "0x0010e540"
   size: 8
   kind: ptr
   nameEntry: '*lib.Box[float64] (exported)'
@@ -11,7 +11,7 @@
       type: func(float64)
   pointer:
     elem: lib.Box[float64]
-- offset: "0x0010dd60"
+- offset: "0x0010e140"
   size: 8
   kind: ptr
   nameEntry: '*lib.Box[int] (exported)'
@@ -24,7 +24,7 @@
       type: func(int)
   pointer:
     elem: lib.Box[int]
-- offset: "0x0010dde0"
+- offset: "0x0010e1c0"
   size: 8
   kind: ptr
   nameEntry: '*lib.Box[string] (exported)'
@@ -37,7 +37,7 @@
       type: func(string)
   pointer:
     elem: lib.Box[string]
-- offset: "0x0010df60"
+- offset: "0x0010e340"
   size: 8
   kind: ptr
   nameEntry: '*lib.ImmutableSet[string] (exported)'
@@ -50,7 +50,7 @@
       type: func(string) (*lib.ImmutableSet[string], bool)
   pointer:
     elem: lib.ImmutableSet[string]
-- offset: "0x000ebc60"
+- offset: "0x000ebf80"
   size: 8
   kind: ptr
   nameEntry: '*lib.Pair[bool,string] (exported)'
@@ -61,7 +61,7 @@
       type: func() lib.Pair[string,bool]
   pointer:
     elem: lib.Pair[bool,string]
-- offset: "0x000ec620"
+- offset: "0x000eca60"
   size: 8
   kind: ptr
   nameEntry: '*lib.Pair[float64,float64] (exported)'
@@ -72,7 +72,7 @@
       type: func() lib.Pair[float64,float64]
   pointer:
     elem: lib.Pair[float64,float64]
-- offset: "0x000ebd20"
+- offset: "0x000ec040"
   size: 8
   kind: ptr
   nameEntry: '*lib.Pair[int,string] (exported)'
@@ -83,7 +83,7 @@
       type: func() lib.Pair[string,int]
   pointer:
     elem: lib.Pair[int,string]
-- offset: "0x000ebc00"
+- offset: "0x000ebf20"
   size: 8
   kind: ptr
   nameEntry: '*lib.Pair[string,bool] (exported)'
@@ -94,7 +94,7 @@
       type: func() lib.Pair[bool,string]
   pointer:
     elem: lib.Pair[string,bool]
-- offset: "0x000ebcc0"
+- offset: "0x000ebfe0"
   size: 8
   kind: ptr
   nameEntry: '*lib.Pair[string,int] (exported)'
@@ -105,13 +105,13 @@
       type: func() lib.Pair[int,string]
   pointer:
     elem: lib.Pair[string,int]
-- offset: "0x00167620"
+- offset: "0x00167d40"
   size: 8
   kind: struct
   nameEntry: lib.Box[float64] (exported)
   name: lib.Box[float64]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x0010e160"
+  ptrToThis: "0x0010e540"
   methods:
     - name: Get (exported)
       type: func() float64
@@ -120,13 +120,13 @@
         - name: Value (exported)
           type: float64
           offset: 0
-- offset: "0x00166e00"
+- offset: "0x001673e0"
   size: 8
   kind: struct
   nameEntry: lib.Box[int] (exported)
   name: lib.Box[int]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x0010dd60"
+  ptrToThis: "0x0010e140"
   methods:
     - name: Get (exported)
       type: func() int
@@ -135,13 +135,13 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x00166ea0"
+- offset: "0x00167480"
   size: 16
   kind: struct
   nameEntry: lib.Box[string] (exported)
   name: lib.Box[string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x0010dde0"
+  ptrToThis: "0x0010e1c0"
   methods:
     - name: Get (exported)
       type: func() string
@@ -150,37 +150,37 @@
         - name: Value (exported)
           type: string
           offset: 0
-- offset: "0x00139ee0"
+- offset: "0x0013a3a0"
   size: 8
   kind: struct
   nameEntry: lib.ImmutableSet[go.shape.string] (exported)
   name: lib.ImmutableSet[go.shape.string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x00077060"
+  ptrToThis: "0x000771a0"
   struct:
     fields:
         - name: items
           type: map[go.shape.string]bool
           offset: 0
-- offset: "0x00139de0"
+- offset: "0x0013a2a0"
   size: 8
   kind: struct
   nameEntry: lib.ImmutableSet[string] (exported)
   name: lib.ImmutableSet[string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x0010df60"
+  ptrToThis: "0x0010e340"
   struct:
     fields:
         - name: items
           type: map[string]bool
           offset: 0
-- offset: "0x0018e800"
+- offset: "0x0018ef20"
   size: 24
   kind: struct
   nameEntry: lib.Pair[bool,string] (exported)
   name: lib.Pair[bool,string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x000ebc60"
+  ptrToThis: "0x000ebf80"
   methods:
     - name: Swap (exported)
       type: func() lib.Pair[string,bool]
@@ -192,13 +192,13 @@
         - name: Second (exported)
           type: string
           offset: 8
-- offset: "0x0018eb20"
+- offset: "0x0018f240"
   size: 16
   kind: struct
   nameEntry: lib.Pair[float64,float64] (exported)
   name: lib.Pair[float64,float64]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x000ec620"
+  ptrToThis: "0x000eca60"
   methods:
     - name: Swap (exported)
       type: func() lib.Pair[float64,float64]
@@ -210,13 +210,13 @@
         - name: Second (exported)
           type: float64
           offset: 8
-- offset: "0x0018e940"
+- offset: "0x0018f060"
   size: 24
   kind: struct
   nameEntry: lib.Pair[int,string] (exported)
   name: lib.Pair[int,string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x000ebd20"
+  ptrToThis: "0x000ec040"
   methods:
     - name: Swap (exported)
       type: func() lib.Pair[string,int]
@@ -228,13 +228,13 @@
         - name: Second (exported)
           type: string
           offset: 8
-- offset: "0x0018e760"
+- offset: "0x0018ee80"
   size: 24
   kind: struct
   nameEntry: lib.Pair[string,bool] (exported)
   name: lib.Pair[string,bool]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x000ebc00"
+  ptrToThis: "0x000ebf20"
   methods:
     - name: Swap (exported)
       type: func() lib.Pair[bool,string]
@@ -246,13 +246,13 @@
         - name: Second (exported)
           type: bool
           offset: 16
-- offset: "0x0018e8a0"
+- offset: "0x0018efc0"
   size: 24
   kind: struct
   nameEntry: lib.Pair[string,int] (exported)
   name: lib.Pair[string,int]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-  ptrToThis: "0x000ebcc0"
+  ptrToThis: "0x000ebfe0"
   methods:
     - name: Swap (exported)
       type: func() lib.Pair[int,string]
@@ -264,7 +264,7 @@
         - name: Second (exported)
           type: int
           offset: 16
-- offset: "0x000ec680"
+- offset: "0x000ecac0"
   size: 8
   kind: ptr
   nameEntry: '*lib_v2.V2GenericBox[int] (exported)'
@@ -275,7 +275,7 @@
       type: func() int
   pointer:
     elem: lib_v2.V2GenericBox[int]
-- offset: "0x000de700"
+- offset: "0x000dec00"
   size: 8
   kind: ptr
   nameEntry: '*lib_v2.V2Type (exported)'
@@ -286,13 +286,13 @@
       type: func()
   pointer:
     elem: lib_v2.V2Type
-- offset: "0x00167800"
+- offset: "0x00167de0"
   size: 8
   kind: struct
   nameEntry: lib_v2.V2GenericBox[int] (exported)
   name: lib_v2.V2GenericBox[int]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
-  ptrToThis: "0x000ec680"
+  ptrToThis: "0x000ecac0"
   methods:
     - name: Get (exported)
       type: func() int
@@ -301,16 +301,16 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x000f50c0"
+- offset: "0x000f5440"
   size: 0
   kind: struct
   nameEntry: lib_v2.V2Type (exported)
   name: lib_v2.V2Type
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
-  ptrToThis: "0x000de700"
+  ptrToThis: "0x000dec00"
   struct:
     fields: []
-- offset: "0x0010e1e0"
+- offset: "0x0010e5c0"
   size: 8
   kind: ptr
   nameEntry: '*lib2.Wrapper[float64] (exported)'
@@ -323,7 +323,7 @@
       type: func() float64
   pointer:
     elem: lib2.Wrapper[float64]
-- offset: "0x0010de60"
+- offset: "0x0010e240"
   size: 8
   kind: ptr
   nameEntry: '*lib2.Wrapper[int] (exported)'
@@ -336,7 +336,7 @@
       type: func() int
   pointer:
     elem: lib2.Wrapper[int]
-- offset: "0x0010dee0"
+- offset: "0x0010e2c0"
   size: 8
   kind: ptr
   nameEntry: '*lib2.Wrapper[string] (exported)'
@@ -349,13 +349,13 @@
       type: func() string
   pointer:
     elem: lib2.Wrapper[string]
-- offset: "0x0018ebc0"
+- offset: "0x0018f2e0"
   size: 24
   kind: struct
   nameEntry: lib2.Wrapper[float64] (exported)
   name: lib2.Wrapper[float64]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2
-  ptrToThis: "0x0010e1e0"
+  ptrToThis: "0x0010e5c0"
   methods:
     - name: Unwrap (exported)
       type: func() float64
@@ -367,13 +367,13 @@
         - name: Inner (exported)
           type: lib.Box[float64]
           offset: 16
-- offset: "0x0018e9e0"
+- offset: "0x0018f100"
   size: 24
   kind: struct
   nameEntry: lib2.Wrapper[int] (exported)
   name: lib2.Wrapper[int]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2
-  ptrToThis: "0x0010de60"
+  ptrToThis: "0x0010e240"
   methods:
     - name: Unwrap (exported)
       type: func() int
@@ -385,13 +385,13 @@
         - name: Inner (exported)
           type: lib.Box[int]
           offset: 16
-- offset: "0x0018ea80"
+- offset: "0x0018f1a0"
   size: 32
   kind: struct
   nameEntry: lib2.Wrapper[string] (exported)
   name: lib2.Wrapper[string]
   pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2
-  ptrToThis: "0x0010dee0"
+  ptrToThis: "0x0010e2c0"
   methods:
     - name: Unwrap (exported)
       type: func() string
@@ -403,7 +403,7 @@
         - name: Inner (exported)
           type: lib.Box[string]
           offset: 16
-- offset: "0x000ebd80"
+- offset: "0x000ec0a0"
   size: 8
   kind: ptr
   nameEntry: '*main.Pair[int,bool] (exported)'
@@ -414,7 +414,7 @@
       type: func(int, bool)
   pointer:
     elem: main.Pair[int,bool]
-- offset: "0x000ebde0"
+- offset: "0x000ec100"
   size: 8
   kind: ptr
   nameEntry: '*main.Pair[string,int] (exported)'
@@ -425,7 +425,24 @@
       type: func(string, int)
   pointer:
     elem: main.Pair[string,int]
-- offset: "0x000ddec0"
+- offset: "0x0015dd40"
+  size: 8
+  kind: ptr
+  nameEntry: '*main.contextImpl'
+  name: '*main.contextImpl'
+  pkg: main
+  methods:
+    - name: Deadline (exported)
+      type: func() (time.Time, bool)
+    - name: Done (exported)
+      type: func() <-chan struct {}
+    - name: Err (exported)
+      type: func() error
+    - name: Value (exported)
+      type: func(interface {}) interface {}
+  pointer:
+    elem: main.contextImpl
+- offset: "0x000de1e0"
   size: 8
   kind: ptr
   nameEntry: '*main.firstBehavior'
@@ -436,7 +453,7 @@
       type: func() string
   pointer:
     elem: main.firstBehavior
-- offset: "0x000ebe40"
+- offset: "0x000ec160"
   size: 8
   kind: ptr
   nameEntry: '*main.largeGenericType[int]'
@@ -447,7 +464,7 @@
       type: func() int
   pointer:
     elem: main.largeGenericType[int]
-- offset: "0x000ebea0"
+- offset: "0x000ec1c0"
   size: 8
   kind: ptr
   nameEntry: '*main.largeGenericType[string]'
@@ -458,7 +475,7 @@
       type: func() string
   pointer:
     elem: main.largeGenericType[string]
-- offset: "0x000ddf20"
+- offset: "0x000de240"
   size: 8
   kind: ptr
   nameEntry: '*main.secondBehavior'
@@ -469,7 +486,7 @@
       type: func() string
   pointer:
     elem: main.secondBehavior
-- offset: "0x000ddf80"
+- offset: "0x000de2a0"
   size: 8
   kind: ptr
   nameEntry: '*main.somethingImpl'
@@ -480,7 +497,7 @@
       type: func()
   pointer:
     elem: main.somethingImpl
-- offset: "0x000ebf00"
+- offset: "0x000ec220"
   size: 8
   kind: ptr
   nameEntry: '*main.typeWithGenerics[int]'
@@ -491,7 +508,7 @@
       type: func(int) bool
   pointer:
     elem: main.typeWithGenerics[int]
-- offset: "0x000ebf60"
+- offset: "0x000ec280"
   size: 8
   kind: ptr
   nameEntry: '*main.typeWithGenerics[string]'
@@ -502,13 +519,13 @@
       type: func(string) bool
   pointer:
     elem: main.typeWithGenerics[string]
-- offset: "0x0017d120"
+- offset: "0x0017d660"
   size: 16
   kind: struct
   nameEntry: main.Pair[int,bool] (exported)
   name: main.Pair[int,bool]
   pkg: main
-  ptrToThis: "0x000ebd80"
+  ptrToThis: "0x000ec0a0"
   struct:
     fields:
         - name: Key (exported)
@@ -517,13 +534,13 @@
         - name: Value (exported)
           type: bool
           offset: 8
-- offset: "0x0017d1c0"
+- offset: "0x0017d700"
   size: 24
   kind: struct
   nameEntry: main.Pair[string,int] (exported)
   name: main.Pair[string,int]
   pkg: main
-  ptrToThis: "0x000ebde0"
+  ptrToThis: "0x000ec100"
   struct:
     fields:
         - name: Key (exported)
@@ -532,23 +549,23 @@
         - name: Value (exported)
           type: int
           offset: 16
-- offset: "0x000fd1e0"
+- offset: "0x000fd5c0"
   size: 16
   kind: interface
   nameEntry: main.behavior
   name: main.behavior
   pkg: main
-  ptrToThis: "0x0005fb60"
+  ptrToThis: "0x0005fca0"
   interfaceMethods:
     - name: DoSomething (exported)
       type: func() string
-- offset: "0x0018fe40"
+- offset: "0x00190560"
   size: 48
   kind: struct
   nameEntry: main.bigStruct
   name: main.bigStruct
   pkg: main
-  ptrToThis: "0x0005fbe0"
+  ptrToThis: "0x0005fd20"
   struct:
     fields:
         - name: x
@@ -560,344 +577,368 @@
         - name: writer
           type: io.Writer
           offset: 32
-- offset: "0x00090ac0"
+- offset: "0x00090c00"
   size: 8
   kind: int
   nameEntry: main.celsius
   name: main.celsius
   pkg: main
-  ptrToThis: "0x0005fc20"
-- offset: "0x00125360"
+  ptrToThis: "0x0005fd60"
+- offset: "0x001c7a60"
+  size: 80
+  kind: struct
+  nameEntry: main.contextImpl
+  name: main.contextImpl
+  pkg: main
+  ptrToThis: "0x0015dd40"
+  struct:
+    fields:
+        - name: logger
+          type: fmt.Stringer
+          offset: 0
+        - name: responder
+          type: io.Writer
+          offset: 16
+        - name: decoder
+          type: io.Reader
+          offset: 32
+        - name: params
+          type: error
+          offset: 48
+        - name: secrets
+          type: fmt.Stringer
+          offset: 64
+- offset: "0x00125820"
   size: 8
   kind: struct
   nameEntry: main.deepMap1
   name: main.deepMap1
   pkg: main
-  ptrToThis: "0x00060020"
+  ptrToThis: "0x00060160"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap2
           offset: 0
-- offset: "0x001252e0"
+- offset: "0x001257a0"
   size: 8
   kind: struct
   nameEntry: main.deepMap2
   name: main.deepMap2
   pkg: main
-  ptrToThis: "0x0005ffe0"
+  ptrToThis: "0x00060120"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap3
           offset: 0
-- offset: "0x00125260"
+- offset: "0x00125720"
   size: 8
   kind: struct
   nameEntry: main.deepMap3
   name: main.deepMap3
   pkg: main
-  ptrToThis: "0x0005ffa0"
+  ptrToThis: "0x000600e0"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap4
           offset: 0
-- offset: "0x001251e0"
+- offset: "0x001256a0"
   size: 8
   kind: struct
   nameEntry: main.deepMap4
   name: main.deepMap4
   pkg: main
-  ptrToThis: "0x0005ff60"
+  ptrToThis: "0x000600a0"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap5
           offset: 0
-- offset: "0x00125160"
+- offset: "0x00125620"
   size: 8
   kind: struct
   nameEntry: main.deepMap5
   name: main.deepMap5
   pkg: main
-  ptrToThis: "0x0005ff20"
+  ptrToThis: "0x00060060"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap6
           offset: 0
-- offset: "0x001250e0"
+- offset: "0x001255a0"
   size: 8
   kind: struct
   nameEntry: main.deepMap6
   name: main.deepMap6
   pkg: main
-  ptrToThis: "0x0005fee0"
+  ptrToThis: "0x00060020"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap7
           offset: 0
-- offset: "0x00125060"
+- offset: "0x00125520"
   size: 8
   kind: struct
   nameEntry: main.deepMap7
   name: main.deepMap7
   pkg: main
-  ptrToThis: "0x0005fea0"
+  ptrToThis: "0x0005ffe0"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap8
           offset: 0
-- offset: "0x00124fe0"
+- offset: "0x001254a0"
   size: 8
   kind: struct
   nameEntry: main.deepMap8
   name: main.deepMap8
   pkg: main
-  ptrToThis: "0x0005fe60"
+  ptrToThis: "0x0005ffa0"
   struct:
     fields:
         - name: a
           type: map[int]*main.deepMap9
           offset: 0
-- offset: "0x00124f60"
+- offset: "0x00125420"
   size: 8
   kind: struct
   nameEntry: main.deepMap9
   name: main.deepMap9
   pkg: main
-  ptrToThis: "0x0005fe20"
+  ptrToThis: "0x0005ff60"
   struct:
     fields:
         - name: a
           type: map[int]interface {}
           offset: 0
-- offset: "0x001257e0"
+- offset: "0x00125ca0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr1
   name: main.deepPtr1
   pkg: main
-  ptrToThis: "0x00060260"
+  ptrToThis: "0x000603a0"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr2'
           offset: 0
-- offset: "0x00125760"
+- offset: "0x00125c20"
   size: 8
   kind: struct
   nameEntry: main.deepPtr2
   name: main.deepPtr2
   pkg: main
-  ptrToThis: "0x00060220"
+  ptrToThis: "0x00060360"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr3'
           offset: 0
-- offset: "0x001256e0"
+- offset: "0x00125ba0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr3
   name: main.deepPtr3
   pkg: main
-  ptrToThis: "0x000601e0"
+  ptrToThis: "0x00060320"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr4'
           offset: 0
-- offset: "0x00125660"
+- offset: "0x00125b20"
   size: 8
   kind: struct
   nameEntry: main.deepPtr4
   name: main.deepPtr4
   pkg: main
-  ptrToThis: "0x000601a0"
+  ptrToThis: "0x000602e0"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr5'
           offset: 0
-- offset: "0x001255e0"
+- offset: "0x00125aa0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr5
   name: main.deepPtr5
   pkg: main
-  ptrToThis: "0x00060160"
+  ptrToThis: "0x000602a0"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr6'
           offset: 0
-- offset: "0x00125560"
+- offset: "0x00125a20"
   size: 8
   kind: struct
   nameEntry: main.deepPtr6
   name: main.deepPtr6
   pkg: main
-  ptrToThis: "0x00060120"
+  ptrToThis: "0x00060260"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr7'
           offset: 0
-- offset: "0x001254e0"
+- offset: "0x001259a0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr7
   name: main.deepPtr7
   pkg: main
-  ptrToThis: "0x000600e0"
+  ptrToThis: "0x00060220"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr8'
           offset: 0
-- offset: "0x00125460"
+- offset: "0x00125920"
   size: 8
   kind: struct
   nameEntry: main.deepPtr8
   name: main.deepPtr8
   pkg: main
-  ptrToThis: "0x000600a0"
+  ptrToThis: "0x000601e0"
   struct:
     fields:
         - name: a
           type: '*main.deepPtr9'
           offset: 0
-- offset: "0x001253e0"
+- offset: "0x001258a0"
   size: 16
   kind: struct
   nameEntry: main.deepPtr9
   name: main.deepPtr9
   pkg: main
-  ptrToThis: "0x00060060"
+  ptrToThis: "0x000601a0"
   struct:
     fields:
         - name: a
           type: interface {}
           offset: 0
-- offset: "0x00125c60"
+- offset: "0x00126120"
   size: 24
   kind: struct
   nameEntry: main.deepSlice1
   name: main.deepSlice1
   pkg: main
-  ptrToThis: "0x000604a0"
+  ptrToThis: "0x000605e0"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice2'
           offset: 0
-- offset: "0x00125be0"
+- offset: "0x001260a0"
   size: 24
   kind: struct
   nameEntry: main.deepSlice2
   name: main.deepSlice2
   pkg: main
-  ptrToThis: "0x00060460"
+  ptrToThis: "0x000605a0"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice3'
           offset: 0
-- offset: "0x00125b60"
+- offset: "0x00126020"
   size: 24
   kind: struct
   nameEntry: main.deepSlice3
   name: main.deepSlice3
   pkg: main
-  ptrToThis: "0x00060420"
+  ptrToThis: "0x00060560"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice4'
           offset: 0
-- offset: "0x00125ae0"
+- offset: "0x00125fa0"
   size: 24
   kind: struct
   nameEntry: main.deepSlice4
   name: main.deepSlice4
   pkg: main
-  ptrToThis: "0x000603e0"
+  ptrToThis: "0x00060520"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice5'
           offset: 0
-- offset: "0x00125a60"
+- offset: "0x00125f20"
   size: 24
   kind: struct
   nameEntry: main.deepSlice5
   name: main.deepSlice5
   pkg: main
-  ptrToThis: "0x000603a0"
+  ptrToThis: "0x000604e0"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice6'
           offset: 0
-- offset: "0x001259e0"
+- offset: "0x00125ea0"
   size: 24
   kind: struct
   nameEntry: main.deepSlice6
   name: main.deepSlice6
   pkg: main
-  ptrToThis: "0x00060360"
+  ptrToThis: "0x000604a0"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice7'
           offset: 0
-- offset: "0x00125960"
+- offset: "0x00125e20"
   size: 24
   kind: struct
   nameEntry: main.deepSlice7
   name: main.deepSlice7
   pkg: main
-  ptrToThis: "0x00060320"
+  ptrToThis: "0x00060460"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice8'
           offset: 0
-- offset: "0x001258e0"
+- offset: "0x00125da0"
   size: 24
   kind: struct
   nameEntry: main.deepSlice8
   name: main.deepSlice8
   pkg: main
-  ptrToThis: "0x000602e0"
+  ptrToThis: "0x00060420"
   struct:
     fields:
         - name: a
           type: '[]*main.deepSlice9'
           offset: 0
-- offset: "0x00125860"
+- offset: "0x00125d20"
   size: 24
   kind: struct
   nameEntry: main.deepSlice9
   name: main.deepSlice9
   pkg: main
-  ptrToThis: "0x000602a0"
+  ptrToThis: "0x000603e0"
   struct:
     fields:
         - name: a
           type: '[]interface {}'
           offset: 0
-- offset: "0x001c6f60"
+- offset: "0x001c7b40"
   size: 112
   kind: struct
   nameEntry: main.esotericHeap
   name: main.esotericHeap
   pkg: main
-  ptrToThis: "0x000604e0"
+  ptrToThis: "0x00060620"
   struct:
     fields:
         - name: esotericStack (embedded)
@@ -915,13 +956,13 @@
         - name: a
           type: atomic.Int32
           offset: 104
-- offset: "0x001e8160"
+- offset: "0x001e8d20"
   size: 64
   kind: struct
   nameEntry: main.esotericStack
   name: main.esotericStack
   pkg: main
-  ptrToThis: "0x0005fc60"
+  ptrToThis: "0x0005fda0"
   struct:
     fields:
         - name: _
@@ -945,13 +986,13 @@
         - name: foo
           type: func()
           offset: 56
-- offset: "0x0015d6c0"
+- offset: "0x0015dc00"
   size: 16
   kind: struct
   nameEntry: main.firstBehavior
   name: main.firstBehavior
   pkg: main
-  ptrToThis: "0x000ddec0"
+  ptrToThis: "0x000de1e0"
   methods:
     - name: DoSomething (exported)
       type: func() string
@@ -960,13 +1001,13 @@
         - name: s
           type: string
           offset: 0
-- offset: "0x00208de0"
+- offset: "0x00209b00"
   size: 136
   kind: struct
   nameEntry: main.largeGenericType[int]
   name: main.largeGenericType[int]
   pkg: main
-  ptrToThis: "0x000ebe40"
+  ptrToThis: "0x000ec160"
   methods:
     - name: LargeGet (exported)
       type: func() int
@@ -999,13 +1040,13 @@
         - name: Value (exported)
           type: int
           offset: 128
-- offset: "0x00208f40"
+- offset: "0x00209c60"
   size: 144
   kind: struct
   nameEntry: main.largeGenericType[string]
   name: main.largeGenericType[string]
   pkg: main
-  ptrToThis: "0x000ebea0"
+  ptrToThis: "0x000ec1c0"
   methods:
     - name: LargeGet (exported)
       type: func() string
@@ -1038,20 +1079,20 @@
         - name: Value (exported)
           type: string
           offset: 128
-- offset: "0x00090b00"
+- offset: "0x00090c40"
   size: 8
   kind: int
   nameEntry: main.namedInt
   name: main.namedInt
   pkg: main
-  ptrToThis: "0x0005fca0"
-- offset: "0x00169f80"
+  ptrToThis: "0x0005fde0"
+- offset: "0x0016a560"
   size: 24
   kind: struct
   nameEntry: main.nestedStruct
   name: main.nestedStruct
   pkg: main
-  ptrToThis: "0x000605e0"
+  ptrToThis: "0x00060720"
   struct:
     fields:
         - name: anotherInt
@@ -1060,13 +1101,13 @@
         - name: anotherString
           type: string
           offset: 8
-- offset: "0x00169e40"
+- offset: "0x0016a420"
   size: 16
   kind: struct
   nameEntry: main.node
   name: main.node
   pkg: main
-  ptrToThis: "0x00060520"
+  ptrToThis: "0x00060660"
   struct:
     fields:
         - name: val
@@ -1075,44 +1116,44 @@
         - name: b
           type: '*main.node'
           offset: 8
-- offset: "0x00124d60"
+- offset: "0x00125220"
   size: 16
   kind: struct
   nameEntry: main.otherFirstBehavior
   name: main.otherFirstBehavior
   pkg: main
-  ptrToThis: "0x0005fce0"
+  ptrToThis: "0x0005fe20"
   struct:
     fields:
         - name: s
           type: string
           offset: 0
-- offset: "0x00124de0"
+- offset: "0x001252a0"
   size: 8
   kind: struct
   nameEntry: main.otherSecondBehavior
   name: main.otherSecondBehavior
   pkg: main
-  ptrToThis: "0x0005fd20"
+  ptrToThis: "0x0005fe60"
   struct:
     fields:
         - name: i
           type: int
           offset: 0
-- offset: "0x00090b40"
+- offset: "0x00090c80"
   size: 8
   kind: int
   nameEntry: main.score
   name: main.score
   pkg: main
-  ptrToThis: "0x0005fd60"
-- offset: "0x0015d760"
+  ptrToThis: "0x0005fea0"
+- offset: "0x0015dca0"
   size: 8
   kind: struct
   nameEntry: main.secondBehavior
   name: main.secondBehavior
   pkg: main
-  ptrToThis: "0x000ddf20"
+  ptrToThis: "0x000de240"
   methods:
     - name: DoSomething (exported)
       type: func() string
@@ -1121,13 +1162,13 @@
         - name: i
           type: int
           offset: 0
-- offset: "0x00169ee0"
+- offset: "0x0016a4c0"
   size: 16
   kind: struct
   nameEntry: main.smallStruct
   name: main.smallStruct
   pkg: main
-  ptrToThis: "0x00060560"
+  ptrToThis: "0x000606a0"
   struct:
     fields:
         - name: X (exported)
@@ -1136,68 +1177,68 @@
         - name: Y (exported)
           type: int
           offset: 8
-- offset: "0x000fd260"
+- offset: "0x000fd640"
   size: 16
   kind: interface
   nameEntry: main.something
   name: main.something
   pkg: main
-  ptrToThis: "0x0005fba0"
+  ptrToThis: "0x0005fce0"
   interfaceMethods:
     - name: Do (exported)
       type: func()
-- offset: "0x000f4ca0"
+- offset: "0x000f5020"
   size: 0
   kind: struct
   nameEntry: main.somethingImpl
   name: main.somethingImpl
   pkg: main
-  ptrToThis: "0x000ddf80"
+  ptrToThis: "0x000de2a0"
   struct:
     fields: []
-- offset: "0x00124e60"
+- offset: "0x00125320"
   size: 16
   kind: struct
   nameEntry: main.structWithAny
   name: main.structWithAny
   pkg: main
-  ptrToThis: "0x0005fda0"
+  ptrToThis: "0x0005fee0"
   struct:
     fields:
         - name: a
           type: interface {}
           offset: 0
-- offset: "0x00124ee0"
+- offset: "0x001253a0"
   size: 8
   kind: struct
   nameEntry: main.structWithMap
   name: main.structWithMap
   pkg: main
-  ptrToThis: "0x0005fde0"
+  ptrToThis: "0x0005ff20"
   struct:
     fields:
         - name: m
           type: map[int]int
           offset: 0
-- offset: "0x00125ce0"
+- offset: "0x001261a0"
   size: 16
   kind: struct
   nameEntry: main.tinyStruct
   name: main.tinyStruct
   pkg: main
-  ptrToThis: "0x000605a0"
+  ptrToThis: "0x000606e0"
   struct:
     fields:
         - name: Name (exported)
           type: string
           offset: 0
-- offset: "0x00166f40"
+- offset: "0x00167520"
   size: 8
   kind: struct
   nameEntry: main.typeWithGenerics[int]
   name: main.typeWithGenerics[int]
   pkg: main
-  ptrToThis: "0x000ebf00"
+  ptrToThis: "0x000ec220"
   methods:
     - name: Guess (exported)
       type: func(int) bool
@@ -1206,13 +1247,13 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x00166fe0"
+- offset: "0x001675c0"
   size: 16
   kind: struct
   nameEntry: main.typeWithGenerics[string]
   name: main.typeWithGenerics[string]
   pkg: main
-  ptrToThis: "0x000ebf60"
+  ptrToThis: "0x000ec280"
   methods:
     - name: Guess (exported)
       type: func(string) bool
