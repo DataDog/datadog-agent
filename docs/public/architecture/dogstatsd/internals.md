@@ -28,7 +28,7 @@ The PacketAssembler does not allocate a bytes array every time it has to use one
 ## PacketBuffer
 
 - Input: a Packet containing one or several metrics in the DogStatsD format (separated by a `\n`)
-- Output: multiple Packets send in a row to the Worker
+- Output: multiple Packets sent in a row to the Worker
 
 The PacketsBuffer buffers multiple Packets (in a slice), this way the parsing part of the pipeline is going through several Packets in a row instead of only one each time it is called. This leads to less CPU usage. PacketsBuffer sends the Packets for processing when either:
 
@@ -36,17 +36,17 @@ a. The buffer is full (contains `dogstatsd_packet_buffer_size, default value: 32
 
 or
 
-b. A timer is triggered (i.e. `dogstatsd_packer_buffer_flush_timeout, default value: 100ms`)
+b. A timer is triggered (i.e. `dogstatsd_packet_buffer_flush_timeout, default value: 100ms`)
 
 The PacketBuffer sends it in a Go buffered channel to the worker / parser, meaning that the channels can buffer the Packets on their own while waiting for the worker to read and process them.
 
 In theory, the max memory usage of this Go buffered channel is:
 
 * packet buffer size * packet size * channel buffer size
-* `dogstatsd_packer_buffer_size` * `dogstatsd_buffer_size` * `dogstatsd_queue_size`
-* 32 * 8192 * 1024 =  256MB
+* `dogstatsd_packet_buffer_size` * `dogstatsd_buffer_size` * `dogstatsd_queue_size`
+* 32 * 8192 * 1024 = 256MB
 
-To this we can add per-listener buffers: `dogstatsd_packer_buffer_size` * `dogstatsd_buffer_size` * `connections`. `connections` will be 1 for `uds` and `udp` and one per client for `uds-stream`.
+To this we can add per-listener buffers: `dogstatsd_packet_buffer_size` * `dogstatsd_buffer_size` * `connections`. `connections` will be 1 for `uds` and `udp` and one per client for `uds-stream`.
 
 ## Worker
 
@@ -57,8 +57,8 @@ The Worker is the part of the DogStatsD server responsible for parsing the metri
 
 The server spawns multiple workers based on the amount of cores available on the host:
 
-* When the server is not running multiple time sampling pipelines: the server creates `(number of cores - 2)` workers. If this result is less than 2, the server spawns 2 workers.
-* When the server is running multiple time sampling pipelines: the server creates `(number of cores / 2)` workers.  If this result is less than 2, the server spawns 2 workers.
+* By default (`dogstatsd_pipeline_autoadjust: false`): the server creates `(number of cores - 1 - number of pipelines)` workers, which is `(number of cores - 2)` with the default single pipeline. If this result is less than 2, the server spawns 2 workers.
+* When `dogstatsd_pipeline_autoadjust` is `true`: the server creates `(number of cores / 2)` workers. If this result is less than 2, the server spawns 2 workers.
 
 The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it is emptied to start caching strings again. Its size is configurable with `dogstatsd_string_interner_size`.
 
@@ -85,16 +85,10 @@ The TimeSamplerWorker runs in an infinite loop. It is responsible for the follow
 
 The following calculations determine the number of TimeSamplerWorker and TimeSampler instances:
 
-* If `dogstatsd_pipeline_autoadjust` is `true` then the workers count will be automatically adjusted.
-* If `dogstatsd_pipeline_count` has a value, the number of TimeSampler pipelines equals that value.
-* If neither condition above is true, one TimeSampler pipeline runs.
+* If `dogstatsd_pipeline_autoadjust` is `true`, the number of TimeSampler pipelines is `(number of workers - 1)`, with a minimum of 1. In this mode a configured `dogstatsd_pipeline_count` greater than 1 is ignored and a warning is logged.
+* Otherwise, the number of TimeSampler pipelines equals `dogstatsd_pipeline_count` (default: 1).
 
-`dogstatsd_pipeline_autoadjust_strategy` can be set to the following values:
-
-* `max_throughput`: The number of TimeSampler pipelines is adjusted to maximize throughput. There are `(number of core/2) - 1` instances of TimeSampler.
-* `per_origin`: The number of TimeSampler pipelines is adjusted to improve data locality. The number of dsdWorker instances is equal to half the number of cores.
-        and the number of TimeSampler pipelines is equal `dogstatsd_pipeline_count` or twice the number of cores. This strategy will provide a better compression
-        ratio in shared environments and improve resource allocation fairness within the agent.
+When multiple pipelines run, the Batcher routes each MetricSample to a pipeline based on a hash of its context (metric name, hostname, and tags), so a given context is always aggregated by the same TimeSampler.
 
 ## NoAggregationStreamWorker
 
@@ -102,7 +96,7 @@ The following calculations determine the number of TimeSamplerWorker and TimeSam
 
 The NoAggregationStreamWorker runs an infinite loop in a goroutine. It receives metric samples with timestamps, and it batches them to be sent as quickly as possible to the intake. It performs no aggregation nor extra processing, except from adding tags to the metrics.
 
-It runs only when `dogstatsd_no_aggregation_pipeline` is set to `true`.
+It runs only when `dogstatsd_no_aggregation_pipeline` is set to `true`, which is the default.
 
 The payload being sent to the intake (through the normal `Serializer`/`Forwarder` pieces) contains, at maximum, `dogstatsd_no_aggregation_pipeline_batch_size` metrics. This value defaults to `2048`.
 

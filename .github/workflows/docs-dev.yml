@@ -10,6 +10,7 @@ on:
     paths:
     - docs/**
     - mkdocs.yml
+    - mkdocs.architecture.yml
     - .dda/extend/commands/run/docs/**
     - .dda/extend/pythonpath/utils/docs/**
     - .lychee.toml
@@ -26,6 +27,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      # Links to source code point to the pull request branch so that new or
+      # moved files resolve during validation, and to `main` when deploying
+      DOCS_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

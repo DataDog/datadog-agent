@@ -5,8 +5,8 @@ include_fragments = "full"
 # This is necessary because the deployed site uses directory URLs.
 index_files = ["index.html"]
 
-# Zensical's 404 page uses root-relative URLs because it can be served at any
-# missing path. Exclude that generated page because its links cannot be resolved
-# against the local site directory without special root mapping.
+# Zensical's 404 pages use root-relative URLs because they can be served at any
+# missing path. Exclude those generated pages (one per site) because their links
+# cannot be resolved against the local site directory without special root mapping.
 # See https://github.com/zensical/zensical/issues/764.
-exclude_path = ['^site(/|\\)404\.html$']
+exclude_path = ['(^|/|\\)404\.html$']
