@@ -341,7 +341,7 @@ func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (comma
 	// The signed system inputs are authoritative for new tasks. A present but
 	// empty remote_action allowlist intentionally blocks that axis.
 	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
-		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.GetSystemServices()
+		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices
 	}
 
 	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths), nil
