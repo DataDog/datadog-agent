@@ -139,26 +139,10 @@ func GetConfig(key *C.char, jsonPayload **C.char) {
 //
 //export LogMessage
 func LogMessage(message *C.char, logLevel C.int) {
-	goMsg := C.GoString(message)
-
-	switch logLevel {
-	case 50: // CRITICAL
-		log.Critical(goMsg)
-	case 40: // ERROR
-		log.Error(goMsg)
-	case 30: // WARNING
-		log.Warn(goMsg)
-	case 20: // INFO
-		log.Info(goMsg)
-	case 10: // DEBUG
-		log.Debug(goMsg)
-	// Custom log level defined in:
+	// Log levels (including the custom TRACE level 7) are documented in:
 	// https://github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/log.py
-	case 7: // TRACE
-		log.Trace(goMsg)
-	default: // unknown log level
-		log.Info(goMsg)
-	}
+	// The logic is shared with shared-library checks via the aggregator package.
+	collectoraggregator.LogMessage(int(logLevel), C.GoString(message))
 }
 
 // SetExternalTags adds a set of tags for a given hostname to the External Host

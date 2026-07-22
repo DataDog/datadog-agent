@@ -1,0 +1,15 @@
+[package]
+name = "http_check"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+core = { path = "../../core" }
+libc = "0.2.182"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+ureq = "3"
+
+[lib]
+crate-type = ["cdylib"]

@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "core", 
+    "core",
     "checks/example",
+    "checks/http_check",
 ]
 resolver = "2"
 

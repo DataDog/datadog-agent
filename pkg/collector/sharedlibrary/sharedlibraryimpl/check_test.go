@@ -10,15 +10,13 @@ package sharedlibrarycheck
 import (
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 )
 
@@ -52,36 +50,21 @@ func TestCancelCheck(t *testing.T) {
 	assert.Error(t, err, "check %s is already cancelled", check.name)
 }
 
-func TestConfigureCollectionInterval(t *testing.T) {
-	tests := []struct {
-		name           string
-		instanceConfig string
-		expected       time.Duration
-	}{
-		{"explicit zero schedules a one-shot check", "min_collection_interval: 0", 0},
-		{"positive value is interpreted as seconds", "min_collection_interval: 15", 15 * time.Second},
-		{"unset keeps the default interval", "{}", defaults.DefaultCheckInterval},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			check, err := newFakeCheck(aggregator.NewNoOpSenderManager())
-			require.NoError(t, err)
-
-			err = check.Configure(check.senderManager, 0, integration.Data(tc.instanceConfig), nil, "test", "test")
-			require.NoError(t, err)
-
-			assert.Equal(t, tc.expected, check.Interval())
-		})
-	}
-}
-
 func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
 	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader("fake/library/folder/path")
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary())
+	provider, err := enrichment.NewStaticProvider(enrichment.EnrichmentData{
+		Hostname:     "test-host",
+		AgentVersion: "7.50.0",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary(), provider)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

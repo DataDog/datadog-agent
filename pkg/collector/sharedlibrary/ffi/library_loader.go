@@ -17,28 +17,24 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
 #include <stdlib.h>
+#include <stdint.h>
 
-#cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
-// Build the aggregator callback table from pointers owned by the aggregator
-// package. The void* to callback-type casts are done here in C so this package
-// never references the aggregator's exported symbols in its own cgo link (which
-// fails on the MinGW/Windows linker).
-const aggregator_t *build_aggregator(void *m, void *sc, void *e, void *h, void *ep) {
-	static aggregator_t aggregator;
-	aggregator.cb_submit_metric = (cb_submit_metric_t)m;
-	aggregator.cb_submit_service_check = (cb_submit_service_check_t)sc;
-	aggregator.cb_submit_event = (cb_submit_event_t)e;
-	aggregator.cb_submit_histogram_bucket = (cb_submit_histogram_bucket_t)h;
-	aggregator.cb_submit_event_platform_event = (cb_submit_event_platform_event_t)ep;
-	return &aggregator;
+// run_check_with_id passes check_id as the void* ctx argument expected by the
+// check_run ABI, performing the char* → void* cast in C to avoid go vet
+// warnings about unsafe pointer conversions in Go code.
+static void run_check_with_id(check_run_function_t *check_run_ptr, const char *init_config, const char *instance_config, const char *enrichment, const callback_t *callback, const char *check_id, const char **error) {
+	run_check_shared_library(check_run_ptr, init_config, instance_config, enrichment, callback, (void *)check_id, error);
 }
 */
 import "C"
@@ -58,16 +54,16 @@ func getLibExtension() string {
 
 // Library stores everything needed for using the shared libraries' symbols
 type Library struct {
-	handle  unsafe.Pointer
-	run     *C.run_function_t
-	version *C.version_function_t
+	handle   unsafe.Pointer
+	checkRun *C.check_run_function_t
+	version  *C.version_function_t
 }
 
 // LibraryLoader is an interface for loading and using libraries
 type LibraryLoader interface {
 	Open(name string) (*Library, error)
 	Close(lib *Library) error
-	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
+	Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string) error
 	Version(lib *Library) (string, error)
 	ComputeLibraryPath(name string) (string, error)
 }
@@ -93,7 +89,6 @@ func isPathConfined(libPath, folderPath string) bool {
 // SharedLibraryLoader loads and uses shared libraries
 type SharedLibraryLoader struct {
 	folderPath string
-	aggregator *C.aggregator_t
 	permission *filesystem.Permission
 }
 
@@ -123,7 +118,11 @@ func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
 		return nil, errors.New(C.GoString(cErr))
 	}
 
-	return (*Library)(&cLib), nil
+	return &Library{
+		handle:   cLib.handle,
+		checkRun: cLib.check_run,
+		version:  cLib.version,
+	}, nil
 }
 
 // Close closes the shared library
@@ -143,14 +142,13 @@ func (l *SharedLibraryLoader) Close(lib *Library) error {
 	return nil
 }
 
-// Run calls the `Run` symbol of the shared library to execute the check's implementation
-func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string) error {
+// Run calls the `check_run` symbol of the shared library to execute the check's implementation.
+// The check ID is passed as the opaque ctx pointer so bridge callbacks can recover it and route
+// submissions through pkg/collector/aggregator — the same path used by Python checks.
+func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string) error {
 	if lib == nil {
 		return errors.New("Pointer to 'Library' struct is NULL")
 	}
-
-	cID := C.CString(checkID)
-	defer C.free(unsafe.Pointer(cID))
 
 	cInitConfig := C.CString(initConfig)
 	defer C.free(unsafe.Pointer(cInitConfig))
@@ -158,9 +156,18 @@ func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig strin
 	cInstanceConfig := C.CString(instanceConfig)
 	defer C.free(unsafe.Pointer(cInstanceConfig))
 
+	cEnrichment := C.CString(enrichment)
+	defer C.free(unsafe.Pointer(cEnrichment))
+
+	cCheckID := C.CString(checkID)
+	defer C.free(unsafe.Pointer(cCheckID))
+
+	// Build the callback struct with our Go bridge functions
+	callback := buildCallback()
+
 	var cErr *C.char
 
-	C.run_shared_library(lib.run, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
+	C.run_check_with_id(lib.checkRun, cInitConfig, cInstanceConfig, cEnrichment, &callback, cCheckID, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run check: %s", C.GoString(cErr))
@@ -184,7 +191,6 @@ func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 	}
 
 	return C.GoString(cLibVersion), nil
-
 }
 
 // ComputeLibraryPath returns the full expected path of the library, after
@@ -207,10 +213,112 @@ func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
 	if err != nil {
 		return nil, err
 	}
-	cb := aggregator.GetCallbacks()
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
-		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent),
 		permission: permission,
 	}, nil
+}
+
+// ---- Bridge callback functions ----
+// These are Go functions exported to C that match the callback_t function
+// pointer signatures. They recover the check ID from the opaque ctx pointer
+// (set by run_check_with_id) and delegate to pkg/collector/aggregator — the
+// same submission path used by Python checks.
+
+// cStringArrayToSlice converts a null-terminated array of const char* to a Go string slice.
+func cStringArrayToSlice(tags **C.char) []string {
+	if tags == nil {
+		return nil
+	}
+	var result []string
+	for ptr := tags; *ptr != nil; ptr = (**C.char)(unsafe.Add(unsafe.Pointer(ptr), unsafe.Sizeof(*ptr))) {
+		result = append(result, C.GoString(*ptr))
+	}
+	return result
+}
+
+//export BridgeSubmitMetric
+func BridgeSubmitMetric(ctx unsafe.Pointer, metricType C.int, name *C.char, value C.double, tags **C.char, hostname *C.char, flushFirst C.int) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitMetricForCheck(
+		checkID,
+		int(metricType),
+		C.GoString(name),
+		float64(value),
+		cStringArrayToSlice(tags),
+		C.GoString(hostname),
+		flushFirst != 0,
+	)
+}
+
+//export BridgeSubmitServiceCheck
+func BridgeSubmitServiceCheck(ctx unsafe.Pointer, name *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitServiceCheckForCheck(
+		checkID,
+		C.GoString(name),
+		servicecheck.ServiceCheckStatus(status),
+		cStringArrayToSlice(tags),
+		C.GoString(hostname),
+		C.GoString(message),
+	)
+}
+
+func bridgeEventParseString(value *C.char, fieldName string) string {
+	if value == nil {
+		log.Tracef("Can't parse value for key '%s' in event submitted from slim check", fieldName)
+		return ""
+	}
+	return C.GoString(value)
+}
+
+//export BridgeSubmitEvent
+func BridgeSubmitEvent(ctx unsafe.Pointer, event *C.slim_event_t) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitEventForCheck(
+		checkID,
+		metricsevent.Event{
+			Title:          bridgeEventParseString(event.title, "title"),
+			Text:           bridgeEventParseString(event.text, "text"),
+			Priority:       metricsevent.Priority(bridgeEventParseString(event.priority, "priority")),
+			Host:           bridgeEventParseString(event.host, "host"),
+			Tags:           cStringArrayToSlice((**C.char)(unsafe.Pointer(event.tags))),
+			AlertType:      metricsevent.AlertType(bridgeEventParseString(event.alert_type, "alert_type")),
+			AggregationKey: bridgeEventParseString(event.aggregation_key, "aggregation_key"),
+			SourceTypeName: bridgeEventParseString(event.source_type_name, "source_type_name"),
+			Ts:             int64(event.ts),
+		},
+	)
+}
+
+//export BridgeSubmitHistogram
+func BridgeSubmitHistogram(ctx unsafe.Pointer, name *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirst C.int) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitHistogramBucketForCheck(
+		checkID,
+		C.GoString(name),
+		int64(value),
+		float64(lowerBound),
+		float64(upperBound),
+		monotonic != 0,
+		C.GoString(hostname),
+		cStringArrayToSlice(tags),
+		flushFirst != 0,
+	)
+}
+
+//export BridgeSubmitEventPlatformEvent
+func BridgeSubmitEventPlatformEvent(ctx unsafe.Pointer, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitEventPlatformEventForCheck(
+		checkID,
+		C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize),
+		C.GoString(eventType),
+	)
+}
+
+//export BridgeSubmitLog
+func BridgeSubmitLog(ctx unsafe.Pointer, level C.int, message *C.char) {
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.LogMessage(int(level), fmt.Sprintf("[check:%s] %s", checkID, C.GoString(message)))
 }

@@ -28,7 +28,7 @@ func TestRun_NullLibraryPointer(t *testing.T) {
 	loader, err := NewSharedLibraryLoader(t.TempDir())
 	require.NoError(t, err)
 
-	err = loader.Run(nil, "", "", "")
+	err = loader.Run(nil, "", "", "", "{}")
 	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 
 	_, err = loader.Version(nil)
@@ -44,8 +44,8 @@ func TestRun_LibraryWithNullSymbols(t *testing.T) {
 
 	lib := NewLibraryWithNullSymbols()
 
-	err = loader.Run(lib, "", "", "")
-	assert.EqualError(t, err, "Failed to run check: pointer to 'Run' symbol of the shared library is NULL")
+	err = loader.Run(lib, "", "", "", "{}")
+	assert.EqualError(t, err, "Failed to run check: pointer to 'check_run' symbol of the shared library is NULL")
 
 	_, err = loader.Version(lib)
 	assert.EqualError(t, err, "Failed to get version: pointer to 'Version' symbol of the shared library is NULL")

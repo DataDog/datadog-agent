@@ -208,6 +208,8 @@ go_e2e_test_binaries:
     - pushd test/new-e2e
     - go install github.com/DataDog/orchestrion
     - popd
+    # Build Rust shared library check test fixtures before compiling Go test binaries
+    - dda inv -- -e rustchecks.build
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
