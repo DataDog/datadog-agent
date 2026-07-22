@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .on_schema_paths_changed:
   - changes:
       paths:
@@ -57,7 +54,7 @@ generate_config_schema-macos:
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output
   tags: ["macos:sonoma-amd64", "specific:true"]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: []
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
