@@ -1,0 +1,24 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+dd_url: http://127.0.0.1:9091
+process_config.process_dd_url: http://localhost:9092
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+# Run the regular Agent constrained to IoT-equivalent behavior, with DogStatsD
+# served by Agent Data Plane (ADP) running as a second process. This is the
+# recommended end state for migrated IoT Agent users (see "Freezing the IoT
+# Agent" proposal). Compared against quality_gate_idle_iot_mode (ADP disabled),
+# the difference in total_pss_bytes/CPU isolates the idle cost of the ADP process.
+infrastructure_mode: iot
+data_plane.enabled: true
+data_plane.dogstatsd.enabled: true
+# Expose ADP's own telemetry so lading can confirm the ADP process is live.
+data_plane.telemetry_enabled: true
+data_plane.telemetry_listen_addr: "tcp://127.0.0.1:5102"
