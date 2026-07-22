@@ -1,5 +1,38 @@
 // This devcontainer directs workspaces to use a pre-built image. To make
 // configuration changes, edit prebuild-devcontainer.json in this folder instead
 {
-    "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:23a853a5e181b86b01bb82f55c2b1fd35f3b614a52e2b1d5db27e2f057ec7948"
+    "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:23a853a5e181b86b01bb82f55c2b1fd35f3b614a52e2b1d5db27e2f057ec7948",
+    "runArgs": [
+        "--pid=host",
+        "--cgroupns=host",
+        //"-v",
+        //"/etc/passwd:/etc/passwd",
+        //"-v",
+        //"/etc/group:/etc/group",
+        "-v",
+        "/:/host/root:ro",
+        "-v",
+        "/sys/kernel/debug:/sys/kernel/debug",
+        "-v",
+        "/etc/os-release:/etc/os-release"
+    ],
+    "securityOpt": [
+        "apparmor:unconfined"
+    ],
+    "capAdd": [
+        "SYS_ADMIN",
+        "SYS_RESOURCE",
+        "SYS_PTRACE",
+        "NET_ADMIN",
+        "NET_BROADCAST",
+        "NET_RAW",
+        "IPC_LOCK",
+        "CHOWN",
+        "KILL"
+    ],
+    "containerEnv": {
+        "HOST_ROOT": "/host/root",
+        "HOST_PROC": "/host/root/proc",
+        "HOST_SYS": "/host/root/sys"
+    }
 }
