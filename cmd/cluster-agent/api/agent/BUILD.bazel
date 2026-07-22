@@ -37,3 +37,9 @@ dd_agent_go_test(
     srcs = ["agent_test.go"],
     embed = [":agent"],
 )
+
+dd_agent_go_test(
+    name = "agent_test",
+    srcs = ["agent_test.go"],
+    embed = [":agent"],
+)
