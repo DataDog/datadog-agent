@@ -75,6 +75,13 @@ type IAParams struct {
 	// custom tagger-derived tags (e.g. customLabelTag) are expected as real
 	// log tags instead of log attributes.
 	LogsTagsAsDDTags bool
+
+	// SkipCustomLabelTag skips testCustomLabelAsTag. Set this for deployments
+	// that don't configure kubernetesResourcesLabelsAsTags (e.g. the
+	// standalone otel-agent DaemonSet, which has no Helm chart / Cluster
+	// Agent backing the tagger's labels-as-tags mapping), where customLabelTag
+	// is never produced regardless of LogsTagsAsDDTags.
+	SkipCustomLabelTag bool
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
@@ -350,7 +357,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
 			testInfraTags(s.T(), tags, iaParams)
-			testCustomLabelAsTag(s.T(), log, iaParams.LogsTagsAsDDTags)
+			if !iaParams.SkipCustomLabelTag {
+				testCustomLabelAsTag(s.T(), log, iaParams.LogsTagsAsDDTags)
+			}
 		}
 	}
 }
