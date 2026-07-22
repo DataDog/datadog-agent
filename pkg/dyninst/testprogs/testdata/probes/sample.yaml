@@ -1713,6 +1713,20 @@ probes:
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
+  # testCaptureContextImpl captures main.contextImpl, a struct that implements
+  # context.Context but is inspected for its fields. Its interface fields must
+  # decode to their real concrete types rather than being routed through the
+  # context chain-walk.
+  - id: testCaptureContextImpl
+    type: LOG_PROBE
+    where:
+      methodName: main.testCaptureContextImpl
+    template: "{c}"
+    segments:
+      - json:
+          ref: "c"
+        dsl: "c"
+    captureSnapshot: true
   - id: testStructWithCyclicSlices
     type: LOG_PROBE
     where:
