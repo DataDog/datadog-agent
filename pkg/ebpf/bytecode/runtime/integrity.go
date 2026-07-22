@@ -102,15 +102,8 @@ func genIntegrity(root, inputFile, outputFile, pkg string) error {
 		return fmt.Errorf("unable to get current file path")
 	}
 
-	resolvedRuntimeDir, err := filepath.EvalSymlinks(filepath.Dir(curFile))
-	if err != nil {
-		return err
-	}
-
-	resolvedOutputDir, err := filepath.EvalSymlinks(filepath.Dir(outputFile))
-	if err != nil {
-		return err
-	}
+	resolvedRuntimeDir := resolveDir(filepath.Dir(curFile))
+	resolvedOutputDir := resolveDir(filepath.Dir(outputFile))
 
 	if resolvedOutputDir != resolvedRuntimeDir {
 		packagePrefix = "runtime."
@@ -129,6 +122,20 @@ func genIntegrity(root, inputFile, outputFile, pkg string) error {
 	}
 
 	return nil
+}
+
+// resolveDir returns the canonical directory path when possible. Bazel sandboxes
+// expose output paths through bazel-out/cfg symlinks that may not exist when
+// integrity runs, so fall back to a cleaned absolute path instead of failing.
+func resolveDir(dir string) string {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err == nil {
+		return resolved
+	}
+	if abs, err := filepath.Abs(dir); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(dir)
 }
 
 func sanitizeFilename(s string) string {
