@@ -51,6 +51,7 @@ func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 		body, err := json.Marshal(response)
 		if err != nil {
 			httputils.SetJSONError(w, fmt.Errorf("error marshaling response: %w", err), http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
