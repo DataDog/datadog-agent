@@ -8,6 +8,8 @@ package ec2
 import (
 	"strings"
 
+	awssdkec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
@@ -16,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
 
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -61,23 +64,80 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
-		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
-			dedicatedHost, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{
-				InstanceType: vmArgs.instanceType,
-			})
+		// isMacOSPoolMember/poolClient/poolAcquired drive the pool-release wiring
+		// below, once the instance itself has been created.
+		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
+		var poolClient *awssdkec2.Client
+		var poolAcquired pool.AcquireResult
+
+		if isMacOSPoolMember {
+			var err error
+			poolClient, err = pool.NewEC2Client(e.Ctx().Context(), e)
 			if err != nil {
 				return err
 			}
-			instanceArgs.HostID = dedicatedHost.Arn.ApplyT(func(arn string) pulumi.StringInput {
-				splitted := strings.Split(arn, "/")
-				return pulumi.String(splitted[len(splitted)-1])
-			}).(pulumi.StringInput)
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e, poolClient, e.PipelineID())
+			if err != nil {
+				return err
+			}
+
+			// Deleting a Dedicated Host requires it to have lived for at least 24
+			// hours, so a pooled instance/host is never actually destroyed by
+			// Pulumi; the pool manager releases it back to idle instead (see the
+			// ScheduleReleaseOnDestroy call below).
+			opts = append(opts, pulumi.RetainOnDelete(true))
+
+			if poolAcquired.Found {
+				// Reuse an existing pool member: import it instead of creating a
+				// new instance, and pin HostID/Tenancy to what it's actually
+				// running on instead of allocating a redundant Dedicated Host.
+				opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
+				instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
+				instanceArgs.Tenancy = "host"
+			} else {
+				dedicatedHost, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{
+					InstanceType: vmArgs.instanceType,
+				})
+				if err != nil {
+					return err
+				}
+				instanceArgs.HostID = dedicatedHost.Arn.ApplyT(func(arn string) pulumi.StringInput {
+					splitted := strings.Split(arn, "/")
+					return pulumi.String(splitted[len(splitted)-1])
+				}).(pulumi.StringInput)
+			}
 		}
 
 		// Create the EC2 instance
 		instance, err := ec2.NewInstance(e, name, instanceArgs, opts...)
 		if err != nil {
 			return err
+		}
+
+		if isMacOSPoolMember {
+			releaseOpts := []pulumi.ResourceOption{pulumi.Parent(c), pulumi.DependsOn([]pulumi.Resource{instance}), e.WithProviders(config.ProviderCommand)}
+
+			if poolAcquired.Found {
+				if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, releaseOpts...); err != nil {
+					return err
+				}
+			} else {
+				// The lease token isn't known until the instance's ID is, so
+				// register the new pool member (tag it + seed its lease record)
+				// and build its release script inside an ApplyT.
+				instanceID := instance.ID().ToStringOutput()
+				releaseScript := instanceID.ApplyT(func(id string) (string, error) {
+					leaseToken, err := pool.RegisterNewMember(e.Ctx().Context(), e, poolClient, id, e.PipelineID())
+					if err != nil {
+						return "", err
+					}
+					return pool.BuildReleaseScript(id, leaseToken), nil
+				}).(pulumi.StringOutput)
+
+				if _, err := ec2.ScheduleReleaseOnDestroyOutput(e, name, instanceID, releaseScript, releaseOpts...); err != nil {
+					return err
+				}
+			}
 		}
 
 		// Create connection
