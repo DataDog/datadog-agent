@@ -4,6 +4,9 @@
 # Copyright 2016-present Datadog, Inc.
 
 require "./lib/ostools.rb"
+# Needed for the do_repackage? helper referenced by the datadog-agent-data-plane
+# software definition (ADP dependency below).
+require "./lib/project_helpers.rb"
 
 name 'iot-agent'
 package_name 'datadog-iot-agent'
