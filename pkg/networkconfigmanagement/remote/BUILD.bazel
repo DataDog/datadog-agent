@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/types",
         "//pkg/util/log",
         "@org_golang_x_crypto//ssh",
         "@org_golang_x_crypto//ssh/knownhosts",
