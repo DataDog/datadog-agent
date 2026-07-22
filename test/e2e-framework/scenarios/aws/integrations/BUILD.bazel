@@ -7,8 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/scenarios/aws/integrations/aws_neuron",
+        "//test/e2e-framework/scenarios/aws/integrations/dell_powerflex",
         "//test/e2e-framework/scenarios/aws/integrations/etcd",
         "//test/e2e-framework/scenarios/aws/integrations/kafka",
+        "//test/e2e-framework/scenarios/aws/integrations/lustre",
         "//test/e2e-framework/scenarios/aws/integrations/postgres",
         "//test/e2e-framework/scenarios/aws/integrations/redisdb",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
