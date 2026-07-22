@@ -24,10 +24,17 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/logs/types",
+        "//pkg/logs/vrl",
         "//pkg/util/log",
         "//pkg/util/scrubber",
+        "@com_github_datadog_fastjq//:fastjq",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//:ottl",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//contexts/ottllog",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//ottlfuncs",
         "@in_yaml_go_yaml_v3//:yaml",
+        "@io_opentelemetry_go_collector_component//:component",
         "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_zap//:zap",
     ],
 )
 
@@ -40,7 +47,9 @@ dd_agent_go_test(
         "integration_config_test.go",
         "messages_test.go",
         "parser_test.go",
+        "processing_rules_novrl_test.go",
         "processing_rules_test.go",
+        "processing_rules_vrl_test.go",
     ],
     embed = [":config"],
     deps = [

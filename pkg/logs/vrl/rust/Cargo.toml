@@ -1,0 +1,20 @@
+[package]
+name = "vrl_filter"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "vrl_filter"
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+vrl.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sha3.workspace = true
+digest.workspace = true
+regex.workspace = true
+base64.workspace = true
+base16.workspace = true

@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 
@@ -338,7 +339,7 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	hostnameComponent, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("testHostnameFromEnvVar"))
 	p := &Processor{
 		hostname: hostnameComponent,
 	}
@@ -350,6 +351,169 @@ func TestGetHostname(t *testing.T) {
 // -
 
 var ruleName = "test"
+
+// newOTTLProcessingRule creates a ProcessingRule with a compiled OTTL condition.
+func newOTTLProcessingRule(ruleType, pattern string) *config.ProcessingRule {
+	rule := &config.ProcessingRule{
+		Type:    ruleType,
+		Name:    ruleName,
+		Pattern: pattern,
+	}
+	rules := []*config.ProcessingRule{rule}
+	if err := config.CompileProcessingRules(rules); err != nil {
+		panic("failed to compile OTTL processing rule: " + err.Error())
+	}
+	return rule
+}
+
+func newOTTLSource(ruleType, pattern string) sources.LogSource {
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newOTTLProcessingRule(ruleType, pattern)}})
+}
+
+// OTTL exclusion tests
+// --------------------
+
+func TestOTTLExclusion(t *testing.T) {
+	assert := assert.New(t)
+	ruleType := config.ExcludeAtMatchOTTL
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "matching log is excluded",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`{"status":"error","message":"timeout"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "non-matching log is kept",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`{"status":"info","message":"all good"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "non-JSON log is passed through",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`this is not json`),
+			shouldProcess: true,
+		},
+		{
+			name:          "multi-field condition matches correctly",
+			pattern:       `attributes["status"] == "error" and attributes["service"] == "payments"`,
+			input:         []byte(`{"status":"error","service":"payments","message":"timeout"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "multi-field condition partial match does not exclude",
+			pattern:       `attributes["status"] == "error" and attributes["service"] == "payments"`,
+			input:         []byte(`{"status":"error","service":"checkout","message":"timeout"}`),
+			shouldProcess: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(_ *testing.T) {
+			source := newOTTLSource(ruleType, test.pattern)
+			p := &Processor{}
+			msg := newMessage(test.input, &source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.Equal(test.shouldProcess, shouldProcess, test.name)
+			msg.Origin.LogSource.ProcessingInfo.Reset()
+		})
+	}
+}
+
+// OTTL inclusion tests
+// --------------------
+
+func TestOTTLInclusion(t *testing.T) {
+	assert := assert.New(t)
+	ruleType := config.IncludeAtMatchOTTL
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "matching log is kept",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`{"status":"error","message":"timeout"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "non-matching log is dropped",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`{"status":"info","message":"all good"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "non-JSON log is dropped",
+			pattern:       `attributes["status"] == "error"`,
+			input:         []byte(`this is not json`),
+			shouldProcess: false,
+		},
+		{
+			name:          "numeric field match",
+			pattern:       `attributes["retries"] == 3`,
+			input:         []byte(`{"retries":3,"message":"retrying"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "numeric field no match",
+			pattern:       `attributes["retries"] == 3`,
+			input:         []byte(`{"retries":1,"message":"retrying"}`),
+			shouldProcess: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(_ *testing.T) {
+			source := newOTTLSource(ruleType, test.pattern)
+			p := &Processor{}
+			msg := newMessage(test.input, &source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.Equal(test.shouldProcess, shouldProcess, test.name)
+			msg.Origin.LogSource.ProcessingInfo.Reset()
+		})
+	}
+}
+
+// OTTL processor-level rule tests
+// --------------------------------
+
+func TestOTTLProcessorRule(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("processor-level exclude rule applies to all messages", func(_ *testing.T) {
+		rule := newOTTLProcessingRule(config.ExcludeAtMatchOTTL, `attributes["status"] == "error"`)
+		p := &Processor{processingRules: []*config.ProcessingRule{rule}}
+		source := sources.NewLogSource("", &config.LogsConfig{})
+
+		msg := newMessage([]byte(`{"status":"error","message":"timeout"}`), source, "")
+		assert.False(p.applyRedactingRules(msg))
+
+		msg2 := newMessage([]byte(`{"status":"info","message":"ok"}`), source, "")
+		assert.True(p.applyRedactingRules(msg2))
+	})
+
+	t.Run("processor-level include rule applies to all messages", func(_ *testing.T) {
+		rule := newOTTLProcessingRule(config.IncludeAtMatchOTTL, `attributes["status"] == "error"`)
+		p := &Processor{processingRules: []*config.ProcessingRule{rule}}
+		source := sources.NewLogSource("", &config.LogsConfig{})
+
+		msg := newMessage([]byte(`{"status":"error","message":"timeout"}`), source, "")
+		assert.True(p.applyRedactingRules(msg))
+
+		msg2 := newMessage([]byte(`{"status":"info","message":"ok"}`), source, "")
+		assert.False(p.applyRedactingRules(msg2))
+	})
+}
 
 func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.ProcessingRule {
 	return &config.ProcessingRule{
@@ -626,5 +790,265 @@ func TestRemapSource_EscapedDotPath(t *testing.T) {
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.True(shouldProcess)
 		assert.Equal("fallback", msg.Origin.Source())
+	})
+}
+
+func newJQSource(ruleType, pattern string) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:    ruleType,
+		Name:    ruleName,
+		Pattern: pattern,
+	}
+	if err := config.CompileProcessingRules([]*config.ProcessingRule{rule}); err != nil {
+		panic(err)
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+// VRL rule tests
+// --------------
+//
+// These tests build ProcessingRule values directly with hand-set
+// VRLFilter/VRLTransform closures rather than going through
+// config.CompileProcessingRules, since the real VRL compiler is only
+// available when the agent is built with the `vrl` build tag. This lets the
+// applyRedactingRules wiring (fail-open for filters, fail-closed for the
+// mask transform) be verified in every build, including the default stub.
+
+func newVRLFilterSource(ruleType string, filter func([]byte) (bool, error)) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:      ruleType,
+		Name:      ruleName,
+		Pattern:   "<test>",
+		VRLFilter: filter,
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+func newVRLMaskSource(transform func([]byte) ([]byte, error)) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:         config.MaskVRLTransform,
+		Name:         ruleName,
+		Pattern:      "<test>",
+		VRLTransform: transform,
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+var errVRLRuntime = errors.New("simulated VRL runtime error")
+
+func TestJQExclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "drops matching JSON",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte(`{"level":"debug","msg":"verbose"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "passes non-matching JSON",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte(`{"level":"error","msg":"boom"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "passes non-JSON content unchanged",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte("plain text log line"),
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newJQSource(config.ExcludeAtJQMatch, tc.pattern)
+			msg := newMessage(tc.input, &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestVRLExclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		filter        func([]byte) (bool, error)
+		shouldProcess bool
+	}{
+		{
+			name:          "drops matching content",
+			filter:        func([]byte) (bool, error) { return true, nil },
+			shouldProcess: false,
+		},
+		{
+			name:          "keeps non-matching content",
+			filter:        func([]byte) (bool, error) { return false, nil },
+			shouldProcess: true,
+		},
+		{
+			name:          "fails open on runtime error",
+			filter:        func([]byte) (bool, error) { return false, errVRLRuntime },
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newVRLFilterSource(config.ExcludeAtVRLMatch, tc.filter)
+			msg := newMessage([]byte("hello"), &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestJQInclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "keeps matching JSON",
+			pattern:       `select(.level == "error")`,
+			input:         []byte(`{"level":"error","msg":"boom"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "drops non-matching JSON",
+			pattern:       `select(.level == "error")`,
+			input:         []byte(`{"level":"debug","msg":"verbose"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "passes non-JSON content unchanged",
+			pattern:       `select(.level == "error")`,
+			input:         []byte("plain text log line"),
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newJQSource(config.IncludeAtJQMatch, tc.pattern)
+			msg := newMessage(tc.input, &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestVRLInclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		filter        func([]byte) (bool, error)
+		shouldProcess bool
+	}{
+		{
+			name:          "keeps matching content",
+			filter:        func([]byte) (bool, error) { return true, nil },
+			shouldProcess: true,
+		},
+		{
+			name:          "drops non-matching content",
+			filter:        func([]byte) (bool, error) { return false, nil },
+			shouldProcess: false,
+		},
+		{
+			name:          "fails open on runtime error",
+			filter:        func([]byte) (bool, error) { return false, errVRLRuntime },
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newVRLFilterSource(config.IncludeAtVRLMatch, tc.filter)
+			msg := newMessage([]byte("hello"), &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestVRLMask(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("redacts content and records the rule", func(t *testing.T) {
+		src := newVRLMaskSource(func([]byte) ([]byte, error) { return []byte("[REDACTED]"), nil })
+		msg := newMessage([]byte("secret value"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("[REDACTED]"), msg.GetContent())
+		assert.Equal(t, int64(1), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskVRLTransform+":"+ruleName))
+	})
+
+	t.Run("does not record the rule when content is unchanged", func(t *testing.T) {
+		src := newVRLMaskSource(func(input []byte) ([]byte, error) { return input, nil })
+		msg := newMessage([]byte("nothing to redact"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("nothing to redact"), msg.GetContent())
+		assert.Equal(t, int64(0), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskVRLTransform+":"+ruleName))
+	})
+
+	t.Run("fails closed and drops the message on a runtime error", func(t *testing.T) {
+		src := newVRLMaskSource(func([]byte) ([]byte, error) { return nil, errVRLRuntime })
+		msg := newMessage([]byte("secret value"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+	})
+}
+
+func TestVRLMaskAndExcludeOrdering(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("mask before exclude sees the masked content", func(t *testing.T) {
+		var seen []byte
+		maskRule := &config.ProcessingRule{
+			Type:         config.MaskVRLTransform,
+			Name:         ruleName,
+			VRLTransform: func([]byte) ([]byte, error) { return []byte("masked"), nil },
+		}
+		excludeRule := &config.ProcessingRule{
+			Type: config.ExcludeAtVRLMatch,
+			Name: ruleName,
+			VRLFilter: func(input []byte) (bool, error) {
+				seen = input
+				return false, nil
+			},
+		}
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{maskRule, excludeRule}})
+		msg := newMessage([]byte("original"), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.Equal(t, []byte("masked"), seen)
+	})
+
+	t.Run("exclude before mask short-circuits the mask", func(t *testing.T) {
+		maskCalled := false
+		excludeRule := &config.ProcessingRule{
+			Type:      config.ExcludeAtVRLMatch,
+			Name:      ruleName,
+			VRLFilter: func([]byte) (bool, error) { return true, nil },
+		}
+		maskRule := &config.ProcessingRule{
+			Type: config.MaskVRLTransform,
+			Name: ruleName,
+			VRLTransform: func(input []byte) ([]byte, error) {
+				maskCalled = true
+				return input, nil
+			},
+		}
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{excludeRule, maskRule}})
+		msg := newMessage([]byte("original"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+		assert.False(t, maskCalled)
 	})
 }

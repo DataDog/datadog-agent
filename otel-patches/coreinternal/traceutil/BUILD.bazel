@@ -1,0 +1,27 @@
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "traceutil",
+    srcs = ["traceutil.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
+
+go_test(
+    name = "traceutil_test",
+    srcs = [
+        "package_test.go",
+        "traceutil_test.go",
+    ],
+    embed = [":traceutil"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

@@ -89,6 +89,15 @@ func TestValidateRemapSource(t *testing.T) {
 	})
 }
 
+func TestValidateVRLRulesRequirePattern(t *testing.T) {
+	for _, ruleType := range []string{ExcludeAtVRLMatch, IncludeAtVRLMatch, MaskVRLTransform} {
+		t.Run(ruleType, func(t *testing.T) {
+			rules := []*ProcessingRule{{Type: ruleType, Name: "vrl_test", Pattern: ""}}
+			assert.ErrorContains(t, ValidateProcessingRules(rules), "no pattern provided")
+		})
+	}
+}
+
 func TestCompileSkipsRemapSource(t *testing.T) {
 	rules := []*ProcessingRule{{
 		Type: RemapSource,

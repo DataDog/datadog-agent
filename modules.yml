@@ -183,6 +183,11 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  otel-patches/coreinternal:
+    independent: false
+    should_replace_internal_modules: false
+    should_tag: false
+    should_test_condition: never
   pkg/aggregator/ckey:
     used_by_otel: true
   pkg/api:
@@ -237,6 +242,8 @@ modules:
   pkg/logs/types:
     used_by_otel: true
   pkg/logs/util/testutils:
+    used_by_otel: true
+  pkg/logs/vrl:
     used_by_otel: true
   pkg/metrics:
     used_by_otel: true

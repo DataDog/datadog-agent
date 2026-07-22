@@ -1,0 +1,37 @@
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "attraction",
+    srcs = [
+        "attraction.go",
+        "hasher.go",
+        "type_converter.go",
+    ],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@@gazelle++go_deps+com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//clientutil",
+        "@io_opentelemetry_go_collector_client//:client",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@org_uber_go_zap//:zap",
+    ],  # keep
+)
+
+go_test(
+    name = "attraction_test",
+    srcs = [
+        "attraction_bench_test.go",
+        "attraction_test.go",
+        "hasher_test.go",
+        "package_test.go",
+    ],
+    embed = [":attraction"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_client//:client",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

@@ -1,0 +1,30 @@
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregateutil",
+    srcs = [
+        "aggregate.go",
+        "type.go",
+    ],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/aggregateutil",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+    ],
+)
+
+go_test(
+    name = "aggregateutil_test",
+    srcs = [
+        "aggregate_test.go",
+        "type_test.go",
+    ],
+    embed = [":aggregateutil"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+    ],
+)

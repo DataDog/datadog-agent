@@ -1,0 +1,24 @@
+load("@@rules_go+//go:def.bzl", "go_library")
+
+go_library(
+    name = "scraperinttest",
+    srcs = ["scraperint.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/scraperinttest",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_golden//:golden",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest//pmetrictest",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_testcontainers_testcontainers_go//:testcontainers-go",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_consumer_consumertest//:consumertest",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_receiver//:receiver",
+        "@io_opentelemetry_go_collector_receiver_receivertest//:receivertest",
+        "@org_uber_go_multierr//:multierr",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zaptest/observer",
+    ],
+)

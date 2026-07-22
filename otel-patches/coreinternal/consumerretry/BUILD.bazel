@@ -1,0 +1,39 @@
+load("@@rules_go+//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "consumerretry",
+    srcs = [
+        "config.go",
+        "logs.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/consumerretry",  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
+        "@io_opentelemetry_go_collector_consumer_consumertest//:consumertest",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_trace//:trace",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "consumerretry_test",
+    srcs = [
+        "logs_test.go",
+        "package_test.go",
+    ],
+    embed = [":consumerretry"],
+    gotags = ["test"],
+    deps = [
+        "//otel-patches/coreinternal/testdata",  # keep
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
+        "@org_uber_go_goleak//:goleak",
+        "@org_uber_go_zap//:zap",
+    ],
+)
