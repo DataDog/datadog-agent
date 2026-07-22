@@ -70,6 +70,13 @@ else
   # Datadog agent
   dependency 'datadog-iot-agent'
 
+  # Agent Data Plane (ADP): prebuilt binary, mirrors the guard used in
+  # datadog-agent-dependencies.rb for the regular Agent. Included here to
+  # measure the package-size impact of shipping ADP with the IoT Agent
+  # (DogStatsD-on-ADP for the IoT flavor). See the "Freezing the IoT Agent"
+  # proposal for context.
+  dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
+
   if windows_target?
     dependency 'datadog-agent-finalize'
   end
