@@ -107,6 +107,7 @@ func (c *Check) Run() error {
 	)
 
 	var contCreateEventsCh chan workloadmeta.EventBundle
+	var contNodeOrchestratorDeleteEventsCh chan workloadmeta.EventBundle
 	if c.extendedSet {
 		contCreateFilterBuilder := workloadmeta.NewFilterBuilder().
 			SetSource(workloadmeta.SourceAll).
@@ -117,6 +118,17 @@ func (c *Check) Run() error {
 			CheckName+"-cont-create",
 			workloadmeta.NormalPriority,
 			contCreateFilterBuilder.Build(),
+		)
+
+		contNodeOrchestratorDeleteFilterBuilder := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceNodeOrchestrator).
+			SetEventType(workloadmeta.EventTypeUnset).
+			AddKind(workloadmeta.KindContainer)
+
+		contNodeOrchestratorDeleteEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-cont-node-orchestrator-delete",
+			workloadmeta.NormalPriority,
+			contNodeOrchestratorDeleteFilterBuilder.Build(),
 		)
 	}
 
@@ -166,6 +178,12 @@ func (c *Check) Run() error {
 			}
 			c.processor.processEvents(eventBundle)
 		case eventBundle, ok := <-contCreateEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
