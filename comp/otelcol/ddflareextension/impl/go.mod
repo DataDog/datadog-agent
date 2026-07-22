@@ -55,7 +55,10 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/logs/vrl v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 // indirect
+	github.com/itchyny/gojq v0.12.19 // indirect
+	github.com/itchyny/timefmt-go v0.1.8 // indirect
 )
 
 require (
