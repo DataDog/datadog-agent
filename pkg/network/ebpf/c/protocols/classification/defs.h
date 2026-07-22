@@ -29,13 +29,14 @@
 #define LAYER_APPLICATION_MAX (LAYER_APPLICATION_BIT + MAX_ENTRIES_PER_LAYER)
 #define LAYER_ENCRYPTION_MAX  (LAYER_ENCRYPTION_BIT + MAX_ENTRIES_PER_LAYER)
 
-#define FLAG_FULLY_CLASSIFIED       1 << 0
-#define FLAG_USM_ENABLED            1 << 1
-#define FLAG_NPM_ENABLED            1 << 2
-#define FLAG_TCP_CLOSE_DELETION     1 << 3
-#define FLAG_SOCKET_FILTER_DELETION 1 << 4
-#define FLAG_SERVER_SIDE            1 << 5
-#define FLAG_CLIENT_SIDE            1 << 6
+#define FLAG_FULLY_CLASSIFIED        1 << 0
+#define FLAG_USM_ENABLED             1 << 1
+#define FLAG_NPM_ENABLED             1 << 2
+#define FLAG_TCP_CLOSE_DELETION      1 << 3
+#define FLAG_SOCKET_FILTER_DELETION  1 << 4
+#define FLAG_SERVER_SIDE             1 << 5
+#define FLAG_CLIENT_SIDE             1 << 6
+#define FLAG_TLS_CLASSIFICATION_DONE 1 << 7
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the
