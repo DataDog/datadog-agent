@@ -18,3 +18,6 @@ import (
 func listenPipe(_, _ string, _, _ int, _ statsd.ClientInterface) (net.Listener, error) {
 	return nil, errors.New("Windows named pipes are only supported on Windows operating systems")
 }
+
+// probeExistingPipe is a no-op on non-Windows; named pipe diagnostics only run on Windows.
+func probeExistingPipe(_ string) bool { return false }

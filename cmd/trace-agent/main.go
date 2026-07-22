@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package main implements the entrypoint of the `trace-agent` binary.
+// See pkg/trace/api/api.go and pipe.go for [aas-repro] diagnostic changes.
 package main
 
 import (
