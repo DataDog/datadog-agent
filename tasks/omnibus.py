@@ -242,6 +242,7 @@ def build(
     """
     Build the Agent packages with Omnibus Installer.
     """
+    print("OMNIBUS_GIT_CACHE_DIR when invoking the task is:", os.environ.get('OMNIBUS_GIT_CACHE_DIR'))
 
     flavor = AgentFlavor[flavor]
     fips_mode = flavor.is_fips()
@@ -289,6 +290,7 @@ def build(
         bundle_install_omnibus(ctx, gem_path, env)
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
+    print("omnibus_cache_dir got set to:", omnibus_cache_dir)
     use_omnibus_git_cache = (
         omnibus_cache_dir is not None
         and target_project == "agent"
