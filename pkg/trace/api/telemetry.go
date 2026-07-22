@@ -435,7 +435,7 @@ func scrubJSONValue(raw json.RawMessage, s *scrubber.Scrubber) (json.RawMessage,
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return raw, false, err
 	}
-	scrubbed, changed := scrubValue("", v, s)
+	scrubbed, changed := scrubValue("", v, s, false)
 	if !changed {
 		return raw, false, nil
 	}
@@ -446,10 +446,10 @@ func scrubJSONValue(raw json.RawMessage, s *scrubber.Scrubber) (json.RawMessage,
 	return out, true, nil
 }
 
-func scrubValue(key string, v interface{}, s *scrubber.Scrubber) (interface{}, bool) {
+func scrubValue(key string, v interface{}, s *scrubber.Scrubber, forceRedact bool) (interface{}, bool) {
 	switch val := v.(type) {
 	case string:
-		if isSensitiveMetadataKey(key) {
+		if forceRedact || isSensitiveMetadataKey(key) {
 			if val == "********" {
 				return val, false
 			}
@@ -467,16 +467,9 @@ func scrubValue(key string, v interface{}, s *scrubber.Scrubber) (interface{}, b
 		}
 		changed := false
 		for k, elem := range val {
-			if hasSensitiveNameDesignator && valueKeyNames[strings.ToLower(k)] {
-				if str, ok := elem.(string); ok {
-					if str != "********" {
-						val[k] = "********"
-						changed = true
-					}
-					continue
-				}
-			}
-			scrubbedElem, elemChanged := scrubValue(k, elem, s)
+			childForceRedact := forceRedact || isSensitiveMetadataKey(k) ||
+				(hasSensitiveNameDesignator && valueKeyNames[strings.ToLower(k)])
+			scrubbedElem, elemChanged := scrubValue(k, elem, s, childForceRedact)
 			if elemChanged {
 				val[k] = scrubbedElem
 				changed = true
@@ -486,7 +479,7 @@ func scrubValue(key string, v interface{}, s *scrubber.Scrubber) (interface{}, b
 	case []interface{}:
 		changed := false
 		for i, elem := range val {
-			scrubbedElem, elemChanged := scrubValue(key, elem, s)
+			scrubbedElem, elemChanged := scrubValue(key, elem, s, forceRedact)
 			if elemChanged {
 				val[i] = scrubbedElem
 				changed = true

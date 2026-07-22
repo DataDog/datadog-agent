@@ -463,6 +463,20 @@ func TestScrubJSONValue(t *testing.T) {
 			mustContain: []string{"********"},
 		},
 		{
+			name:        "secret nested inside an object under a sensitive key",
+			in:          `{"credentials":{"raw":"hunter2"}}`,
+			wantChanged: true,
+			mustOmit:    []string{"hunter2"},
+			mustContain: []string{"credentials", "raw", "********"},
+		},
+		{
+			name:        "name/value pair whose value is itself a nested object",
+			in:          `{"env_var":"DD_API_KEY","value":{"raw":"abc123"}}`,
+			wantChanged: true,
+			mustOmit:    []string{"abc123"},
+			mustContain: []string{"env_var", "DD_API_KEY", "raw", "********"},
+		},
+		{
 			name:        "rule id and non-sensitive detected version, no scrubbing needed",
 			in:          `{"rule_id":"3f29e1","detected_flavor":"musl","detected_version":"3.11.2"}`,
 			wantChanged: false,
