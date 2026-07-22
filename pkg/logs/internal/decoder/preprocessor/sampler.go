@@ -7,13 +7,13 @@
 package preprocessor
 
 import (
-	"hash/fnv"
 	"regexp"
 	"strconv"
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	logpattern "github.com/DataDog/datadog-agent/pkg/logs/pattern"
 )
 
 // Sampler is the final stage of the Preprocessor. It receives one completed log
@@ -74,13 +74,7 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 const adaptiveSamplerNoisyLogTag = "noisy_log:true"
 
 func adaptiveSamplerLogHashTag(tokens []Token) string {
-	var b [1]byte
-	h := fnv.New64a()
-	for _, t := range tokens {
-		b[0] = byte(t)
-		_, _ = h.Write(b[:])
-	}
-	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+	return "log_hash:" + strconv.FormatUint(logpattern.Hash(tokens), 16)
 }
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.

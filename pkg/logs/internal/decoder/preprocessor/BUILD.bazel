@@ -43,6 +43,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/structure",
         "//pkg/logs/message",
+        "//pkg/logs/pattern",
         "//pkg/logs/status/utils",
         "//pkg/util/log",
     ],

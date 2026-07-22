@@ -140,6 +140,21 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
+			{
+				name:           LogTokenizerExtractorName,
+				displayName:    "Log Tokenizer Extractor (Exact Hash)",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogTokenizerExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogTokenizerExtractor(cfg.(LogTokenizerExtractorConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogTokenizerExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("%s: failed to parse JSON config: %w", LogTokenizerExtractorName, err)
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Detectors ----
 			{
 				name:           "cusum",

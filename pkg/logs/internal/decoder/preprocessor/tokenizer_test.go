@@ -99,7 +99,8 @@ func TestAllSymbolsAreHandled(t *testing.T) {
 	for i := Space; i < D1; i++ {
 		str := tokenToString(i)
 		assert.NotEmpty(t, str, "Token %d is not converted to a debug string", i)
-		assert.NotEqual(t, tokenLookup[str[0]], C1, "Token %v is not tokenizable", str)
+		tokens, _ := NewTokenizer(0).Tokenize([]byte(str))
+		assert.Equal(t, []Token{i}, tokens, "Token %v is not tokenizable", str)
 	}
 }
 

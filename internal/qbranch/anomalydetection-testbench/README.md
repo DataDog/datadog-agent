@@ -96,13 +96,14 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 
 ### Extractors
 
-Extractors are always enabled and convert raw observations into timeseries:
+Extractors convert raw observations into timeseries:
 
-| Name | Description |
-|------|-------------|
-| `log_metrics_extractor` | Derives metrics from log patterns and JSON fields |
-| `connection_error_extractor` | Detects connection-error patterns in logs |
-| `log_pattern_extractor` | Clusters log messages into patterns |
+| Name | Default | Description |
+|------|---------|-------------|
+| `log_metrics_extractor` | enabled | Derives metrics from log patterns and JSON fields |
+| `connection_error_extractor` | disabled | Detects connection-error patterns in logs |
+| `log_pattern_extractor` | enabled | Clusters log messages into semantic patterns |
+| `log_tokenizer_extractor` | disabled | Counts exact structural patterns from the Logs tokenizer |
 
 ## Examples
 
@@ -121,6 +122,9 @@ dda inv -- anomalydetection.launch-testbench --http :9090
 
 # Log anomaly focus: skip parquet metrics and trace stats (faster)
 dda inv -- anomalydetection.launch-testbench --logs-only
+
+# Exact Logs-tokenizer comparison arm (disables the other log extractors)
+dda inv -- anomalydetection.launch-testbench --config internal/qbranch/anomalydetection-testbench/configs/log-tokenizer-exact.json
 ```
 
 ## Headless Mode
