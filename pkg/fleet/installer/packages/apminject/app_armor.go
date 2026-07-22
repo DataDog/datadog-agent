@@ -9,11 +9,13 @@ package apminject
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -30,6 +32,12 @@ const (
 	appArmorProfile              = `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`
+)
+
+var (
+	appArmorEnabledPath = "/sys/module/apparmor/parameters/enabled"
+	appArmorProfileDir  = "/etc/apparmor.d"
+	systemdIsRunning    = systemd.IsRunning
 )
 
 func findAndReplaceAllInFile(filename string, needle string, replaceWith string) error {
@@ -168,16 +176,100 @@ func reloadAppArmor(ctx context.Context) error {
 	if !isAppArmorRunning() {
 		return nil
 	}
-	if running, err := systemd.IsRunning(); err != nil {
+	if running, err := systemdIsRunning(); err != nil {
 		return err
 	} else if running {
+		masked, err := isSystemdUnitMasked(ctx, "apparmor")
+		if err != nil {
+			return err
+		}
+		if masked {
+			log.Infof("Installer: apparmor.service is masked, reloading profiles with apparmor_parser")
+			return reloadAppArmorWithParser(ctx)
+		}
 		return telemetry.CommandContext(ctx, "systemctl", "reload", "apparmor").Run()
 	}
 	return telemetry.CommandContext(ctx, "service", "apparmor", "reload").Run()
 }
 
+func reloadAppArmorWithParser(ctx context.Context) error {
+	if _, err := exec.LookPath("apparmor_parser"); err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			log.Warnf("apparmor_parser not found, skipping AppArmor reload")
+			return nil
+		}
+		return err
+	}
+	enforceProfiles, complainProfiles, err := appArmorProfiles()
+	if err != nil {
+		return err
+	}
+	if len(enforceProfiles) > 0 {
+		if err := telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r"}, enforceProfiles...)...).Run(); err != nil {
+			return err
+		}
+	}
+	if len(complainProfiles) > 0 {
+		return telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r", "-C"}, complainProfiles...)...).Run()
+	}
+	return nil
+}
+
+func appArmorProfiles() (enforceProfiles []string, complainProfiles []string, err error) {
+	paths, err := filepath.Glob(filepath.Join(appArmorProfileDir, "*"))
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		name := filepath.Base(path)
+		if pathExists(filepath.Join(appArmorProfileDir, "disable", name)) {
+			continue
+		}
+		if pathExists(filepath.Join(appArmorProfileDir, "force-complain", name)) {
+			complainProfiles = append(complainProfiles, path)
+			continue
+		}
+		enforceProfiles = append(enforceProfiles, path)
+	}
+	return enforceProfiles, complainProfiles, nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
+func isSystemdUnitMasked(ctx context.Context, unit string) (bool, error) {
+	var stdout bytes.Buffer
+	cmd := telemetry.CommandContext(ctx, "systemctl", "is-enabled", unit).
+		WithExpectedExitCodes(
+			1, // disabled, masked, static, indirect, generated, transient — https://man7.org/linux/man-pages/man1/systemctl.1.html
+			4, // no such unit file — https://man7.org/linux/man-pages/man1/systemctl.1.html
+		)
+	cmd.Stdout = &stdout
+	err := cmd.Run()
+	if strings.TrimSpace(stdout.String()) == "masked" {
+		return true, nil
+	}
+	if err != nil {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
+			return false, nil
+		}
+		return false, err
+	}
+	return false, nil
+}
+
 func isAppArmorRunning() bool {
-	data, err := os.ReadFile("/sys/module/apparmor/parameters/enabled")
+	data, err := os.ReadFile(appArmorEnabledPath)
 	if err != nil {
 		return false
 	}

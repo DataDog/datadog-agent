@@ -8,8 +8,10 @@
 package apminject
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -195,4 +197,101 @@ func TestAppArmorBaseProfileUpdates(t *testing.T) {
 			assert.Equal(t, tt.expectedBaseProfile, string(content))
 		})
 	}
+}
+
+func TestReloadAppArmorUsesParserForMaskedSystemdUnit(t *testing.T) {
+	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
+echo "systemctl $*" >> "$CALLS_FILE"
+if [ "$1" = "is-enabled" ]; then
+	echo masked
+	exit 1
+fi
+if [ "$1" = "reload" ]; then
+	exit 9
+fi
+`)
+
+	err := reloadAppArmor(context.Background())
+	require.NoError(t, err)
+
+	calls, err := os.ReadFile(callsFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(calls), "systemctl is-enabled apparmor")
+	assert.NotContains(t, string(calls), "systemctl reload apparmor")
+	assert.Contains(t, string(calls), "apparmor_parser -r ")
+	assert.Contains(t, string(calls), "usr.bin.foo")
+	assert.Contains(t, string(calls), "apparmor_parser -r -C ")
+	assert.Contains(t, string(calls), "usr.bin.complain")
+	assert.NotContains(t, string(calls), "usr.bin.disabled")
+}
+
+func TestReloadAppArmorReloadsWhenSystemdUnitIsNotMasked(t *testing.T) {
+	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
+echo "systemctl $*" >> "$CALLS_FILE"
+if [ "$1" = "is-enabled" ]; then
+	echo disabled
+	exit 1
+fi
+if [ "$1" = "reload" ]; then
+	exit 7
+fi
+`)
+
+	err := reloadAppArmor(context.Background())
+	require.Error(t, err)
+
+	calls, err := os.ReadFile(callsFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(calls), "systemctl is-enabled apparmor")
+	assert.Contains(t, string(calls), "systemctl reload apparmor")
+	assert.NotContains(t, string(calls), "apparmor_parser")
+}
+
+func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	enabledPath := filepath.Join(dir, "apparmor-enabled")
+	require.NoError(t, os.WriteFile(enabledPath, []byte("Y\n"), 0640))
+
+	previousAppArmorEnabledPath := appArmorEnabledPath
+	appArmorEnabledPath = enabledPath
+	t.Cleanup(func() {
+		appArmorEnabledPath = previousAppArmorEnabledPath
+	})
+
+	profilesDir := filepath.Join(dir, "apparmor.d")
+	require.NoError(t, os.Mkdir(profilesDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.foo"), []byte("profile usr.bin.foo {}\n"), 0640))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.disabled"), []byte("profile usr.bin.disabled {}\n"), 0640))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.complain"), []byte("profile usr.bin.complain {}\n"), 0640))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "abstractions"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "disable"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "disable", "usr.bin.disabled"), nil, 0640))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "force-complain"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "force-complain", "usr.bin.complain"), nil, 0640))
+
+	previousAppArmorProfileDir := appArmorProfileDir
+	appArmorProfileDir = profilesDir
+	t.Cleanup(func() {
+		appArmorProfileDir = previousAppArmorProfileDir
+	})
+
+	previousSystemdIsRunning := systemdIsRunning
+	systemdIsRunning = func() (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() {
+		systemdIsRunning = previousSystemdIsRunning
+	})
+
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.Mkdir(binDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "systemctl"), []byte(strings.TrimSpace(systemctlScript)+"\n"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "apparmor_parser"), []byte("#!/bin/sh\necho \"apparmor_parser $*\" >> \"$CALLS_FILE\"\n"), 0755))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	callsFile := filepath.Join(dir, "calls")
+	t.Setenv("CALLS_FILE", callsFile)
+	return callsFile
 }
