@@ -91,6 +91,8 @@ type llmReqParsed struct {
 	sessionID    string    // app-supplied session/conversation id (see parseSessionID)
 	pid          uint32    // client PID that wrote the request (for service resolution)
 	arrived      time.Time // when the request event was processed (for latency)
+	isEmbedding  bool      // /v1/embeddings call (emit an embedding span, not llm)
+	embInput     string    // the embeddings input text (best-effort, truncated)
 }
 
 // llmReqEvent mirrors the eBPF llm_req_event_t: a connection key plus a captured
@@ -252,6 +254,9 @@ type llmSpanInfo struct {
 	// request (OpenAI "user"/metadata, Anthropic metadata.user_id). When set, it
 	// groups multiple requests into one LLM Observability session.
 	sessionID string
+	// isEmbedding marks a /v1/embeddings call, emitted as an embedding span.
+	isEmbedding bool
+	embInput    string
 }
 
 // detectProvider infers the LLM provider from the model name. Anthropic models
@@ -281,6 +286,29 @@ func ensureLLMOTracer() bool {
 		log.Infof("LLMO: tracer started with LLM Observability; emitting to %s", llmoAgentAddr)
 	})
 	return llmoTracerReady
+}
+
+// embInputRe extracts a string "input" value from an embeddings request body.
+var embInputRe = regexp.MustCompile(`"input"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+
+// isEmbeddingBody reports whether a captured request body is an embeddings call
+// (has an "input" field and no chat "messages"). Detection is on the body, not
+// the path, since the consumer only has the captured DATA frame.
+func isEmbeddingBody(raw []byte) bool {
+	return bytes.Contains(raw, []byte(`"input"`)) && !bytes.Contains(raw, []byte(`"messages"`))
+}
+
+// parseEmbeddingInput returns a best-effort, truncated view of the embeddings
+// input text (a string input; array inputs fall back to a placeholder).
+func parseEmbeddingInput(raw []byte) string {
+	if m := embInputRe.FindSubmatch(raw); m != nil {
+		s := string(m[1])
+		if len(s) > 500 {
+			s = s[:500]
+		}
+		return s
+	}
+	return "(embedding input)"
 }
 
 // isLLMPath reports whether the request path looks like LLM API traffic.
@@ -567,36 +595,16 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	span.Finish(finishOpts...)
 }
 
-// emitWorkflowSpan reconstructs a tool-using turn as an LLM Observability
-// agent trace, matching how the SDK would present model-driven tool use: a root
-// "agent" span with three children in sequence — the llm call that requested
-// the tool, the tool call, and the llm call that produced the final answer.
-// Each llm span is one model API call (as the SDK models it). The spans are
-// linked because we own the tracer context here and thread it ourselves.
-//
-// Two things can't match the SDK, for data (not structural) reasons: the first
-// llm span carries no token usage — turn 1's usage lives in turn 1's response,
-// which our single-slot-per-connection capture has overwritten by the time the
-// follow-up is processed — and the tool span's timing is approximate (the tool
-// runs in-process, so we split the follow-up request's latency into thirds).
-func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
-	if !ensureLLMOTracer() {
-		return
-	}
-	end := time.Now()
-	start := end.Add(-time.Duration(latencyNs))
+// buildToolConversation builds the three child spans of a reconstructed tool
+// round-trip — llm (tool-call generation) → tool → llm (final answer) — under
+// the given parent context. The parent is an agent span for a standalone
+// conversation, or a workflow span nested under a session agent. start/end
+// bound the round-trip; the tool span's timing is approximate (split into
+// thirds) since the tool runs in-process on the client.
+func buildToolConversation(ctx context.Context, info llmSpanInfo, start, end time.Time, tags map[string]string) {
+	latencyNs := float64(end.Sub(start))
 	t1 := start.Add(time.Duration(latencyNs / 3))
 	t2 := start.Add(time.Duration(2 * latencyNs / 3))
-	tags := map[string]string{"http.url": path, "llm.source": "apm-lite-ebpf"}
-
-	agentOpts := []llmobs.StartSpanOption{
-		llmobs.WithMLApp(info.service),
-		llmobs.WithStartTime(start),
-	}
-	if info.sessionID != "" {
-		agentOpts = append(agentOpts, llmobs.WithSessionID(info.sessionID))
-	}
-	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation", agentOpts...)
 
 	// Base input messages (system + user), shared by both generations.
 	var baseInput []llmobs.LLMMessage
@@ -614,7 +622,7 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	}
 
 	// Child 1 (llm): the model API call that decided to call the tool(s).
-	llm1, _ := llmobs.StartLLMSpan(actx, llmoSpanName,
+	llm1, _ := llmobs.StartLLMSpan(ctx, llmoSpanName,
 		llmobs.WithMLApp(info.service),
 		llmobs.WithModelName(info.model),
 		llmobs.WithModelProvider(info.provider),
@@ -637,7 +645,7 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 		results[r.id] = r.content
 	}
 	for _, tc := range info.reqToolCalls {
-		toolSpan, _ := llmobs.StartToolSpan(actx, tc.name,
+		toolSpan, _ := llmobs.StartToolSpan(ctx, tc.name,
 			llmobs.WithMLApp(info.service),
 			llmobs.WithStartTime(t1),
 		)
@@ -648,7 +656,7 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	// Child 3 (llm): the model API call that produced the final answer. Its
 	// input is the full conversation so far; its output + token usage come from
 	// the captured follow-up response.
-	llm2, _ := llmobs.StartLLMSpan(actx, llmoSpanName,
+	llm2, _ := llmobs.StartLLMSpan(ctx, llmoSpanName,
 		llmobs.WithMLApp(info.service),
 		llmobs.WithModelName(info.model),
 		llmobs.WithModelProvider(info.provider),
@@ -669,10 +677,209 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	}
 	llm2.AnnotateLLMIO(finalInput, []llmobs.LLMMessage{{Role: "assistant", Content: info.response}}, annotations...)
 	llm2.Finish(llmobs.WithFinishTime(end))
+}
 
-	// The agent's own I/O: the user prompt in, the model's final answer out.
+// emitWorkflowSpan reconstructs a standalone tool-using turn as its own agent
+// trace: a root "agent" span with llm → tool → llm children. Used only for
+// traffic that carries no session id — session-scoped traffic is grouped under
+// a shared session agent instead (see emitIntoConversation).
+func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
+	if !ensureLLMOTracer() {
+		return
+	}
+	end := time.Now()
+	start := end.Add(-time.Duration(latencyNs))
+	tags := map[string]string{"http.url": path, "llm.source": "apm-lite-ebpf"}
+	agentOpts := []llmobs.StartSpanOption{
+		llmobs.WithMLApp(info.service),
+		llmobs.WithStartTime(start),
+	}
+	if info.sessionID != "" {
+		agentOpts = append(agentOpts, llmobs.WithSessionID(info.sessionID))
+	}
+	agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation", agentOpts...)
+	buildToolConversation(actx, info, start, end, tags)
 	agent.AnnotateTextIO(info.prompt, info.response)
 	agent.Finish(llmobs.WithFinishTime(end))
+}
+
+// llmConvTTL is how long a conversation's agent span stays open after its last
+// turn before it is finished. There is no wire signal for a conversation's end,
+// so the agent is closed once it has been idle this long.
+const llmConvTTL = 20 * time.Second
+
+// llmConvAgent is a long-lived agent span grouping every turn of one multi-turn
+// conversation: each turn is emitted as a child span (a workflow for a tool
+// round-trip, or an llm span for a plain turn), so multiple LLM requests appear
+// inside one agent flow.
+type llmConvAgent struct {
+	span         *llmobs.AgentSpan
+	ctx          context.Context
+	lastActivity time.Time
+}
+
+// threadKey identifies a conversation thread from the wire: the session id plus
+// the conversation's first user message, which every follow-up turn re-sends in
+// its history — so all turns of one conversation map to the same key. Returns ""
+// when there's no signal to thread on (no session and no user message).
+//
+// Limitation: two distinct conversations with an identical first prompt in the
+// same session are indistinguishable on the wire and collapse to one thread.
+func threadKey(info llmSpanInfo) string {
+	var firstUser string
+	for _, m := range info.messages {
+		if m.role == "user" {
+			firstUser = m.content
+			break
+		}
+	}
+	if firstUser == "" {
+		firstUser = info.prompt
+	}
+	if len(firstUser) > 200 {
+		firstUser = firstUser[:200]
+	}
+	if info.sessionID == "" && firstUser == "" {
+		return ""
+	}
+	return info.sessionID + "\x00" + firstUser
+}
+
+// emitIntoConversation emits one turn under the shared agent span for its
+// conversation thread (creating that agent on first use), so all the LLM/tool
+// calls of one conversation nest inside a single agent flow instead of each turn
+// being its own trace.
+func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
+	if info.service == "" {
+		return
+	}
+	isWorkflow := len(info.reqToolCalls) > 0 && len(info.toolResults) > 0
+	if !isWorkflow {
+		// A tool-call generation turn (turn 1) is folded into the workflow, and a
+		// content-less request is noise.
+		if info.suppressFlat {
+			return
+		}
+		if info.model == "" && info.prompt == "" && info.response == "" && len(info.toolCalls) == 0 {
+			return
+		}
+	}
+	if !ensureLLMOTracer() {
+		return
+	}
+	end := time.Now()
+	start := end.Add(-time.Duration(latencyNs))
+	tags := map[string]string{"llm.source": "apm-lite-ebpf"}
+
+	key := threadKey(info)
+	h.llmConvMu.Lock()
+	defer h.llmConvMu.Unlock()
+	sa := h.llmConvAgents[key]
+	if sa == nil {
+		agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
+			llmobs.WithMLApp(info.service),
+			llmobs.WithSessionID(info.sessionID),
+			llmobs.WithStartTime(start),
+		)
+		sa = &llmConvAgent{span: agent, ctx: actx}
+		h.llmConvAgents[key] = sa
+		log.Debugf("LLMO: opened conversation agent session=%q", info.sessionID)
+	}
+	sa.lastActivity = time.Now()
+
+	if isWorkflow {
+		wf, wfctx := llmobs.StartWorkflowSpan(sa.ctx, "llm.conversation",
+			llmobs.WithMLApp(info.service), llmobs.WithStartTime(start))
+		buildToolConversation(wfctx, info, start, end, tags)
+		wf.AnnotateTextIO(info.prompt, info.response)
+		wf.Finish(llmobs.WithFinishTime(end))
+		return
+	}
+
+	if info.isEmbedding {
+		// An /v1/embeddings call: emit an embedding-kind span (input documents +
+		// token usage), not an llm span.
+		emb, _ := llmobs.StartEmbeddingSpan(sa.ctx, "embeddings",
+			llmobs.WithMLApp(info.service),
+			llmobs.WithModelName(info.model),
+			llmobs.WithModelProvider(info.provider),
+			llmobs.WithStartTime(start),
+		)
+		embAnn := []llmobs.AnnotateOption{llmobs.WithAnnotatedTags(tags)}
+		if info.totalTokens > 0 {
+			embAnn = append(embAnn, llmobs.WithAnnotatedMetrics(map[string]float64{
+				llmobs.MetricKeyInputTokens: float64(info.inputTokens),
+				llmobs.MetricKeyTotalTokens: float64(info.totalTokens),
+			}))
+		}
+		emb.AnnotateEmbeddingIO([]llmobs.EmbeddedDocument{{Text: info.embInput}}, "", embAnn...)
+		emb.Finish(llmobs.WithFinishTime(end))
+		return
+	}
+
+	// Single-turn conversation: one llm span directly under the conversation agent.
+	llm, _ := llmobs.StartLLMSpan(sa.ctx, llmoSpanName,
+		llmobs.WithMLApp(info.service),
+		llmobs.WithModelName(info.model),
+		llmobs.WithModelProvider(info.provider),
+		llmobs.WithStartTime(start),
+	)
+	var input, output []llmobs.LLMMessage
+	if len(info.messages) > 0 {
+		for _, m := range info.messages {
+			input = append(input, llmobs.LLMMessage{Role: m.role, Content: m.content})
+		}
+	} else if info.prompt != "" {
+		input = []llmobs.LLMMessage{{Role: "user", Content: info.prompt}}
+	}
+	if info.response != "" || len(info.toolCalls) > 0 {
+		out := llmobs.LLMMessage{Role: "assistant", Content: info.response}
+		for _, tc := range info.toolCalls {
+			out.ToolCalls = append(out.ToolCalls, llmobs.ToolCall{
+				Name: tc.name, Arguments: json.RawMessage(tc.arguments), ToolID: tc.id, Type: "function",
+			})
+		}
+		output = []llmobs.LLMMessage{out}
+	}
+	ann := []llmobs.AnnotateOption{llmobs.WithAnnotatedTags(tags)}
+	if info.totalTokens > 0 {
+		ann = append(ann, llmobs.WithAnnotatedMetrics(map[string]float64{
+			llmobs.MetricKeyInputTokens:  float64(info.inputTokens),
+			llmobs.MetricKeyOutputTokens: float64(info.outputTokens),
+			llmobs.MetricKeyTotalTokens:  float64(info.totalTokens),
+		}))
+	}
+	llm.AnnotateLLMIO(input, output, ann...)
+	llm.Finish(llmobs.WithFinishTime(end))
+}
+
+// reapConvAgents finishes conversation agents that have gone idle (no new turn
+// within llmConvTTL). Runs for the life of the response consumer; nothing on the
+// wire marks a conversation's end, so this is how its agent span is closed.
+func (h *StatKeeper) reapConvAgents() {
+	for {
+		time.Sleep(5 * time.Second)
+		cutoff := time.Now().Add(-llmConvTTL)
+		h.llmConvMu.Lock()
+		for id, sa := range h.llmConvAgents {
+			if sa.lastActivity.Before(cutoff) {
+				sa.span.Finish(llmobs.WithFinishTime(sa.lastActivity))
+				delete(h.llmConvAgents, id)
+				log.Debugf("LLMO: closed idle conversation agent")
+			}
+		}
+		h.llmConvMu.Unlock()
+	}
+}
+
+// finishAllConvAgents finishes any still-open conversation agents (shutdown).
+func (h *StatKeeper) finishAllConvAgents() {
+	h.llmConvMu.Lock()
+	defer h.llmConvMu.Unlock()
+	for id, sa := range h.llmConvAgents {
+		sa.span.Finish(llmobs.WithFinishTime(sa.lastActivity))
+		delete(h.llmConvAgents, id)
+	}
 }
 
 // flagLLMConn marks a connection as LLM traffic so the eBPF write/read hooks
@@ -732,6 +939,8 @@ func (h *StatKeeper) pairAndEmit(key llmStreamKey, req llmReqParsed, respBuf []b
 	info.reqToolCalls = req.reqToolCalls
 	info.toolResults = req.toolResults
 	info.sessionID = req.sessionID
+	info.isEmbedding = req.isEmbedding
+	info.embInput = req.embInput
 
 	provider := info.provider
 	if provider == "" {
@@ -760,6 +969,14 @@ func (h *StatKeeper) pairAndEmit(key llmStreamKey, req llmReqParsed, respBuf []b
 	latencyNs := float64(time.Since(req.arrived).Nanoseconds())
 	if latencyNs <= 0 {
 		latencyNs = 1
+	}
+	// Group every turn of a conversation under one long-lived agent span (see
+	// emitIntoConversation) so multiple LLM requests appear in one agent flow.
+	// Traffic with no threadable signal — and tests that inject llmEmit to
+	// capture the built span — use the standalone per-request emit.
+	if h.llmEmit == nil && h.llmConvAgents != nil && threadKey(info) != "" {
+		h.emitIntoConversation(info, latencyNs)
+		return
 	}
 	emit := h.llmEmit
 	if emit == nil {
@@ -846,6 +1063,10 @@ func (h *StatKeeper) processLLMRequestEvent(sample []byte) {
 	req.sessionID = parseSessionID(raw, req.provider)
 	req.pid = ev.Pid
 	req.arrived = time.Now()
+	if isEmbeddingBody(raw) {
+		req.isEmbedding = true
+		req.embInput = parseEmbeddingInput(raw)
+	}
 
 	h.storeReq(llmStreamKey{conn: ev.Key, stream: ev.StreamID}, req)
 }
@@ -857,7 +1078,10 @@ func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 		return err
 	}
 	h.llmRespReader = reader
+	// Close idle session agents in the background (no wire signal ends a session).
+	go h.reapConvAgents()
 	go func() {
+		defer h.finishAllConvAgents()
 		for {
 			rec, err := reader.Read()
 			if err != nil {

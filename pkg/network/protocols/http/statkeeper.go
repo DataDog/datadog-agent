@@ -91,6 +91,14 @@ type StatKeeper struct {
 	// llmEmit emits a fully built span. Defaults to emitLLMSpan; overridable in
 	// tests to capture what got paired without starting the real tracer.
 	llmEmit func(string, Method, uint16, types.ConnectionKey, float64, llmSpanInfo)
+	// llmConvAgents holds one long-lived agent span per conversation thread
+	// (keyed by session id + the conversation's first user message, which is
+	// re-sent on every turn), so all the LLM/tool calls of one multi-turn
+	// conversation nest under a single agent flow. session_id is still tagged on
+	// the agent so the UI's Sessions view groups conversations. Finished by the
+	// reaper once the conversation goes idle. Guarded by llmConvMu.
+	llmConvAgents map[string]*llmConvAgent
+	llmConvMu     sync.Mutex
 }
 
 // llmStreamKey identifies one HTTP/2 request/response exchange: a connection
@@ -120,6 +128,7 @@ func (h *StatKeeper) EnableLLMO(connMap *ebpf.Map) {
 	h.llmGenUsage = make(map[llmConnKey]llmUsage)
 	h.llmReqByStream = make(map[llmStreamKey]llmReqParsed)
 	h.llmRespReasm = make(map[llmStreamKey]*llmRespReasm)
+	h.llmConvAgents = make(map[string]*llmConvAgent)
 }
 
 // storeReq records a streamed, parsed request body under its (conn, stream)
