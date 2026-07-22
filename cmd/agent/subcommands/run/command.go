@@ -74,6 +74,8 @@ import (
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -235,7 +237,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
-		return fxutil.OneShot(run,
+		return fxutil.OneShotWithStartupGate[agentlifecycle.Component](run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
@@ -245,6 +247,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+			fx.Supply(agentlifecycle.Params{ComponentName: "core-agent"}),
+			agentlifecyclefx.Module(),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
 			getSharedFxOption(),
@@ -273,6 +277,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 func run(log log.Component,
 	cfg config.Component,
+	agentLifecycle agentlifecycle.Component,
 	flare flare.Component,
 	tlm telemetry.Component,
 	sysprobeConf sysprobeconfig.Component,
@@ -390,6 +395,9 @@ func run(log log.Component,
 		healthplatformComp,
 		ncmComp,
 	); err != nil {
+		return err
+	}
+	if err := agentLifecycle.MarkActive(); err != nil {
 		return err
 	}
 

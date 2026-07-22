@@ -282,6 +282,7 @@ func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 // settings that are only initialized by the full agent, not serverless
 func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 	comps := []func(pkgconfigmodel.Setup){
+		setupExperimentalNodeAgentRollout,
 		setupProcesses,
 		setupPrivateActionRunner,
 		remoteflags,

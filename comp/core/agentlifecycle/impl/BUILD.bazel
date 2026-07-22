@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["agent_lifecycle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/agentlifecycle/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "@com_github_gofrs_flock//:flock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["agent_lifecycle_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/agentlifecycle/def",
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

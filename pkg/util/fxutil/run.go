@@ -20,6 +20,22 @@ func Run(opts ...fx.Option) error {
 	if fxAppTestOverride != nil {
 		return fxAppTestOverride(func() {}, opts)
 	}
+	return run(nil, opts...)
+}
+
+// RunWithStartupGate constructs an Fx application, waits for the supplied gate before
+// starting its lifecycle, marks it active after startup, and releases it after shutdown.
+func RunWithStartupGate[T StartupGate](opts ...fx.Option) error {
+	if fxAppTestOverride != nil {
+		return fxAppTestOverride(func() {}, opts)
+	}
+
+	var gate T
+	opts = append(opts, fx.Populate(&gate))
+	return run(func() StartupGate { return gate }, opts...)
+}
+
+func run(gateProvider func() StartupGate, opts ...fx.Option) error {
 
 	opts = append(opts, FxAgentBase())
 	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
@@ -34,14 +50,30 @@ func Run(opts ...fx.Option) error {
 		return err
 	}
 
+	var gate StartupGate
+	if gateProvider != nil {
+		gate = gateProvider()
+		if err := WaitForStartupGate(context.Background(), app, gate); err != nil {
+			if errors.Is(err, ErrStartupGateShutdown) {
+				return gate.Close()
+			}
+			return errors.Join(err, gate.Close())
+		}
+	}
+
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 
 	if err := app.Start(startCtx); err != nil {
-		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
+		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopAppAndCloseGate(app, gate))
+	}
+	if gate != nil {
+		if err := gate.MarkActive(); err != nil {
+			return errors.Join(err, stopAppAndCloseGate(app, gate))
+		}
 	}
 
 	<-app.Done()
 
-	return stopApp(app)
+	return stopAppAndCloseGate(app, gate)
 }

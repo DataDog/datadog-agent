@@ -44,6 +44,8 @@ go_library(
         "//comp/collector/collector/impl",
         "//comp/connectivitychecker/fx",
         "//comp/core",
+        "//comp/core/agentlifecycle/def",
+        "//comp/core/agentlifecycle/fx",
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/fx",
         "//comp/core/autodiscovery/def",
