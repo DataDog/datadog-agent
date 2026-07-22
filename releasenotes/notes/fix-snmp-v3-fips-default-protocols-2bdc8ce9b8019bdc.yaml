@@ -1,0 +1,9 @@
+---
+security:
+  - |
+    The default SNMPv3 authentication and privacy protocols used when
+    ``authKey``/``privKey`` are set without an explicit ``authProtocol``/
+    ``privProtocol`` have changed from ``MD5``/``DES`` to ``SHA-256``/``AES``,
+    since ``MD5`` and ``DES`` are not FIPS 140-3 compatible. Users relying on
+    the previous defaults should set ``authProtocol: md5`` and
+    ``privProtocol: des`` explicitly to keep the old behavior.
