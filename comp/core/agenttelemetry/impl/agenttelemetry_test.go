@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/zstd"
 
@@ -187,6 +189,31 @@ func newGaugeMetric(value float64, labels ...*dto.LabelPair) *dto.Metric {
 
 func newHistogramMetric(sampleCount uint64, labels ...*dto.LabelPair) *dto.Metric {
 	return &dto.Metric{Label: labels, Histogram: &dto.Histogram{SampleCount: &sampleCount}}
+}
+
+func newHistogramMetricWithBucket(sampleCount, cumulativeCount uint64, labels ...*dto.LabelPair) *dto.Metric {
+	upperBound := 10.0
+	exemplarName := "trace_id"
+	exemplarLabel := "abc123"
+	exemplarValue := 1.5
+
+	return &dto.Metric{
+		Label: labels,
+		Histogram: &dto.Histogram{
+			SampleCount: &sampleCount,
+			Bucket: []*dto.Bucket{
+				{
+					CumulativeCount: &cumulativeCount,
+					UpperBound:      &upperBound,
+					Exemplar: &dto.Exemplar{
+						Label:     []*dto.LabelPair{newLabelPair(exemplarName, exemplarLabel)},
+						Value:     &exemplarValue,
+						Timestamp: timestamppb.New(time.Unix(100, 123)),
+					},
+				},
+			},
+		},
+	}
 }
 
 func makeTelMock(t *testing.T) telemetry.Component {
@@ -992,9 +1019,178 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	m3 := metrics["emitter:agent:tag1:a3:"]
 	assert.Equal(t, float64(150), m3.Counter.GetValue())
 
-	require.Contains(t, metrics, "total:6:")
-	m4 := metrics["total:6:"]
+	require.Contains(t, metrics, "emitter:agent:total:6:")
+	m4 := metrics["emitter:agent:total:6:"]
+	assert.Equal(t, []string{"emitter=agent", "total=6"}, metricLabelStrings(m4))
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
+}
+
+func TestAggregateTotalCounterPerEmitter(t *testing.T) {
+	mCfg := &MetricConfig{
+		AggregateTotal:     true,
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"tag1": struct{}{}},
+	}
+	metrics := []*dto.Metric{
+		newCounterMetric(10, newLabelPair("tag1", "a1")),
+		newCounterMetric(20, newLabelPair("emitter", ""), newLabelPair("tag1", "a2")),
+		newCounterMetric(30, newLabelPair("emitter", "system-probe"), newLabelPair("tag1", "a1")),
+	}
+
+	results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, dto.MetricType_COUNTER, metrics)
+
+	require.Len(t, results, 5)
+	metricsByTag := makeStableMetricMap(results)
+	require.Contains(t, metricsByTag, "emitter:agent:tag1:a1:")
+	require.Equal(t, 10.0, metricsByTag["emitter:agent:tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metricsByTag, "emitter:agent:tag1:a2:")
+	require.Equal(t, 20.0, metricsByTag["emitter:agent:tag1:a2:"].Counter.GetValue())
+	require.Contains(t, metricsByTag, "emitter:system-probe:tag1:a1:")
+	require.Equal(t, 30.0, metricsByTag["emitter:system-probe:tag1:a1:"].Counter.GetValue())
+
+	agentTotal := metricsByTag["emitter:agent:total:2:"]
+	require.NotNil(t, agentTotal)
+	require.Equal(t, []string{"emitter=agent", "total=2"}, metricLabelStrings(agentTotal))
+	require.Equal(t, 30.0, agentTotal.Counter.GetValue())
+
+	systemProbeTotal := metricsByTag["emitter:system-probe:total:1:"]
+	require.NotNil(t, systemProbeTotal)
+	require.Equal(t, []string{"emitter=system-probe", "total=1"}, metricLabelStrings(systemProbeTotal))
+	require.Equal(t, 30.0, systemProbeTotal.Counter.GetValue())
+}
+
+func TestAggregateTotalEmitterNamedTotalKeepsOrdinaryAndTotalOutputs(t *testing.T) {
+	mCfg := &MetricConfig{
+		AggregateTotal:     true,
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"tag1": struct{}{}},
+	}
+	metric := newCounterMetric(7, newLabelPair("emitter", "total"), newLabelPair("tag1", "a1"))
+
+	results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, dto.MetricType_COUNTER, []*dto.Metric{metric})
+
+	require.Len(t, results, 2)
+	metricsByTag := makeStableMetricMap(results)
+	ordinary := metricsByTag["emitter:total:tag1:a1:"]
+	require.NotNil(t, ordinary)
+	require.Equal(t, 7.0, ordinary.Counter.GetValue())
+	total := metricsByTag["emitter:total:total:1:"]
+	require.NotNil(t, total)
+	require.Equal(t, []string{"emitter=total", "total=1"}, metricLabelStrings(total))
+	require.Equal(t, 7.0, total.Counter.GetValue())
+}
+
+func TestAggregateTotalHistogramPerEmitterHasIndependentOutputs(t *testing.T) {
+	mCfg := &MetricConfig{
+		AggregateTotal:     true,
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"group": struct{}{}},
+	}
+	sources := []*dto.Metric{
+		newHistogramMetricWithBucket(3, 2, newLabelPair("group", "a")),
+		newHistogramMetricWithBucket(5, 4, newLabelPair("group", "b")),
+		newHistogramMetricWithBucket(7, 6, newLabelPair("emitter", "system-probe"), newLabelPair("group", "a")),
+	}
+	sourceSnapshots := make([]*dto.Metric, len(sources))
+	for i, source := range sources {
+		sourceSnapshots[i] = proto.Clone(source).(*dto.Metric)
+	}
+
+	results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, dto.MetricType_HISTOGRAM, sources)
+
+	require.Len(t, results, 5)
+	metricsByTag := makeStableMetricMap(results)
+	agentGroupA := metricsByTag["emitter:agent:group:a:"]
+	agentGroupB := metricsByTag["emitter:agent:group:b:"]
+	systemProbeGroupA := metricsByTag["emitter:system-probe:group:a:"]
+	agentTotal := metricsByTag["emitter:agent:total:2:"]
+	systemProbeTotal := metricsByTag["emitter:system-probe:total:1:"]
+	require.NotNil(t, agentGroupA)
+	require.NotNil(t, agentGroupB)
+	require.NotNil(t, systemProbeGroupA)
+	require.NotNil(t, agentTotal)
+	require.NotNil(t, systemProbeTotal)
+
+	require.Equal(t, uint64(3), agentGroupA.Histogram.GetSampleCount())
+	require.Equal(t, uint64(2), agentGroupA.Histogram.GetBucket()[0].GetCumulativeCount())
+	require.Equal(t, uint64(5), agentGroupB.Histogram.GetSampleCount())
+	require.Equal(t, uint64(4), agentGroupB.Histogram.GetBucket()[0].GetCumulativeCount())
+	require.Equal(t, uint64(7), systemProbeGroupA.Histogram.GetSampleCount())
+	require.Equal(t, uint64(6), systemProbeGroupA.Histogram.GetBucket()[0].GetCumulativeCount())
+	require.Equal(t, []string{"emitter=agent", "total=2"}, metricLabelStrings(agentTotal))
+	require.Equal(t, uint64(8), agentTotal.Histogram.GetSampleCount())
+	require.Equal(t, uint64(6), agentTotal.Histogram.GetBucket()[0].GetCumulativeCount())
+	require.Equal(t, []string{"emitter=system-probe", "total=1"}, metricLabelStrings(systemProbeTotal))
+	require.Equal(t, uint64(7), systemProbeTotal.Histogram.GetSampleCount())
+	require.Equal(t, uint64(6), systemProbeTotal.Histogram.GetBucket()[0].GetCumulativeCount())
+
+	for i, source := range sources {
+		require.True(t, proto.Equal(sourceSnapshots[i], source), "source histogram %d was mutated", i)
+	}
+	requireHistogramPointersIndependent(t, agentGroupA.Histogram, sources[0].Histogram)
+	requireHistogramPointersIndependent(t, agentGroupB.Histogram, sources[1].Histogram)
+	requireHistogramPointersIndependent(t, systemProbeGroupA.Histogram, sources[2].Histogram)
+	requireHistogramPointersIndependent(t, agentTotal.Histogram, agentGroupA.Histogram)
+	requireHistogramPointersIndependent(t, systemProbeTotal.Histogram, systemProbeGroupA.Histogram)
+
+	agentGroupASnapshot := proto.Clone(agentGroupA).(*dto.Metric)
+	*agentTotal.Histogram.SampleCount = 80
+	*agentTotal.Histogram.Bucket[0].CumulativeCount = 60
+	*agentTotal.Histogram.Bucket[0].UpperBound = 20
+	*agentTotal.Histogram.Bucket[0].Exemplar.Value = 3.5
+	agentTotal.Histogram.Bucket[0].Exemplar.Timestamp.Seconds = 300
+	require.True(t, proto.Equal(agentGroupASnapshot, agentGroupA), "mutating total changed grouped histogram")
+	for i, source := range sources {
+		require.True(t, proto.Equal(sourceSnapshots[i], source), "mutating total changed source histogram %d", i)
+	}
+}
+
+func TestAggregateTotalWithoutPreserveTags(t *testing.T) {
+	for _, preserveTags := range []struct {
+		name string
+		yaml string
+	}{
+		{name: "omitted"},
+		{name: "empty", yaml: "            preserve_tags: []\n"},
+	} {
+		t.Run(preserveTags.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            aggregate_total: true
+%s`, preserveTags.yaml))
+			atelCfg, err := parseConfig(cfg)
+			require.NoError(t, err)
+			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+			metrics := []*dto.Metric{
+				newCounterMetric(10),
+				newCounterMetric(20, newLabelPair("emitter", "")),
+				newCounterMetric(30, newLabelPair("emitter", "system-probe")),
+			}
+
+			results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, dto.MetricType_COUNTER, metrics)
+
+			require.Len(t, results, 4)
+			metricsByTag := makeStableMetricMap(results)
+			require.Contains(t, metricsByTag, "emitter:agent:")
+			require.Equal(t, 30.0, metricsByTag["emitter:agent:"].Counter.GetValue())
+			require.Contains(t, metricsByTag, "emitter:system-probe:")
+			require.Equal(t, 30.0, metricsByTag["emitter:system-probe:"].Counter.GetValue())
+			agentTotal := metricsByTag["emitter:agent:total:2:"]
+			require.NotNil(t, agentTotal)
+			require.Equal(t, []string{"emitter=agent", "total=2"}, metricLabelStrings(agentTotal))
+			require.Equal(t, 30.0, agentTotal.Counter.GetValue())
+			systemProbeTotal := metricsByTag["emitter:system-probe:total:1:"]
+			require.NotNil(t, systemProbeTotal)
+			require.Equal(t, []string{"emitter=system-probe", "total=1"}, metricLabelStrings(systemProbeTotal))
+			require.Equal(t, 30.0, systemProbeTotal.Counter.GetValue())
+		})
+	}
 }
 
 // TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
@@ -1039,10 +1235,10 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	require.Contains(t, metrics1, "emitter:agent:tag1:a1:")
 	assert.Equal(t, float64(100), metrics1["emitter:agent:tag1:a1:"].Counter.GetValue())
 
-	// total should equal the partition sum (100)
-	// The total tag value will be "1" (1 timeseries after zero filtering)
-	require.Contains(t, metrics1, "total:1:")
-	assert.Equal(t, float64(100), metrics1["total:1:"].Counter.GetValue())
+	// The agent total should equal the partition sum (100), with a raw-series count of 1.
+	require.Contains(t, metrics1, "emitter:agent:total:1:")
+	assert.Equal(t, []string{"emitter=agent", "total=1"}, metricLabelStrings(metrics1["emitter:agent:total:1:"]))
+	assert.Equal(t, float64(100), metrics1["emitter:agent:total:1:"].Counter.GetValue())
 
 	// --- Cycle 2: add a NEW timeseries tag1=a2 (now 2 timeseries) ---
 	// Also increment a1 so both are non-zero
@@ -1070,8 +1266,9 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	// The total delta MUST equal the sum of partition deltas: 50 + 200 = 250.
 	// Before the fix, this would be the full cumulative value (350) due to a
 	// cache key miss when the total tag changed from total:"1" to total:"2".
-	require.Contains(t, metrics2, "total:2:")
-	totalValue := metrics2["total:2:"].Counter.GetValue()
+	require.Contains(t, metrics2, "emitter:agent:total:2:")
+	assert.Equal(t, []string{"emitter=agent", "total=2"}, metricLabelStrings(metrics2["emitter:agent:total:2:"]))
+	totalValue := metrics2["emitter:agent:total:2:"].Counter.GetValue()
 	partitionSum := metrics2["emitter:agent:tag1:a1:"].Counter.GetValue() + metrics2["emitter:agent:tag1:a2:"].Counter.GetValue()
 	assert.Equal(t, partitionSum, totalValue,
 		"total delta (%v) must equal sum of partition deltas (%v); mismatch indicates unstable cache key bug",

@@ -132,9 +132,9 @@ type Event struct {
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
-// When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
-// reserved tag). Only meaningful when preserve_tags is also specified.
+// When true, emits one total for each effective emitter. Each total is labeled with its
+// non-empty emitter and a reserved "total" tag containing the raw filtered source-series
+// count for that emitter. Totals are emitted whether preserve_tags is configured or not.
 //
 // profiles[].schedule (optional)
 // --------------------------------

@@ -341,13 +341,8 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	}
 
 	aggregates := make(map[metricAggregationKey]*dto.Metric)
-
-	// An empty preserve tag configuration does not enable aggregate_total.
-	aggregateTotal := mCfg.AggregateTotal && mCfg.preserveTagsExists
-	var totalMetric *dto.Metric
-	if aggregateTotal {
-		totalMetric = &dto.Metric{}
-	}
+	totalMetrics := make(map[string]*dto.Metric)
+	totalCounts := make(map[string]int)
 
 	for _, metric := range ms {
 		origLabels := metric.GetLabel()
@@ -378,16 +373,25 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 			aggregates[key] = aggregate
 		}
 
-		if aggregateTotal {
+		if mCfg.AggregateTotal {
+			totalMetric, ok := totalMetrics[emitter]
+			if !ok {
+				totalMetric = &dto.Metric{}
+				totalMetrics[emitter] = totalMetric
+			}
 			aggregateMetric(mt, totalMetric, metric)
+			totalCounts[emitter]++
 		}
 	}
 
 	results := slices.Collect(maps.Values(aggregates))
-	if aggregateTotal {
+	for _, emitter := range slices.Sorted(maps.Keys(totalMetrics)) {
+		emitterName := "emitter"
 		totalName := "total"
-		totalValue := strconv.Itoa(len(ms))
+		totalValue := strconv.Itoa(totalCounts[emitter])
+		totalMetric := totalMetrics[emitter]
 		totalMetric.Label = []*dto.LabelPair{
+			{Name: &emitterName, Value: &emitter},
 			{Name: &totalName, Value: &totalValue},
 		}
 		results = append(results, totalMetric)
