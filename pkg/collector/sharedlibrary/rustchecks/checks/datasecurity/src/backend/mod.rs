@@ -1,6 +1,6 @@
 //! Backend scan engines: run a sub task's query and return its column data.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::Value;
 
 use crate::config::SubTask;
@@ -14,7 +14,7 @@ pub trait ScanEngine: Sync {
     /// Engine name, matched against the sub task platform.
     fn name(&self) -> &'static str;
     /// Runs the sub task's query and returns its columns.
-    fn run_scan(&self, sub_task: &SubTask) -> Result<Value>;
+    fn fetch_data(&self, sub_task: &SubTask) -> Result<Value>;
 }
 
 /// Compiled engines. Add a new engine here behind its `engine-*` feature.
@@ -30,19 +30,12 @@ fn engine_for(platform: &str) -> Result<&'static dyn ScanEngine> {
         .iter()
         .copied()
         .find(|engine| engine.name() == platform)
-        .ok_or_else(|| {
-            let available = engines()
-                .iter()
-                .map(|engine| engine.name())
-                .collect::<Vec<_>>()
-                .join(", ");
-            anyhow::anyhow!("unsupported platform {platform:?} (compiled engines: [{available}])")
-        })
+        .with_context(|| format!("unsupported platform {platform:?}"))
 }
 
 /// Runs the sub task on the engine selected by its platform.
-pub fn execute_scan(sub_task: &SubTask) -> Result<Value> {
-    engine_for(&sub_task.platform)?.run_scan(sub_task)
+pub fn fetch_data(sub_task: &SubTask) -> Result<Value> {
+    engine_for(&sub_task.platform)?.fetch_data(sub_task)
 }
 
 #[cfg(all(test, feature = "engine-postgres"))]

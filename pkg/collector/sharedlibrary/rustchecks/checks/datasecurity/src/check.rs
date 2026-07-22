@@ -91,6 +91,6 @@ fn run_sub_task(
 
 /// Fetches the sub task's data and scans it, returning the matches.
 fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<Vec<Match>> {
-    let data = backend::execute_scan(sub_task).context("fetching sub task data")?;
+    let data = backend::fetch_data(sub_task).context("fetching sub task data")?;
     scanner.scan(&data).context("scanning sub task data")
 }
