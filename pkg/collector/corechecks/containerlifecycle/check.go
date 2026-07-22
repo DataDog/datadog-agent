@@ -95,22 +95,30 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	contSource := workloadmeta.SourceRuntime
-	if c.extendedSet {
-		contSource = workloadmeta.SourceAll
-	}
-	contFilterBuilder := workloadmeta.NewFilterBuilder().
-		SetSource(contSource).
+	contDeleteFilterBuilder := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindContainer)
-	if !c.extendedSet {
-		contFilterBuilder = contFilterBuilder.SetEventType(workloadmeta.EventTypeUnset)
-	}
 
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-cont",
 		workloadmeta.NormalPriority,
-		contFilterBuilder.Build(),
+		contDeleteFilterBuilder.Build(),
 	)
+
+	var contCreateEventsCh chan workloadmeta.EventBundle
+	if c.extendedSet {
+		contCreateFilterBuilder := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceAll).
+			SetEventType(workloadmeta.EventTypeSet).
+			AddKind(workloadmeta.KindContainer)
+
+		contCreateEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-cont-create",
+			workloadmeta.NormalPriority,
+			contCreateFilterBuilder.Build(),
+		)
+	}
 
 	podFilterBuilder := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
@@ -154,6 +162,12 @@ func (c *Check) Run() error {
 		select {
 		case eventBundle, ok := <-contEventsCh:
 			if !ok {
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-contCreateEventsCh:
+			if !ok {
+				stopProcessor()
 				return nil
 			}
 			c.processor.processEvents(eventBundle)
