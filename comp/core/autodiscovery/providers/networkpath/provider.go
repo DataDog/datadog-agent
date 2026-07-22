@@ -31,6 +31,11 @@ const (
 	scheduledType = "scheduled"
 	dynamicType   = "dynamic"
 	configSource  = names.NetworkPathRemoteConfig + ":" + scheduledType
+	// Keep this in sync with pkg/config/setup.DefaultNetworkPathMaxTTL and the
+	// Synthetics Network Tests default in comp/syntheticstestscheduler/impl. This
+	// provider cannot import pkg/config/setup because comp packages forbid that
+	// dependency. A follow-up PR should move the default to a neutral Network
+	// Path package that all consumers can import.
 	defaultMaxTTL = 30
 )
 
