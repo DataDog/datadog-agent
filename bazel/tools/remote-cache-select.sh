@@ -6,7 +6,7 @@
 #
 # Policy is controlled by DD_BAZEL_REMOTE_CACHE:
 #   auto (default) - enable only when the frontend is reachable and a token
-#                    source is available (env token, token file, or vault CLI).
+#                    source is available (env token or vault CLI on the host).
 #   on             - always enable; a failing credential helper aborts the build.
 #   off            - never enable (disk cache stays active).
 #
@@ -84,9 +84,14 @@ _remote_cache_eligible() {
   if _in_container; then
     # No interactive Vault login inside containers: require a pre-provided token.
     if [ "$have_token" != true ]; then
-      >&2 echo "💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:"
+      >&2 echo "💡 Bazel remote cache skipped: no Buildbarn token in this container. Log in on the host, mint a token, and inject it, e.g.:"
       # shellcheck disable=SC2016
-      >&2 echo '    export BUILDBARN_ID_TOKEN="$(vault read -address=https://vault.us1.ddbuild.io -field=token identity/oidc/token/buildbarn)"'
+      >&2 echo '    export VAULT_ADDR=https://vault.us1.ddbuild.io'
+      >&2 echo '    export BUILDBARN_ID_TOKEN="$('
+      >&2 echo '      vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn \'
+      >&2 echo '      || { vault login -address="$VAULT_ADDR" -method=oidc \'
+      >&2 echo '           && vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn; }'
+      >&2 echo '    )"'
       >&2 echo "    docker exec -e BUILDBARN_ID_TOKEN -it <container> ..."
       return 1
     fi
