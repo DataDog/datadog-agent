@@ -52,8 +52,12 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 // Cross Cloud Provider config
 
 // InternalRegistry returns the internal registry.
+// Local runs still pull agent-qa/cluster-agent-qa images from the AWS Agent QA
+// ECR registry; authentication is handled by the ImagePullRegistry-based
+// imagePullSecret mechanism (E2E_IMAGE_PULL_REGISTRY/USERNAME/PASSWORD), not by
+// this environment.
 func (e *Environment) InternalRegistry() string {
-	return "none"
+	return "669783387624.dkr.ecr.us-east-1.amazonaws.com"
 }
 
 // InternalDockerhubMirror returns the internal Dockerhub mirror.
