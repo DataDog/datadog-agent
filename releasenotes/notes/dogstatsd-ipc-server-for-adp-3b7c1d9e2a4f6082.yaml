@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The standalone ``dogstatsd`` process now exposes the Agent IPC gRPC server
+    (on ``cmd_port``, ``5001`` by default, bound to ``localhost``). This allows
+    a co-located Agent Data Plane to fetch its configuration from ``dogstatsd``
+    over the authenticated config-stream endpoint.
