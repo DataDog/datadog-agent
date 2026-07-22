@@ -124,7 +124,7 @@ def build_standard_lib(
     To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
     We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
     """
-    args["go_build_tags"] = " ".join(build_tags)
+    args["go_build_tags"] = ",".join(build_tags)
 
     ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
 
@@ -429,7 +429,7 @@ def test_flavor(
     result = TestResult('.')
 
     # Set default values for args
-    args["go_build_tags"] = " ".join(build_tags)
+    args["go_build_tags"] = ",".join(build_tags)
     args["json_flag"] = ""
     args["junit_file_flag"] = ""
 
@@ -952,7 +952,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If there are go file matching the build tags in the folder we do not try to run tests
         res = ctx.run(
-            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
+            f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
         )
         if res.stderr is not None and "matched no packages" in res.stderr:
             continue
@@ -1138,7 +1138,7 @@ def get_impacted_packages(ctx, build_tags=None):
         if file.endswith("go.mod") or file.endswith("go.sum"):
             with ctx.cd(os.path.dirname(file)):
                 all_packages = ctx.run(
-                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
+                    f'go list -tags "{",".join(build_tags)}" ./...', hide=True, warn=True
                 ).stdout.splitlines()
                 modified_packages.update(set(all_packages))
 
@@ -1178,7 +1178,7 @@ def create_dependencies(ctx, build_tags=None):
             with ctx.cd(module):
                 cmd = (
                     'go list -buildvcs=false '
-                    + f'-tags "{" ".join(build_tags)}" '
+                    + f'-tags "{",".join(build_tags)}" '
                     + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
                 )
                 running_commands.append((module, ctx.run(cmd, hide=True, warn=True, asynchronous=True)))
@@ -1289,7 +1289,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f'go list -buildvcs=false -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
+                f'go list -buildvcs=false -tags "{",".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
                 hide=True,
                 warn=True,
             )
@@ -1369,7 +1369,7 @@ def compute_gotestsum_cli_args(
     exclusion syntax).
     Otherwise, builds path glob patterns directly without running any subprocess.
     """
-    tag_str = ' '.join(build_tags or [])
+    tag_str = ','.join(build_tags or [])
     result = []
     for module in modules:
         if not module.should_test():
