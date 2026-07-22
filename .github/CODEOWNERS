@@ -853,7 +853,6 @@
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/files_inventory.py               @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
-/tasks/rust_shared_checks.py            @DataDog/agent-build @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
@@ -961,8 +960,8 @@
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry-agent
 /test/new-e2e/tests/privateactionrunner       @DataDog/action-platform
 /test/new-e2e/tests/process                   @DataDog/container-experiences
-/test/new-e2e/tests/process/ecs_test.go      @DataDog/ecs-experiences
-/test/new-e2e/tests/process/fargate_test.go  @DataDog/ecs-experiences
+/test/new-e2e/tests/process/ecs_test.go      @DataDog/ecs-experiences @DataDog/container-experiences
+/test/new-e2e/tests/process/fargate_test.go  @DataDog/ecs-experiences @DataDog/container-experiences
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-products
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-products @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
