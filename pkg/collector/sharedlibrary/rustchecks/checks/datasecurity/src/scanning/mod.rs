@@ -49,13 +49,12 @@ impl Scanner {
             .scan(&mut event)
             .context("failed to scan query result")?;
 
-        Ok(aggregate_matches(&self.rule_ids, &hits))
+        aggregate_matches(&self.rule_ids, &hits)
     }
 }
 
-/// Groups hits into `(column, rule)` pairs and counts matched rows. Sorted for
-/// deterministic output.
-fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Vec<Match> {
+/// Groups hits into `(column, rule)` pairs and counts matched rows.
+fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Match>> {
     let mut rows: HashMap<(&str, usize), HashSet<&Path>> = HashMap::new();
     // Bucket each hit by (column, rule), collecting its distinct row paths.
     for hit in hits {
@@ -65,21 +64,19 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Vec<Match> {
     }
 
     // Convert to matches.
-    let mut matches: Vec<Match> = rows
-        .into_iter()
-        .map(|((column, rule_index), paths)| Match {
-            rule_id: rule_ids.get(rule_index).cloned().unwrap_or_default(),
-            column_name: column.to_string(),
-            count_matched_rows: paths.len() as i64,
+    rows.into_iter()
+        .map(|((column, rule_index), paths)| {
+            // return an error if the rule index is unknown.
+            let rule_id = rule_ids.get(rule_index).cloned().with_context(|| {
+                format!("scanner returned unknown rule index {rule_index}")
+            })?;
+            Ok(Match {
+                rule_id,
+                column_name: column.to_string(),
+                count_matched_rows: paths.len() as i64,
+            })
         })
-        .collect();
-
-    matches.sort_by(|a, b| {
-        a.column_name
-            .cmp(&b.column_name)
-            .then_with(|| a.rule_id.cmp(&b.rule_id))
-    });
-    matches
+        .collect()
 }
 
 /// Column name = the path's leading field segment.
