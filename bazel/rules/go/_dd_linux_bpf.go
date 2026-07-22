@@ -67,11 +67,12 @@ func linuxBPFEnabled(c *config.Config) bool {
 // requiresLinuxBPF reports whether a //go:build expression compiles only when
 // linux_bpf is set: satisfiable with the tag, never satisfiable without it.
 // This treats "//go:build linux_bpf" (and e.g. "linux_bpf && linux") as
-// requiring the tag while ignoring "//go:build !linux_bpf". Platform/arch
-// tokens are free variables and go1.N tokens resolve against the toolchain,
-// both handled by canSatisfy (shared with the flavor logic).
+// requiring the tag while ignoring "//go:build !linux_bpf". "test" is always
+// assumed true in both checks, since these expressions only ever gate _test.go
+// files.
 func requiresLinuxBPF(e constraint.Expr) bool {
-	return canSatisfy(e, map[string]bool{linuxBPFTag: true}) && !canSatisfy(e, nil)
+	return canSatisfy(e, map[string]bool{linuxBPFTag: true, "test": true}) &&
+		!canSatisfy(e, map[string]bool{"test": true})
 }
 
 // srcsRequireLinuxBPF reports whether any of srcs carries a //go:build header
