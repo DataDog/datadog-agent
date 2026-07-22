@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -1573,6 +1572,10 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
+	// When true, DogStatsD fails to start (the process exits non-zero) when no listener
+	// (UDP port, UDS socket, or named pipe) could be created. When false, the failure is
+	// only logged and the process keeps running.
+	config.BindEnvAndSetDefault("dogstatsd_require_listener", false)
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
@@ -1602,12 +1605,12 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
-		"linux": defaultpaths.GetDefaultStatsdSocket(),
-		"aix":   defaultpaths.GetDefaultStatsdSocket(),
+		"linux": "/var/run/datadog/dsd.socket",
+		"aix":   "/var/run/datadog/dsd.socket",
 		"other": "",
 	}))
 
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
