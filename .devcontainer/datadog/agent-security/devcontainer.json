@@ -1,19 +1,6 @@
 {
   "name": "Datadog Security Agent Development Container",
-  "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v124282699-89230a57",
-  "features": {
-      "registry.ddbuild.io/workspaces/features/claude-code:0.1.122114922": {},
-      "registry.ddbuild.io/workspaces/features/trajectory:0.1.121704661": {},
-      "registry.ddbuild.io/workspaces/features/codex:0.1.116595837": {},
-      "registry.ddbuild.io/workspaces/features/base:0.4.116964598": {},
-      "../default/features/datadog-agent": {}
-  },
-  "forwardPorts": [
-    22
-  ],
-  "containerUser": "root",
-  "remoteUser": "bits",
-  "waitFor": "postStartCommand",
+  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:23a853a5e181b86b01bb82f55c2b1fd35f3b614a52e2b1d5db27e2f057ec7948",
   "runArgs": [
     "--pid=host",
     "--cgroupns=host",
