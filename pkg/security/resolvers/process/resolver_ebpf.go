@@ -85,6 +85,7 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
+	goLabelsMap         ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -1199,6 +1200,8 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 }
 
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
+// If the metadata is successfully parsed and the tracer is a Go runtime, it also resolves the
+// pprof label offsets and populates the go_labels_procs BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1214,8 +1217,8 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 
 // SnapshotTracer detects whether a pre-existing process (one that started
 // before the agent) is running a Datadog tracer and, if so, populates the
-// user-space tracer metadata the same way the runtime tracer_memfd_seal
-// event handler does.
+// user-space tracer metadata and the kernel-side go_labels_procs offset map
+// the same way the runtime tracer_memfd_seal event handler does.
 //
 // Called from the startup snapshot for every pid; processes without a tracer
 // memfd return cheaply via the GetTracerMetadata error path.
@@ -1239,13 +1242,23 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry.
+// applyTracerMetadata stores tracer metadata on the process cache entry and,
+// for Go processes, resolves the pprof label offsets for goroutine-level span
+// context. Must be called WITHOUT the resolver lock held; ELF I/O happens
+// outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
+
+	if tmeta.TracerLanguage == "go" {
+		// Go: resolve pprof label offsets for goroutine-level span context.
+		if err := p.resolveGoLabels(pid); err != nil {
+			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		}
+	}
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1314,6 +1327,9 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
 		return err
 	}
+
+	// go_labels_procs map is optional — non-fatal if not found.
+	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
 
 	go p.cacheFlush(ctx)
 

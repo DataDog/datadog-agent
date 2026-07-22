@@ -152,6 +152,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameTaskStructCred:              getTaskStructCredOffset,
 		OffsetNameTaskStructSignal:            getTaskStructSignalOffset,
 		OffsetNameTaskStructRealCred:          getTaskStructRealCredOffset,
+		OffsetNameTaskStructThread:            getTaskStructThreadOffset,
+		OffsetNameThreadStructFsbase:          getThreadStructFsbaseOffset,
+		OffsetNameThreadStructUw:              getThreadStructUwOffset,
 	}
 }
 
@@ -1186,4 +1189,29 @@ func getTaskStructRealCredOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+
+// Thread pointer offsets, used to read the current thread's TLS base out of
+// task_struct->thread (fsbase on x86_64, uw.tp_value on arm64) for OTel Thread
+// Local Context Record support in native applications and for the Go pprof
+// labels reader.
+// BTF is the primary source for these offsets; fallbacks are minimal since the
+// task_struct.thread offset varies significantly with kernel config.
+
+func getTaskStructThreadOffset(_ *kernel.Version) uint64 {
+	// The offset of 'thread' within task_struct depends heavily on kernel config
+	// (debug options, KASAN, etc.). BTF is strongly preferred for this offset.
+	return ErrorSentinel
+}
+
+func getThreadStructFsbaseOffset(_ *kernel.Version) uint64 {
+	// thread_struct.fsbase on x86_64, named 'fs' before 4.7. The offset differs
+	// between kernel builds of the same family (56 on RHEL7 3.10, 48 on UEK 4.1),
+	// so BTF is the only reliable source.
+	return ErrorSentinel
+}
+
+func getThreadStructUwOffset(_ *kernel.Version) uint64 {
+	// thread_struct.uw offset on ARM64, named 'tp_value' before 4.20. Varies with
+	// kernel config. BTF is strongly preferred for this offset.
+	return ErrorSentinel
 }

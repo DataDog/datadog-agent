@@ -3685,6 +3685,20 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
 
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+	// the thread pointer field of thread_struct was renamed on both architectures, so
+	// each request falls back to the older name to keep working on older kernels:
+	//   x86_64: `fs` became `fsbase`
+	//   arm64:  `tp_value` became `uw`
+	constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructFsbase,
+		constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "fsbase"},
+		constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "fs"},
+	)
+	constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructUw,
+		constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "uw"},
+		constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "tp_value"},
+	)
+
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
