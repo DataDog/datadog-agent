@@ -1,4 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "PROCESS_AGENT_TAGS")
 
 go_library(
     name = "process-agent_lib",
@@ -13,8 +15,9 @@ go_library(
     ],
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "process-agent",
     embed = [":process-agent_lib"],
+    gotags = sorted(COMMON_TAGS | PROCESS_AGENT_TAGS),
     visibility = ["//visibility:public"],
 )
