@@ -8,9 +8,13 @@
 ---
 features:
   - |
-    OTLP ingestion and the Datadog Distribution of OpenTelemetry Collector (DDOT) now support a new
-    ``otlp_config.logs.infra_attributes.tags_as_ddtags`` option (``logs_tags_as_ddtags`` on the
-    ``infraattributes`` processor). When enabled, custom tagger-derived tags (for example, tags
-    configured via ``kubernetesResourcesLabelsAsTags``/``kubernetesResourcesAnnotationsAsTags``) are
-    written as real Datadog log tags instead of log attributes. Default behavior is unchanged.
-    (commit 522ee5fe634)
+    OTLP ingestion: Adds a new ``otlp_config.logs.infra_attributes.tags_as_ddtags`` option. When enabled,
+    custom tagger-derived tags (for example, tags configured via
+    ``kubernetesResourcesLabelsAsTags``/``kubernetesResourcesAnnotationsAsTags``) are written as real
+    Datadog log tags instead of log attributes for OTLP logs ingested directly by the Agent. Default
+    behavior is unchanged. (commit 522ee5fe634)
+  - |
+    DDOT: The ``infraattributes`` processor now supports a new ``logs_tags_as_ddtags`` option. When
+    enabled, custom tagger-derived tags (for example, tags configured via
+    ``kubernetesResourcesLabelsAsTags``/``kubernetesResourcesAnnotationsAsTags``) are written as real
+    Datadog log tags instead of log attributes. Default behavior is unchanged. (commit 522ee5fe634)
