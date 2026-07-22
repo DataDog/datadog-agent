@@ -12,9 +12,13 @@ import (
 	"unsafe"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/modern-go/reflect2"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// podListType mirrors jsoniter's own pattern of pre-computing a reflect2.Type
+var podListType = reflect2.TypeOfPtr((*PodList)(nil)).Elem()
 
 // jsoniterConfig mirrors jsoniter.ConfigFastest
 var jsonConfig = jsoniter.Config{
@@ -23,40 +27,47 @@ var jsonConfig = jsoniter.Config{
 	ObjectFieldMustBeSimpleString: true,
 }
 
-// podUnmarshaller handles unmarshalling and filtering the podlist contents
+// PodUnmarshaller handles unmarshalling and filtering the podlist contents
 // according to the kubernetes_pod_expiration_duration setting. It uses jsoniter
 // under the hood, with a custom decoder.
-type podUnmarshaller struct {
+type PodUnmarshaller struct {
 	jsonConfig            jsoniter.API
 	podExpirationDuration time.Duration
 	timeNowFunction       func() time.Time // Allows to mock time in tests
 }
 
-func newPodUnmarshaller() *podUnmarshaller {
-	pu := &podUnmarshaller{
+// podListDecoder adapts PodUnmarshaller.filteringDecoder to jsoniter.ValDecoder
+type podListDecoder struct {
+	pu *PodUnmarshaller
+}
+
+func (d *podListDecoder) Decode(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+	d.pu.filteringDecoder(ptr, iter)
+}
+
+// NewPodUnmarshaller creates a PodUnmarshaller with its own private jsoniter
+// config, so registering the pod-expiration decoder on it can't race with any
+// other jsoniter user in the process.
+func NewPodUnmarshaller() *PodUnmarshaller {
+	pu := &PodUnmarshaller{
 		podExpirationDuration: pkgconfigsetup.Datadog().GetDuration("kubernetes_pod_expiration_duration") * time.Second,
 		timeNowFunction:       time.Now,
 	}
 
+	cfg := jsonConfig.Froze()
 	if pu.podExpirationDuration > 0 {
-		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.filteringDecoder)
-	} else {
-		// Force-unregister for unit tests to pick up the right state
-		jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
+		cfg.RegisterExtension(jsoniter.DecoderExtension{podListType: &podListDecoder{pu: pu}})
 	}
-
-	// Build a new frozen config to invalidate type decoder cache
-	pu.jsonConfig = jsonConfig.Froze()
-
+	pu.jsonConfig = cfg
 	return pu
 }
 
-// unmarshal is a drop-in replacement for json.Unmarshall
-func (pu *podUnmarshaller) unmarshal(data []byte, v interface{}) error {
+// Unmarshal is a drop-in replacement for json.Unmarshal
+func (pu *PodUnmarshaller) Unmarshal(data []byte, v interface{}) error {
 	return pu.jsonConfig.Unmarshal(data, v)
 }
 
-func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+func (pu *PodUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*PodList)(ptr)
 	cutoffTime := pu.timeNowFunction().Add(-1 * pu.podExpirationDuration)
 

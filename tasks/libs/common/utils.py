@@ -262,6 +262,33 @@ def _resolve_target_platform(platform: str | None = None) -> str:
     return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
 
 
+def _find_cross_compiler(target_platform: str, *compilers) -> str:
+    # remove empty/None values
+    compilers = list(filter(lambda cc: cc, compilers))
+
+    # find the first compiler that is available on PATH
+    if cc := next(filter(lambda cc: shutil.which(cc), compilers), None):
+        return cc
+
+    # fail with a clear error message
+    if target_platform == "darwin":
+        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+    elif target_platform == "win32":
+        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+    elif target_platform == "aix":
+        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
+    else:
+        instr = "the appropriate cross-compilation toolchain"
+    print(
+        color_message(
+            f"Error: Couldn't find any of the following compilers on PATH: {', '.join(compilers)}. "
+            f"Cross-linting for {target_platform} requires {instr}, or explicitly setting DD_CC and DD_CXX.",
+            "red",
+        )
+    )
+    raise Exit(code=1)
+
+
 def get_build_flags(
     ctx: Context,
     static=False,
@@ -403,49 +430,32 @@ def get_build_flags(
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
-    if cc := os.getenv("DD_CC"):
-        env["CC"] = cc
-    if cxx := os.getenv("DD_CXX"):
-        env["CXX"] = cxx
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    if dd_cc := os.getenv("DD_CC"):
+        env["CC"] = dd_cc
+    if dd_cxx := os.getenv("DD_CXX"):
+        env["CXX"] = dd_cxx
 
     # Cross-OS lint/build setup: configure cross-compilation environment
     if target_platform != sys.platform or arch.is_cross_compiling():
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["GOARCH"] = arch.go_arch
 
-        cc = arch.compiler_name("gcc", platform=target_platform)
-        cxx = arch.compiler_name("g++", platform=target_platform)
-
-        # Fall back to clang/clang++ (e.g. osxcross provides clang, not gcc)
-        if not shutil.which(cc):
-            cc_clang = arch.compiler_name(compiler="clang", platform=target_platform)
-            cxx_clang = arch.compiler_name(compiler="clang++", platform=target_platform)
-            if shutil.which(cc_clang):
-                cc = cc_clang
-                cxx = cxx_clang
-            else:
-                if target_platform == "darwin":
-                    instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
-                elif target_platform == "win32":
-                    instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
-                elif target_platform == "aix":
-                    instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
-                else:
-                    instr = "the appropriate cross-compilation toolchain"
-                print(
-                    color_message(
-                        f"Error: Cross-compiler '{cc}' (or '{cc_clang}') not found. "
-                        f"Cross-linting for {target_platform} requires {instr}.",
-                        "red",
-                    )
-                )
-                raise Exit(code=1)
-
-        env["CC"] = cc
-        env["CXX"] = cxx
+        env["CC"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CC"),
+            arch.compiler_name("gcc", target_platform),
+            arch.compiler_name("clang", target_platform),
+        )
+        env["CXX"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CXX"),
+            arch.compiler_name("g++", target_platform),
+            arch.compiler_name("clang++", target_platform),
+        )
+        print(f"Using CC {env['CC']} and CXX {env['CXX']} for cross-compilation")
 
         if target_platform == "aix":
             # Set the sysroot flag for the cross compiler
