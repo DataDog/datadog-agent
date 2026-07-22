@@ -102,7 +102,7 @@ func (p *privateCredentialResolver) resolveTokenAuthTokens(ctx context.Context, 
 				Name: tokenName, Value: value,
 			})
 		case *privateactionspb.ConnectionToken_FileSecret_:
-			secret, err := getSecretFromDockerLocation(ctx, t.FileSecret.GetPath(), tokenName)
+			secret, err := p.resolveFileSecret(ctx, t.FileSecret.GetPath(), tokenName)
 			if err != nil {
 				return nil, err
 			}
@@ -161,7 +161,7 @@ func (p *privateCredentialResolver) resolveBasicAuthTokens(ctx context.Context, 
 		// The password is provided inline; it may itself be an ENC[...] secret handle.
 		secret, err = p.resolveSecret(ctx, pwd.PlainText.GetValue())
 	default:
-		secret, err = getSecretFromDockerLocation(ctx, pwdToken.GetFileSecret().GetPath(), username)
+		secret, err = p.resolveFileSecret(ctx, pwdToken.GetFileSecret().GetPath(), username)
 	}
 	if err != nil {
 		return []privateconnection.PrivateCredentialsToken{}, err
@@ -209,6 +209,13 @@ func (p *privateCredentialResolver) resolveSecret(ctx context.Context, value str
 		return "", fmt.Errorf("could not unmarshal resolved secret: %w", err)
 	}
 	return out.Value, nil
+}
+
+func (p *privateCredentialResolver) resolveFileSecret(ctx context.Context, path string, secretName string) (string, error) {
+	if isEncrypted(path) {
+		return p.resolveSecret(ctx, path)
+	}
+	return getSecretFromDockerLocation(ctx, path, secretName)
 }
 
 // isEncrypted reports whether s is a Datadog secret backend handle in the ENC[...] format.
