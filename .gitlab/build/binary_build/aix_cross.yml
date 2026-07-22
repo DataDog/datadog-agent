@@ -3,6 +3,7 @@
 # runner, using the GNU cross-toolchain baked into the linux buildimage
 
 .cross_build_aix_ppc64:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 20m
   rules:
@@ -13,6 +14,9 @@
   variables:
     GOOS: aix
     GOARCH: ppc64
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 6
   before_script:
     - !reference [.retrieve_linux_go_deps]
     # Workaround for a Go linker bug: cmd/link/internal/ld/lib.go hardcodes
@@ -24,6 +28,7 @@
 cross_build_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
   script:
+    - dda inv -- check-go-version
     # python/cgo-python is not supported for AIX cross builds yet (no AIX-native
     # libpython to link against on a Linux host) - see tasks/libs/common/utils.py.
     - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e agent.build --build-exclude=python
@@ -32,5 +37,6 @@ cross_build_agent-binary_aix_ppc64:
 cross_build_trace_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
   script:
+    - dda inv -- check-go-version
     - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build
     - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent
