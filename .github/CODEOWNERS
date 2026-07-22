@@ -901,6 +901,8 @@
 /test/e2e-framework/testing/provisioners/aws/ecs/       @DataDog/ecs-experiences
 /test/e2e-framework/testing/environments/ecs.go         @DataDog/ecs-experiences
 /test/e2e-framework/scenarios/aws/ecs/                  @DataDog/ecs-experiences
+/test/e2e-framework/scenarios/aws/integrations/        @DataDog/agent-integrations
+/tasks/e2e_framework/aws/integrations/                  @DataDog/agent-integrations
 /test/e2e-framework/resources/aws/ecs/                  @DataDog/ecs-experiences
 /test/e2e-framework/components/ecs/                     @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecs.go     @DataDog/ecs-experiences
