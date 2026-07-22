@@ -708,6 +708,36 @@ func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 		`AllowedSystemServices: skipping unsupported action "stop" in grant 0 for "mysql.service"`)
 }
 
+func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.DebugLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "debug")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{setup.RShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{
+			"mysql.service": {"read"},
+		},
+	})
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"nginx.service": systemServiceActions("reload"),
+		"mysql.service": systemServiceActions("restart", "read", "read"),
+	})
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	require.NoError(t, logWriter.Flush())
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")
+	assert.Contains(t, logs, "effectiveAllowedSystemServices=[{mysql.service [read]}]")
+}
+
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 	// Backend only allowed "rshell:echo"; grep is blocked because it isn't
 	// in the signed backend list.

@@ -130,11 +130,10 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
 }
 
-// filterAllowedSystemServices returns the exact service/action pairs granted by
-// the signed task and permitted by the local operator policy. A nil operator
-// policy leaves the backend grants unchanged, while a configured empty policy
-// denies every service.
-func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
+// backendSystemServiceGrants converts the backend policy into a deterministic
+// list of exact service/action grants. Non-string action values are ignored
+// with a warning; duplicate actions are collapsed.
+func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
 	if len(backend) == 0 {
 		return []interp.SystemServiceControlGrant{}
 	}
@@ -166,21 +165,6 @@ func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*stru
 			actionSet[stringValue.StringValue] = struct{}{}
 		}
 
-		if h.operatorAllowedSystemServices != nil {
-			allowed, ok := h.operatorAllowedSystemServices[service]
-			if !ok {
-				continue
-			}
-			operatorActions := make(map[string]struct{}, len(allowed))
-			for _, action := range allowed {
-				operatorActions[action] = struct{}{}
-			}
-			for action := range actionSet {
-				if _, ok := operatorActions[action]; !ok {
-					delete(actionSet, action)
-				}
-			}
-		}
 		if len(actionSet) == 0 {
 			continue
 		}
@@ -196,6 +180,50 @@ func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*stru
 		})
 	}
 	return grants
+}
+
+// filterSystemServiceGrants narrows normalized backend grants with the local
+// operator policy. A nil operator policy leaves the backend grants unchanged,
+// while a configured empty policy denies every service.
+func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemServiceControlGrant) []interp.SystemServiceControlGrant {
+	if h.operatorAllowedSystemServices == nil {
+		return backend
+	}
+
+	grants := make([]interp.SystemServiceControlGrant, 0, len(backend))
+	for _, grant := range backend {
+		allowed, ok := h.operatorAllowedSystemServices[grant.Service]
+		if !ok {
+			continue
+		}
+
+		operatorActions := make(map[string]struct{}, len(allowed))
+		for _, action := range allowed {
+			operatorActions[action] = struct{}{}
+		}
+
+		actions := make([]interp.SystemServiceAction, 0, len(grant.Actions))
+		for _, action := range grant.Actions {
+			if _, ok := operatorActions[string(action)]; ok {
+				actions = append(actions, action)
+			}
+		}
+		if len(actions) == 0 {
+			continue
+		}
+
+		grants = append(grants, interp.SystemServiceControlGrant{
+			Service: grant.Service,
+			Actions: actions,
+		})
+	}
+	return grants
+}
+
+// filterAllowedSystemServices returns the exact service/action pairs granted by
+// the signed task and permitted by the local operator policy.
+func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
+	return h.filterSystemServiceGrants(backendSystemServiceGrants(backend))
 }
 
 func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
@@ -255,9 +283,10 @@ func (h *RunCommandHandler) Run(
 	backendCommands, backendPaths, backendSystemServices := backendAllowlistsFromTask(task, inputs)
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
-	effectiveAllowedSystemServices := h.filterAllowedSystemServices(backendSystemServices)
-	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v effectiveAllowedSystemServices=%v",
-		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths, effectiveAllowedSystemServices)
+	backendAllowedSystemServices := backendSystemServiceGrants(backendSystemServices)
+	effectiveAllowedSystemServices := h.filterSystemServiceGrants(backendAllowedSystemServices)
+	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v",
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
