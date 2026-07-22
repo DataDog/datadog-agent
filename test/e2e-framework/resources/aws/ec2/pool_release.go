@@ -15,21 +15,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// ScheduleReleaseOnDestroy attaches instanceID/leaseToken's release-and-restore
+// ScheduleReleaseOnDestroy attaches instanceID/leaseToken/imageID's release-and-revert
 // logic to opts' owning stack via a local.Command whose Delete handler runs
-// pool.BuildReleaseScript. Create is a no-op: this resource exists purely to
-// carry a Delete action, since `pulumi destroy` never re-invokes the Go
-// provisioner program that created it — cleanup can only happen through a
-// resource's own provider-level Delete, not through Go code run after the fact.
-//
-// imageID is the baseline AMI published by the external provisioning job into
-// instanceID's S3 lease record (AcquireResult.ImageID); it may be empty if that
-// job hasn't published one for this instance yet, in which case the Delete
-// handler skips the root-volume replacement but still releases the lease.
-//
-// leaseToken is passed via Triggers, matching ReplaceRootVolumeToLaunchState's
-// pattern, so a new lease on the same instance always produces a fresh trigger
-// value even though instanceID doesn't change between cycles.
+// pool.BuildReleaseScript. Create is a no-op; the resource exists to carry a Delete
+// action. imageID may be empty, in which case the Delete handler skips the
+// root-volume replacement but still releases the lease. leaseToken is passed via
+// Triggers so a new lease on the same instance produces a fresh trigger value.
 func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string, leaseToken string, imageID string, opts ...pulumi.ResourceOption) (*local.Command, error) {
 	if instanceID == "" {
 		return nil, fmt.Errorf("instanceID is required to schedule a pool release")
@@ -46,12 +37,9 @@ func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string,
 	}, opts...)
 }
 
-// awsCommandEnvironment builds the env vars a local.Command needs to run AWS
-// CLI calls against e's account/region. AWS_PROFILE is omitted when e.Profile()
-// is empty (e.g. aws-vault-style credential env vars rather than a named
-// profile) — passing AWS_PROFILE="" explicitly makes the AWS CLI look for a
-// profile literally named "", which fails with "config profile () could not
-// be found" even though credentials are already present in the environment.
+// awsCommandEnvironment builds the AWS_REGION/AWS_PROFILE env vars a local.Command
+// needs. AWS_PROFILE is omitted when empty, since an explicit empty value makes the
+// AWS CLI look for a profile literally named "".
 func awsCommandEnvironment(e aws.Environment) pulumi.StringMap {
 	env := pulumi.StringMap{
 		"AWS_REGION": pulumi.String(e.Region()),

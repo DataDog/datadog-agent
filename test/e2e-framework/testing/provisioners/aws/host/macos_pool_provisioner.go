@@ -25,33 +25,20 @@ import (
 
 const macOSPoolProvisionerBaseID = "aws-ec2vm-macos-pool-"
 
-// macOSPoolHostSSHUser is the AMI's default login user for every macOS flavor, matching
-// scenarios/aws/ec2/os_resolver.go's defaultUsers[os.MacosOS].
+// macOSPoolHostSSHUser is the AMI's default login user for every macOS flavor.
 const macOSPoolHostSSHUser = "ec2-user"
 
 // sshWaitTimeout/sshWaitRetryInterval bound how long ProvisionEnv waits for a freshly
-// launched instance to accept SSH connections. client.NewHost's own internal retry
-// budget (sshMaxRetries * sshRetryInterval, ~40s) is far too short for a cold macOS
-// boot, which can take several minutes, so it's wrapped in a longer outer retry loop.
+// launched instance to accept SSH connections.
 const (
 	sshWaitTimeout       = 15 * time.Minute
 	sshWaitRetryInterval = 15 * time.Second
 )
 
 // macOSPoolProvisioner provisions a macOS environments.Host directly through the AWS
-// SDK and the resources/aws/ec2/pool package, bypassing Pulumi entirely: it acquires a
-// member of the shared macOS EC2 pool — provisioned and published by an external
-// service/job, never by this provisioner — and waits for it to become SSH-reachable
-// itself instead of relying on a Pulumi remote.Host resource.
-//
-// Pulumi's stack-config system (Pulumi.<stack>.yaml) has no reader outside a live
-// *pulumi.Context, so region/profile come from pool.LoadLaunchConfigFromEnv
-// (E2E_MACOS_POOL_* env vars, falling back to us-east-1) instead.
-//
-// instanceID/region/profile/leaseToken are populated by ProvisionEnv and read back by
-// Destroy: both are always called on the same provisioner value for a given stack (see
-// testing/standalone.Provision/Destroy and testing/e2e/suite.go's currentProvisioners
-// map), so storing lease state on the struct is safe.
+// SDK and the resources/aws/ec2/pool package, bypassing Pulumi: it acquires a member of
+// the shared macOS EC2 pool and waits for it to become SSH-reachable, instead of
+// relying on a Pulumi remote.Host resource.
 type macOSPoolProvisioner struct {
 	id   string
 	opts []ec2.VMOption
@@ -65,10 +52,8 @@ type macOSPoolProvisioner struct {
 var _ provisioners.TypedProvisioner[environments.Host] = &macOSPoolProvisioner{}
 
 // NewMacOSPoolProvisioner returns a Pulumi-free provisioner for a macOS
-// environments.Host, drawing from the shared EC2 pool instead of Pulumi-managed
-// per-run infrastructure. opts are the same VMOptions passed to
-// ec2.WithEC2InstanceOptions; only the OS descriptor is used, to describe the
-// imported host's OSFamily/OSFlavor/OSVersion/Architecture.
+// environments.Host, drawing from the shared EC2 pool. opts are the same VMOptions
+// passed to ec2.WithEC2InstanceOptions.
 func NewMacOSPoolProvisioner(name string, opts ...ec2.VMOption) provisioners.TypedProvisioner[environments.Host] {
 	return &macOSPoolProvisioner{
 		id:   macOSPoolProvisionerBaseID + name,
@@ -83,10 +68,8 @@ func (p *macOSPoolProvisioner) ID() string {
 
 // ProvisionEnv acquires an existing macOS pool instance and imports it into env.RemoteHost.
 func (p *macOSPoolProvisioner) ProvisionEnv(ctx context.Context, _ string, logger io.Writer, env *environments.Host) (provisioners.RawResources, error) {
-	// This provisioner only ever imports RemoteHost: CreateEnv pre-allocates the other
-	// importable fields too, and BuildEnvFromResources errors on any importable field
-	// left un-keyed with no matching resource, so Agent/FakeIntake/Updater must be
-	// explicitly disabled rather than simply left untouched.
+	// This provisioner only ever imports RemoteHost, so Agent/FakeIntake/Updater must
+	// be explicitly disabled.
 	env.DisableAgent()
 	env.DisableFakeIntake()
 	env.DisableUpdater()
@@ -152,11 +135,7 @@ func (p *macOSPoolProvisioner) ProvisionEnv(ctx context.Context, _ string, logge
 	return provisioners.RawResources{p.id: marshalled}, nil
 }
 
-// waitForSSH polls client.NewHost (which itself retries internally for ~40s, see
-// sshMaxRetries/sshRetryInterval in client/host.go) until it succeeds or sshWaitTimeout
-// elapses. The connection it opens isn't reused: components.RemoteHost.Init (called by
-// environments.BuildEnvFromResources right after ProvisionEnv returns) opens its own via
-// the imported HostOutput — this call only proves SSH is reachable beforehand.
+// waitForSSH polls client.NewHost until it succeeds or sshWaitTimeout elapses.
 func waitForSSH(ctx context.Context, logger io.Writer, hostOutput remote.HostOutput) error {
 	deadline := time.Now().Add(sshWaitTimeout)
 	sshCtx := &sshWaitContext{logger: logger}
@@ -178,9 +157,7 @@ func waitForSSH(ctx context.Context, logger io.Writer, hostOutput remote.HostOut
 }
 
 // sshWaitContext adapts an io.Writer logger to client.Context for waitForSSH's use of
-// client.NewHost, which needs to log connection attempts but has nothing meaningful to
-// call FailNow for (a failed attempt here just means "retry"), and no session output
-// directory to report.
+// client.NewHost.
 type sshWaitContext struct {
 	logger io.Writer
 }
@@ -197,10 +174,8 @@ func (c *sshWaitContext) SessionOutputDir() string {
 	return ""
 }
 
-// macOSPoolOwnerID labels lease records with the CI pipeline that claimed them
-// (CI_PIPELINE_ID, set by GitLab CI), falling back to a fixed label for local/standalone
-// runs. This is purely informational (pool.leaseRecord.Owner); it plays no role in the
-// S3-conditional-write lease safety itself.
+// macOSPoolOwnerID labels lease records with the CI pipeline that claimed them,
+// falling back to a fixed label for local/standalone runs.
 func macOSPoolOwnerID() string {
 	if pipelineID := os.Getenv("CI_PIPELINE_ID"); pipelineID != "" {
 		return pipelineID
@@ -208,9 +183,8 @@ func macOSPoolOwnerID() string {
 	return "local"
 }
 
-// Destroy resets the pool instance's root volume back to its launch state and releases
-// its lease, making it available for the next caller. It is a no-op if ProvisionEnv
-// never successfully claimed an instance.
+// Destroy resets the pool instance's root volume to its launch state and releases its
+// lease. It is a no-op if ProvisionEnv never successfully claimed an instance.
 func (p *macOSPoolProvisioner) Destroy(ctx context.Context, _ string, logger io.Writer) error {
 	if p.instanceID == "" {
 		return nil

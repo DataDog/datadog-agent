@@ -3,13 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package pool implements the tag-based instance discovery described in
-// MACOS_EC2_POOL_PROPOSAL.md's "Proposed architecture" section: a pool instance
-// is provisioned and published (via the S3 lease object) by an external
-// service/job, outside this package's responsibility. This package only
-// discovers already-published, idle members by tag and attaches to one (via
-// Pulumi import, or a direct SSH import for the non-Pulumi path) — it never
-// creates instances itself.
+// Package pool discovers idle, tagged macOS EC2 instances and attaches to one via
+// an S3-backed lease. It never provisions or creates instances itself.
 package pool
 
 import (
@@ -44,11 +39,8 @@ const (
 )
 
 // leaseRecord is the JSON body stored at leasePrefix+instanceID in leaseBucket,
-// mutated exclusively via S3 conditional writes (If-Match/If-None-Match) so
-// concurrent callers never both believe they've claimed the same instance.
-// ImageID is populated by the external provisioning job, never by this package;
-// it identifies the baseline AMI BuildReleaseScript reverts the instance to on
-// release, read straight through by callers rather than discovered dynamically.
+// mutated via S3 conditional writes (If-Match/If-None-Match). ImageID identifies the
+// baseline AMI BuildReleaseScript reverts the instance to on release.
 type leaseRecord struct {
 	Status   string `json:"status"` // "idle" or "in-use"
 	ImageID  string `json:"imageId,omitempty"`
@@ -56,10 +48,8 @@ type leaseRecord struct {
 	LeasedAt int64  `json:"leased_at,omitempty"`
 }
 
-// FindInstanceByTag looks for a running or stopped EC2 instance carrying
-// tagKey=tagValue, returning its instance ID and true if one exists. It
-// returns found=false (no error) if no matching instance exists yet, which
-// callers should treat as "create one and tag it," not as a failure.
+// FindInstanceByTag returns the first running or stopped EC2 instance carrying
+// tagKey=tagValue, or found=false if none exists.
 func FindInstanceByTag(ctx context.Context, client *awsec2.Client, tagKey, tagValue string) (instanceID string, found bool, err error) {
 	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
 		Filters: []awsec2types.Filter{
@@ -85,16 +75,15 @@ func FindInstanceByTag(ctx context.Context, client *awsec2.Client, tagKey, tagVa
 	return "", false, nil
 }
 
-// PoolInstance is one EC2 instance discovered by ListPoolInstances, carrying the
-// Dedicated Host it currently sits on so a caller reusing it can pin InstanceArgs.HostID
-// to that same host instead of allocating a new one.
+// PoolInstance is one EC2 instance discovered by ListPoolInstances, with the
+// Dedicated Host it currently sits on.
 type PoolInstance struct {
 	InstanceID string
 	HostID     string
 }
 
 // ListPoolInstances returns every running or stopped EC2 instance carrying
-// tagKey=tagValue, unlike FindInstanceByTag which returns only the first match.
+// tagKey=tagValue.
 func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagValue string) ([]PoolInstance, error) {
 	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
 		Filters: []awsec2types.Filter{
@@ -125,16 +114,11 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagVa
 	return instances, nil
 }
 
-// AcquireIdleInstance attempts to claim one idle instance from pool via a
-// conditional S3 write (If-Match on the lease object's current ETag),
-// returning the instance ID and a lease token (its new ETag) on success. A
-// pool instance with no lease object yet is treated as not-yet-published by
-// the external provisioning job (not as a fresh instance to claim) and is
-// skipped. It retries the whole-pool scan up to maxAcquireRetries times,
-// acquireRetryInterval apart, since any instance could become idle or get
-// published between attempts. It does not reclaim leases stranded by a
-// non-graceful failure (deferred: time-based stale-lease reclaim, see
-// MACOS_EC2_POOL_PROPOSAL.md).
+// AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
+// (If-Match on the lease object's current ETag), returning its instance ID, lease
+// token (new ETag), and image ID on success. It retries the whole-pool scan up to
+// maxAcquireRetries times, acquireRetryInterval apart. It does not reclaim leases
+// stranded by a non-graceful failure.
 func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -149,8 +133,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 
 			getOut, getErr := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 			if getErr != nil {
-				// No lease object yet: the external provisioning job hasn't published
-				// this instance as available yet. Not claimable.
+				// No lease object yet: not claimable.
 				continue
 			}
 			var current leaseRecord
@@ -191,10 +174,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 }
 
 // ReleaseInstance marks instanceID idle again, conditioned on leaseToken still
-// matching the lease object's current ETag. Callers must revert the instance's
-// root volume before calling this. The current record's ImageID (published by
-// the external provisioning job) is read back and carried forward into the
-// released body, so releasing a lease never erases it.
+// matching the lease object's current ETag, and preserves the record's ImageID.
 func ReleaseInstance(ctx context.Context, region, profile string, instanceID string, leaseToken string) error {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -227,10 +207,8 @@ func ReleaseInstance(ctx context.Context, region, profile string, instanceID str
 	return nil
 }
 
-// AcquireResult is what Acquire returns for a successfully claimed pool member: enough
-// to import the existing instance (InstanceID/HostID), later release it (LeaseToken),
-// and revert it to baseline on release (ImageID, published by the external
-// provisioning job — empty if it hasn't published one for this instance yet).
+// AcquireResult is a successfully claimed pool member: InstanceID/HostID to import it,
+// LeaseToken to release it, and ImageID to revert it to baseline on release.
 type AcquireResult struct {
 	InstanceID string
 	HostID     string
@@ -238,10 +216,8 @@ type AcquireResult struct {
 	ImageID    string
 }
 
-// Acquire lists every instance tagged PoolTagKey=PoolTagValue and attempts to claim one
-// idle, already-published member via AcquireIdleInstance. Instance creation and initial
-// publication (the S3 lease object) are owned by an external service/job, not by this
-// package, so an empty or fully-unavailable pool is an error, not a signal to create one.
+// Acquire lists every instance tagged PoolTagKey=PoolTagValue and claims one idle
+// member via AcquireIdleInstance. An empty or fully-unavailable pool is an error.
 func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
 	instances, err := ListPoolInstances(ctx, client, PoolTagKey, PoolTagValue)
 	if err != nil {
@@ -270,8 +246,7 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 	}, nil
 }
 
-// NewEC2Client builds an EC2 API client scoped to e's region/profile, for callers
-// (outside this package) that need to list or tag pool instances themselves.
+// NewEC2Client builds an EC2 API client scoped to region/profile.
 func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, error) {
 	cfg, err := awsConfig.LoadDefaultConfig(ctx,
 		awsConfig.WithRegion(region),
@@ -283,21 +258,13 @@ func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, 
 	return awsec2.NewFromConfig(cfg), nil
 }
 
-// BuildReleaseScript returns a shell script that restores instanceID to imageID (the
-// baseline AMI published by the external provisioning job into the instance's S3
-// lease record — see AcquireResult.ImageID) via boot-disk (root volume) replacement
-// and, once that completes, marks the instance idle in the S3 lease store by writing
-// directly to leasePrefix+instanceID (matching ReleaseInstance's semantics),
-// conditioned on leaseToken so a stale/duplicate release never clobbers a newer claim.
-// If imageID is empty (the external job hasn't published a baseline for this instance
-// yet), the root-volume replacement is skipped but the lease is still released.
+// BuildReleaseScript returns a shell script that reverts instanceID's root volume to
+// imageID's snapshot, then releases the lease at leasePrefix+instanceID conditioned on
+// leaseToken. If imageID is empty, the root-volume replacement is skipped and the
+// lease is released directly.
 //
-// This is a shell script, not a Go function, because it must run as a Pulumi
-// local.Command's Delete handler: `pulumi destroy` never re-invokes the Go
-// provisioner program, so any cleanup-on-release logic needs to live in each
-// resource's own provider-level delete action (see root_volume.go's
-// ReplaceRootVolumeToLaunchState for the same constraint applied to boot-disk
-// replacement itself).
+// This runs as a Pulumi local.Command's Delete handler, since `pulumi destroy` never
+// re-invokes the Go provisioner program.
 func BuildReleaseScript(instanceID, leaseToken, imageID string) string {
 	return fmt.Sprintf(`set -e
 INSTANCE_ID=%q

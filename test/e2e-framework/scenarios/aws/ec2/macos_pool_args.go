@@ -11,14 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
-// MacOSPoolArgs is the Pulumi-free subset of vmArgs the macOS pool provisioner needs:
-// vmArgs and buildArgs are private to this package, and defaultVMArgs additionally
-// requires an aws.Environment (itself bound to a *pulumi.Context, e.g. for
-// InstanceProfile/Tenancy config) that the non-Pulumi provisioner doesn't have. This
-// resolves only the caller-supplied VMOptions plus the macOS-specific defaulting
-// vmargs.go's defaultVMArgs applies (default instance type by architecture); every
-// other default (subnet, security groups, key pair, instance profile...) comes from
-// pool.LaunchConfig instead.
+// MacOSPoolArgs is the Pulumi-free subset of vmArgs the macOS pool provisioner needs.
 type MacOSPoolArgs struct {
 	OSInfo             *os.Descriptor
 	InstanceType       string
@@ -28,9 +21,8 @@ type MacOSPoolArgs struct {
 	VolumeThroughput   int
 }
 
-// ResolveMacOSPoolArgs applies opts (as passed to ec2.WithEC2InstanceOptions) and
-// returns the Pulumi-free subset needed to launch a macOS pool instance directly via
-// the AWS SDK.
+// ResolveMacOSPoolArgs applies opts and returns the Pulumi-free subset needed to
+// launch a macOS pool instance directly via the AWS SDK.
 func ResolveMacOSPoolArgs(opts ...VMOption) (*MacOSPoolArgs, error) {
 	args, err := buildArgs(opts...)
 	if err != nil {

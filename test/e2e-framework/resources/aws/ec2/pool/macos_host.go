@@ -15,17 +15,16 @@ import (
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
-// LaunchConfig holds the region/profile the macOS pool provisioner would otherwise
-// read from Pulumi stack config (Pulumi.<stack>.yaml), which has no reader outside a
-// live *pulumi.Context. There is no Pulumi-free equivalent of that config system in
-// this codebase, so the macOS pool provisioner sources these from env vars instead.
+// LaunchConfig holds the AWS region/profile for the macOS pool provisioner, sourced
+// from env vars since there is no Pulumi-free way to read stack config outside a live
+// *pulumi.Context.
 type LaunchConfig struct {
 	Region  string
 	Profile string
 }
 
-// LoadLaunchConfigFromEnv reads LaunchConfig from E2E_MACOS_POOL_* env vars, falling
-// back to us-east-1 for the region if unset.
+// LoadLaunchConfigFromEnv reads LaunchConfig from E2E_MACOS_POOL_* env vars, defaulting
+// the region to us-east-1 if unset.
 func LoadLaunchConfigFromEnv() (*LaunchConfig, error) {
 	return &LaunchConfig{
 		Region:  getEnvDefault("E2E_MACOS_POOL_REGION", "us-east-1"),
@@ -44,11 +43,8 @@ func getEnvDefault(key, def string) string {
 // create-replace-root-volume-task to reach a terminal state.
 const rootVolumeReplaceWaitTimeout = 10 * time.Minute
 
-// ResetRootVolume resets instanceID's root volume to its exact state at launch time
-// (no AMI/snapshot involved), rebooting the instance as part of the task. This is the
-// raw-SDK equivalent of resources/aws/ec2/root_volume.go's ReplaceRootVolumeToLaunchState,
-// used on release instead of a Pulumi local.Command since there is no Pulumi resource to
-// attach a Delete handler to on this path.
+// ResetRootVolume resets instanceID's root volume to its launch-time state and reboots
+// the instance.
 func ResetRootVolume(ctx context.Context, client *awsec2.Client, instanceID string) error {
 	createOut, err := client.CreateReplaceRootVolumeTask(ctx, &awsec2.CreateReplaceRootVolumeTaskInput{
 		InstanceId: &instanceID,
