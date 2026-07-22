@@ -5,12 +5,25 @@
 
 #include "process.h"
 
+#include "constants/macros.h"
+
+// --- Go pprof labels helpers (separate file) ---
+#include "span_go.h"
+
+
 // --- Unified span context fill ---
 //
 // fill_span_context is the single entry point every hook calls to attach a
 // span context to an event. It currently leaves the span empty; upcoming
-// APM-correlation readers will populate it here.
+// APM-correlation readers (Go pprof labels, OTEP 4947) will populate it here.
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
+    span->extra_attrs_id = 0;
+
+    // Go pprof labels (dd-trace-go sets "span id" / "local root span id").
+    if (fill_span_context_go(span)) {
+        return;
+    }
+
     // No span context available.
     span->span_id = 0;
     span->trace_id[0] = span->trace_id[1] = 0;
