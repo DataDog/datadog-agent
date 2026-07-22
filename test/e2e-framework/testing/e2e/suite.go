@@ -734,7 +734,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
+		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" && !isLocalProvisionerMode() {
 			// Remote cleanup requires the looked-up Pulumi stack name. Skip if unavailable.
 			if stackNameErr != nil {
 				utils.Logf(bs.T(), "skipping remote stack cleaning because pulumi stack name lookup failed")
@@ -768,6 +768,21 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 	}
+}
+
+// isLocalProvisionerMode returns true when the suite is running against a local,
+// runner-lifetime-bound provisioner (E2E_PROVISIONER=kind-local or E2E_DEV_LOCAL=true).
+// Such infrastructure lives inside the CI runner's own Docker daemon and disappears
+// when the runner stops, so there is no remote stack for the stackcleaner-worker
+// service to destroy; deferring to it would just fail or add latency for nothing.
+func isLocalProvisionerMode() bool {
+	provisioner, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.Provisioner, "")
+	if err == nil && strings.ToLower(provisioner) == "kind-local" {
+		return true
+	}
+
+	devLocal, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevLocal, false)
+	return err == nil && devLocal
 }
 
 // SaveCoverage saves the coverage of the environment to the given directory.
