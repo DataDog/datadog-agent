@@ -1,5 +1,7 @@
 # Log extractor comparison
 
+See [`TOKENIZER_CLUSTERING_FACTORIAL.md`](TOKENIZER_CLUSTERING_FACTORIAL.md) for the controlled performance and accuracy decomposition of Logs tokenization, semantic tokenization, fixed-representative matching, and type-aware matching.
+
 All arms disable JSON numeric extraction and explicit connection-error extraction. Evaluations use the default detector/correlator pipeline with a Gaussian scoring sigma of 30 seconds.
 
 | Arm | Branch | Mean F1 | Scenarios |

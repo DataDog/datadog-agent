@@ -170,6 +170,23 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
+			{
+				name:          LogSemanticTokenizerAblationExtractorName,
+				displayName:   "Semantic Tokenizer Ablation Extractor",
+				kind:          componentExtractor,
+				defaultConfig: DefaultLogSemanticTokenizerAblationExtractorConfig(),
+				factory: func(cfg any) any {
+					return NewLogSemanticTokenizerAblationExtractor(cfg.(LogSemanticTokenizerAblationExtractorConfig))
+				},
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogSemanticTokenizerAblationExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("%s: failed to parse JSON config: %w", LogSemanticTokenizerAblationExtractorName, err)
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Detectors ----
 			{
 				name:           "cusum",

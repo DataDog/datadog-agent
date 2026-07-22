@@ -1,0 +1,59 @@
+{
+  "components": {
+    "log_metrics_extractor": {
+      "enabled": false
+    },
+    "connection_error_extractor": {
+      "enabled": false
+    },
+    "log_pattern_extractor": {
+      "enabled": false
+    },
+    "log_tokenizer_extractor": {
+      "enabled": false
+    },
+    "log_tokenizer_fuzzy_extractor": {
+      "enabled": false
+    },
+    "log_semantic_tokenizer_ablation_extractor": {
+      "enabled": true,
+      "max_eval_bytes": 12500,
+      "min_pattern_count_before_emit": 5,
+      "match_threshold": 0.5,
+      "match_mode": "exact"
+    },
+    "bocpd": {
+      "enabled": false
+    },
+    "rrcf": {
+      "enabled": false
+    },
+    "holt_residual": {
+      "enabled": false
+    },
+    "scanmw": {
+      "enabled": false
+    },
+    "scanwelch": {
+      "enabled": true
+    },
+    "cusum": {
+      "enabled": false
+    },
+    "tukey_biweight": {
+      "enabled": false
+    },
+    "time_cluster": {
+      "enabled": true
+    },
+    "cross_signal": {
+      "enabled": false
+    },
+    "passthrough": {
+      "enabled": false
+    },
+    "anomaly_scorer": {
+      "enabled": false
+    }
+  }
+}
