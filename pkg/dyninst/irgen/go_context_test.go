@@ -60,6 +60,65 @@ func TestAnnotateSpecialGoTypesContextValueCtx(t *testing.T) {
 	require.Equal(t, int32(32), wrapped.ValueOffset)
 }
 
+// TestAnnotateSpecialGoTypesNonChainContextImpl covers a struct that
+// implements context.Context but is not a link in a walkable context chain: it
+// has no context.Context field of its own (e.g. rapid.Context, whose methods
+// forward to the request's context). It is wrapped as a
+// GoContextImplementationType for a descriptive IR label, but with no chain
+// data (all offsets -1, HasChainData() == false), so the compiler and loader
+// capture it as an ordinary struct rather than running it through the chain
+// walk.
+func TestAnnotateSpecialGoTypesNonChainContextImpl(t *testing.T) {
+	writerIface := &ir.GoInterfaceType{
+		TypeCommon: ir.TypeCommon{
+			ID:       1,
+			Name:     "io.Writer",
+			ByteSize: 16,
+		},
+	}
+	intType := &ir.BaseType{
+		TypeCommon: ir.TypeCommon{
+			ID:       2,
+			Name:     "int",
+			ByteSize: 8,
+		},
+	}
+	// A context implementation with no context.Context field and no key/value
+	// payload, so it is not a chain link.
+	impl := &ir.StructureType{
+		TypeCommon: ir.TypeCommon{
+			ID:       3,
+			Name:     "example.RequestContext",
+			ByteSize: 24,
+		},
+		RawFields: []ir.Field{
+			{Name: "w", Offset: 0, Type: writerIface},
+			{Name: "n", Offset: 16, Type: intType},
+		},
+	}
+	tc := &typeCatalog{typesByID: map[ir.TypeID]ir.Type{
+		writerIface.ID: writerIface,
+		intType.ID:     intType,
+		impl.ID:        impl,
+	}}
+
+	annotateSpecialGoTypes(tc, true, map[ir.TypeID]struct{}{
+		impl.ID: {},
+	})
+
+	wrapped, ok := tc.typesByID[impl.ID].(*ir.GoContextImplementationType)
+	require.True(t, ok,
+		"a non-chain-link impl is wrapped as GoContextImplementationType for a "+
+			"descriptive IR label")
+	require.Same(t, impl, wrapped.StructureType)
+	require.Equal(t, ir.GoContextNoOffset, wrapped.ContextOffset)
+	require.Equal(t, ir.GoContextNoOffset, wrapped.KeyOffset)
+	require.Equal(t, ir.GoContextNoOffset, wrapped.ValueOffset)
+	require.False(t, wrapped.HasChainData(),
+		"an impl with no parent context and no key/value payload has no chain "+
+			"data, so it is captured as a plain struct rather than chain-walked")
+}
+
 func TestAnnotateSpecialGoTypesDDTraceSpan(t *testing.T) {
 	u64 := &ir.BaseType{
 		TypeCommon: ir.TypeCommon{
