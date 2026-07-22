@@ -37,13 +37,13 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
-	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
+	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -207,8 +207,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -495,6 +493,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -583,8 +582,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// errortracking submitter wire — atel owns buffer/flush/recursion.
-		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -603,33 +600,6 @@ func getSharedFxOption() fx.Option {
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
-}
-
-// installErrortrackingHandler is a no-op when the feature is disabled
-// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs synchronously inside atel.stop()
-// (deliberately not as a separate OnStop hook here) so it precedes the
-// final flush-goroutine drain.
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
-	if !configUtils.IsErrorTrackingEnabled(cfg) {
-		return
-	}
-
-	submitter := func(elog errortrackingpkg.ErrorLog) {
-		at.SubmitErrorLog(elog)
-	}
-
-	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
-	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
-
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
-			return nil
-		},
-	})
 }
 
 // startAgent Initializes the agent process
@@ -714,11 +684,6 @@ func startAgent(
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 
-		if cfg.GetBool("network_path.remote_config.enabled") {
-			networkPathProvider := networkpathprovider.NewProvider()
-			rcclient.Subscribe(data.ProductNetworkPath, networkPathProvider.Update)
-			ac.AddConfigProvider(networkPathProvider, false, 0)
-		}
 	}
 
 	// start clc runner server
