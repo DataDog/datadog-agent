@@ -70,7 +70,8 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 
 	var transitions []*contlcycle.PodStateTransition
 
-	if pod.Phase != "" && pod.Phase != shadow.phase {
+	// If the pod phase has changed, add a transition event.
+	if phaseChanged(shadow.phase, pod.Phase) {
 		var lastObserved *contlcycle.PodStatusValue
 		if shadow.phase != "" {
 			lastObserved = &contlcycle.PodStatusValue{Value: &contlcycle.PodStatusValue_Phase{Phase: shadow.phase}}
@@ -88,20 +89,14 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 		shadow.phase = pod.Phase
 	}
 
+	// If any condition has changed, add a transition event.
 	for _, condition := range pod.Conditions {
 		priorCondition, seen := shadow.conditions[condition.Type]
-		if seen && priorCondition == condition {
+		if conditionUnchanged(seen, priorCondition, condition) {
 			continue
 		}
 
-		missedIntermediate := contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE
-		if seen && priorCondition.Status == condition.Status &&
-			!priorCondition.LastTransitionTime.Equal(condition.LastTransitionTime) {
-			// LastTransitionTime only advances on a real status flip, so an unchanged
-			// status with an advanced timestamp proves it transitioned away and back
-			// in the gap since our last observation.
-			missedIntermediate = contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN
-		}
+		missedIntermediate := conditionMissedIntermediate(seen, priorCondition, condition)
 
 		var lastObserved *contlcycle.PodStatusValue
 		if seen {
@@ -144,6 +139,25 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 	}
 
 	return les, nil
+}
+
+// phaseChanged reports whether current is a real, newly-observed phase value.
+func phaseChanged(prior, current string) bool {
+	return current != "" && current != prior
+}
+
+// conditionUnchanged reports whether a condition has already been observed and is identical to its prior value.
+func conditionUnchanged(seen bool, prior, current workloadmeta.KubernetesPodCondition) bool {
+	return seen && prior == current
+}
+
+// conditionMissedIntermediate reports PROVEN when status is unchanged but LastTransitionTime advanced,
+// since that only happens on a real status flip.
+func conditionMissedIntermediate(seen bool, prior, current workloadmeta.KubernetesPodCondition) contlcycle.MissedIntermediate {
+	if seen && prior.Status == current.Status && !prior.LastTransitionTime.Equal(current.LastTransitionTime) {
+		return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN
+	}
+	return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE
 }
 
 // conditionToModel converts a workloadmeta pod condition into its contlcycle proto representation.
