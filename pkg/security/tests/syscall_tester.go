@@ -21,12 +21,24 @@ import (
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
+	binPath, err := loadSyscallTesterArtifact(test, binary, 0o700)
+	if err != nil {
+		return "", err
+	}
+
+	if err := checkSyscallTester(t, binPath); err != nil {
+		return "", err
+	}
+
+	return binPath, nil
+}
+
+func loadSyscallTesterArtifact(test *testModule, binary string, perm int) (string, error) {
 	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/" + binary)
 	if err != nil {
 		return "", err
 	}
 
-	perm := 0o700
 	binPath, _, _ := test.CreateWithOptions(binary, -1, -1, perm)
 
 	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
@@ -39,10 +51,6 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 		return "", err
 	}
 	f.Close()
-
-	if err := checkSyscallTester(t, binPath); err != nil {
-		return "", err
-	}
 
 	return binPath, nil
 }

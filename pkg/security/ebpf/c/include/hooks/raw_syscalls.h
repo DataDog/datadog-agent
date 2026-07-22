@@ -15,14 +15,24 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     send_signal(pid);
 
-    struct syscall_monitor_event_t event = {};
-    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
-    fill_cgroup_context(proc_cache_entry, &event.cgroup);
+    // syscall_monitor_event_t lives in a per-CPU map rather than on the stack:
+    // it carries a 64-byte syscall encoding table plus process/cgroup/span
+    // context, which together leave too little room for the bpf-to-bpf call
+    // into fill_span_context_go on pre-6.17 verifiers (combined budget 512b).
+    u32 key = 0;
+    struct syscall_monitor_event_t *event = bpf_map_lookup_elem(&sc_monitor_event, &key);
+    if (!event) {
+        return 0;
+    }
+    __builtin_memset(event, 0, sizeof(*event));
+
+    struct proc_cache_t *proc_cache_entry = fill_process_context(&event->process);
+    fill_cgroup_context(proc_cache_entry, &event->cgroup);
 
     // check if this event should trigger a syscall drift event
     if (is_anomaly_syscalls_enabled()) {
         // fetch the profile for the current cgroup
-        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.cgroup.path_key.ino);
+        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event->cgroup.path_key.ino);
         if (profile) {
             u64 cookie = profile->cookie;
             struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&secprofs_syscalls, &cookie);
@@ -38,8 +48,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                     syscall_monitor_entry_insert(entry, args->id);
                 }
                 // send an event if need be
-                event.event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
-                send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_DRIFT);
+                event->event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
+                send_or_skip_syscall_monitor_event(args, event, entry, &zero, SYSCALL_MONITOR_TYPE_DRIFT);
             }
         }
     }
@@ -57,8 +67,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
             // insert the current syscall in the map
             syscall_monitor_entry_insert(entry, args->id);
             // send an event if need be
-            event.event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-            send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_DUMP);
+            event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+            send_or_skip_syscall_monitor_event(args, event, entry, &zero, SYSCALL_MONITOR_TYPE_DUMP);
         }
     }
 

@@ -153,27 +153,36 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
         return 0;
     }
 
-    struct setxattr_event_t event = {
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .syscall.retval = retval,
-        .file = syscall->xattr.file,
-    };
+    // setxattr_event_t lives in a per-CPU map rather than on the stack: at
+    // ~480 bytes it leaves no room for the bpf-to-bpf call into
+    // fill_span_context_go (combined stack budget is 512 bytes on pre-6.17
+    // verifiers).
+    u32 zero = 0;
+    struct setxattr_event_t *event = bpf_map_lookup_elem(&setxattr_event_gen, &zero);
+    if (!event) {
+        return 0;
+    }
+    __builtin_memset(event, 0, sizeof(*event));
+
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->syscall.retval = retval;
+    event->file = syscall->xattr.file;
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
+    bpf_probe_read_str(&event->name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
 
     struct proc_cache_t *entry;
     if (syscall->xattr.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->xattr.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event->process, syscall->xattr.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event->process);
     }
 
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_file(syscall->xattr.dentry, &event.file);
-    fill_span_context(&event.span);
+    fill_cgroup_context(entry, &event->cgroup);
+    fill_file(syscall->xattr.dentry, &event->file);
+    fill_span_context(&event->span);
 
-    send_event(ctx, event_type, event);
+    send_event_ptr(ctx, event_type, event);
 
     return 0;
 }
