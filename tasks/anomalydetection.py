@@ -184,6 +184,7 @@ def eval_scenarios(
     scenario_output_dir: str = "/tmp",
     timeout: int = 0,
     scenarios: str = "",
+    logs_only: bool = False,
     _logger: StepLogger | None = None,
 ) -> dict:
     """
@@ -215,6 +216,7 @@ def eval_scenarios(
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
         timeout: Per-scenario time budget in seconds (rolling: unused time rolls over). 0 = no limit.
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        logs_only: Pass --logs-only to skip parquet metrics and trace stats.
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
@@ -260,10 +262,11 @@ def eval_scenarios(
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
+        logs_only_part = " --logs-only" if logs_only else ""
         scenario_start = time.monotonic()
         try:
             ctx.run(
-                f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
+                f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}{logs_only_part}",
                 timeout=None if timeout == 0 else max(1, int(budget_remaining)),
             )
         except Exception as e:
@@ -327,7 +330,12 @@ def eval_scenarios(
 
     f1_scores: list[float] = [float(r["f1"]) for r in results]
     main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
-    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
+    main_report = {
+        "score": main_score,
+        "metadata": {r["name"]: r for r in results},
+        "component_configs": config_obj,
+        "logs_only": logs_only,
+    }
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
     print(f"Saved main report to {main_report_path}")
