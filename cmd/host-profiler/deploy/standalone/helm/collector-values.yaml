@@ -50,10 +50,13 @@ securityContext:
   privileged: false
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
-  # AppArmor is optional. The default is unconfined so this example works on
-  # clusters that do not support or manage AppArmor profiles.
+  # AppArmor has an optional profile.
+  # Both LSMs are set to their default privileged profiles so this example works on clusters that do not support or
+  # manage one or the other.
   appArmorProfile:
     type: Unconfined
+  seLinuxOptions:
+    type: spc_t
   capabilities:
     add:
       - BPF
