@@ -26,8 +26,5 @@ serde_json.workspace = true
 # postgres engine (gated behind the `engine-postgres` feature)
 postgres = { version = "0.19", optional = true }
 
-[dev-dependencies]
-serde_yaml = "0.9.34"
-
 [lib]
 crate-type = ["cdylib"]
