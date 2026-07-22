@@ -186,7 +186,7 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 // defaultAuthProtocol returns the SNMPv3 authentication protocol to use when authKey
 // is set without an explicit authProtocol. Default to SHA256 in FIPS mode, MD5 otherwise.
 func defaultAuthProtocol() string {
-	if fipsEnabled, _ := fips.Enabled(); fipsEnabled {
+	if fips.BuiltForFIPS() {
 		return "sha256"
 	}
 	return "md5"
@@ -195,7 +195,7 @@ func defaultAuthProtocol() string {
 // defaultPrivProtocol returns the SNMPv3 privacy protocol to use when privKey is set
 // without an explicit privProtocol. Default to AES in FIPS mode, DES otherwise.
 func defaultPrivProtocol() string {
-	if fipsEnabled, _ := fips.Enabled(); fipsEnabled {
+	if fips.BuiltForFIPS() {
 		return "aes"
 	}
 	return "des"
