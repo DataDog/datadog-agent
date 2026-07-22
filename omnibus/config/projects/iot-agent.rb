@@ -75,7 +75,11 @@ else
   # measure the package-size impact of shipping ADP with the IoT Agent
   # (DogStatsD-on-ADP for the IoT flavor). See the "Freezing the IoT Agent"
   # proposal for context.
-  dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
+  #
+  # ADP only ships amd64/arm64 artifacts and the recipe maps any arm target to
+  # arm64, so the armhf/armv7l IoT build is explicitly excluded to avoid
+  # packaging an aarch64 binary into a 32-bit ARM package.
+  dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target? && !arm7l_target?
 
   if windows_target?
     dependency 'datadog-agent-finalize'
