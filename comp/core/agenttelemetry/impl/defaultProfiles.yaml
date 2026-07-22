@@ -509,6 +509,51 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: data_loss
+  # Gated behind the "diagnostics_data_loss" remote flag: these
+  # metrics are only gathered and shipped once the flag enables the profile at
+  # runtime (see remoteflags_handler.go). Off by default.
+  diagnostic: true
+  metric:
+    exclude:
+      zero_metric: true # only surface non-zero drops -> cheap + high-signal
+    metrics:
+      # Forwarder retry queue: transactions dropped once the in-memory queue is full.
+      - name: transaction_container.transactions_dropped_count
+        preserve_tags:
+          - domain
+      - name: transactions.retry_queue_size
+        preserve_tags:
+          - domain
+      # On-disk retry storage: corrupted/unreadable persisted transactions.
+      - name: file_storage.deserialize_errors_count
+        preserve_tags:
+          - domain
+      # DogStatsD ingest: buffer saturation and memory-based rate limiting.
+      - name: dogstatsd.packets_buffer_flush_full
+        preserve_tags:
+          - listener_id
+      - name: dogstatsd.mem_based_rate_limiter_high_limit
+      # Serialization drops.
+      - name: jsonstream.item_drops
+      - name: sketch_series.payload_full
+      - name: sketch_series.sketch_too_big
+      # Logs pipeline: send failures and adaptive-sampler drops.
+      - name: logs.dropped
+        preserve_tags:
+          - destination
+      - name: logs_adaptive_sampler.dropped
+        preserve_tags:
+          - source
+          - detection_only
+      - name: logs_adaptive_sampler.bytes_dropped
+        preserve_tags:
+          - source
+          - detection_only
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 60 # fresher than the default 900 for triage
 - name: ebpf
   metric:
     exclude:

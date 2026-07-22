@@ -25,6 +25,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	rftypes "github.com/DataDog/datadog-agent/comp/core/remoteflags/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -47,6 +48,18 @@ type atel struct {
 	sender  sender
 	runner  runner
 	atelCfg *Config
+
+	// diagnosticEnabled gates "diagnostic" profiles (see Profile.Diagnostic).
+	// It is keyed by profile name and populated at construction from the
+	// diagnostic profiles found in the config; entries default to false. A
+	// remote flag toggles the value at runtime via setDiagnosticEnabled, and
+	// run() skips any diagnostic profile whose gate is off. The map itself is
+	// never mutated after construction, so concurrent reads are safe; only the
+	// atomic.Bool values change.
+	diagnosticEnabled map[string]*atomic.Bool
+	// lastRunOK reflects whether the most recent run() that included a
+	// diagnostic profile succeeded. It backs the remote-flag IsHealthy check.
+	lastRunOK *atomic.Bool
 
 	lightTracer *installertelemetry.Telemetry
 
@@ -100,6 +113,8 @@ type Provides struct {
 
 	Comp     agenttelemetry.Component
 	Endpoint api.AgentEndpointProvider
+
+	RemoteFlagSubscriber rftypes.RemoteFlagSubscriber
 }
 
 // Interfacing with runner.
@@ -242,6 +257,9 @@ func createAtel(
 			"datadog-agent",
 		),
 
+		diagnosticEnabled: buildDiagnosticGates(atelCfg),
+		lastRunOK:         atomic.NewBool(true),
+
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
 
@@ -287,8 +305,9 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	return Provides{
-		Comp:     a,
-		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		Comp:                 a,
+		Endpoint:             api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		RemoteFlagSubscriber: rftypes.NewRemoteFlagSubscriber(atelFlagSubscriber{a: a}),
 	}
 }
 
@@ -645,20 +664,100 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	return session, nil
 }
 
+// buildDiagnosticGates creates the runtime gate for every diagnostic profile in
+// the config. Gates default to false (disabled); a remote flag flips them on.
+func buildDiagnosticGates(cfg *Config) map[string]*atomic.Bool {
+	gates := make(map[string]*atomic.Bool)
+	if cfg == nil {
+		return gates
+	}
+	for _, p := range cfg.Profiles {
+		if p.Diagnostic {
+			gates[p.Name] = atomic.NewBool(false)
+		}
+	}
+	return gates
+}
+
+// setDiagnosticEnabled toggles a diagnostic profile's runtime gate. It is a
+// no-op for unknown or non-diagnostic profile names.
+func (a *atel) setDiagnosticEnabled(name string, on bool) {
+	if b, ok := a.diagnosticEnabled[name]; ok {
+		// We're enabling, set lastRunOK to true until there is an actual run.
+		if on && a.lastRunOK != nil {
+			a.lastRunOK.Store(true)
+		}
+		b.Store(on)
+	}
+}
+
+// diagnosticCollectionHealthy reports whether the last diagnostic collection
+// succeeded. It backs the remote-flag IsHealthy check: enabling data-loss
+// metrics is read-only and low-risk, so this only guards against the COAT
+// collection itself erroring out.
+func (a *atel) diagnosticCollectionHealthy() bool {
+	return a.lastRunOK == nil || a.lastRunOK.Load()
+}
+
+// filterEnabledProfiles drops diagnostic profiles whose runtime gate is off.
+// Non-diagnostic profiles always pass through. The common case (a schedule with
+// no diagnostic profiles) returns the input slice untouched.
+func (a *atel) filterEnabledProfiles(profiles []*Profile) (filtered []*Profile, includedDiagnostic bool) {
+	hasDiagnostic := false
+	for _, p := range profiles {
+		if p.Diagnostic {
+			hasDiagnostic = true
+			break
+		}
+	}
+	if !hasDiagnostic {
+		return profiles, false
+	}
+
+	filtered = make([]*Profile, 0, len(profiles))
+	for _, p := range profiles {
+		if p.Diagnostic {
+			if b, ok := a.diagnosticEnabled[p.Name]; !ok || !b.Load() {
+				continue
+			}
+			includedDiagnostic = true
+		}
+		filtered = append(filtered, p)
+	}
+	return filtered, includedDiagnostic
+}
+
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
+	profiles, includedDiagnostic := a.filterEnabledProfiles(profiles)
+	if len(profiles) == 0 {
+		// Every profile in this schedule is a disabled diagnostic profile;
+		// nothing to gather or ship this tick.
+		return
+	}
+
 	a.logComp.Info("Starting agent telemetry run")
 	session, err := a.loadPayloads(profiles)
 	if err != nil {
+		if includedDiagnostic {
+			a.lastRunOK.Store(false)
+		}
 		a.logComp.Errorf("failed to load agent telemetry session: %s", err)
 		return
 	}
 
 	err = a.sender.flushSession(session)
 	if err != nil {
+		if includedDiagnostic {
+			a.lastRunOK.Store(false)
+		}
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
+	}
+
+	if includedDiagnostic {
+		a.lastRunOK.Store(true)
 	}
 }
 
