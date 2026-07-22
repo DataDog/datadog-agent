@@ -15,8 +15,5 @@ libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-[dev-dependencies]
-serde_yaml = "0.9.34"
-
 [lib]
 crate-type = ["cdylib"]
